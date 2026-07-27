@@ -8,122 +8,266 @@ spec:
   - name: hcp-etcd-grpc-latency-recording
     interval: 1m
     rules:
-    # Average gRPC latency across all etcdserverpb methods per HCP, computed
-    # as rate(sum) / rate(count) over a 5-minute window.
-    #
-    # Only _count and _sum are collected (no histogram _bucket) to keep
-    # cardinality low: ~86 series per HCP (43 method/code combos × 2) vs
-    # ~516 extra _bucket series. This is sufficient for average latency;
-    # histogram buckets can be added later for percentile calculations.
-    #
-    # Requires ETCD_METRICS=extensive on the etcd container — without it,
-    # etcd only exposes basic gRPC counters (grpc_server_handled_total) and
-    # does not emit the grpc_server_handling_seconds histogram at all.
-    #
-    # namespace=~"ocm-.*" restricts to HCP etcd only
-    # 
-    #
-    # Division by zero: when count rate is zero (no traffic), PromQL binary
-    # `/` drops the sample rather than producing +Inf.
-    - record: etcd:grpc_server_handling:avg_latency_seconds:rate5m
+    # P99 gRPC latency per HCP using histogram_quantile over a 5m window.
+    # grpc_server_handling_seconds is from go-grpc-prometheus instrumentation
+    # and is available in etcd's default (basic) metrics mode.
+    # namespace=~"ocm-.*" restricts to HCP etcd only.
+    - record: etcd:grpc_server_handling:latency_p99:rate5m
       expr: |
-        sum by (namespace, cluster) (
-          rate(grpc_server_handling_seconds_sum{
-            namespace=~"ocm-.*",
-            grpc_service=~"etcdserverpb.*"
-          }[5m])
-        )
-        /
-        sum by (namespace, cluster) (
-          rate(grpc_server_handling_seconds_count{
-            namespace=~"ocm-.*",
-            grpc_service=~"etcdserverpb.*"
-          }[5m])
+        histogram_quantile(0.99,
+          sum by (namespace, cluster, le) (
+            rate(grpc_server_handling_seconds_bucket{
+              namespace=~"ocm-.*",
+              grpc_service=~"etcdserverpb.*"
+            }[5m])
+          )
         )
 
-    # Total gRPC request rate per HCP. Used for load correlation and as the
-    # denominator in the EtcdGrpcErrorRateHigh alert expression.
-    - record: etcd:grpc_server_handling:request_rate:rate5m
+    # P95 gRPC latency per HCP.
+    - record: etcd:grpc_server_handling:latency_p95:rate5m
       expr: |
-        sum by (namespace, cluster) (
-          rate(grpc_server_handling_seconds_count{
-            namespace=~"ocm-.*",
-            grpc_service=~"etcdserverpb.*"
-          }[5m])
+        histogram_quantile(0.95,
+          sum by (namespace, cluster, le) (
+            rate(grpc_server_handling_seconds_bucket{
+              namespace=~"ocm-.*",
+              grpc_service=~"etcdserverpb.*"
+            }[5m])
+          )
         )
 
-    # Rate of gRPC requests returning non-OK status codes (Unavailable,
-    # DeadlineExceeded, etc.). Used as the numerator in the error rate alert.
-    - record: etcd:grpc_server_handling:error_rate:rate5m
+  - name: hcp-etcd-grpc-latency-alerts
+    rules:
+    # ---------------------------------------------------------------
+    # Latency P99 alerts — multi-window per ADR-001
+    # SLO: P99 gRPC latency < 200ms
+    # etcd docs recommend P99 < 100ms; 200ms indicates degradation.
+    # ---------------------------------------------------------------
+
+    # Fast burn: P99 > 200ms sustained over 1h AND still elevated in 5m
+    - alert: userJourneyEtcdLatencyP991h5m
+      expr: |
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                namespace=~"ocm-.*",
+                grpc_service=~"etcdserverpb.*"
+              }[1h])
+            )
+          ) > 0.2
+        )
+        and
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                namespace=~"ocm-.*",
+                grpc_service=~"etcdserverpb.*"
+              }[5m])
+            )
+          ) > 0.2
+        )
+      for: 2m
+      labels:
+        severity: "3"
+        slo: etcd-grpc-latency
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "etcd P99 gRPC latency critically high (>200ms, fast burn)"
+        description: "HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd P99 gRPC latency has exceeded 200ms in both the 1h and 5m windows, indicating a fast error budget burn (14.4x). At this rate, the latency SLO budget will be exhausted in ~3 days. Common causes: disk I/O saturation, CPU throttling, network latency between etcd members, or large range queries."
+        correlationId: "userJourneyEtcdLatencyP991h5m/{{ $labels.cluster }}/{{ $labels.namespace }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+
+    # Medium burn: P99 > 200ms sustained over 6h AND 30m
+    - alert: userJourneyEtcdLatencyP996h30m
+      expr: |
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                namespace=~"ocm-.*",
+                grpc_service=~"etcdserverpb.*"
+              }[6h])
+            )
+          ) > 0.2
+        )
+        and
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                namespace=~"ocm-.*",
+                grpc_service=~"etcdserverpb.*"
+              }[30m])
+            )
+          ) > 0.2
+        )
+      for: 2m
+      labels:
+        severity: "3"
+        slo: etcd-grpc-latency
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "etcd P99 gRPC latency elevated (>200ms, medium burn)"
+        description: "HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd P99 gRPC latency has exceeded 200ms in both the 6h and 30m windows, indicating a medium error budget burn (6x). At this rate, the latency SLO budget will be exhausted in ~5 days. Investigate disk I/O performance, etcd resource utilization, database size, and recent workload changes."
+        correlationId: "userJourneyEtcdLatencyP996h30m/{{ $labels.cluster }}/{{ $labels.namespace }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+
+    # Slow burn: P99 > 200ms over 3d (no short window per ADR-001)
+    - alert: userJourneyEtcdLatencyP993d
+      expr: |
+        histogram_quantile(0.99,
+          sum by (namespace, cluster, le) (
+            rate(grpc_server_handling_seconds_bucket{
+              namespace=~"ocm-.*",
+              grpc_service=~"etcdserverpb.*"
+            }[3d])
+          )
+        ) > 0.2
+      for: 10m
+      labels:
+        severity: "4"
+        slo: etcd-grpc-latency
+        long_window: 3d
+      annotations:
+        summary: "etcd P99 gRPC latency exceeds SLO (>200ms, slow burn)"
+        description: "HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd P99 gRPC latency has exceeded 200ms over a 3-day window, indicating persistent degradation at the SLO boundary (1x burn rate). At this rate, the monthly latency SLO budget will be exhausted by end of month. This typically indicates gradual performance degradation from growing database size, slow disk, or increasing cluster load."
+        correlationId: "userJourneyEtcdLatencyP993d/{{ $labels.cluster }}/{{ $labels.namespace }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+
+    # ---------------------------------------------------------------
+    # Error rate alerts — multi-window multi-burn-rate per ADR-001
+    # SLO: 99.95% gRPC success rate (error budget: 0.05%)
+    # Division by zero: if request_rate is zero, PromQL drops the sample.
+    # ---------------------------------------------------------------
+
+    # Fast burn (14.4x): error rate > 0.72% in 1h AND 5m
+    - alert: userJourneyEtcdErrors1h5m
+      expr: |
+        (
+          sum by (namespace, cluster) (
+            rate(grpc_server_handling_seconds_count{
+              namespace=~"ocm-.*",
+              grpc_service=~"etcdserverpb.*",
+              grpc_code!="OK"
+            }[1h])
+          )
+          /
+          sum by (namespace, cluster) (
+            rate(grpc_server_handling_seconds_count{
+              namespace=~"ocm-.*",
+              grpc_service=~"etcdserverpb.*"
+            }[1h])
+          )
+          > 0.0072
+        )
+        and
+        (
+          sum by (namespace, cluster) (
+            rate(grpc_server_handling_seconds_count{
+              namespace=~"ocm-.*",
+              grpc_service=~"etcdserverpb.*",
+              grpc_code!="OK"
+            }[5m])
+          )
+          /
+          sum by (namespace, cluster) (
+            rate(grpc_server_handling_seconds_count{
+              namespace=~"ocm-.*",
+              grpc_service=~"etcdserverpb.*"
+            }[5m])
+          )
+          > 0.0072
+        )
+      for: 2m
+      labels:
+        severity: "3"
+        slo: etcd-grpc-errors
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "etcd gRPC error rate critically high (>0.72%, fast burn)"
+        description: "HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd gRPC error rate has exceeded 0.72% (14.4x burn rate against 99.95% SLO) in both the 1h and 5m windows. At this rate, the monthly error budget (0.05%) will be exhausted in ~3 days. Check for etcd member failures, network partitions, or resource exhaustion (Unavailable/DeadlineExceeded gRPC codes)."
+        correlationId: "userJourneyEtcdErrors1h5m/{{ $labels.cluster }}/{{ $labels.namespace }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+
+    # Medium burn (6x): error rate > 0.3% in 6h AND 30m
+    - alert: userJourneyEtcdErrors6h30m
+      expr: |
+        (
+          sum by (namespace, cluster) (
+            rate(grpc_server_handling_seconds_count{
+              namespace=~"ocm-.*",
+              grpc_service=~"etcdserverpb.*",
+              grpc_code!="OK"
+            }[6h])
+          )
+          /
+          sum by (namespace, cluster) (
+            rate(grpc_server_handling_seconds_count{
+              namespace=~"ocm-.*",
+              grpc_service=~"etcdserverpb.*"
+            }[6h])
+          )
+          > 0.003
+        )
+        and
+        (
+          sum by (namespace, cluster) (
+            rate(grpc_server_handling_seconds_count{
+              namespace=~"ocm-.*",
+              grpc_service=~"etcdserverpb.*",
+              grpc_code!="OK"
+            }[30m])
+          )
+          /
+          sum by (namespace, cluster) (
+            rate(grpc_server_handling_seconds_count{
+              namespace=~"ocm-.*",
+              grpc_service=~"etcdserverpb.*"
+            }[30m])
+          )
+          > 0.003
+        )
+      for: 2m
+      labels:
+        severity: "3"
+        slo: etcd-grpc-errors
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "etcd gRPC error rate elevated (>0.3%, medium burn)"
+        description: "HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd gRPC error rate has exceeded 0.3% (6x burn rate against 99.95% SLO) in both the 6h and 30m windows. At this rate, the monthly error budget (0.05%) will be exhausted in ~5 days. Investigate etcd cluster health, member connectivity, and recent configuration or workload changes."
+        correlationId: "userJourneyEtcdErrors6h30m/{{ $labels.cluster }}/{{ $labels.namespace }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+
+    # Slow burn (1x): error rate > 0.05% over 3d (no short window)
+    - alert: userJourneyEtcdErrors3d
       expr: |
         sum by (namespace, cluster) (
           rate(grpc_server_handling_seconds_count{
             namespace=~"ocm-.*",
             grpc_service=~"etcdserverpb.*",
             grpc_code!="OK"
-          }[5m])
+          }[3d])
         )
-
-  - name: hcp-etcd-grpc-latency-alerts
-    rules:
-    # Warning: average gRPC latency exceeds 200ms for 5 consecutive minutes.
-    # etcd documentation recommends P99 < 100ms for healthy operation; 200ms
-    # average indicates meaningful degradation but is not yet service-impacting.
-    # Common causes: disk I/O saturation, CPU throttling, network latency.
-    - alert: EtcdGrpcLatencyHigh
-      annotations:
-        summary: "etcd gRPC latency high in {{ $labels.namespace }}"
-        description: |
-          etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has average gRPC latency of {{ $value | humanizeDuration }}, exceeding 200ms threshold.
-
-          Check etcd disk fsync latency, CPU/memory utilization, and request rate.
-      expr: |
-        etcd:grpc_server_handling:avg_latency_seconds:rate5m > 0.2
-      for: 5m
+        /
+        sum by (namespace, cluster) (
+          rate(grpc_server_handling_seconds_count{
+            namespace=~"ocm-.*",
+            grpc_service=~"etcdserverpb.*"
+          }[3d])
+        )
+        > 0.0005
+      for: 10m
       labels:
-        severity: warning
-        component: etcd
-
-    # Critical: average gRPC latency exceeds 500ms for 2 consecutive minutes.
-    # At this level etcd performance is severely degraded — kube-apiserver
-    # operations will be visibly slow and cluster stability is at risk.
-    # Shorter `for` duration (2m vs 5m) reflects urgency.
-    - alert: EtcdGrpcLatencyCritical
+        severity: "4"
+        slo: etcd-grpc-errors
+        long_window: 3d
       annotations:
-        summary: "etcd gRPC latency critical in {{ $labels.namespace }}"
-        description: |
-          etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has average gRPC latency of {{ $value | humanizeDuration }}, exceeding 500ms threshold. Immediate action required.
-
-          This indicates severe etcd performance degradation. Customer-facing cluster operations will be significantly delayed.
-          Check disk I/O, etcd resource utilization, and recent load changes.
-      expr: |
-        etcd:grpc_server_handling:avg_latency_seconds:rate5m > 0.5
-      for: 2m
-      labels:
-        severity: critical
-        component: etcd
-
-    # Warning: more than 5% of gRPC requests return non-OK status codes,
-    # sustained for 5 minutes. Catches etcd failures (Unavailable,
-    # DeadlineExceeded, ResourceExhausted) that may not be reflected in
-    # latency metrics — a fast error is still an error.
-    #
-    # Division by zero: if request_rate is zero, PromQL drops the sample
-    # (no traffic = no error rate to evaluate).
-    - alert: EtcdGrpcErrorRateHigh
-      annotations:
-        summary: "etcd gRPC error rate high in {{ $labels.namespace }}"
-        description: |
-          etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has a gRPC error rate above 5%.
-
-          This may indicate etcd cluster instability, resource exhaustion, or network issues between etcd members.
-      expr: |
-        (
-          etcd:grpc_server_handling:error_rate:rate5m
-          /
-          etcd:grpc_server_handling:request_rate:rate5m
-        ) > 0.05
-      for: 5m
-      labels:
-        severity: warning
-        component: etcd
+        summary: "etcd gRPC error rate exceeds SLO (>0.05%, slow burn)"
+        description: "HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd gRPC error rate has exceeded 0.05% (1x burn rate against 99.95% SLO) over a 3-day window. At this rate, the monthly error budget will be fully exhausted by end of month. This typically indicates a low-level persistent issue such as intermittent network problems, a degraded etcd member, or slow disk affecting a subset of requests."
+        correlationId: "userJourneyEtcdErrors3d/{{ $labels.cluster }}/{{ $labels.namespace }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"

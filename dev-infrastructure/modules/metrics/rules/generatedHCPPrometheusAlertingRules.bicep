@@ -129,63 +129,25 @@ resource hcpEtcdGrpcLatencyAlerts 'Microsoft.AlertsManagement/prometheusRuleGrou
             }
           }
         ]
-        alert: 'EtcdGrpcLatencyHigh'
+        alert: 'userJourneyEtcdLatencyP991h5m'
         enabled: true
         labels: {
-          component: 'etcd'
-          severity: 'warning'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'etcd-grpc-latency'
         }
         annotations: {
-          correlationId: 'EtcdGrpcLatencyHigh/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has average gRPC latency of {{ $value | humanizeDuration }}, exceeding 200ms threshold.
-
-Check etcd disk fsync latency, CPU/memory utilization, and request rate.
-'''
-          info: '''etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has average gRPC latency of {{ $value | humanizeDuration }}, exceeding 200ms threshold.
-
-Check etcd disk fsync latency, CPU/memory utilization, and request rate.
-'''
-          summary: 'etcd gRPC latency high in {{ $labels.namespace }}'
-          title: 'etcd gRPC latency high in {{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+          correlationId: 'userJourneyEtcdLatencyP991h5m/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: 'HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd P99 gRPC latency has exceeded 200ms in both the 1h and 5m windows, indicating a fast error budget burn (14.4x). At this rate, the latency SLO budget will be exhausted in ~3 days. Common causes: disk I/O saturation, CPU throttling, network latency between etcd members, or large range queries.'
+          info: 'HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd P99 gRPC latency has exceeded 200ms in both the 1h and 5m windows, indicating a fast error budget burn (14.4x). At this rate, the latency SLO budget will be exhausted in ~3 days. Common causes: disk I/O saturation, CPU throttling, network latency between etcd members, or large range queries.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
+          summary: 'etcd P99 gRPC latency critically high (>200ms, fast burn)'
+          title: 'etcd P99 gRPC latency critically high (>200ms, fast burn) namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
-        expression: 'etcd:grpc_server_handling:avg_latency_seconds:rate5m > 0.2'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'EtcdGrpcLatencyCritical'
-        enabled: true
-        labels: {
-          component: 'etcd'
-          severity: 'critical'
-        }
-        annotations: {
-          correlationId: 'EtcdGrpcLatencyCritical/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has average gRPC latency of {{ $value | humanizeDuration }}, exceeding 500ms threshold. Immediate action required.
-
-This indicates severe etcd performance degradation. Customer-facing cluster operations will be significantly delayed.
-Check disk I/O, etcd resource utilization, and recent load changes.
-'''
-          info: '''etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has average gRPC latency of {{ $value | humanizeDuration }}, exceeding 500ms threshold. Immediate action required.
-
-This indicates severe etcd performance degradation. Customer-facing cluster operations will be significantly delayed.
-Check disk I/O, etcd resource utilization, and recent load changes.
-'''
-          summary: 'etcd gRPC latency critical in {{ $labels.namespace }}'
-          title: 'etcd gRPC latency critical in {{ $labels.namespace }} cluster:{{ $labels.cluster }}'
-        }
-        expression: 'etcd:grpc_server_handling:avg_latency_seconds:rate5m > 0.5'
+        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[1h]))) > 0.2) and (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[5m]))) > 0.2)'
         for: 'PT2M'
-        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -197,28 +159,143 @@ Check disk I/O, etcd resource utilization, and recent load changes.
             }
           }
         ]
-        alert: 'EtcdGrpcErrorRateHigh'
+        alert: 'userJourneyEtcdLatencyP996h30m'
         enabled: true
         labels: {
-          component: 'etcd'
-          severity: 'warning'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'etcd-grpc-latency'
         }
         annotations: {
-          correlationId: 'EtcdGrpcErrorRateHigh/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has a gRPC error rate above 5%.
-
-This may indicate etcd cluster instability, resource exhaustion, or network issues between etcd members.
-'''
-          info: '''etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has a gRPC error rate above 5%.
-
-This may indicate etcd cluster instability, resource exhaustion, or network issues between etcd members.
-'''
-          summary: 'etcd gRPC error rate high in {{ $labels.namespace }}'
-          title: 'etcd gRPC error rate high in {{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+          correlationId: 'userJourneyEtcdLatencyP996h30m/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: 'HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd P99 gRPC latency has exceeded 200ms in both the 6h and 30m windows, indicating a medium error budget burn (6x). At this rate, the latency SLO budget will be exhausted in ~5 days. Investigate disk I/O performance, etcd resource utilization, database size, and recent workload changes.'
+          info: 'HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd P99 gRPC latency has exceeded 200ms in both the 6h and 30m windows, indicating a medium error budget burn (6x). At this rate, the latency SLO budget will be exhausted in ~5 days. Investigate disk I/O performance, etcd resource utilization, database size, and recent workload changes.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
+          summary: 'etcd P99 gRPC latency elevated (>200ms, medium burn)'
+          title: 'etcd P99 gRPC latency elevated (>200ms, medium burn) namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
-        expression: '(etcd:grpc_server_handling:error_rate:rate5m / etcd:grpc_server_handling:request_rate:rate5m) > 0.05'
-        for: 'PT5M'
+        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[6h]))) > 0.2) and (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[30m]))) > 0.2)'
+        for: 'PT2M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyEtcdLatencyP993d'
+        enabled: true
+        labels: {
+          long_window: '3d'
+          severity: '4'
+          slo: 'etcd-grpc-latency'
+        }
+        annotations: {
+          correlationId: 'userJourneyEtcdLatencyP993d/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: 'HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd P99 gRPC latency has exceeded 200ms over a 3-day window, indicating persistent degradation at the SLO boundary (1x burn rate). At this rate, the monthly latency SLO budget will be exhausted by end of month. This typically indicates gradual performance degradation from growing database size, slow disk, or increasing cluster load.'
+          info: 'HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd P99 gRPC latency has exceeded 200ms over a 3-day window, indicating persistent degradation at the SLO boundary (1x burn rate). At this rate, the monthly latency SLO budget will be exhausted by end of month. This typically indicates gradual performance degradation from growing database size, slow disk, or increasing cluster load.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
+          summary: 'etcd P99 gRPC latency exceeds SLO (>200ms, slow burn)'
+          title: 'etcd P99 gRPC latency exceeds SLO (>200ms, slow burn) namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+        }
+        expression: 'histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[3d]))) > 0.2'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyEtcdErrors1h5m'
+        enabled: true
+        labels: {
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
+          slo: 'etcd-grpc-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyEtcdErrors1h5m/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: 'HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd gRPC error rate has exceeded 0.72% (14.4x burn rate against 99.95% SLO) in both the 1h and 5m windows. At this rate, the monthly error budget (0.05%) will be exhausted in ~3 days. Check for etcd member failures, network partitions, or resource exhaustion (Unavailable/DeadlineExceeded gRPC codes).'
+          info: 'HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd gRPC error rate has exceeded 0.72% (14.4x burn rate against 99.95% SLO) in both the 1h and 5m windows. At this rate, the monthly error budget (0.05%) will be exhausted in ~3 days. Check for etcd member failures, network partitions, or resource exhaustion (Unavailable/DeadlineExceeded gRPC codes).'
+          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
+          summary: 'etcd gRPC error rate critically high (>0.72%, fast burn)'
+          title: 'etcd gRPC error rate critically high (>0.72%, fast burn) namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+        }
+        expression: '(sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_code!="OK",grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[1h])) / sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[1h])) > 0.0072) and (sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_code!="OK",grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[5m])) / sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[5m])) > 0.0072)'
+        for: 'PT2M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyEtcdErrors6h30m'
+        enabled: true
+        labels: {
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+          slo: 'etcd-grpc-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyEtcdErrors6h30m/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: 'HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd gRPC error rate has exceeded 0.3% (6x burn rate against 99.95% SLO) in both the 6h and 30m windows. At this rate, the monthly error budget (0.05%) will be exhausted in ~5 days. Investigate etcd cluster health, member connectivity, and recent configuration or workload changes.'
+          info: 'HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd gRPC error rate has exceeded 0.3% (6x burn rate against 99.95% SLO) in both the 6h and 30m windows. At this rate, the monthly error budget (0.05%) will be exhausted in ~5 days. Investigate etcd cluster health, member connectivity, and recent configuration or workload changes.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
+          summary: 'etcd gRPC error rate elevated (>0.3%, medium burn)'
+          title: 'etcd gRPC error rate elevated (>0.3%, medium burn) namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+        }
+        expression: '(sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_code!="OK",grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[6h])) / sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[6h])) > 0.003) and (sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_code!="OK",grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[30m])) / sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[30m])) > 0.003)'
+        for: 'PT2M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'userJourneyEtcdErrors3d'
+        enabled: true
+        labels: {
+          long_window: '3d'
+          severity: '4'
+          slo: 'etcd-grpc-errors'
+        }
+        annotations: {
+          correlationId: 'userJourneyEtcdErrors3d/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: 'HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd gRPC error rate has exceeded 0.05% (1x burn rate against 99.95% SLO) over a 3-day window. At this rate, the monthly error budget will be fully exhausted by end of month. This typically indicates a low-level persistent issue such as intermittent network problems, a degraded etcd member, or slow disk affecting a subset of requests.'
+          info: 'HCP {{ $labels.namespace }} on {{ $labels.cluster }}: etcd gRPC error rate has exceeded 0.05% (1x burn rate against 99.95% SLO) over a 3-day window. At this rate, the monthly error budget will be fully exhausted by end of month. This typically indicates a low-level persistent issue such as intermittent network problems, a degraded etcd member, or slow disk affecting a subset of requests.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
+          summary: 'etcd gRPC error rate exceeds SLO (>0.05%, slow burn)'
+          title: 'etcd gRPC error rate exceeds SLO (>0.05%, slow burn) namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+        }
+        expression: 'sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_code!="OK",grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[3d])) / sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[3d])) > 0.0005'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [
