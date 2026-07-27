@@ -140,9 +140,9 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				"nodePoolName", nodePoolParams.NodePoolName)
 
 			By("getting admin credentials for the cluster")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,

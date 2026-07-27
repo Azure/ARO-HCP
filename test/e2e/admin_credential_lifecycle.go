@@ -287,9 +287,9 @@ var _ = Describe("Customer", func() {
 			By("verifying new admin credentials can still be requested after revocation")
 			// After revocation, new admin credential requests should still work
 			// This validates the revocation endpoint doesn't break the cluster
-			newAdminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			newAdminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
 				ctx,
-				clusterClient,
+				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,

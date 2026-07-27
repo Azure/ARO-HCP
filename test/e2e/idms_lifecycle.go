@@ -122,9 +122,9 @@ var _ = Describe("Customer", func() {
 			Expect(ptr.Deref(actualCluster.Properties.ImageDigestMirrors[0].Mirrors[0], "")).To(Equal(idmsMirror), "first ImageDigestMirror mirror should be %s", idmsMirror)
 
 			By("getting admin credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,

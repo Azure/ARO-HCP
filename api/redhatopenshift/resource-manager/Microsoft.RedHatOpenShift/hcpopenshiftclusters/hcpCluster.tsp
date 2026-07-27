@@ -1,10 +1,12 @@
 import "@typespec/rest";
+import "@typespec/versioning";
 import "@typespec/http";
 import "@azure-tools/typespec-azure-core";
 import "@azure-tools/typespec-azure-resource-manager";
 
 import "./hcpCluster-models.tsp";
 
+using TypeSpec.Versioning;
 using Azure.ResourceManager;
 
 namespace Microsoft.RedHatOpenShift;
@@ -23,11 +25,23 @@ interface HcpOpenShiftClusters {
   listBySubscription is ArmListBySubscription<HcpOpenShiftCluster>;
 
   /** Request a temporary admin kubeconfig for the cluster */
-  requestAdminCredential is ArmResourceActionAsync<
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "requestAdminCredential")
+  noRequestModelRequestAdminCredential is ArmResourceActionAsync<
     HcpOpenShiftCluster,
     void,
     HcpOpenShiftClusterAdminCredential
   >;
+
+  /** Request a temporary admin kubeconfig for the cluster */
+  @added(Versions.v2026_06_30_preview)
+  requestAdminCredential is ArmResourceActionAsync<
+    HcpOpenShiftCluster,
+    HcpOpenShiftClusterAdminCredentialRequest,
+    HcpOpenShiftClusterAdminCredential,
+    OptionalRequestBody = true
+  >;
+
   /** Revoke all credentials issued by requestAdminCredential */
   revokeCredentials is ArmResourceActionNoResponseContentAsync<
     HcpOpenShiftCluster,

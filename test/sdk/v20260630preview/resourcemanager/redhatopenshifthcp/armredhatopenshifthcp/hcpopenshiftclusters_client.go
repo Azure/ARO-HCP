@@ -430,7 +430,7 @@ func (client *HcpOpenShiftClustersClient) requestAdminCredential(ctx context.Con
 }
 
 // requestAdminCredentialCreateRequest creates the RequestAdminCredential request.
-func (client *HcpOpenShiftClustersClient) requestAdminCredentialCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, _ *HcpOpenShiftClustersClientBeginRequestAdminCredentialOptions) (*policy.Request, error) {
+func (client *HcpOpenShiftClustersClient) requestAdminCredentialCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *HcpOpenShiftClustersClientBeginRequestAdminCredentialOptions) (*policy.Request, error) {
 	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/requestAdminCredential"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
@@ -452,6 +452,12 @@ func (client *HcpOpenShiftClustersClient) requestAdminCredentialCreateRequest(ct
 	reqQP.Set("api-version", "2026-06-30-preview")
 	req.Raw().URL.RawQuery = reqQP.Encode()
 	req.Raw().Header["Accept"] = []string{"application/json"}
+	if options != nil && options.Body != nil {
+		if err := runtime.MarshalAsJSON(req, *options.Body); err != nil {
+			return nil, err
+		}
+		return req, nil
+	}
 	return req, nil
 }
 

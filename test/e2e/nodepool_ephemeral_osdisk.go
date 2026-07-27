@@ -167,9 +167,9 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(*fetched.Properties.AutoRepair).To(BeTrue(), "expected fetched nodepool AutoRepair to be true")
 
 			By("getting credentials to verify cluster health")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,

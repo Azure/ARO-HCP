@@ -1307,6 +1307,15 @@
             "required": true,
             "type": "string",
             "pattern": "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "description": "The content of the action request",
+            "required": false,
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterAdminCredentialRequest"
+            }
           }
         ],
         "responses": {
@@ -2241,6 +2250,16 @@
         "kubeconfig",
         "expirationTimestamp"
       ]
+    },
+    "HcpOpenShiftClusterAdminCredentialRequest": {
+      "type": "object",
+      "description": "HCP cluster admin credential request body",
+      "properties": {
+        "certificateRequest": {
+          "type": "string",
+          "description": "PEM encoded certificate request"
+        }
+      }
     },
     "HcpOpenShiftClusterListResult": {
       "type": "object",

@@ -8,14 +8,14 @@ import "time"
 
 // APIProfile - Information about the API of a cluster.
 type APIProfile struct {
+	// The internet visibility of the OpenShift API server
+	Visibility *Visibility
+
 	// READ-ONLY; URL endpoint for the API server
 	URL *string
 
 	// The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries.
 	AuthorizedCIDRs []*string
-
-	// The internet visibility of the OpenShift API server
-	Visibility *Visibility
 }
 
 // AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
@@ -383,6 +383,12 @@ type HcpOpenShiftClusterAdminCredential struct {
 
 	// READ-ONLY; Admin kubeconfig with a temporary client certificate
 	Kubeconfig *string
+}
+
+// HcpOpenShiftClusterAdminCredentialRequest - HCP cluster admin credential request body
+type HcpOpenShiftClusterAdminCredentialRequest struct {
+	// PEM encoded certificate request
+	CertificateRequest *string
 }
 
 // HcpOpenShiftClusterListResult - The response of a HcpOpenShiftCluster list operation.

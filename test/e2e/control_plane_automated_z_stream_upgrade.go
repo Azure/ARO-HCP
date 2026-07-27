@@ -109,9 +109,9 @@ var _ = Describe("Service Provider", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with version %s on candidate channel", clusterName, installVersion)
 
 			By("verifying the cluster is viable")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,

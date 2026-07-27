@@ -94,9 +94,9 @@ var _ = Describe("Customer", func() {
 			Expect(ptr.Deref(actualHCPCluster.Properties.ClusterImageRegistry.State, "")).To(Equal(hcpsdk20240610preview.ClusterImageRegistryStateDisabled), "cluster image registry state should be Disabled")
 
 			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,
