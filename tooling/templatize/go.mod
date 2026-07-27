@@ -319,4 +319,4 @@ require (
 
 replace github.com/go-echarts/go-echarts/v2 => github.com/stevekuznetsov/go-echarts/v2 v2.0.0-20251106144453-30c025b42a65
 
-replace github.com/Azure/ARO-Tools/tools/istio-upgrade => github.com/trevorwilliams2025/ARO-Tools/tools/istio-upgrade v0.0.0-20260723024249-400f97750fc4
+replace github.com/Azure/ARO-Tools/tools/istio-upgrade => github.com/trevorwilliams2025/ARO-Tools/tools/istio-upgrade v0.0.0-20260727083804-0d86751ae360
