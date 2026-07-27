@@ -31,13 +31,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
+
+var cpoImageOverrides = map[string]string{
+	"4.20": "quay.io/redhat-user-workloads/crt-redhat-acm-tenant/control-plane-operator-4-20:on-pr-31d17da46b1cc9acb57e6613c31a4522323066ce",
+	"4.21": "quay.io/redhat-user-workloads/crt-redhat-acm-tenant/control-plane-operator-4-21:on-pr-7f0eb92b86feb53e969a729563b318f922491ed3",
+}
 
 //go:embed test-artifacts
 var TestArtifactsFS embed.FS
@@ -58,6 +66,9 @@ var _ = Describe("ARO-HCP", func() {
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = version
+			if cpoImage, ok := cpoImageOverrides[version]; ok {
+				clusterParams.Tags[api.TagClusterCPOImageOverride] = to.Ptr(cpoImage)
+			}
 			openShiftControlPlaneVersion, err := framework.GetLatestInstallVersion(ctx, clusterParams.ChannelGroup, version)
 			if err != nil {
 				if errors.Is(err, framework.ErrNightlyReleaseStreamNotFound) || errors.Is(err, framework.ErrNoAcceptedNightlyTags) || errors.Is(err, framework.ErrVersionNotFound) {
