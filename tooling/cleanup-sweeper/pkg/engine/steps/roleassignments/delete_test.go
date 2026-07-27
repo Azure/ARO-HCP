@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
-
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
