@@ -108,7 +108,7 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	ClusterServiceID *InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ActiveOperationID string `json:"activeOperationId,omitempty"`
-	// Written by: Frontend POST RevokeCredentials, OperationRevokeCredentials
+	// Written by: Frontend POST RevokeCredentials, SystemAdminCredentialOperationRevokeCredentialsPoll
 	RevokeCredentialsOperationID string `json:"revokeCredentialsOperationId,omitempty"`
 	// Written by: ClusterPropertiesSync
 	DNS ServiceProviderDNSProfile `json:"dns,omitempty"`
