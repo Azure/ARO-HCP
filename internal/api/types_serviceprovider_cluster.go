@@ -197,6 +197,56 @@ type ServiceProviderClusterStatus struct {
 	// cluster's serving CA Secret.
 	// Written by: ServiceProviderClusterPropertiesSync
 	ServingCABundle string `json:"servingCABundle,omitempty"`
+
+	// AzureResources tracks the lifecycle of Azure resources associated with
+	// the cluster, including deny assignments and the managed resource group.
+	AzureResources AzureResources `json:"azureResources,omitempty"`
+}
+
+// AzureResources groups the Azure resource references associated with a cluster.
+type AzureResources struct {
+	// DenyAssignments tracks the deny assignments applied to the cluster's resources.
+	DenyAssignments AzureMultiReference `json:"denyAssignments,omitempty"`
+	// ManagedResourceGroup tracks the managed resource group for the cluster.
+	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
+}
+
+// AzureMultiReference tracks a set of Azure resources through their creation lifecycle.
+// PendingAzureResources holds resource IDs that have been requested but not yet confirmed;
+// AzureResources holds resource IDs that have been confirmed to exist.
+type AzureMultiReference struct {
+	// PendingAzureResources contains resource IDs that have been requested but
+	// not yet confirmed to exist in Azure.
+	PendingAzureResources []*azcorearm.ResourceID `json:"pendingAzureResources,omitempty"`
+	// AzureResources contains resource IDs that have been confirmed to exist in Azure.
+	AzureResources []*azcorearm.ResourceID `json:"azureResources,omitempty"`
+	// EarliestRecheckTime is the earliest time at which the controller should
+	// re-check the pending resources. Nil means recheck immediately.
+	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
+	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% is considered normal
+	// so that any storms are quickly dissipated.
+	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
+	// six hours is, with durations up to 24 hours considered normal.
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+}
+
+// AzureReference tracks a single Azure resource through its creation lifecycle.
+// PendingAzureResources holds a resource ID that has been requested but not yet confirmed;
+// AzureResources holds a resource ID that has been confirmed to exist.
+type AzureReference struct {
+	// PendingAzureResources is the resource ID that has been requested but
+	// not yet confirmed to exist in Azure.
+	PendingAzureResources *azcorearm.ResourceID `json:"pendingAzureResources,omitempty"`
+	// AzureResources is the resource ID that has been confirmed to exist in Azure.
+	AzureResources *azcorearm.ResourceID `json:"azureResources,omitempty"`
+	// EarliestRecheckTime is the earliest time at which the controller should
+	// re-check the pending resources. Nil means recheck immediately.
+	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
+	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% is considered normal
+	// so that any storms are quickly dissipated.
+	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
+	// six hours is, with durations up to 24 hours considered normal.
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.

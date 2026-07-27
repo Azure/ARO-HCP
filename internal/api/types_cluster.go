@@ -87,6 +87,8 @@ type HCPOpenShiftClusterCustomerProperties struct {
 type HCPOpenShiftClusterServiceProviderProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty"`
+	// PendingClusterServiceID will be written for our future transition.
+	PendingClusterServiceID *InternalID `json:"pendingClusterServiceID,omitempty"`
 	// Written by: Frontend PUT Cluster (Create), ClusterClusterServiceCreate, ClusterDeletionClusterServiceIDClearer
 	ClusterServiceID *InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
