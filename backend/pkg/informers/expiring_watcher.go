@@ -22,6 +22,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // expiringWatcher implements watch.Interface and sends an expired error after
@@ -43,9 +45,11 @@ func NewExpiringWatcher(ctx context.Context, expiry time.Duration) watch.Interfa
 	}
 	go func() {
 		defer utilruntime.HandleCrash()
+		logger := utils.LoggerFromContext(ctx)
 		select {
 		case <-time.After(expiry):
-			w.result <- watch.Event{
+			select {
+			case w.result <- watch.Event{
 				Type: watch.Error,
 				Object: &metav1.Status{
 					Status:  metav1.StatusFailure,
@@ -53,9 +57,17 @@ func NewExpiringWatcher(ctx context.Context, expiry time.Duration) watch.Interfa
 					Reason:  metav1.StatusReasonExpired,
 					Message: "watch expired",
 				},
+			}:
+				logger.V(4).Info("expiring watcher expired; sent Gone/Expired event to trigger relist", "expiry", expiry.String())
+			case <-w.done:
+				logger.V(4).Info("expiring watcher stopped while delivering the expired event")
+			case <-ctx.Done():
+				logger.V(4).Info("expiring watcher context canceled while delivering the expired event")
 			}
 		case <-w.done:
+			logger.V(4).Info("expiring watcher stopped before expiry")
 		case <-ctx.Done():
+			logger.V(4).Info("expiring watcher context canceled before expiry")
 		}
 		close(w.result)
 	}()
