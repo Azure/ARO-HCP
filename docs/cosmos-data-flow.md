@@ -172,9 +172,9 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `Operation` | <ul><li>`Request` = `RequestCredential`</li><li>`ExternalID` = parent cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI` (from headers)</li></ul> |
+| `Operation` | <ul><li>`Request` = `RequestCredential`</li><li>`ExternalID` = parent cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI` (from headers)</li><li>`CertificateRequest` = PEM-encoded PKCS#10 CSR from request body</li></ul> |
 
-No resource document is modified.
+No resource document is modified. The `SystemAdminCredentialRequest` document is created later by the backend dispatch controller.
 
 ---
 
@@ -391,9 +391,9 @@ which performs a **transactional batch** to atomically update the operation and 
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (when EA doc deleted)</li><li>**`Error`**, **`LastTransitionTime`**</li></ul> |
 | **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Properties.ProvisioningState`** = new status (while doc exists)</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
-#### DispatchRequestCredential
+#### SystemAdminCredentialDispatchRequestCredential
 
-**File:** [dispatch_request_credential.go](../backend/pkg/controllers/operationcontrollers/dispatch_request_credential.go)
+**File:** [dispatch_request_credential.go](../backend/pkg/controllers/systemadmincredentialcontrollers/dispatch_request_credential.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RequestCredential`
@@ -401,13 +401,15 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `RequestCredential`)</li><li>`InternalID` (ShouldProcess: must be empty)</li><li>`ExternalID`</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID` (must not be nil)</li><li>`ServiceProviderProperties.RevokeCredentialsOperationID` (if non-empty, cancels operation)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`InternalID`** = CS break-glass credential HREF (on success)</li><li>**`Status`** = `Canceled` (if revocation in progress, via `CancelOperation`)</li><li>**`LastTransitionTime`** (if canceled)</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `RequestCredential`)</li><li>`InternalID` (ShouldProcess: must be empty)</li><li>`ExternalID`</li><li>`OperationID.Name`</li><li>`CertificateRequest`</li><li>`ClientID`</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.RevokeCredentialsOperationID` (if non-empty, cancels operation)</li></ul> |
+| Read | `SystemAdminCredentialRequest` | <ul><li>`Spec.OperationID` (list scan for idempotency check)</li></ul> |
+| **Write** | **`SystemAdminCredentialRequest`** | <ul><li>**CREATE**: `CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>**`Spec.Username`** = `system:customer-break-glass:<clientID>`</li><li>**`Spec.CreationTimestamp`** = now</li><li>**`Spec.ExpirationTimestamp`** = now + 24h</li><li>**`Spec.OperationID`** = operation ID name</li><li>**`Spec.CertificateRequestPEM`** = operation's CertificateRequest</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`InternalID`** = SystemAdminCredentialRequest ARM resource ID (on success)</li><li>**`Status`** = `Canceled` (if revocation in progress, via `CancelOperation`)</li><li>**`LastTransitionTime`** (if canceled)</li></ul> |
 
-#### OperationRequestCredential
+#### SystemAdminCredentialOperationRequestCredentialPoll
 
-**File:** [operation_request_credential.go](../backend/pkg/controllers/operationcontrollers/operation_request_credential.go)
+**File:** [operation_request_credential.go](../backend/pkg/controllers/systemadmincredentialcontrollers/operation_request_credential.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RequestCredential`
@@ -415,13 +417,13 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `RequestCredential`)</li><li>`InternalID` (ShouldProcess: must be non-empty)</li></ul> |
-| Read | Cluster Service | <ul><li>break-glass credential status (Created/Failed/Issued)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed` (via `patchOperation`)</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `RequestCredential`)</li><li>`InternalID` (ShouldProcess: must be non-empty)</li><li>`ExternalID`</li><li>`OperationID`</li></ul> |
+| Read | `SystemAdminCredentialRequest` | <ul><li>`Status.Conditions` (checks Issued, Failed, AwaitingRevocation, Revoked)</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`/`Canceled`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
 
-#### DispatchRevokeCredentials
+#### SystemAdminCredentialDispatchRevokeCredentials
 
-**File:** [dispatch_revoke_credentials.go](../backend/pkg/controllers/operationcontrollers/dispatch_revoke_credentials.go)
+**File:** [dispatch_revoke_credentials.go](../backend/pkg/controllers/systemadmincredentialcontrollers/dispatch_revoke_credentials.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RevokeCredentials`
@@ -429,24 +431,26 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal, must be `Accepted`)</li><li>`Request` (ShouldProcess: must be `RevokeCredentials`)</li><li>`ExternalID`</li><li>`OperationID.Name`</li><li>`InternalID`</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal, must be `Accepted`)</li><li>`Request` (ShouldProcess: must be `RevokeCredentials`)</li><li>`ExternalID`</li><li>`OperationID.Name`</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.RevokeCredentialsOperationID` (must match operation ID)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** = `Deleting` (after CS dispatch)</li><li>**`Status`** = `Canceled` (if RevokeCredentialsOperationID mismatch, via `CancelOperation`)</li></ul> |
+| Read | `SystemAdminCredentialRevocation` | <ul><li>Existence check (idempotency)</li></ul> |
+| **Write** | **`SystemAdminCredentialRevocation`** | <ul><li>**CREATE**: `CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>**`Spec.OperationID`** = operation ID name</li><li>**`Spec.RevokeOpSuffix`** = first 16 hex chars of operation UUID</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`InternalID`** = SystemAdminCredentialRevocation ARM resource ID</li><li>**`Status`** = `Deleting`</li><li>**`LastTransitionTime`**</li><li>**`Status`** = `Canceled` (if RevokeCredentialsOperationID mismatch, via `CancelOperation`)</li></ul> |
 
-#### OperationRevokeCredentials
+#### SystemAdminCredentialOperationRevokeCredentialsPoll
 
-**File:** [operation_revoke_credentials.go](../backend/pkg/controllers/operationcontrollers/operation_revoke_credentials.go)
+**File:** [operation_revoke_credentials.go](../backend/pkg/controllers/systemadmincredentialcontrollers/operation_revoke_credentials.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RevokeCredentials`
-- `Operation.Status` != `Accepted` (must already be dispatched)
+- `Operation.Status` == `Deleting` (must already be dispatched)
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal, must not be `Accepted`)</li><li>`Request` (ShouldProcess: must be `RevokeCredentials`)</li><li>`InternalID`</li><li>`OperationID.Name`</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal, must be `Deleting`)</li><li>`Request` (ShouldProcess: must be `RevokeCredentials`)</li><li>`InternalID`</li><li>`ExternalID`</li><li>`OperationID.Name`</li></ul> |
+| Read | `SystemAdminCredentialRevocation` | <ul><li>Existence check (waits for 404 = complete)</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.RevokeCredentialsOperationID`</li></ul> |
-| Read | Cluster Service | <ul><li>`ListBreakGlassCredentials` status (AwaitingRevocation/Revoked/Expired/Failed)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded`</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.RevokeCredentialsOperationID`** = `""` (cleared when matches)</li></ul> |
 
 ---
@@ -1055,6 +1059,155 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 ---
 
+### System Admin Credential Request Lifecycle Controllers
+
+These watch the SystemAdminCredentialRequests informer (1-minute resync) via `CredentialRequestWatchingController`.
+The kube-applier ReadDesires informer is also wired in (maxDepth=1) for controllers that need to observe
+desire status.
+
+#### SystemAdminCredentialDesiresCreator
+
+**File:** [desires_creator.go](../backend/pkg/controllers/systemadmincredentialcontrollers/desires_creator.go)
+**Trigger:** SystemAdminCredentialRequests + ReadDesires informer, 1-minute resync
+**Gate (needsWork on Cluster + CredentialRequest):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil
+- `isCredentialRequestPending(cred)` (none of Issued/Failed/AwaitingRevocation/Revoked conditions are True)
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
+| Read | `SystemAdminCredentialRequest` | <ul><li>`Status.Conditions` (NeedsWork: must be pending)</li><li>`Spec.CertificateRequestPEM`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li><li>`Status.ControlPlaneNamespace`</li></ul> |
+| Read | `ApplyDesire` | <ul><li>Existing desire content (idempotency check)</li></ul> |
+| Read | `ReadDesire` | <ul><li>Existing desire content (idempotency check)</li></ul> |
+| **Write** | **`ApplyDesire`** (kube-applier DB) | <ul><li>**CREATE**: CSR RBAC ApplyDesires (ClusterRole, ClusterRoleBinding), CSR ApplyDesire, CSR Approval ApplyDesire — each with `Spec.ManagementCluster`, `Spec.Type=ServerSideApply`, `Spec.TargetItem`, `Spec.ServerSideApply.KubeContent`</li></ul> |
+| **Write** | **`ReadDesire`** (kube-applier DB) | <ul><li>**CREATE**: CSR ReadDesire targeting `certificates.k8s.io/v1/certificatesigningrequests`</li></ul> |
+
+#### SystemAdminCredentialIssuanceObserver
+
+**File:** [issuance_observer.go](../backend/pkg/controllers/systemadmincredentialcontrollers/issuance_observer.go)
+**Trigger:** SystemAdminCredentialRequests + ReadDesires informer, 1-minute resync
+**Gate (needsWork on CredentialRequest):**
+- `isCredentialRequestPending(cred)` (none of Issued/Failed/AwaitingRevocation/Revoked conditions are True)
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `SystemAdminCredentialRequest` | <ul><li>`Status.Conditions` (NeedsWork: must be pending)</li></ul> |
+| Read | ReadDesire (cached CSR) | <ul><li>`Status.Certificate` (signed cert bytes)</li><li>`Status.Conditions` (CertificateDenied, CertificateFailed)</li></ul> |
+| **Write** | **`SystemAdminCredentialRequest`** | <ul><li>**`Status.Conditions[Issued]`** = True + **`Status.SignedCertificate`** = base64-encoded PEM (on success)</li><li>**`Status.Conditions[Failed]`** = True (on CSR denied/failed)</li></ul> |
+
+#### SystemAdminCredentialPostIssuanceCleanup
+
+**File:** [post_issuance_cleanup.go](../backend/pkg/controllers/systemadmincredentialcontrollers/post_issuance_cleanup.go)
+**Trigger:** SystemAdminCredentialRequests + ReadDesires informer, 1-minute resync
+**Gate (needsWork on CredentialRequest):**
+- `Issued` == True OR `Failed` == True condition on the credential request
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `SystemAdminCredentialRequest` | <ul><li>`Status.Conditions` (NeedsWork: Issued or Failed must be True)</li><li>`ResourceID.Name`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li></ul> |
+| **Write** | **`ApplyDesire`** (kube-applier DB) | <ul><li>**REPLACE** (flip `Spec.Type` to `Delete`) then **DELETE** (once delete reports `Successful=True`)</li></ul> |
+| **Write** | **`ReadDesire`** (kube-applier DB) | <ul><li>**DELETE**: all ReadDesires matching the credential name</li></ul> |
+
+#### SystemAdminCredentialClusterDeletionCleanup
+
+**File:** [cluster_deletion_cleanup.go](../backend/pkg/controllers/systemadmincredentialcontrollers/cluster_deletion_cleanup.go)
+**Trigger:** SystemAdminCredentialRequests + ReadDesires informer, 1-minute resync
+**Gate (needsWork on CredentialRequest):**
+- `cred.Status.DeleteTimestamp` != nil
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `SystemAdminCredentialRequest` | <ul><li>`Status.DeleteTimestamp` (NeedsWork: must not be nil)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li></ul> |
+| **Write** | **`ApplyDesire`** (kube-applier DB) | <ul><li>**REPLACE** (flip `Spec.Type` to `Delete`) then **DELETE** for all desires under this credential request</li></ul> |
+| **Write** | **`ReadDesire`** (kube-applier DB) | <ul><li>**DELETE**: all ReadDesires under this credential request</li></ul> |
+| **Write** | **`SystemAdminCredentialRequest`** | <ul><li>**DELETES the document** (once all desires are gone)</li></ul> |
+
+#### SystemAdminCredentialRevokedGC
+
+**File:** [revoked_gc.go](../backend/pkg/controllers/systemadmincredentialcontrollers/revoked_gc.go)
+**Trigger:** SystemAdminCredentialRequests informer (no ReadDesires), 1-hour resync
+**Gate (needsWork on CredentialRequest):**
+- `cred.Spec.CreationTimestamp` is non-zero AND age >= 48h
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `SystemAdminCredentialRequest` | <ul><li>`Spec.CreationTimestamp` (NeedsWork: must be non-zero and >= 48h old)</li></ul> |
+| **Write** | **`SystemAdminCredentialRequest`** | <ul><li>**DELETES the document** (unconditionally after 48h)</li></ul> |
+
+---
+
+### System Admin Credential Revocation Lifecycle Controllers
+
+These watch the SystemAdminCredentialRevocations informer (1-minute resync) via `RevocationWatchingController`.
+
+#### SystemAdminCredentialRevocationMarkRequests
+
+**File:** [revocation_mark_requests.go](../backend/pkg/controllers/systemadmincredentialcontrollers/revocation_mark_requests.go)
+**Trigger:** SystemAdminCredentialRevocations informer, 1-minute resync
+**Gate (needsWork on Revocation):**
+- `revocation.Status.DeleteTimestamp` == nil
+- `CredentialsMarkedForDeletion` condition is NOT True
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `SystemAdminCredentialRevocation` | <ul><li>`Status.DeleteTimestamp` (NeedsWork: must be nil)</li><li>`Status.Conditions` (NeedsWork: CredentialsMarkedForDeletion must not be True)</li></ul> |
+| Read | `SystemAdminCredentialRequest` | <ul><li>`Status.DeleteTimestamp` (list scan: checked for each request)</li></ul> |
+| **Write** | **`SystemAdminCredentialRequest`** (each) | <ul><li>**`Status.DeleteTimestamp`** = now (on every request that does not already have one)</li></ul> |
+| **Write** | **`SystemAdminCredentialRevocation`** | <ul><li>**`Status.Conditions[CredentialsMarkedForDeletion]`** = True</li></ul> |
+
+#### SystemAdminCredentialRevocationDesires
+
+**File:** [revocation_desires.go](../backend/pkg/controllers/systemadmincredentialcontrollers/revocation_desires.go)
+**Trigger:** SystemAdminCredentialRevocations informer, 1-minute resync
+**Gate (needsWork on Revocation + Cluster):**
+- `revocation.Status.DeleteTimestamp` == nil
+- Cluster has `ClusterServiceID`
+- `ServiceProviderCluster` has `ManagementClusterResourceID` and `ControlPlaneNamespace`
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `SystemAdminCredentialRevocation` | <ul><li>`Status.DeleteTimestamp` (NeedsWork: must be nil)</li><li>`Spec.RevokeOpSuffix`</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li><li>`Status.ControlPlaneNamespace`</li></ul> |
+| Read | `ApplyDesire` | <ul><li>Existing content (idempotency check)</li></ul> |
+| Read | `ReadDesire` | <ul><li>Existing content (idempotency check)</li></ul> |
+| **Write** | **`ApplyDesire`** (kube-applier DB) | <ul><li>**CREATE**: CRR RBAC ApplyDesires and CRR ApplyDesire targeting `certificates.hypershift.openshift.io/v1alpha1/certificaterevocationrequests`</li></ul> |
+| **Write** | **`ReadDesire`** (kube-applier DB) | <ul><li>**CREATE**: CRR ReadDesire targeting the CertificateRevocationRequest</li></ul> |
+
+#### SystemAdminCredentialRevocationCompletion
+
+**File:** [revocation_completion.go](../backend/pkg/controllers/systemadmincredentialcontrollers/revocation_completion.go)
+**Trigger:** SystemAdminCredentialRevocations informer, 1-minute resync
+**Gate (needsWork on Revocation):**
+- `revocation.Status.DeleteTimestamp` == nil
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `SystemAdminCredentialRevocation` | <ul><li>`Status.DeleteTimestamp` (NeedsWork: must be nil)</li><li>`Status.Conditions` (checks `CertificatesRevoked`, `CredentialsMarkedForDeletion`)</li><li>`Spec.RevokeOpSuffix`</li></ul> |
+| Read | ReadDesire (cached CRR) | <ul><li>`Status.Conditions` (checks `PreviousCertificatesRevoked=True`)</li></ul> |
+| **Write** | **`SystemAdminCredentialRevocation`** | <ul><li>**`Status.Conditions[CertificatesRevoked]`** = True (once CRR confirms revocation)</li><li>**`Status.Conditions[Complete]`** = True + **`Status.DeleteTimestamp`** = now (once both CertificatesRevoked and CredentialsMarkedForDeletion are True)</li></ul> |
+
+#### SystemAdminCredentialRevocationDeletion
+
+**File:** [revocation_deletion.go](../backend/pkg/controllers/systemadmincredentialcontrollers/revocation_deletion.go)
+**Trigger:** SystemAdminCredentialRevocations informer, 1-minute resync
+**Gate (needsWork on Revocation):**
+- `revocation.Status.DeleteTimestamp` != nil
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `SystemAdminCredentialRevocation` | <ul><li>`Status.DeleteTimestamp` (NeedsWork: must not be nil)</li><li>`Spec.RevokeOpSuffix`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li></ul> |
+| **Write** | **`ApplyDesire`** (kube-applier DB) | <ul><li>**REPLACE** (flip `Spec.Type` to `Delete`) then **DELETE** for all desires matching the revocation suffix</li></ul> |
+| **Write** | **`ReadDesire`** (kube-applier DB) | <ul><li>**DELETE**: all ReadDesires matching the revocation suffix</li></ul> |
+| **Write** | **`SystemAdminCredentialRevocation`** | <ul><li>**DELETES the document** (once all desires are gone). This deletion signals `SystemAdminCredentialOperationRevokeCredentialsPoll` that the revocation is complete.</li></ul> |
+
+---
+
 ## 3. Execution Order Digraphs
 
 ### Cluster Create Flow
@@ -1205,6 +1358,90 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
   (detects NP doc missing -> marks Operation Succeeded)
 ```
 
+### Request Admin Credential Flow
+
+```
+  POST RequestAdminCredential (Frontend)
+         |
+  creates Operation(RequestCredential)
+  with CertificateRequest = CSR from body
+         |
+         v
+  SystemAdminCredentialDispatchRequestCredential
+  (creates SystemAdminCredentialRequest doc,
+   sets Operation.InternalID = credential resource ID)
+         |
+         +-----------------------------------+
+         |                                   |
+         v                                   v
+  SystemAdminCredentialDesiresCreator   SystemAdminCredentialOperationRequestCredentialPoll
+  (creates kube-applier ApplyDesires    (polls credential request conditions,
+   for CSR, CSR Approval, RBAC;         maps Issued/Failed -> Operation.Status)
+   creates ReadDesire for CSR)                |
+         |                                   |
+         v                                   |
+  SystemAdminCredentialIssuanceObserver       |
+  (watches ReadDesire-cached CSR ->          |
+   sets Issued or Failed condition,          |
+   stores SignedCertificate)                 |
+         |                                   |
+         v                                   v
+  SystemAdminCredentialPostIssuanceCleanup   Operation Succeeded
+  (flips ApplyDesires to Delete,        (ARM notification sent)
+   removes all desires)
+         |
+         v
+  SystemAdminCredentialRevokedGC
+  (deletes credential request after 48h)
+```
+
+### Revoke Credentials Flow
+
+```
+  POST RevokeCredentials (Frontend)
+         |
+  creates Operation(RevokeCredentials)
+  sets Cluster.SP.RevokeCredentialsOperationID
+  cancels active RequestCredential operations
+         |
+         v
+  SystemAdminCredentialDispatchRevokeCredentials
+  (creates SystemAdminCredentialRevocation doc,
+   sets Operation.InternalID, Status = Deleting)
+         |
+         +-----------------------------------+
+         |                                   |
+         v                                   v
+  SystemAdminCredentialRevocationMarkRequests  SystemAdminCredentialRevocationDesires
+  (sets DeleteTimestamp on all                (creates kube-applier ApplyDesires
+   SystemAdminCredentialRequests,              for CRR + RBAC, ReadDesire for CRR)
+   sets CredentialsMarkedForDeletion)              |
+         |                                        v
+         |                              SystemAdminCredentialRevocationCompletion
+         |                              (observes CRR status ->
+         |                               sets CertificatesRevoked,
+         |                               then Complete + DeleteTimestamp)
+         |                                        |
+         +----------------------------------------+
+         |
+         v
+  SystemAdminCredentialClusterDeletionCleanup
+  (triggered by DeleteTimestamp on each
+   credential request -> removes desires,
+   deletes credential request doc)
+         |
+         v
+  SystemAdminCredentialRevocationDeletion
+  (triggered by revocation DeleteTimestamp ->
+   removes desires, deletes revocation doc)
+         |
+         v
+  SystemAdminCredentialOperationRevokeCredentialsPoll
+  (detects revocation doc 404 ->
+   clears RevokeCredentialsOperationID,
+   marks Operation Succeeded)
+```
+
 ---
 
 ## 4. Fields Written by Multiple Actors
@@ -1245,7 +1482,7 @@ Each entry links to every actor that writes the field.
 | Actor | When |
 |-------|------|
 | [Frontend: POST RevokeCredentials](#post-revokecredentials) | Sets to operation ID |
-| [OperationRevokeCredentials](#operationrevokecredentials) | Clears to `""` when operation completes |
+| [SystemAdminCredentialOperationRevokeCredentialsPoll](#systemadmincredentialoperationrevokecredentialspoll) | Clears to `""` when revocation doc is deleted |
 
 ### `HCPOpenShiftCluster.CustomerProperties.DNS.BaseDomainPrefix`
 
@@ -1347,8 +1584,10 @@ Single writer.
 |-------|------|
 | [Frontend (all mutating endpoints)](#1-frontend-endpoint-writes) | Sets to `Accepted` (or `Deleting` for Delete operations) |
 | [All Operation* controllers](#operation-controllers) | Advances through lifecycle (`Provisioning`/`Updating`/`Deleting` -> `Succeeded`/`Failed`) |
-| [DispatchRequestCredential](#dispatchrequestcredential) | Sets to `Canceled` (if revocation in progress) or sets `InternalID` |
-| [DispatchRevokeCredentials](#dispatchrevokecredentials) | Sets to `Deleting` (after CS dispatch) or `Canceled` (on mismatch) |
+| [SystemAdminCredentialDispatchRequestCredential](#systemadmincredentialdispatchrequestcredential) | Sets to `Canceled` (if revocation in progress) or sets `InternalID` |
+| [SystemAdminCredentialOperationRequestCredentialPoll](#systemadmincredentialoperationrequestcredentialpoll) | Advances to `Provisioning`/`Succeeded`/`Failed`/`Canceled` |
+| [SystemAdminCredentialDispatchRevokeCredentials](#systemadmincredentialdispatchrevokecredentials) | Sets to `Deleting` (after dispatch) or `Canceled` (on mismatch) |
+| [SystemAdminCredentialOperationRevokeCredentialsPoll](#systemadmincredentialoperationrevokecredentialspoll) | Sets to `Succeeded` (when revocation doc deleted) |
 
 ### `ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion`
 
@@ -1395,6 +1634,45 @@ Single writer, but tracks the namespace containing control plane pods (etcd, kub
 | [ClusterDeletionController](#clusterdeletioncontroller) | Sets when cluster document is being deleted |
 | [OrphanedBillingCleanup](#orphanedbillingcleanup) | Sets when billing doc has no corresponding cluster |
 
+### `SystemAdminCredentialRequest.Status.Conditions`
+
+| Actor | When |
+|-------|------|
+| [SystemAdminCredentialIssuanceObserver](#systemadmincredentialissuanceobserver) | Sets `Issued=True` + `SignedCertificate` (success) or `Failed=True` (failure) |
+
+Single writer, but gates `SystemAdminCredentialOperationRequestCredentialPoll` and `SystemAdminCredentialPostIssuanceCleanup`.
+
+### `SystemAdminCredentialRequest.Status.DeleteTimestamp`
+
+| Actor | When |
+|-------|------|
+| [SystemAdminCredentialRevocationMarkRequests](#systemadmincredentialrevocationmarkrequests) | Sets to now on every request during revocation |
+
+Single writer, but gates `SystemAdminCredentialClusterDeletionCleanup` which deletes the document.
+
+### `SystemAdminCredentialRevocation.Status.Conditions`
+
+| Actor | When |
+|-------|------|
+| [SystemAdminCredentialRevocationMarkRequests](#systemadmincredentialrevocationmarkrequests) | Sets `CredentialsMarkedForDeletion=True` |
+| [SystemAdminCredentialRevocationCompletion](#systemadmincredentialrevocationcompletion) | Sets `CertificatesRevoked=True`, then `Complete=True` |
+
+### `SystemAdminCredentialRevocation.Status.DeleteTimestamp`
+
+| Actor | When |
+|-------|------|
+| [SystemAdminCredentialRevocationCompletion](#systemadmincredentialrevocationcompletion) | Sets to now when revocation is fully complete |
+
+Single writer, but gates `SystemAdminCredentialRevocationDeletion` which deletes the document.
+
+### `Operation.CertificateRequest`
+
+| Actor | When |
+|-------|------|
+| [Frontend: POST RequestAdminCredential](#post-requestadmincredential) | Sets from request body (PEM-encoded CSR) |
+
+Single writer, but read by `SystemAdminCredentialDispatchRequestCredential` when creating the `SystemAdminCredentialRequest` document.
+
 ---
 
 ## Generation Prompt
@@ -1437,6 +1715,8 @@ ARO-HCP resource provider. The file must contain these sections in order:
    - Cluster Delete flow
    - NodePool Create flow
    - NodePool Delete flow
+   - Request Admin Credential flow
+   - Revoke Credentials flow
    Show which field write by controller A is the gate that enables controller B.
 
 4. **Fields Written by Multiple Actors** — For every field on every Cosmos
@@ -1447,7 +1727,8 @@ ARO-HCP resource provider. The file must contain these sections in order:
 Key source locations to examine:
 - frontend/pkg/frontend/{cluster,node_pool,external_auth,frontend,helpers,routes}.go
 - internal/api/types_{cluster,nodepool,externalauth,operation,controller,
-  serviceprovider_cluster,serviceprovider_nodepool,management_cluster_content}.go
+  serviceprovider_cluster,serviceprovider_nodepool,management_cluster_content,
+  systemadmincredential,systemadmincredentialrevocation}.go
 - internal/api/arm/{resource,subscription,types_cosmosdata}.go
 - internal/database/{crud_helpers,crud_nested_resource,types_operation,database}.go
 - internal/conversion/readonly_{cluster,nodepool,externalauth}.go
@@ -1465,8 +1746,9 @@ Key source locations to examine:
 - backend/pkg/controllers/billingcontrollers/*.go
 - backend/pkg/controllers/managementclustercontrollers/*.go
 - backend/pkg/controllers/mismatchcontrollers/*.go
+- backend/pkg/controllers/systemadmincredentialcontrollers/*.go
 - backend/pkg/controllers/create_*_read_desires_controller.go
-- backend/pkg/controllers/controllerutils/{cluster,nodepool,external_auth}_watching_controller.go
+- backend/pkg/controllers/controllerutils/{cluster,nodepool,external_auth,credential_request,revocation}_watching_controller.go
 - backend/pkg/controllers/controllerutils/generic_watching_controller.go
 
 Style rules:
