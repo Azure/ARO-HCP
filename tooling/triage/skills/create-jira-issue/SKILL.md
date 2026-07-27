@@ -135,12 +135,15 @@ Format components as an array of objects: `[{"id": "83786"}, {"id": "84116"}]`
 
 ### Step 4 — Select Labels
 
+**All labels must be lowercase.** This is a team-wide convention. Never use
+uppercase or mixed-case labels (e.g. use `jit` not `JIT`, `aro` not `ARO`).
+
 **Always apply these automatically based on context:**
 
 | Condition | Label | Notes |
 |-----------|-------|-------|
 | CI failure, e2e failure, promotion failure, rollout failure, oncall investigation | `oncall` | Lowercase. Do NOT use `on-call`. |
-| JIT cluster access requested or used | `JIT` | Uppercase. |
+| JIT cluster access requested or used | `jit` | Lowercase. |
 | e2e test specific | `e2e` | In addition to `oncall` |
 | No QE testing needed | `no-qe` | QE assumes every ticket needs testing unless this label is present |
 | Suitable for new team members | `good-first-issue` | For straightforward onboarding-friendly tasks |
@@ -149,7 +152,8 @@ Format components as an array of objects: `[{"id": "83786"}, {"id": "84116"}]`
 Other labels to consider (apply when relevant):
 - `maestro` — Maestro-specific issues
 - `aro-hcp-ci` — CI pipeline issues
-- `ARO-HCP` — generic project label
+- `aro` — ARO product label (umbrella — covers both classic and HCP)
+- `hcp` — HCP-specific work (use with `aro` for ARO HCP issues)
 - `aro-hcp-service-lifecycle-team` — team label
 - `spike` — for Spike (time-boxed research) issues
 
@@ -292,7 +296,7 @@ additional_fields:
     name: Normal             # or Blocker, Critical, Major, Minor
   labels:
     - oncall
-    - JIT                    # only if JIT involved
+    - jit                    # only if JIT involved
     - no-qe                  # only if no QE testing needed
   components:
     - id: "83786"            # primary component
@@ -342,7 +346,12 @@ transition:
 ### Step 10 — Handle JIT Documentation (if applicable)
 
 When `jit_involved` is true (or JIT access is mentioned anywhere in the
-context), **remind the user** to provide the following and add them as comments
+context), **do NOT create a separate ticket just to track the JIT request**.
+Instead, add the `jit` label to the parent investigation/task ticket and
+document all JIT details as comments on that same ticket. A JIT request is
+a means to an end, not a separate work item.
+
+**Remind the user** to provide the following and add them as comments
 on the issue:
 
 #### JIT Request Comment
@@ -520,8 +529,8 @@ Before closing an issue, verify (from governance doc):
 3. **Content format**: Always use `contentFormat: "markdown"` for descriptions
    and comments.
 
-4. **Label casing**: `oncall` (lowercase), `JIT` (uppercase). These are the
-   established conventions in the project.
+4. **Label casing**: All labels must be **lowercase**. Examples: `oncall`,
+   `jit`, `e2e`, `no-qe`, `aro`, `hcp`. This is enforced by team convention.
 
 5. **Component format**: Pass as `[{"id": "83786"}]` — the `id` value is a
    string representation of the integer.
