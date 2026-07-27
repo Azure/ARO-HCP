@@ -1143,10 +1143,12 @@ func (g *Gatherer) executeKQL(ctx context.Context, kqlStr, database string, time
 		if attempt > 0 {
 			backoff := time.Duration(1<<(attempt-1)) * time.Second
 			logger.Info("Retrying query after transient error", "attempt", attempt+1, "backoff", backoff, "error", lastErr)
+			backoffTimer := time.NewTimer(backoff)
 			select {
 			case <-ctx.Done():
+				backoffTimer.Stop()
 				return nil, ctx.Err()
-			case <-time.After(backoff):
+			case <-backoffTimer.C:
 			}
 		}
 		rows, err := g.executeKQLOnce(ctx, kqlStr, database, timeout)
