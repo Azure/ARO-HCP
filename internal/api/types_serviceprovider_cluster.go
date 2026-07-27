@@ -234,11 +234,11 @@ type AzureMultiReference struct {
 // PendingAzureResources holds a resource ID that has been requested but not yet confirmed;
 // AzureResources holds a resource ID that has been confirmed to exist.
 type AzureReference struct {
-	// PendingAzureResources is the resource ID that has been requested but
+	// PendingAzureResource is the resource ID that has been requested but
 	// not yet confirmed to exist in Azure.
-	PendingAzureResources *azcorearm.ResourceID `json:"pendingAzureResources,omitempty"`
-	// AzureResources is the resource ID that has been confirmed to exist in Azure.
-	AzureResources *azcorearm.ResourceID `json:"azureResources,omitempty"`
+	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
+	// AzureResource is the resource ID that has been confirmed to exist in Azure.
+	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
 	// EarliestRecheckTime is the earliest time at which the controller should
 	// re-check the pending resources. Nil means recheck immediately.
 	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
