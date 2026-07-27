@@ -3636,6 +3636,9 @@
             },
             "gatePromotion": {
               "type": "boolean"
+            },
+            "allowedSubscriptions": {
+              "type": "string"
             }
           },
           "required": [

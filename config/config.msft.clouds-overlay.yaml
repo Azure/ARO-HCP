@@ -117,6 +117,14 @@ clouds:
               connectSocket: true
         regions:
           eastus2euap:
+            e2e:
+              regionTest:
+                # Canary: eastus2euap is pinned to the Test-Tenant sub, the only
+                # PROD sub onboarded into the canary program. This currently
+                # matches the gating job's baseline ALLOWED_SUBSCRIPTIONS, so it
+                # is a no-op until the non-canary regions are switched to the RH
+                # PROD subs (ARO-28614).
+                allowedSubscriptions: "ARO HCP E2E"
             kusto:
               location: "eastus2"
           switzerlandnorth:

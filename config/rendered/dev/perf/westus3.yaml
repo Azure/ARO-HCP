@@ -245,6 +245,7 @@ e2e:
   prow:
     globalKeyVaultTokenSecret: prow-token
   regionTest:
+    allowedSubscriptions: ""
     gatePromotion: true
     prowJobName: ""
 entraAppOwnerIds: d8837611-f550-4f0a-af48-575a7178adfb,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c,770ce6b0-5afe-472d-ac0d-1fae72acc4e4
