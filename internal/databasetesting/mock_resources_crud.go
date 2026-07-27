@@ -546,6 +546,40 @@ func (m *mockExternalAuthCRUD) Controllers(externalAuthName string) database.Res
 
 var _ database.ExternalAuthsCRUD = &mockExternalAuthCRUD{}
 
+type mockSystemAdminCredentialRequestsCRUD struct {
+	*mockResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, database.GenericDocument[api.SystemAdminCredentialRequest]]
+}
+
+func (m *mockSystemAdminCredentialRequestsCRUD) Controllers(credentialRequestName string) database.ResourceCRUD[api.Controller, *api.Controller] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			m.resourceType.Types[len(m.resourceType.Types)-1],
+			credentialRequestName,
+		)))
+
+	return newMockResourceCRUD[api.Controller, *api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.SystemAdminCredentialRequestControllerResourceType)
+}
+
+var _ database.SystemAdminCredentialRequestsCRUD = &mockSystemAdminCredentialRequestsCRUD{}
+
+type mockSystemAdminCredentialRevocationsCRUD struct {
+	*mockResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, database.GenericDocument[api.SystemAdminCredentialRevocation]]
+}
+
+func (m *mockSystemAdminCredentialRevocationsCRUD) Controllers(revocationName string) database.ResourceCRUD[api.Controller, *api.Controller] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			m.resourceType.Types[len(m.resourceType.Types)-1],
+			revocationName,
+		)))
+
+	return newMockResourceCRUD[api.Controller, *api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.SystemAdminCredentialRevocationControllerResourceType)
+}
+
+var _ database.SystemAdminCredentialRevocationsCRUD = &mockSystemAdminCredentialRevocationsCRUD{}
+
 // mockOperationCRUD implements database.OperationCRUD.
 type mockOperationCRUD struct {
 	*mockResourceCRUD[api.Operation, *api.Operation, database.GenericDocument[api.Operation]]
