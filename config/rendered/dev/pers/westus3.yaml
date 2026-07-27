@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:894b5222c243ec09562094bf7a6e2ebfd6dbef05e4abdae5f1c7137418750361
+      digest: sha256:9914fc94ed0ae2769a489c7bffc30dd7230787bd40e1f6c1cf94279a873dd3b8
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:f70b3abb483f54ed41c9772ba5ffdf3aaacbe8ed76fc179de88104f21eec620b
+      digest: sha256:ea926296090348eb9da4e6c21d1d4d1980663114b60fe206597795b42efe1681
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -172,7 +172,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcppers
   image:
-    digest: sha256:55bcc0e8e5f1e455e18369f757fa750984f653ea17bac5e9b2ca6f402934165c
+    digest: sha256:be309bb2edbf13e80bd00a29087be7e972c04e138c43b9dc0f89a0311ca8250a
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -448,7 +448,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:1191d3fd440e73e2ca7ea243c7c0adb97e4ed1b6e2cd4fb3e5388a2d7caf4cd4
+    digest: sha256:6c7bf8907fc4c1679899e9740760b6ae65f53c58a08c95418211b598aeded037
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -468,7 +468,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:f3b518e79fb8e767d9c45ae93fa319d1a11a86b8aece4852d173dace0d2f81b9
+      digest: sha256:d1640e5efc8b323555e23c53e81803d09f491c023f5fa3e27fd7b139ad205e5b
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -500,7 +500,7 @@ kubeApplier:
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:7d1ae25f8df0e0ea3ebe829a912e4aef05f6af265f781e8209a93c41f6c38d15
+    digest: sha256:10a020acbc382e490deecdc78ad7945cbd26852f301f7a25f06ac89a3de8d802
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
   k8s:
@@ -672,7 +672,7 @@ mgmt:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:616f661b355916f1cbb81ca1de61c0f1b5f13cb9120c64b962027d4037f046aa
+        digest: sha256:bcd0475c8f223ffe01a78b35446583584a691356327da0eeeb19a2c4e7755a21
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -914,7 +914,7 @@ secretSyncController:
         memory: 100Mi
     serviceAccountName: secrets-store-sync-controller-manager
   providerImage:
-    digest: sha256:a1e019fc8a1a43e5c28335f48d9ee7e2827a4d6e9b7a25fe6738e89ee1c6ec44
+    digest: sha256:517fb8c67ca4114b8f86950306b46eb2a8ba7757970e3c8976f5bd418d81e45b
     registry: mcr.microsoft.com
     repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:
@@ -1031,7 +1031,7 @@ svc:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:616f661b355916f1cbb81ca1de61c0f1b5f13cb9120c64b962027d4037f046aa
+        digest: sha256:bcd0475c8f223ffe01a78b35446583584a691356327da0eeeb19a2c4e7755a21
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -1105,7 +1105,7 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:7ab4ce36f7781ffb85cbe377dd7f99aff0cf58bd8233db28d6b4d87a0bb48218
+    digest: sha256:a3e54c83a5f3655a8337964b4375d3ee676daecdb38c7ad311f26b50b261095c
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
