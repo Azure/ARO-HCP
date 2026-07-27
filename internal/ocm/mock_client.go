@@ -42,44 +42,6 @@ func (m *MockClusterServiceClientSpec) EXPECT() *MockClusterServiceClientSpecMoc
 	return m.recorder
 }
 
-// DeleteBreakGlassCredentials mocks base method.
-func (m *MockClusterServiceClientSpec) DeleteBreakGlassCredentials(ctx context.Context, clusterInternalID InternalID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteBreakGlassCredentials", ctx, clusterInternalID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteBreakGlassCredentials indicates an expected call of DeleteBreakGlassCredentials.
-func (mr *MockClusterServiceClientSpecMockRecorder) DeleteBreakGlassCredentials(ctx, clusterInternalID any) *MockClusterServiceClientSpecDeleteBreakGlassCredentialsCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBreakGlassCredentials", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).DeleteBreakGlassCredentials), ctx, clusterInternalID)
-	return &MockClusterServiceClientSpecDeleteBreakGlassCredentialsCall{Call: call}
-}
-
-// MockClusterServiceClientSpecDeleteBreakGlassCredentialsCall wrap *gomock.Call
-type MockClusterServiceClientSpecDeleteBreakGlassCredentialsCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockClusterServiceClientSpecDeleteBreakGlassCredentialsCall) Return(arg0 error) *MockClusterServiceClientSpecDeleteBreakGlassCredentialsCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecDeleteBreakGlassCredentialsCall) Do(f func(context.Context, InternalID) error) *MockClusterServiceClientSpecDeleteBreakGlassCredentialsCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecDeleteBreakGlassCredentialsCall) DoAndReturn(f func(context.Context, InternalID) error) *MockClusterServiceClientSpecDeleteBreakGlassCredentialsCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // DeleteCluster mocks base method.
 func (m *MockClusterServiceClientSpec) DeleteCluster(ctx context.Context, internalID InternalID) error {
 	m.ctrl.T.Helper()
@@ -228,45 +190,6 @@ func (c *MockClusterServiceClientSpecDeleteProvisionShardCall) Do(f func(context
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockClusterServiceClientSpecDeleteProvisionShardCall) DoAndReturn(f func(context.Context, InternalID) error) *MockClusterServiceClientSpecDeleteProvisionShardCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetBreakGlassCredential mocks base method.
-func (m *MockClusterServiceClientSpec) GetBreakGlassCredential(ctx context.Context, internalID InternalID) (*v1.BreakGlassCredential, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBreakGlassCredential", ctx, internalID)
-	ret0, _ := ret[0].(*v1.BreakGlassCredential)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetBreakGlassCredential indicates an expected call of GetBreakGlassCredential.
-func (mr *MockClusterServiceClientSpecMockRecorder) GetBreakGlassCredential(ctx, internalID any) *MockClusterServiceClientSpecGetBreakGlassCredentialCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBreakGlassCredential", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetBreakGlassCredential), ctx, internalID)
-	return &MockClusterServiceClientSpecGetBreakGlassCredentialCall{Call: call}
-}
-
-// MockClusterServiceClientSpecGetBreakGlassCredentialCall wrap *gomock.Call
-type MockClusterServiceClientSpecGetBreakGlassCredentialCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockClusterServiceClientSpecGetBreakGlassCredentialCall) Return(arg0 *v1.BreakGlassCredential, arg1 error) *MockClusterServiceClientSpecGetBreakGlassCredentialCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecGetBreakGlassCredentialCall) Do(f func(context.Context, InternalID) (*v1.BreakGlassCredential, error)) *MockClusterServiceClientSpecGetBreakGlassCredentialCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecGetBreakGlassCredentialCall) DoAndReturn(f func(context.Context, InternalID) (*v1.BreakGlassCredential, error)) *MockClusterServiceClientSpecGetBreakGlassCredentialCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -661,44 +584,6 @@ func (c *MockClusterServiceClientSpecGetVersionCall) DoAndReturn(f func(context.
 	return c
 }
 
-// ListBreakGlassCredentials mocks base method.
-func (m *MockClusterServiceClientSpec) ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListBreakGlassCredentials", clusterInternalID, searchExpression)
-	ret0, _ := ret[0].(BreakGlassCredentialListIterator)
-	return ret0
-}
-
-// ListBreakGlassCredentials indicates an expected call of ListBreakGlassCredentials.
-func (mr *MockClusterServiceClientSpecMockRecorder) ListBreakGlassCredentials(clusterInternalID, searchExpression any) *MockClusterServiceClientSpecListBreakGlassCredentialsCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBreakGlassCredentials", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).ListBreakGlassCredentials), clusterInternalID, searchExpression)
-	return &MockClusterServiceClientSpecListBreakGlassCredentialsCall{Call: call}
-}
-
-// MockClusterServiceClientSpecListBreakGlassCredentialsCall wrap *gomock.Call
-type MockClusterServiceClientSpecListBreakGlassCredentialsCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockClusterServiceClientSpecListBreakGlassCredentialsCall) Return(arg0 BreakGlassCredentialListIterator) *MockClusterServiceClientSpecListBreakGlassCredentialsCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecListBreakGlassCredentialsCall) Do(f func(InternalID, string) BreakGlassCredentialListIterator) *MockClusterServiceClientSpecListBreakGlassCredentialsCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecListBreakGlassCredentialsCall) DoAndReturn(f func(InternalID, string) BreakGlassCredentialListIterator) *MockClusterServiceClientSpecListBreakGlassCredentialsCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // ListClusters mocks base method.
 func (m *MockClusterServiceClientSpec) ListClusters(searchExpression string) ClusterListIterator {
 	m.ctrl.T.Helper()
@@ -961,45 +846,6 @@ func (c *MockClusterServiceClientSpecListVersionsCall) Do(f func() *VersionsList
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockClusterServiceClientSpecListVersionsCall) DoAndReturn(f func() *VersionsListIterator) *MockClusterServiceClientSpecListVersionsCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// PostBreakGlassCredential mocks base method.
-func (m *MockClusterServiceClientSpec) PostBreakGlassCredential(ctx context.Context, clusterInternalID InternalID) (*v1.BreakGlassCredential, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PostBreakGlassCredential", ctx, clusterInternalID)
-	ret0, _ := ret[0].(*v1.BreakGlassCredential)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// PostBreakGlassCredential indicates an expected call of PostBreakGlassCredential.
-func (mr *MockClusterServiceClientSpecMockRecorder) PostBreakGlassCredential(ctx, clusterInternalID any) *MockClusterServiceClientSpecPostBreakGlassCredentialCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostBreakGlassCredential", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).PostBreakGlassCredential), ctx, clusterInternalID)
-	return &MockClusterServiceClientSpecPostBreakGlassCredentialCall{Call: call}
-}
-
-// MockClusterServiceClientSpecPostBreakGlassCredentialCall wrap *gomock.Call
-type MockClusterServiceClientSpecPostBreakGlassCredentialCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockClusterServiceClientSpecPostBreakGlassCredentialCall) Return(arg0 *v1.BreakGlassCredential, arg1 error) *MockClusterServiceClientSpecPostBreakGlassCredentialCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecPostBreakGlassCredentialCall) Do(f func(context.Context, InternalID) (*v1.BreakGlassCredential, error)) *MockClusterServiceClientSpecPostBreakGlassCredentialCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecPostBreakGlassCredentialCall) DoAndReturn(f func(context.Context, InternalID) (*v1.BreakGlassCredential, error)) *MockClusterServiceClientSpecPostBreakGlassCredentialCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
