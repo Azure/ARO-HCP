@@ -134,14 +134,13 @@ func TestUnionKubeApplierInformersController_E2E(t *testing.T) {
 		fleetClient := databasetesting.NewMockFleetDBClient()
 		require.NoError(t, createStamp(ctx, fleetClient, stampIdentifier))
 
-		relistDuration := fastRelistDuration
-		fleetInformers := dbinformers.NewFleetInformersWithRelistDuration(ctx, fleetClient.GlobalListers(), &relistDuration)
+		fleetInformers := dbinformers.NewFleetInformers(ctx, fleetClient.GlobalListers(), fleetClient)
 		managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 
 		// Factory bridges the controller to the kube-applier registry.
 		factory := &cosmosKubeApplierFactory{
 			kubeApplierClients: kubeApplierClients,
-			relistDuration:     relistDuration,
+			relistDuration:     fastRelistDuration,
 		}
 
 		// Create the controller. Register an event recorder BEFORE Run so

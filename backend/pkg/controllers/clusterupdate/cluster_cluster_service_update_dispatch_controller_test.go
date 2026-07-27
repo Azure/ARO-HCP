@@ -109,9 +109,6 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					GetCluster(gomock.Any(), csID).
 					Return(defaultExistingCSCluster, nil)
 				mock.EXPECT().
-					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
-					Return(nil, nil)
-				mock.EXPECT().
 					UpdateCluster(gomock.Any(), csID, gomock.Any()).
 					Return(nil, nil)
 			},
@@ -137,22 +134,6 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 		},
 		{
-			name:                           "when CS autoscaler update returns cluster not updatable no error is returned and cluster update is not called",
-			existingCluster:                newClusterWithConfigDiff(),
-			existingSubscription:           newTestSubscription(),
-			existingServiceProviderCluster: newTestServiceProviderCluster(testClusterName),
-			existingCSCluster:              defaultExistingCSCluster,
-			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
-				mock.EXPECT().
-					GetCluster(gomock.Any(), csID).
-					Return(defaultExistingCSCluster, nil)
-				mock.EXPECT().
-					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
-					Return(nil, newFakeOCMClusterNotUpdatableError())
-			},
-			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
-		},
-		{
 			name:                           "when CS cluster update returns cluster not updatable no error is returned",
 			existingCluster:                newClusterWithConfigDiff(),
 			existingSubscription:           newTestSubscription(),
@@ -163,30 +144,9 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					GetCluster(gomock.Any(), csID).
 					Return(defaultExistingCSCluster, nil)
 				mock.EXPECT().
-					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
-					Return(nil, nil)
-				mock.EXPECT().
 					UpdateCluster(gomock.Any(), csID, gomock.Any()).
 					Return(nil, newFakeOCMClusterNotUpdatableError())
 			},
-			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
-		},
-		{
-			name:                           "when CS autoscaler update returns unhandled error error is propagated",
-			existingCluster:                newClusterWithConfigDiff(),
-			existingSubscription:           newTestSubscription(),
-			existingServiceProviderCluster: newTestServiceProviderCluster(testClusterName),
-			existingCSCluster:              defaultExistingCSCluster,
-			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
-				mock.EXPECT().
-					GetCluster(gomock.Any(), csID).
-					Return(defaultExistingCSCluster, nil)
-				mock.EXPECT().
-					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
-					Return(nil, errors.New("boom"))
-			},
-			wantErr:                             true,
-			wantErrContain:                      "failed to update cluster-service ClusterAutoscaler",
 			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 		},
 		{
@@ -200,9 +160,6 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					GetCluster(gomock.Any(), csID).
 					Return(defaultExistingCSCluster, nil)
 				mock.EXPECT().
-					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
-					Return(nil, nil)
-				mock.EXPECT().
 					UpdateCluster(gomock.Any(), csID, gomock.Any()).
 					Return(nil, errors.New("boom"))
 			},
@@ -211,7 +168,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 		},
 		{
-			name:                           "when CS autoscaler update returns unrelated bad request error error is propagated",
+			name:                           "when CS cluster update returns unrelated bad request error error is propagated",
 			existingCluster:                newClusterWithConfigDiff(),
 			existingSubscription:           newTestSubscription(),
 			existingServiceProviderCluster: newTestServiceProviderCluster(testClusterName),
@@ -221,11 +178,11 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					GetCluster(gomock.Any(), csID).
 					Return(defaultExistingCSCluster, nil)
 				mock.EXPECT().
-					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
+					UpdateCluster(gomock.Any(), csID, gomock.Any()).
 					Return(nil, newFakeOCMUnrelatedBadRequestError())
 			},
 			wantErr:                             true,
-			wantErrContain:                      "failed to update cluster-service ClusterAutoscaler",
+			wantErrContain:                      "failed to update cluster-service Cluster",
 			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 		},
 		{
@@ -379,10 +336,10 @@ func mustBuildCSClusterFromRP(t *testing.T, hcpCluster *api.HCPOpenShiftCluster)
 	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
 	require.NoError(t, err)
 
-	clusterBuilder, autoscalerBuilder, err := ocm.BuildCSCluster(hcpCluster.ID, "", hcpCluster, nil, oldClusterServiceCluster, &api.ServiceProviderCluster{})
+	clusterBuilder, err := ocm.BuildCSCluster(hcpCluster.ID, "", hcpCluster, nil, oldClusterServiceCluster, &api.ServiceProviderCluster{})
 	require.NoError(t, err)
 
-	csCluster, err := clusterBuilder.Autoscaler(autoscalerBuilder).Build()
+	csCluster, err := clusterBuilder.Build()
 	require.NoError(t, err)
 	return csCluster
 }

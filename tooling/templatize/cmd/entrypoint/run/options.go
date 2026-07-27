@@ -51,6 +51,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.Persist, "persist-tag", opts.Persist, "toggle if persist tag should be set")
 	cmd.Flags().IntVar(&opts.DeploymentTimeoutSeconds, "deployment-timeout-seconds", opts.DeploymentTimeoutSeconds, "Timeout in Seconds to wait for previous deployments of the pipeline to finish")
 	cmd.Flags().BoolVar(&opts.AbortIfRegionalExist, "abort-if-regional-exist", opts.AbortIfRegionalExist, "Abort deployment if regional resource groups already exist (concurrent execution prevention)")
+	cmd.Flags().BoolVar(&opts.SkipBicepparamValidation, "skip-bicepparam-validation", opts.SkipBicepparamValidation, "Skip validation of bicepparam templates for simple field access.")
 
 	return nil
 }
@@ -61,6 +62,7 @@ type RawOptions struct {
 	Persist                  bool
 	DeploymentTimeoutSeconds int
 	AbortIfRegionalExist     bool
+	SkipBicepparamValidation bool
 
 	TimingOutputFile string
 	JUnitOutputFile  string
@@ -85,6 +87,7 @@ type completedOptions struct {
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
 	AbortIfRegionalExist     bool
+	SkipBicepparamValidation bool
 
 	TimingOutputFile string
 	JUnitOutputFile  string
@@ -123,6 +126,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			NoPersist:                !o.Persist,
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 			AbortIfRegionalExist:     o.AbortIfRegionalExist,
+			SkipBicepparamValidation: o.SkipBicepparamValidation,
 
 			TimingOutputFile: o.TimingOutputFile,
 			JUnitOutputFile:  o.JUnitOutputFile,
@@ -172,6 +176,7 @@ func (o *Options) Run(ctx context.Context) error {
 			DeploymentTimeoutSeconds:             o.DeploymentTimeoutSeconds,
 			StepCacheDir:                         o.StepCacheDir,
 			BicepClient:                          o.BicepClient,
+			SkipBicepparamValidation:             o.SkipBicepparamValidation,
 			SubscriptionIdToAzureConfigDirectory: subscriptionIdToAzureConfigDirectory,
 		},
 		TopoDirLookupFunc:     o.Topo.GetTopologyDirForServiceGroup,

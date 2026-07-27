@@ -189,6 +189,12 @@ var _ = Describe("Customer", func() {
 			}).WithContext(ctx).WithTimeout(15*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"expect cluster console URL to become available")
 
+			By("waiting for console hostname DNS to resolve")
+			consoleHostname, err := framework.HostnameFromURL(consoleURL)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse console URL %s", consoleURL)
+			err = framework.WaitForDNSResolution(ctx, consoleHostname, framework.DNSResolutionTimeout)
+			Expect(err).NotTo(HaveOccurred(), "DNS for console host %s did not resolve within timeout", consoleHostname)
+
 			By("examining the server certificate returned by the default ingress when routing the console URL")
 			// Wait for the certificate to be loaded after console starts
 			consoleUrlWithPort := fmt.Sprintf("%s:%d", consoleURL, 443)

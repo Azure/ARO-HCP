@@ -35,8 +35,8 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftCluster` | <ul><li>All `CustomerProperties.*` from request body (unmarshaled, converted to internal, `EnsureDefaults()` applied)</li><li>`TrackedResource.ID` (from URL resource ID)</li><li>`TrackedResource.Name` (from URL resource ID)</li><li>`TrackedResource.Type` (from URL resource ID)</li><li>`TrackedResource.Location` = `azureLocation`</li><li>`Tags`</li><li>`SystemData.CreatedAt`, `SystemData.CreatedBy`, `SystemData.CreatedByType`</li><li>`SystemData.LastModifiedAt`, `SystemData.LastModifiedBy`, `SystemData.LastModifiedByType`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (from `X-Ms-Identity-Url` header)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` from `CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` and `.ServiceManagedIdentity`)</li><li>`ServiceProviderProperties.ClusterServiceID` = CS internal ID (from CS POST response HREF)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = `*cluster.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li><li>`TenantID` (from `X-Ms-Home-Tenant-Id` header)</li><li>`ClientID` (from `X-Ms-Client-Object-Id` header)</li><li>`NotificationURI` (from `X-Ms-Async-Notification-Uri` header)</li><li>`StartTime` = now</li><li>`LastTransitionTime` = now</li><li>`OperationID` = generated ARM resource ID</li><li>`ResourceID` = generated ARM resource ID</li><li>`ClientRequestID`, `CorrelationRequestID` (from correlation data)</li></ul> |
+| `HCPOpenShiftCluster` | <ul><li>All `CustomerProperties.*` from request body (unmarshaled, converted to internal, `EnsureDefaults()` applied)</li><li>`TrackedResource.ID` (from URL resource ID)</li><li>`TrackedResource.Name` (from URL resource ID)</li><li>`TrackedResource.Type` (from URL resource ID)</li><li>`TrackedResource.Location` = `azureLocation`</li><li>`Tags`</li><li>`SystemData.CreatedAt`, `SystemData.CreatedBy`, `SystemData.CreatedByType`</li><li>`SystemData.LastModifiedAt`, `SystemData.LastModifiedBy`, `SystemData.LastModifiedByType`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (from `X-Ms-Identity-Url` header)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` from `CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` and `.ServiceManagedIdentity`)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID` (from `X-Ms-Home-Tenant-Id` header)</li><li>`ClientID` (from `X-Ms-Client-Object-Id` header)</li><li>`NotificationURI` (from `X-Ms-Async-Notification-Uri` header)</li><li>`StartTime` = now</li><li>`LastTransitionTime` = now</li><li>`OperationID` = generated ARM resource ID</li><li>`ResourceID` = generated ARM resource ID</li><li>`ClientRequestID`, `CorrelationRequestID` (from correlation data)</li></ul> |
 
 ---
 
@@ -49,7 +49,7 @@ transitively deletes all clusters (and their children) via transactional batches
 | Object | Fields Written |
 |--------|---------------|
 | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.*` (from request body; `DNS.BaseDomainPrefix` and `Platform.ManagedResourceGroup` carried from old if empty)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity` (PrincipalID, TenantID, non-nil UserAssignedIdentity values), `ServiceProviderProperties` (entire deep copy), `Status` (entire deep copy)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = `*oldCluster.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI` (from headers)</li><li>`StartTime`, `LastTransitionTime`, `OperationID`, `ResourceID`, `ClientRequestID`, `CorrelationRequestID`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI` (from headers)</li><li>`StartTime`, `LastTransitionTime`, `OperationID`, `ResourceID`, `ClientRequestID`, `CorrelationRequestID`</li></ul> |
 
 ---
 
@@ -62,7 +62,7 @@ transitively deletes all clusters (and their children) via transactional batches
 | Object | Fields Written |
 |--------|---------------|
 | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.*` (old resource used as base, PATCH body overlaid, then converted to internal)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `ServiceProviderProperties`, `Status`</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID`, `InternalID`, `Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI`</li></ul> |
 
 ---
 
@@ -106,7 +106,7 @@ transitively deletes all clusters (and their children) via transactional batches
 | Object | Fields Written |
 |--------|---------------|
 | `HCPOpenShiftClusterNodePool` | <ul><li>`Properties.*` (from request; `Version.ID` carried from old if empty, `Platform.SubnetID` carried from old if nil)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyNodePoolValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `Properties.ProvisioningState`, `ServiceProviderProperties`, `Status`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = node pool ARM resource ID</li><li>`InternalID` = `*nodePool.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = node pool ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li></ul> |
 
 ---
 
@@ -132,8 +132,8 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftClusterExternalAuth` | <ul><li>All `Properties.*` from request body (unmarshaled, converted to internal, `EnsureDefaults()` applied)</li><li>`ProxyResource.ID`, `ProxyResource.Name`, `ProxyResource.Type`</li><li>`SystemData`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ClusterServiceID` = CS internal ID (from CS POST response HREF)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID` = external auth ARM resource ID</li><li>`InternalID` = `*externalAuth.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li></ul> |
+| `HCPOpenShiftClusterExternalAuth` | <ul><li>All `Properties.*` from request body (unmarshaled, converted to internal, `EnsureDefaults()` applied)</li><li>`ProxyResource.ID`, `ProxyResource.Name`, `ProxyResource.Type`</li><li>`SystemData`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID` = external auth ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li></ul> |
 
 ---
 
@@ -215,7 +215,7 @@ which performs a **transactional batch** to atomically update the operation and 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ClusterResourceType`)</li><li>`OperationID.Name`</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.API.URL`</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.API.URL`</li><li>`ServiceProviderProperties.CreateOperationCompletionDeadline`</li></ul> |
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions` (ConditionTypeSuccessful)</li><li>`Status.KubeContent` -> HostedCluster `status.controlPlaneVersion.history[].state`, `status.controlPlaneVersion.history[].version`, `status.conditions` (Available, Degraded), `status.controlPlaneEndpoint.host`, `status.controlPlaneEndpoint.port`</li></ul> |
 | Read | Cluster Service | <ul><li>cluster state, provision error</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
@@ -280,7 +280,7 @@ which performs a **transactional batch** to atomically update the operation and 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `NodePoolResourceType`)</li><li>`ResourceID.Name`</li></ul> |
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
+| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.CreateOperationCompletionDeadline`</li></ul> |
 | Read | Cluster Service | <ul><li>node pool status</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
 | **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Properties.ProvisioningState`** = new status</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
@@ -899,6 +899,18 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.DesiredHostedClusterControlPlaneSize`** = Spec value</li></ul> |
 | **Write** | Cluster Service | <ul><li>`CSPropertySizeOverride` (external write)</li></ul> |
 
+#### ServiceProviderClusterPropertiesSync
+
+**File:** [serviceprovidercluster_properties_sync.go](../backend/pkg/controllers/clusterpropertiescontroller/serviceprovidercluster_properties_sync.go)
+**Trigger:** Cluster informer, 5-minute resync
+**Gate:** No formal NeedsWork. Skips inside SyncOnce if ServiceProviderCluster does not exist or HostedCluster ReadDesire has no namespace/name.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>Entire document (deep-equal comparison to avoid no-op writes)</li></ul> |
+| Read | ReadDesire (HostedCluster) | <ul><li>`Namespace` (HostedCluster namespace)</li><li>`Name` (HostedCluster name)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.HostedClusterNamespace`** = HostedCluster namespace</li><li>**`Status.ControlPlaneNamespace`** = `<hostedClusterNamespace>-<hostedClusterName>` (dots replaced by dashes)</li></ul> |
+
 #### IdentityMigration
 
 **File:** [identity_migration.go](../backend/pkg/controllers/clusterpropertiescontroller/identity_migration.go)
@@ -960,6 +972,39 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 | Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
 | **Write** | **`BillingDocument`** | <ul><li>`ClusterUID`, `CreationTime`, `Location`, `TenantID`, `ManagedResourceGroup`, `ResourceID`</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.BillingDocumentCosmosID`** = billing doc ID</li></ul> |
+
+#### OrphanedBillingCleanup
+
+**File:** [orphaned_billing_cleanup.go](../backend/pkg/controllers/billingcontrollers/orphaned_billing_cleanup.go)
+**Trigger:** Time-based, 60-minute jitter (no informer — queues work directly)
+**Gate:**
+- `BillingDocument.DeletionTime` == nil (skip already-deleted docs)
+- Corresponding `HCPOpenShiftCluster` must not exist (orphan detection)
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `BillingDocument` | <ul><li>All billing docs via lister (list scan)</li><li>`DeletionTime` (skip if non-nil)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>Existence check only (if cluster exists, billing doc is not orphaned)</li></ul> |
+| **Write** | **`BillingDocument`** | <ul><li>**`DeletionTime`** = now (via `PatchByID`)</li></ul> |
+
+#### DeleteOrphanedCosmosResources
+
+**File:** [delete_orphaned_cosmos.go](../backend/pkg/controllers/mismatchcontrollers/delete_orphaned_cosmos.go)
+**Trigger:** Time-based, 60-minute jitter (no informer — queues all subscriptions)
+**Gate:**
+- Resource is not a cluster (clusters own themselves)
+- Resource is inside a resource group (resources outside RG have TTL)
+- Parent resource does not exist (orphan detection)
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | All resources | <ul><li>`ListRecursive` per subscription (untyped scan)</li><li>`ResourceID` (parent existence check)</li></ul> |
+| Read | `ManagementCluster` | <ul><li>All management clusters (for kube-applier desire cleanup)</li></ul> |
+| Read | Kube-applier desires | <ul><li>`ListRecursive` per management cluster container (ReadDesire, ApplyDesire, DeleteDesire)</li></ul> |
+| **Write** | Orphaned resources | <ul><li>**DELETES** resources whose parent no longer exists (via `DeleteByCosmosID`)</li></ul> |
+| **Write** | Orphaned desires | <ul><li>**DELETES** kube-applier desire documents whose parent resource no longer exists (via `DeleteByCosmosID`)</li></ul> |
+
+---
 
 #### ClusterValidation / NodePoolValidation
 
@@ -1030,16 +1075,16 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
   ClusterClusterServiceCreate  <----------------+
   (sets Cluster.SP.ClusterServiceID)    (gates on DesiredVersion + MgmtCluster)
               |
-              +---------------------+------------------------------+
-              |                     |                              |
-              v                     v                              v
-  ControlPlaneActiveVersions  ClusterPropertiesSync     CreateClusterScopedReadDesires
-  (sets SPC.Status.ActiveVers)  (sets SP.Console,       (creates kube-applier ReadDesire)
-              |                  DNS, API, IssuerURL)
-              v                                                    |
-  TriggerControlPlaneUpgrade                                       v
-  (posts upgrade policy to CS)                            ClusterValidation*
-              |                                           (sets SPC.Status.Validations)
+              +---------------------+----------------+------------------------------+
+              |                     |                |                              |
+              v                     v                v                              v
+  ControlPlaneActiveVersions  ClusterPropertiesSync  SPClusterPropertiesSync  CreateClusterScopedReadDesires
+  (sets SPC.Status.ActiveVers)  (sets SP.Console,   (sets SPC.Status          (creates kube-applier ReadDesire)
+              |                  DNS, API, IssuerURL) .HostedClusterNamespace,
+              v                                       .ControlPlaneNamespace)  |
+  TriggerControlPlaneUpgrade                                                   v
+  (posts upgrade policy to CS)                                        ClusterValidation*
+              |                                                       (sets SPC.Status.Validations)
               v
   OperationClusterCreate
   (polls CS + ReadDesire status -> sets Operation.Status -> sets Cluster.SP.ProvisioningState)
@@ -1192,8 +1237,7 @@ Each entry links to every actor that writes the field.
 
 | Actor | When |
 |-------|------|
-| [Frontend: PUT Cluster (Create)](#put-cluster-create) | Sets from CS POST response |
-| [ClusterClusterServiceCreate](#clusterclusterservicecreate) | Sets from CS POST response (if frontend didn't) |
+| [ClusterClusterServiceCreate](#clusterclusterservicecreate) | Sets from CS POST response |
 | [ClusterDeletionClusterServiceIDClearer](#clusterdeletionclusterserviceidclearer) | Clears to `nil` on CS 404 |
 
 ### `HCPOpenShiftCluster.ServiceProviderProperties.RevokeCredentialsOperationID`
@@ -1294,8 +1338,7 @@ Single writer.
 
 | Actor | When |
 |-------|------|
-| [Frontend: PUT ExternalAuth (Create)](#put-externalauth-create) | Sets from CS POST response |
-| [ExternalAuthClusterServiceCreate](#externalauthclusterservicecreate) | Sets from CS POST (if frontend didn't) |
+| [ExternalAuthClusterServiceCreate](#externalauthclusterservicecreate) | Sets from CS POST response |
 | [ExternalAuthDeletionClusterServiceIDClearer](#externalauthdeletionclusterserviceidclearer) | Clears to `nil` on CS 404 |
 
 ### `Operation.Status`
@@ -1323,11 +1366,34 @@ Single writer, but read by `ClusterClusterServiceCreate` (gate), `OperationClust
 
 Single writer, but gates `CreateClusterScopedReadDesires` and deletion cleanup.
 
+### `ServiceProviderCluster.Status.HostedClusterNamespace`
+
+| Actor | When |
+|-------|------|
+| [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) | Sets from HostedCluster ReadDesire namespace |
+
+Single writer, but tracks the namespace containing the HostedCluster CR and user-provided secrets on the management cluster.
+
+### `ServiceProviderCluster.Status.ControlPlaneNamespace`
+
+| Actor | When |
+|-------|------|
+| [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) | Sets to `<hostedClusterNamespace>-<hostedClusterName>` (dots replaced by dashes) |
+
+Single writer, but tracks the namespace containing control plane pods (etcd, kube-apiserver, etc.) on the management cluster.
+
 ### `ServiceProviderCluster.Status.Validations`
 
 | Actor | When |
 |-------|------|
 | [ClusterValidation*](#clustervalidation--nodepoolvalidation) | Multiple validation controllers write different conditions on the same list |
+
+### `BillingDocument.DeletionTime`
+
+| Actor | When |
+|-------|------|
+| [ClusterDeletionController](#clusterdeletioncontroller) | Sets when cluster document is being deleted |
+| [OrphanedBillingCleanup](#orphanedbillingcleanup) | Sets when billing doc has no corresponding cluster |
 
 ---
 
@@ -1398,6 +1464,7 @@ Key source locations to examine:
 - backend/pkg/controllers/statuscontrollers/*.go
 - backend/pkg/controllers/billingcontrollers/*.go
 - backend/pkg/controllers/managementclustercontrollers/*.go
+- backend/pkg/controllers/mismatchcontrollers/*.go
 - backend/pkg/controllers/create_*_read_desires_controller.go
 - backend/pkg/controllers/controllerutils/{cluster,nodepool,external_auth}_watching_controller.go
 - backend/pkg/controllers/controllerutils/generic_watching_controller.go

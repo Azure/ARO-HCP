@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: admin-api
+    labels:
+      component: admin
     rules:
     - alert: AdminHighAuditLogErrorRate
       expr: |

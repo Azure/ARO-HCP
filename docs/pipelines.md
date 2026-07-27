@@ -34,4 +34,4 @@ The tree of pipelines making up the ARO HCP service are documented here from the
 - Microsoft.Azure.ARO.HCP.Observability ([ref](https://github.com/Azure/ARO-HCP/tree/main/observability/tracing/pipeline.yaml)): Deploy the development tracing stack.
 - Microsoft.Azure.ARO.HCP.Kusto.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.kusto.instance.pipeline.yaml)): Delete the kusto instance.
 - Microsoft.Azure.ARO.HCP.Service.Kubeconfig ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/svc-kubeconfig.yaml)): Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
-- Microsoft.Azure.ARO.HCP.Management.Kubeconfig ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/mgmt-kubeconfig.yaml)): Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
+- Microsoft.Azure.ARO.HCP.Management.Kubeconfig ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/mgmt-kubeconfig.yaml)): Grant access to AKS Management Clusters, mainly intended for E2E test setup.

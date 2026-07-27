@@ -36,7 +36,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -266,6 +265,32 @@ func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.
 		OriginalCluster: originalCluster.DeepCopy(),
 	}
 
+	if op.Type == operation.Create {
+		subscriptionID := originalCluster.ID.SubscriptionID
+		clusterIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+		if err != nil {
+			return nil, fmt.Errorf("cannot list clusters for cluster admission: %w", err)
+		}
+		for _, cluster := range clusterIterator.Items(ctx) {
+			admissionContext.SubscriptionClusters = append(admissionContext.SubscriptionClusters, cluster)
+
+			nodePoolIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
+			if err != nil {
+				return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
+			}
+			for _, nodePool := range nodePoolIterator.Items(ctx) {
+				admissionContext.SubscriptionNodePools = append(admissionContext.SubscriptionNodePools, nodePool)
+			}
+			if err := nodePoolIterator.GetError(); err != nil {
+				return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
+			}
+		}
+		if err := clusterIterator.GetError(); err != nil {
+			return nil, fmt.Errorf("cannot list clusters for cluster admission: %w", err)
+		}
+		return admissionContext, nil
+	}
+
 	if op.Type != operation.Update {
 		return admissionContext, nil
 	}
@@ -364,36 +389,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 	completeClusterIdentity(newInternalCluster, nil)
 
-	var tenantID string
-	if subscription.Properties != nil && subscription.Properties.TenantId != nil {
-		tenantID = *subscription.Properties.TenantId
-	}
-
-	initialClusterProperties := map[string]string{}
-	if len(f.clusterServiceProvisionShard) != 0 {
-		initialClusterProperties[ocm.CSPropertyProvisionShardID] = f.clusterServiceProvisionShard
-	}
-	if f.clusterServiceNoopProvision {
-		initialClusterProperties[ocm.CSPropertyNoopProvision] = ocm.CSPropertyEnabled
-	}
-	if f.clusterServiceNoopDeprovision {
-		initialClusterProperties[ocm.CSPropertyNoopDeprovision] = ocm.CSPropertyEnabled
-	}
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, tenantID, newInternalCluster, initialClusterProperties, nil, nil)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 	logger.Info(fmt.Sprintf("creating resource %s", newInternalCluster.ID))
-	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	csID, err := api.NewInternalID(resultingClusterServiceCluster.HREF())
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	newInternalCluster.ServiceProviderProperties.ClusterServiceID = &csID
 
 	transaction := f.resourcesDBClient.NewTransaction(newInternalCluster.ID.SubscriptionID)
 
@@ -401,7 +397,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	clusterCreateOperation := database.NewOperation(
 		database.OperationRequestCreate,
 		newInternalCluster.ID,
-		ptr.Deref(newInternalCluster.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
@@ -611,8 +607,6 @@ func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Req
 }
 
 func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalCluster, oldInternalCluster *api.HCPOpenShiftCluster) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, oldInternalCluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
@@ -657,37 +651,11 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	}
 	completeClusterIdentity(newInternalCluster, existingUserAssignedIdentities)
 
-	var tenantID string
-	if subscription.Properties != nil && subscription.Properties.TenantId != nil {
-		tenantID = *subscription.Properties.TenantId
-	}
-
-	if oldInternalCluster.ServiceProviderProperties.ClusterServiceID != nil {
-		oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, *oldInternalCluster.ServiceProviderProperties.ClusterServiceID)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, tenantID, newInternalCluster, nil, oldClusterServiceCluster, admissionContext.ServiceProviderCluster)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-
-		logger.Info(fmt.Sprintf("updating resource %s", oldInternalCluster.ID))
-		_, err = f.clusterServiceClient.UpdateClusterAutoscaler(ctx, *oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceAutoscalerBuilder)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		_, err = f.clusterServiceClient.UpdateCluster(ctx, *oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceClusterBuilder)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-	}
-
 	transaction := f.resourcesDBClient.NewTransaction(oldInternalCluster.ID.SubscriptionID)
 	clusterUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		oldInternalCluster.ID,
-		ptr.Deref(oldInternalCluster.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),

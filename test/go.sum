@@ -69,8 +69,8 @@ github.com/Azure/ARO-HCP/backend v0.0.0-20260513195720-7c0637c01c58 h1:GS9DvICq1
 github.com/Azure/ARO-HCP/backend v0.0.0-20260513195720-7c0637c01c58/go.mod h1:/0GqqOcoDf58ozMxUvx2BN8i9KUN28EzhNdpTMSejW8=
 github.com/Azure/ARO-Tools/config v0.0.0-20260715002326-2555e1130350 h1:HcxeG/aUrC+dEQHQuUAFuWeUjrInvtoLg4VZoB27WpI=
 github.com/Azure/ARO-Tools/config v0.0.0-20260715002326-2555e1130350/go.mod h1:lHUKixOUw8Wn/x3JC7VVLwlGDC4hD4wTUfYbT249yKM=
-github.com/Azure/ARO-Tools/pipelines v0.0.0-20260715002326-2555e1130350 h1:WkyGoNXxBikToHAKiKwmPyfCmuyQR/D/0w4e2ko+63Y=
-github.com/Azure/ARO-Tools/pipelines v0.0.0-20260715002326-2555e1130350/go.mod h1:WPsexqTqWP0/yJTOXhvVMfTrK73SXofVUE0XMudAnt8=
+github.com/Azure/ARO-Tools/pipelines v0.0.0-20260720175808-ca2cea2cb707 h1:0WvIjAhHuy9fwjUbHcQX3MoyiQgGgh9dr95N7SfkY40=
+github.com/Azure/ARO-Tools/pipelines v0.0.0-20260720175808-ca2cea2cb707/go.mod h1:WPsexqTqWP0/yJTOXhvVMfTrK73SXofVUE0XMudAnt8=
 github.com/Azure/ARO-Tools/testutil v0.0.0-20260715002326-2555e1130350 h1:BT7jXSF8pldP/zgiMAHXajS9d1crVlZYqyT3kyK/YBA=
 github.com/Azure/ARO-Tools/testutil v0.0.0-20260715002326-2555e1130350/go.mod h1:vKa6bvu+tFVip4oWO9PNI2NbtmN1KUezvdX7rZCQtQU=
 github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260715002326-2555e1130350 h1:OKEEHnv7jJhynBgOkRTTNvKt2Nq5KyiCAeu9kx+RM24=
@@ -122,6 +122,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v2 v2.0.0 h1:PTFG
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v2 v2.0.0/go.mod h1:LRr2FzBTQlONPPa5HREE5+RjSCTXl7BwOvYOaWTqCaI=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.1.1 h1:1kpY4qe+BGAH2ykv4baVSqyx+AY5VjXeJ15SldlU6hs=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.1.1/go.mod h1:nT6cWpWdUt+g81yuKmjeYPUtI73Ak3yQIT4PVVsCEEQ=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault v1.5.0 h1:nnQ9vXH039UrEFxi08pPuZBE7VfqSJt343uJLw0rhWI=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault v1.5.0/go.mod h1:4YIVtzMFVsPwBvitCDX7J9sqthSj43QD1sP6fYc1egc=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/kusto/armkusto/v2 v2.3.0 h1:5kp5bmJwJuF0HTsPUxRWRy44FxEatQAhv03nYdjXJ3s=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/kusto/armkusto/v2 v2.3.0/go.mod h1:ULnv9Hl5nSpzNHHqJ3xX0kIZp5ZyLcLGHdXNQ8RwIk4=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.2.0 h1:akP6VpxJGgQRpDR1P462piz/8OhYLRCreDj48AyNabc=
@@ -208,8 +210,6 @@ github.com/andygrunwald/go-jira v1.17.0 h1:bbu5H676l6MaNcV6A7VDIAjIOQVgzNGEhNAwN
 github.com/andygrunwald/go-jira v1.17.0/go.mod h1:tiZsPUu9824bwcI2BUXatE4hJbs9rUOif0nv1lkq1hQ=
 github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYWrPrQ=
 github.com/antlr4-go/antlr/v4 v4.13.1/go.mod h1:GKmUxMtwp6ZgGwZSva4eWPC5mS6vUAmOABFgjdkM7Nw=
-github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 h1:0CwZNZbxp69SHPdPJAN/hZIm0C4OItdklCFmMRWYpio=
-github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5/go.mod h1:wHh0iHkYZB8zMSxRWpUBQtwG5a7fFgvEO+odwuTv2gs=
 github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 h1:DklsrG3dyBCFEj5IhUbnKptjxatkF07cF2ak3yi77so=
 github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2/go.mod h1:WaHUgvxTVq04UNunO+XhnAqY/wQc+bxr74GqbsZ/Jqw=
 github.com/aws/aws-sdk-go v1.55.8 h1:JRmEUbU52aJQZ2AjX4q4Wu7t4uZjOu71uyNmaWlUkJQ=
@@ -604,8 +604,6 @@ github.com/gorilla/handlers v1.5.2/go.mod h1:dX+xVpaxdSw+q0Qek8SSsl3dfMk3jNddUkM
 github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
 github.com/gorilla/mux v1.8.1 h1:TuBL49tXwgrFYWhqrNgrUNEY92u81SPhu7sTdzQEiWY=
 github.com/gorilla/mux v1.8.1/go.mod h1:AKf9I4AEqPTmMytcMc0KkNouC66V3BtZ4qD5fmWSiMQ=
-github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 h1:JeSE6pjso5THxAzdVpqr6/geYxZytqFMBCOtn/ujyeo=
-github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674/go.mod h1:r4w70xmWCQKmi1ONH4KIaBptdivuRPyosB9RmPlGEwA=
 github.com/gosimple/slug v1.1.1 h1:fRu/digW+NMwBIP+RmviTK97Ho/bEj/C9swrCspN3D4=
 github.com/gosimple/slug v1.1.1/go.mod h1:ER78kgg1Mv0NQGlXiDe57DpCyfbNywXXZ9mIorhxAf0=
 github.com/gosuri/uitable v0.0.4 h1:IG2xLKRvErL3uhY6e1BylFzG+aJiwQviDDTfOKeKTpY=
@@ -740,8 +738,6 @@ github.com/mitchellh/go-wordwrap v1.0.1 h1:TLuKupo69TCn6TQSyGxwI1EblZZEsQ0vMlAFQ
 github.com/mitchellh/go-wordwrap v1.0.1/go.mod h1:R62XHJLzvMFRBbcrT7m7WgmE1eOyTSsCt+hzestvNj0=
 github.com/mitchellh/reflectwalk v1.0.2 h1:G2LzWKi524PWgd3mLHV8Y5k7s6XUvT0Gef6zxSIeXaQ=
 github.com/mitchellh/reflectwalk v1.0.2/go.mod h1:mSTlrgnPZtwu0c4WaC2kGObEpuNDbx0jmZXqmk4esnw=
-github.com/moby/spdystream v0.5.1 h1:9sNYeYZUcci9R6/w7KDaFWEWeV4LStVG78Mpyq/Zm/Y=
-github.com/moby/spdystream v0.5.1/go.mod h1:xBAYlnt/ay+11ShkdFKNAG7LsyK/tmNBVvVOwrfMgdI=
 github.com/moby/term v0.5.2 h1:6qk3FJAFDs6i/q3W/pQ97SX192qKfZgGjCQqfCJkgzQ=
 github.com/moby/term v0.5.2/go.mod h1:d3djjFCrjnB+fl8NJux+EJzu0msscUP+f8it8hPkFLc=
 github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
@@ -760,7 +756,6 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8m
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f h1:KUppIJq7/+SVif2QVs3tOP0zanoHgBEVAwHxUSIzRqU=
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
-github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f h1:y5//uYreIhSUg3J1GEMiLbxo1LJaP8RfCpH6pymGZus=
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
 github.com/onsi/ginkgo v0.0.0-20170829012221-11459a886d9c/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=

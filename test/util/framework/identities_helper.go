@@ -271,6 +271,7 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 	}
 
 	attempt := 0
+	var lastErrMsg string
 	for {
 		attempt++
 		err := state.assignNTo(specID(), count)
@@ -285,8 +286,11 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 			return fmt.Errorf("failed to assign identity containers: %w", err)
 		}
 
-		ginkgo.GinkgoLogr.Info("Not enough free identity containers, waiting to retry",
-			"error", err, "attempt", attempt, "retryIn", waitBetweenRetries, "elapsed", time.Since(startTime).Round(time.Second))
+		if errMsg := err.Error(); errMsg != lastErrMsg {
+			ginkgo.GinkgoLogr.Info("Not enough free identity containers, waiting to retry",
+				"error", err, "attempt", attempt, "retryIn", waitBetweenRetries, "elapsed", time.Since(startTime).Round(time.Second))
+			lastErrMsg = errMsg
+		}
 
 		select {
 		case <-ctx.Done():

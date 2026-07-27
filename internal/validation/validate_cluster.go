@@ -17,7 +17,9 @@ package validation
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/blang/semver/v4"
@@ -173,8 +175,12 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 
 	// Validate that managed resource group is different from cluster resource group
 	errs = append(errs, DifferentResourceGroupName(ctx, op, field.NewPath("customerProperties", "platform", "managedResourceGroup"), &newCluster.CustomerProperties.Platform.ManagedResourceGroup, nil, newCluster.ID.ResourceGroupName)...)
+	// NOTE: Our admission logic expects that the subnet and network security group are in the same subscription as the cluster.
+	// If these validations are removed, the admission logic should also be updated.
 	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.ID.SubscriptionID)...)
 	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "networkSecurityGroupId"), newCluster.CustomerProperties.Platform.NetworkSecurityGroupID, nil, newCluster.ID.SubscriptionID)...)
+	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("customerProperties", "platform", "networkSecurityGroupId"), newCluster.CustomerProperties.Platform.NetworkSecurityGroupID, nil, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId"), newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID, nil, newCluster.ID.SubscriptionID)...)
 
 	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
@@ -221,6 +227,9 @@ var (
 	toImageDigestMirrors = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) []api.ImageDigestMirror {
 		return oldObj.ImageDigestMirrors
 	}
+	toCryptoRestrictions = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CryptoRestrictions {
+		return &oldObj.CryptoRestrictions
+	}
 )
 
 func validateClusterCustomerProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
@@ -254,7 +263,6 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 	errs = append(errs, Maximum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), &newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodeDrainTimeoutMinutes), 10080)...)
 
 	//Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("etcd"), &newObj.Etcd, safe.Field(oldObj, toEtcd))...)
 	errs = append(errs, validateEtcdProfile(ctx, op, fldPath.Child("etcd"), &newObj.Etcd, safe.Field(oldObj, toEtcd))...)
 
 	//ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
@@ -269,6 +277,10 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 		nil, nil,
 		validateImageDigestMirror,
 	)...)
+
+	// CryptoRestrictions
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("cryptoRestrictions"), &newObj.CryptoRestrictions, safe.Field(oldObj, toCryptoRestrictions))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("cryptoRestrictions"), &newObj.CryptoRestrictions, nil, api.ValidCryptoRestrictions, nil)...)
 
 	return errs
 }
@@ -294,9 +306,6 @@ var (
 	}
 	toServiceProviderManagedIdentitiesDataPlaneIdentityURL = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
 		return &oldObj.ManagedIdentitiesDataPlaneIdentityURL
-	}
-	toExperimentalFeaturesFIPSEnabled = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *bool {
-		return &oldObj.ExperimentalFeatures.FIPSEnabled
 	}
 )
 
@@ -349,9 +358,6 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, nil)...)
 	}
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, ToClusterServiceProviderPropertiesClusterUID))...)
-
-	// ExperimentalFeatures.FIPSEnabled is immutable
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("tags").Key(api.TagClusterFIPSEnabled), &newObj.ExperimentalFeatures.FIPSEnabled, safe.Field(oldObj, toExperimentalFeaturesFIPSEnabled))...)
 
 	return errs
 }
@@ -622,6 +628,7 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 		errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, safe.Field(oldObj, toPlatformVnetIntegrationSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
 		errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, nil, newObj.ManagedResourceGroup)...)
 		// SameSubscription is validated in validateResourceIDsAgainstClusterID against cluster subscription
+		errs = append(errs, SameVirtualNetwork(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, nil, newObj.SubnetID)...)
 	}
 
 	//OutboundType            OutboundType                   `json:"outboundType,omitempty"`
@@ -633,6 +640,9 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID), "Microsoft.Network/networkSecurityGroups")...)
+	// Note: SameSubscription and DifferentResourceGroupNameFromResourceID for
+	// networkSecurityGroupId are performed at the cluster peer-field level in
+	// validateResourceIDsAgainstClusterID.
 
 	//OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
@@ -726,6 +736,45 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity), "Microsoft.ManagedIdentity/userAssignedIdentities")...)
 
+	// Managed identity resource IDs must be unique across control-plane operators,
+	// data-plane operators, and the service managed identity within a cluster
+	errs = append(errs, validateManagedIdentitiesUniqueWithinCluster(fldPath, newObj)...)
+
+	return errs
+}
+
+// validateManagedIdentitiesUniqueWithinCluster ensures that each managed identity
+// resource ID used by control-plane operators, data-plane operators, or the
+// service managed identity appears at most once within the cluster.
+// This restriction may be relaxed in the future following investigation and decisions in ARO-21615.
+func validateManagedIdentitiesUniqueWithinCluster(fldPath *field.Path, newObj *api.UserAssignedIdentitiesProfile) field.ErrorList {
+	observed := map[string]*field.Path{}
+	var errs field.ErrorList
+
+	record := func(identity *azcorearm.ResourceID, identityPath *field.Path) {
+		if identity == nil {
+			return
+		}
+		key := strings.ToLower(identity.String())
+		if _, ok := observed[key]; ok {
+			errs = append(errs, field.Invalid(
+				identityPath,
+				identity.String(),
+				fmt.Sprintf("managed identity with resource id '%s' must be unique within the cluster", identity.String()),
+			))
+			return
+		}
+		observed[key] = identityPath
+	}
+
+	for _, operatorName := range slices.Sorted(maps.Keys(newObj.ControlPlaneOperators)) {
+		record(newObj.ControlPlaneOperators[operatorName], fldPath.Child("controlPlaneOperators").Key(operatorName))
+	}
+	for _, operatorName := range slices.Sorted(maps.Keys(newObj.DataPlaneOperators)) {
+		record(newObj.DataPlaneOperators[operatorName], fldPath.Child("dataPlaneOperators").Key(operatorName))
+	}
+	record(newObj.ServiceManagedIdentity, fldPath.Child("serviceManagedIdentity"))
+
 	return errs
 }
 
@@ -772,7 +821,6 @@ func validateEtcdProfile(ctx context.Context, op operation.Operation, fldPath *f
 	errs := field.ErrorList{}
 
 	//DataEncryption EtcdDataEncryptionProfile `json:"dataEncryption,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("dataEncryption"), &newObj.DataEncryption, safe.Field(oldObj, toEtcdProfileDataEncryption))...)
 	errs = append(errs, validateEtcdDataEncryptionProfile(ctx, op, fldPath.Child("dataEncryption"), &newObj.DataEncryption, safe.Field(oldObj, toEtcdProfileDataEncryption))...)
 
 	return errs
@@ -796,7 +844,6 @@ func validateEtcdDataEncryptionProfile(ctx context.Context, op operation.Operati
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("keyManagementMode"), &newObj.KeyManagementMode, safe.Field(oldObj, toEtcdDataEncryptionProfileKeyManagementMode), api.ValidEtcdDataEncryptionKeyManagementModeType, nil)...)
 
 	//CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("customerManaged"), newObj.CustomerManaged, safe.Field(oldObj, toEtcdDataEncryptionProfileCustomerManaged))...)
 	union := validate.NewDiscriminatedUnionMembership("keyManagementMode", validate.NewDiscriminatedUnionMember("customerManaged", "CustomerManaged"))
 	discriminatorExtractor := func(obj *api.EtcdDataEncryptionProfile) api.EtcdDataEncryptionKeyManagementModeType {
 		return obj.KeyManagementMode
@@ -831,7 +878,6 @@ func validateCustomerManagedEncryptionProfile(ctx context.Context, op operation.
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("encryptionType"), &newObj.EncryptionType, safe.Field(oldObj, toCustomerManagedEncryptionProfileEncryptionType), api.ValidCustomerManagedEncryptionType, nil)...)
 
 	//Kms            *KmsEncryptionProfile         `json:"kms,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("kms"), newObj.Kms, safe.Field(oldObj, toEtcdDataEncryptionProfileKms))...)
 	union := validate.NewDiscriminatedUnionMembership("encryptionType", validate.NewDiscriminatedUnionMember("kms", "KMS"))
 	discriminatorExtractor := func(obj *api.CustomerManagedEncryptionProfile) api.CustomerManagedEncryptionType {
 		return obj.EncryptionType
@@ -865,7 +911,6 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility), api.ValidKeyVaultVisibility, nil)...)
 
 	//ActiveKey KmsKey `json:"activeKey,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
 	errs = append(errs, validateKmsKey(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
 
 	return errs
@@ -891,7 +936,11 @@ func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, nil, 255)...)
 
 	//Version   string `json:"version"`
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toKmsKeyVersion))...)
+	// The version field was made mutable in version 2026-06-30-preview.
+	apiVersion := api.APIVersionFromOptions(op.Options)
+	if len(apiVersion) > 0 && apiVersion.LT(api.APIVersionV20260630Preview) {
+		errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toKmsKeyVersion))...)
+	}
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("version"), &newObj.Version, nil)...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("version"), &newObj.Version, nil, 255)...)
 

@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -34,7 +35,8 @@ import (
 // clusterValidationSyncer is a Cluster syncer that performs a Cluster
 // validation.
 type clusterValidationSyncer struct {
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient            database.ResourcesDBClient
+	serviceProviderClusterLister listers.ServiceProviderClusterLister
 
 	// validation is the validation to perform on the cluster.
 	validation validations.ClusterValidation
@@ -47,13 +49,15 @@ var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
 func NewClusterValidationController(
 	validation validations.ClusterValidation,
 	resourcesDBClient database.ResourcesDBClient,
+	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 
 	syncer := &clusterValidationSyncer{
-		resourcesDBClient: resourcesDBClient,
-		validation:        validation,
+		resourcesDBClient:            resourcesDBClient,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		validation:                   validation,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -80,15 +84,20 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
+	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	shouldProcess := c.shouldProcess(existingServiceProviderCluster)
+	shouldProcess := c.shouldProcess(cachedServiceProviderCluster)
 	if !shouldProcess {
 		return nil // no work to do
 	}
+	existingServiceProviderCluster := cachedServiceProviderCluster.DeepCopy()
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))

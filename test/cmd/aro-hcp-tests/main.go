@@ -15,7 +15,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"os"
 	"sort"
 	"strconv"
@@ -24,6 +26,7 @@ import (
 	// If using ginkgo, import your tests here
 	_ "github.com/Azure/ARO-HCP/test/e2e"
 
+	"github.com/go-logr/stdr"
 	"github.com/onsi/gomega/format"
 	"github.com/spf13/cobra"
 
@@ -76,6 +79,31 @@ func miDemandPriority(spec *et.ExtensionTestSpec) int {
 	return 0
 }
 
+// isRunSuiteProcess returns true when this is the long-lived parent run-suite
+// process (os.Args[1] == "run-suite"), not a per-spec run-test worker subprocess.
+// The openshift-tests-extension framework spawns each spec as a separate
+// "run-test" OS process; only the parent process may start the UpgradeCoordinator.
+func isRunSuiteProcess() bool {
+	return len(os.Args) > 1 && os.Args[1] == "run-suite"
+}
+
+// isUpgradeInPlaceSuiteInvocation returns true when the current invocation is
+// specifically for the upgrade/in-place suite. It scans the command-line
+// arguments because the suite name is passed as a positional argument:
+//
+//	./aro-hcp-tests run-suite upgrade/in-place [flags...]
+func isUpgradeInPlaceSuiteInvocation() bool {
+	if !isRunSuiteProcess() {
+		return false
+	}
+	for _, arg := range os.Args {
+		if arg == "upgrade/in-place" {
+			return true
+		}
+	}
+	return false
+}
+
 func setupCli() *cobra.Command {
 	// Configure Ginkgo to be verbose - when we're emitting a full object to stdout on failure, there's no real value in truncating its
 	// content at some arbitrary length.
@@ -95,6 +123,25 @@ func setupCli() *cobra.Command {
 
 	// You can declare multiple extensions, but most people will probably only need to create one.
 	ext := e.NewExtension("aro-hcp", "payload", "cuj-e2e-tests")
+
+	// Build extension specs once, upfront. This reads the Ginkgo spec tree that was
+	// populated at import time, so it is safe to call before adding suites.
+	// We use the full spec list to count UpgradeInPlace specs dynamically so that
+	// the suite Parallelism and the barrier total are always in sync with the real
+	// spec count — no constant or env var needs updating when specs are added.
+	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+	if err != nil {
+		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
+	}
+
+	upgradeInPlaceCount := 0
+	for _, spec := range specs {
+		if spec.Labels.Has(labels.UpgradeInPlace[0]) {
+			upgradeInPlaceCount++
+		}
+	}
+	// Store the count so NewUpgradeBarrier can read it at spec-run time.
+	framework.SetUpgradeInPlaceSpecCount(upgradeInPlaceCount)
 
 	// Remember that the label constants are (currently) slices, not items.
 
@@ -216,11 +263,59 @@ func setupCli() *cobra.Command {
 		TestTimeout: &rpApiCompatTestTimeout,
 	})
 
-	// If using Ginkgo, build test specs automatically
-	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
-	if err != nil {
-		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
-	}
+	// upgrade/in-place runs UpgradeInPlace specs in parallel. Each spec provisions
+	// its own cluster+nodepool and captures a baseline, then all specs synchronise
+	// at an UpgradeBarrier while the UpgradeCoordinator (parent run-suite process)
+	// runs the Region entrypoint pipeline once for the suite. After the upgrade every
+	// spec validates its own cluster independently (hash, haproxy image, DataSecretName).
+	//
+	// Parallelism equals the number of UpgradeInPlace specs counted above so every
+	// spec can provision concurrently. If parallelism < spec count, specs block
+	// forever at the barrier waiting for a queued spec that can never start —
+	// a guaranteed deadlock. upgradeInPlaceCount is computed dynamically so
+	// adding a new UpgradeInPlace spec automatically updates both the parallelism
+	// and the barrier total without any manual constant to maintain.
+	upgradeInPlaceTimeout := 120 * time.Minute
+	ext.AddSuite(e.Suite{
+		Name: "upgrade/in-place",
+		Qualifiers: []string{
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.UpgradeInPlace[0]),
+		},
+		Parallelism: parallelism(upgradeInPlaceCount),
+		TestTimeout: &upgradeInPlaceTimeout,
+	})
+
+	// If using Ginkgo, specs were already built above. Hooks can be added here.
+
+	// For the upgrade/in-place suite, register a BeforeAll that starts the
+	// UpgradeCoordinator in the long-lived parent run-suite process. The
+	// coordinator polls the barrier state file, waits for all specs to check in,
+	// runs the Region entrypoint pipeline, then signals UpgradeDone so specs can
+	// unblock.
+	//
+	// The hook is guarded by isUpgradeInPlaceSuiteInvocation() so it is a no-op
+	// when any other suite runs. AddBeforeAll re-executes in every worker
+	// subprocess spawned by openshift-tests-extension (an unintended upstream
+	// behaviour), but the guard prevents duplicate coordinator goroutines.
+	specs.AddBeforeAll(func() {
+		if !isUpgradeInPlaceSuiteInvocation() {
+			return
+		}
+		// Set a stderr-backed logger for the coordinator before constructing it.
+		framework.SetUpgradeCoordinatorLogger(
+			stdr.New(log.New(os.Stderr, "[upgrade-coordinator] ", log.LstdFlags)),
+		)
+		coord, err := framework.NewUpgradeCoordinator()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "WARNING: failed to create upgrade coordinator: %v\n", err)
+			return
+		}
+		go func() {
+			if err := coord.Run(context.Background()); err != nil {
+				fmt.Fprintf(os.Stderr, "upgrade coordinator: %v\n", err)
+			}
+		}()
+	})
 
 	// You can add hooks to run before/after tests. There are BeforeEach, BeforeAll, AfterEach,
 	// and AfterAll. "Each" functions must be thread safe.

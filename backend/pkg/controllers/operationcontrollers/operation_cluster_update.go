@@ -220,6 +220,11 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, operationState.withSource("hypershiftHostedCluster"))
 	}
+	if operationState, autoscalerErr := c.hypershiftControlPlaneClusterAutoscalerState(ctx, existingCluster, existingServiceProviderCluster); autoscalerErr != nil {
+		errs = append(errs, utils.TrackError(autoscalerErr))
+	} else {
+		operationStates = append(operationStates, operationState.withSource("hypershiftControlPlaneClusterAutoscaler"))
+	}
 
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
@@ -240,8 +245,8 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	return picked, nil
 }
 
-func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *api.Operation, existingCluster *api.HCPOpenShiftCluster, existingServiceProviderCluster *api.ServiceProviderCluster) (*operationState, error) {
-	resultingDesiredVersion := existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
+func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *api.Operation, existingCluster *api.HCPOpenShiftCluster, spc *api.ServiceProviderCluster) (*operationState, error) {
+	resultingDesiredVersion := spc.Spec.ControlPlaneVersion.DesiredVersion
 	if resultingDesiredVersion == nil {
 		return nil, utils.TrackError(fmt.Errorf("service provider cluster has no desired version"))
 	}
@@ -275,7 +280,7 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 	if intentFailedCondition == nil || intentFailedCondition.Status != metav1.ConditionTrue || intentFailedCondition.Reason != api.VersionUpgradeNotAcceptedReason {
 		// Customer desired minor differs from the service provider resolved version, and the
 		// ControlPlaneDesiredVersion controller has not yet set IntentFailed (VersionUpgradeNotAccepted).
-		// Stay Accepted while resolution runs; fail once elapsed exceeds 29s from the first
+		// Stay Accepted while resolution runs; fail once elapsed exceeds 129s from the first
 		// time this process observed the mismatch for this operation, so a
 		// controller restart does not immediately fail long-running operations.
 		pending := newOperationState(arm.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")
@@ -284,11 +289,11 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 			c.desiredVersionMismatchFirstSeen.Add(operation.ResourceID.String(), c.clock.Now())
 			return pending, nil
 		}
-		if c.clock.Since(firstSeen.(time.Time)) <= 29*time.Second {
+		if c.clock.Since(firstSeen.(time.Time)) <= 129*time.Second {
 			return pending, nil
 		}
 		msg := fmt.Sprintf(
-			"timed out after 29s waiting for resolution of desired version from '%s' cluster version",
+			"timed out after 129s waiting for resolution of desired version from '%s' cluster version",
 			existingCluster.CustomerProperties.Version.ID,
 		)
 		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())

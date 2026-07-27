@@ -1,0 +1,19 @@
+// HyperShift Operator Image: shows which hypershift-operator image was deployed on the
+// management cluster during the test window. Useful for verifying that a PR-built image
+// override was applied.
+{{- if .NoTruncation}}
+set notruncation;
+{{end -}}
+kubernetesResourceSnapshots
+| where timestamp between ({{.TimestampMin}} .. {{.TimestampMax}})
+| where cluster == '{{.ClusterName}}'
+| where objectKind == "Pod"
+| where namespace == "hypershift"
+| where name startswith "operator-"
+| mv-expand container = object.status.containerStatuses
+| extend container_name = tostring(container.name),
+         image = tostring(container.image)
+| where container_name == "operator"
+| where isnotempty(image)
+| summarize pod_count = dcount(name), last_seen = max(timestamp) by image
+| order by last_seen desc

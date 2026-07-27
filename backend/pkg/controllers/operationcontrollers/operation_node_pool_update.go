@@ -281,7 +281,7 @@ func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx con
 	// Customer desired version differs from the service provider resolved version, and the
 	// NodePoolVersion controller has not yet set IntentFailed (VersionUpgradeNotAccepted)
 	// for this version. Stay Accepted while resolution runs; fail once elapsed exceeds
-	// 59s from the first time this process observed the mismatch for this operation.
+	// 129s from the first time this process observed the mismatch for this operation.
 	// This avoids immediately failing long-running operations after controller restarts
 	// and is double the relistDuration of the nodepool and serviceProviderNodePool informers.
 	// This will not solve all the edge cases, but it will give enough time to the other controllers to act.
@@ -292,11 +292,11 @@ func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx con
 			c.desiredVersionMismatchFirstSeen.Add(operationID, c.clock.Now())
 			return pending, nil
 		}
-		if c.clock.Since(firstSeen.(time.Time)) <= 59*time.Second {
+		if c.clock.Since(firstSeen.(time.Time)) <= 129*time.Second {
 			return pending, nil
 		}
 		msg := fmt.Sprintf(
-			"timed out after 59s waiting for resolution of desired version from '%s' node pool version",
+			"timed out after 129s waiting for resolution of desired version from '%s' node pool version",
 			existingNodePool.Properties.Version.ID,
 		)
 		c.desiredVersionMismatchFirstSeen.Remove(operationID)

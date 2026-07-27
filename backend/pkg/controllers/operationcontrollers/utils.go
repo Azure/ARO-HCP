@@ -476,9 +476,24 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 	case arohcpv1alpha1.ClusterStatePending, arohcpv1alpha1.ClusterStateValidating:
 		// These are valid cluster states for ARO-HCP but there are
 		// no unique ProvisioningState values for them. They should
-		// only occur when ProvisioningState is Accepted.
-		if newOperationStatus != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateAccepted)
+		// only occur when the set of ProvisioningStates matches the expected
+		// ones that can be set for the operation request. If they don't match, we
+		// error. If they match we leave the current provisioning state as is.
+		switch operation.Request {
+		case api.OperationRequestCreate:
+			if newOperationStatus != arm.ProvisioningStateAccepted && newOperationStatus != arm.ProvisioningStateProvisioning {
+				err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s' or '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateAccepted, arm.ProvisioningStateProvisioning)
+			}
+		case api.OperationRequestUpdate:
+			if newOperationStatus != arm.ProvisioningStateAccepted && newOperationStatus != arm.ProvisioningStateUpdating {
+				err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s' or '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateAccepted, arm.ProvisioningStateUpdating)
+			}
+		case api.OperationRequestDelete:
+			if newOperationStatus != arm.ProvisioningStateDeleting {
+				err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateDeleting)
+			}
+		default:
+			err = fmt.Errorf("unrecognized operation request: %s", operation.Request)
 		}
 	default:
 		err = fmt.Errorf("unhandled ClusterState '%s' (description: %q)", state, clusterStatus.Description())

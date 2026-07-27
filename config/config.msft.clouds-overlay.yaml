@@ -12,6 +12,34 @@ clouds:
           frontend:
             audit:
               connectSocket: true
+          # MISE
+          mise:
+            audit:
+              connectSocket: true
+          # Prometheus mgmt-cluster survival tuning (AROSLSRE-1553/1554/1555).
+          # A single prom-agent OOM-crashloop blacked out int-uksouth-mgmt-1 for
+          # ~37h. Mitigations, all scoped to the INT mgmt clusters:
+          #  - infraAgentPool.minCount 1 -> 2: raise the guaranteed infra floor
+          #    from 2 to 4 nodes (poolCount 2 x minCount 2) so the 8 prom pods
+          #    (4 shards x 2 replicas) sit ~2/node with room to breathe; the
+          #    autoscaler ceiling (maxCount 3/pool) is unchanged.
+          #  - shards 2 -> 4: halves per-shard series/WAL so a remote-write stall
+          #    replay after a restart stays bounded.
+          #  - requests.memory 2Gi: keeps all 8 pods schedulable across 4 nodes
+          #    (2 x 2Gi + ~2Gi infra baseline = ~6Gi/node of ~11.8Gi).
+          # The memory limit is intentionally not set here: sdp-pipelines pins
+          # the mgmt prometheus limit to 6Gi (hcp/config.msft.sensitive.clouds-overlay.yaml)
+          # and that override wins, so any value set here is dead config.
+          mgmt:
+            aks:
+              infraAgentPool:
+                minCount: 2
+            prometheus:
+              prometheusSpec:
+                shards: 4
+                resources:
+                  requests:
+                    memory: 2Gi
       stg:
         # this is the MSFT STAGE environment
         defaults:
@@ -65,6 +93,10 @@ clouds:
           frontend:
             audit:
               connectSocket: true
+          # MISE
+          mise:
+            audit:
+              connectSocket: true
       prod:
         # this is the MSFT PRODUCTION environment
         defaults:
@@ -77,6 +109,10 @@ clouds:
             deployDebugJobs: true
           # RP Frontend
           frontend:
+            audit:
+              connectSocket: true
+          # MISE
+          mise:
             audit:
               connectSocket: true
         regions:

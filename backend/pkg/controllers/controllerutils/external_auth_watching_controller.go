@@ -24,9 +24,11 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type ExternalAuthSyncer interface {
@@ -37,7 +39,8 @@ type externalAuthWatchingController struct {
 	name   string
 	syncer ExternalAuthSyncer
 
-	resourcesDBClient database.ResourcesDBClient
+	externalAuthLister listers.ExternalAuthLister
+	resourcesDBClient  database.ResourcesDBClient
 }
 
 // NewExternalAuthWatchingController periodically looks up all ExternalAuths and queues them
@@ -53,32 +56,42 @@ func NewExternalAuthWatchingController(
 	syncer ExternalAuthSyncer,
 ) Controller {
 
-	externalAuthController := &externalAuthWatchingController{
+	controller := &externalAuthWatchingController{
 		name:              name,
 		resourcesDBClient: resourcesDBClient,
 		syncer:            syncer,
 	}
 
-	externalAuthGenericWatchingController := newGenericWatchingController(name, api.ExternalAuthResourceType, externalAuthController)
+	externalAuthGenericWatchingController := newGenericWatchingController(name, api.ExternalAuthResourceType, controller)
 
-	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
-	if informers != nil {
-		externalAuthInformer, _ := informers.ExternalAuths()
-		err := externalAuthGenericWatchingController.QueueForInformers(resyncDuration, externalAuthInformer)
-		if err != nil {
-			panic(err) // coding error
-		}
+	externalAuthInformer, externalAuthLister := informers.ExternalAuths()
+	controller.externalAuthLister = externalAuthLister
+
+	err := externalAuthGenericWatchingController.QueueForInformers(resyncDuration, externalAuthInformer)
+	if err != nil {
+		panic(err) // coding error
 	}
 
 	return externalAuthGenericWatchingController
 }
 
 func (c *externalAuthWatchingController) SyncOnce(ctx context.Context, key HCPExternalAuthKey) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
 		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName).Controllers(key.HCPExternalAuthName),
 		c.name,
 		key.InitialController))
+
+	_, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
+	switch {
+	case database.IsNotFoundError(err):
+		logger.Info("external auth not found, skipping sync")
+		return nil
+	case err != nil:
+		// do nothing, let the controller decide what it wants to do.
+	}
 
 	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
 

@@ -36,8 +36,6 @@ Resource groups left behind by failed or timed-out tests are garbage-collected b
 
 ## How It Differs From Internal Onboarding
 
-In a standard DEV subscription onboarding, the ARO-HCP pipeline identity (`aro-hcp-owners` group) has Owner access and can deploy RBAC, custom role assignments, and identity containers directly.
-
 For an **external** subscription:
 
 - The subscription is **not listed** in `config/config-dev-ci.yaml` — the ARO-HCP pipeline does not interact with it at all
@@ -63,12 +61,21 @@ For an **external** subscription:
 Register the Azure resource providers required for E2E test operations:
 
 ```sh
-for ns in Microsoft.Compute Microsoft.Network Microsoft.ManagedIdentity; do
+for ns in Microsoft.Compute Microsoft.Network Microsoft.ManagedIdentity Microsoft.Storage; do
   az provider register --namespace "$ns" --subscription <subscription-id>
 done
 ```
 
 These are needed so the CI bot and RP identities can create/manage compute resources, networking, and managed identities within the subscription.
+
+`Microsoft.Storage` (and `Microsoft.Authorization`, which is registered by default on every subscription) must additionally be `Registered` because the backend `AzureResourceProvidersRegistrationValidation` controller checks the registration state of `Microsoft.Authorization`, `Microsoft.Compute`, `Microsoft.Network`, and `Microsoft.Storage` on the customer subscription before a cluster can provision. If any of these is unregistered, the validation fails and the cluster never leaves the retry loop. Confirm all four report `Registered`:
+
+```sh
+for ns in Microsoft.Authorization Microsoft.Compute Microsoft.Network Microsoft.Storage; do
+  echo "$ns: $(az provider show --namespace "$ns" \
+    --subscription <subscription-id> --query registrationState -o tsv)"
+done
+```
 
 ### Step 1: Grant the CI Bot (Test Runner)
 

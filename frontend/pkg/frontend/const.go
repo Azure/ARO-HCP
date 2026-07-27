@@ -38,4 +38,8 @@ const (
 
 	noMatchRouteLabel   = "<no match>"
 	unknownVersionLabel = "<unknown>"
+
+	// user_agent label fallback for frontend_http_requests_* metrics.
+	// Known CapZ/ASO User-Agents are kept verbatim; all others use this value.
+	userAgentOther = "other"
 )

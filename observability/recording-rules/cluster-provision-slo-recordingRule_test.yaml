@@ -1,0 +1,51 @@
+rule_files:
+- cluster-provision-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# Verify recording rules produce expected output from input series.
+# 6 succeeded, 4 failed cluster create operations → error rate = 40%.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/e", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/f", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/g", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/h", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/i", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/j", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  # In-flight (non-terminal) and other resource/operation types must be ignored
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/k", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/l", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: "errors:backend_cluster_provision:succeeded_total"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_provision:succeeded_total{cluster="mgmt-1"}'
+      value: 6
+  - expr: "errors:backend_cluster_provision:terminal_total"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_provision:terminal_total{cluster="mgmt-1"}'
+      value: 10
+  - expr: "errors:backend_cluster_provision:error_rate"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_provision:error_rate{cluster="mgmt-1"}'
+      value: 0.4

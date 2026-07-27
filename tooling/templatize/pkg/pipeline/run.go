@@ -86,6 +86,8 @@ type BaseRunOptions struct {
 	StepCacheDir             string
 	BicepClient              *bicep.LSPClient
 
+	SkipBicepparamValidation bool
+
 	SubscriptionIdToAzureConfigDirectory map[string]string
 }
 
@@ -979,7 +981,7 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 		}
 		return output, details, nil
 	case *types.IstioUpgradeStep:
-		if err := runIstioUpgradeStep(id, step, ctx, options, executionTarget); err != nil {
+		if err := runIstioUpgradeStep(id, step, ctx, options, executionTarget, state); err != nil {
 			return nil, nil, fmt.Errorf("failed to run istio upgrade step: %w", err)
 		}
 		return nil, nil, nil

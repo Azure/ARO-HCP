@@ -23,56 +23,67 @@ import (
 )
 
 // VerifyCustomerSubscriptionName checks that slotSubscriptionName matches
-// exactly one customer-*-subscription-name file inside clusterProfileDir.
-// It returns the validated name (not a subscription ID) because downstream
-// E2E steps expect the human-readable subscription name.
-func VerifyCustomerSubscriptionName(clusterProfileDir, slotSubscriptionName string) (string, error) {
-	if clusterProfileDir == "" {
-		return "", errors.New("cluster profile dir is empty")
+// exactly one customer-*-subscription-name file across the supplied cluster
+// profile dirs. It returns the validated name (not a subscription ID) and the
+// single cluster profile dir that matched. Downstream E2E steps use the
+// returned dir to load the tenant/service-principal credentials that own the
+// leased subscription, which is what allows a single job to lease slots that
+// live in more than one Azure tenant.
+func VerifyCustomerSubscriptionName(clusterProfileDirs []string, slotSubscriptionName string) (string, string, error) {
+	if len(clusterProfileDirs) == 0 {
+		return "", "", errors.New("cluster profile dirs are empty")
 	}
 
 	if slotSubscriptionName == "" {
-		return "", errors.New("slot subscription name is empty")
-	}
-
-	entries, err := os.ReadDir(clusterProfileDir)
-	if err != nil {
-		return "", fmt.Errorf("failed to read cluster profile dir %q: %w", clusterProfileDir, err)
+		return "", "", errors.New("slot subscription name is empty")
 	}
 
 	var matchedFile string
-	for _, entry := range entries {
-		if entry.IsDir() || !isCustomerSubscriptionNameFile(entry.Name()) {
-			continue
+	var matchedDir string
+	for _, clusterProfileDir := range clusterProfileDirs {
+		if clusterProfileDir == "" {
+			return "", "", errors.New("cluster profile dir is empty")
 		}
 
-		candidatePath := filepath.Join(clusterProfileDir, entry.Name())
-		data, err := os.ReadFile(candidatePath)
+		entries, err := os.ReadDir(clusterProfileDir)
 		if err != nil {
-			return "", fmt.Errorf("failed to read customer subscription name %q: %w", candidatePath, err)
+			return "", "", fmt.Errorf("failed to read cluster profile dir %q: %w", clusterProfileDir, err)
 		}
 
-		if strings.TrimSpace(string(data)) != slotSubscriptionName {
-			continue
-		}
+		for _, entry := range entries {
+			if entry.IsDir() || !isCustomerSubscriptionNameFile(entry.Name()) {
+				continue
+			}
 
-		if matchedFile != "" {
-			return "", fmt.Errorf(
-				"multiple customer subscription name files matched slot subscription %q: %s, %s",
-				slotSubscriptionName,
-				matchedFile,
-				candidatePath,
-			)
-		}
+			candidatePath := filepath.Join(clusterProfileDir, entry.Name())
+			data, err := os.ReadFile(candidatePath)
+			if err != nil {
+				return "", "", fmt.Errorf("failed to read customer subscription name %q: %w", candidatePath, err)
+			}
 
-		matchedFile = candidatePath
+			if strings.TrimSpace(string(data)) != slotSubscriptionName {
+				continue
+			}
+
+			if matchedFile != "" {
+				return "", "", fmt.Errorf(
+					"multiple customer subscription name files matched slot subscription %q: %s, %s",
+					slotSubscriptionName,
+					matchedFile,
+					candidatePath,
+				)
+			}
+
+			matchedFile = candidatePath
+			matchedDir = clusterProfileDir
+		}
 	}
 
 	if matchedFile == "" {
-		return "", fmt.Errorf("no customer subscription name file matched slot subscription %q in %q", slotSubscriptionName, clusterProfileDir)
+		return "", "", fmt.Errorf("no customer subscription name file matched slot subscription %q in %s", slotSubscriptionName, strings.Join(clusterProfileDirs, ", "))
 	}
 
-	return slotSubscriptionName, nil
+	return slotSubscriptionName, matchedDir, nil
 }
 
 func isCustomerSubscriptionNameFile(name string) bool {

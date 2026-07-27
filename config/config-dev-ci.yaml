@@ -7,7 +7,7 @@ $schema: config-dev-ci.schema.json
 #     --topology-file="${PROJECT_ROOT_DIR}/topology-dev-ci.yaml" \
 #     --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
 #     --dev-environment dev-ci \
-#     --service-group Microsoft.Azure.ARO.HCP.DevCI.Infra
+#     --service-group Microsoft.Azure.ARO.HCP.DevCI.Unprivileged
 #
 # Prerequisites for manual deployment:
 #   - Build templatize: make templatize
@@ -16,6 +16,8 @@ $schema: config-dev-ci.schema.json
 clouds:
   dev:
     defaults:
+      environmentName: "{{ .ctx.environment }}"
+      region: "{{ .ctx.region }}"
       svc:
         rg: "opstool-{{ .ctx.region }}"
         subscription:
@@ -127,7 +129,7 @@ clouds:
           image:
             registry: "quay.io"
             repository: "roivaz/cihealth"
-            tag: "b18f5c1"
+            tag: "0c8550b"
           disableRuntimeWorkloads: false
           app:
             replicas: 2

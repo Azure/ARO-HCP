@@ -32,6 +32,8 @@ resourceGroups:
       configRef: acr.ocp.name
     - name: REPLICATION_REGION
       configRef: region
+    - name: ENDPOINT_DISABLED_REGIONS
+      configRef: acr.ocp.regionEndpointDisabledRegions
     shellIdentity:
       input:
         resourceGroup: global

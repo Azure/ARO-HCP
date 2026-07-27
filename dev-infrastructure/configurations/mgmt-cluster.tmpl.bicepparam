@@ -37,8 +37,6 @@ param infraZoneRedundantMode = '{{ .mgmt.aks.infraAgentPool.zoneRedundantMode }}
 param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
 param aksNetworkDataplane = '{{ .mgmt.aks.networkDataplane }}'
 param aksNetworkPolicy = '{{ .mgmt.aks.networkDataplane }}'
-param aksEnableSwiftVnet = {{ .mgmt.aks.enableSwiftV2Vnet }}
-param aksEnableSwiftNodepools = {{ .mgmt.aks.enableSwiftV2Nodepools }}
 param aksUpgradeSettingsMaxSurge = '{{ .mgmt.aks.upgradeSettings.maxSurge }}'
 param aksUpgradeSettingsMaxUnavailable = '{{ .mgmt.aks.upgradeSettings.maxUnavailable }}'
 

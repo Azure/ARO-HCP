@@ -353,6 +353,9 @@ rebase:
 validate-config-pipelines: $(YQ) $(TEMPLATIZE)
 	$(TEMPLATIZE) pipeline validate --topology-config-file topology.yaml --service-config-file "$(CONFIG_FILE)" --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
 
+validate-config-pipelines-dev-ci: $(YQ) $(TEMPLATIZE)
+	$(TEMPLATIZE) pipeline validate --topology-config-file topology-dev-ci.yaml --service-config-file config/config-dev-ci.yaml --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev-ci") | .defaults.region' <tooling/templatize/settings.yaml)
+
 validate-changed-config-pipelines:
 	$(MAKE) validate-config-pipelines DEV_MODE="--dev-mode --dev-region uksouth" ONLY_CHANGED="--only-changed"
 
@@ -470,11 +473,18 @@ latest-services-override: $(YQ)
 ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
 ifdef USE_LATEST_IMAGES
 personal-dev-env: latest-services-override install-tools
-else
-personal-dev-env: build-services record-services-override install-tools
-endif
 	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
 	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
+else
+personal-dev-env: install-tools
+	$(eval IMAGE_TAG := $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ./generate-tag.sh))
+	$(eval ARO_HCP_REVISION := $(shell git rev-parse HEAD))
+	$(eval export IMAGE_TAG ARO_HCP_REVISION)
+	$(MAKE) build-services
+	$(MAKE) record-services-override
+	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
+	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
+endif
 else
 personal-dev-env:
 	$(error personal-dev-env: DEPLOY_ENV must be set to "pers" or "swft", not "$(DEPLOY_ENV)")
@@ -485,12 +495,16 @@ endif
 # Dev CI topology local run
 #
 dev-ci-local-run:
-	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.DevCI.Infra" STEP_CACHE_DIR=""
+	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.DevCI.Unprivileged" STEP_CACHE_DIR="" EXTRA_ARGS="--skip-bicepparam-validation"
 .PHONY: dev-ci-local-run
 
-dev-ci-e2e-subscription-rbac-local-run:
-	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--service-group Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC" STEP_CACHE_DIR=""
-.PHONY: dev-ci-e2e-subscription-rbac-local-run
+# PRIVILEGED, on-demand only. Applies the subscription-scoped custom role
+# definitions and role assignments (requires Owner / User Access Administrator
+# on the target subscriptions). Not part of the dev-ci postsubmit; run by an
+# OWNERS-group member. See docs/ci/dev-ci-topology.md.
+dev-ci-privileged-local-run:
+	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.DevCI.Privileged" STEP_CACHE_DIR="" EXTRA_ARGS="--skip-bicepparam-validation"
+.PHONY: dev-ci-privileged-local-run
 
 #
 # Local Cluster Service Development Environment

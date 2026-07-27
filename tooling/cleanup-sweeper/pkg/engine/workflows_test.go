@@ -37,7 +37,7 @@ func TestWorkflowBuilders(t *testing.T) {
 		assertions func(t *testing.T, workflow interface{}, err error)
 	}{
 		{
-			name: "role assignments workflow builds single step",
+			name: "role assignments workflow builds shared-leftovers steps",
 			execute: func(_ *testing.T) (interface{}, error) {
 				return RoleAssignmentsSweeperWorkflow(
 					context.Background(),
@@ -59,8 +59,8 @@ func TestWorkflowBuilders(t *testing.T) {
 				if !ok || builtWorkflow == nil {
 					t.Fatalf("expected *runner.Engine workflow")
 				}
-				if len(builtWorkflow.Steps) != 1 {
-					t.Fatalf("expected one step, got %d", len(builtWorkflow.Steps))
+				if len(builtWorkflow.Steps) != 2 {
+					t.Fatalf("expected two steps, got %d", len(builtWorkflow.Steps))
 				}
 				if builtWorkflow.Parallelism != 7 || !builtWorkflow.DryRun || !builtWorkflow.Wait {
 					t.Fatalf("unexpected workflow options: %+v", builtWorkflow)

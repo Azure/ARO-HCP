@@ -26,6 +26,8 @@ spec:
   # (point-in-time state rather than event rates), this provides equivalent
   # protection against transient spikes.
   - name: arohcp_access_cluster_slo_error_alerts
+    labels:
+      component: slo
     rules:
     # ----------------------------------------
     # Fast Burn Alert (IcM Sev 3 — RP lane / customer-facing UJ)
@@ -110,7 +112,8 @@ spec:
         (
           (time() - backend_resource_operation_start_time_seconds{
             resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-            operation_type=~"requestcredential|revokecredentials"
+            operation_type=~"requestcredential|revokecredentials",
+            subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
           })
           and
           backend_resource_operation_phase_info{
@@ -123,7 +126,7 @@ spec:
       labels:
         severity: "4"
       annotations:
-        summary: "{{ $labels.cluster }}: Credential operation stuck in {{ $labels.phase }} for over 1 hour"
+        summary: "{{ $labels.cluster }}: Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour"
         description: "Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
   # ========================================
@@ -132,6 +135,8 @@ spec:
   # Queue depth and retry rates for credential controllers.
   # IcM Sev 4 (precursor).
   - name: arohcp_access_cluster_saturation_alerts
+    labels:
+      component: slo
     rules:
     # Queue depth: credential controller workqueue accumulating work
     - alert: userJourneyAccessClusterSaturationQueueDepth

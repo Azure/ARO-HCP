@@ -1537,6 +1537,7 @@ func BuildHCPClusterFromParams20260630(
 			ClusterImageRegistry: &hcpsdk20260630preview.ClusterImageRegistryProfile{
 				State: to.Ptr(hcpsdk20260630preview.ClusterImageRegistryState(parameters.ImageRegistryState)),
 			},
+			CryptoRestrictions: parameters.CryptoRestrictions,
 			Etcd: &hcpsdk20260630preview.EtcdProfile{
 				DataEncryption: &hcpsdk20260630preview.EtcdDataEncryptionProfile{
 					KeyManagementMode: to.Ptr(hcpsdk20260630preview.EtcdDataEncryptionKeyManagementModeType(parameters.EncryptionKeyManagementMode)),

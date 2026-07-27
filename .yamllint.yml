@@ -9,6 +9,7 @@ ignore:
 - 'frontend/deploy/templates/ext-authz.authorizationpolicy.yaml'
 - 'frontend/deploy/templates/allow-ingress.authorizationpolicy.yaml'
 - 'frontend/deploy/templates/frontend.deployment.yaml'
+- 'istio/deploy/charts/mise/templates/deployment.yaml'
 - 'istio/deploy/templates/istio-shared-configmap.yml'
 - 'cluster-service/deploy/templates/cs-keyvault.secret.yaml'
 - 'cluster-service/deploy/templates/deployment.yaml'
@@ -52,6 +53,10 @@ ignore:
 - 'kube-applier/deploy/templates/deployment.yaml'
 - 'image-registry-policy/deploy/templates/validatingadmissionpolicybinding.yaml'
 - 'image-registry-policy/values.yaml'
+- 'hypershiftoperator/deploy/templates/sre-metrics-set.configmap.yaml'
+- 'hypershiftoperator/values.yaml'
+- 'observability/arobit/values-mgmt.yaml'
+- 'observability/arobit/values-svc.yaml'
 rules:
   brackets: enable
   colons: enable

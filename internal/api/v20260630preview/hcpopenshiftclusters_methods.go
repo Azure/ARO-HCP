@@ -122,6 +122,9 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	if obj.Properties.ClusterImageRegistry.State == nil {
 		obj.Properties.ClusterImageRegistry.State = ptr.To(generated.ClusterImageRegistryStateEnabled)
 	}
+	if obj.Properties.CryptoRestrictions == nil {
+		obj.Properties.CryptoRestrictions = ptr.To(generated.CryptoRestrictionsNone)
+	}
 }
 
 func newVersionProfile(from *api.VersionProfile) generated.VersionProfile {
@@ -382,6 +385,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
 				Status:                  newResourceStatus(from.Status.Conditions),
+				CryptoRestrictions:      api.PtrOrNil(generated.CryptoRestrictions(from.CustomerProperties.CryptoRestrictions)),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},
@@ -511,6 +515,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 		if c.Properties.ImageDigestMirrors != nil {
 			normalizeImageDigestMirrors(c.Properties.ImageDigestMirrors, &out.CustomerProperties.ImageDigestMirrors)
 		}
+		if c.Properties.CryptoRestrictions != nil {
+			normalizeCryptoRestrictions(c.Properties.CryptoRestrictions, &out.CustomerProperties.CryptoRestrictions)
+		}
 	}
 
 	if existing != nil {
@@ -578,6 +585,10 @@ func normalizeAPI(p *generated.APIProfile, out *api.CustomerAPIProfile, out2 *ap
 
 func normalizeIngress(p *generated.IngressProfile, out *api.CustomerIngressProfile) {
 	out.Type = api.IngressType(api.Deref(p.Type))
+}
+
+func normalizeCryptoRestrictions(p *generated.CryptoRestrictions, out *api.CryptoRestrictions) {
+	*out = api.CryptoRestrictions(api.Deref(p))
 }
 
 func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *api.CustomerPlatformProfile, out2 *api.ServiceProviderPlatformProfile) field.ErrorList {

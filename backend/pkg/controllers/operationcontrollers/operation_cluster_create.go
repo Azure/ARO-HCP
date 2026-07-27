@@ -36,8 +36,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
@@ -51,6 +51,7 @@ type operationClusterCreate struct {
 	clock                                 utilsclock.PassiveClock
 	activeOperationLister                 listers.ActiveOperationLister
 	clusterLister                         listers.ClusterLister
+	serviceProviderClusterLister          listers.ServiceProviderClusterLister
 	clusterManagementClusterContentLister listers.ManagementClusterContentLister
 	readDesireLister                      dblisters.ReadDesireLister
 	resourcesDBClient                     database.ResourcesDBClient
@@ -83,11 +84,13 @@ func NewOperationClusterCreateController(
 ) controllerutils.Controller {
 	_, activeOperationLister := informers.ActiveOperations()
 	_, clusterLister := informers.Clusters()
+	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
 	syncer := &operationClusterCreate{
 		clock:                                 clock,
 		activeOperationLister:                 activeOperationLister,
 		clusterLister:                         clusterLister,
+		serviceProviderClusterLister:          serviceProviderClusterLister,
 		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
 		readDesireLister:                      readDesireLister,
 		resourcesDBClient:                     resourcesDBClient,
@@ -151,51 +154,42 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
 		return nil
 	}
-	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
-
-	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, clusterServiceID)
+	operationalState, err := c.determineOperationState(ctx, operation, cluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	cosmosNewOperationState, err := c.determineOperationStatus(ctx, operation)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	logger.Info("new status via cosmos", "newStatus", cosmosNewOperationState.ProvisioningState, "newOperationMessage", cosmosNewOperationState.Message)
-
-	newOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus, clusterServiceID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
-
-	if newOperationStatus == arm.ProvisioningStateSucceeded && cosmosNewOperationState.ProvisioningState != arm.ProvisioningStateSucceeded {
-		// we want to require that the cosmos view of cluster creation is also complete before we mark it.  This ensures (among other things)
-		// that our ability to read maestro is successful.
-		// Once we have confidence in our ability to determine that cluster is functional, we'll stop checking cluster-service at all.
-		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q: %s", cosmosNewOperationState.ProvisioningState, newOperationStatus, cosmosNewOperationState.Message)
+	var persistErr *arm.CloudErrorBody
+	if operationalState.ProvisioningState == arm.ProvisioningStateFailed {
+		persistErr = &arm.CloudErrorBody{
+			// TODO for now we always set the error code to InternalServerError, but we should improve to be able
+			// to be more specific than that when we calculate operationalState. When work is done to improve on this, we
+			// should design it in a way where no internal details are exposed to the operation's error.
+			Code:    arm.CloudErrorCodeInternalServerError,
+			Message: operationalState.Message,
+		}
 	}
 
-	if !newOperationStatus.IsTerminal() &&
+	if !operationalState.ProvisioningState.IsTerminal() &&
 		cluster.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
 		c.clock.Now().After(cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
+
 		message := "cluster creation did not complete before the deadline"
-		if len(cosmosNewOperationState.Message) > 0 {
-			message = cosmosNewOperationState.Message
+		if len(operationalState.Message) > 0 {
+			message = operationalState.Message
 		}
 		logger.Info("create operation deadline exceeded, marking as failed",
 			"deadline", cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
 			"message", message)
-		newOperationStatus = arm.ProvisioningStateFailed
-		opError = &arm.CloudErrorBody{
+		operationalState.ProvisioningState = arm.ProvisioningStateFailed
+		persistErr = &arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInternalServerError,
 			Message: message,
 		}
 	}
 
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, opError, postAsyncNotificationFn(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, postAsyncNotificationFn(c.notificationClient))
 	if database.IsPreconditionFailedError(err) {
 		return nil
 	}
@@ -206,7 +200,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	return nil
 }
 
-func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
+func (c *operationClusterCreate) determineOperationState(ctx context.Context, operation *api.Operation, cluster *api.HCPOpenShiftCluster) (*operationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	errs := []error{}
@@ -222,6 +216,16 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 	} else {
 		operationStates = append(operationStates, currState.withSource("cosmosCluster"))
 	}
+	if currState, err := c.clusterServiceCreateOperationState(ctx, operation, cluster); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.withSource("clusterServiceClusterStatus"))
+	}
+	if currState, err := c.servingCABundleOperationStatus(ctx, operation); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.withSource("servingCABundle"))
+	}
 
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
@@ -231,7 +235,6 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 		return nil, errors.New("no operation states")
 	}
 	slices.SortStableFunc(operationStates, compareOperationState)
-
 	if operationStates[0] == nil {
 		return nil, errors.New("nil operation state")
 	}
@@ -241,8 +244,29 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	logger.Info("picked cluster create operation status", "picked", picked)
+	logger.Info("picked cluster create operation status", "provisioningState", picked.ProvisioningState, "message", picked.Message)
 	return picked, nil
+}
+
+func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.Context, operation *api.Operation, cluster *api.HCPOpenShiftCluster) (*operationState, error) {
+	logger := utils.LoggerFromContext(ctx)
+	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
+
+	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, clusterServiceID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	newOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus, clusterServiceID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
+	msg := ""
+	if opError != nil {
+		msg = opError.Message
+	}
+	return newOperationState(newOperationStatus, msg), nil
 }
 
 func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
@@ -279,7 +303,7 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 	// Pull the HostedCluster directly from the per-cluster ReadDesire via
 	// the union lister. The union lister hides per-MC routing so callers
 	// don't need to know which management cluster the HostedCluster is on.
-	readDesire, err := c.readDesireLister.GetForCluster(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, maestrohelpers.ReadDesireNameReadonlyHostedCluster)
+	readDesire, err := c.readDesireLister.GetForCluster(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)
 	if database.IsNotFoundError(err) {
 		return newOperationState(arm.ProvisioningStateProvisioning, "hosted cluster state not cached yet"), nil
 	}
@@ -353,6 +377,24 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 	// 1. the hosted cluster is available via condition
 	// 2. the hosted cluster has successfully installed at least one version
 	// 3. the hosted cluster has a control plane endpoint host and port
+	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
+}
+
+func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
+	// The control-plane serving CA is mirrored into the service cluster (and
+	// thus ServiceProviderCluster.Status.ServingCABundle is populated) for every
+	// cluster that has a control-plane namespace, regardless of OpenShift
+	// version. The create operation blocks until that bundle has been populated.
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if database.IsNotFoundError(err) {
+		return newOperationState(arm.ProvisioningStateProvisioning, "ServiceProviderCluster not cached yet"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if len(serviceProviderCluster.Status.ServingCABundle) == 0 {
+		return newOperationState(arm.ProvisioningStateProvisioning, "ServingCABundle not yet populated"), nil
+	}
 	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
 }
 

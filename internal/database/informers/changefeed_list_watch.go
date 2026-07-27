@@ -383,7 +383,9 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	}
 
 	if objAsTypedDocument.ResourceID == nil {
-		return utils.TrackError(fmt.Errorf("missing resourceID"))
+		// intentionally skipping malformed object
+		utilruntime.HandleError(fmt.Errorf("missing resourceID for document ID: %q", objAsTypedDocument.ID))
+		return nil
 	}
 
 	var cosmosObj CosmosAPIType
@@ -405,17 +407,28 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	}
 
 	objDeleted := false
-	if c.shouldDeliverItemFn != nil && !c.shouldDeliverItemFn(internalObj) {
+	if objAsTypedDocument.DeletionTimestamp != nil {
 		if objPreviouslySeen {
 			objDeleted = true
-			// we need to deliver a delete, so fall through
 		} else {
-			logger.Info("should not deliver document", "content", cosmosObj)
+			logger.Info("skipping soft-deleted document not previously seen",
+				"snapshotType", "cosmos",
+				"content", cosmosObj)
+			return nil
+		}
+	} else if c.shouldDeliverItemFn != nil && !c.shouldDeliverItemFn(internalObj) {
+		if objPreviouslySeen {
+			objDeleted = true
+		} else {
+			logger.Info("should not deliver document",
+				"snapshotType", "cosmos",
+				"content", cosmosObj)
 			return nil
 		}
 	}
 
 	logger.Info("delivering change feed item",
+		"snapshotType", "cosmos",
 		"content", cosmosObj,
 		"internalObj", internalObj,
 	)

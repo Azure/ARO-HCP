@@ -72,17 +72,40 @@ environments:
     deploy_envs:
     - prod
     pools:
+    # slot_count is capped at 3 per subscription by the Azure deny-assignment
+    # limit, not by role-assignment quota. The Authorization RP allows at most
+    # 2000 deny assignments per subscription, and the RP currently creates
+    # sharded (per-cluster) deny assignments (~21 per HCP), which caps a
+    # subscription at ~92 concurrent HCPs. With identity_container_count: 25
+    # (max HCPs per suite run), that is floor(92 / 25) = 3 slots per sub.
+    # This constraint is AME-only (STG and PROD): deny assignments are only
+    # created in AME. See the "Scaling Constraints" section in
+    # docs/ci/identity-leasing.md for the full explanation.
     - subscription_name: "ARO HCP E2E Hosted Clusters - Prod - 00"
       region: uksouth
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard0-slot
-      slot_count: 12
+      slot_count: 3
       identity_container_prefix: aro-hcp-msi-container-prod
       identity_container_count: 25
     - subscription_name: "ARO HCP E2E Hosted Clusters - Prod - 01"
       region: uksouth
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard1-slot
-      slot_count: 12
+      slot_count: 3
       identity_container_prefix: aro-hcp-msi-container-prod
       identity_container_count: 25
+    # Test-Test tenant (MSFT) prod sub "ARO HCP E2E" (403d9de9). Cross-tenant, so
+    # identities are provisioned externally (identity_provisioning: unmanaged).
+    # Kept in the pool so the single prod gating job can lease it for the canary
+    # region (eastus2euap), which only this sub is EUAP-onboarded for. The test
+    # step resolves this sub's owning tenant/service principal from the
+    # /var/run/aro-hcp-prod cluster profile via SELECTED_CLUSTER_PROFILE_DIR.
+    - subscription_name: "ARO HCP E2E"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-testtenant-slot
+      slot_count: 4
+      identity_container_prefix: aro-hcp-msi-container-prod-testtenant
+      identity_container_count: 25
+      identity_provisioning: unmanaged

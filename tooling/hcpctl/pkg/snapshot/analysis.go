@@ -122,6 +122,22 @@ func WriteNodeConsoleLogs(outputDir string, logs []NodeConsoleLogFile) error {
 	return nil
 }
 
+// WriteAzureLog writes the client-side azure.log to azure_sdk_log/azure.log in
+// the output directory. It is a no-op when no log was captured.
+func WriteAzureLog(outputDir string, log *AzureLogFile) error {
+	if log == nil || len(log.Content) == 0 {
+		return nil
+	}
+	dir := filepath.Join(outputDir, "azure_sdk_log")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create azure_sdk_log dir: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "azure.log"), log.Content, 0o644); err != nil {
+		return fmt.Errorf("failed to write azure.log: %w", err)
+	}
+	return nil
+}
+
 // RecoverTimeWindow reads sibling_tests.json from a previously gathered data
 // directory and returns the start/end/cleanup-start times for the named test.
 // This is used when reusing gathered data from a previous run where the time

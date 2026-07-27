@@ -136,6 +136,12 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 				// Seed ServiceProviderCluster with active_versions so CREATE-time
 				// skew validation can find lowest/highest control plane versions.
 				loadCosmosFromArtifact(t, ctx, testInfo, scenario.dir+"/service_provider_cluster.json")
+
+				require.NoError(t, integrationutils.StampRandomClusterServiceID(
+					ctx,
+					testInfo.ResourcesDBClient(),
+					scenario.ClusterResourceID,
+				))
 			}
 
 			// Create the resource under test using the scenario's createVersion

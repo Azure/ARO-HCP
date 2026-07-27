@@ -136,6 +136,17 @@ func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (string, error) 
 	}
 }
 
+func convertCryptoRestrictionsToCS(cryptoRestrictions api.CryptoRestrictions) (bool, error) {
+	switch cryptoRestrictions {
+	case api.CryptoRestrictionsFIPS:
+		return true, nil
+	case api.CryptoRestrictionsNone:
+		return false, nil
+	default:
+		return false, conversionError[bool](cryptoRestrictions)
+	}
+}
+
 func convertDiskStorageAccountTypeRPToCS(storageAccountTypeRP api.DiskStorageAccountType) (string, error) {
 	switch storageAccountTypeRP {
 	case api.DiskStorageAccountTypePremium_LRS:
@@ -268,7 +279,7 @@ func convertTokenClaimValidationRuleRPToCS(rule externalAuthUpdateDispatchConfig
 	}
 }
 
-func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionBuilder, error) {
+func convertEtcdRPToCS(in api.EtcdProfile, activeKeyBuilder *arohcpv1alpha1.AzureKmsKeyBuilder) (*arohcpv1alpha1.AzureEtcdEncryptionBuilder, error) {
 	keyManagementMode, err := convertKeyManagementModeTypeRPToCS(in.DataEncryption.KeyManagementMode)
 	if err != nil {
 		return nil, err
@@ -285,13 +296,11 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 			EncryptionType(encryptionType)
 
 		if in.DataEncryption.CustomerManaged.Kms != nil {
-			azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().
+			activeKeyBuilder.
 				KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
-				KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).
-				KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
-			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
+				KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName)
+			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(activeKeyBuilder)
 
-			// Add KeyVault visibility if specified
 			if len(in.DataEncryption.CustomerManaged.Kms.Visibility) != 0 {
 				visibility, err := convertKeyVaultVisibilityRPToCS(in.DataEncryption.CustomerManaged.Kms.Visibility)
 				if err != nil {
@@ -361,7 +370,6 @@ func GetClusterServiceUserAssignedIdentities(clusterServiceCluster *arohcpv1alph
 }
 
 func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
-
 	// MaxNodeProvisionTime (string) - minutes e.g - “15m”
 	// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/autoscaler.go?ref_type=heads#L30-42
 	maxNodeProvisionDuration, err := time.ParseDuration(fmt.Sprint(in.MaxNodeProvisionTimeSeconds, "s"))
@@ -399,17 +407,22 @@ func convertImageDigestMirrorsToCSBuilder(in []api.ImageDigestMirror) []*arohcpv
 // requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
 // oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
 // are preserved as a base layer.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *api.ServiceProviderCluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
+func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *api.ServiceProviderCluster) (*arohcpv1alpha1.ClusterBuilder, error) {
 	var err error
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
+	clusterKMSActiveKeyBuilder := arohcpv1alpha1.NewAzureKmsKey()
+
+	var azureBuilder *arohcpv1alpha1.AzureBuilder
 
 	// These attributes cannot be updated after cluster creation.
 	if oldClusterServiceCluster == nil {
-		csVersionID := clusterCSVersionID(serviceProviderCluster, hcpCluster)
-		// Add attributes that cannot be updated after cluster creation.
-		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
+		csVersionID, err := clusterCSVersionID(serviceProviderCluster, hcpCluster)
+		if err != nil {
+			return nil, err
+		}
+		clusterBuilder, azureBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
 			resourceID.ResourceGroupName,
 			tenantID,
@@ -417,21 +430,29 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 			csVersionID,
 		)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		clusterAPIBuilder.Listening(apiListening)
 
 		ingressListening, err := convertIngressTypeToListening(hcpCluster.CustomerProperties.Ingress.Type)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		clusterBuilder.Ingresses(arohcpv1alpha1.NewIngressList().Items(
 			arohcpv1alpha1.NewIngress().Default(true).Listening(ingressListening),
 		))
+
+		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.CustomerProperties.Etcd, clusterKMSActiveKeyBuilder)
+		if err != nil {
+			return nil, err
+		}
+		azureBuilder.EtcdEncryption(etcdEncryption)
+		clusterBuilder.Azure(azureBuilder)
+
 	}
 
 	// Property layering for CS Properties(): preserve existing values (on update),
@@ -448,32 +469,22 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	}
 
 	clusterUpdateDispatchConfig := clusterUpdateDispatchConfigFromRP(hcpCluster, serviceProviderCluster)
-	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, properties)
+	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, azureBuilder, clusterKMSActiveKeyBuilder, properties)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	clusterAutoscalerBuilder, err := clusterUpdateDispatchConfig.autoscalerBuilder()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return clusterBuilder, clusterAutoscalerBuilder, nil
+	return clusterBuilder, nil
 }
 
-// clusterCSVersionID returns the OpenShift version ID for a new Cluster Service cluster.
-// ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion is authoritative when set.
-// When unset (e.g. frontend install before ControlPlaneDesiredVersion runs), the customer
-// version on the HCP cluster document is used.
-// Once cluster install is migrated to backend, we can expect the desiredVersion field to always
-// be set on the ServiceProviderCluster.
-func clusterCSVersionID(serviceProviderCluster *api.ServiceProviderCluster, hcpCluster *api.HCPOpenShiftCluster) string {
-	channelGroup := hcpCluster.CustomerProperties.Version.ChannelGroup
-	if serviceProviderCluster != nil && serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion != nil {
-		return NewOpenShiftVersionXYZ(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String(), channelGroup)
+// clusterCSVersionID returns the OpenShift version ID for a new Cluster Service cluster
+// from ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.
+func clusterCSVersionID(serviceProviderCluster *api.ServiceProviderCluster, hcpCluster *api.HCPOpenShiftCluster) (string, error) {
+	if serviceProviderCluster == nil || serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion == nil {
+		return "", fmt.Errorf("control plane desired version is not set on the ServiceProviderCluster")
 	}
-	// Remove this once cluster install is migrated to backend
-	return NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID, channelGroup)
+	channelGroup := hcpCluster.CustomerProperties.Version.ChannelGroup
+	return NewOpenShiftVersionXYZ(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String(), channelGroup), nil
 }
 
 // ConvertHostedClusterSizeOverrideToCS returns the value the CSPropertySizeOverride
@@ -503,14 +514,18 @@ func ConvertHostedClusterSizeOverrideToCS(desiredClusterControlPlanePodSizing ap
 	return "", false
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL, csVersionID string) (*arohcpv1alpha1.ClusterBuilder, error) {
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL, csVersionID string) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.AzureBuilder, error) {
 	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	outboundType, err := convertOutboundTypeRPToCS(hcpCluster.CustomerProperties.Platform.OutboundType)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	fips, err := convertCryptoRestrictionsToCS(hcpCluster.CustomerProperties.CryptoRestrictions)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	clusterBuilder.
@@ -535,7 +550,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			HostPrefix(int(hcpCluster.CustomerProperties.Network.HostPrefix))).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(clusterImageRegistryState)).
-		FIPS(hcpCluster.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled)
+		FIPS(fips)
 	azureBuilder := arohcpv1alpha1.NewAzure().
 		TenantID(tenantID).
 		SubscriptionID(strings.ToLower(subscriptionID)).
@@ -545,15 +560,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		SubnetResourceID(hcpCluster.CustomerProperties.Platform.SubnetID.String()).
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
 			OutboundType(outboundType))
-
-	// Only add etcd encryption if it's actually configured
-	if hcpCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode != "" || hcpCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil {
-		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.CustomerProperties.Etcd)
-		if err != nil {
-			return nil, err
-		}
-		azureBuilder.EtcdEncryption(etcdEncryption)
-	}
 
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
 	if hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID != nil {
@@ -587,14 +593,12 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 
 	azureBuilder.OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
 
-	clusterBuilder.Azure(azureBuilder)
-
 	// Cluster Service rejects an empty DomainPrefix string.
 	if hcpCluster.CustomerProperties.DNS.BaseDomainPrefix != "" {
 		clusterBuilder.DomainPrefix(hcpCluster.CustomerProperties.DNS.BaseDomainPrefix)
 	}
 
-	return clusterBuilder, nil
+	return clusterBuilder, azureBuilder, nil
 }
 
 // BuildCSNodePool creates a CS NodePoolBuilder object from an HCPOpenShiftClusterNodePool object.

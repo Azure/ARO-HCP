@@ -131,12 +131,6 @@ param aksEtcdKVEnableSoftDelete bool = true
 @description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
 param aksClusterOutboundIPAddressIPTags string = ''
 
-@description('Enable Swift V2 for the AKS cluster VNET')
-param aksEnableSwiftVnet bool
-
-@description('Enable Swift V2 for the AKS cluster nodepools')
-param aksEnableSwiftNodepools bool
-
 @description('Maximum surge for AKS node pool upgrades')
 param aksUpgradeSettingsMaxSurge string
 
@@ -338,7 +332,7 @@ module vnetCreation '../modules/network/vnet.bicep' = {
     location: location
     vnetName: vnetName
     vnetAddressPrefix: vnetAddressPrefix
-    enableSwift: aksEnableSwiftVnet
+    enableSwift: true
   }
 }
 
@@ -410,7 +404,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     deploymentMsiId: globalMSIId
-    enableSwiftV2Nodepools: aksEnableSwiftNodepools
+    enableSwiftV2Nodepools: true
     upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
     upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
     owningTeamTagValue: owningTeamTagValue

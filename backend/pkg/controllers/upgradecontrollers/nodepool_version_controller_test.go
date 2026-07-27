@@ -38,8 +38,8 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
@@ -155,12 +155,12 @@ func hostedClusterReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
 	return api.Must(azcorearm.ParseResourceID(
 		kubeapplier.ToClusterScopedReadDesireResourceIDString(
-			testSubscriptionID, testResourceGroupName, testClusterName, maestrohelpers.ReadDesireNameReadonlyHostedCluster)))
+			testSubscriptionID, testResourceGroupName, testClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)))
 }
 
 // newHostedClusterReadDesire builds a ReadDesire whose Status.KubeContent.Raw is
 // the serialized HostedCluster carrying the given Spec.ClusterID. The
-// consumer maestrohelpers.GetCachedHostedClusterForCluster unmarshals it as
+// consumer kubeapplierhelpers.GetCachedHostedClusterForCluster unmarshals it as
 // the raw HostedCluster directly.
 func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.ReadDesire {
 	t.Helper()
@@ -1470,7 +1470,11 @@ func assertSyncResult(t *testing.T, err error, expectedError bool, expectedError
 	}
 }
 
-// createServiceProviderClusterWithVersion creates a ServiceProviderCluster with the given control plane version.
+// createServiceProviderClusterWithVersion ensures a ServiceProviderCluster
+// exists with the given control plane version. If a sibling helper
+// (e.g. createTestHCPCluster) has already seeded an empty SPC via
+// GetOrCreateServiceProviderCluster, this updates that document in place via
+// Replace; otherwise it creates a new one.
 func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, controlPlaneVersion string) {
 	t.Helper()
 
@@ -1481,6 +1485,20 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 	spClusterResourceID := clusterResourceID + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName
 
 	cpVersion := semver.MustParse(controlPlaneVersion)
+	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+
+	existing, getErr := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
+	if getErr == nil {
+		replacement := existing.DeepCopy()
+		replacement.Status.ControlPlaneVersion.ActiveVersions = []api.HCPClusterActiveVersion{
+			{Version: &cpVersion, State: configv1.CompletedUpdate},
+		}
+		_, err := spcCRUD.Replace(ctx, replacement, nil)
+		require.NoError(t, err)
+		return
+	}
+	require.True(t, database.IsNotFoundError(getErr), "unexpected error reading SPC before seeding: %v", getErr)
+
 	spCluster := &api.ServiceProviderCluster{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID:   api.Must(azcorearm.ParseResourceID(spClusterResourceID)),
@@ -1494,7 +1512,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 			},
 		},
 	}
-	_, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, spCluster, nil)
+	_, err := spcCRUD.Create(ctx, spCluster, nil)
 	require.NoError(t, err)
 }
 

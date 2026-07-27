@@ -57,6 +57,9 @@ prometheusRules:
   - groupName: mise
     alerts:
     - MiseEnvoyScrapeDown
+  - groupName: prometheus-wip-rules
+    alerts:
+    - PrometheusMetricsAbsentPerCluster
   labelsToExtract:
   - persistentvolumeclaim
   - persistentvolume

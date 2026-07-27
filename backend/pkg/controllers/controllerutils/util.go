@@ -257,44 +257,52 @@ func getOrCreateControllerDocument(
 	controllerCRUD database.ResourceCRUD[api.Controller, *api.Controller],
 	controllerName string,
 	initialControllerFn InitialControllerFunc,
+	secondAttempt ...bool,
 ) (*api.Controller, error) {
 	if initialControllerFn == nil {
 		return nil, fmt.Errorf("initialControllerFn is required")
 	}
 
 	existingController, err := controllerCRUD.Get(ctx, controllerName)
-	if err == nil && existingController != nil {
+	switch {
+	case err == nil:
 		return existingController, nil
-	}
-	if err == nil {
-		err = database.NewNotFoundError()
-	}
-
-	if !database.IsNotFoundError(err) {
-		return nil, fmt.Errorf("failed to get existing controller state: %w", err)
+	case database.IsNotFoundError(err):
+		// fall through
+	default:
+		return nil, utils.TrackError(err)
 	}
 
 	existingController, err = controllerCRUD.Create(ctx, initialControllerFn(controllerName), nil)
-	if err == nil {
-		if existingController == nil {
-			return nil, fmt.Errorf("create returned success with nil controller")
-		}
+	switch {
+	case err == nil:
 		return existingController, nil
-	}
-
-	if !database.IsConflictError(err) {
-		return nil, fmt.Errorf("failed to create existing controller state: %w", err)
+	case database.IsConflictError(err):
+		// fall through
+	default:
+		return nil, utils.TrackError(err)
 	}
 
 	existingController, err = controllerCRUD.Get(ctx, controllerName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get existing controller state after create conflict: %w", err)
+	switch {
+	case err == nil:
+		return existingController, nil
+	case database.IsNotFoundError(err):
+		if len(secondAttempt) >= 1 && secondAttempt[0] {
+			return nil, utils.TrackError(fmt.Errorf("second NotFound, Conflict, NotFound error: %w", err))
+		}
+		select {
+		case <-ctx.Done():
+			return nil, utils.TrackError(ctx.Err())
+		case <-time.After((database.SoftDeleteTTLSeconds + 1) * time.Second):
+			// This can happen when the soft-delete marks an item, the GET will return 404, the create will 409, the second get will 404.
+			// By waiting longer than the cosmos TTL, we can re-enter the loop and try again later.  This is a rare case and will
+			// only happen when the parent item exists and the controller was deleted.
+			return getOrCreateControllerDocument(ctx, controllerCRUD, controllerName, initialControllerFn, true)
+		}
+	default:
+		return nil, utils.TrackError(err)
 	}
-	if existingController == nil {
-		return nil, fmt.Errorf("failed to get existing controller state after create conflict: document missing")
-	}
-
-	return existingController, nil
 }
 
 // GetOrCreateController gets the named Controller document under the given parent resource

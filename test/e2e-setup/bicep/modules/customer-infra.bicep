@@ -19,6 +19,9 @@ param clusterName string = ''
 @description('If set to true, creates a private KeyVault with publicNetworkAccess disabled')
 param privateKeyVault bool = false
 
+@description('Assign Key Vault Crypto Officer role to the deployer on the customer KeyVault that contains etcd encryption key')
+param assignKeyVaultCryptoOfficer bool = false
+
 //
 // Variables
 //
@@ -112,6 +115,24 @@ resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' =
   properties: {
     kty: 'RSA'
     keySize: 2048
+  }
+}
+
+// Key Vault Crypto Officer: allows key management operations (create, rotate, disable).
+// Assigned to the test runner principal so E2E tests can rotate etcd encryption keys.
+// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/security#key-vault-crypto-officer
+var keyVaultCryptoOfficerRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '14b46e9e-c2b7-41b4-b07b-48a6ebf60603'
+)
+
+resource customerKeyVaultCryptoOfficerRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignKeyVaultCryptoOfficer) {
+  name: guid(resourceGroup().id, deployer().objectId, keyVaultCryptoOfficerRoleId, customerKeyVault.id)
+  scope: customerKeyVault
+  properties: {
+    principalId: deployer().objectId
+    principalType: contains(deployer(), 'userPrincipalName') && !empty(deployer().userPrincipalName) ? 'User' : 'ServicePrincipal'
+    roleDefinitionId: keyVaultCryptoOfficerRoleId
   }
 }
 
