@@ -1136,6 +1136,22 @@ No writes to the Cosmos Resources container.
 | Read | Existing `ReadDesire` | <ul><li>`Spec.ManagementCluster` (readDesireNeedsWork: compared to desired)</li><li>`Spec.TargetItem` (readDesireNeedsWork: compared to desired)</li></ul> |
 | **Write** | `ReadDesire` (kube-applier DB) | <ul><li>Creates or replaces `ReadDesire` documents (not Resources container)</li></ul> |
 
+#### FetchDataPlaneOperatorsManagedIdentitiesInfo
+
+**File:** [fetch_data_plane_operators_managed_identities_info.go](../backend/pkg/controllers/cluster/identity/fetch_data_plane_operators_managed_identities_info.go)
+**Trigger:** Cluster informer, 1-minute resync
+**Gate (needsWork on ServiceProviderCluster):**
+- Skipped entirely when `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` != nil
+- Honors `ServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime` only when the unique data plane operator ResourceID set on `Status.DataPlaneOperatorsManagedIdentities.Identities` still matches the desired set from `CustomerProperties`; returns true (query Azure) immediately on any mismatch
+- When identities match: returns false while `EarliestRecheckTime` is in the future; true when `EarliestRecheckTime` is nil or already past
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators` (desired identity ResourceIDs, deduplicated + lowercased)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity` (SyncOnce: must not be nil)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (used to build the SMI client)</li><li>`ID` (subscription / resource group / name)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.DataPlaneOperatorsManagedIdentities.Identities` (needsWork: compared to the desired ResourceID set)</li><li>`Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime` (needsWork: honored only when identities match)</li></ul> |
+| Read | Azure (UserAssignedIdentitiesClient) | <ul><li>`Get` once per unique ResourceID -> `Properties.ClientID`, `Properties.PrincipalID`</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>]`** = `{ResourceID, ClientID, PrincipalID, RetrievalError}` — ClientID/PrincipalID from Azure on success (RetrievalError nil); on any Get failure (including ResourceNotFound) ClientID/PrincipalID are cleared (nil) and RetrievalError is set to the first 1024 chars of the error. Identities no longer present on the cluster are pruned.</li><li>**`Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime`** = now + jittered 12h interval when all Gets succeed; left nil (cleared) when any Get error is accumulated, so the next needsWork re-queries Azure</li></ul> |
+
 ---
 
 ## 3. Execution Order Digraphs
@@ -1488,6 +1504,14 @@ Single writer, but tracks the namespace containing control plane pods (etcd, kub
 | [FetchMSIIdentitiesInfo](#fetchmsiidentitiesinfo) | Sets ControlPlaneOperatorsIdentities (lowercased resource ID keys), ServiceManagedIdentity, and EarliestRecheckTime from Managed Identities Data Plane |
 
 Single writer. Read by [ClusterIdentitySync](#clusteridentitysync) to populate `HCPOpenShiftCluster.Identity.UserAssignedIdentities`.
+
+### `ServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities`
+
+| Actor | When |
+|-------|------|
+| [FetchDataPlaneOperatorsManagedIdentitiesInfo](#fetchdataplaneoperatorsmanagedidentitiesinfo) | Resolves each data plane operator identity's `ClientID`/`PrincipalID` from Azure (or clears them and sets `RetrievalError` on a Get failure), and sets `EarliestRecheckTime` for the next Azure recheck |
+
+Single writer. Mirrors the customer's data plane operator managed identities (`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`) into `Identities` keyed by lowercased Azure ResourceID, each carrying the Azure-resolved `ClientID`/`PrincipalID` or a `RetrievalError`.
 
 ### `ServiceProviderCluster.Status.Validations`
 
