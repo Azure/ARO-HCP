@@ -73,6 +73,7 @@ type controlPlaneDesiredVersionSyncer struct {
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 
 	cincinnatiClient cincinnati.Client
+	graphClient      cincinnati.GraphClient
 }
 
 var _ controllerutils.ClusterSyncer = (*controlPlaneDesiredVersionSyncer)(nil)
@@ -99,6 +100,7 @@ func NewControlPlaneDesiredVersionController(
 			cvocincinnati.NewClient(uuid.Nil, http.DefaultTransport.(*http.Transport).Clone(), "ARO-HCP", cincinnati.NewAlwaysConditionRegistry()),
 			clock, 1*time.Hour,
 		),
+		graphClient:                   cincinnati.NewGraphClient(),
 		resourcesDBClient:             resourcesDBClient,
 		clusterServiceClient:          clusterServiceClient,
 		subscriptionLister:            subscriptionLister,
@@ -281,7 +283,7 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 
 	if len(activeVersions) == 0 {
 		logger.Info("Resolving initial desired version", "customerDesiredMinor", customerDesiredMinor, "channelGroup", channelGroup)
-		return hcpversionselection.SelectControlPlaneVersion(ctx, channelGroup, desiredMinorVersion, cincinnatiURI, cincinnatiClient, nil)
+		return hcpversionselection.SelectControlPlaneVersion(ctx, channelGroup, desiredMinorVersion, cincinnatiURI, cincinnatiClient, c.graphClient, nil)
 	}
 
 	actualLatestVersion := activeVersions[0].Version
@@ -315,7 +317,7 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 		}
 	}
 
-	desiredVersion, err := hcpversionselection.SelectControlPlaneVersion(ctx, channelGroup, desiredMinorVersion, cincinnatiURI, cincinnatiClient, hostedCluster)
+	desiredVersion, err := hcpversionselection.SelectControlPlaneVersion(ctx, channelGroup, desiredMinorVersion, cincinnatiURI, cincinnatiClient, c.graphClient, hostedCluster)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -326,7 +328,7 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 	if desiredMinorVersion.GT(actualLatestMinorVersion) {
 		logger.Info("No path to target minor, falling back to current minor",
 			"targetMinor", desiredMinorVersion.String(), "currentMinor", actualLatestMinorVersion.String())
-		return hcpversionselection.SelectControlPlaneVersion(ctx, channelGroup, actualLatestMinorVersion, cincinnatiURI, cincinnatiClient, hostedCluster)
+		return hcpversionselection.SelectControlPlaneVersion(ctx, channelGroup, actualLatestMinorVersion, cincinnatiURI, cincinnatiClient, c.graphClient, hostedCluster)
 	}
 
 	return nil, nil

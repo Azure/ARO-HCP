@@ -175,7 +175,7 @@ func TestSelectControlPlaneVersion_Install(t *testing.T) {
 			server := testserver.NewServer(t, tt.channels)
 			client := cincinnati.NewCachingClient(server.NewClient(), utilsclock.RealClock{}, 1*time.Hour)
 
-			result, err := SelectControlPlaneVersion(ctx, tt.channelStability, v(tt.desiredYVersion), server.URI(), client, nil)
+			result, err := SelectControlPlaneVersion(ctx, tt.channelStability, v(tt.desiredYVersion), server.URI(), client, server.NewGraphClient(), nil)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -536,7 +536,7 @@ func TestSelectControlPlaneVersion_Upgrade(t *testing.T) {
 			server := testserver.NewServer(t, tt.channels)
 			client := cincinnati.NewCachingClient(server.NewClient(), utilsclock.RealClock{}, 1*time.Hour)
 
-			result, err := SelectControlPlaneVersion(ctx, tt.channelStability, v(tt.desiredYVersion), server.URI(), client, tt.hostedCluster)
+			result, err := SelectControlPlaneVersion(ctx, tt.channelStability, v(tt.desiredYVersion), server.URI(), client, server.NewGraphClient(), tt.hostedCluster)
 			if tt.wantNoGatewayErr {
 				require.Error(t, err)
 				var noGateway *NoGatewayError

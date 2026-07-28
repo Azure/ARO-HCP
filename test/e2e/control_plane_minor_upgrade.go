@@ -72,7 +72,8 @@ var _ = Describe("Customer", func() {
 			cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
 			Expect(err).NotTo(HaveOccurred(), "failed to get Cincinnati URI for channel %s", channelGroup)
 
-			installVersion, err := hcpversionselection.SelectControlPlaneVersion(ctx, channelGroup, previousMinor, cincinnatiURI, cachingClient, nil)
+			graphClient := cincinnati.NewGraphClient()
+			installVersion, err := hcpversionselection.SelectControlPlaneVersion(ctx, channelGroup, previousMinor, cincinnatiURI, cachingClient, graphClient, nil)
 			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 				Skip(fmt.Sprintf("Cincinnati returned version not found for previous minor %s on channel %s: %v",
 					previousMinor.String(), channelGroup, err))
@@ -96,7 +97,7 @@ var _ = Describe("Customer", func() {
 			upgradeTestHC.Status.ControlPlaneVersion.History = []v1beta1.ControlPlaneUpdateHistory{
 				{Version: installVersion.String(), State: configv1.CompletedUpdate},
 			}
-			upgradeTarget, err := hcpversionselection.SelectControlPlaneVersion(ctx, channelGroup, targetMinorSemVer, cincinnatiURI, cachingClient, upgradeTestHC)
+			upgradeTarget, err := hcpversionselection.SelectControlPlaneVersion(ctx, channelGroup, targetMinorSemVer, cincinnatiURI, cachingClient, graphClient, upgradeTestHC)
 			if err != nil {
 				var noGateway *hcpversionselection.NoGatewayError
 				if errors.As(err, &noGateway) || cincinnati.IsCincinnatiVersionNotFoundError(err) {

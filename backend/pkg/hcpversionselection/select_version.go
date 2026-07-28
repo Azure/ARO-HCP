@@ -81,7 +81,7 @@ func (e *NoGatewayError) Error() string {
 //
 // The 4.22 → 5.0 version numbering transition is handled: 5.0 is treated as
 // the next minor after 4.22.
-func SelectControlPlaneVersion(ctx context.Context, channelStability string, desiredYVersion semver.Version, cincinnatiURI *url.URL, cvoClient cincinnati.Client, hostedCluster *v1beta1.HostedCluster) (*semver.Version, error) {
+func SelectControlPlaneVersion(ctx context.Context, channelStability string, desiredYVersion semver.Version, cincinnatiURI *url.URL, cvoClient cincinnati.Client, graphClient cincinnati.GraphClient, hostedCluster *v1beta1.HostedCluster) (*semver.Version, error) {
 	desiredMinor := semver.Version{Major: desiredYVersion.Major, Minor: desiredYVersion.Minor}
 	activeVersions := activeVersionsFromHostedCluster(hostedCluster)
 
@@ -98,7 +98,7 @@ func SelectControlPlaneVersion(ctx context.Context, channelStability string, des
 		return b.Compare(a)
 	})
 
-	result, err := findLatestGateway(ctx, cvoClient, cincinnatiURI, channelStability, desiredMinor, candidates)
+	result, err := findLatestGateway(ctx, cvoClient, cincinnatiURI, graphClient, channelStability, desiredMinor, candidates)
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +130,9 @@ func SelectControlPlaneVersion(ctx context.Context, channelStability string, des
 //
 // Returns nil when the next minor exists, is reachable, but no candidate has a
 // valid chain.
-func findLatestGateway(ctx context.Context, client cincinnati.Client, cincinnatiURI *url.URL, channelStability string, currentMinor semver.Version, candidates []semver.Version) (*semver.Version, error) {
-	exists, err := doesNextMinorExist(ctx, client, cincinnatiURI, channelStability, currentMinor)
+func findLatestGateway(ctx context.Context, client cincinnati.Client, cincinnatiURI *url.URL, graphClient cincinnati.GraphClient, channelStability string, currentMinor semver.Version, candidates []semver.Version) (*semver.Version, error) {
+	nextMajor, nextMinorNum := nextMinorVersion(currentMinor)
+	exists, err := doesNextMinorExist(ctx, graphClient, channelStability, nextMajor, nextMinorNum)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +140,7 @@ func findLatestGateway(ctx context.Context, client cincinnati.Client, cincinnati
 		return &candidates[0], nil
 	}
 
-	reachable, err := isNextMinorReachableFromCurrentMinor(ctx, client, cincinnatiURI, channelStability, currentMinor)
+	reachable, err := isNextMinorReachableFromCurrentMinor(ctx, client, cincinnatiURI, channelStability, currentMinor, candidates)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +149,7 @@ func findLatestGateway(ctx context.Context, client cincinnati.Client, cincinnati
 	}
 
 	for _, candidate := range candidates {
-		valid, err := hasValidUpgradePath(ctx, client, cincinnatiURI, channelStability, currentMinor, candidate, make(map[string]bool))
+		valid, err := hasValidUpgradePath(ctx, client, cincinnatiURI, graphClient, channelStability, currentMinor, candidate, make(map[string]bool))
 		if err != nil {
 			return nil, err
 		}
@@ -166,7 +167,7 @@ func findLatestGateway(ctx context.Context, client cincinnati.Client, cincinnati
 // chain through subsequent minors.
 //
 // The visited set prevents cycles when following within-minor z-stream edges.
-func hasValidUpgradePath(ctx context.Context, client cincinnati.Client, cincinnatiURI *url.URL, channelStability string, currentMinor semver.Version, ver semver.Version, visited map[string]bool) (bool, error) {
+func hasValidUpgradePath(ctx context.Context, client cincinnati.Client, cincinnatiURI *url.URL, graphClient cincinnati.GraphClient, channelStability string, currentMinor semver.Version, ver semver.Version, visited map[string]bool) (bool, error) {
 	if visited[ver.String()] {
 		return false, nil
 	}
@@ -183,7 +184,7 @@ func hasValidUpgradePath(ctx context.Context, client cincinnati.Client, cincinna
 		slices.SortFunc(targets, func(a, b semver.Version) int {
 			return b.Compare(a)
 		})
-		chainResult, err := findLatestGateway(ctx, client, cincinnatiURI, channelStability, nextMinor, targets)
+		chainResult, err := findLatestGateway(ctx, client, cincinnatiURI, graphClient, channelStability, nextMinor, targets)
 		if err != nil {
 			return false, err
 		}
@@ -209,7 +210,7 @@ func hasValidUpgradePath(ctx context.Context, client cincinnati.Client, cincinna
 		if next.Major != currentMinor.Major || next.Minor != currentMinor.Minor {
 			continue
 		}
-		valid, err := hasValidUpgradePath(ctx, client, cincinnatiURI, channelStability, currentMinor, next, visited)
+		valid, err := hasValidUpgradePath(ctx, client, cincinnatiURI, graphClient, channelStability, currentMinor, next, visited)
 		if err != nil {
 			return false, err
 		}
@@ -221,50 +222,50 @@ func hasValidUpgradePath(ctx context.Context, client cincinnati.Client, cincinna
 	return false, nil
 }
 
-// doesNextMinorExist checks whether Cincinnati has a channel for the next
-// minor version after currentMinor by probing for its .0 release.
-func doesNextMinorExist(ctx context.Context, client cincinnati.Client, cincinnatiURI *url.URL, channelStability string, currentMinor semver.Version) (bool, error) {
-	nextMajor, nextMinorNum := nextMinorVersion(currentMinor)
-	nextChannel := formatChannel(channelStability, semver.Version{Major: nextMajor, Minor: nextMinorNum})
-	probe := semver.Version{Major: nextMajor, Minor: nextMinorNum}
-
-	_, _, _, err := client.GetUpdates(ctx, cloneURL(cincinnatiURI), "multi", "multi", nextChannel, probe)
-	if isCincinnatiVersionNotFound(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("probing next minor channel %s: %w", nextChannel, err)
-	}
-	return true, nil
+// doesNextMinorExist checks whether Cincinnati publishes a channel for the
+// next minor version. It queries the graph API directly rather than probing
+// for a specific version, so it works for candidate and nightly channels
+// where the .0 release may not exist.
+func doesNextMinorExist(ctx context.Context, graphClient cincinnati.GraphClient, channelStability string, nextMajor, nextMinor uint64) (bool, error) {
+	minor := fmt.Sprintf("%d.%d", nextMajor, nextMinor)
+	return graphClient.ChannelExists(ctx, channelStability, minor)
 }
 
 // isNextMinorReachableFromCurrentMinor checks whether any version in
 // currentMinor's channel has an upgrade path to the next minor. It discovers
-// versions by querying from currentMinor's .0 release, then checks each
-// (skipping versions in alreadyChecked) for a gateway edge to the next minor.
+// versions by querying from currentMinor's .0 release, then checks each for
+// a gateway edge to the next minor.
 //
-// Returns false if the .0 release is not in the channel (cannot discover
-// versions to check).
-func isNextMinorReachableFromCurrentMinor(ctx context.Context, client cincinnati.Client, cincinnatiURI *url.URL, channelStability string, currentMinor semver.Version) (bool, error) {
+// When .0 is not in the channel (candidate/nightly channels where versions
+// have pre-release suffixes), it falls back to checking the provided
+// candidates for gateway edges.
+func isNextMinorReachableFromCurrentMinor(ctx context.Context, client cincinnati.Client, cincinnatiURI *url.URL, channelStability string, currentMinor semver.Version, candidates []semver.Version) (bool, error) {
 	channel := formatChannel(channelStability, currentMinor)
 	dotZero := semver.Version{Major: currentMinor.Major, Minor: currentMinor.Minor}
 
 	_, discovered, _, err := client.GetUpdates(ctx, cloneURL(cincinnatiURI), "multi", "multi", channel, dotZero)
 	if isCincinnatiVersionNotFound(err) {
-		return false, nil
+		return isReachableFromVersions(ctx, client, cincinnatiURI, channelStability, currentMinor, candidates)
 	}
 	if err != nil {
 		return false, fmt.Errorf("discovering versions from %s in %s: %w", dotZero, channel, err)
 	}
 
+	var versions []semver.Version
 	for _, rel := range discovered {
 		ver, parseErr := semver.Parse(rel.Version)
 		if parseErr != nil {
 			continue
 		}
-		if ver.Major != currentMinor.Major || ver.Minor != currentMinor.Minor {
-			continue
+		if ver.Major == currentMinor.Major && ver.Minor == currentMinor.Minor {
+			versions = append(versions, ver)
 		}
+	}
+	return isReachableFromVersions(ctx, client, cincinnatiURI, channelStability, currentMinor, versions)
+}
+
+func isReachableFromVersions(ctx context.Context, client cincinnati.Client, cincinnatiURI *url.URL, channelStability string, currentMinor semver.Version, versions []semver.Version) (bool, error) {
+	for _, ver := range versions {
 		targets, err := getGatewayTargets(ctx, client, cincinnatiURI, channelStability, currentMinor, ver)
 		if err != nil {
 			return false, err

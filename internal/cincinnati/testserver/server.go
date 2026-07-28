@@ -15,6 +15,8 @@
 package testserver
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -95,4 +97,22 @@ func (s *Server) NewClient() cvocincinnati.Client {
 		"test-harness",
 		cincinnati.NewAlwaysConditionRegistry(),
 	)
+}
+
+// NewGraphClient returns a GraphClient backed by this server's channel map.
+func (s *Server) NewGraphClient() cincinnati.GraphClient {
+	return &testGraphClient{channels: s.channels}
+}
+
+type testGraphClient struct {
+	channels map[string]*Graph
+}
+
+func (c *testGraphClient) ChannelExists(_ context.Context, channelGroup, minor string) (bool, error) {
+	channel := fmt.Sprintf("%s-%s", channelGroup, minor)
+	g, ok := c.channels[channel]
+	if !ok {
+		return false, nil
+	}
+	return len(g.nodes) > 0, nil
 }
