@@ -1,4 +1,5 @@
-version: v2.1.6
+# Keep this version in sync with .bingo/golangci-lint.mod
+version: v2.5.0
 name: custom-golangci-lint
 destination: ./bin
 plugins:
