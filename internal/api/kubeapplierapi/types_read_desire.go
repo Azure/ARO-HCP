@@ -39,6 +39,10 @@ type ReadDesire struct {
 	Spec ReadDesireSpec `json:"spec"`
 
 	Status ReadDesireStatus `json:"status"`
+
+	// Tags are optional key-value pairs stored alongside the desire in Cosmos.
+	// Callers filter on tag presence Go-side after listing.
+	Tags map[string]string `json:"tags,omitempty"`
 }
 
 type ReadDesireSpec struct {
