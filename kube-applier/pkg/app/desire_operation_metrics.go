@@ -105,15 +105,20 @@ func (m *desireOperationMetrics) recordReadDesireOperation(desire *kubeapplier.R
 
 	resourceIDStr := desire.CosmosMetadata.ResourceID.String()
 	resourceType := extractResourceType(resourceIDStr)
-	successful := isDesireSuccessful(desire.Status.Conditions)
 
 	m.mu.Lock()
-	// Update last processed instance version while holding lock
-	m.lastProcessedGeneration[resourceIDStr] = desire.CosmosMetadata.InstanceVersion
-	m.mu.Unlock()
+	// Only record a resync operation if the InstanceVersion has changed
+	lastVersion, exists := m.lastProcessedGeneration[resourceIDStr]
+	if !exists || lastVersion != desire.CosmosMetadata.InstanceVersion {
+		m.lastProcessedGeneration[resourceIDStr] = desire.CosmosMetadata.InstanceVersion
+		m.mu.Unlock()
 
-	// ReadDesire operations are always "resync" operations
-	m.recordOperation(OperationResync, resourceType, successful)
+		successful := isDesireSuccessful(desire.Status.Conditions)
+		// ReadDesire operations are always "resync" operations
+		m.recordOperation(OperationResync, resourceType, successful)
+	} else {
+		m.mu.Unlock()
+	}
 }
 
 // recordOperation is a helper that records common metrics to avoid duplication
