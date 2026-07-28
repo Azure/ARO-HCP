@@ -96,11 +96,11 @@ func TestServer_GetUpdates(t *testing.T) {
 			wantErrReason: "VersionNotFound",
 		},
 		{
-			name:          "unknown channel returns error",
+			name:          "unknown channel returns version not found",
 			channel:       "stable-4.21",
 			version:       "4.21.0",
 			wantErr:       true,
-			wantErrReason: "ResponseFailed",
+			wantErrReason: "VersionNotFound",
 		},
 	}
 

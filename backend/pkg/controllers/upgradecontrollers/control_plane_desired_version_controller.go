@@ -172,6 +172,15 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	customerDesiredMinor := existingCluster.CustomerProperties.Version.ID
 	channelGroup := existingCluster.CustomerProperties.Version.ChannelGroup
 	activeVersions := cachedServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
+
+	// When active versions exist but the cached HostedCluster is unavailable,
+	// we cannot safely run version selection because SelectControlPlaneVersion
+	// would see nil and fall into the install path. Skip until the ReadDesire
+	// is populated; the informer will re-enqueue us.
+	if len(activeVersions) > 0 && hostedCluster == nil {
+		logger.Info("Active versions present but cached HostedCluster unavailable, skipping version selection")
+		return nil
+	}
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(err)

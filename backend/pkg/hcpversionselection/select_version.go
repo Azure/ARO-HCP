@@ -193,8 +193,11 @@ func hasValidUpgradePath(ctx context.Context, client cincinnati.Client, cincinna
 
 	channel := formatChannel(channelStability, currentMinor)
 	_, updates, _, updErr := client.GetUpdates(ctx, cloneURL(cincinnatiURI), "multi", "multi", channel, ver)
-	if updErr != nil {
+	if isCincinnatiVersionNotFound(updErr) {
 		return false, nil
+	}
+	if updErr != nil {
+		return false, fmt.Errorf("querying within-minor upgrades from %s in %s: %w", ver, channel, updErr)
 	}
 
 	for _, rel := range updates {
@@ -225,7 +228,7 @@ func doesNextMinorExist(ctx context.Context, client cincinnati.Client, cincinnat
 	probe := semver.Version{Major: nextMajor, Minor: nextMinorNum}
 
 	_, _, _, err := client.GetUpdates(ctx, cloneURL(cincinnatiURI), "multi", "multi", nextChannel, probe)
-	if isVersionOrChannelNotFound(err) {
+	if isCincinnatiVersionNotFound(err) {
 		return false, nil
 	}
 	if err != nil {
@@ -246,8 +249,11 @@ func isNextMinorReachableFromCurrentMinor(ctx context.Context, client cincinnati
 	dotZero := semver.Version{Major: currentMinor.Major, Minor: currentMinor.Minor}
 
 	_, discovered, _, err := client.GetUpdates(ctx, cloneURL(cincinnatiURI), "multi", "multi", channel, dotZero)
-	if err != nil {
+	if isCincinnatiVersionNotFound(err) {
 		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("discovering versions from %s in %s: %w", dotZero, channel, err)
 	}
 
 	for _, rel := range discovered {
@@ -277,7 +283,7 @@ func getGatewayTargets(ctx context.Context, client cincinnati.Client, cincinnati
 	nextChannel := formatChannel(channelStability, semver.Version{Major: nextMajor, Minor: nextMinorNum})
 
 	_, updates, _, err := client.GetUpdates(ctx, cloneURL(cincinnatiURI), "multi", "multi", nextChannel, ver)
-	if isVersionOrChannelNotFound(err) {
+	if isCincinnatiVersionNotFound(err) {
 		return nil, nil
 	}
 	if err != nil {
@@ -398,15 +404,17 @@ func findCandidatesForUpgrade(ctx context.Context, client cincinnati.Client, bas
 	return candidates, nil
 }
 
-// isVersionOrChannelNotFound returns true when the Cincinnati error indicates
-// either the queried version is not in the channel's graph (VersionNotFound)
-// or the channel itself does not exist (ResponseFailed from a non-200 status).
-func isVersionOrChannelNotFound(err error) bool {
+// isCincinnatiVersionNotFound returns true only when the Cincinnati error
+// indicates the queried version is not in the channel's graph. Transient
+// failures (ResponseFailed, RemoteFailed) are NOT treated as "not found" so
+// they propagate and trigger retries rather than silently selecting a wrong
+// version.
+func isCincinnatiVersionNotFound(err error) bool {
 	var cErr *cvocincinnati.Error
 	if !errors.As(err, &cErr) {
 		return false
 	}
-	return cErr.Reason == "VersionNotFound" || cErr.Reason == "ResponseFailed"
+	return cErr.Reason == "VersionNotFound"
 }
 
 func cloneURL(u *url.URL) *url.URL {

@@ -64,7 +64,8 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 
 	graph, ok := s.channels[channel]
 	if !ok {
-		http.Error(w, "channel not found: "+channel, http.StatusNotFound)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"nodes":[],"edges":[]}`))
 		return
 	}
 
@@ -90,7 +91,7 @@ func (s *Server) URI() *url.URL {
 func (s *Server) NewClient() cvocincinnati.Client {
 	return cvocincinnati.NewClient(
 		uuid.New(),
-		nil,
+		http.DefaultTransport.(*http.Transport).Clone(),
 		"test-harness",
 		cincinnati.NewAlwaysConditionRegistry(),
 	)
