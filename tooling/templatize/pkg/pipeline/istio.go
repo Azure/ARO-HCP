@@ -23,7 +23,6 @@ import (
 
 	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/ARO-Tools/pipelines/types"
-
 	"github.com/Azure/ARO-Tools/tools/istio-upgrade/pkg/istio"
 )
 
