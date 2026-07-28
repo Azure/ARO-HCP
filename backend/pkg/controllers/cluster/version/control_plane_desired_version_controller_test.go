@@ -1047,16 +1047,20 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name:                "Cincinnati upstream error does not persist IntentFailed or desired version",
+			name:                "absent channel persists IntentFailed (VersionNotFound)",
 			customerVersion:     "4.19",
 			controlPlaneVersion: "4.19.15",
-			// Empty channels: stable-4.19 does not exist on the test server.
-			// The ResponseFailed error is a Cincinnati error and treated as transient.
+			// Empty channels: stable-4.19 returns 200 with empty graph (matching
+			// production Cincinnati behavior). The CVO client returns VersionNotFound
+			// because 4.19.15 is not in the empty graph.
 			channels:           map[string]*testserver.Graph{},
-			wantSyncErr:        true,
-			wantErrContains:    "stable-4.19",
 			wantDesiredVersion: nil,
-			wantIntentFailed:   nil,
+			wantIntentFailed: &metav1.Condition{
+				Type:    api.ControllerConditionTypeIntentFailed,
+				Status:  metav1.ConditionTrue,
+				Reason:  api.VersionUpgradeNotAcceptedReason,
+				Message: "querying Cincinnati for upgrades from 4.19.15 in stable-4.19: VersionNotFound: currently reconciling cluster version 4.19.15 not found in the \"stable-4.19\" channel",
+			},
 		},
 		{
 			name:                "Cincinnati VersionNotFound persists IntentFailed and does not set desired version",

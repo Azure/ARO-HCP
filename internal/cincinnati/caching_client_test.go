@@ -30,6 +30,7 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 
 	configv1 "github.com/openshift/api/config/v1"
+	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 )
 
 type countingClient struct {
@@ -128,12 +129,12 @@ func TestCachingGetUpdates_DifferentParams(t *testing.T) {
 	assert.Equal(t, int64(3), inner.calls.Load())
 }
 
-func TestCachingGetUpdates_CachesErrors(t *testing.T) {
+func TestCachingGetUpdates_CachesVersionNotFoundErrors(t *testing.T) {
 	t.Parallel()
 
 	fakeClock := clocktesting.NewFakeClock(time.Now())
 	inner := &countingClient{inner: &staticClient{
-		err: fmt.Errorf("version not found"),
+		err: &cvocincinnati.Error{Reason: "VersionNotFound", Message: "version 4.18.0 not found"},
 	}}
 	client := NewCachingClient(inner, fakeClock, time.Hour)
 	ctx := context.Background()
@@ -145,8 +146,26 @@ func TestCachingGetUpdates_CachesErrors(t *testing.T) {
 
 	_, _, _, err2 := client.GetUpdates(ctx, uri, "multi", "multi", "stable-4.19", semver.MustParse("4.18.0"))
 	require.Error(t, err2)
-	assert.Equal(t, err1, err2)
 	assert.Equal(t, int64(1), inner.calls.Load())
+}
+
+func TestCachingGetUpdates_DoesNotCacheTransientErrors(t *testing.T) {
+	t.Parallel()
+
+	fakeClock := clocktesting.NewFakeClock(time.Now())
+	inner := &countingClient{inner: &staticClient{
+		err: fmt.Errorf("network timeout"),
+	}}
+	client := NewCachingClient(inner, fakeClock, time.Hour)
+	ctx := context.Background()
+	uri, _ := url.Parse("http://localhost")
+
+	_, _, _, err1 := client.GetUpdates(ctx, uri, "multi", "multi", "stable-4.19", semver.MustParse("4.19.0"))
+	require.Error(t, err1)
+	assert.Equal(t, int64(1), inner.calls.Load())
+
+	_, _, _, _ = client.GetUpdates(ctx, uri, "multi", "multi", "stable-4.19", semver.MustParse("4.19.0"))
+	assert.Equal(t, int64(2), inner.calls.Load())
 }
 
 func TestCachingGetUpdates_ConcurrentAccess(t *testing.T) {

@@ -74,15 +74,21 @@ func (c *CachingClient) GetUpdates(ctx context.Context, uri *url.URL, desiredArc
 	uriClone := *uri
 	current, updates, conditionalUpdates, err := c.inner.GetUpdates(ctx, &uriClone, desiredArch, currentArch, channel, version)
 
-	c.mu.Lock()
-	c.cache[key] = &cacheEntry{
-		current:            current,
-		updates:            updates,
-		conditionalUpdates: conditionalUpdates,
-		err:                err,
-		expiresAt:          c.clock.Now().Add(c.ttl),
+	// Only cache successful responses and VersionNotFound (a stable signal that
+	// the version is absent from the graph). Transient failures (network errors,
+	// 5xx, context cancellation) must NOT be cached so the next caller retries
+	// against the live service.
+	if err == nil || IsCincinnatiVersionNotFoundError(err) {
+		c.mu.Lock()
+		c.cache[key] = &cacheEntry{
+			current:            current,
+			updates:            updates,
+			conditionalUpdates: conditionalUpdates,
+			err:                err,
+			expiresAt:          c.clock.Now().Add(c.ttl),
+		}
+		c.mu.Unlock()
 	}
-	c.mu.Unlock()
 
 	return current, updates, conditionalUpdates, err
 }
