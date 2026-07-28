@@ -717,6 +717,13 @@ func (in *HCPOpenShiftClusterExternalAuthStatus) DeepCopyInto(out *HCPOpenShiftC
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.UserFacingConditions != nil {
+		in, out := &in.UserFacingConditions, &out.UserFacingConditions
+		*out = make([]v1.Condition, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	return
 }
 
@@ -913,6 +920,13 @@ func (in *HCPOpenShiftClusterNodePoolStatus) DeepCopyInto(out *HCPOpenShiftClust
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.UserFacingConditions != nil {
+		in, out := &in.UserFacingConditions, &out.UserFacingConditions
+		*out = make([]v1.Condition, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	return
 }
 
@@ -974,6 +988,13 @@ func (in *HCPOpenShiftClusterStatus) DeepCopyInto(out *HCPOpenShiftClusterStatus
 	*out = *in
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
+		*out = make([]v1.Condition, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.UserFacingConditions != nil {
+		in, out := &in.UserFacingConditions, &out.UserFacingConditions
 		*out = make([]v1.Condition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
