@@ -20,14 +20,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	utilsclock "k8s.io/utils/clock"
-	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -44,8 +42,6 @@ const (
 	testLocation       = "eastus"
 )
 
-// testListOptions is the ResourceSKUsClientListOptions every list call is expected to use,
-// filtered to testLocation.
 func testListOptions() *armcompute.ResourceSKUsClientListOptions {
 	return &armcompute.ResourceSKUsClientListOptions{
 		Filter: ptr.To(resourceSKUsListFilterForLocation(testLocation)),
@@ -104,377 +100,263 @@ func skuListPager(skus []*armcompute.ResourceSKU, fetchErr error) *runtime.Pager
 	})
 }
 
-func TestResourceSKUsCachedReader_ListVirtualMachineSKUs(t *testing.T) {
-	ctx := context.Background()
+func skuNames(skus []*armcompute.ResourceSKU) []string {
+	var names []string
+	for _, sku := range skus {
+		names = append(names, *sku.Name)
+	}
+	return names
+}
+
+func TestResourceSKUsCachedReader_CacheHitMissAndConcurrency(t *testing.T) {
 	vmSKU := makeVMResourceSKU(testVMSize, testVMFamily)
 	diskSKU := makeDiskResourceSKU("Premium_LRS")
-	refreshedSKU := makeVMResourceSKU("Standard_D8as_v4", "standardDASv4Family")
 
 	tests := []struct {
-		name  string
-		setup func(ctrl *gomock.Controller) (*fakeResourceSKUsClientBuilder, utilsclock.PassiveClock)
-		calls []struct {
-			advanceClockBy  time.Duration
-			subscriptionID  string
-			wantSKUNames    []string
-			wantError       bool
-			wantErrContains string
-		}
+		name string
+		// concurrentCallers is how many goroutines call ListVirtualMachineSKUs
+		// simultaneously. 1 means a simple serial call.
+		concurrentCallers int
+		// prepopulate controls whether SyncOnce is called before the
+		// reader calls to seed the cache (cache hit path).
+		prepopulate bool
+		// blockClient when true makes the mock Azure client block until
+		// all concurrent callers have started, proving they coalesce on
+		// one in-flight request.
+		blockClient bool
+		// wantSKUNames is the VM SKU names every caller should receive.
+		wantSKUNames []string
+		// wantBuilderCalls is the total number of times the client
+		// builder's ResourceSKUsClient method should have been invoked.
 		wantBuilderCalls int32
 	}{
 		{
-			name: "caches successful list and filters to virtualMachines",
-			setup: func(ctrl *gomock.Controller) (*fakeResourceSKUsClientBuilder, utilsclock.PassiveClock) {
-				mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-				mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU, diskSKU}, nil)).Times(1)
-				return &fakeResourceSKUsClientBuilder{
-					clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
-				}, utilsclock.RealClock{}
-			},
-			calls: []struct {
-				advanceClockBy  time.Duration
-				subscriptionID  string
-				wantSKUNames    []string
-				wantError       bool
-				wantErrContains string
-			}{
-				{
-					subscriptionID: testSubscriptionID,
-					wantSKUNames:   []string{testVMSize},
-				},
-				{
-					subscriptionID: testSubscriptionID,
-					wantSKUNames:   []string{testVMSize},
-				},
-			},
+			name:              "cache hit returns data without calling live client again",
+			prepopulate:       true,
+			concurrentCallers: 1,
+			wantSKUNames:      []string{testVMSize},
+			// 1 call from the SyncOnce pre-population, 0 from the read
 			wantBuilderCalls: 1,
 		},
 		{
-			name: "normalizes subscription ID case for cache key",
-			setup: func(ctrl *gomock.Controller) (*fakeResourceSKUsClientBuilder, utilsclock.PassiveClock) {
-				mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-				mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil)).Times(1)
-				return &fakeResourceSKUsClientBuilder{
-					clients: map[string]azureclient.ResourceSKUsClient{
-						"ABCDEF12-3456-7890-ABCD-EF1234567890": mockClient,
-					},
-				}, utilsclock.RealClock{}
-			},
-			calls: []struct {
-				advanceClockBy  time.Duration
-				subscriptionID  string
-				wantSKUNames    []string
-				wantError       bool
-				wantErrContains string
-			}{
-				{
-					subscriptionID: "ABCDEF12-3456-7890-ABCD-EF1234567890",
-					wantSKUNames:   []string{testVMSize},
-				},
-				{
-					subscriptionID: "abcdef12-3456-7890-abcd-ef1234567890",
-					wantSKUNames:   []string{testVMSize},
-				},
-			},
-			wantBuilderCalls: 1,
+			name:              "cache miss enqueues fetch and returns data after worker processes",
+			prepopulate:       false,
+			concurrentCallers: 1,
+			wantSKUNames:      []string{testVMSize},
+			wantBuilderCalls:  1,
 		},
 		{
-			name: "caches error within error freshness TTL",
-			setup: func(ctrl *gomock.Controller) (*fakeResourceSKUsClientBuilder, utilsclock.PassiveClock) {
-				mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-				mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager(nil, errors.New("service unavailable"))).Times(1)
-				return &fakeResourceSKUsClientBuilder{
-					clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
-				}, clocktesting.NewFakePassiveClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
-			},
-			calls: []struct {
-				advanceClockBy  time.Duration
-				subscriptionID  string
-				wantSKUNames    []string
-				wantError       bool
-				wantErrContains string
-			}{
-				{
-					subscriptionID:  testSubscriptionID,
-					wantError:       true,
-					wantErrContains: "service unavailable",
-				},
-				{
-					advanceClockBy:  2 * time.Minute,
-					subscriptionID:  testSubscriptionID,
-					wantError:       true,
-					wantErrContains: "service unavailable",
-				},
-				{
-					advanceClockBy:  resourceSKUsCacheErrorFreshnessTTL - 2*time.Minute,
-					subscriptionID:  testSubscriptionID,
-					wantError:       true,
-					wantErrContains: "service unavailable",
-				},
-			},
-			wantBuilderCalls: 1,
-		},
-		{
-			name: "recovers after error freshness TTL and caches success for success freshness TTL",
-			setup: func(ctrl *gomock.Controller) (*fakeResourceSKUsClientBuilder, utilsclock.PassiveClock) {
-				mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-				gomock.InOrder(
-					mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager(nil, errors.New("temporary"))),
-					mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil)),
-				)
-				return &fakeResourceSKUsClientBuilder{
-					clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
-				}, clocktesting.NewFakePassiveClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
-			},
-			calls: []struct {
-				advanceClockBy  time.Duration
-				subscriptionID  string
-				wantSKUNames    []string
-				wantError       bool
-				wantErrContains string
-			}{
-				{
-					subscriptionID:  testSubscriptionID,
-					wantError:       true,
-					wantErrContains: "temporary",
-				},
-				{
-					advanceClockBy: resourceSKUsCacheErrorFreshnessTTL + time.Second,
-					subscriptionID: testSubscriptionID,
-					wantSKUNames:   []string{testVMSize},
-				},
-				{
-					advanceClockBy: 10 * time.Minute,
-					subscriptionID: testSubscriptionID,
-					wantSKUNames:   []string{testVMSize},
-				},
-			},
-			wantBuilderCalls: 2,
-		},
-		{
-			name: "refreshes after success freshness TTL expiry",
-			setup: func(ctrl *gomock.Controller) (*fakeResourceSKUsClientBuilder, utilsclock.PassiveClock) {
-				mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-				gomock.InOrder(
-					mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil)),
-					mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{refreshedSKU}, nil)),
-				)
-				return &fakeResourceSKUsClientBuilder{
-					clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
-				}, clocktesting.NewFakePassiveClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
-			},
-			calls: []struct {
-				advanceClockBy  time.Duration
-				subscriptionID  string
-				wantSKUNames    []string
-				wantError       bool
-				wantErrContains string
-			}{
-				{
-					subscriptionID: testSubscriptionID,
-					wantSKUNames:   []string{testVMSize},
-				},
-				{
-					advanceClockBy: 10 * time.Minute,
-					subscriptionID: testSubscriptionID,
-					wantSKUNames:   []string{testVMSize},
-				},
-				{
-					advanceClockBy: resourceSKUsCacheSuccessFreshnessTTL - 10*time.Minute + time.Second,
-					subscriptionID: testSubscriptionID,
-					wantSKUNames:   []string{"Standard_D8as_v4"},
-				},
-			},
-			wantBuilderCalls: 2,
+			name:              "concurrent cache misses coalesce into single live client call",
+			prepopulate:       false,
+			concurrentCallers: 8,
+			blockClient:       true,
+			wantSKUNames:      []string{testVMSize},
+			wantBuilderCalls:  1,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			builder, clock := tt.setup(ctrl)
-			reader := newResourceSKUsCachedReader(builder, defaultResourceSKUsCacheMaxEntries, clock, testLocation)
 
-			for _, call := range tt.calls {
-				if call.advanceClockBy > 0 {
-					fakeClock, ok := clock.(*clocktesting.FakePassiveClock)
-					require.True(t, ok, "advanceClockBy requires a FakePassiveClock")
-					fakeClock.SetTime(fakeClock.Now().Add(call.advanceClockBy))
-				}
-
-				got, err := reader.ListVirtualMachineSKUs(ctx, testTenantID, call.subscriptionID)
-				if call.wantError {
-					require.Error(t, err)
-					if call.wantErrContains != "" {
-						assert.ErrorContains(t, err, call.wantErrContains)
-					}
-					continue
-				}
-				require.NoError(t, err)
-				var names []string
-				for _, sku := range got {
-					names = append(names, *sku.Name)
-				}
-				assert.Equal(t, call.wantSKUNames, names)
+			// listStarted / releaseList synchronize the blocking-client
+			// variant so we can prove all callers are waiting before the
+			// Azure response is delivered.
+			var listStarted, releaseList sync.WaitGroup
+			if tt.blockClient {
+				listStarted.Add(1)
+				releaseList.Add(1)
 			}
+
+			mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
+
+			pagerFactory := func(*armcompute.ResourceSKUsClientListOptions) *runtime.Pager[armcompute.ResourceSKUsClientListResponse] {
+				if tt.blockClient {
+					listStarted.Done()
+					releaseList.Wait()
+				}
+				return skuListPager([]*armcompute.ResourceSKU{vmSKU, diskSKU}, nil)
+			}
+			// Expect exactly 1 list call regardless of caller count.
+			mockClient.EXPECT().NewListPager(testListOptions()).DoAndReturn(pagerFactory).Times(1)
+
+			builder := &fakeResourceSKUsClientBuilder{
+				clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
+			}
+			reader := newResourceSKUsCachedReader(builder, defaultResourceSKUsCacheMaxEntries, utilsclock.RealClock{}, testLocation)
+
+			if tt.prepopulate {
+				// Seed the cache directly via SyncOnce — this is the
+				// "cache already warm" path.
+				err := reader.SyncOnce(context.Background(), SKUKey{
+					TenantID:       testTenantID,
+					SubscriptionID: testSubscriptionID,
+				})
+				require.NoError(t, err)
+			}
+
+			// For cache-miss tests the controller must be running so
+			// workers can drain the queue.
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if !tt.prepopulate {
+				go reader.Run(ctx, 1)
+			}
+
+			// Launch concurrent callers.
+			type result struct {
+				skus []*armcompute.ResourceSKU
+				err  error
+			}
+			results := make(chan result, tt.concurrentCallers)
+			var callersReady sync.WaitGroup
+			callersReady.Add(tt.concurrentCallers)
+
+			for i := 0; i < tt.concurrentCallers; i++ {
+				go func() {
+					callersReady.Done()
+					skus, err := reader.ListVirtualMachineSKUs(ctx, testTenantID, testSubscriptionID)
+					results <- result{skus: skus, err: err}
+				}()
+			}
+
+			// For the blocking variant, wait until:
+			//  1. all callers have entered ListVirtualMachineSKUs
+			//  2. the mock client's NewListPager has been entered
+			// then release the mock so the single fetch completes.
+			if tt.blockClient {
+				callersReady.Wait()
+				listStarted.Wait()
+				releaseList.Done()
+			}
+
+			for i := 0; i < tt.concurrentCallers; i++ {
+				r := <-results
+				require.NoError(t, r.err)
+				assert.Equal(t, tt.wantSKUNames, skuNames(r.skus))
+			}
+
 			assert.Equal(t, tt.wantBuilderCalls, builder.calls.Load())
 		})
 	}
 }
 
-func TestResourceSKUsCachedReader_LRUEviction(t *testing.T) {
-	ctx := context.Background()
+func TestResourceSKUsCachedReader_CacheMissWithError(t *testing.T) {
 	ctrl := gomock.NewController(t)
-
-	sub1 := "11111111-1111-1111-1111-111111111111"
-	sub2 := "22222222-2222-2222-2222-222222222222"
-	sub3 := "33333333-3333-3333-3333-333333333333"
-
-	client1 := azureclient.NewMockResourceSKUsClient(ctrl)
-	client2 := azureclient.NewMockResourceSKUsClient(ctrl)
-	client3 := azureclient.NewMockResourceSKUsClient(ctrl)
-
-	// sub1 is listed twice: once initially, once after eviction by sub3.
-	client1.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{
-		makeVMResourceSKU("Standard_D2s_v3", "standardDSv3Family"),
-	}, nil)).Times(2)
-	client2.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{
-		makeVMResourceSKU("Standard_D4s_v3", "standardDSv3Family"),
-	}, nil)).Times(1)
-	client3.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{
-		makeVMResourceSKU("Standard_D8s_v3", "standardDSv3Family"),
-	}, nil)).Times(1)
-
-	builder := &fakeResourceSKUsClientBuilder{
-		clients: map[string]azureclient.ResourceSKUsClient{
-			sub1: client1,
-			sub2: client2,
-			sub3: client3,
-		},
-	}
-	reader := newResourceSKUsCachedReader(builder, 2, utilsclock.RealClock{}, testLocation)
-
-	_, err := reader.ListVirtualMachineSKUs(ctx, testTenantID, sub1)
-	require.NoError(t, err)
-	_, err = reader.ListVirtualMachineSKUs(ctx, testTenantID, sub2)
-	require.NoError(t, err)
-	// Evicts sub1 (least recently used).
-	_, err = reader.ListVirtualMachineSKUs(ctx, testTenantID, sub3)
-	require.NoError(t, err)
-	// Misses cache and refreshes sub1.
-	_, err = reader.ListVirtualMachineSKUs(ctx, testTenantID, sub1)
-	require.NoError(t, err)
-
-	assert.Equal(t, int32(4), builder.calls.Load())
-}
-
-func TestResourceSKUsCachedReader_Singleflight(t *testing.T) {
-	ctx := context.Background()
-	ctrl := gomock.NewController(t)
-
-	var listStarted sync.WaitGroup
-	listStarted.Add(1)
-	var releaseList sync.WaitGroup
-	releaseList.Add(1)
 
 	mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-	mockClient.EXPECT().NewListPager(testListOptions()).DoAndReturn(func(options *armcompute.ResourceSKUsClientListOptions) *runtime.Pager[armcompute.ResourceSKUsClientListResponse] {
-		listStarted.Done()
-		releaseList.Wait()
-		return skuListPager([]*armcompute.ResourceSKU{makeVMResourceSKU(testVMSize, testVMFamily)}, nil)
-	}).Times(1)
+	mockClient.EXPECT().NewListPager(testListOptions()).Return(
+		skuListPager(nil, errors.New("service unavailable")),
+	).Times(1)
 
 	builder := &fakeResourceSKUsClientBuilder{
 		clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
 	}
-	reader := NewResourceSKUsCachedReader(builder, testLocation)
+	reader := newResourceSKUsCachedReader(builder, defaultResourceSKUsCacheMaxEntries, utilsclock.RealClock{}, testLocation)
 
-	const goroutines = 8
-	var wg sync.WaitGroup
-	wg.Add(goroutines)
-	errs := make(chan error, goroutines)
-	for i := 0; i < goroutines; i++ {
-		go func() {
-			defer wg.Done()
-			_, err := reader.ListVirtualMachineSKUs(ctx, testTenantID, testSubscriptionID)
-			errs <- err
-		}()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go reader.Run(ctx, 1)
+
+	_, err := reader.ListVirtualMachineSKUs(ctx, testTenantID, testSubscriptionID)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "service unavailable")
+}
+
+func TestResourceSKUsCachedReader_GetVirtualMachineSKU(t *testing.T) {
+	vmSKU := makeVMResourceSKU(testVMSize, testVMFamily)
+	diskSKU := makeDiskResourceSKU("Premium_LRS")
+
+	tests := []struct {
+		name            string
+		vmSize          string
+		wantName        string
+		wantFamily      string
+		wantError       bool
+		wantErrContains string
+	}{
+		{
+			name:       "returns the matching SKU",
+			vmSize:     testVMSize,
+			wantName:   testVMSize,
+			wantFamily: testVMFamily,
+		},
+		{
+			name:            "returns an error when the VM size is not found",
+			vmSize:          "Standard_missing_v9",
+			wantError:       true,
+			wantErrContains: "Standard_missing_v9",
+		},
 	}
 
-	listStarted.Wait()
-	releaseList.Done()
-	wg.Wait()
-	close(errs)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
+			mockClient.EXPECT().NewListPager(testListOptions()).Return(
+				skuListPager([]*armcompute.ResourceSKU{vmSKU, diskSKU}, nil),
+			).Times(1)
 
-	for err := range errs {
-		require.NoError(t, err)
+			builder := &fakeResourceSKUsClientBuilder{
+				clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
+			}
+			reader := newResourceSKUsCachedReader(builder, defaultResourceSKUsCacheMaxEntries, utilsclock.RealClock{}, testLocation)
+
+			// Pre-populate cache.
+			err := reader.SyncOnce(context.Background(), SKUKey{
+				TenantID:       testTenantID,
+				SubscriptionID: testSubscriptionID,
+			})
+			require.NoError(t, err)
+
+			got, err := reader.GetVirtualMachineSKU(context.Background(), testTenantID, testSubscriptionID, tt.vmSize)
+			if tt.wantError {
+				require.Error(t, err)
+				if tt.wantErrContains != "" {
+					assert.ErrorContains(t, err, tt.wantErrContains)
+				}
+				assert.Nil(t, got)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Equal(t, tt.wantName, *got.Name)
+			assert.Equal(t, tt.wantFamily, *got.Family)
+		})
 	}
-	assert.Equal(t, int32(1), builder.calls.Load())
 }
 
 func TestResourceSKUsCachedReader_ReturnedSliceIsDeepCopy(t *testing.T) {
-	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	vmSKU := makeVMResourceSKU(testVMSize, testVMFamily)
 	mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-	mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil)).Times(1)
+	mockClient.EXPECT().NewListPager(testListOptions()).Return(
+		skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil),
+	).Times(1)
+
 	builder := &fakeResourceSKUsClientBuilder{
 		clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
 	}
-	reader := NewResourceSKUsCachedReader(builder, testLocation)
+	reader := newResourceSKUsCachedReader(builder, defaultResourceSKUsCacheMaxEntries, utilsclock.RealClock{}, testLocation)
 
-	first, err := reader.ListVirtualMachineSKUs(ctx, testTenantID, testSubscriptionID)
+	err := reader.SyncOnce(context.Background(), SKUKey{
+		TenantID:       testTenantID,
+		SubscriptionID: testSubscriptionID,
+	})
+	require.NoError(t, err)
+
+	first, err := reader.ListVirtualMachineSKUs(context.Background(), testTenantID, testSubscriptionID)
 	require.NoError(t, err)
 	require.Len(t, first, 1)
 
-	// Mutate nested fields on the returned SKU; the cache must stay unchanged.
+	// Mutate the returned slice; the cache must stay unchanged.
 	*first[0].Name = "mutated"
 	*first[0].Family = "mutatedFamily"
 	first[0] = makeVMResourceSKU("replaced", "replacedFamily")
 
-	second, err := reader.ListVirtualMachineSKUs(ctx, testTenantID, testSubscriptionID)
+	second, err := reader.ListVirtualMachineSKUs(context.Background(), testTenantID, testSubscriptionID)
 	require.NoError(t, err)
 	require.Len(t, second, 1)
 	assert.Equal(t, testVMSize, *second[0].Name)
 	assert.Equal(t, testVMFamily, *second[0].Family)
-}
-
-func TestResourceSKUsCachedReader_GetVirtualMachineSKU(t *testing.T) {
-	ctx := context.Background()
-	vmSKU := makeVMResourceSKU(testVMSize, testVMFamily)
-	diskSKU := makeDiskResourceSKU("Premium_LRS")
-
-	t.Run("returns the matching SKU", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-		mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU, diskSKU}, nil)).Times(1)
-		builder := &fakeResourceSKUsClientBuilder{
-			clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
-		}
-		reader := NewResourceSKUsCachedReader(builder, testLocation)
-
-		got, err := reader.GetVirtualMachineSKU(ctx, testTenantID, testSubscriptionID, testVMSize)
-		require.NoError(t, err)
-		require.NotNil(t, got)
-		assert.Equal(t, testVMSize, *got.Name)
-		assert.Equal(t, testVMFamily, *got.Family)
-	})
-
-	t.Run("returns an error when the VM size is not found", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-		mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU, diskSKU}, nil)).Times(1)
-		builder := &fakeResourceSKUsClientBuilder{
-			clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
-		}
-		reader := NewResourceSKUsCachedReader(builder, testLocation)
-
-		const missingVMSize = "Standard_missing_v9"
-		got, err := reader.GetVirtualMachineSKU(ctx, testTenantID, testSubscriptionID, missingVMSize)
-		require.Error(t, err)
-		assert.Nil(t, got)
-		assert.ErrorContains(t, err, missingVMSize)
-		assert.ErrorContains(t, err, testSubscriptionID)
-		assert.ErrorContains(t, err, testLocation)
-	})
 }

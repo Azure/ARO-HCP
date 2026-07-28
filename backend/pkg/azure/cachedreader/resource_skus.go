@@ -21,15 +21,17 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sync/singleflight"
-
 	lrucache "k8s.io/apimachinery/pkg/util/cache"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/workqueue"
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -78,6 +80,8 @@ type cachedResourceSKUsEntry struct {
 // per subscription ID with a TTL, LRU eviction, and singleflight deduplication. All lookups are
 // scoped to a single, fixed Azure location set at construction time.
 type resourceSKUsCachedReader struct {
+	name string
+
 	clientBuilder resourceSKUsClientBuilder
 	// location is the Azure location (region) this backend is deployed in. Every Resource SKUs
 	// list call is filtered to this location, since we only care about SKUs available where the
@@ -86,8 +90,18 @@ type resourceSKUsCachedReader struct {
 	// cache maps a lowercased subscription ID (strings.ToLower(subscriptionID)) to a
 	// *cachedResourceSKUsEntry holding the location-filtered VM Resource SKU list and/or the
 	// cached list error for that subscription.
-	cache   *lrucache.LRUExpireCache
-	sfGroup singleflight.Group
+	cache *lrucache.LRUExpireCache
+
+	// queue is where incoming work is placed to de-dup and to allow "easy"
+	// rate limited requeues on errors
+	queue workqueue.TypedRateLimitingInterface[SKUKey]
+}
+
+const cacheControllerKey = "ResourceSKUsCachedReader"
+
+type SKUKey struct {
+	TenantID       string
+	SubscriptionID string
 }
 
 // NewResourceSKUsCachedReader returns a ResourceSKUsCachedReader that caches VM Resource SKUs
@@ -99,10 +113,94 @@ func NewResourceSKUsCachedReader(clientBuilder resourceSKUsClientBuilder, locati
 
 func newResourceSKUsCachedReader(clientBuilder resourceSKUsClientBuilder, maxEntries int, clock utilsclock.PassiveClock, location string) *resourceSKUsCachedReader {
 	return &resourceSKUsCachedReader{
+		name:          cacheControllerKey,
 		clientBuilder: clientBuilder,
 		location:      location,
 		cache:         lrucache.NewLRUExpireCacheWithClock(maxEntries, clock),
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedControllerRateLimiter[SKUKey](),
+			workqueue.TypedRateLimitingQueueConfig[SKUKey]{
+				Name: cacheControllerKey,
+			},
+		)}
+}
+
+func (c *resourceSKUsCachedReader) Run(ctx context.Context, threadiness int) {
+	// don't let panics crash the process
+	defer utilruntime.HandleCrash()
+	// make sure the work queue is shutdown which will trigger workers to end
+	defer c.queue.ShutDown()
+
+	ctx = utils.ContextWithControllerName(ctx, c.name)
+	logger := utils.LoggerFromContext(ctx)
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
+	ctx = utils.ContextWithLogger(ctx, logger)
+	logger.Info("Starting")
+
+	// start up your worker threads based on threadiness.  Some controllers
+	// have multiple kinds of workers
+	for i := 0; i < threadiness; i++ {
+		// runWorker will loop until "something bad" happens.  The .Until will
+		// then rekick the worker after one second
+		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
 	}
+
+	logger.Info("Started workers")
+
+	// wait until we're told to stop
+	<-ctx.Done()
+	logger.Info("Shutting down")
+}
+
+func (c *resourceSKUsCachedReader) runWorker(ctx context.Context) {
+	for c.processNextWorkItem(ctx) {
+	}
+}
+
+// processNextWorkItem deals with one item off the queue.  It returns false
+// when it's time to quit.
+func (c *resourceSKUsCachedReader) processNextWorkItem(ctx context.Context) bool {
+	ref, shutdown := c.queue.Get()
+	if shutdown {
+		return false
+	}
+	defer c.queue.Done(ref)
+
+	logger := utils.LoggerFromContext(ctx)
+	logger = utils.AddLoggerValues(logger, ref)
+	ctx = utils.ContextWithLogger(ctx, logger)
+
+	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
+	err := c.SyncOnce(ctx, ref)
+	if err == nil {
+		c.queue.Forget(ref)
+		return true
+	}
+
+	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
+	c.queue.AddRateLimited(ref)
+
+	return true
+}
+
+func (c *resourceSKUsCachedReader) SyncOnce(ctx context.Context, ref SKUKey) error {
+	cacheKey := strings.ToLower(ref.SubscriptionID)
+	if _, ok := c.cache.Get(cacheKey); ok {
+		return nil
+	}
+
+	skus, listErr := c.listVirtualMachineSKUsFromAzure(ctx, ref.TenantID, ref.SubscriptionID)
+	entry := &cachedResourceSKUsEntry{
+		skus: skus,
+		err:  listErr,
+	}
+	ttl := resourceSKUsCacheSuccessFreshnessTTL
+	if listErr != nil {
+		ttl = resourceSKUsCacheErrorFreshnessTTL
+	}
+	c.cache.Add(cacheKey, entry, ttl)
+
+	return nil
 }
 
 // ListVirtualMachineSKUs returns the cached VM Resource SKU list for the subscription.
@@ -137,29 +235,24 @@ func (c *resourceSKUsCachedReader) ensureCached(ctx context.Context, tenantID, s
 		return value.(*cachedResourceSKUsEntry), nil
 	}
 
-	// Detach cancellation and deadline from the caller so the singleflight winner
-	// does not affect concurrent callers or cache a context-cancellation error.
-	azureCtx := context.WithoutCancel(ctx)
+	// calls are deduplicated by the workqueue and the SyncOnce only does work when the cache is empty.
+	skuKey := SKUKey{TenantID: tenantID, SubscriptionID: subscriptionID}
+	c.queue.Add(skuKey)
 
-	v, _, _ := c.sfGroup.Do(cacheKey, func() (interface{}, error) { // Re-check after winning singleflight in case another caller filled the cache.
-		if value, ok := c.cache.Get(cacheKey); ok {
-			return value, nil
+	// fancier notification is definitely possible, but requires wiring primitives
+	var value interface{}
+	err := wait.PollUntilContextCancel(ctx, 100*time.Millisecond, true, func(ctx context.Context) (done bool, err error) {
+		var ok bool
+		value, ok = c.cache.Get(cacheKey)
+		if ok {
+			return true, nil
 		}
-
-		skus, listErr := c.listVirtualMachineSKUsFromAzure(azureCtx, tenantID, subscriptionID)
-		entry := &cachedResourceSKUsEntry{
-			skus: skus,
-			err:  listErr,
-		}
-		ttl := resourceSKUsCacheSuccessFreshnessTTL
-		if listErr != nil {
-			ttl = resourceSKUsCacheErrorFreshnessTTL
-		}
-		c.cache.Add(cacheKey, entry, ttl)
-		return entry, nil
+		return false, nil
 	})
-
-	return v.(*cachedResourceSKUsEntry), nil
+	if value != nil {
+		return value.(*cachedResourceSKUsEntry), nil
+	}
+	return nil, err
 }
 
 // resourceSKUsListFilterForLocation builds the OData filter that scopes a Resource SKUs list
