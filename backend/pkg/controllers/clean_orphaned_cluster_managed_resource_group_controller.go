@@ -52,7 +52,7 @@ var (
 			Name: "aro_hcp_orphaned_managed_resource_groups_found_total",
 			Help: "Total number of orphaned cluster managed resource groups found",
 		},
-		[]string{"location"},
+		[]string{"location", "subscription_id", "resource_group"},
 	)
 
 	orphanedMRGsDeletionFailed = promauto.With(legacyregistry.Registerer()).NewCounterVec(
@@ -60,7 +60,7 @@ var (
 			Name: "aro_hcp_orphaned_managed_resource_groups_deletion_failed_total",
 			Help: "Total number of orphaned cluster managed resource groups where deletion failed",
 		},
-		[]string{"location"},
+		[]string{"location", "subscription_id", "resource_group"},
 	)
 )
 
@@ -163,7 +163,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 		logger.Error(err, "Failed to get resource group state",
 			"subscriptionID", subscriptionID,
 			"resourceGroup", resourceGroupName)
-		orphanedMRGsDeletionFailed.WithLabelValues(c.location).Inc()
+		orphanedMRGsDeletionFailed.WithLabelValues(c.location, strings.ToLower(subscriptionID), strings.ToLower(resourceGroupName)).Inc()
 		return err
 	}
 
@@ -207,7 +207,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 			"subscriptionID", subscriptionID,
 			"resourceGroup", resourceGroupName,
 			"managedBy", managedBy)
-		orphanedMRGsDeletionFailed.WithLabelValues(c.location).Inc()
+		orphanedMRGsDeletionFailed.WithLabelValues(c.location, strings.ToLower(subscriptionID), strings.ToLower(resourceGroupName)).Inc()
 		return err
 	}
 
@@ -238,7 +238,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) pollResourceGroupDeletion(ctx
 			"subscriptionID", subscriptionID,
 			"resourceGroup", resourceGroupName,
 			"managedBy", managedBy)
-		orphanedMRGsDeletionFailed.WithLabelValues(c.location).Inc()
+		orphanedMRGsDeletionFailed.WithLabelValues(c.location, strings.ToLower(subscriptionID), strings.ToLower(resourceGroupName)).Inc()
 		return err
 	}
 
@@ -330,7 +330,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 		}
 
 		// Found an orphaned managed resource group
-		orphanedMRGsFound.WithLabelValues(c.location).Inc()
+		orphanedMRGsFound.WithLabelValues(c.location, strings.ToLower(key.SubscriptionID), strings.ToLower(resourceGroupName)).Inc()
 
 		resourceGroupName := resourceGroupName
 		managedBy := managedBy
