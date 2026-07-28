@@ -16,9 +16,9 @@ package noprint
 
 import (
 	"fmt"
+	f "fmt"
 	"log"
 	mylog "log"
-	f "fmt"
 	"testing"
 )
 
