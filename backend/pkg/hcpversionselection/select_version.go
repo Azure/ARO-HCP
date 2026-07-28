@@ -139,7 +139,7 @@ func findLatestGateway(ctx context.Context, client cincinnati.Client, cincinnati
 		return &candidates[0], nil
 	}
 
-	reachable, err := isNextMinorReachableFromCurrentMinor(ctx, client, cincinnatiURI, channelStability, currentMinor, nil)
+	reachable, err := isNextMinorReachableFromCurrentMinor(ctx, client, cincinnatiURI, channelStability, currentMinor)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +245,7 @@ func doesNextMinorExist(ctx context.Context, client cincinnati.Client, cincinnat
 //
 // Returns false if the .0 release is not in the channel (cannot discover
 // versions to check).
-func isNextMinorReachableFromCurrentMinor(ctx context.Context, client cincinnati.Client, cincinnatiURI *url.URL, channelStability string, currentMinor semver.Version, alreadyChecked map[string]bool) (bool, error) {
+func isNextMinorReachableFromCurrentMinor(ctx context.Context, client cincinnati.Client, cincinnatiURI *url.URL, channelStability string, currentMinor semver.Version) (bool, error) {
 	channel := formatChannel(channelStability, currentMinor)
 	dotZero := semver.Version{Major: currentMinor.Major, Minor: currentMinor.Minor}
 
@@ -259,7 +259,7 @@ func isNextMinorReachableFromCurrentMinor(ctx context.Context, client cincinnati
 
 	for _, rel := range discovered {
 		ver, parseErr := semver.Parse(rel.Version)
-		if parseErr != nil || alreadyChecked[ver.String()] {
+		if parseErr != nil {
 			continue
 		}
 		if ver.Major != currentMinor.Major || ver.Minor != currentMinor.Minor {
