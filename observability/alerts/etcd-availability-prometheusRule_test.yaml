@@ -43,9 +43,10 @@ tests:
         long_window: 1h
         short_window: 5m
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 has 99th percentile backend commit duration of 0.064s (threshold: 25ms). Slow disk performance may impact write performance. Fast burn (1h/5m)."
-        summary: "etcd backend commit duration is high"
+        summary: "etcd-0 etcd backend commit duration is high"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
   - eval_time: 11m
     alertname: userJourneyEtcdBackendCommitDurationHigh6h30m
@@ -63,9 +64,10 @@ tests:
         long_window: 6h
         short_window: 30m
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 has 99th percentile backend commit duration of 0.064s (threshold: 25ms). Slow disk performance may impact write performance. Medium burn (6h/30m)."
-        summary: "etcd backend commit duration is high"
+        summary: "etcd-0 etcd backend commit duration is high"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
   - eval_time: 61m
     alertname: userJourneyEtcdBackendCommitDurationHigh3d
@@ -80,9 +82,10 @@ tests:
         long_window: 3d
         short_window: 6h
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 has 99th percentile backend commit duration of 0.064s (threshold: 25ms). Slow disk performance may impact write performance. Slow burn (3d)."
-        summary: "etcd backend commit duration is chronically high"
+        summary: "etcd-0 etcd backend commit duration is chronically high"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
 
 # Scenario 2: Normal commit duration — no tiers fire
@@ -132,9 +135,10 @@ tests:
         long_window: 1h
         short_window: 5m
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 database in-use ratio is 37.5% (threshold: 50%). Database defragmentation may be needed to reclaim space. Fast burn (1h/5m)."
-        summary: "etcd database fragmentation is high"
+        summary: "etcd-0 etcd database fragmentation is high"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
   - eval_time: 11m
     alertname: userJourneyEtcdDatabaseHighFragmentation6h30m
@@ -151,9 +155,10 @@ tests:
         long_window: 6h
         short_window: 30m
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 database in-use ratio is 37.5% (threshold: 50%). Database defragmentation may be needed to reclaim space. Medium burn (6h/30m)."
-        summary: "etcd database fragmentation is high"
+        summary: "etcd-0 etcd database fragmentation is high"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
   - eval_time: 61m
     alertname: userJourneyEtcdDatabaseHighFragmentation3d
@@ -167,9 +172,10 @@ tests:
         long_window: 3d
         short_window: 6h
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 database in-use ratio is 37.5% (threshold: 50%). Database defragmentation may be needed to reclaim space. Slow burn (3d)."
-        summary: "etcd database fragmentation is chronically high"
+        summary: "etcd-0 etcd database fragmentation is chronically high"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
 
 # Scenario 2: Database in-use ratio healthy (no fragmentation) — no tiers fire
@@ -220,9 +226,10 @@ tests:
         long_window: 1h
         short_window: 5m
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Fast burn (1h/5m)."
-        summary: "etcd database size is too large"
+        summary: "etcd-0 etcd database size is too large"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
   - eval_time: 11m
     alertname: userJourneyEtcdDatabaseSizeExceeded6h30m
@@ -239,9 +246,10 @@ tests:
         long_window: 6h
         short_window: 30m
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Medium burn (6h/30m)."
-        summary: "etcd database size is too large"
+        summary: "etcd-0 etcd database size is too large"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
   - eval_time: 61m
     alertname: userJourneyEtcdDatabaseSizeExceeded3d
@@ -255,9 +263,10 @@ tests:
         long_window: 3d
         short_window: 6h
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d)."
-        summary: "etcd database size is chronically too large"
+        summary: "etcd-0 etcd database size is chronically too large"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
 
 # Scenario 2: Database size below threshold — no tiers fire
@@ -304,9 +313,10 @@ tests:
         long_window: 1h
         short_window: 5m
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Fast burn (1h/5m)."
-        summary: "etcd cluster experiencing frequent leader changes"
+        summary: "etcd-0 etcd cluster experiencing frequent leader changes"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
   - eval_time: 15m
     alertname: userJourneyEtcdFrequentLeaderChanges6h30m
@@ -323,9 +333,10 @@ tests:
         long_window: 6h
         short_window: 30m
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Medium burn (6h/30m)."
-        summary: "etcd cluster experiencing frequent leader changes"
+        summary: "etcd-0 etcd cluster experiencing frequent leader changes"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
   - eval_time: 61m
     alertname: userJourneyEtcdFrequentLeaderChanges3d
@@ -339,9 +350,10 @@ tests:
         long_window: 3d
         short_window: 6h
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Slow burn (3d)."
-        summary: "etcd cluster experiencing chronic frequent leader changes"
+        summary: "etcd-0 etcd cluster experiencing chronic frequent leader changes"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
 
 # Scenario 2: Stable leader — no tiers fire
@@ -417,9 +429,10 @@ tests:
         long_window: 1h
         short_window: 5m
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Fast burn (1h/5m)."
-        summary: "etcd peer round-trip time is high"
+        summary: "etcd-0 etcd peer round-trip time is high"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
   - eval_time: 11m
     alertname: userJourneyEtcdPeerRoundTripTimeHigh6h30m
@@ -437,9 +450,10 @@ tests:
         long_window: 6h
         short_window: 30m
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Medium burn (6h/30m)."
-        summary: "etcd peer round-trip time is high"
+        summary: "etcd-0 etcd peer round-trip time is high"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
   - eval_time: 61m
     alertname: userJourneyEtcdPeerRoundTripTimeHigh3d
@@ -453,9 +467,10 @@ tests:
         long_window: 3d
         short_window: 6h
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d)."
-        summary: "etcd peer round-trip time is chronically high"
+        summary: "etcd-0 etcd peer round-trip time is chronically high"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
 
 # Scenario 2: Normal peer RTT — no tiers fire
@@ -512,9 +527,10 @@ tests:
         long_window: 1h
         short_window: 5m
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.032s (threshold: 10ms). Slow disk performance may impact cluster stability. Fast burn (1h/5m)."
-        summary: "etcd WAL fsync duration is high"
+        summary: "etcd-0 etcd WAL fsync duration is high"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
   - eval_time: 11m
     alertname: userJourneyEtcdWALFsyncDurationHigh6h30m
@@ -532,9 +548,10 @@ tests:
         long_window: 6h
         short_window: 30m
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.032s (threshold: 10ms). Slow disk performance may impact cluster stability. Medium burn (6h/30m)."
-        summary: "etcd WAL fsync duration is high"
+        summary: "etcd-0 etcd WAL fsync duration is high"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
   - eval_time: 61m
     alertname: userJourneyEtcdWALFsyncDurationHigh3d
@@ -548,9 +565,10 @@ tests:
         long_window: 3d
         short_window: 6h
         instance: etcd-0
+        component: fleet
       exp_annotations:
         description: "etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.032s (threshold: 10ms). Slow disk performance may impact cluster stability. Slow burn (3d)."
-        summary: "etcd WAL fsync duration is chronically high"
+        summary: "etcd-0 etcd WAL fsync duration is chronically high"
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/etcd-availability
 
 # Scenario 2: Normal WAL fsync duration — no tiers fire
