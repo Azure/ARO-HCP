@@ -254,7 +254,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			server := testserver.NewServer(t, tt.channels)
 			cincinnatiClient := newTestServerClient(server)
 
-now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+			now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
 			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 			syncer := &controlPlaneDesiredVersionSyncer{
 				clock:                         clocktesting.NewFakePassiveClock(now),
@@ -466,7 +466,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tt.cosmosResources)
 			require.NoError(t, err)
 			syncer := &controlPlaneDesiredVersionSyncer{
-clock:                         clocktesting.NewFakePassiveClock(now),
+				clock:                         clocktesting.NewFakePassiveClock(now),
 				resourcesDBClient:             mockResourcesDBClient,
 				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
@@ -655,7 +655,7 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tt.cosmosResources)
 			require.NoError(t, err)
 			syncer := &controlPlaneDesiredVersionSyncer{
-clock:                         clocktesting.NewFakePassiveClock(now),
+				clock:                         clocktesting.NewFakePassiveClock(now),
 				resourcesDBClient:             mockResourcesDBClient,
 				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
@@ -770,7 +770,7 @@ func TestDesiredControlPlaneZVersion_CrossMajorUpgrade(t *testing.T) {
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tt.cosmosResources)
 			require.NoError(t, err)
 			syncer := &controlPlaneDesiredVersionSyncer{
-clock:                         clocktesting.NewFakePassiveClock(now),
+				clock:                         clocktesting.NewFakePassiveClock(now),
 				resourcesDBClient:             mockResourcesDBClient,
 				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
@@ -865,7 +865,7 @@ func TestDesiredControlPlaneZVersion_InitialVersionSelection(t *testing.T) {
 			server := testserver.NewServer(t, tt.channels)
 			cincinnatiClient := newTestServerClient(server)
 
-now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+			now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
 			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 			syncer := &controlPlaneDesiredVersionSyncer{
 				clock:                         clocktesting.NewFakePassiveClock(now),
@@ -1098,7 +1098,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 
 			now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
 			syncer := &controlPlaneDesiredVersionSyncer{
-clock:                         clocktesting.NewFakePassiveClock(now),
+				clock:                         clocktesting.NewFakePassiveClock(now),
 				readDesireLister:              newHostedClusterReadDesireListerWithHistory(t, tt.controlPlaneVersion),
 				resourcesDBClient:             mockResourcesDBClient,
 				clusterServiceClient:          mockCS,
