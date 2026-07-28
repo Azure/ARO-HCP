@@ -73,8 +73,20 @@ func (c *ClusterDiscoveryPoller) Poll(ctx context.Context) {
 			return
 		}
 		c.resultMutex.Lock()
+		oldNames := clusterNames(c.rows)
 		c.rows = newRows
 		c.resultMutex.Unlock()
+
+		newNames := clusterNames(newRows)
+		if !oldNames.Equal(newNames) {
+			added := newNames.Difference(oldNames)
+			removed := oldNames.Difference(newNames)
+			logger.Info("Discovered clusters changed",
+				"total", newNames.Len(),
+				"added", added.UnsortedList(),
+				"removed", removed.UnsortedList(),
+			)
+		}
 	}
 }
 
@@ -93,6 +105,14 @@ func (c *ClusterDiscoveryPoller) GetDiscoverResult() DiscoverResult {
 	result.ClusterNames = seenClusterNames.UnsortedList()
 	result.SubscriptionIDs = seenSubs.UnsortedList()
 	return result
+}
+
+func clusterNames(rows []clusterRow) sets.Set[string] {
+	s := sets.New[string]()
+	for _, r := range rows {
+		s.Insert(r.Name)
+	}
+	return s
 }
 
 // BuildClusterQuery constructs a KQL query that finds AKS managed clusters

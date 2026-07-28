@@ -172,12 +172,12 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 	}
 
 	return &CompletedOptions{
-		ListenAddress:       o.ListenAddress,
-		Region:              o.Region,
-		CacheTTL:            o.CacheTTL,
-		Registry:            registry,
-		Collectors:          collectors,
-		CollectionInterval:  o.CollectionInterval,
+		ListenAddress:      o.ListenAddress,
+		Region:             o.Region,
+		CacheTTL:           o.CacheTTL,
+		Registry:           registry,
+		Collectors:         collectors,
+		CollectionInterval: o.CollectionInterval,
 		ClusterPoller:      clusterPoller,
 	}, nil
 }
