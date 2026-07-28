@@ -34,7 +34,9 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	configv1 "github.com/openshift/api/config/v1"
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/hcpversionselection"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -87,6 +89,25 @@ var _ = Describe("Customer", func() {
 			if installVersion == nil {
 				Skip(fmt.Sprintf("no install version in %s found with upgrade path to %s",
 					previousMinor.String(), targetVer.String()))
+			}
+
+			targetMinorSemVer := semver.Version{Major: targetVer.Major, Minor: targetVer.Minor}
+			upgradeTestHC := &v1beta1.HostedCluster{}
+			upgradeTestHC.Status.ControlPlaneVersion.History = []v1beta1.ControlPlaneUpdateHistory{
+				{Version: installVersion.String(), State: configv1.CompletedUpdate},
+			}
+			upgradeTarget, err := hcpversionselection.SelectControlPlaneVersion(ctx, channelGroup, targetMinorSemVer, cincinnatiURI, cachingClient, upgradeTestHC)
+			if err != nil {
+				var noGateway *hcpversionselection.NoGatewayError
+				if errors.As(err, &noGateway) || cincinnati.IsCincinnatiVersionNotFoundError(err) {
+					Skip(fmt.Sprintf("no upgrade path from install version %s to target minor %s: %v",
+						installVersion, targetMinor, err))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to check upgrade path from %s to %s", installVersion, targetMinor)
+			}
+			if upgradeTarget == nil {
+				Skip(fmt.Sprintf("no upgrade path from install version %s to target minor %s",
+					installVersion, targetMinor))
 			}
 
 			// Resolve the upgrade target version early so a missing nightly tag skips
