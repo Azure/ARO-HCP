@@ -17,17 +17,19 @@ package controller
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	appsinformers "k8s.io/client-go/informers/apps/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 )
 
 const (
-	hypershiftNamespace      = "hypershift"
-	hostedClusterNSPrefix    = "ocm-"
+	hypershiftNamespace   = "hypershift"
+	hostedClusterNSPrefix = "ocm-"
 )
 
 // DeploymentWatcher watches Deployment resources using a typed informer and
@@ -53,12 +55,18 @@ func NewDeploymentWatcher(deploymentInformer appsinformers.DeploymentInformer) (
 			}
 			logDeploymentEvent("Add", deploy)
 		},
-		UpdateFunc: func(_, newObj interface{}) {
-			deploy, ok := newObj.(*appsv1.Deployment)
-			if !ok || !isWatchedNamespace(deploy.Namespace) {
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldDeploy, ok := oldObj.(*appsv1.Deployment)
+			if !ok {
 				return
 			}
-			logDeploymentEvent("Update", deploy)
+			newDeploy, ok := newObj.(*appsv1.Deployment)
+			if !ok || !isWatchedNamespace(newDeploy.Namespace) {
+				return
+			}
+			if deploymentStateChanged(oldDeploy, newDeploy) {
+				logDeploymentEvent("Update", newDeploy)
+			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
@@ -98,9 +106,56 @@ func isWatchedNamespace(ns string) bool {
 	return ns == hypershiftNamespace || strings.HasPrefix(ns, hostedClusterNSPrefix)
 }
 
+// deploymentStateChanged returns true if diagnostically meaningful fields
+// changed between old and new. It ignores noisy fields like condition
+// timestamps, resourceVersion, and managedFields.
+func deploymentStateChanged(oldDeploy, newDeploy *appsv1.Deployment) bool {
+	oldStatus := oldDeploy.Status
+	newStatus := newDeploy.Status
+
+	if oldStatus.ObservedGeneration != newStatus.ObservedGeneration ||
+		oldStatus.Replicas != newStatus.Replicas ||
+		oldStatus.UpdatedReplicas != newStatus.UpdatedReplicas ||
+		oldStatus.ReadyReplicas != newStatus.ReadyReplicas ||
+		oldStatus.AvailableReplicas != newStatus.AvailableReplicas ||
+		oldStatus.UnavailableReplicas != newStatus.UnavailableReplicas {
+		return true
+	}
+
+	if !conditionStatusMapEqual(oldStatus.Conditions, newStatus.Conditions) {
+		return true
+	}
+
+	if !reflect.DeepEqual(oldDeploy.Spec.Template, newDeploy.Spec.Template) {
+		return true
+	}
+
+	return false
+}
+
+// conditionStatusMapEqual returns true if both slices have the same set of
+// condition Type→Status pairs. It ignores LastUpdateTime, LastTransitionTime,
+// Reason, and Message — those change frequently without diagnostic value.
+func conditionStatusMapEqual(a, b []appsv1.DeploymentCondition) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	aMap := make(map[appsv1.DeploymentConditionType]corev1.ConditionStatus, len(a))
+	for _, c := range a {
+		aMap[c.Type] = c.Status
+	}
+	for _, c := range b {
+		if aMap[c.Type] != c.Status {
+			return false
+		}
+	}
+	return true
+}
+
 func logDeploymentEvent(eventType string, deploy *appsv1.Deployment) {
 	deployCopy := *deploy
 	deployCopy.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind("Deployment"))
+	deployCopy.ManagedFields = nil
 	klog.InfoS("deployment event",
 		"snapshotType", "kubernetes",
 		"event", eventType,
