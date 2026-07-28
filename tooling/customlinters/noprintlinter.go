@@ -158,12 +158,13 @@ func (l *NoPrintLinter) run(pass *analysis.Pass) (any, error) {
 				}
 			}
 
-			// Check for builtin println
+			// Check for builtin print/println
 			if ident, ok := call.Fun.(*ast.Ident); ok {
-				if ident.Name == "println" || ident.Name == "print" {
+				obj, ok := pass.TypesInfo.Uses[ident].(*types.Builtin)
+				if ok && (obj.Name() == "print" || obj.Name() == "println") {
 					pass.Reportf(call.Pos(),
 						"do not use builtin %s in test files - use Ginkgo's GinkgoLogr or GinkgoWriter instead",
-						ident.Name)
+						obj.Name())
 				}
 			}
 
