@@ -33,3 +33,6 @@ grafana-dashboards:
     path: ./grafana-dashboards/sre/user-journey
   - name: SRE Cluster Health
     path: ./grafana-dashboards/sre/cluster-health
+  scratchFolders:
+  - name: Scratchpad (regularly autodeleted)
+    maxAge: 168h
