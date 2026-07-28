@@ -295,13 +295,35 @@ func TestSelectControlPlaneVersion_Upgrade(t *testing.T) {
 			wantVersion:   "4.19.22",
 		},
 		{
-			name:             "partial history entry is included as active version",
+			name:             "partial entry older than completed is excluded from active versions",
 			channelStability: "stable",
 			desiredYVersion:  "4.19.0",
 			channels: map[string]*testserver.Graph{
 				"stable-4.19": testserver.NewGraph().
-					Edges("4.19.10", "4.19.15", "4.19.22").
-					Edges("4.19.15", "4.19.22"),
+					Edges("4.19.10", "4.19.15").
+					Edges("4.19.18", "4.19.22"),
+			},
+			hostedCluster: func() *v1beta1.HostedCluster {
+				hc := &v1beta1.HostedCluster{}
+				hc.Status.ControlPlaneVersion.History = []v1beta1.ControlPlaneUpdateHistory{
+					{Version: "4.19.18", State: configv1.CompletedUpdate},
+					{Version: "4.19.10", State: configv1.PartialUpdate},
+				}
+				return hc
+			}(),
+			wantVersion: "4.19.22",
+		},
+		{
+			name:             "partial entries more recent than completed are included as active",
+			channelStability: "stable",
+			desiredYVersion:  "4.19.0",
+			channels: map[string]*testserver.Graph{
+				"stable-4.19": testserver.NewGraph().
+					Edges("4.19.10", "4.19.18", "4.19.20").
+					Edges("4.19.15", "4.19.18", "4.19.22"),
+				// Only 4.19.15 active → candidates {4.19.18, 4.19.22} → 4.19.22
+				// Only 4.19.10 active → candidates {4.19.18, 4.19.20} → 4.19.20
+				// Both active → common {4.19.18} → 4.19.18
 			},
 			hostedCluster: func() *v1beta1.HostedCluster {
 				hc := &v1beta1.HostedCluster{}
@@ -311,7 +333,27 @@ func TestSelectControlPlaneVersion_Upgrade(t *testing.T) {
 				}
 				return hc
 			}(),
-			wantVersion: "4.19.22",
+			wantVersion: "4.19.18",
+		},
+		{
+			name:             "all-partial history includes every entry as active",
+			channelStability: "stable",
+			desiredYVersion:  "4.19.0",
+			channels: map[string]*testserver.Graph{
+				"stable-4.19": testserver.NewGraph().
+					Edges("4.19.0", "4.19.10", "4.19.15", "4.19.18", "4.19.22").
+					Edges("4.19.10", "4.19.18", "4.19.22").
+					Edges("4.19.15", "4.19.18"),
+			},
+			hostedCluster: func() *v1beta1.HostedCluster {
+				hc := &v1beta1.HostedCluster{}
+				hc.Status.ControlPlaneVersion.History = []v1beta1.ControlPlaneUpdateHistory{
+					{Version: "4.19.15", State: configv1.PartialUpdate},
+					{Version: "4.19.10", State: configv1.PartialUpdate},
+				}
+				return hc
+			}(),
+			wantVersion: "4.19.18",
 		},
 		{
 			name:             "4.22 to 5.0 transition with upgrade",

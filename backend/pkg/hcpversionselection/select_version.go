@@ -24,6 +24,7 @@ import (
 
 	"github.com/blang/semver/v4"
 
+	configv1 "github.com/openshift/api/config/v1"
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
@@ -316,16 +317,28 @@ func formatChannel(channelStability string, minor semver.Version) string {
 	return fmt.Sprintf("%s-%d.%d", channelStability, minor.Major, minor.Minor)
 }
 
-// activeVersionsFromHostedCluster extracts the versions from the HostedCluster's
-// control plane version history. All history entries (Completed and Partial)
-// are included because an in-progress version is still active on the cluster
-// and must have upgrade paths from it.
+// activeVersionsFromHostedCluster extracts active versions from the
+// HostedCluster's control plane version history (ordered most recent first).
+//
+// All entries up to and including the first Completed entry are included:
+// Partial entries more recent than the first Completed represent in-progress
+// upgrades that are still active on the cluster, while the first Completed
+// entry is the last fully-applied version. Partial entries older than a
+// Completed entry have been superseded and are excluded.
+//
+// When no Completed entry exists (all Partial), every entry is included.
 func activeVersionsFromHostedCluster(hc *v1beta1.HostedCluster) []semver.Version {
 	if hc == nil {
 		return nil
 	}
 	var versions []semver.Version
+	seenCompleted := false
 	for _, entry := range hc.Status.ControlPlaneVersion.History {
+		if entry.State == configv1.CompletedUpdate {
+			seenCompleted = true
+		} else if seenCompleted {
+			continue
+		}
 		v, err := semver.Parse(entry.Version)
 		if err != nil {
 			continue
