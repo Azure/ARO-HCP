@@ -401,7 +401,7 @@ run_verification() {
 
     # Check 1: Single sidecar revision
     local revisions
-    revisions=$(sed -n '/POD SIDECAR REVISIONS/,/^---/p' "$file" | grep "mcr.microsoft.com" | awk '{print $NF}' | sort -u | wc -l | tr -d ' ')
+    revisions=$(sed -n '/POD SIDECAR REVISIONS/,/^$/p' "$file" | grep "mcr.microsoft.com" | awk '{print $NF}' | sort -u | wc -l | tr -d ' ')
     if [ "$revisions" -eq 0 ]; then
         echo "WARN: No sidecar pods found"
     elif [ "$revisions" -eq 1 ]; then
@@ -412,7 +412,7 @@ run_verification() {
 
     # Check 2: No stale pods in mesh namespaces
     local stale_section
-    stale_section=$(sed -n '/STALE SIDECAR PODS/,/^---/p' "$file" | grep "/" || true)
+    stale_section=$(sed -n '/STALE SIDECAR PODS/,/^$/p' "$file" | grep "/" || true)
     local mesh_ns_list
     mesh_ns_list=$(sed -n '/MESH NAMESPACES/,/^$/p' "$file" | grep -v "^---" | grep -v "^$" | grep -v "^NAMESPACE" | awk '{print $1}')
     local mesh_stale=0
@@ -506,7 +506,7 @@ run_verification() {
 
     # Check 10: Deployments fully rolled out (skip 0-replica and <none> deployments)
     local not_ready
-    not_ready=$(sed -n '/DEPLOYMENT ROLLOUT STATUS/,/^--- /p' "$file" | grep -v "^\[" | grep -v "^---" | grep -v "^$" | grep -v "^NAME" | awk '{gsub(/<none>/, "0")} $3 != 0 && ($2 != $3 || $3 != $4) {print}' 2>/dev/null || true)
+    not_ready=$(sed -n '/DEPLOYMENT ROLLOUT STATUS/,/^$/p' "$file" | grep -v "^\[" | grep -v "^---" | grep -v "^$" | grep -v "^NAME" | awk '{gsub(/<none>/, "0")} $3 != 0 && ($2 != $3 || $3 != $4) {print}' 2>/dev/null || true)
     if [ -z "$not_ready" ]; then
         echo "PASS: All deployments fully rolled out"
     else
@@ -572,7 +572,7 @@ run_verification() {
     # Check 15: Orphaned leases — upstream AKS bug, not blocking
     # https://github.com/Azure/AKS/issues/5862
     local orphan_leases
-    orphan_leases=$(sed -n '/LEASES (aks-istio-system)/,/^---/p' "$file" | grep "status=ORPHAN" || true)
+    orphan_leases=$(sed -n '/LEASES (aks-istio-system)/,/^$/p' "$file" | grep "status=ORPHAN" || true)
     local orphan_lease_count=0
     if [ -n "$orphan_leases" ]; then
         orphan_lease_count=$(echo "$orphan_leases" | wc -l | tr -d ' ')
