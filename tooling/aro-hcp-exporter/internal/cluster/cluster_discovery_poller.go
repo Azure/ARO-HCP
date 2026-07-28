@@ -66,7 +66,7 @@ func (c *ClusterDiscoveryPoller) Poll(ctx context.Context) {
 	select {
 	case <-ctx.Done():
 		return
-	case <-time.After(c.sleepTime):
+	default:
 		logger := logr.FromContextOrDiscard(ctx)
 		var newRows []clusterRow
 		err := c.client.ExecuteConvertRequest(ctx, graphquery.ResourceGraphRequest{
@@ -97,6 +97,10 @@ func (c *ClusterDiscoveryPoller) Poll(ctx context.Context) {
 				"removed", removed.UnsortedList(),
 			)
 		}
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(c.sleepTime):
 	}
 }
 
