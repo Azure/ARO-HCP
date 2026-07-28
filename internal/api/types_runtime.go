@@ -304,6 +304,8 @@ func (o *SystemAdminCredentialRequest) GetObjectMeta() metav1.Object {
 	if o.GetResourceID() != nil {
 		om.Name = strings.ToLower(o.GetResourceID().String())
 	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
 	return om
 }
 
@@ -336,6 +338,8 @@ func (o *SystemAdminCredentialRevocation) GetObjectMeta() metav1.Object {
 	if o.GetResourceID() != nil {
 		om.Name = strings.ToLower(o.GetResourceID().String())
 	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
 	return om
 }
 

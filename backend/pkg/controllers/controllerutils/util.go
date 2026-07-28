@@ -205,14 +205,17 @@ func (k SystemAdminCredentialRequestKey) AddLoggerValues(logger logr.Logger) log
 			AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
+// InitialController returns a cluster-scoped controller document. The credential
+// request controllers write their status through the cluster's Controllers CRUD,
+// so the document's resource ID must be cluster-scoped for reads and writes to agree.
 func (k SystemAdminCredentialRequestKey) InitialController(controllerName string) *api.Controller {
-	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
+	resourceID := api.Must(azcorearm.ParseResourceID(k.GetClusterResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
 	return &api.Controller{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		ExternalID: k.GetResourceID(),
+		ExternalID: k.GetClusterResourceID(),
 		Status: api.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
