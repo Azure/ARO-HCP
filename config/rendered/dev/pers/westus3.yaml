@@ -564,7 +564,7 @@ maestro:
     name: arohcp-pers-maestro-usw3test
     private: false
   image:
-    digest: sha256:777e24018ea07093f8d79b6fe8694f3c332be4978bded0aea11566d936f08802
+    digest: sha256:ce18b280552cf120b48a1727c2941a519629fdf6eee8819d0e53654e52d41b9d
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
