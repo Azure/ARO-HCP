@@ -108,6 +108,15 @@ type ServiceProviderClusterSpecVersion struct {
 	// DesiredVersion is the full version the controller has resolved and wants to upgrade to (format: x.y.z)
 	// This is compared on each sync to detect when a new upgrade should be triggered.
 	DesiredVersion *semver.Version `json:"desired_version,omitempty"`
+
+	// MinimumVersions is a list of the lowest allowed OCP versions and is specified by SRE/ManagedServices.
+	// The highest value for a given minor version is selected and it controls version selection.
+	// This will change version selection in the following ways.
+	// 1. if the y-stream matches and there is a higher z-stream version that meets other criteria, it will be chosen.
+	// 2. if the y-stream matches and no larger and preferred z-stream version exists, the desiredVersion will be set to the minimumVersion
+	// 3. if the minimumVersion y-stream is ahead of the current y-stream, the desiredVersion will be set to the minimumVersion
+	//    Think: current cluster is on 4.19.23, the slice is 4.20.12, 4.21.10, 4.22.8, 5.0.6. The cluster will be forced to 4.20.12.
+	MinimumVersions []semver.Version `json:"minimumVersions,omitempty"`
 }
 
 // ServiceProviderClusterStatus contains the observed state of the cluster.

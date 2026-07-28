@@ -1656,6 +1656,11 @@ func (in *ServiceProviderClusterSpecVersion) DeepCopyInto(out *ServiceProviderCl
 		*out = new(v4.Version)
 		**out = **in
 	}
+	if in.MinimumVersions != nil {
+		in, out := &in.MinimumVersions, &out.MinimumVersions
+		*out = make([]v4.Version, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

@@ -126,9 +126,15 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("POST", "/desiredcontrolplanesize"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient).ServeHTTP)),
 	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("POST", "/minimumversions"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPMinimumVersionsHandler(resourcesDBClient).ServeHTTP)),
+	)
 
 	// Non-HCP admin routes
 	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
+	middlewareMux.Handle("POST /admin/v1/minimumversions",
+		errorutils.ReportError(handlers.NewAllClustersMinimumVersionsHandler(resourcesDBClient).ServeHTTP))
 
 	// Stamp management routes
 	middlewareMux.Handle("GET /admin/v1/stamps",
