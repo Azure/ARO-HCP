@@ -3446,7 +3446,7 @@
               "pattern": "^[a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*$"
             },
             "targetVersion": {
-              "description": "Must match the versions value. The versions field drives the upgrade; this field is required by schema today but will be removed in a future cleanup.",
+              "description": "Must be included in the comma-separated versions list (may be one of several during upgrades). The versions field drives the upgrade; this field is required by schema today but will be removed in a future cleanup.",
               "type": "string",
               "enum": [
                 "asm-1-26",
