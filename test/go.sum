@@ -85,6 +85,8 @@ github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260729121920-58ceb447fbb3 
 github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260729121920-58ceb447fbb3/go.mod h1:E91qmRNxrV2BU5wKywha4gDgue41NmOYYZ0+sZ83YYs=
 github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260729121920-58ceb447fbb3 h1:FmXgMquZB2nzwv+ILJYoPwxnlmDBgEH9srDayDqsHSw=
 github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260729121920-58ceb447fbb3/go.mod h1:vBqaNrQUd9dAmedrRoqI2jVlVbNrFnIFXUu2hFqdct0=
+github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260727122144-6ea2301aeed1 h1:rHfwYWvAcmrMAP0ORQ4QrdOczCsqZVZ/ioetoDnIkY4=
+github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260727122144-6ea2301aeed1/go.mod h1:o5cDq1fEavz5taI3tQpR0IMZkNQH0W+9YUncMW3/YM4=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1 h1:De25JIENJVLYUMB4Z9LfAFzbgjGz1ozYJiL2zprs1KA=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1/go.mod h1:pYbM6A7z4XDU+3S0+OgoyUOuCOWPUe/hyEfnOCT6Gok=
 github.com/Azure/azure-sdk-for-go v68.0.0+incompatible h1:fcYLmCpyNYRnvJbPerq7U0hS+6+I79yEDJBqVNcqUzU=
