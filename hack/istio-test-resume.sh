@@ -204,7 +204,7 @@ detect_action() {
     echo "upgrade"
   elif LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' "$logfile" 2>/dev/null | grep -ci '"action".*"reconcile"\|reconciling expected' >/dev/null 2>&1; then
     echo "reconcile"
-  elif LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' "$logfile" 2>/dev/null | grep -ci '"action".*"skip"\|Istio upgrade.*skip' >/dev/null 2>&1; then
+  elif LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' "$logfile" 2>/dev/null | grep -ci '"action".*"skip"\|Skipping:.*ARM upgrade\|Skipping:.*cluster provisioning\|Skipping:.*Target not in\|Unexpected revision count' >/dev/null 2>&1; then
     echo "skip"
   else
     echo "unknown"
