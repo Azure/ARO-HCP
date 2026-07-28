@@ -122,6 +122,18 @@ func (a AzureCloudEnvironment) AZCoreClientOptions() *azcore.ClientOptions {
 	return a.clientOptions
 }
 
+// CheckAccessV2ClientOptions returns azcore.ClientOptions for the CheckAccess V2
+// SDK with HTTP body logging enabled so request/response payloads appear in
+// azcore/log EventResponse messages.
+func (a AzureCloudEnvironment) CheckAccessV2ClientOptions() *azcore.ClientOptions {
+	opts := *a.clientOptions
+	opts.Retry.MaxRetries = 1
+	opts.Logging = policy.LogOptions{
+		IncludeBody: true,
+	}
+	return &opts
+}
+
 // PolicyClientOptions returns a policy.ClientOptions instance from the current
 // Azure Cloud environment. The method returns the same result as calling
 // AZCoreClientOptions() because azcore.ClientOptions is a type alias of
