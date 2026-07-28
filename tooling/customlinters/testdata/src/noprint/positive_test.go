@@ -17,6 +17,8 @@ package noprint
 import (
 	"fmt"
 	"log"
+	mylog "log"
+	f "fmt"
 	"testing"
 )
 
@@ -44,4 +46,12 @@ func TestWithBuiltinPrintln(t *testing.T) {
 
 func TestWithBuiltinPrint(t *testing.T) {
 	print("Also builtin") // want `do not use builtin print`
+}
+
+func TestWithAliasedFmt(t *testing.T) {
+	f.Println("Aliased fmt should also be flagged") // want `do not use fmt\.Println`
+}
+
+func TestWithAliasedLog(t *testing.T) {
+	mylog.Printf("Aliased log should also be flagged: %s", "test") // want `do not use log\.Printf`
 }

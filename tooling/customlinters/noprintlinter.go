@@ -17,6 +17,7 @@ package customlinters
 import (
 	"bytes"
 	"go/ast"
+	"go/types"
 	"os"
 	"strings"
 
@@ -106,7 +107,7 @@ func isNoprintStandaloneComment(src []byte, pass *analysis.Pass, c *ast.Comment)
 }
 
 func (l *NoPrintLinter) run(pass *analysis.Pass) (any, error) {
-	// Map of forbidden functions by package
+	// Map of forbidden functions by import path
 	forbiddenFuncs := map[string][]string{
 		"fmt": {"Print", "Printf", "Println"},
 		"log": {"Print", "Printf", "Println"},
@@ -136,15 +137,20 @@ func (l *NoPrintLinter) run(pass *analysis.Pass) (any, error) {
 			// Check for selector expressions (e.g., fmt.Println, log.Print)
 			if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
 				if ident, ok := sel.X.(*ast.Ident); ok {
-					pkgName := ident.Name
+					obj := pass.TypesInfo.Uses[ident]
+					pkgName, ok := obj.(*types.PkgName)
+					if !ok {
+						return true
+					}
+					importPath := pkgName.Imported().Path()
 					funcName := sel.Sel.Name
 
-					if funcs, exists := forbiddenFuncs[pkgName]; exists {
+					if funcs, exists := forbiddenFuncs[importPath]; exists {
 						for _, forbidden := range funcs {
 							if funcName == forbidden {
 								pass.Reportf(call.Pos(),
 									"do not use %s.%s in test files - use Ginkgo's GinkgoLogr or GinkgoWriter instead",
-									pkgName, funcName)
+									importPath, funcName)
 								return true
 							}
 						}
