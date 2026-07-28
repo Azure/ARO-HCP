@@ -23,26 +23,25 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type operationRequestCredential struct {
-	clock                 utilsclock.PassiveClock
-	resourcesDBClient     database.ResourcesDBClient
-	clustersServiceClient ocm.ClusterServiceClientSpec
-	notificationClient    *http.Client
+	clock              utilsclock.PassiveClock
+	resourcesDBClient  database.ResourcesDBClient
+	notificationClient *http.Client
 }
 
 // NewOperationRequestCredentialController returns a new Controller instance that
 // follows an asynchronous admin credential request operation to completion and
 // updates the corresponding operation document in Cosmos DB.
+//
+// Completion is driven by the ClusterAdminCredential Cosmos document (filled by
+// SyncClusterAdminCredentials), not by a direct Clusters Service GET.
 //
 // Operation documents relevant to this controller will have the following values:
 //
@@ -58,15 +57,13 @@ type operationRequestCredential struct {
 func NewOperationRequestCredentialController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
-	clustersServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationRequestCredential{
-		clock:                 clock,
-		resourcesDBClient:     resourcesDBClient,
-		clustersServiceClient: clustersServiceClient,
-		notificationClient:    notificationClient,
+		clock:              clock,
+		resourcesDBClient:  resourcesDBClient,
+		notificationClient: notificationClient,
 	}
 
 	controller := NewGenericOperationController(
@@ -108,7 +105,26 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 		return nil // no work to do
 	}
 
-	breakGlassCredential, err := opsync.clustersServiceClient.GetBreakGlassCredential(ctx, oldOperation.InternalID)
+	// TODO would it be safe to use the lister instead of db? is there risk of outdated info
+	// and us taking the decision of fail the operation in that case?
+	cred, err := opsync.resourcesDBClient.HCPClusters(oldOperation.ExternalID.SubscriptionID, oldOperation.ExternalID.ResourceGroupName).AdminCredentials(oldOperation.ExternalID.Name).Get(ctx, oldOperation.InternalID.ID())
+	if database.IsNotFoundError(err) {
+		// The ClusterAdminCredential document is written before InternalID in the Operation document, so NotFound after dispatch means sync
+		// deleted the doc (CS 404 / expired / revoked) or the doc was lost.
+		newOperationStatus := arm.ProvisioningStateFailed
+		newOperationError := &arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInternalServerError,
+			Message: "Cluster credential is no longer available",
+		}
+		if !needToPatchOperation(oldOperation, newOperationStatus, newOperationError) {
+			return nil
+		}
+		err := patchOperation(ctx, opsync.clock, opsync.resourcesDBClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -116,21 +132,26 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 	var newOperationStatus arm.ProvisioningState
 	var newOperationError *arm.CloudErrorBody
 
-	switch status := breakGlassCredential.Status(); status {
-	case cmv1.BreakGlassCredentialStatusCreated:
+	switch cred.Status {
+	case api.ClusterAdminCredentialStatusCreated, "":
 		newOperationStatus = arm.ProvisioningStateProvisioning
-	case cmv1.BreakGlassCredentialStatusFailed:
-		// XXX Cluster Service does not provide a reason for the failure,
-		//     so we have no choice but to use a generic error message.
+	case api.ClusterAdminCredentialStatusFailed:
 		newOperationStatus = arm.ProvisioningStateFailed
 		newOperationError = &arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInternalServerError,
 			Message: "Failed to provision cluster credential",
 		}
-	case cmv1.BreakGlassCredentialStatusIssued:
-		newOperationStatus = arm.ProvisioningStateSucceeded
+	case api.ClusterAdminCredentialStatusIssued:
+		if cred.Kubeconfig == "" {
+			// Sync has not yet stored the kubeconfig; keep waiting.
+			newOperationStatus = arm.ProvisioningStateProvisioning
+		} else {
+			newOperationStatus = arm.ProvisioningStateSucceeded
+		}
 	default:
-		return fmt.Errorf("unhandled BreakGlassCredentialStatus '%s'", status)
+		// TODO should we consider revoked, expired or waitingforrevocation as another state instead of indefinitely erroring at the controller level?
+		// Right now we have the same behavior as before the changes.
+		return fmt.Errorf("unhandled ClusterAdminCredential status %q", cred.Status)
 	}
 
 	if !needToPatchOperation(oldOperation, newOperationStatus, newOperationError) {

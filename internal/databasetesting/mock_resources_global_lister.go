@@ -93,6 +93,13 @@ func (g *mockResourcesGlobalListers) ManagementClusterContents() database.Global
 	}
 }
 
+func (g *mockResourcesGlobalListers) AdminCredentials() database.GlobalLister[api.ClusterAdminCredential] {
+	return &mockGlobalLister[api.ClusterAdminCredential, database.GenericDocument[api.ClusterAdminCredential]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{api.AdminCredentialResourceType},
+	}
+}
+
 func (g *mockResourcesGlobalListers) Operations() database.GlobalLister[api.Operation] {
 	return &mockGlobalLister[api.Operation, database.GenericDocument[api.Operation]]{
 		client:        g.client,

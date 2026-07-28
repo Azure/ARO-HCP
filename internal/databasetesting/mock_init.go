@@ -34,6 +34,7 @@ import (
 //   - *arm.Subscription
 //   - *api.Controller
 //   - *api.ManagementClusterContent
+//   - *api.ClusterAdminCredential
 //
 // Returns an error if any resource cannot be created or if an unsupported type is encountered.
 func NewMockResourcesDBClientWithResources(ctx context.Context, resources []any) (*MockResourcesDBClient, error) {
@@ -69,6 +70,8 @@ func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) e
 		return m.addController(ctx, r)
 	case *api.ManagementClusterContent:
 		return m.addManagementClusterContent(ctx, r)
+	case *api.ClusterAdminCredential:
+		return m.addClusterAdminCredential(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type: %T", resource)
 	}
@@ -224,4 +227,21 @@ func (m *MockResourcesDBClient) addManagementClusterContent(ctx context.Context,
 	default:
 		return fmt.Errorf("unsupported parent resource type for management cluster content: %s", parentType)
 	}
+}
+
+func (m *MockResourcesDBClient) addClusterAdminCredential(ctx context.Context, cred *api.ClusterAdminCredential) error {
+	resourceID := cred.GetResourceID()
+	if resourceID == nil {
+		return fmt.Errorf("cluster admin credential is missing resource ID")
+	}
+	if resourceID.Parent == nil {
+		return fmt.Errorf("cluster admin credential is missing parent ID")
+	}
+	if !armhelpers.ResourceTypeEqual(resourceID.Parent.ResourceType, api.ClusterResourceType) {
+		return fmt.Errorf("unsupported parent resource type for cluster admin credential: %s", resourceID.Parent.ResourceType)
+	}
+	clusterName := resourceID.Parent.Name
+	crud := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).AdminCredentials(clusterName)
+	_, err := crud.Create(ctx, cred, nil)
+	return err
 }

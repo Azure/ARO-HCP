@@ -212,6 +212,48 @@ func TestSliceExternalAuthLister(t *testing.T) {
 	})
 }
 
+func TestSliceAdminCredentialLister(t *testing.T) {
+	cred1 := newTestAdminCredential(testSubscriptionID, testResourceGroupName, testClusterName, "bgc-1")
+	cred2 := newTestAdminCredential(testSubscriptionID, testResourceGroupName, testClusterName, "bgc-2")
+	cred3 := newTestAdminCredential(testSubscriptionID, testResourceGroupName, testClusterName2, "bgc-1")
+
+	lister := &SliceAdminCredentialLister{
+		AdminCredentials: []*api.ClusterAdminCredential{cred1, cred2, cred3},
+	}
+
+	ctx := context.Background()
+
+	t.Run("List returns all admin credentials", func(t *testing.T) {
+		result, err := lister.List(ctx)
+		require.NoError(t, err)
+		assert.Len(t, result, 3)
+	})
+
+	t.Run("Get returns matching admin credential", func(t *testing.T) {
+		result, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, testClusterName, "bgc-1")
+		require.NoError(t, err)
+		assert.Equal(t, "bgc-1", result.ResourceID.Name)
+	})
+
+	t.Run("Get returns not found for non-existent admin credential", func(t *testing.T) {
+		_, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, testClusterName, "non-existent")
+		require.Error(t, err)
+		assert.True(t, database.IsNotFoundError(err))
+	})
+
+	t.Run("ListForResourceGroup returns admin credentials in resource group", func(t *testing.T) {
+		result, err := lister.ListForResourceGroup(ctx, testSubscriptionID, testResourceGroupName)
+		require.NoError(t, err)
+		assert.Len(t, result, 3)
+	})
+
+	t.Run("ListForCluster returns admin credentials for cluster", func(t *testing.T) {
+		result, err := lister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+	})
+}
+
 func TestSliceServiceProviderClusterLister(t *testing.T) {
 	spc1 := newTestServiceProviderCluster(testSubscriptionID, testResourceGroupName, testClusterName)
 	spc2 := newTestServiceProviderCluster(testSubscriptionID, testResourceGroupName, testClusterName2)
@@ -449,6 +491,21 @@ func newTestExternalAuth(subscriptionID, resourceGroupName, clusterName, externa
 	return &api.HCPOpenShiftClusterExternalAuth{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 		ProxyResource:  arm.NewProxyResource(resourceID),
+	}
+}
+
+func newTestAdminCredential(subscriptionID, resourceGroupName, clusterName, adminCredentialName string) *api.ClusterAdminCredential {
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
+			"/adminCredentials/" + adminCredentialName,
+	))
+	return &api.ClusterAdminCredential{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 	}
 }
 

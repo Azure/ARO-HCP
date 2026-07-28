@@ -94,6 +94,15 @@ func ToManagementClusterContentResourceIDString(subscriptionName, resourceGroupN
 	))
 }
 
+func ToAdminCredentialResourceIDString(subscriptionName, resourceGroupName, clusterName, adminCredentialName string) string {
+	// TODO should we do to lower in this case? This in theory comes from CS as of now. CS for the break-glass credential ID uses a KSUID
+	// but limits the alphabet to lowercase alphanumeric characters.
+	return strings.ToLower(path.Join(
+		ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName),
+		AdminCredentialResourceTypeName, adminCredentialName,
+	))
+}
+
 func ToServiceProviderNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {
 	return strings.ToLower(path.Join(
 		ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName),

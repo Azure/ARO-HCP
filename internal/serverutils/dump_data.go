@@ -307,6 +307,15 @@ func redactTypedDocument(d *database.TypedDocument) error {
 		}
 	}
 
+	// ClusterAdminCredential stores the temporary kubeconfig at the top level of properties.
+	if _, found, err := unstructured.NestedString(props.Object, "kubeconfig"); err != nil {
+		return fmt.Errorf("failed to read kubeconfig for %s: %w", resourceIDToString(d.ResourceID), err)
+	} else if found {
+		if err := unstructured.SetNestedField(props.Object, RedactStr, "kubeconfig"); err != nil {
+			return fmt.Errorf("failed to set kubeconfig for %s: %w", resourceIDToString(d.ResourceID), err)
+		}
+	}
+
 	redactedProps, err := json.Marshal(props.Object)
 	if err != nil {
 		return fmt.Errorf("failed to marshal redacted typed document properties for %s: %w", resourceIDToString(d.ResourceID), err)

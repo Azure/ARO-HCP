@@ -401,9 +401,11 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `RequestCredential`)</li><li>`InternalID` (ShouldProcess: must be empty)</li><li>`ExternalID`</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `RequestCredential`)</li><li>`InternalID` (ShouldProcess: must be empty)</li><li>`ExternalID`</li><li>`OperationID.Name`</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID` (must not be nil)</li><li>`ServiceProviderProperties.RevokeCredentialsOperationID` (if non-empty, cancels operation)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`InternalID`** = CS break-glass credential HREF (on success)</li><li>**`Status`** = `Canceled` (if revocation in progress, via `CancelOperation`)</li><li>**`LastTransitionTime`** (if canceled)</li></ul> |
+| Read | `ClusterAdminCredential` | <ul><li>lookup by `OperationID` (resume path skips CS POST)</li></ul> |
+| **Write** | **`ClusterAdminCredential`** | <ul><li>create ClusterAdminCredential document keyed by CS break-glass credential ID</li><li>**`OperationID`**, **`ClusterServiceInternalID`**, **`Status`**, **`ExpirationTimestamp`** from POST</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`InternalID`** = CS break-glass credential HREF (after ClusterAdminCredential document exists)</li><li>**`Status`** = `Canceled` (if revocation in progress, via `CancelOperation`)</li><li>**`LastTransitionTime`** (if canceled)</li></ul> |
 
 #### OperationRequestCredential
 
@@ -415,9 +417,20 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `RequestCredential`)</li><li>`InternalID` (ShouldProcess: must be non-empty)</li></ul> |
-| Read | Cluster Service | <ul><li>break-glass credential status (Created/Failed/Issued)</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `RequestCredential`)</li><li>`InternalID` (ShouldProcess: must be non-empty)</li><li>`ExternalID`</li></ul> |
+| Read | `ClusterAdminCredential` | <ul><li>`Status`, `Kubeconfig` (named by CS credential ID from `InternalID`)</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed` (via `patchOperation`)</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li></ul> |
+
+#### SyncClusterAdminCredentials
+
+**File:** [sync_cluster_admin_credentials.go](../backend/pkg/controllers/admincredentialcontrollers/sync_cluster_admin_credentials.go)
+**Gate:** cluster-watching; skips clusters with `DeletionTimestamp` set
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ClusterAdminCredential` | <ul><li>list under cluster</li><li>`ClusterServiceInternalID`</li></ul> |
+| Read | Cluster Service | <ul><li>Get break-glass credential (404 => delete Cosmos doc)</li></ul> |
+| **Write** | **`ClusterAdminCredential`** | <ul><li>**`Status`**, **`ExpirationTimestamp`**, **`Kubeconfig`** (when present)</li><li>or **Delete** on CS 404</li></ul> |
 
 #### DispatchRevokeCredentials
 

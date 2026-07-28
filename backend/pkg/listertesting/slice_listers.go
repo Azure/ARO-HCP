@@ -227,6 +227,61 @@ func (l *SliceExternalAuthLister) ListForCluster(ctx context.Context, subscripti
 	return result, nil
 }
 
+// SliceAdminCredentialLister implements listers.AdminCredentialLister backed by a slice.
+type SliceAdminCredentialLister struct {
+	AdminCredentials []*api.ClusterAdminCredential
+}
+
+var _ listers.AdminCredentialLister = &SliceAdminCredentialLister{}
+
+func (l *SliceAdminCredentialLister) List(ctx context.Context) ([]*api.ClusterAdminCredential, error) {
+	return l.AdminCredentials, nil
+}
+
+func (l *SliceAdminCredentialLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, adminCredentialName string) (*api.ClusterAdminCredential, error) {
+	for _, cred := range l.AdminCredentials {
+		if cred.ResourceID == nil {
+			continue
+		}
+		if strings.EqualFold(cred.ResourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(cred.ResourceID.ResourceGroupName, resourceGroupName) &&
+			adminCredentialMatchesCluster(cred.ResourceID, clusterName) &&
+			strings.EqualFold(cred.ResourceID.Name, adminCredentialName) {
+			return cred, nil
+		}
+	}
+	return nil, database.NewNotFoundError()
+}
+
+func (l *SliceAdminCredentialLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.ClusterAdminCredential, error) {
+	var result []*api.ClusterAdminCredential
+	for _, cred := range l.AdminCredentials {
+		if cred.ResourceID == nil {
+			continue
+		}
+		if strings.EqualFold(cred.ResourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(cred.ResourceID.ResourceGroupName, resourceGroupName) {
+			result = append(result, cred)
+		}
+	}
+	return result, nil
+}
+
+func (l *SliceAdminCredentialLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.ClusterAdminCredential, error) {
+	var result []*api.ClusterAdminCredential
+	for _, cred := range l.AdminCredentials {
+		if cred.ResourceID == nil {
+			continue
+		}
+		if strings.EqualFold(cred.ResourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(cred.ResourceID.ResourceGroupName, resourceGroupName) &&
+			adminCredentialMatchesCluster(cred.ResourceID, clusterName) {
+			result = append(result, cred)
+		}
+	}
+	return result, nil
+}
+
 // SliceServiceProviderClusterLister implements listers.ServiceProviderClusterLister backed by a slice.
 type SliceServiceProviderClusterLister struct {
 	ServiceProviderClusters []*api.ServiceProviderCluster

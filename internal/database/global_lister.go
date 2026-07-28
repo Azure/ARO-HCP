@@ -47,6 +47,7 @@ type ResourcesGlobalListers interface {
 	// partitions for every Cosmos resource type where managementClusterContents
 	// is nested as a direct child resource. Those types are registered on the lister implementation.
 	ManagementClusterContents() GlobalLister[api.ManagementClusterContent]
+	AdminCredentials() GlobalLister[api.ClusterAdminCredential]
 	Operations() GlobalLister[api.Operation]
 	ActiveOperations() GlobalLister[api.Operation]
 }
@@ -124,6 +125,13 @@ func (g *cosmosResourcesGlobalListers) ManagementClusterContents() GlobalLister[
 			api.ClusterScopedManagementClusterContentResourceType,
 			api.NodePoolScopedManagementClusterContentResourceType,
 		},
+	}
+}
+
+func (g *cosmosResourcesGlobalListers) AdminCredentials() GlobalLister[api.ClusterAdminCredential] {
+	return &cosmosGlobalLister[api.ClusterAdminCredential, GenericDocument[api.ClusterAdminCredential]]{
+		containerClient: g.resources,
+		resourceTypes:   []azcorearm.ResourceType{api.AdminCredentialResourceType},
 	}
 }
 

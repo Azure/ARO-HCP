@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/admincredentialcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billingcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clustercreation"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterdeletion"
@@ -447,6 +448,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClustersServiceClient,
 		activeOperationInformer,
 	)
+	syncClusterAdminCredentialsController := admincredentialcontrollers.NewSyncClusterAdminCredentialsController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		backendInformers,
+	)
 
 	operationClusterCreateController := operationcontrollers.NewOperationClusterCreateController(
 		b.clock,
@@ -525,7 +531,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	operationRequestCredentialController := operationcontrollers.NewOperationRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
@@ -868,6 +873,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go doNothingController.Run(ctx, 20)
 				go dispatchRequestCredentialController.Run(ctx, 20)
 				go dispatchRevokeCredentialsController.Run(ctx, 20)
+				go syncClusterAdminCredentialsController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
 				go nodePoolClusterServiceCreateController.Run(ctx, 20)
 				go externalAuthClusterServiceCreateController.Run(ctx, 20)
