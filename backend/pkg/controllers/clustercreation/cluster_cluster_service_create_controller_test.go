@@ -119,6 +119,7 @@ func newTestSPC(opts ...func(*api.ServiceProviderCluster)) *api.ServiceProviderC
 func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 	desiredVersion := ptr.To(semver.MustParse("4.20.0"))
 	clusterInternalID := api.Must(api.NewInternalID(testClusterServiceIDStr))
+	pendingClusterServiceID := api.Must(api.NewInternalID(testClusterServiceIDStr))
 
 	tests := []struct {
 		name                           string
@@ -130,9 +131,13 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		verifyDB                       func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
 		{
-			name:        "successful sync records cluster service ID on cluster",
-			listCluster: newTestCluster(),
-			dbCluster:   newTestCluster(),
+			name: "successful sync records cluster service ID on cluster",
+			listCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			dbCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *api.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 			}),
@@ -141,13 +146,19 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				mockCS.EXPECT().
 					ListClusters(gomock.Any()).
 					Return(ocm.NewSimpleClusterListIterator(nil, nil))
-				csCluster, err := arohcpv1alpha1.NewCluster().
-					HREF(testClusterServiceIDStr).
-					Build()
-				require.NoError(t, err)
 				mockCS.EXPECT().
 					PostCluster(gomock.Any(), gomock.Any()).
-					Return(csCluster, nil)
+					DoAndReturn(func(_ context.Context, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
+						built, buildErr := builder.Build()
+						require.NoError(t, buildErr)
+						assert.Equal(t, pendingClusterServiceID.ID(), built.ID(), "PostCluster should use the final segment of PendingClusterServiceID")
+						csCluster, err := arohcpv1alpha1.NewCluster().
+							ID(pendingClusterServiceID.ID()).
+							HREF(testClusterServiceIDStr).
+							Build()
+						require.NoError(t, err)
+						return csCluster, nil
+					})
 				return mockCS
 			},
 			expectError: false,
@@ -178,7 +189,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name:        "desired version not set waits without dispatching",
+			name:        "skip when PendingClusterServiceID is nil",
 			listCluster: newTestCluster(),
 			dbCluster:   newTestCluster(),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -192,9 +203,31 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name:        "adopts existing Cluster Service cluster for Azure resource",
-			listCluster: newTestCluster(),
-			dbCluster:   newTestCluster(),
+			name: "desired version not set waits without dispatching",
+			listCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			dbCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
+			},
+			expectError: false,
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID)
+			},
+		},
+		{
+			name: "adopts existing Cluster Service cluster for Azure resource",
+			listCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			dbCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *api.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 			}),

@@ -70,6 +70,7 @@ func NewClusterClusterServiceCreateController(
 
 func (c *clusterClusterServiceCreateSyncer) needsWork(cluster *api.HCPOpenShiftCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
+		cluster.ServiceProviderProperties.PendingClusterServiceID != nil &&
 		(cluster.ServiceProviderProperties.ClusterServiceID == nil ||
 			len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0)
 }
@@ -239,11 +240,17 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
 	}
+	clusterServiceUID := cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()
+	csClusterBuilder.ID(clusterServiceUID)
 
 	logger.Info("Creating cluster in Cluster Service", "version", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String())
 	result, err := c.clustersServiceClient.PostCluster(ctx, csClusterBuilder)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("PostCluster failed: %w", err))
+	}
+
+	if result.ID() != clusterServiceUID {
+		return nil, fmt.Errorf("cluster-service did not use our ID: %q versus %q", result.ID(), clusterServiceUID)
 	}
 
 	return result, nil
