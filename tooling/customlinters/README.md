@@ -49,7 +49,7 @@ make build   # Build custom linter binary
 Defines which custom linter plugins to compile into the binary:
 
 ```yaml
-version: v2.1.6
+version: v2.5.0
 name: custom-golangci-lint
 destination: ./bin
 plugins:
@@ -57,6 +57,8 @@ plugins:
     import: 'github.com/Azure/ARO-HCP/tooling/customlinters'
     path: .
 ```
+
+**Note:** The `version` field should be kept in sync with the golangci-lint version in `.bingo/golangci-lint.mod` to ensure consistent linting behavior between the standard and custom linter runs.
 
 ### Runtime Configuration (`.golangci-custom.yml`)
 
