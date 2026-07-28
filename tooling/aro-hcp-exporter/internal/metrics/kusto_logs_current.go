@@ -99,7 +99,7 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 		logger.V(1).Info("Skipping Kusto logs collection", "lastRun", c.lastRun, "startTime", startTime)
 		return
 	}
-	clusterNames := c.clusterClient.GetDiscoverResult()
+	clusterNames := c.clusterClient.GetDiscoverResult(ctx)
 	for _, clusterName := range clusterNames.ClusterNames {
 		logger.V(1).Info("Collecting Kusto logs age in seconds", "cluster", clusterName)
 

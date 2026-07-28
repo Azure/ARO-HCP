@@ -224,10 +224,7 @@ func (o *ValidatedOptions) CreateEnabledCollectors(ctx context.Context, creds az
 		switch collector {
 		case metrics.ServiceTagUsageCollectorName:
 			errorCounter := collectorErrorsTotal.WithLabelValues(metrics.ServiceTagUsageCollectorName)
-			publicIPCollector, err := metrics.NewServiceTagUsageCollector(clusterPoller, o.Region, creds, o.CacheTTL, errorCounter)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create public IP collector: %w", err)
-			}
+			publicIPCollector := metrics.NewServiceTagUsageCollector(clusterPoller, o.Region, creds, o.CacheTTL, errorCounter)
 			collectors = append(collectors, publicIPCollector)
 		case metrics.KustoLogsCurrentCollectorName:
 			errorCounter := collectorErrorsTotal.WithLabelValues(metrics.KustoLogsCurrentCollectorName)

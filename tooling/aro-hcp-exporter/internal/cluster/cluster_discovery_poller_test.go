@@ -42,7 +42,10 @@ func (m *mockQuerier) ExecuteConvertRequest(_ context.Context, request graphquer
 func TestClusterDiscoveryPoller_GetDiscoverResult_BeforePoll(t *testing.T) {
 	poller := NewClusterDiscoveryPoller(nil, "eastus", []string{"svc-cluster"}, time.Minute)
 
-	result := poller.GetDiscoverResult()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := poller.GetDiscoverResult(ctx)
 	assert.Empty(t, result.ClusterNames)
 	assert.Empty(t, result.SubscriptionIDs)
 }
@@ -61,7 +64,7 @@ func TestClusterDiscoveryPoller_Poll_UpdatesResults(t *testing.T) {
 
 	poller.Poll(ctx)
 
-	result := poller.GetDiscoverResult()
+	result := poller.GetDiscoverResult(ctx)
 	assert.ElementsMatch(t, []string{"svc-1", "mgmt-1"}, result.ClusterNames)
 	assert.ElementsMatch(t, []string{"sub-a", "sub-b"}, result.SubscriptionIDs)
 }
@@ -81,7 +84,7 @@ func TestClusterDiscoveryPoller_Poll_DeduplicatesSubscriptionIDs(t *testing.T) {
 
 	poller.Poll(ctx)
 
-	result := poller.GetDiscoverResult()
+	result := poller.GetDiscoverResult(ctx)
 	assert.ElementsMatch(t, []string{"cluster-a", "cluster-b", "cluster-c"}, result.ClusterNames)
 	assert.ElementsMatch(t, []string{"sub-1", "sub-2"}, result.SubscriptionIDs)
 }
@@ -97,7 +100,7 @@ func TestClusterDiscoveryPoller_Poll_PreservesResultsAcrossMultiplePolls(t *test
 
 	for i := range 3 {
 		poller.Poll(ctx)
-		result := poller.GetDiscoverResult()
+		result := poller.GetDiscoverResult(ctx)
 		require.Len(t, result.ClusterNames, 1, "poll %d: expected 1 cluster name", i)
 		require.Len(t, result.SubscriptionIDs, 1, "poll %d: expected 1 subscription ID", i)
 	}
@@ -113,13 +116,13 @@ func TestClusterDiscoveryPoller_Poll_ErrorKeepsPreviousResults(t *testing.T) {
 	defer cancel()
 
 	poller.Poll(ctx)
-	result := poller.GetDiscoverResult()
+	result := poller.GetDiscoverResult(ctx)
 	require.ElementsMatch(t, []string{"existing"}, result.ClusterNames)
 
 	querier.err = fmt.Errorf("network timeout")
 	poller.Poll(ctx)
 
-	result = poller.GetDiscoverResult()
+	result = poller.GetDiscoverResult(ctx)
 	assert.ElementsMatch(t, []string{"existing"}, result.ClusterNames)
 	assert.ElementsMatch(t, []string{"sub-1"}, result.SubscriptionIDs)
 }
@@ -130,12 +133,12 @@ func TestClusterDiscoveryPoller_Poll_RespectsContextCancellation(t *testing.T) {
 	}
 	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, time.Hour)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	cancelledCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	poller.Poll(ctx)
+	poller.Poll(cancelledCtx)
 
-	result := poller.GetDiscoverResult()
+	result := poller.GetDiscoverResult(cancelledCtx)
 	assert.Empty(t, result.ClusterNames)
 	assert.Empty(t, result.SubscriptionIDs)
 }

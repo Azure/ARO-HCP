@@ -42,18 +42,23 @@ type clusterRow struct {
 }
 
 type ClusterDiscoveryPoller struct {
-	client      graphquery.Querier
-	query       string
-	resultMutex sync.Mutex
-	rows        []clusterRow
-	sleepTime   time.Duration
+	client       graphquery.Querier
+	query        string
+	resultMutex  sync.Mutex
+	discovered   bool
+	discoveredCh chan struct{}
+	rows         []clusterRow
+	sleepTime    time.Duration
 }
 
 func NewClusterDiscoveryPoller(client graphquery.Querier, region string, clusterTypes []string, sleepTime time.Duration) *ClusterDiscoveryPoller {
 	return &ClusterDiscoveryPoller{
-		client:    client,
-		query:     BuildClusterQuery(region, clusterTypes),
-		sleepTime: sleepTime,
+		client:       client,
+		query:        BuildClusterQuery(region, clusterTypes),
+		resultMutex:  sync.Mutex{},
+		sleepTime:    sleepTime,
+		discovered:   false,
+		discoveredCh: make(chan struct{}),
 	}
 }
 
@@ -73,6 +78,11 @@ func (c *ClusterDiscoveryPoller) Poll(ctx context.Context) {
 			return
 		}
 		c.resultMutex.Lock()
+		if !c.discovered {
+			c.discovered = true
+			close(c.discoveredCh)
+			logger.Info("First discovery of clusters", "total", len(newRows))
+		}
 		oldNames := clusterNames(c.rows)
 		c.rows = newRows
 		c.resultMutex.Unlock()
@@ -90,7 +100,13 @@ func (c *ClusterDiscoveryPoller) Poll(ctx context.Context) {
 	}
 }
 
-func (c *ClusterDiscoveryPoller) GetDiscoverResult() DiscoverResult {
+func (c *ClusterDiscoveryPoller) GetDiscoverResult(ctx context.Context) DiscoverResult {
+	select {
+	case <-c.discoveredCh:
+	case <-ctx.Done():
+		return DiscoverResult{}
+	}
+
 	c.resultMutex.Lock()
 	rows := c.rows
 	c.resultMutex.Unlock()

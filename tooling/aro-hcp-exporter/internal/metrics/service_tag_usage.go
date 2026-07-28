@@ -48,32 +48,24 @@ var (
 
 // ServiceTagUsageCollector is a Prometheus collector that gathers public IP metrics from Azure
 type ServiceTagUsageCollector struct {
-	client       graphquery.Querier
-	cache        *metricscache.Cache
-	region       string
-	errorCounter prometheus.Counter
+	clusterClient *cluster.ClusterDiscoveryPoller
+	credential    azcore.TokenCredential
+	cache         *metricscache.Cache
+	region        string
+	errorCounter  prometheus.Counter
 }
 
 var _ CachingCollector = &ServiceTagUsageCollector{}
 
 // NewServiceTagUsageCollector creates a new ServiceTagUsageCollector
-func NewServiceTagUsageCollector(clusterClient *cluster.ClusterDiscoveryPoller, region string, credential azcore.TokenCredential, cacheTTL time.Duration, errorCounter prometheus.Counter) (*ServiceTagUsageCollector, error) {
-	subscriptionIDs := clusterClient.GetDiscoverResult()
-	subscriptionIDsPtrs := make([]*string, 0, len(subscriptionIDs.SubscriptionIDs))
-	for _, id := range subscriptionIDs.SubscriptionIDs {
-		subscriptionIDsPtrs = append(subscriptionIDsPtrs, to.Ptr(id))
-	}
-	resourceGraphClient, err := graphquery.NewResourceGraphClient(credential, subscriptionIDsPtrs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Resource Graph client: %w", err)
-	}
-
+func NewServiceTagUsageCollector(clusterClient *cluster.ClusterDiscoveryPoller, region string, credential azcore.TokenCredential, cacheTTL time.Duration, errorCounter prometheus.Counter) *ServiceTagUsageCollector {
 	return &ServiceTagUsageCollector{
-		client:       resourceGraphClient,
-		cache:        metricscache.NewCache(cacheTTL),
-		region:       region,
-		errorCounter: errorCounter,
-	}, nil
+		clusterClient: clusterClient,
+		credential:    credential,
+		cache:         metricscache.NewCache(cacheTTL),
+		region:        region,
+		errorCounter:  errorCounter,
+	}
 }
 
 func (c *ServiceTagUsageCollector) Name() string {
@@ -128,11 +120,26 @@ func parseIPTags(ipTagsAsString string) ([]IPTag, error) {
 func (c *ServiceTagUsageCollector) CollectMetricValues(ctx context.Context) {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	discoverResult := c.clusterClient.GetDiscoverResult(ctx)
+	subscriptionIDsPtrs := make([]*string, 0, len(discoverResult.SubscriptionIDs))
+	for _, id := range discoverResult.SubscriptionIDs {
+		subscriptionIDsPtrs = append(subscriptionIDsPtrs, to.Ptr(id))
+	}
+	if len(subscriptionIDsPtrs) == 0 {
+		logger.Info("No subscriptions discovered, skipping service tag usage collection")
+		return
+	}
+	client, err := graphquery.NewResourceGraphClient(c.credential, subscriptionIDsPtrs)
+	if err != nil {
+		c.errorCounter.Inc()
+		logger.Error(err, "failed to create Resource Graph client")
+		return
+	}
+
 	var publicIPs []PublicIPAddress
-	var err error
 
 	q := buildIPQuery(c.region)
-	err = c.client.ExecuteConvertRequest(ctx, graphquery.ResourceGraphRequest{
+	err = client.ExecuteConvertRequest(ctx, graphquery.ResourceGraphRequest{
 		Query:  &q,
 		Output: &publicIPs,
 	})
