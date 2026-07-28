@@ -84,6 +84,7 @@ ALERT_CONFIGS = \
 	../../observability/alerts-sl-hcps.yaml \
 	../../observability/alerts-sre-hcps.yaml \
 	../../observability/alerts-sre-services.yaml \
+	../../observability/alerts-rp-hcps.yaml \
 	../../observability/alerts-rp-services.yaml \
 	../../observability/alerts-rp-hcps.yaml \
 	../../observability/alerts-msft-services.yaml \

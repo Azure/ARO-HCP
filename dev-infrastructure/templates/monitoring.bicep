@@ -134,7 +134,7 @@ module rpServiceAlerts '../modules/metrics/rp-service-rules.bicep' = {
 module rpHcpAlerts '../modules/metrics/rp-hcp-rules.bicep' = {
   name: 'rpHcpAlerts'
   params: {
-    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: rpActionGroups
     severityCeiling: alertSeverityCeiling
   }
