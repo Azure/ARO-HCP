@@ -1168,6 +1168,7 @@ defaults:
     regionTest:
       prowJobName: ""
       gatePromotion: true
+      allowedSubscriptions: ""
 clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
