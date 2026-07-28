@@ -16,6 +16,7 @@ package noprint
 
 import (
 	"fmt"
+	log "strings"
 	"testing"
 )
 
@@ -62,4 +63,9 @@ func TestWithStandaloneNolintComment(t *testing.T) {
 	fmt.Println("suppressed by preceding nolint comment")
 	// noprint:ignore
 	fmt.Printf("suppressed too: %s\n", "value")
+}
+
+func TestAliasedNonForbiddenPackage(t *testing.T) {
+	// A package aliased as "log" should not be flagged if the import path is not "log"
+	_ = log.Join([]string{"a", "b"}, ",")
 }
