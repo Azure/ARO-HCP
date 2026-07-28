@@ -87,9 +87,8 @@ tooling/customlinters/
 └── testdata/
     └── src/
         └── noprint/
-            └── test/
-                ├── positive_test.go   # Code that should trigger the linter
-                └── negative_test.go   # Valid code that should not trigger the linter
+            ├── positive_test.go   # Code that should trigger the linter
+            └── negative_test.go   # Valid code that should not trigger the linter
 ```
 
 ### Running Tests
