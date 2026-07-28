@@ -2,4 +2,4 @@ cosmosResourceSnapshots
 | where timestamp between({{.TimestampMin}} .. {{.TimestampMax}})
 | where cluster == '{{.ClusterName}}'
 | project timestamp, cosmosContainer, subscriptionID, resourceGroup, resourceType, resourceName, resourceID, content
-| order by timestamp desc
+| order by timestamp asc
