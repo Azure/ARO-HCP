@@ -65,6 +65,7 @@ tests:
         namespace: "clusters-service"
         service: "clusters-service-metrics"
         long: "6h"
+        component: "backend"
         severity: "warning"
         short: "30m"
       exp_annotations:
@@ -102,6 +103,7 @@ tests:
         namespace: "clusters-service"
         service: "clusters-service-metrics"
         long: "6h"
+        component: "backend"
         severity: "warning"
         short: "30m"
       exp_annotations:
@@ -139,6 +141,7 @@ tests:
         cluster: "test-cluster"
         namespace: "clusters-service"
         service: "clusters-service-metrics"
+        component: "backend"
         severity: "warning"
         slo: "api-availability"
       exp_annotations:
@@ -194,6 +197,7 @@ tests:
         namespace: "clusters-service"
         service: "clusters-service-metrics"
         long: "6h"
+        component: "backend"
         severity: "warning"
         short: "30m"
       exp_annotations:
@@ -218,6 +222,7 @@ tests:
         namespace: "clusters-service"
         service: "clusters-service-metrics"
         long: "6h"
+        component: "backend"
         severity: "warning"
         short: "30m"
       exp_annotations:
@@ -262,6 +267,7 @@ tests:
         namespace: "clusters-service"
         service: "clusters-service-metrics"
         long: "6h"
+        component: "backend"
         severity: "warning"
         short: "30m"
       exp_annotations:
@@ -347,6 +353,7 @@ tests:
         namespace: "clusters-service"
         service: "clusters-service-metrics"
         long: "6h"
+        component: "backend"
         severity: "warning"
         short: "30m"
         slo: "api-latency-p99"
@@ -378,6 +385,7 @@ tests:
         namespace: "clusters-service"
         service: "clusters-service-metrics"
         long: "6h"
+        component: "backend"
         severity: "warning"
         short: "30m"
         slo: "api-latency-p90"
@@ -408,6 +416,7 @@ tests:
         cluster: "test-cluster"
         namespace: "clusters-service"
         service: "clusters-service-metrics"
+        component: "backend"
         severity: "warning"
         slo: "api-latency-p99"
       exp_annotations:
@@ -437,6 +446,7 @@ tests:
         cluster: "test-cluster"
         namespace: "clusters-service"
         service: "clusters-service-metrics"
+        component: "backend"
         severity: "warning"
         slo: "api-latency-p90"
       exp_annotations:
