@@ -200,7 +200,9 @@ func run(ctx context.Context) error {
 
 	// DefaultAzureCredential resolves to the injected MSI in EV2 and to the
 	// operator's `az login` locally; it never prompts interactively.
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	// RequireAzureTokenCredentials restricts the chain to token-based sources,
+	// as required by the repo's CodeQL scanner (SM05142).
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 	if err != nil {
 		return fmt.Errorf("azidentity: %w", err)
 	}
