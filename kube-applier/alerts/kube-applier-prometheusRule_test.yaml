@@ -13,6 +13,7 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: test-cluster
+        component: kube-applier
         namespace: kube-applier
         severity: warning
       exp_annotations:

@@ -17,6 +17,7 @@
 		"clusterImageRegistry": {
 			"state": "Enabled"
 		},
+		"cryptoRestrictions": "None",
 		"etcd": {
 			"dataEncryption": {
 				"customerManaged": {

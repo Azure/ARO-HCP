@@ -6,6 +6,8 @@ metadata:
 spec:
   groups:
   - name: kusto-logs-age-rules
+    labels:
+      component: kusto
     rules:
     - alert: KustoLogsDataStale
       expr: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster!~".*-svc-.*"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster=~".*-svc-.*"} > 7200
@@ -16,4 +18,4 @@ spec:
         description: |
           Kusto log data for table {{ $labels.table }} on cluster {{ $labels.cluster }} (Kusto cluster {{ $labels.kusto_cluster }}) is stale. Check the ingestion pipeline.
         runbook_url: TBD
-        summary: Kusto log data is stale for {{ $labels.table }} on {{ $labels.cluster }}.
+        summary: Kusto log data stale for {{ $labels.table }} on {{ $labels.cluster }} ({{ $labels.kusto_cluster }})

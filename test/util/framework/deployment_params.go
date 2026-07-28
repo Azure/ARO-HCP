@@ -134,6 +134,7 @@ type ClusterParams20260630 struct {
 	ChannelGroup                  string
 	AuthorizedCIDRs               []*string
 	Autoscaling                   *hcpsdk20260630preview.ClusterAutoscalingProfile
+	CryptoRestrictions            *hcpsdk20260630preview.CryptoRestrictions
 	Tags                          map[string]*string
 }
 

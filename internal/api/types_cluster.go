@@ -79,6 +79,8 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	ClusterImageRegistry ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
 	// Written by: Frontend PUT/PATCH Cluster
 	ImageDigestMirrors []ImageDigestMirror `json:"imageDigestMirrors,omitempty"`
+	// Written by: Frontend PUT Cluster
+	CryptoRestrictions CryptoRestrictions `json:"cryptoRestrictions,omitempty"`
 }
 
 // HCPOpenShiftClusterServiceProviderProperties represents the service-provider-managed property bag of a HCPOpenShiftCluster resource.
@@ -334,6 +336,7 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 			ClusterImageRegistry: ClusterImageRegistryProfile{
 				State: ClusterImageRegistryStateEnabled,
 			},
+			CryptoRestrictions: CryptoRestrictionsNone,
 		},
 	}
 }
@@ -364,6 +367,9 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 	}
 	if len(cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
 		cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+	}
+	if len(cluster.CustomerProperties.CryptoRestrictions) == 0 {
+		cluster.CustomerProperties.CryptoRestrictions = CryptoRestrictionsNone
 	}
 	for i := range cluster.CustomerProperties.ImageDigestMirrors {
 		if len(cluster.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy) == 0 {

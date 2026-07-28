@@ -258,3 +258,20 @@ var (
 		MirrorSourcePolicyAllowContactingSource,
 	)
 )
+
+// CryptoRestrictions represents cryptographic restrictions for a cluster.
+type CryptoRestrictions string
+
+const (
+	// CryptoRestrictionsNone - no cryptographic restrictions will be applied to the cluster
+	CryptoRestrictionsNone CryptoRestrictions = "None"
+	// CryptoRestrictionsFIPS - FIPS cryptographic restrictions will be applied to the cluster
+	CryptoRestrictionsFIPS CryptoRestrictions = "FIPS"
+)
+
+var (
+	ValidCryptoRestrictions = sets.New[CryptoRestrictions](
+		CryptoRestrictionsNone,
+		CryptoRestrictionsFIPS,
+	)
+)

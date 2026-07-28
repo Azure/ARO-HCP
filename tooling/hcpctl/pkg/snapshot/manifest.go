@@ -53,6 +53,9 @@ type Manifest struct {
 	// node pool creation fails, providing boot diagnostic output.
 	NodeConsoleLogs []NodeConsoleLog `json:"node_console_logs,omitempty"`
 
+	// AzureLog references the client-side Azure SDK log (azure.log), when present.
+	AzureLog *AzureLog `json:"azure_log,omitempty"`
+
 	// DirectoryLayout describes the output directory structure.
 	DirectoryLayout map[string]string `json:"directory_layout"`
 }
@@ -168,6 +171,15 @@ type NodeConsoleLog struct {
 	ArtifactURL string `json:"artifact_url"`
 }
 
+// AzureLog references the client-side Azure SDK (azcore) log for the failing test.
+type AzureLog struct {
+	// File is the azure.log path, relative to the snapshot root.
+	File string `json:"file"`
+
+	// ArtifactURL is the gcsweb URL for downloading the original artifact.
+	ArtifactURL string `json:"artifact_url"`
+}
+
 // directoryLayout returns the static directory layout descriptions.
 func directoryLayout() map[string]string {
 	return map[string]string{
@@ -182,6 +194,7 @@ func directoryLayout() map[string]string {
 		"logs":           "<phase>/resources/<type>/<name>/logs/ — filtered or aggregated container and audit logs (operator logs, Maestro server/agent logs)",
 		"requests":       "<phase>/resources/<type>/<name>/requests/<METHOD>-<client_request_id>/ — per-request trace data with state/ and logs/ subdirectories",
 		"node_boot_logs": "node_boot_logs/ — VM serial console output (boot diagnostics) from nodes in the test. Files are named <node-name>-console.log. Each entry in manifest.json node_console_logs includes an artifact_url for downloading the original from the Prow job artifacts.",
+		"azure_sdk_log":  "azure_sdk_log/azure.log — client-side Azure SDK request/response log. Present only when manifest.json azure_log is set.",
 	}
 }
 

@@ -29,6 +29,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         alert: 'userJourneyAccessClusterErrors1h5m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '1h'
           severity: '3'
           short_window: '5m'
@@ -59,6 +60,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         alert: 'userJourneyAccessClusterErrors6h30m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '6h'
           severity: '3'
           short_window: '30m'
@@ -89,6 +91,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         alert: 'userJourneyAccessClusterErrors3d'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '3d'
           severity: '4'
           slo: 'access-cluster-errors'
@@ -118,6 +121,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         alert: 'userJourneyAccessClusterErrorsDegradation'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '4'
           slo: 'access-cluster-errors'
         }
@@ -146,6 +150,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         alert: 'userJourneyAccessClusterStuckOperation'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '4'
         }
         annotations: {
@@ -153,8 +158,8 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           description: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential operation stuck in {{ $labels.phase }} for over 1 hour'
-          title: '{{ $labels.cluster }}: Credential operation stuck in {{ $labels.phase }} for over 1 hour resource_id:{{ $labels.resource_id }}'
+          summary: '{{ $labels.cluster }}: Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+          title: '{{ $labels.cluster }}: Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
         }
         expression: '((time() - backend_resource_operation_start_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"}) and backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"accepted|provisioning|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) > 3600'
         for: 'PT15M'
@@ -186,6 +191,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyAccessClusterSaturationQueueDepth'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '4'
         }
         annotations: {
@@ -213,6 +219,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyAccessClusterSaturationRetryHotLoop'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '4'
         }
         annotations: {
@@ -253,6 +260,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
         alert: 'UJClusterProvisionErrors1h5m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '1h'
           severity: '3'
           short_window: '5m'
@@ -283,6 +291,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
         alert: 'UJClusterProvisionErrors6h30m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '6h'
           severity: '3'
           short_window: '30m'
@@ -313,6 +322,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
         alert: 'UJClusterProvisionErrors3d'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '3d'
           severity: '4'
           slo: 'cluster-provision-errors'
@@ -342,6 +352,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
         alert: 'UJClusterProvisionErrorsDegradation'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '4'
           slo: 'cluster-provision-errors'
         }
@@ -383,6 +394,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrors1h5m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '1h'
           severity: 'info'
           short_window: '5m'
@@ -413,6 +425,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrors6h30m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '6h'
           severity: 'info'
           short_window: '30m'
@@ -443,6 +456,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrors3d'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '3d'
           severity: 'info'
           slo: 'nodepool-errors'
@@ -472,6 +486,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrorsDegradation'
         enabled: true
         labels: {
+          component: 'slo'
           severity: 'info'
           slo: 'nodepool-errors'
         }
@@ -500,6 +515,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolStuckOperation'
         enabled: true
         labels: {
+          component: 'slo'
           severity: 'info'
         }
         annotations: {
@@ -507,8 +523,8 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           description: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours'
-          title: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours resource_id:{{ $labels.resource_id }}'
+          summary: '{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
+          title: '{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
         }
         expression: 'max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools",subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m])'
         for: 'PT15M'
@@ -540,6 +556,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
         alert: 'UJNodePoolSaturationQueueDepth'
         enabled: true
         labels: {
+          component: 'slo'
           severity: 'info'
         }
         annotations: {
@@ -567,6 +584,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
         alert: 'UJNodePoolSaturationRetryHotLoop'
         enabled: true
         labels: {
+          component: 'slo'
           severity: 'info'
         }
         annotations: {

@@ -31,6 +31,8 @@ spec:
   # duplicate alerting — e2e test failures are already surfaced by
   # dedicated e2e alerts.
   - name: backend-async-operations
+    labels:
+      component: backend
     rules:
     # ----------------------------------------
     # Cluster operations
@@ -59,7 +61,7 @@ spec:
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-        summary: 'Cluster create operation stuck'
+        summary: 'Cluster create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         description: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 20 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: ClusterCreationTimeout).'
         runbook_url: TBD
     # Cluster update: e2e timeout = 45 minutes (HCPClusterVersionUpgradeTimeout)
@@ -88,7 +90,7 @@ spec:
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-        summary: 'Cluster update operation stuck'
+        summary: 'Cluster update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         description: 'Cluster update operation for {{ $labels.resource_id }} has been running for over 45 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: HCPClusterVersionUpgradeTimeout).'
         runbook_url: TBD
     # Cluster delete: e2e timeout = 25 minutes (HCPClusterDeletionTimeout)
@@ -116,7 +118,7 @@ spec:
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-        summary: 'Cluster delete operation stuck'
+        summary: 'Cluster delete for {{ $labels.resource_id }} stuck'
         description: 'Cluster delete operation for {{ $labels.resource_id }} has been running for over 25 minutes and is currently in deleting phase (e2e timeout: HCPClusterDeletionTimeout).'
         runbook_url: TBD
     # ----------------------------------------
@@ -146,7 +148,7 @@ spec:
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-        summary: 'Credential request operation stuck'
+        summary: 'Credential request for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         description: 'Credential request operation for {{ $labels.resource_id }} has been running for over 10 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: GetAdminRESTConfigTimeout).'
         runbook_url: TBD
     # Revoke credentials: e2e timeout = 15 minutes (ExternalAuthDeletionTimeout used as proxy)
@@ -173,7 +175,7 @@ spec:
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-        summary: 'Credential revoke operation stuck'
+        summary: 'Credential revoke for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         description: 'Credential revoke operation for {{ $labels.resource_id }} has been running for over 15 minutes and is currently in {{ $labels.phase }} phase.'
         runbook_url: TBD
     # ----------------------------------------
@@ -203,7 +205,7 @@ spec:
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-        summary: 'Node pool create operation stuck'
+        summary: 'Node pool create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         description: 'Node pool create operation for {{ $labels.resource_id }} has been running for over 20 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: NodePoolCreationTimeout).'
         runbook_url: TBD
     # Node pool update: e2e timeout = 45 minutes (NodePoolVersionUpgradeTimeout)
@@ -231,7 +233,7 @@ spec:
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-        summary: 'Node pool update operation stuck'
+        summary: 'Node pool update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         description: 'Node pool update operation for {{ $labels.resource_id }} has been running for over 45 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: NodePoolVersionUpgradeTimeout).'
         runbook_url: TBD
     # Node pool delete: e2e timeout = 25 minutes (NodePoolDeletionTimeout)
@@ -258,7 +260,7 @@ spec:
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-        summary: 'Node pool delete operation stuck'
+        summary: 'Node pool delete for {{ $labels.resource_id }} stuck'
         description: 'Node pool delete operation for {{ $labels.resource_id }} has been running for over 25 minutes and is currently in deleting phase (e2e timeout: NodePoolDeletionTimeout).'
         runbook_url: TBD
     # ----------------------------------------
@@ -289,7 +291,7 @@ spec:
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-        summary: 'External auth create operation stuck'
+        summary: 'External auth create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         description: 'External auth create operation for {{ $labels.resource_id }} has been running for over 15 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: ExternalAuthCreationTimeout).'
         runbook_url: TBD
     # External auth update: no explicit e2e constant, using 10 minutes as
@@ -317,7 +319,7 @@ spec:
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-        summary: 'External auth update operation stuck'
+        summary: 'External auth update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         description: 'External auth update operation for {{ $labels.resource_id }} has been running for over 10 minutes and is currently in {{ $labels.phase }} phase.'
         runbook_url: TBD
     # External auth delete: e2e timeout = 15 minutes (ExternalAuthDeletionTimeout)
@@ -344,7 +346,7 @@ spec:
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-        summary: 'External auth delete operation stuck'
+        summary: 'External auth delete for {{ $labels.resource_id }} stuck'
         description: 'External auth delete operation for {{ $labels.resource_id }} has been running for over 15 minutes and is currently in deleting phase (e2e timeout: ExternalAuthDeletionTimeout).'
         runbook_url: TBD
     # ----------------------------------------
@@ -372,6 +374,6 @@ spec:
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
-        summary: 'Async operation stuck'
+        summary: '{{ $labels.operation_type }} {{ $labels.resource_type }} operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         description: 'Async {{ $labels.operation_type }} operation for {{ $labels.resource_id }} ({{ $labels.resource_type }}) has been running for over 60 minutes and is currently in {{ $labels.phase }} phase.'
         runbook_url: TBD

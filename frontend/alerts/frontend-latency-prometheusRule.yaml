@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: frontend-latency
+    labels:
+      component: frontend
     rules:
     - alert: FrontendLatency
       expr: |

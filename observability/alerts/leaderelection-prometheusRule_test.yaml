@@ -16,10 +16,11 @@ tests:
     alertname: LeaderElectionLeaseStale
     exp_alerts:
     - exp_labels:
-        severity: warning
         cluster: test-cluster
+        component: leader-election
         lease: test-lease
         namespace: test-namespace
+        severity: warning
       exp_annotations:
         description: 'Leader election lease test-lease in namespace test-namespace on cluster test-cluster has not been renewed for more than 37 minutes. The leadership election might be broken or the component stopped running.'
         runbook_url: 'TBD'
@@ -75,10 +76,11 @@ tests:
     alertname: LeaderElectionLeaseStaleCritical
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: test-cluster
+        component: leader-election
         lease: kube-applier
         namespace: kube-applier
+        severity: critical
       exp_annotations:
         description: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster has not been renewed for more than 6 minutes. The leadership election might be broken or the component stopped running.'
         runbook_url: 'TBD'

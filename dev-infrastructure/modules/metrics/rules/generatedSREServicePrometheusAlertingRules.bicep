@@ -29,6 +29,7 @@ resource frontendLatency 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         alert: 'FrontendLatency'
         enabled: true
         labels: {
+          component: 'frontend'
           severity: 'info'
         }
         annotations: {
@@ -69,6 +70,7 @@ resource backendRetryhotloop 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         alert: 'BackendControllerRetryHotLoop'
         enabled: true
         labels: {
+          component: 'backend'
           severity: 'warning'
         }
         annotations: {

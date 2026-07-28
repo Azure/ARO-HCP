@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: leaderelection
+    labels:
+      component: leader-election
     rules:
     - alert: LeaderElectionLeaseStale
       # Fires when a leader election lease has not been renewed for >37m (12m expr threshold + 25m for:); excludes namespaces covered by LeaderElectionLeaseStaleCritical and standard k8s system namespaces (kube-node-lease has node heartbeat leases that are not leader election).

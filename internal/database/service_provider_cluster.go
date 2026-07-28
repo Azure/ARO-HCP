@@ -87,10 +87,12 @@ func GetOrCreateServiceProviderCluster(
 		if len(secondAttempt) >= 1 && secondAttempt[0] {
 			return nil, utils.TrackError(fmt.Errorf("second NotFound, Conflict, NotFound error: %w", err))
 		}
+		timer := time.NewTimer((SoftDeleteTTLSeconds + 1) * time.Second)
+		defer timer.Stop()
 		select {
 		case <-ctx.Done():
 			return nil, utils.TrackError(ctx.Err())
-		case <-time.After((SoftDeleteTTLSeconds + 1) * time.Second):
+		case <-timer.C:
 			// This can happen when the soft-delete marks an item, the GET will return 404, the create will 409, the second get will 404.
 			// By waiting longer than the cosmos TTL, we can re-enter the loop and try again later.  This is a rare case and will
 			// only happen when the parent item exists and the controller was deleted.

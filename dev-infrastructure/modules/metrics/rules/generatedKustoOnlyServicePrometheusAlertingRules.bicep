@@ -29,6 +29,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubePodCrashLooping'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -36,8 +37,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) is in waiting state (reason: "CrashLoopBackOff").'
           info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) is in waiting state (reason: "CrashLoopBackOff").'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodcrashlooping'
-          summary: 'Pod is crash looping.'
-          title: 'Pod is crash looping. namespace:{{ $labels.namespace }} pod:{{ $labels.pod }} container:{{ $labels.container }}'
+          summary: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} (container {{ $labels.container }}) is crash looping.'
+          title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} (container {{ $labels.container }}) is crash looping.'
         }
         expression: 'max_over_time(kube_pod_container_status_waiting_reason{job="kube-state-metrics",reason="CrashLoopBackOff"}[5m]) >= 1'
         for: 'PT15M'
@@ -56,18 +57,19 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubePodNotReady'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
           correlationId: 'KubePodNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
-          description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 15 minutes.'
-          info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 15 minutes.'
+          description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes.'
+          info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready'
-          summary: 'Pod has been in a non-ready state for more than 15 minutes.'
-          title: 'Pod has been in a non-ready state for more than 15 minutes. namespace:{{ $labels.namespace }} pod:{{ $labels.pod }}'
+          summary: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for more than 5 minutes.'
+          title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for more than 5 minutes.'
         }
-        expression: 'sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",phase=~"Pending|Unknown|Failed"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job"}))) > 0'
-        for: 'PT15M'
+        expression: 'sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job"}))) > 0'
+        for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -83,6 +85,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeDeploymentGenerationMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -90,8 +93,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'Deployment generation for {{ $labels.namespace }}/{{ $labels.deployment }} does not match, this indicates that the Deployment has failed but has not been rolled back.'
           info: 'Deployment generation for {{ $labels.namespace }}/{{ $labels.deployment }} does not match, this indicates that the Deployment has failed but has not been rolled back.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentgenerationmismatch'
-          summary: 'Deployment generation mismatch due to possible roll-back'
-          title: 'Deployment generation mismatch due to possible roll-back namespace:{{ $labels.namespace }} deployment:{{ $labels.deployment }}'
+          summary: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} generation mismatch due to possible roll-back'
+          title: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} generation mismatch due to possible roll-back'
         }
         expression: 'kube_deployment_status_observed_generation{job="kube-state-metrics"} != kube_deployment_metadata_generation{job="kube-state-metrics"}'
         for: 'PT15M'
@@ -110,6 +113,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeDeploymentReplicasMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -117,8 +121,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 30 minutes.'
           info: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 30 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentreplicasmismatch'
-          summary: 'Deployment has not matched the expected number of replicas.'
-          title: 'Deployment has not matched the expected number of replicas. namespace:{{ $labels.namespace }} deployment:{{ $labels.deployment }}'
+          summary: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas.'
+          title: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas.'
         }
         expression: '(kube_deployment_spec_replicas{job="kube-state-metrics"} > kube_deployment_status_replicas_available{job="kube-state-metrics"}) and (changes(kube_deployment_status_replicas_updated{job="kube-state-metrics"}[10m]) == 0)'
         for: 'PT30M'
@@ -137,6 +141,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeDeploymentRolloutStuck'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -144,8 +149,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 30 minutes.'
           info: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 30 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentrolloutstuck'
-          summary: 'Deployment rollout is not progressing.'
-          title: 'Deployment rollout is not progressing. namespace:{{ $labels.namespace }} deployment:{{ $labels.deployment }}'
+          summary: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} rollout is not progressing.'
+          title: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} rollout is not progressing.'
         }
         expression: 'kube_deployment_status_condition{condition="Progressing",job="kube-state-metrics",status="false"} != 0'
         for: 'PT30M'
@@ -164,6 +169,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeStatefulSetReplicasMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -171,8 +177,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} has not matched the expected number of replicas for longer than 15 minutes.'
           info: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} has not matched the expected number of replicas for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubestatefulsetreplicasmismatch'
-          summary: 'StatefulSet has not matched the expected number of replicas.'
-          title: 'StatefulSet has not matched the expected number of replicas. namespace:{{ $labels.namespace }} statefulset:{{ $labels.statefulset }}'
+          summary: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} has not matched the expected number of replicas.'
+          title: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} has not matched the expected number of replicas.'
         }
         expression: '(kube_statefulset_status_replicas_ready{job="kube-state-metrics"} != kube_statefulset_status_replicas{job="kube-state-metrics"}) and (changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics"}[10m]) == 0)'
         for: 'PT15M'
@@ -191,6 +197,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeStatefulSetGenerationMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -198,8 +205,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'StatefulSet generation for {{ $labels.namespace }}/{{ $labels.statefulset }} does not match, this indicates that the StatefulSet has failed but has not been rolled back.'
           info: 'StatefulSet generation for {{ $labels.namespace }}/{{ $labels.statefulset }} does not match, this indicates that the StatefulSet has failed but has not been rolled back.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubestatefulsetgenerationmismatch'
-          summary: 'StatefulSet generation mismatch due to possible roll-back'
-          title: 'StatefulSet generation mismatch due to possible roll-back namespace:{{ $labels.namespace }} statefulset:{{ $labels.statefulset }}'
+          summary: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} generation mismatch due to possible roll-back'
+          title: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} generation mismatch due to possible roll-back'
         }
         expression: 'kube_statefulset_status_observed_generation{job="kube-state-metrics"} != kube_statefulset_metadata_generation{job="kube-state-metrics"}'
         for: 'PT15M'
@@ -218,6 +225,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeStatefulSetUpdateNotRolledOut'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -225,8 +233,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} update has not been rolled out.'
           info: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} update has not been rolled out.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubestatefulsetupdatenotrolledout'
-          summary: 'StatefulSet update has not been rolled out.'
-          title: 'StatefulSet update has not been rolled out. namespace:{{ $labels.namespace }} statefulset:{{ $labels.statefulset }}'
+          summary: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} update has not been rolled out.'
+          title: 'StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} update has not been rolled out.'
         }
         expression: '(max by (namespace, statefulset, job, cluster) (kube_statefulset_status_current_revision{job="kube-state-metrics"} unless kube_statefulset_status_update_revision{job="kube-state-metrics"}) * (kube_statefulset_replicas{job="kube-state-metrics"} != kube_statefulset_status_replicas_updated{job="kube-state-metrics"})) and (changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics"}[5m]) == 0)'
         for: 'PT15M'
@@ -245,6 +253,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeDaemonSetRolloutStuck'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -252,8 +261,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} has not finished or progressed for at least 15 minutes.'
           info: 'DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} has not finished or progressed for at least 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedaemonsetrolloutstuck'
-          summary: 'DaemonSet rollout is stuck.'
-          title: 'DaemonSet rollout is stuck. namespace:{{ $labels.namespace }} daemonset:{{ $labels.daemonset }}'
+          summary: 'DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} rollout is stuck.'
+          title: 'DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} rollout is stuck.'
         }
         expression: '((kube_daemonset_status_current_number_scheduled{job="kube-state-metrics"} != kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"}) or (kube_daemonset_status_number_misscheduled{job="kube-state-metrics"} != 0) or (kube_daemonset_status_updated_number_scheduled{job="kube-state-metrics"} != kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"}) or (kube_daemonset_status_number_available{job="kube-state-metrics"} != kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"})) and (changes(kube_daemonset_status_updated_number_scheduled{job="kube-state-metrics"}[5m]) == 0)'
         for: 'PT15M'
@@ -272,6 +281,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeContainerWaiting'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -279,8 +289,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'pod/{{ $labels.pod }} in namespace {{ $labels.namespace }} on container {{ $labels.container}} has been in waiting state for longer than 1 hour.'
           info: 'pod/{{ $labels.pod }} in namespace {{ $labels.namespace }} on container {{ $labels.container}} has been in waiting state for longer than 1 hour.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecontainerwaiting'
-          summary: 'Pod container waiting longer than 1 hour'
-          title: 'Pod container waiting longer than 1 hour pod:{{ $labels.pod }} namespace:{{ $labels.namespace }} container:{{ $labels.container }}'
+          summary: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} waiting longer than 1 hour'
+          title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} waiting longer than 1 hour'
         }
         expression: 'sum by (namespace, pod, container, cluster) (kube_pod_container_status_waiting_reason{job="kube-state-metrics"}) > 0'
         for: 'PT1H'
@@ -299,6 +309,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeDaemonSetNotScheduled'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -306,8 +317,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: '{{ $value }} Pods of DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} are not scheduled.'
           info: '{{ $value }} Pods of DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} are not scheduled.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedaemonsetnotscheduled'
-          summary: 'DaemonSet pods are not scheduled.'
-          title: 'DaemonSet pods are not scheduled. namespace:{{ $labels.namespace }} daemonset:{{ $labels.daemonset }}'
+          summary: 'DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} pods are not scheduled.'
+          title: 'DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} pods are not scheduled.'
         }
         expression: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"} - kube_daemonset_status_current_number_scheduled{job="kube-state-metrics"} > 0'
         for: 'PT10M'
@@ -326,6 +337,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeDaemonSetMisScheduled'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -333,8 +345,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: '{{ $value }} Pods of DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} are running where they are not supposed to run.'
           info: '{{ $value }} Pods of DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} are running where they are not supposed to run.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedaemonsetmisscheduled'
-          summary: 'DaemonSet pods are misscheduled.'
-          title: 'DaemonSet pods are misscheduled. namespace:{{ $labels.namespace }} daemonset:{{ $labels.daemonset }}'
+          summary: 'DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} pods are misscheduled.'
+          title: 'DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} pods are misscheduled.'
         }
         expression: 'kube_daemonset_status_number_misscheduled{job="kube-state-metrics"} > 0'
         for: 'PT15M'
@@ -353,6 +365,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeJobNotCompleted'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -360,8 +373,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} is taking more than {{ "43200" | humanizeDuration }} to complete.'
           info: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} is taking more than {{ "43200" | humanizeDuration }} to complete.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubejobnotcompleted'
-          summary: 'Job did not complete in time'
-          title: 'Job did not complete in time namespace:{{ $labels.namespace }} job_name:{{ $labels.job_name }}'
+          summary: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} did not complete in time'
+          title: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} did not complete in time'
         }
         expression: 'time() - max by (namespace, job_name, cluster) (kube_job_status_start_time{job="kube-state-metrics"} and kube_job_status_active{job="kube-state-metrics"} > 0) > 43200'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -379,6 +392,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeJobFailed'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -386,8 +400,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} failed to complete. Removing failed job after investigation should clear this alert.'
           info: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} failed to complete. Removing failed job after investigation should clear this alert.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubejobfailed'
-          summary: 'Job failed to complete.'
-          title: 'Job failed to complete. namespace:{{ $labels.namespace }} job_name:{{ $labels.job_name }}'
+          summary: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} failed to complete.'
+          title: 'Job {{ $labels.namespace }}/{{ $labels.job_name }} failed to complete.'
         }
         expression: 'kube_job_failed{job="kube-state-metrics"} > 0'
         for: 'PT15M'
@@ -406,6 +420,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeHpaReplicasMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -413,8 +428,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has not matched the desired number of replicas for longer than 15 minutes.'
           info: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has not matched the desired number of replicas for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubehpareplicasmismatch'
-          summary: 'HPA has not matched desired number of replicas.'
-          title: 'HPA has not matched desired number of replicas. namespace:{{ $labels.namespace }} horizontalpodautoscaler:{{ $labels.horizontalpodautoscaler }}'
+          summary: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} has not matched desired number of replicas.'
+          title: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} has not matched desired number of replicas.'
         }
         expression: '(kube_horizontalpodautoscaler_status_desired_replicas{job="kube-state-metrics"} != kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"}) and (kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"} > kube_horizontalpodautoscaler_spec_min_replicas{job="kube-state-metrics"}) and (kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"} < kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics"}) and changes(kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"}[15m]) == 0'
         for: 'PT15M'
@@ -433,6 +448,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeHpaMaxedOut'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -440,8 +456,8 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           description: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has been running at max replicas for longer than 15 minutes.'
           info: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has been running at max replicas for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubehpamaxedout'
-          summary: 'HPA is running at max replicas'
-          title: 'HPA is running at max replicas namespace:{{ $labels.namespace }} horizontalpodautoscaler:{{ $labels.horizontalpodautoscaler }}'
+          summary: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} is running at max replicas'
+          title: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} is running at max replicas'
         }
         expression: 'kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"} == kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics"}'
         for: 'PT15M'
@@ -473,6 +489,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeCPUOvercommit'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -480,8 +497,8 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Cluster {{ $labels.cluster }} has overcommitted CPU resource requests for Pods by {{ $value }} CPU shares and cannot tolerate node failure.'
           info: 'Cluster {{ $labels.cluster }} has overcommitted CPU resource requests for Pods by {{ $value }} CPU shares and cannot tolerate node failure.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecpuovercommit'
-          summary: 'Cluster has overcommitted CPU resource requests.'
-          title: 'Cluster has overcommitted CPU resource requests. cluster:{{ $labels.cluster }}'
+          summary: 'Cluster {{ $labels.cluster }} has overcommitted CPU resource requests.'
+          title: 'Cluster {{ $labels.cluster }} has overcommitted CPU resource requests.'
         }
         expression: 'sum by (cluster) (namespace_cpu:kube_pod_container_resource_requests:sum) - (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"})) > 0 and (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"})) > 0'
         for: 'PT10M'
@@ -500,6 +517,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeMemoryOvercommit'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -507,8 +525,8 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Cluster {{ $labels.cluster }} has overcommitted memory resource requests for Pods by {{ $value | humanize }} bytes and cannot tolerate node failure.'
           info: 'Cluster {{ $labels.cluster }} has overcommitted memory resource requests for Pods by {{ $value | humanize }} bytes and cannot tolerate node failure.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubememoryovercommit'
-          summary: 'Cluster has overcommitted memory resource requests.'
-          title: 'Cluster has overcommitted memory resource requests. cluster:{{ $labels.cluster }}'
+          summary: 'Cluster {{ $labels.cluster }} has overcommitted memory resource requests.'
+          title: 'Cluster {{ $labels.cluster }} has overcommitted memory resource requests.'
         }
         expression: 'sum by (cluster) (namespace_memory:kube_pod_container_resource_requests:sum) - (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"})) > 0 and (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"})) > 0'
         for: 'PT10M'
@@ -527,6 +545,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeCPUQuotaOvercommit'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -534,8 +553,8 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Cluster {{ $labels.cluster }}  has overcommitted CPU resource requests for Namespaces.'
           info: 'Cluster {{ $labels.cluster }}  has overcommitted CPU resource requests for Namespaces.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecpuquotaovercommit'
-          summary: 'Cluster has overcommitted CPU resource requests.'
-          title: 'Cluster has overcommitted CPU resource requests. cluster:{{ $labels.cluster }}'
+          summary: 'Cluster {{ $labels.cluster }} has overcommitted CPU resource quota requests.'
+          title: 'Cluster {{ $labels.cluster }} has overcommitted CPU resource quota requests.'
         }
         expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",resource=~"(cpu|requests.cpu)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) > 1.5'
         for: 'PT5M'
@@ -554,6 +573,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeMemoryQuotaOvercommit'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -561,8 +581,8 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Cluster {{ $labels.cluster }}  has overcommitted memory resource requests for Namespaces.'
           info: 'Cluster {{ $labels.cluster }}  has overcommitted memory resource requests for Namespaces.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubememoryquotaovercommit'
-          summary: 'Cluster has overcommitted memory resource requests.'
-          title: 'Cluster has overcommitted memory resource requests. cluster:{{ $labels.cluster }}'
+          summary: 'Cluster {{ $labels.cluster }} has overcommitted memory resource quota requests.'
+          title: 'Cluster {{ $labels.cluster }} has overcommitted memory resource quota requests.'
         }
         expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",resource=~"(memory|requests.memory)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) > 1.5'
         for: 'PT5M'
@@ -581,6 +601,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeQuotaAlmostFull'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'info'
         }
         annotations: {
@@ -588,8 +609,8 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           info: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotaalmostfull'
-          summary: 'Namespace quota is going to be full.'
-          title: 'Namespace quota is going to be full. namespace:{{ $labels.namespace }} resource:{{ $labels.resource }}'
+          summary: 'Namespace {{ $labels.namespace }} quota for {{ $labels.resource }} is going to be full.'
+          title: 'Namespace {{ $labels.namespace }} quota for {{ $labels.resource }} is going to be full.'
         }
         expression: 'kube_resourcequota{job="kube-state-metrics",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",type="hard"} > 0) > 0.9 < 1'
         for: 'PT15M'
@@ -608,6 +629,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeQuotaFullyUsed'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'info'
         }
         annotations: {
@@ -615,8 +637,8 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           info: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotafullyused'
-          summary: 'Namespace quota is fully used.'
-          title: 'Namespace quota is fully used. namespace:{{ $labels.namespace }} resource:{{ $labels.resource }}'
+          summary: 'Namespace {{ $labels.namespace }} quota for {{ $labels.resource }} is fully used.'
+          title: 'Namespace {{ $labels.namespace }} quota for {{ $labels.resource }} is fully used.'
         }
         expression: 'kube_resourcequota{job="kube-state-metrics",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",type="hard"} > 0) == 1'
         for: 'PT15M'
@@ -635,6 +657,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeQuotaExceeded'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -642,8 +665,8 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           info: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotaexceeded'
-          summary: 'Namespace quota has exceeded the limits.'
-          title: 'Namespace quota has exceeded the limits. namespace:{{ $labels.namespace }} resource:{{ $labels.resource }}'
+          summary: 'Namespace {{ $labels.namespace }} quota for {{ $labels.resource }} has exceeded the limits.'
+          title: 'Namespace {{ $labels.namespace }} quota for {{ $labels.resource }} has exceeded the limits.'
         }
         expression: 'kube_resourcequota{job="kube-state-metrics",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",type="hard"} > 0) > 1'
         for: 'PT15M'
@@ -662,6 +685,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'CPUThrottlingHigh'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'info'
         }
         annotations: {
@@ -669,8 +693,8 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           description: '{{ $value | humanizePercentage }} throttling of CPU in namespace {{ $labels.namespace }} for container {{ $labels.container }} in pod {{ $labels.pod }}.'
           info: '{{ $value | humanizePercentage }} throttling of CPU in namespace {{ $labels.namespace }} for container {{ $labels.container }} in pod {{ $labels.pod }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/cputhrottlinghigh'
-          summary: 'Processes experience elevated CPU throttling.'
-          title: 'Processes experience elevated CPU throttling. namespace:{{ $labels.namespace }} container:{{ $labels.container }} pod:{{ $labels.pod }}'
+          summary: 'Processes in {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} experience elevated CPU throttling.'
+          title: 'Processes in {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} experience elevated CPU throttling.'
         }
         expression: 'sum by (cluster, container, pod, namespace) (increase(container_cpu_cfs_throttled_periods_total{container!=""}[5m])) / sum by (cluster, container, pod, namespace) (increase(container_cpu_cfs_periods_total[5m])) > (25 / 100)'
         for: 'PT15M'
@@ -702,6 +726,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubePersistentVolumeFillingUp'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -709,8 +734,8 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           description: 'The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is only {{ $value | humanizePercentage }} free.'
           info: 'The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is only {{ $value | humanizePercentage }} free.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumefillingup'
-          summary: 'PersistentVolume is filling up.'
-          title: 'PersistentVolume is filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+          summary: 'PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} on {{ $labels.cluster }} is filling up.'
+          title: 'PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} on {{ $labels.cluster }} is filling up.'
         }
         expression: '(kubelet_volume_stats_available_bytes{job="kubelet",metrics_path="/metrics"} / kubelet_volume_stats_capacity_bytes{job="kubelet",metrics_path="/metrics"}) < 0.03 and kubelet_volume_stats_used_bytes{job="kubelet",metrics_path="/metrics"} > 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
@@ -729,6 +754,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubePersistentVolumeFillingUp'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -736,8 +762,8 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           description: 'Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to fill up within four days. Currently {{ $value | humanizePercentage }} is available.'
           info: 'Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to fill up within four days. Currently {{ $value | humanizePercentage }} is available.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumefillingup'
-          summary: 'PersistentVolume is filling up.'
-          title: 'PersistentVolume is filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+          summary: 'PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} on {{ $labels.cluster }} is filling up.'
+          title: 'PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} on {{ $labels.cluster }} is filling up.'
         }
         expression: '(kubelet_volume_stats_available_bytes{job="kubelet",metrics_path="/metrics"} / kubelet_volume_stats_capacity_bytes{job="kubelet",metrics_path="/metrics"}) < 0.15 and kubelet_volume_stats_used_bytes{job="kubelet",metrics_path="/metrics"} > 0 and predict_linear(kubelet_volume_stats_available_bytes{job="kubelet",metrics_path="/metrics"}[6h], 4 * 24 * 3600) < 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1H'
@@ -756,6 +782,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubePersistentVolumeInodesFillingUp'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -763,8 +790,8 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           description: 'The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} only has {{ $value | humanizePercentage }} free inodes.'
           info: 'The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} only has {{ $value | humanizePercentage }} free inodes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeinodesfillingup'
-          summary: 'PersistentVolumeInodes are filling up.'
-          title: 'PersistentVolumeInodes are filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+          summary: 'PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} on {{ $labels.cluster }} inodes are filling up.'
+          title: 'PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} on {{ $labels.cluster }} inodes are filling up.'
         }
         expression: '(kubelet_volume_stats_inodes_free{job="kubelet",metrics_path="/metrics"} / kubelet_volume_stats_inodes{job="kubelet",metrics_path="/metrics"}) < 0.03 and kubelet_volume_stats_inodes_used{job="kubelet",metrics_path="/metrics"} > 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
@@ -783,6 +810,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubePersistentVolumeInodesFillingUp'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -790,8 +818,8 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           description: 'Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to run out of inodes within four days. Currently {{ $value | humanizePercentage }} of its inodes are free.'
           info: 'Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to run out of inodes within four days. Currently {{ $value | humanizePercentage }} of its inodes are free.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeinodesfillingup'
-          summary: 'PersistentVolumeInodes are filling up.'
-          title: 'PersistentVolumeInodes are filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+          summary: 'PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} on {{ $labels.cluster }} inodes are filling up.'
+          title: 'PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} on {{ $labels.cluster }} inodes are filling up.'
         }
         expression: '(kubelet_volume_stats_inodes_free{job="kubelet",metrics_path="/metrics"} / kubelet_volume_stats_inodes{job="kubelet",metrics_path="/metrics"}) < 0.15 and kubelet_volume_stats_inodes_used{job="kubelet",metrics_path="/metrics"} > 0 and predict_linear(kubelet_volume_stats_inodes_free{job="kubelet",metrics_path="/metrics"}[6h], 4 * 24 * 3600) < 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1H'
@@ -810,6 +838,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubePersistentVolumeErrors'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -817,8 +846,8 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           description: 'The persistent volume {{ $labels.persistentvolume }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} has status {{ $labels.phase }}.'
           info: 'The persistent volume {{ $labels.persistentvolume }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} has status {{ $labels.phase }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeerrors'
-          summary: 'PersistentVolume is having issues with provisioning.'
-          title: 'PersistentVolume is having issues with provisioning. persistentvolume:{{ $labels.persistentvolume }} cluster:{{ $labels.cluster }} phase:{{ $labels.phase }}'
+          summary: 'PersistentVolume {{ $labels.persistentvolume }} on {{ $labels.cluster }} is having issues ({{ $labels.phase }}).'
+          title: 'PersistentVolume {{ $labels.persistentvolume }} on {{ $labels.cluster }} is having issues ({{ $labels.phase }}).'
         }
         expression: 'kube_persistentvolume_status_phase{job="kube-state-metrics",phase=~"Failed|Pending"} > 0'
         for: 'PT5M'
@@ -850,6 +879,7 @@ resource svcKubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         alert: 'KubeVersionMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -877,6 +907,7 @@ resource svcKubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         alert: 'KubeClientErrors'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -884,8 +915,8 @@ resource svcKubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           description: 'Kubernetes API server client \'{{ $labels.job }}/{{ $labels.instance }}\' is experiencing {{ $value | humanizePercentage }} errors.\''
           info: 'Kubernetes API server client \'{{ $labels.job }}/{{ $labels.instance }}\' is experiencing {{ $value | humanizePercentage }} errors.\''
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeclienterrors'
-          summary: 'Kubernetes API server client is experiencing errors.'
-          title: 'Kubernetes API server client is experiencing errors. job:{{ $labels.job }} instance:{{ $labels.instance }}'
+          summary: 'Kubernetes API server client {{ $labels.job }}/{{ $labels.instance }} is experiencing errors.'
+          title: 'Kubernetes API server client {{ $labels.job }}/{{ $labels.instance }} is experiencing errors.'
         }
         expression: '(sum by (cluster, instance, job, namespace) (rate(rest_client_requests_total{code=~"5..",job="controlplane-apiserver"}[5m])) / sum by (cluster, instance, job, namespace) (rate(rest_client_requests_total{job="controlplane-apiserver"}[5m]))) > 0.01'
         for: 'PT15M'
@@ -917,6 +948,7 @@ resource svcKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubeAPIErrorBudgetBurn'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           long: '1h'
           severity: 'critical'
           short: '5m'
@@ -946,6 +978,7 @@ resource svcKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubeAPIErrorBudgetBurn'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           long: '6h'
           severity: 'critical'
           short: '30m'
@@ -975,6 +1008,7 @@ resource svcKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubeAPIErrorBudgetBurn'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           long: '1d'
           severity: 'warning'
           short: '2h'
@@ -1004,6 +1038,7 @@ resource svcKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubeAPIErrorBudgetBurn'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           long: '3d'
           severity: 'warning'
           short: '6h'
@@ -1046,6 +1081,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeClientCertificateExpiration'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1073,6 +1109,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeClientCertificateExpiration'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1100,6 +1137,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeAggregatedAPIErrors'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1107,8 +1145,8 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
           description: 'Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has reported errors. It has appeared unavailable {{ $value | humanize }} times averaged over the past 10m.'
           info: 'Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has reported errors. It has appeared unavailable {{ $value | humanize }} times averaged over the past 10m.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeaggregatedapierrors'
-          summary: 'Kubernetes aggregated API has reported errors.'
-          title: 'Kubernetes aggregated API has reported errors. name:{{ $labels.name }} namespace:{{ $labels.namespace }}'
+          summary: 'Kubernetes aggregated API {{ $labels.namespace }}/{{ $labels.name }} has reported errors.'
+          title: 'Kubernetes aggregated API {{ $labels.namespace }}/{{ $labels.name }} has reported errors.'
         }
         expression: 'sum by (name, namespace, cluster) (increase(aggregator_unavailable_apiservice_total{job="controlplane-apiserver"}[10m])) > 4'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -1126,6 +1164,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeAggregatedAPIDown'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1133,8 +1172,8 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
           description: 'Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has been only {{ $value | humanize }}% available over the last 10m.'
           info: 'Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has been only {{ $value | humanize }}% available over the last 10m.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeaggregatedapidown'
-          summary: 'Kubernetes aggregated API is down.'
-          title: 'Kubernetes aggregated API is down. name:{{ $labels.name }} namespace:{{ $labels.namespace }}'
+          summary: 'Kubernetes aggregated API {{ $labels.namespace }}/{{ $labels.name }} is down.'
+          title: 'Kubernetes aggregated API {{ $labels.namespace }}/{{ $labels.name }} is down.'
         }
         expression: '(1 - max by (name, namespace, cluster) (avg_over_time(aggregator_unavailable_apiservice{job="controlplane-apiserver"}[10m]))) * 100 < 85'
         for: 'PT5M'
@@ -1153,6 +1192,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeAPIDown'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1180,6 +1220,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeAPITerminatedRequests'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1220,6 +1261,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeNodeNotReady'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1227,8 +1269,8 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           description: '{{ $labels.node }} has been unready for more than 30 minutes.'
           info: '{{ $labels.node }} has been unready for more than 30 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodenotready'
-          summary: 'Node is not ready.'
-          title: 'Node is not ready. node:{{ $labels.node }}'
+          summary: 'Node {{ $labels.node }} is not ready.'
+          title: 'Node {{ $labels.node }} is not ready.'
         }
         expression: 'kube_node_status_condition{condition="Ready",job="kube-state-metrics",status="true"} == 0'
         for: 'PT30M'
@@ -1247,6 +1289,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeNodeUnreachable'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1254,8 +1297,8 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           description: '{{ $labels.node }} is unreachable and some workloads may be rescheduled.'
           info: '{{ $labels.node }} is unreachable and some workloads may be rescheduled.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodeunreachable'
-          summary: 'Node is unreachable.'
-          title: 'Node is unreachable. node:{{ $labels.node }}'
+          summary: 'Node {{ $labels.node }} is unreachable.'
+          title: 'Node {{ $labels.node }} is unreachable.'
         }
         expression: '(kube_node_spec_taint{effect="NoSchedule",job="kube-state-metrics",key="node.kubernetes.io/unreachable"} unless ignoring (key, value) kube_node_spec_taint{job="kube-state-metrics",key=~"ToBeDeletedByClusterAutoscaler|cloud.google.com/impending-node-termination|aws-node-termination-handler/spot-itn"}) == 1'
         for: 'PT15M'
@@ -1274,6 +1317,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletTooManyPods'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'info'
         }
         annotations: {
@@ -1281,8 +1325,8 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'Kubelet \'{{ $labels.node }}\' is running at {{ $value | humanizePercentage }} of its Pod capacity.'
           info: 'Kubelet \'{{ $labels.node }}\' is running at {{ $value | humanizePercentage }} of its Pod capacity.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubelettoomanypods'
-          summary: 'Kubelet is running at capacity.'
-          title: 'Kubelet is running at capacity. node:{{ $labels.node }}'
+          summary: 'Kubelet on node {{ $labels.node }} is running at capacity.'
+          title: 'Kubelet on node {{ $labels.node }} is running at capacity.'
         }
         expression: 'count by (cluster, node) ((kube_pod_status_phase{job="kube-state-metrics",phase="Running"} == 1) * on (instance, pod, namespace, cluster) group_left (node) topk by (instance, pod, namespace, cluster) (1, kube_pod_info{job="kube-state-metrics"})) / max by (cluster, node) (kube_node_status_capacity{job="kube-state-metrics",resource="pods"} != 1) > 0.95'
         for: 'PT15M'
@@ -1301,6 +1345,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeNodeReadinessFlapping'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1308,8 +1353,8 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'The readiness status of node {{ $labels.node }} has changed {{ $value }} times in the last 15 minutes.'
           info: 'The readiness status of node {{ $labels.node }} has changed {{ $value }} times in the last 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodereadinessflapping'
-          summary: 'Node readiness status is flapping.'
-          title: 'Node readiness status is flapping. node:{{ $labels.node }}'
+          summary: 'Node {{ $labels.node }} readiness status is flapping.'
+          title: 'Node {{ $labels.node }} readiness status is flapping.'
         }
         expression: 'sum by (cluster, node) (changes(kube_node_status_condition{condition="Ready",job="kube-state-metrics",status="true"}[15m])) > 2'
         for: 'PT15M'
@@ -1328,6 +1373,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletPlegDurationHigh'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1335,8 +1381,8 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'The Kubelet Pod Lifecycle Event Generator has a 99th percentile duration of {{ $value }} seconds on node {{ $labels.node }}.'
           info: 'The Kubelet Pod Lifecycle Event Generator has a 99th percentile duration of {{ $value }} seconds on node {{ $labels.node }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletplegdurationhigh'
-          summary: 'Kubelet Pod Lifecycle Event Generator is taking too long to relist.'
-          title: 'Kubelet Pod Lifecycle Event Generator is taking too long to relist. node:{{ $labels.node }}'
+          summary: 'Kubelet on node {{ $labels.node }} Pod Lifecycle Event Generator is taking too long to relist.'
+          title: 'Kubelet on node {{ $labels.node }} Pod Lifecycle Event Generator is taking too long to relist.'
         }
         expression: 'node_quantile:kubelet_pleg_relist_duration_seconds:histogram_quantile{quantile="0.99"} >= 10'
         for: 'PT5M'
@@ -1355,6 +1401,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletPodStartUpLatencyHigh'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1362,8 +1409,8 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'Kubelet Pod startup 99th percentile latency is {{ $value }} seconds on node {{ $labels.node }}.'
           info: 'Kubelet Pod startup 99th percentile latency is {{ $value }} seconds on node {{ $labels.node }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletpodstartuplatencyhigh'
-          summary: 'Kubelet Pod startup latency is too high.'
-          title: 'Kubelet Pod startup latency is too high. node:{{ $labels.node }}'
+          summary: 'Kubelet on node {{ $labels.node }} Pod startup latency is too high.'
+          title: 'Kubelet on node {{ $labels.node }} Pod startup latency is too high.'
         }
         expression: 'histogram_quantile(0.99, sum by (cluster, instance, le) (rate(kubelet_pod_worker_duration_seconds_bucket{job="kubelet",metrics_path="/metrics"}[5m]))) * on (cluster, instance) group_left (node) kubelet_node_name{job="kubelet",metrics_path="/metrics"} > 60'
         for: 'PT15M'
@@ -1382,6 +1429,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletClientCertificateExpiration'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1389,8 +1437,8 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           info: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletclientcertificateexpiration'
-          summary: 'Kubelet client certificate is about to expire.'
-          title: 'Kubelet client certificate is about to expire. node:{{ $labels.node }}'
+          summary: 'Kubelet on node {{ $labels.node }} client certificate is about to expire.'
+          title: 'Kubelet on node {{ $labels.node }} client certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_client_ttl_seconds < 604800'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -1408,6 +1456,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletClientCertificateExpiration'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1415,8 +1464,8 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           info: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletclientcertificateexpiration'
-          summary: 'Kubelet client certificate is about to expire.'
-          title: 'Kubelet client certificate is about to expire. node:{{ $labels.node }}'
+          summary: 'Kubelet on node {{ $labels.node }} client certificate is about to expire.'
+          title: 'Kubelet on node {{ $labels.node }} client certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_client_ttl_seconds < 86400'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
@@ -1434,6 +1483,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletServerCertificateExpiration'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1441,8 +1491,8 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           info: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletservercertificateexpiration'
-          summary: 'Kubelet server certificate is about to expire.'
-          title: 'Kubelet server certificate is about to expire. node:{{ $labels.node }}'
+          summary: 'Kubelet on node {{ $labels.node }} server certificate is about to expire.'
+          title: 'Kubelet on node {{ $labels.node }} server certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_server_ttl_seconds < 604800'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -1460,6 +1510,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletServerCertificateExpiration'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1467,8 +1518,8 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           info: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletservercertificateexpiration'
-          summary: 'Kubelet server certificate is about to expire.'
-          title: 'Kubelet server certificate is about to expire. node:{{ $labels.node }}'
+          summary: 'Kubelet on node {{ $labels.node }} server certificate is about to expire.'
+          title: 'Kubelet on node {{ $labels.node }} server certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_server_ttl_seconds < 86400'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
@@ -1486,6 +1537,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletClientCertificateRenewalErrors'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1493,8 +1545,8 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'Kubelet on node {{ $labels.node }} has failed to renew its client certificate ({{ $value | humanize }} errors in the last 5 minutes).'
           info: 'Kubelet on node {{ $labels.node }} has failed to renew its client certificate ({{ $value | humanize }} errors in the last 5 minutes).'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletclientcertificaterenewalerrors'
-          summary: 'Kubelet has failed to renew its client certificate.'
-          title: 'Kubelet has failed to renew its client certificate. node:{{ $labels.node }}'
+          summary: 'Kubelet on node {{ $labels.node }} has failed to renew its client certificate.'
+          title: 'Kubelet on node {{ $labels.node }} has failed to renew its client certificate.'
         }
         expression: 'increase(kubelet_certificate_manager_client_expiration_renew_errors[5m]) > 0'
         for: 'PT15M'
@@ -1513,6 +1565,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletServerCertificateRenewalErrors'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1520,8 +1573,8 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
           description: 'Kubelet on node {{ $labels.node }} has failed to renew its server certificate ({{ $value | humanize }} errors in the last 5 minutes).'
           info: 'Kubelet on node {{ $labels.node }} has failed to renew its server certificate ({{ $value | humanize }} errors in the last 5 minutes).'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletservercertificaterenewalerrors'
-          summary: 'Kubelet has failed to renew its server certificate.'
-          title: 'Kubelet has failed to renew its server certificate. node:{{ $labels.node }}'
+          summary: 'Kubelet on node {{ $labels.node }} has failed to renew its server certificate.'
+          title: 'Kubelet on node {{ $labels.node }} has failed to renew its server certificate.'
         }
         expression: 'increase(kubelet_server_expiration_renew_errors[5m]) > 0'
         for: 'PT15M'
@@ -1540,6 +1593,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletDown'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1580,6 +1634,7 @@ resource svcKubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeSchedulerDown'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1620,6 +1675,7 @@ resource svcKubernetesSystemControllerManager 'Microsoft.AlertsManagement/promet
         alert: 'KubeControllerManagerDown'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1660,6 +1716,7 @@ resource svcFrontendPathLatency 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'FrontendPathLatency'
         enabled: true
         labels: {
+          component: 'frontend'
           severity: 'info'
         }
         annotations: {

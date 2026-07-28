@@ -121,6 +121,7 @@ spec:
       expr: up == 0
       labels:
         severity: critical
+        component: testing
     - record: test:metric:rate5m
       expr: rate(test_metric[5m])
 `

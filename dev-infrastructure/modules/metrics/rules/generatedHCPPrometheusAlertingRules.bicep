@@ -29,6 +29,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'MgmtClusterHCPCapacityWarning'
         enabled: true
         labels: {
+          component: 'capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -38,8 +39,8 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           info: 'Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds warning threshold of 60%.'
           owning_team: 'hcp-sl'
           runbook_url: 'https://aka.ms/arohcp-runbook/mgmt-cluster-capacity'
-          summary: 'Management cluster HCP capacity is approaching limit (60% threshold).'
-          title: 'Management cluster HCP capacity is approaching limit (60% threshold). cluster:{{ $labels.cluster }}'
+          summary: 'Management cluster {{ $labels.cluster }} HCP capacity approaching limit (60% threshold)'
+          title: 'Management cluster {{ $labels.cluster }} HCP capacity approaching limit (60% threshold)'
         }
         expression: '(count by (cluster) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.6'
         for: 'PT15M'
@@ -58,6 +59,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'MgmtClusterNodeSwiftNICCapacityZero'
         enabled: true
         labels: {
+          component: 'capacity'
           severity: 'critical'
           team: 'hcp-sl'
         }
@@ -67,8 +69,8 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           info: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.'
           owning_team: 'hcp-sl'
           runbook_url: 'https://portal.microsofticm.com/imp/v5/incidents/details/802529667'
-          summary: 'Management cluster node has zero SWIFT NIC capacity.'
-          title: 'Management cluster node has zero SWIFT NIC capacity. node:{{ $labels.node }} cluster:{{ $labels.cluster }}'
+          summary: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity'
+          title: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity'
         }
         expression: 'kube_node_status_capacity{node=~"user.*",resource="aro_openshift_io_swift_nic"} == 0'
         for: 'PT10M'
@@ -87,6 +89,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'MgmtClusterHCPCapacityCritical'
         enabled: true
         labels: {
+          component: 'capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -96,8 +99,8 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           info: 'Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds critical threshold of 85%. Immediate action required to provision additional management cluster capacity.'
           owning_team: 'hcp-sl'
           runbook_url: 'https://aka.ms/arohcp-runbook/mgmt-cluster-capacity'
-          summary: 'Management cluster HCP capacity is critically high (85% threshold).'
-          title: 'Management cluster HCP capacity is critically high (85% threshold). cluster:{{ $labels.cluster }}'
+          summary: 'Management cluster {{ $labels.cluster }} HCP capacity critically high (85% threshold)'
+          title: 'Management cluster {{ $labels.cluster }} HCP capacity critically high (85% threshold)'
         }
         expression: '(count by (cluster) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.85'
         for: 'PT5M'

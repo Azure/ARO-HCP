@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -140,7 +139,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterCPOImageOverride, api.TagClusterFIPSEnabled, api.TagClusterMaxCreationDuration)
+	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterCPOImageOverride, api.TagClusterMaxCreationDuration)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), api.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -186,16 +185,6 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 			))
 		} else {
 			experimentalFeatures.ControlPlaneOperatorImage = trimmed
-		}
-	}
-
-	fipsEnabled := lookupTag(tags, api.TagClusterFIPSEnabled)
-	if fipsEnabled != "" {
-		boolValue, err := strconv.ParseBool(fipsEnabled)
-		if err != nil {
-			errs = append(errs, field.Invalid(tagsPath.Key(api.TagClusterFIPSEnabled), fipsEnabled, "must be true or false"))
-		} else {
-			experimentalFeatures.FIPSEnabled = boolValue
 		}
 	}
 
