@@ -19,6 +19,7 @@ import (
 	"go/ast"
 	"go/types"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/golangci/plugin-module-register/register"
@@ -115,7 +116,7 @@ func (l *NoPrintLinter) run(pass *analysis.Pass) (any, error) {
 
 	for _, file := range pass.Files {
 		// Only check files in test directories or testdata (for testing the linter itself)
-		filename := pass.Fset.Position(file.Pos()).Filename
+		filename := filepath.ToSlash(pass.Fset.Position(file.Pos()).Filename)
 		if !strings.Contains(filename, "/test/") && !strings.Contains(filename, "/testdata/") {
 			continue
 		}
