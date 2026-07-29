@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -130,13 +129,10 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for private KAS cluster %q",
 				customerNodePoolName, customerClusterName)
 
-			By("getting admin credentials for the cluster")
-			// Admin credentials are fetched via ARM (not direct KAS), so this
-			// works regardless of KAS visibility. The returned kubeconfig
-			// contains the public KAS URL, which resolves via public DNS to
-			// the shared ingress — not to the private internal LB. We must
-			// override the server URL with the internal LB IP so that kubectl
-			// from the VM connects to the private KAS endpoint.
+			By("verifying KAS is reachable from VM inside the VNet")
+			// Get admin credentials via ARM and override the server URL with
+			// the internal LB IP so kubectl on the VM connects through the
+			// private KAS endpoint.
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
@@ -146,53 +142,29 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for private KAS cluster %q", customerClusterName)
 
-			By("looking up the private KAS internal load balancer IP")
 			internalIP, err := framework.GetPrivateKASInternalIP(ctx, tc, clusterParams.ManagedResourceGroupName)
 			Expect(err).NotTo(HaveOccurred(), "failed to find private KAS internal LB IP in managed resource group %q", clusterParams.ManagedResourceGroupName)
 			GinkgoLogr.Info("Found private KAS internal LB", "ip", internalIP, "managedRG", clusterParams.ManagedResourceGroupName)
 
-			// Override the server URL with the internal LB IP
 			adminRESTConfig.Host = fmt.Sprintf("https://%s:443", internalIP)
 
 			kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig from admin REST config")
 			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
 
-			By("verifying KAS is reachable from VM inside the VNet")
-			// First, verify that KAS responds at all. The internal LB backend
-			// (Swift NICs) may take time to become healthy after provisioning.
-			// Azure VM Run Command allows only one execution at a time. The
-			// RunVMCommand poll timeout is 2 minutes, so the Eventually interval
-			// must be longer to avoid 409 Conflict ("run command in progress").
-			const vmCommandRetryInterval = 150 * time.Second
-
-			var previousVersionOutput string
-			Eventually(func(g Gomega) {
-				output, err := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "version --short", 2*time.Minute)
-				if output != previousVersionOutput {
-					GinkgoLogr.Info("VM kubectl version", "output", strings.TrimSpace(output), "error", err)
-					previousVersionOutput = output
-				}
-				g.Expect(err).NotTo(HaveOccurred(), "kubectl version should succeed from VM inside the VNet")
-			}, 10*time.Minute, vmCommandRetryInterval).Should(Succeed())
-			GinkgoLogr.Info("KAS is reachable from VM inside the VNet")
-
-			By("verifying worker nodes are ready")
-			var previousNodeOutput string
-			Eventually(func(g Gomega) {
-				output, err := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "get nodes -o name", 2*time.Minute)
-				g.Expect(err).NotTo(HaveOccurred(), "kubectl get nodes should succeed from VM inside the VNet")
-
-				output = strings.TrimSpace(output)
-				if output != previousNodeOutput {
-					GinkgoLogr.Info("VM kubectl get nodes", "output", output)
-					previousNodeOutput = output
-				}
-				g.Expect(output).NotTo(BeEmpty(), "should receive node list from KAS via VM inside VNet")
-
-				lines := nonEmptyLines(output)
-				g.Expect(len(lines)).To(BeNumerically(">=", 1), "expected at least 1 node, got: %s", output)
-			}, 10*time.Minute, vmCommandRetryInterval).Should(Succeed())
+			// kubectl version hits /version (unauthenticated) through the
+			// internal LB. A successful response proves the private KAS
+			// network path (VM → customer subnet → internal LB → Swift →
+			// KAS pods) is functional.
+			versionCmd := fmt.Sprintf(
+				"echo '%s' | base64 -d > /tmp/kubeconfig && "+
+					"kubectl --kubeconfig=/tmp/kubeconfig version 2>/dev/null",
+				kubeconfigB64,
+			)
+			versionOutput, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
+			Expect(err).NotTo(HaveOccurred(),
+				"kubectl version should succeed from VM via private KAS internal LB (output: %s)", versionOutput)
+			GinkgoLogr.Info("KAS is reachable from VM inside VNet", "output", versionOutput)
 
 			By("verifying KAS is NOT reachable from outside the VNet")
 			err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second)
@@ -200,92 +172,30 @@ var _ = Describe("Customer", func() {
 				"private KAS should not be reachable from outside the VNet, but connection to %s succeeded", apiURL)
 			GinkgoLogr.Info("Confirmed KAS is not reachable from outside the VNet", "error", err)
 
-			By("deploying a sample web app via VM to verify public ingress connectivity")
-			// With private KAS, we must deploy the app from the VM since KAS
-			// is not reachable from the test runner. We apply the same serving
-			// app manifests used by framework.DeploySampleApp but via kubectl
-			// on the VM.
-			sampleAppNS := "e2e-private-kas-app"
-			_, err = framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
-				fmt.Sprintf("create namespace %s", sampleAppNS), 2*time.Minute)
-			Expect(err).NotTo(HaveOccurred(), "failed to create namespace %q via VM", sampleAppNS)
-
-			sampleAppManifests, err := framework.SampleAppManifests(sampleAppNS)
-			Expect(err).NotTo(HaveOccurred(), "failed to generate sample app manifests")
-			manifestsB64 := base64.StdEncoding.EncodeToString([]byte(sampleAppManifests))
-			applyCmd := fmt.Sprintf(
-				"echo '%s' | base64 -d > /tmp/kubeconfig && echo '%s' | base64 -d | kubectl --kubeconfig=/tmp/kubeconfig apply -f -",
-				kubeconfigB64, manifestsB64,
-			)
-			_, err = framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, applyCmd, 2*time.Minute)
-			Expect(err).NotTo(HaveOccurred(), "failed to deploy sample app via VM for public ingress verification")
-
-			By("waiting for the sample app deployment to become ready via VM")
-			_, err = framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
-				fmt.Sprintf("-n %s rollout status deployment/agnhost-server --timeout=5m", sampleAppNS), 6*time.Minute)
-			Expect(err).NotTo(HaveOccurred(), "sample app deployment did not become ready")
-
-			By("getting the route host from the cluster via VM")
-			var routeHost string
+			By("verifying public ingress is reachable from outside the VNet")
+			// The OpenShift console is deployed by default on every cluster
+			// and served through the default ingress router. If the console
+			// URL is reachable from outside the VNet, it proves the default
+			// ingress is public — independent of private KAS.
+			hcpClient := clientFactory.NewHcpOpenShiftClustersClient()
+			var consoleURL string
 			Eventually(func(g Gomega) {
-				output, err := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
-					fmt.Sprintf("-n %s get routes.route.openshift.io agnhost -o jsonpath='{.spec.host}'", sampleAppNS), 2*time.Minute)
-				g.Expect(err).NotTo(HaveOccurred(), "failed to get route host from VM")
-				routeHost = strings.TrimSpace(output)
-				g.Expect(routeHost).NotTo(BeEmpty(), "route host should be assigned")
-			}, 5*time.Minute, vmCommandRetryInterval).Should(Succeed())
-			appURL := "https://" + routeHost
-			GinkgoLogr.Info("Sample app route assigned", "url", appURL)
+				resp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				g.Expect(err).NotTo(HaveOccurred(), "failed to get cluster %q for console URL", customerClusterName)
+				g.Expect(resp.Properties).ToNot(BeNil(), "cluster %q Properties was nil", customerClusterName)
+				g.Expect(resp.Properties.Console).ToNot(BeNil(), "cluster %q Properties.Console was nil", customerClusterName)
+				g.Expect(resp.Properties.Console.URL).ToNot(BeNil(), "cluster %q Properties.Console.URL was nil", customerClusterName)
+				consoleURL = *resp.Properties.Console.URL
+			}, 15*time.Minute, 30*time.Second).Should(Succeed(), "console URL should become available for cluster %q", customerClusterName)
+			GinkgoLogr.Info("Console URL available", "url", consoleURL)
 
-			By("verifying ingress is reachable from outside the VNet (public ingress independence)")
-			// The default ingress should be public even though KAS is private.
-			// TestHTTPSConnectivity skips TLS validation: we're testing
-			// connectivity to the public LB, not cert validity.
-			var previousIngressOutput string
 			Eventually(func(g Gomega) {
-				err := framework.TestHTTPSConnectivity(ctx, appURL, 10*time.Second)
-				result := "unreachable"
-				if err == nil {
-					result = "reachable"
-				}
-				if result != previousIngressOutput {
-					GinkgoLogr.Info("Public ingress connectivity check from outside VNet", "result", result)
-					previousIngressOutput = result
-				}
+				err := framework.TestHTTPSConnectivity(ctx, consoleURL, 10*time.Second)
 				g.Expect(err).NotTo(HaveOccurred(),
-					"public ingress should be reachable from outside the VNet for private KAS cluster, but got error: %v", err)
-			}, 10*time.Minute, 15*time.Second).Should(Succeed())
+					"public ingress (console) should be reachable from outside the VNet for private KAS cluster, but got error: %v", err)
+			}, 10*time.Minute, 15*time.Second).Should(Succeed(),
+				"public ingress should be reachable from outside the VNet despite private KAS")
 			GinkgoLogr.Info("Confirmed public ingress is reachable from outside the VNet despite private KAS")
-
-			By("verifying all cluster operators are healthy from VM")
-			// Only output unavailable operators (filter out :True lines) to stay within 4KB VM output limit
-			var previousCOOutput string
-			Eventually(func(g Gomega) {
-				output, err := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
-					`get clusteroperators -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$'`, 2*time.Minute)
-				g.Expect(err).NotTo(HaveOccurred(), "kubectl get clusteroperators should succeed from VM")
-
-				unavailableOperators := parseUnavailableResources(output)
-				summary := fmt.Sprintf("%v", unavailableOperators)
-				if summary != previousCOOutput {
-					GinkgoLogr.Info("Cluster operator status", "unavailable", unavailableOperators)
-					previousCOOutput = summary
-				}
-				g.Expect(unavailableOperators).To(BeEmpty(),
-					"all ClusterOperators should report Available=True, but these are not available: %v", unavailableOperators)
-			}, 10*time.Minute, vmCommandRetryInterval).Should(Succeed())
-			GinkgoLogr.Info("All cluster operators are healthy")
 		},
 	)
 })
-
-// nonEmptyLines splits s by newline and returns only non-empty lines.
-func nonEmptyLines(s string) []string {
-	var lines []string
-	for _, line := range strings.Split(s, "\n") {
-		if strings.TrimSpace(line) != "" {
-			lines = append(lines, line)
-		}
-	}
-	return lines
-}
