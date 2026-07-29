@@ -118,7 +118,8 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 		return candidates[0].String(), false, nil
 	}
 
-	nextMinorStr := fmt.Sprintf("%d.%d", candidates[0].Major, candidates[0].Minor+1)
+	nextMinorVersion := api.NextMinorReleaseLine(candidates[0])
+	nextMinorStr := fmt.Sprintf("%d.%d", nextMinorVersion.Major, nextMinorVersion.Minor)
 	maxVersion, err := GetLatestVersionInMinor(ctx, channelGroup, nextMinorStr)
 	if err != nil {
 		if !cincinnati.IsCincinnatiVersionNotFoundError(err) {
