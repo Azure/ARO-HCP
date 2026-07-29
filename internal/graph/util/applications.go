@@ -18,13 +18,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/go-logr/logr"
 	abstractions "github.com/microsoft/kiota-abstractions-go"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
@@ -81,49 +78,20 @@ func (c *Client) CreateApplication(ctx context.Context, displayName string, redi
 }
 
 // AddPassword adds a password credential to an application.
-// Eventual consistency of MSGraph means sometimes you have to wait until the
-// application is fully propagated before adding a password credential.
+// Transient errors and eventual-consistency delays (e.g. 404 right after app
+// creation) are retried by the transport-level graphRetryHandler middleware.
 func (c *Client) AddPassword(ctx context.Context, appID, displayName string, startTime, endTime time.Time) (*PasswordCredential, error) {
-	// Create password credential
 	passwordCred := models.NewPasswordCredential()
 	passwordCred.SetDisplayName(&displayName)
 	passwordCred.SetStartDateTime(&startTime)
 	passwordCred.SetEndDateTime(&endTime)
 
-	// Create request body for addPassword
 	reqBody := applications.NewItemAddPasswordPostRequestBody()
 	reqBody.SetPasswordCredential(passwordCred)
 
-	// Add password to application with retry for eventual consistency
-	var result models.PasswordCredentialable
-	var lastErr error
-	attempts := 0
-	pollErr := wait.PollUntilContextTimeout(ctx, 5*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
-		attempts++
-		var err error
-		result, err = c.graphClient.Applications().ByApplicationId(appID).AddPassword().Post(ctx, reqBody, nil)
-		if err != nil {
-			lastErr = err
-			// Retry on known transient errors (404, 429, 5xx). For unknown
-			// error shapes returned by the Graph SDK, also retry to tolerate
-			// eventual-consistency propagation delays.
-			var odataErr *odataerrors.ODataError
-			if errors.As(err, &odataErr) {
-				code := odataErr.ResponseStatusCode
-				if code != http.StatusNotFound && code != http.StatusTooManyRequests && code < http.StatusInternalServerError {
-					// Non-transient typed OData error, stop retrying.
-					return false, err
-				}
-			}
-			return false, nil
-		}
-		return true, nil
-	})
-	if pollErr != nil {
-		if lastErr != nil {
-			return nil, fmt.Errorf("add password after %d attempts; last attempt error: %w; polling error: %w", attempts, lastErr, pollErr)
-		}
-		return nil, fmt.Errorf("add password after %d attempts: %w", attempts, pollErr)
+	result, err := c.graphClient.Applications().ByApplicationId(appID).AddPassword().Post(ctx, reqBody, nil)
+	if err != nil {
+		return nil, fmt.Errorf("add password: %w", odataErrorWithDiagnostics(err))
 	}
 
 	return &PasswordCredential{
@@ -132,6 +100,26 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 		StartTime:  *result.GetStartDateTime(),
 		EndTime:    *result.GetEndDateTime(),
 	}, nil
+}
+
+// odataErrorWithDiagnostics wraps an error with OData diagnostic details
+// (HTTP status, error code, message) when available, for easier failure triage.
+func odataErrorWithDiagnostics(err error) error {
+	var odataErr *odataerrors.ODataError
+	if !errors.As(err, &odataErr) {
+		return err
+	}
+
+	diagDetails := fmt.Sprintf("HTTP %d", odataErr.ResponseStatusCode)
+	if odataError := odataErr.GetErrorEscaped(); odataError != nil {
+		if errCode := odataError.GetCode(); errCode != nil {
+			diagDetails += fmt.Sprintf(", %s", *errCode)
+		}
+		if errMsg := odataError.GetMessage(); errMsg != nil {
+			diagDetails += fmt.Sprintf(": %s", *errMsg)
+		}
+	}
+	return fmt.Errorf("%s: %w", diagDetails, err)
 }
 
 // UpdateApplicationRedirectUris updates the redirect URIs for an application
