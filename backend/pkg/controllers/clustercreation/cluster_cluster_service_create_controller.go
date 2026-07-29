@@ -145,6 +145,7 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	}
 
 	logger.Info("Storing ClusterServiceID on cluster document", "clusterServiceID", csInternalID.String())
+	cluster.ServiceProviderProperties.PendingClusterServiceID = nil
 	cluster.ServiceProviderProperties.ClusterServiceID = &csInternalID
 	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, cluster, nil)
 	if database.IsPreconditionFailedError(err) {
@@ -241,7 +242,6 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 		return nil, utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
 	}
 	clusterServiceUID := cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()
-	csClusterBuilder.ID(clusterServiceUID)
 
 	logger.Info("Creating cluster in Cluster Service", "version", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String())
 	result, err := c.clustersServiceClient.PostCluster(ctx, csClusterBuilder)

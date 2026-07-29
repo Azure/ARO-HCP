@@ -452,7 +452,6 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		}
 		azureBuilder.EtcdEncryption(etcdEncryption)
 		clusterBuilder.Azure(azureBuilder)
-
 	}
 
 	// Property layering for CS Properties(): preserve existing values (on update),
@@ -560,6 +559,10 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		SubnetResourceID(hcpCluster.CustomerProperties.Platform.SubnetID.String()).
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
 			OutboundType(outboundType))
+
+	if hcpCluster.ServiceProviderProperties.PendingClusterServiceID != nil {
+		clusterBuilder.ID(hcpCluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID())
+	}
 
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
 	if hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID != nil {

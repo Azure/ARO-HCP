@@ -20,16 +20,16 @@ import (
 	"github.com/segmentio/ksuid"
 )
 
-// NewUID generates a new unique identifier. These identifiers are generated with the `ksuid` which
+// NewCSClusterUID generates a new unique identifier. These identifiers are generated with the `ksuid` which
 // generates 20 bytes of random data, and then are encoded using a lower case variant of Base32,
 // which results 32 lower case characters, which is still short and more friendly for names and
 // labels of Kubernetes objects than the lower case and upper case mix generated directly by `ksuid`.
-func NewUID() string {
-	return uidEncoding.EncodeToString(ksuid.New().Bytes())
+func NewCSClusterUID() string {
+	return csClusterUIDEncoding.EncodeToString(ksuid.New().Bytes())
 }
 
-// uidAlphabet is the lower case alphabet used to encode unique identifiers.
-const uidAlphabet = "0123456789abcdefghijklmnopqrstuv"
+// csClusterUIDAlphabet is the lower case alphabet used to encode unique identifiers.
+const csClusterUIDAlphabet = "0123456789abcdefghijklmnopqrstuv"
 
-// uidEncoding is the lower case variant of Base32 used to encode unique identifiers.
-var uidEncoding = base32.NewEncoding(uidAlphabet)
+// csClusterUIDEncoding is the lower case variant of Base32 used to encode unique identifiers.
+var csClusterUIDEncoding = base32.NewEncoding(csClusterUIDAlphabet)

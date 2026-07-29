@@ -35,6 +35,8 @@ type clusterPendingClusterServiceIDAssignSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*clusterPendingClusterServiceIDAssignSyncer)(nil)
 
+const ClusterPendingClusterServiceIDAssignControllerName = "ClusterPendingClusterServiceIDAssign"
+
 func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient database.ResourcesDBClient, backendInformers informers.BackendInformers) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	syncer := &clusterPendingClusterServiceIDAssignSyncer{
@@ -43,7 +45,7 @@ func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient databas
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"ClusterPendingClusterServiceIDAssign",
+		ClusterPendingClusterServiceIDAssignControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,
@@ -82,7 +84,7 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 		return utils.TrackError(err)
 	}
 
-	uid := ocm.NewUID()
+	uid := ocm.NewCSClusterUID()
 	pendingID, err := api.NewInternalID(fmt.Sprintf("/api/aro_hcp/v1alpha1/clusters/%s", uid))
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to create PendingClusterServiceID: %w", err))
