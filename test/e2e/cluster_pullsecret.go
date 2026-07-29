@@ -51,6 +51,7 @@ var _ = Describe("Customer", func() {
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName    = "pullsecret-hcp-cluster"

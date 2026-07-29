@@ -42,6 +42,7 @@ var _ = Describe("SRE", func() {
 		labels.CoreInfraService,
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				engineeringNetworkSecurityGroupName = "sre-nsg-name"
@@ -257,6 +258,7 @@ var _ = Describe("SRE", func() {
 		labels.CoreInfraService,
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				engineeringNetworkSecurityGroupName = "sre-nsg-name"
@@ -365,6 +367,7 @@ var _ = Describe("SRE", func() {
 		labels.DevelopmentOnly,
 		labels.IntegrationOnly,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				engineeringNetworkSecurityGroupName = "sre-nsg-name"

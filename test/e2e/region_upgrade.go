@@ -44,6 +44,7 @@ var _ = Describe("Region in-place upgrade", func() {
 		labels.Critical,
 		labels.Positive,
 		labels.UpgradeInPlace,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				// rolloutObservationWindow is the time to observe for unexpected

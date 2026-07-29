@@ -768,8 +768,8 @@ github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040=
 github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgrGnAve2nCC8+7h8Q0M=
-github.com/openshift-eng/openshift-tests-extension v0.0.0-20260528165303-ac98bf018579 h1:9O8t7c4tYOBjePUF57UImkpVknpvlMW7svjuP4898Cc=
-github.com/openshift-eng/openshift-tests-extension v0.0.0-20260528165303-ac98bf018579/go.mod h1:pHOS9c6BjZv91OkkHyIHAOWnYhxwcxWQkyYGEvPyUCE=
+github.com/openshift-eng/openshift-tests-extension v0.0.0-20260707142426-572a3e9deb7a h1:ulT0JZ/x6S4hYhyjUJ9T49YAxDLl1i5idFOMm9RHBkY=
+github.com/openshift-eng/openshift-tests-extension v0.0.0-20260707142426-572a3e9deb7a/go.mod h1:pHOS9c6BjZv91OkkHyIHAOWnYhxwcxWQkyYGEvPyUCE=
 github.com/openshift-online/ocm-api-model/clientapi v0.0.453 h1:2KwHcetQzaCNFykGnLnn69SqTEkHldFRNB3fIsWalLw=
 github.com/openshift-online/ocm-api-model/clientapi v0.0.453/go.mod h1:fZwy5HY2URG9nrExvQeXrDU/08TGqZ16f8oymVEN5lo=
 github.com/openshift-online/ocm-api-model/model v0.0.453 h1:CsOyRhrpxzXcn4aaobDgqv5aX2Zl0+Dm4VlJkHOxt3M=

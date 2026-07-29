@@ -1,5 +1,4 @@
 Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
-Customer should be able to list available HCP OpenShift versions and validate response content
 SRE should be able to log into a cluster via a breakglass session
 SRE should be able to retrieve serial console logs for a VM
 Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
@@ -56,7 +55,6 @@ Customer should be able to successfully upgrade control plane minor version from
 Customer should be able to successfully upgrade control plane minor version from 5.11 minor to 5.12 minor
 Customer should be able to create a cluster with an external auth config and get the external auth config
 Customer should be able to lifecycle and confirm external auth on a cluster
-Fleet should have registered stamps with ready management clusters
 Customer should be able to create an HCP cluster and manage ImageDigestMirrors
 Customer should be able to create an HCP cluster with Image Registry not present
 Customer should be able to rotate KMS key for a cluster with version >= 4.22
@@ -73,3 +71,5 @@ Customer should upgrade a nodepool skipping one minor version (+2) from 4.20.z t
 Customer should downgrade a nodepool version z-stream downgrade from 4.21.zLatest to 4.21.zPrevious
 Customer should downgrade a nodepool to a lower minor version from 4.21.zLatest to 4.19.zLatest
 Customer should be able to use workload identity via the cluster OIDC issuer URL
+Customer should be able to list available HCP OpenShift versions and validate response content
+Fleet should have registered stamps with ready management clusters
