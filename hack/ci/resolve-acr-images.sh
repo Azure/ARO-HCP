@@ -6,9 +6,6 @@
 #   ACR_CONFIG_FILE — path to rendered config YAML (for ACR name + repo paths)
 #   TARGET_SHA      — 7-char git commit SHA to look up in ACR
 #
-# Callers must ensure TARGET_SHA is reachable in local git history
-# (via checkout or fetch) so the walk-back fallback can use git log.
-#
 # Exports: BACKEND_IMAGE, FRONTEND_IMAGE, ADMIN_API_IMAGE, SESSIONGATE_IMAGE,
 #          FLEET_IMAGE, MGMT_AGENT_IMAGE, KUBE_APPLIER_IMAGE, EXPORTER_IMAGE
 #
@@ -55,7 +52,7 @@ if [[ "${FOUND_HEAD}" != "true" ]]; then
   echo "Images for ${TARGET_SHA} not found after polling. Walking back through history ..."
   MAX_WALK=20
   IMAGE_SHA=""
-  for sha in $(git log "${TARGET_SHA}" --format='%h' --abbrev=7 --skip=1 -n ${MAX_WALK}); do
+  for sha in $(curl -sS "https://api.github.com/repos/Azure/ARO-HCP/commits?sha=${TARGET_SHA}&per_page=${MAX_WALK}" | jq -r '.[].sha' | cut -c1-7 | tail -n +2); do
     if az acr manifest show -r "${ACR_NAME}" -n "${FLEET_REPO}:${sha}" &>/dev/null; then
       IMAGE_SHA="${sha}"
       echo "Found images in ACR for commit ${sha}"

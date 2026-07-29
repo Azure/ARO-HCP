@@ -21,9 +21,8 @@ source "$(dirname "$0")/az-login.sh"
 
 export ACR_CONFIG_FILE="${SHARED_DIR}/config.yaml"
 
-git fetch https://github.com/Azure/ARO-HCP.git main
 export TARGET_SHA
-TARGET_SHA=$(git rev-parse --short=7 FETCH_HEAD)
+TARGET_SHA=$(git ls-remote https://github.com/Azure/ARO-HCP.git main | cut -c1-7)
 echo "ARO-HCP main HEAD: ${TARGET_SHA}"
 
 # Resolve service images from ACR
