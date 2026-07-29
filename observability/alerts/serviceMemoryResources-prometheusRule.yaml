@@ -1,0 +1,63 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: service-memory-resources-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: service-memory-resources-rules
+    labels:
+      component: service-memory
+    rules:
+    # Owner: Service Lifecycle team (hcp-sl)
+    # AROSLSRE-1564: Generic memory drift/trend alerting for all ARO-HCP services
+    # Only containers with a configured memory request will match the join;
+    # services without a request are naturally excluded.
+    - alert: ServiceMemoryDrift
+      expr: |
+        (
+          container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|clusters-service|fleet|kube-applier|maestro|mgmt-agent|secret-sync-controller|sessiongate"}
+          / on(namespace, pod, container, cluster) group_left()
+          max by(namespace, pod, container, cluster) (
+            kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|clusters-service|fleet|kube-applier|maestro|mgmt-agent|secret-sync-controller|sessiongate"}
+          )
+        ) > 1.5
+      for: 15m
+      labels:
+        severity: warning
+        team: hcp-sl
+      annotations:
+        summary: '{{ $labels.container }} in {{ $labels.namespace }} exceeds 1.5x its memory request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+        description: |
+          Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} is using {{ $value | humanizePercentage }} of its memory request for more than 15 minutes.
+          This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md
+        owning_team: hcp-sl
+    - alert: ServiceMemoryTrend
+      expr: |
+        (
+          predict_linear(
+            container_memory_working_set_bytes{container!="", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|clusters-service|fleet|kube-applier|maestro|mgmt-agent|secret-sync-controller|sessiongate"}[6h], 4 * 3600
+          )
+          / on(namespace, pod, container, cluster) group_left()
+          max by(namespace, pod, container, cluster) (
+            kube_pod_container_resource_requests{resource="memory", job="kube-state-metrics", namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|clusters-service|fleet|kube-applier|maestro|mgmt-agent|secret-sync-controller|sessiongate"}
+          )
+        ) > 2.0
+      for: 30m
+      labels:
+        severity: info
+        team: hcp-sl
+      annotations:
+        summary: '{{ $labels.container }} in {{ $labels.namespace }} memory trending toward 2x its request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+        description: |
+          Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} memory is growing steadily.
+          At the current rate over the past 6 hours, it will exceed 2x its memory request within 4 hours.
+          Investigate for potential memory leaks or increased workload.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md
+        owning_team: hcp-sl

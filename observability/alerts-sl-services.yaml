@@ -15,6 +15,7 @@ prometheusRules:
   - alerts/imageRegistryPolicy-prometheusRule.yaml
   - alerts/kusto-logs-age-prometheusRule.yaml
   - alerts/leaderelection-prometheusRule.yaml
+  - alerts/serviceMemoryResources-prometheusRule.yaml
   untestedRules: []
   testDependencies:
   - recording-rules-services.yaml
