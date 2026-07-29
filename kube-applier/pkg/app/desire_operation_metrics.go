@@ -144,7 +144,6 @@ func extractResourceType(resourceIDStr string) string {
 	return ResourceTypeUnknown
 }
 
-
 // getConditionStatusAndReason extracts the status and reason from the "Successful" condition.
 // Returns the condition status (True/False/Unknown) and reason, or defaults if not found.
 func getConditionStatusAndReason(conditions []metav1.Condition) (string, string) {
