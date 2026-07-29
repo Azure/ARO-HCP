@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clustercreation"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterdeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterupdate"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
@@ -820,6 +821,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		utilsclock.RealClock{},
 		b.options.ResourcesDBClient,
 		b.options.BillingDBClient,
+		b.options.KubeApplierDBClients,
+		activeOperationLister,
 		backendInformers,
 	)
 
@@ -841,6 +844,16 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
+	)
+
+	clusterResourcesController := clusterresources.NewClusterResourcesController(
+		utilsclock.RealClock{},
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		b.options.BillingDBClient,
+		activeOperationLister,
+		backendInformers,
+		b.options.ClustersServiceClient,
 	)
 
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
@@ -933,6 +946,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
 				go cosmosMigrationController.Run(ctx, 5)
+				go clusterResourcesController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.
