@@ -3,9 +3,6 @@ targetScope = 'subscription'
 @description('Subscription IDs that should receive the shared E2E role assignments')
 param customerSubscriptionIds array = []
 
-@description('Subscription ID that owns the shared custom role definitions')
-param homeSubscriptionId string
-
 @description('Principal ID for aro-dev-first-party2')
 param firstPartyPrincipalId string
 
@@ -24,22 +21,17 @@ param firstPartyRoleName string = 'dev-first-party-mock'
 @description('Custom role name for the MSI mock principal')
 param msiMockRoleName string = 'dev-msi-mock'
 
-@description('Historical custom role name for the KMS plugin role')
-param kmsPluginRoleName string = 'Azure Red Hat OpenShift KMS Plugin - Dev'
-
 module customerSubscriptionAssignments './e2e-subscription-rbac-assignment-subscription.bicep' = [
   for (customerSubscriptionId, index) in customerSubscriptionIds: {
     name: 'cust-sub-rbac-${index}'
     scope: subscription(customerSubscriptionId)
     params: {
-      homeSubscriptionId: homeSubscriptionId
       firstPartyPrincipalId: firstPartyPrincipalId
       armHelperPrincipalId: armHelperPrincipalId
       miMockPrincipalId: miMockPrincipalId
       msiMockPoolPrincipals: msiMockPoolPrincipals
       firstPartyRoleName: firstPartyRoleName
       msiMockRoleName: msiMockRoleName
-      kmsPluginRoleName: kmsPluginRoleName
     }
   }
 ]

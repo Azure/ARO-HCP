@@ -92,10 +92,9 @@ func TestOperationsList(t *testing.T) {
 		reg,
 		mockResourcesDBClient,
 		nil,
-		nil,
 		newNoopAuditClient(t),
 		api.TestLocation,
-		"", false, false, true,
+		true,
 	)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
@@ -144,9 +143,10 @@ func TestOperationsList(t *testing.T) {
 			if assert.Contains(t, display, "operation") {
 				assert.NotEmpty(t, display["operation"].(string))
 			}
-			if assert.Contains(t, display, "description") {
-				assert.NotEmpty(t, display["description"].(string))
-			}
+			// XXX Disabled while we host ARO Classic operations.
+			//if assert.Contains(t, display, "description") {
+			//	assert.NotEmpty(t, display["description"].(string))
+			//}
 		}
 		if assert.Contains(t, operation, "isDataAction") {
 			// All ARO-HCP operations are for ARM/control-plane.
@@ -194,11 +194,10 @@ func TestSubscriptionsGET(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
-				databasetesting.NewMockLocksDBClient(),
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			// Pre-populate subscription in the mock database
@@ -344,11 +343,10 @@ func TestSubscriptionsPUT(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
-				databasetesting.NewMockLocksDBClient(),
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			body, err := json.Marshal(&test.subscription)
@@ -435,6 +433,22 @@ func TestDeploymentPreflight(t *testing.T) {
 						"subnetId":               api.TestSubnetResourceID,
 						"networkSecurityGroupId": api.TestNetworkSecurityGroupResourceID,
 					},
+					"etcd": map[string]any{
+						"dataEncryption": map[string]any{
+							"keyManagementMode": "CustomerManaged",
+							"customerManaged": map[string]any{
+								"encryptionType": "KMS",
+								"kms": map[string]any{
+									"visibility": "Public",
+									"activeKey": map[string]any{
+										"name":      "test-key",
+										"vaultName": "test-vault",
+										"version":   "test-version",
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			expectStatus: arm.DeploymentPreflightStatusSucceeded,
@@ -473,6 +487,9 @@ func TestDeploymentPreflight(t *testing.T) {
 				{message: "Required value", target: "properties.version.id"},
 				{message: "Invalid value: \"invalidCidr\": invalid CIDR address: invalidCidr", target: "properties.network.podCidr"},
 				{message: "Unsupported value: \"invisible\": supported values: \"Private\", \"Public\"", target: "properties.api.visibility"},
+				{message: "Required value", target: "properties.platform.subnetId"},
+				{message: "Required value", target: "properties.platform.networkSecurityGroupId"},
+				{message: "Unsupported value: \"PlatformManaged\": supported values: \"CustomerManaged\"", target: "properties.etcd.dataEncryption.keyManagementMode"},
 				{message: "Required value", target: "properties.platform.subnetId"},
 				{message: "Required value", target: "properties.platform.networkSecurityGroupId"},
 			},
@@ -519,7 +536,11 @@ func TestDeploymentPreflight(t *testing.T) {
 						"channelGroup": "stable",
 					},
 					"platform": map[string]any{
-						// 1 missing required field
+						"vmSize": "Standard_D8s_v3",
+						"osDisk": map[string]any{
+							// 1 invalid field
+							"sizeGiB": -1,
+						},
 					},
 					"autoScaling": map[string]any{
 						// 1 invalid field
@@ -536,7 +557,7 @@ func TestDeploymentPreflight(t *testing.T) {
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
 			expectErrors: []expectedPreflightError{
-				{message: "Required value", target: "properties.platform.vmSize"},
+				{message: "Invalid value: -1: must be greater than or equal to 64", target: "properties.platform.osDisk.sizeGiB"},
 				{message: "Invalid value: 1: must be greater than or equal to 3", target: "properties.autoScaling.max"},
 				{message: "Unsupported value: \"NoTouchy\": supported values: \"NoExecute\", \"NoSchedule\", \"PreferNoSchedule\"", target: "properties.taints[0].effect"},
 				{message: "Required value", target: "properties.taints[0].key"},
@@ -560,11 +581,10 @@ func TestDeploymentPreflight(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
-				databasetesting.NewMockLocksDBClient(),
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			subs := map[string]*arm.Subscription{
@@ -686,11 +706,10 @@ func TestRequestAdminCredential(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
-				databasetesting.NewMockLocksDBClient(),
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			// Pre-populate the mock database with cluster and subscription
@@ -801,11 +820,10 @@ func TestRevokeCredentials(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
-				databasetesting.NewMockLocksDBClient(),
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			// Pre-populate the mock database with cluster
@@ -925,6 +943,7 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 				route      string
 				apiVersion string
 				state      string
+				userAgent  string
 			)
 			for _, l := range m.GetLabel() {
 				switch l.GetName() {
@@ -934,6 +953,8 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 					apiVersion = l.GetValue()
 				case "state":
 					state = l.GetValue()
+				case "user_agent":
+					userAgent = l.GetValue()
 				}
 			}
 
@@ -942,6 +963,7 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 			assert.NotEqual(t, route, noMatchRouteLabel)
 			assert.NotEmpty(t, apiVersion)
 			assert.NotEqual(t, apiVersion, unknownVersionLabel)
+			assert.Equal(t, userAgentOther, userAgent)
 
 			if mf.GetName() == requestCounterName {
 				assert.NotEmpty(t, state)

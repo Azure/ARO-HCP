@@ -89,6 +89,18 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error) error {
 		return nil
 	}
 
+	var stepError *database.TransactionStepError
+	if errors.As(err, &stepError) && stepError.HTTPStatusCode == http.StatusPreconditionFailed {
+		w.Header().Set("Retry-After", "1")
+		arm.WriteCloudError(w, arm.NewCloudError(
+			http.StatusTooManyRequests,
+			arm.CloudErrorCodeConflict, "",
+			"The resource was modified by another request. Please retry. (transaction step %d of %d)",
+			stepError.Step, stepError.TotalSteps,
+		))
+		return nil
+	}
+
 	arm.WriteInternalServerError(w)
 	return nil
 }
@@ -110,6 +122,11 @@ func predictedResponseStatus(err error) int {
 
 	if database.IsNotFoundError(err) {
 		return http.StatusNotFound
+	}
+
+	var stepError *database.TransactionStepError
+	if errors.As(err, &stepError) && stepError.HTTPStatusCode == http.StatusPreconditionFailed {
+		return http.StatusTooManyRequests
 	}
 
 	return http.StatusInternalServerError

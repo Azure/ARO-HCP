@@ -15,6 +15,7 @@
 package database
 
 import (
+	"context"
 	"fmt"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -33,6 +34,7 @@ const fleetContainer = "Fleet"
 // container holds management cluster inventory data with its own access
 // patterns and credential scoping.
 type FleetDBClient interface {
+	ChangeFeedClient
 	Stamps() StampsCRUD
 	GlobalListers() FleetGlobalListers
 }
@@ -75,6 +77,14 @@ func NewFleetDBClient(database *azcosmos.DatabaseClient) (FleetDBClient, error) 
 // NewFleetDBClientFromContainer wraps an already-opened container client.
 func NewFleetDBClientFromContainer(container *azcosmos.ContainerClient) FleetDBClient {
 	return &cosmosFleetDBClient{container: container}
+}
+
+func (c *cosmosFleetDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	return c.container.GetChangeFeed(ctx, options)
+}
+
+func (c *cosmosFleetDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+	return c.container.GetFeedRanges(ctx)
 }
 
 func (c *cosmosFleetDBClient) Stamps() StampsCRUD {

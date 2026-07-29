@@ -1,5 +1,6 @@
 prometheusRules:
   rulesFolders:
   - alerts/HCPclusterOperators-prometheusRule.yaml
+  - ../kube-applier/alerts/kube-applier-prometheusRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedSLHCPPrometheusAlertingRules.bicep

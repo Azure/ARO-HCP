@@ -35,8 +35,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/ocm"
-	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -226,7 +224,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 // admission checks that depend on runtime state (e.g., version upgrade validation).
 // For UPDATE operations, these parameters are required and the function will fail if they're nil.
 // For CREATE operations, these can be nil since no prior state exists.
-func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation.Operation, cluster *api.HCPOpenShiftCluster, spCluster *api.ServiceProviderCluster, spNodePool *api.ServiceProviderNodePool) (*admission.NodePoolAdmissionContext, error) {
+func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation.Operation, subscription *arm.Subscription, originalNodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, spCluster *api.ServiceProviderCluster, spNodePool *api.ServiceProviderNodePool) (*admission.NodePoolAdmissionContext, error) {
 	if cluster == nil {
 		return nil, fmt.Errorf("cluster is required for admission context")
 	}
@@ -241,6 +239,9 @@ func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation
 	}
 
 	return &admission.NodePoolAdmissionContext{
+		Clock:                   f.clock,
+		Subscription:            subscription,
+		OriginalNodePool:        originalNodePool.DeepCopy(),
 		Cluster:                 cluster,
 		ServiceProviderCluster:  spCluster,
 		ServiceProviderNodePool: spNodePool,
@@ -286,9 +287,9 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 
 	restOperation := operation.Operation{
 		Type:    operation.Create,
-		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), api.APIVersion(versionedInterface.String())),
 	}
-	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, cluster, nil, nil)
+	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster, nil, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -307,26 +308,13 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
-	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, false)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	csNodePool, err := f.clusterServiceClient.PostNodePool(ctx, *cluster.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	csNodePoolID, err := api.NewInternalID(csNodePool.HREF())
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	newInternalNodePool.ServiceProviderProperties.ClusterServiceID = &csNodePoolID
 
 	transaction := f.resourcesDBClient.NewTransaction(newInternalNodePool.ID.SubscriptionID)
 
 	createNodePoolOperation := database.NewOperation(
 		database.OperationRequestCreate,
 		newInternalNodePool.ID,
-		*newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
@@ -575,9 +563,9 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 
 	restOperation := operation.Operation{
 		Type:    operation.Update,
-		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), api.APIVersion(versionedInterface.String())),
 	}
-	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, cluster, spCluster, spNodePool)
+	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster, spCluster, spNodePool)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -591,37 +579,17 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	// Temporary check until creation and update interaction with CS is moved to the backend: If an update arrives after the node pool
-	// has been created in Cosmos but before it exists in CS, or before its ClusterServiceID has been persisted in Cosmos, return an error.
-	if oldInternalNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(oldInternalNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to update a node pool"))
-	}
-
-	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, true)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 	logger.Info(fmt.Sprintf("updating resource %s", oldInternalNodePool.ID))
-	_, err = f.clusterServiceClient.UpdateNodePool(ctx, *oldInternalNodePool.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 
 	// The cosmos representation the new desired version
 	// The controllers will take care of handle the upgrade
 
 	transaction := f.resourcesDBClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID)
 
-	// Always create an operation, even for version-only changes. This provides consistent
-	// ARM API behavior and avoids the complexity of detecting what changed.
-	// For version-only updates, CS receives a no-op PATCH
-	// (version is excluded in BuildCSNodePool for updates) and stays ready, so the
-	// operation resolves on the next poll cycle (~10s). The actual version upgrade is
-	// handled transparently by backend controllers using the desired version stored above.
 	nodePoolUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		newInternalNodePool.ID,
-		ptr.Deref(newInternalNodePool.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
@@ -684,12 +652,6 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
-	}
-
-	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
-	if err := serverutils.DumpDataToLogger(ctx, f.resourcesDBClient, nil, nil, resourceID); err != nil {
-		// never fail, this is best effort
-		logger.Error(err, "failed to dump data to logger")
 	}
 
 	nodePool, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).Get(ctx, resourceID.Name)

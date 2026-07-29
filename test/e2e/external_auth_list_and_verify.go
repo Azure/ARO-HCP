@@ -47,6 +47,7 @@ var _ = Describe("Customer", func() {
 		labels.High,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			clusterName := testingPrefix + rand.String(6)
 			tc := framework.NewTestContext()
@@ -142,6 +143,7 @@ var _ = Describe("Customer", func() {
 				framework.ExternalAuthCreationTimeout,
 			)
 			Expect(err).To(HaveOccurred(), "expected error when creating a second external auth config on cluster %s", clusterName)
+			Expect(err).To(MatchError(ContainSubstring("There are other external auths on the cluster. Only one external auth is allowed per cluster.")), "expected error when creating a second external auth config on cluster %s", clusterName)
 
 			By("listing all external auth configs to verify a list call works")
 			externalAuthClient := tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient()

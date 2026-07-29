@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -36,8 +35,8 @@ import (
 // clusterValidationSyncer is a Cluster syncer that performs a Cluster
 // validation.
 type clusterValidationSyncer struct {
-	cooldownChecker   controllerutil.CooldownChecker
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient            database.ResourcesDBClient
+	serviceProviderClusterLister listers.ServiceProviderClusterLister
 
 	// validation is the validation to perform on the cluster.
 	validation validations.ClusterValidation
@@ -49,16 +48,16 @@ var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
 // executes the provided Cluster validation on each cluster.
 func NewClusterValidationController(
 	validation validations.ClusterValidation,
-	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
+	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 
 	syncer := &clusterValidationSyncer{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		resourcesDBClient: resourcesDBClient,
-		validation:        validation,
+		resourcesDBClient:            resourcesDBClient,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		validation:                   validation,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -85,15 +84,20 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
+	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	shouldProcess := c.shouldProcess(existingServiceProviderCluster)
+	shouldProcess := c.shouldProcess(cachedServiceProviderCluster)
 	if !shouldProcess {
 		return nil // no work to do
 	}
+	existingServiceProviderCluster := cachedServiceProviderCluster.DeepCopy()
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
@@ -122,6 +126,10 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 
 	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
+	if database.IsPreconditionFailedError(err) {
+		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}
@@ -133,8 +141,4 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 // it failed to run successfully in a previous attempt.
 func (c *clusterValidationSyncer) shouldProcess(serviceProviderCluster *api.ServiceProviderCluster) bool {
 	return !meta.IsStatusConditionTrue(serviceProviderCluster.Status.Validations, c.validation.Name())
-}
-
-func (c *clusterValidationSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }

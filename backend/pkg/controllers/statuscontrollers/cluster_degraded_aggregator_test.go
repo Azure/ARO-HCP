@@ -263,7 +263,6 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 
 			clock := clocktesting.NewFakePassiveClock(fixedNow)
 			syncer := &clusterDegradedAggregator{
-				cooldownChecker:   alwaysSyncCooldownChecker{},
 				clusterLister:     &listertesting.DBClusterLister{ResourcesDBClient: mockDB},
 				controllerLister:  &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
 				resourcesDBClient: mockDB,
@@ -325,7 +324,6 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 
 	clock := clocktesting.NewFakePassiveClock(fixedNow)
 	syncer := &clusterDegradedAggregator{
-		cooldownChecker:   alwaysSyncCooldownChecker{},
 		clusterLister:     &listertesting.DBClusterLister{ResourcesDBClient: mockDB},
 		controllerLister:  &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
 		resourcesDBClient: mockDB,

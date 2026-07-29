@@ -2,7 +2,9 @@ ARG PLATFORM
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
 WORKDIR /app
+COPY ./azutils/ azutils/
 COPY ./hcpctl/ hcpctl/
+COPY ./metricscache/ metricscache/
 COPY ./aro-hcp-exporter/ aro-hcp-exporter/
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject

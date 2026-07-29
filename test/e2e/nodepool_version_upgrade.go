@@ -46,6 +46,7 @@ import (
 
 var _ = Describe("Customer", func() {
 	DescribeTable("should upgrade and update a nodepool",
+		labels.MIContainers(1),
 		func(ctx context.Context, nodePoolMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 			targetMinorVersion := api.Must(semver.ParseTolerant(targetMinor))
@@ -247,6 +248,7 @@ var _ = Describe("Customer", func() {
 	// so Cincinnati upgrade edges are irrelevant. The backend only validates that the target
 	// version exists in Cincinnati, not that an edge exists from the current version.
 	DescribeTable("should upgrade a nodepool to a version without Cincinnati upgrade edge",
+		labels.MIContainers(1),
 		func(ctx context.Context, minor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 
@@ -379,6 +381,7 @@ var _ = Describe("Customer", func() {
 	// kubelet to be 2 minor versions behind kube-apiserver, and HCP nodepools use Replace
 	// strategy, so no step-through requirement exists.
 	DescribeTable("should upgrade a nodepool skipping one minor version (+2)",
+		labels.MIContainers(1),
 		func(ctx context.Context, nodePoolMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 
@@ -454,7 +457,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s at version %s", clusterName, clusterInstallVersion)
 
@@ -472,7 +475,7 @@ var _ = Describe("Customer", func() {
 				managedResourceGroupName,
 				clusterName,
 				nodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s at version %s", customerNodePoolName, nodePoolInstallVersion)
 
@@ -482,7 +485,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", clusterName)
 
@@ -501,13 +504,13 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to upgrade nodepool %s from %s to %s", customerNodePoolName, nodePoolInstallVersion, nodePoolDesiredVersion)
 
 			By("verifying nodes are recreated at the target version")
 			Eventually(func() error {
 				return verifiers.VerifyNodePoolUpgrade(nodePoolDesiredVersion, customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
-			}, 45*time.Minute, 2*time.Minute).Should(Succeed())
+			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 
 			By("verifying node pool GET reflects the target version")
 			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
@@ -526,6 +529,7 @@ var _ = Describe("Customer", func() {
 	// backward edges, so a downgrade exercises a version change without a Cincinnati upgrade
 	// path. HCP nodepools use Replace strategy — nodes are recreated, not upgraded in-place.
 	DescribeTable("should downgrade a nodepool version",
+		labels.MIContainers(1),
 		func(ctx context.Context, minor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 
@@ -584,7 +588,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")
 
@@ -602,7 +606,7 @@ var _ = Describe("Customer", func() {
 				managedResourceGroupName,
 				clusterName,
 				nodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s", customerNodePoolName)
 
@@ -612,7 +616,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config")
 
@@ -631,13 +635,13 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to update nodepool %s to downgrade target %s", customerNodePoolName, nodePoolDowngradeTarget)
 
 			By("verifying nodes are recreated at the downgrade target version")
 			Eventually(func() error {
 				return verifiers.VerifyNodePoolUpgrade(nodePoolDowngradeTarget, customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
-			}, 45*time.Minute, 2*time.Minute).Should(Succeed(), "node pool nodes were not recreated at downgrade target version %s", nodePoolDowngradeTarget)
+			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed(), "node pool nodes were not recreated at downgrade target version %s", nodePoolDowngradeTarget)
 
 			By("verifying node pool GET reflects the downgrade target version")
 			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
@@ -656,6 +660,7 @@ var _ = Describe("Customer", func() {
 	// as CP, then downgrades 2 minors. The N-2 skew policy allows the node pool to be
 	// 2 minor versions behind the control plane.
 	DescribeTable("should downgrade a nodepool to a lower minor version",
+		labels.MIContainers(1),
 		func(ctx context.Context, cpMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 
@@ -731,7 +736,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")
 
@@ -749,7 +754,7 @@ var _ = Describe("Customer", func() {
 				managedResourceGroupName,
 				clusterName,
 				nodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s", customerNodePoolName)
 
@@ -759,7 +764,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config")
 
@@ -778,13 +783,13 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to update nodepool %s to downgrade target %s", customerNodePoolName, nodePoolDowngradeTarget)
 
 			By("verifying nodes are recreated at the downgrade target version")
 			Eventually(func() error {
 				return verifiers.VerifyNodePoolUpgrade(nodePoolDowngradeTarget, customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
-			}, 45*time.Minute, 2*time.Minute).Should(Succeed(), "node pool nodes were not recreated at downgrade target version %s", nodePoolDowngradeTarget)
+			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed(), "node pool nodes were not recreated at downgrade target version %s", nodePoolDowngradeTarget)
 
 			By("verifying node pool GET reflects the downgrade target version")
 			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)

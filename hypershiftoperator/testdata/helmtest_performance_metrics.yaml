@@ -1,0 +1,7 @@
+values: ../values.yaml
+name: hypershift-performance-metrics
+namespace: hypershift
+testData:
+  hypershift:
+    metricsSet:
+      performanceMetrics: true

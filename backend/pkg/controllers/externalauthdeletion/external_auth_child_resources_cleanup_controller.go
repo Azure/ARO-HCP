@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -39,7 +38,6 @@ import (
 // scraper handles those after the ExternalAuth document itself is
 // removed.
 type externalAuthChildResourcesCleanupController struct {
-	cooldownChecker    controllerutil.CooldownChecker
 	externalAuthLister listers.ExternalAuthLister
 	resourcesDBClient  database.ResourcesDBClient
 }
@@ -48,12 +46,10 @@ var _ controllerutils.ExternalAuthSyncer = (*externalAuthChildResourcesCleanupCo
 
 func NewExternalAuthChildResourcesCleanupController(
 	resourcesDBClient database.ResourcesDBClient,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := informers.ExternalAuths()
 	syncer := &externalAuthChildResourcesCleanupController{
-		cooldownChecker:    controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		externalAuthLister: externalAuthLister,
 		resourcesDBClient:  resourcesDBClient,
 	}
@@ -65,10 +61,6 @@ func NewExternalAuthChildResourcesCleanupController(
 		time.Minute,
 		syncer,
 	)
-}
-
-func (c *externalAuthChildResourcesCleanupController) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *externalAuthChildResourcesCleanupController) NeedsWork(externalAuth *api.HCPOpenShiftClusterExternalAuth) bool {

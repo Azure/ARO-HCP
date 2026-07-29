@@ -33,6 +33,7 @@ import (
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -400,8 +401,8 @@ func TestSyncOnce(t *testing.T) {
 	tests := []struct {
 		name                   string
 		stamp                  *fleet.Stamp
+		stampMissingFromLister bool
 		managementCluster      *fleet.ManagementCluster
-		excludeStampFromLister bool
 		setupCS                func(ctrl *gomock.Controller) ProvisionShardClient
 		wantErr                bool
 		wantCondition          string
@@ -417,14 +418,13 @@ func TestSyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name:                   "stamp lister error: returns error",
+			name:                   "stamp not found in lister: no-op",
 			stamp:                  testStamp(stampID, true),
+			stampMissingFromLister: true,
 			managementCluster:      testManagementCluster(stampID),
-			excludeStampFromLister: true,
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
-			wantErr: true,
 		},
 		{
 			name:              "stamp not approved: sets condition false",
@@ -537,7 +537,7 @@ func TestSyncOnce(t *testing.T) {
 			}
 
 			stamps := map[string]*fleet.Stamp{}
-			if !tt.excludeStampFromLister {
+			if !tt.stampMissingFromLister {
 				stamps[tt.stamp.GetStampIdentifier()] = tt.stamp
 			}
 			stampLister := &fakeStampLister{stamps: stamps}
@@ -598,7 +598,7 @@ func (f *fakeStampLister) List(ctx context.Context) ([]*fleet.Stamp, error) {
 func (f *fakeStampLister) Get(ctx context.Context, stampIdentifier string) (*fleet.Stamp, error) {
 	s, ok := f.stamps[stampIdentifier]
 	if !ok {
-		return nil, fmt.Errorf("stamp %q not found", stampIdentifier)
+		return nil, database.NewNotFoundError()
 	}
 	return s, nil
 }

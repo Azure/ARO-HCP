@@ -74,6 +74,7 @@ const (
 // https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/proxy-api-reference.md#exposing-available-operations
 var AvailableOperations = []arm.NamespaceOperation{
 	{
+		// This is a required operation that is not specific to ARO-HCP.
 		Name: path.Join(api.ProviderNamespace, "register", arm.NamespaceOperationAction),
 		Display: arm.NamespaceOperationDisplay{
 			Provider:    ProviderDisplay,
@@ -210,6 +211,117 @@ var AvailableOperations = []arm.NamespaceOperation{
 	},
 }
 
+// These operations were copied from the ARO "Classic" service:
+// https://github.com/Azure/ARO-RP/blob/master/pkg/api/operation.go
+//
+// ARO-HCP will respond with both services' operations until we
+// have approval to use the Split Operations ARM feature.
+//
+// Note, these are technically non-conformant to RPC requirements
+// because they lack the required Display.Description field. Unit
+// tests have been temporarily(?) adjusted to compensate.
+var AvailableClassicOperations = []arm.NamespaceOperation{
+	{
+		Name: path.Join(api.ProviderNamespace, "locations", "operationresults", arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "locations/operationresults",
+			Operation: "Read operation results",
+		},
+		Origin: arm.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(api.ProviderNamespace, "locations", "operationsstatus", arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "locations/operationsstatus",
+			Operation: "Read operations status",
+		},
+		Origin: arm.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(api.ProviderNamespace, "operations", arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "operations",
+			Operation: "Read operations",
+		},
+		Origin: arm.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(api.ProviderNamespace, "openShiftClusters", arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openShiftClusters",
+			Operation: "Read OpenShift cluster",
+		},
+		Origin: arm.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(api.ProviderNamespace, "openShiftClusters", arm.NamespaceOperationWrite),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openShiftClusters",
+			Operation: "Write OpenShift cluster",
+		},
+		Origin: arm.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(api.ProviderNamespace, "openShiftClusters", arm.NamespaceOperationDelete),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openShiftClusters",
+			Operation: "Delete OpenShift cluster",
+		},
+		Origin: arm.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(api.ProviderNamespace, "openShiftClusters", "listCredentials", arm.NamespaceOperationAction),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openShiftClusters",
+			Operation: "List credentials of an OpenShift cluster",
+		},
+		Origin: arm.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(api.ProviderNamespace, "openShiftClusters", "listAdminCredentials", arm.NamespaceOperationAction),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openShiftClusters",
+			Operation: "List Admin Kubeconfig of an OpenShift cluster",
+		},
+		Origin: arm.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(api.ProviderNamespace, "openShiftClusters", "detectors", arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openShiftClusters",
+			Operation: "Get OpenShift Cluster Detector",
+		},
+		Origin: arm.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(api.ProviderNamespace, "locations", "listPlatformWorkloadIdentityRoleSets", arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "listPlatformWorkloadIdentityRoleSets",
+			Operation: "Lists all PlatformWorkloadIdentityRoleSets available in the specified location",
+		},
+		Origin: arm.NamespaceOperationOriginUserSystem,
+	},
+	{
+		Name: path.Join(api.ProviderNamespace, "locations", "openshiftVersions", arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:  ProviderDisplay,
+			Resource:  "openshiftVersions",
+			Operation: "Lists all OpenShift versions available to install in the specified location",
+		},
+		Origin: arm.NamespaceOperationOriginUserSystem,
+	},
+}
+
 // MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
 // Literal path segments must be lowercase because MiddlewareLowercase
 // converts the request URL to lowercase before multiplexing.
@@ -288,7 +400,6 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
 		newMiddlewareValidatedAPIVersion(f.apiRegistry).handleRequest,
-		newMiddlewareLockSubscription(f.locksDBClient).handleRequest,
 		newMiddlewareValidateSubscriptionState(f.resourcesDBClient).handleRequest)
 	middlewareMux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
@@ -360,8 +471,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmSubscriptionGet)))
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
-		MiddlewareLoggingPostMux,
-		newMiddlewareLockSubscription(f.locksDBClient).handleRequest)
+		MiddlewareLoggingPostMux)
 	middlewareMux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmSubscriptionPut)))

@@ -19,6 +19,9 @@ param podSubnetId string
 
 param maxPods int
 
+param upgradeSettingsMaxSurge string
+param upgradeSettingsMaxUnavailable string
+
 param taints array = []
 
 type Pool = {
@@ -65,7 +68,7 @@ var userPools = concat(zonalPools, nonZonalPools)
 //   P O O L   C R E A T I O N
 //
 
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' existing = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-preview' existing = {
   name: aksClusterName
 }
 
@@ -81,7 +84,7 @@ var swiftNodepoolTags = enableSwiftV2
         })
   : null
 
-resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-10-01' = [
+resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2025-07-02-preview' = [
   for (pool, i) in userPools: {
     parent: aksCluster
     name: take(pool.name, 12)
@@ -102,7 +105,8 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
       vmSize: vmSize
       type: 'VirtualMachineScaleSets'
       upgradeSettings: {
-        maxSurge: '10%'
+        maxSurge: upgradeSettingsMaxSurge
+        maxUnavailable: upgradeSettingsMaxUnavailable
       }
       vnetSubnetID: vnetSubnetId
       podSubnetID: podSubnetId

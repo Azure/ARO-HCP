@@ -131,11 +131,11 @@ param aksEtcdKVEnableSoftDelete bool = true
 @description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
 param aksClusterOutboundIPAddressIPTags string = ''
 
-@description('Enable Swift V2 for the AKS cluster VNET')
-param aksEnableSwiftVnet bool
+@description('Maximum surge for AKS node pool upgrades')
+param aksUpgradeSettingsMaxSurge string
 
-@description('Enable Swift V2 for the AKS cluster nodepools')
-param aksEnableSwiftNodepools bool
+@description('Maximum unavailable for AKS node pool upgrades')
+param aksUpgradeSettingsMaxUnavailable string
 
 @description('The name of the maestro consumer.')
 param maestroConsumerName string
@@ -332,7 +332,7 @@ module vnetCreation '../modules/network/vnet.bicep' = {
     location: location
     vnetName: vnetName
     vnetAddressPrefix: vnetAddressPrefix
-    enableSwift: aksEnableSwiftVnet
+    enableSwift: true
   }
 }
 
@@ -404,7 +404,9 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     deploymentMsiId: globalMSIId
-    enableSwiftV2Nodepools: aksEnableSwiftNodepools
+    enableSwiftV2Nodepools: true
+    upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
+    upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
     owningTeamTagValue: owningTeamTagValue
     aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
@@ -519,7 +521,7 @@ module genevaClusterLogsCertCSIAccess '../modules/keyvault/key-vault-secret-acce
 //   M A E S T R O
 //
 
-module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestroEventGridNamespaceId != '') {
+module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
   name: 'maestro-consumer'
   params: {
     maestroAgentManagedIdentityPrincipalId: mi.getManagedIdentityByName(
@@ -541,7 +543,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestro
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
 //
 
-module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maestroEventGridNamespaceId != '') {
+module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: 'eventGridPrivateEndpoint'
   params: {
     location: location
@@ -560,7 +562,7 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
 var rpCosmosDbAccountRef = res.cosmosDBAccountRefFromId(rpCosmosDbAccountId)
 
 module kubeApplierCosmos '../modules/rp-cosmos-kube-applier.bicep' = if (rpCosmosDbAccountId != '') {
-  name: 'kube-applier-cosmos'
+  name: 'kube-applier-cosmos-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup(rpCosmosDbAccountRef.resourceGroup.subscriptionId, rpCosmosDbAccountRef.resourceGroup.name)
   params: {
     cosmosDBAccountName: rpCosmosDbAccountRef.name

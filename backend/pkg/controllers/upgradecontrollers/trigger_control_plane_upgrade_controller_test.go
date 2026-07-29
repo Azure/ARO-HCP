@@ -32,7 +32,6 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -181,23 +180,24 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 }
 
 func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
-	clusterKey := controllerutils.HCPClusterKey{
-		SubscriptionID:    testSubscriptionID,
-		ResourceGroupName: testResourceGroupName,
-		HCPClusterName:    testClusterName,
-	}
 	clusterResourceID := api.Must(api.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
 	now := time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)
 	listerBoom := errors.New("active operation lister exploded")
 
-	newCluster := func(createdAt *time.Time) *api.HCPOpenShiftCluster {
+	newCluster := func(createdAt *time.Time, activeOperationID string) *api.HCPOpenShiftCluster {
 		c := &api.HCPOpenShiftCluster{
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID: clusterResourceID,
+			},
 			TrackedResource: arm.TrackedResource{
 				Resource: arm.Resource{
 					ID:   clusterResourceID,
 					Name: testClusterName,
 					Type: api.ClusterResourceType.String(),
 				},
+			},
+			ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+				ActiveOperationID: activeOperationID,
 			},
 		}
 		if createdAt != nil {
@@ -216,31 +216,31 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 	}{
 		{
 			name:          "cluster older than grace period runs even with active create (gate 1)",
-			cluster:       newCluster(ptr.To(now.Add(-3 * time.Hour))),
+			cluster:       newCluster(ptr.To(now.Add(-3*time.Hour)), "op-create-1"),
 			seedOperation: true,
 			wantShouldRun: true,
 		},
 		{
 			name:          "cluster with no SystemData.CreatedAt runs (treated as old enough)",
-			cluster:       newCluster(nil),
+			cluster:       newCluster(nil, "op-create-1"),
 			seedOperation: true,
 			wantShouldRun: true,
 		},
 		{
 			name:          "cluster younger than grace period with no active create runs (gate 2)",
-			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), ""),
 			seedOperation: false,
 			wantShouldRun: true,
 		},
 		{
 			name:          "young cluster + active create skips",
-			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), "op-create-1"),
 			seedOperation: true,
 			wantShouldRun: false,
 		},
 		{
 			name:          "cluster exactly at grace period boundary still skips (boundary is strict >)",
-			cluster:       newCluster(ptr.To(now.Add(-clusterCreateGracePeriod))),
+			cluster:       newCluster(ptr.To(now.Add(-clusterCreateGracePeriod)), "op-create-1"),
 			seedOperation: true,
 			wantShouldRun: false,
 		},
@@ -250,13 +250,13 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 			// so a flaky lister doesn't pin the controller in skip-forever
 			// mode for the rest of the grace window.
 			name:          "active operation lister error is propagated and fails open to shouldRun=true",
-			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), "op-broken"),
 			seedOperation: false,
 			opLister: func(_ *databasetesting.MockResourcesDBClient) listers.ActiveOperationLister {
 				return &boomActiveOperationLister{err: listerBoom}
 			},
 			wantShouldRun:  true,
-			wantErrContain: "failed to list active operations for cluster",
+			wantErrContain: "failed to get operations",
 		},
 	}
 
@@ -280,7 +280,7 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 				activeOperationLister: opLister,
 			}
 
-			gotShouldRun, err := syncer.shouldTriggerUpgrade(ctx, clusterKey, tt.cluster)
+			gotShouldRun, err := syncer.shouldTriggerUpgrade(ctx, tt.cluster)
 			if tt.wantErrContain != "" {
 				require.Error(t, err)
 				assert.ErrorContains(t, err, tt.wantErrContain)

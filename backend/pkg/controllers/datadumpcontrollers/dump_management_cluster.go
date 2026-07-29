@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	dbinformers "github.com/Azure/ARO-HCP/internal/database/informers"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -69,7 +70,9 @@ func (c *managementClusterDataDump) SyncOnce(ctx context.Context, key controller
 	}
 
 	logger.Info(fmt.Sprintf("dumping resourceID %v", mc.CosmosMetadata.ResourceID),
+		"snapshotType", "cosmos",
 		"currentResourceID", mc.CosmosMetadata.ResourceID.String(),
+		"objectMetadata", serverutils.ObjectMetadataForResourceID("fleet", mc.CosmosMetadata.ResourceID),
 		"content", mc,
 	)
 

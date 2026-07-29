@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,12 +39,11 @@ import (
 //
 // Replaces createNodePoolScopedMaestroReadonlyBundlesSyncer.
 type createNodePoolScopedReadDesiresSyncer struct {
-	cooldownChecker controllerutil.CooldownChecker
-
 	activeOperationLister listers.ActiveOperationLister
 
-	resourcesDBClient    database.ResourcesDBClient
-	kubeApplierDBClients database.KubeApplierDBClients
+	resourcesDBClient            database.ResourcesDBClient
+	kubeApplierDBClients         database.KubeApplierDBClients
+	serviceProviderClusterLister listers.ServiceProviderClusterLister
 
 	hostedClusterNamespaceEnvIdentifier string
 }
@@ -56,14 +54,15 @@ func NewCreateNodePoolScopedReadDesiresController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
+	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	syncer := &createNodePoolScopedReadDesiresSyncer{
-		cooldownChecker:                     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		activeOperationLister:               activeOperationLister,
 		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
+		serviceProviderClusterLister:        serviceProviderClusterLister,
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
@@ -96,16 +95,19 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	// Resolve the management cluster via the parent cluster's
 	// ServiceProviderCluster. Skip if the placement-sync controller hasn't
 	// populated it yet.
-	clusterKey := controllerutils.HCPClusterKey{
-		SubscriptionID:    key.SubscriptionID,
-		ResourceGroupName: key.ResourceGroupName,
-		HCPClusterName:    key.HCPClusterName,
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderCluster will populate it. NodePoolWatchingController
+		// does not watch the ServiceProviderCluster informer (an SPC arrival
+		// can't be walked down to a specific node pool), so the next attempt
+		// happens on the controller's periodic resync or the next NodePool /
+		// ServiceProviderNodePool event for this node pool.
+		return nil
 	}
-	spc, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, clusterKey.GetResourceID())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
-	mcResourceID := spc.Status.ManagementClusterResourceID
+	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 	if mcResourceID == nil {
 		return nil
 	}
@@ -145,7 +147,7 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
-	existing, err := getExistingReadDesire(ctx, crud, readDesireNameReadonlyNodePool)
+	existing, err := getExistingReadDesire(ctx, crud, desired.ResourceID.Name)
 	if err != nil {
 		return err
 	}
@@ -164,10 +166,6 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 		return utils.TrackError(fmt.Errorf("replace ReadDesire: %w", err))
 	}
 	return nil
-}
-
-func (c *createNodePoolScopedReadDesiresSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // readDesireNameReadonlyNodePool is the well-known ReadDesire name the

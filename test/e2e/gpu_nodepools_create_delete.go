@@ -17,7 +17,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -34,6 +33,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 		labels.Critical,
 		labels.Positive,
 		labels.IntegrationOnly,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName = "cluster-gpu-np"
@@ -152,7 +152,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				*resourceGroup.Name,
 				customerClusterName,
 				gpuNodePoolName,
-				25*time.Minute,
+				framework.NodePoolDeletionTimeout,
 			)).To(Succeed(), "failed to delete GPU nodepool %s", gpuNodePoolName)
 
 			By("confirming GPU nodepool has been deleted")

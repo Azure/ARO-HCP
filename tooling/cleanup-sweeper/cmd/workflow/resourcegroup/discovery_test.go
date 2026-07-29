@@ -24,6 +24,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
 )
 
@@ -94,6 +96,116 @@ func TestDiscoverCandidates(t *testing.T) {
 			for idx := range tc.want {
 				if got[idx] != tc.want[idx] {
 					t.Fatalf("expected sorted resource groups %v, got %v", tc.want, got)
+				}
+			}
+		})
+	}
+}
+
+func ptr(s string) *string { return &s }
+
+func TestPromoteAndSortDeletionTargets(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name              string
+		deletionTargets   sets.Set[string]
+		allResourceGroups []*armresources.ResourceGroup
+		excludedRGs       []string
+		want              []string
+		wantTargetsAdded  []string
+	}{
+		{
+			name:            "managed child of target is added and sorted first",
+			deletionTargets: sets.New("parent-rg"),
+			allResourceGroups: []*armresources.ResourceGroup{
+				{Name: ptr("parent-rg")},
+				{Name: ptr("child-rg"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster")},
+			},
+			want:             []string{"child-rg", "parent-rg"},
+			wantTargetsAdded: []string{"child-rg"},
+		},
+		{
+			name:            "multiple children before parent",
+			deletionTargets: sets.New("parent-rg"),
+			allResourceGroups: []*armresources.ResourceGroup{
+				{Name: ptr("parent-rg")},
+				{Name: ptr("child-b"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/b")},
+				{Name: ptr("child-a"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/a")},
+			},
+			want:             []string{"child-a", "child-b", "parent-rg"},
+			wantTargetsAdded: []string{"child-a", "child-b"},
+		},
+		{
+			name:            "child already a target is sorted first without duplication",
+			deletionTargets: sets.New("parent-rg", "z-child-rg"),
+			allResourceGroups: []*armresources.ResourceGroup{
+				{Name: ptr("parent-rg")},
+				{Name: ptr("z-child-rg"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster")},
+			},
+			want: []string{"z-child-rg", "parent-rg"},
+		},
+		{
+			name:            "excluded child is not added",
+			deletionTargets: sets.New("parent-rg"),
+			excludedRGs:     []string{"child-rg"},
+			allResourceGroups: []*armresources.ResourceGroup{
+				{Name: ptr("parent-rg")},
+				{Name: ptr("child-rg"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster")},
+			},
+			want: []string{"parent-rg"},
+		},
+		{
+			name:            "managed RG whose parent is not a target is ignored",
+			deletionTargets: sets.New("other-rg"),
+			allResourceGroups: []*armresources.ResourceGroup{
+				{Name: ptr("other-rg")},
+				{Name: ptr("child-rg"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/not-a-target/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster")},
+			},
+			want: []string{"other-rg"},
+		},
+		{
+			name:            "unparsable managedBy is skipped",
+			deletionTargets: sets.New("parent-rg"),
+			allResourceGroups: []*armresources.ResourceGroup{
+				{Name: ptr("parent-rg")},
+				{Name: ptr("child-rg"), ManagedBy: ptr("not-a-valid-resource-id")},
+			},
+			want: []string{"parent-rg"},
+		},
+		{
+			name:            "case-insensitive parent matching",
+			deletionTargets: sets.New("Parent-RG"),
+			allResourceGroups: []*armresources.ResourceGroup{
+				{Name: ptr("Parent-RG")},
+				{Name: ptr("child-rg"), ManagedBy: ptr("/subscriptions/sub/resourceGroups/parent-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster")},
+			},
+			want:             []string{"child-rg", "Parent-RG"},
+			wantTargetsAdded: []string{"child-rg"},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			logger := logr.Discard()
+			excluded := sets.New(tc.excludedRGs...)
+			candidateSources := map[string]string{}
+
+			got := promoteAndSortDeletionTargets(logger, tc.deletionTargets, tc.allResourceGroups, excluded, candidateSources)
+
+			if len(got) != len(tc.want) {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+			for idx := range tc.want {
+				if got[idx] != tc.want[idx] {
+					t.Fatalf("expected %v, got %v", tc.want, got)
+				}
+			}
+			for _, added := range tc.wantTargetsAdded {
+				if !tc.deletionTargets.Has(added) {
+					t.Errorf("expected %q to be added to deletion targets", added)
 				}
 			}
 		})

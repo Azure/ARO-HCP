@@ -263,8 +263,12 @@ func NewUntypedStep(indexString, stepType, stepName string, testDir fs.FS, path 
 		return newHTTPDeleteStep(stepID, stepDir)
 	case "completeOperation":
 		return newCompleteOperationStep(stepID, stepDir)
+	case "setClusterServiceID":
+		return newSetClusterServiceIDStep(stepID, stepDir)
 	case "clusterServiceCompare":
 		return newClusterServiceCompareStep(stepID, stepDir)
+	case "syncClusterClusterServiceUpdateDispatch":
+		return newSyncClusterClusterServiceUpdateDispatchStep(stepID, stepDir)
 	case "migrateCosmos":
 		return newMigrateCosmosStep(stepID, stepDir)
 	case "kubernetesLoad":
@@ -356,8 +360,14 @@ func NewStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAcces
 	case "completeOperation":
 		return newCompleteOperationStep(stepID, stepDir)
 
+	case "setClusterServiceID":
+		return newSetClusterServiceIDStep(stepID, stepDir)
+
 	case "clusterServiceCompare":
 		return newClusterServiceCompareStep(stepID, stepDir)
+
+	case "syncClusterClusterServiceUpdateDispatch":
+		return newSyncClusterClusterServiceUpdateDispatchStep(stepID, stepDir)
 
 	case "migrateCosmos":
 		return newMigrateCosmosStep(stepID, stepDir)

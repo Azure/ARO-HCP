@@ -143,7 +143,6 @@ func TestNodePoolActiveVersionSyncer_RealCosmosFixture(t *testing.T) {
 	require.NoError(t, err, "create ServiceProviderNodePool from captured cosmos doc")
 
 	syncer := &nodePoolActiveVersionSyncer{
-		cooldownChecker:               &alwaysSyncCooldownChecker{},
 		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 		resourcesDBClient:             mockDB,
 		readDesireLister: &internallistertesting.SliceReadDesireLister{

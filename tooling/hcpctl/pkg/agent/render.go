@@ -78,12 +78,25 @@ func RenderMarkdown(chain *HydratedChain, testName string) string {
 					sb.WriteString(proof.CodeExcerpt)
 					sb.WriteString("\n```\n\n")
 				case "log":
-					sb.WriteString(fmt.Sprintf("#### Proof %d (log — %s)\n\n", j+1, proof.Source))
-					if proof.Note != "" {
-						sb.WriteString(proof.Note)
-						sb.WriteString("\n\n")
+					if proof.Source == "node_console_log" {
+						sb.WriteString(fmt.Sprintf("#### Proof %d (log — node console: %s)\n\n", j+1, proof.File))
+						if proof.Note != "" {
+							sb.WriteString(proof.Note)
+							sb.WriteString("\n\n")
+						}
+						if proof.ArtifactURL != "" {
+							sb.WriteString(fmt.Sprintf("Node console log `%s`, lines %d\u2013%d ([download](%s)):\n\n", proof.File, proof.Lines[0], proof.Lines[1], proof.ArtifactURL))
+						} else {
+							sb.WriteString(fmt.Sprintf("Node console log `%s`, lines %d\u2013%d:\n\n", proof.File, proof.Lines[0], proof.Lines[1]))
+						}
+					} else {
+						sb.WriteString(fmt.Sprintf("#### Proof %d (log \u2014 %s)\n\n", j+1, proof.Source))
+						if proof.Note != "" {
+							sb.WriteString(proof.Note)
+							sb.WriteString("\n\n")
+						}
+						sb.WriteString(fmt.Sprintf("Test %s log, lines %d\u2013%d:\n\n", proof.Source, proof.Lines[0], proof.Lines[1]))
 					}
-					sb.WriteString(fmt.Sprintf("Test %s log, lines %d–%d:\n\n", proof.Source, proof.Lines[0], proof.Lines[1]))
 					sb.WriteString("```\n")
 					sb.WriteString(proof.LogExcerpt)
 					sb.WriteString("\n```\n\n")

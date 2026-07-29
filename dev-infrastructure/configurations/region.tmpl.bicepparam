@@ -24,6 +24,3 @@ param globalMSIId = '__globalMSIId__'
 param svcMonitorName = '{{ .monitoring.svcWorkspaceName }}'
 param hcpMonitorName = '{{ .monitoring.hcpWorkspaceName }}'
 param grafanaResourceId = '__grafanaResourceId__'
-param amwMaxActiveTimeSeriesMillions = {{ .monitoring.maxActiveTimeSeriesMillions }}
-param amwMaxEventsPerMinuteMillions = {{ .monitoring.maxEventsPerMinuteMillions }}
-param hcpMonitorUseInternalApi = {{ if eq .environmentName "int" }}true{{ else }}false{{ end }}

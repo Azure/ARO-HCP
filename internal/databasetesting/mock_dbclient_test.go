@@ -760,41 +760,6 @@ func TestMockResourcesDBClient_Controller_ETagConditionalReplace(t *testing.T) {
 	})
 }
 
-func TestMockLockClient(t *testing.T) {
-	ctx := context.Background()
-	lockClient := NewMockLockClient(30 * time.Second)
-
-	// Test GetDefaultTimeToLive
-	ttl := lockClient.GetDefaultTimeToLive()
-	if ttl != 30*time.Second {
-		t.Errorf("Expected TTL 30s, got %v", ttl)
-	}
-
-	// Test TryAcquireLock
-	lock, err := lockClient.TryAcquireLock(ctx, "test-lock")
-	if err != nil {
-		t.Fatalf("Failed to acquire lock: %v", err)
-	}
-	if lock == nil {
-		t.Fatal("Expected lock to be acquired")
-	}
-
-	// Test that same lock can't be acquired again
-	lock2, err := lockClient.TryAcquireLock(ctx, "test-lock")
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	if lock2 != nil {
-		t.Error("Expected lock to not be acquired (already held)")
-	}
-
-	// Test ReleaseLock
-	err = lockClient.ReleaseLock(ctx, lock)
-	if err != nil {
-		t.Fatalf("Failed to release lock: %v", err)
-	}
-}
-
 func TestMockResourcesDBClient_addResource(t *testing.T) {
 	ctx := context.Background()
 	mock := NewMockResourcesDBClient()

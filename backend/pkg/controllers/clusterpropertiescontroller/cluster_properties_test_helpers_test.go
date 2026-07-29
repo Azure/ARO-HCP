@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -29,7 +30,7 @@ import (
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
@@ -56,10 +57,12 @@ const (
 	testIssuerURL                      = "https://issuer.example.com/cluster1"
 )
 
-func newSeededReadDesireLister(ctx context.Context, readDesire *kubeapplier.ReadDesire) (dblisters.ReadDesireLister, error) {
+func newSeededReadDesireLister(ctx context.Context, readDesires ...*kubeapplier.ReadDesire) (dblisters.ReadDesireLister, error) {
 	resources := []any{}
-	if readDesire != nil {
-		resources = append(resources, readDesire)
+	for _, rd := range readDesires {
+		if rd != nil {
+			resources = append(resources, rd)
+		}
 	}
 
 	mockKubeApplierDB, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, resources)
@@ -138,7 +141,7 @@ func newTestHostedClusterReadDesire(t *testing.T, opts ...func(*hsv1beta1.Hosted
 		testSubscriptionID,
 		testResourceGroupName,
 		testClusterName,
-		maestrohelpers.ReadDesireNameReadonlyHostedCluster,
+		kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster,
 	)
 	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDString))
 
@@ -162,8 +165,39 @@ func newTestHostedClusterReadDesire(t *testing.T, opts ...func(*hsv1beta1.Hosted
 	}
 }
 
-type alwaysSyncCooldownChecker struct{}
+func newTestServingCAReadDesire(t *testing.T, caBundlePEM string) *kubeapplier.ReadDesire {
+	t.Helper()
 
-func (c *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
-	return true
+	secret := &corev1.Secret{
+		Data: map[string][]byte{
+			"tls.crt": []byte(caBundlePEM),
+		},
+	}
+
+	raw, err := json.Marshal(secret)
+	require.NoError(t, err)
+
+	resourceIDString := kubeapplier.ToClusterScopedReadDesireResourceIDString(
+		testSubscriptionID,
+		testResourceGroupName,
+		testClusterName,
+		kubeapplierhelpers.ReadDesireNameServingCA,
+	)
+	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDString))
+
+	managementClusterResourceID := api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
+
+	return &kubeapplier.ReadDesire{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementClusterResourceID.String()),
+		},
+		Spec: kubeapplier.ReadDesireSpec{
+			ManagementCluster: managementClusterResourceID,
+		},
+		Status: kubeapplier.ReadDesireStatus{
+			KubeContent: &runtime.RawExtension{Raw: raw},
+		},
+	}
 }

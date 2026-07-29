@@ -77,8 +77,8 @@ const (
 	csOutboundType                      string = "load_balancer"
 	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
 	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
-	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
-	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
+	CSCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
+	CSCIDRBlockAllowAccessModeAllowList string = "allow_list"
 	csOsDiskPersistencePersistent       string = "persistent"
 	csOsDiskPersistenceEphemeral        string = "ephemeral"
 	CSProvisionShardStatusActive        string = "active"
@@ -136,6 +136,17 @@ func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (string, error) 
 	}
 }
 
+func convertCryptoRestrictionsToCS(cryptoRestrictions api.CryptoRestrictions) (bool, error) {
+	switch cryptoRestrictions {
+	case api.CryptoRestrictionsFIPS:
+		return true, nil
+	case api.CryptoRestrictionsNone:
+		return false, nil
+	default:
+		return false, conversionError[bool](cryptoRestrictions)
+	}
+}
+
 func convertDiskStorageAccountTypeRPToCS(storageAccountTypeRP api.DiskStorageAccountType) (string, error) {
 	switch storageAccountTypeRP {
 	case api.DiskStorageAccountTypePremium_LRS:
@@ -188,6 +199,19 @@ func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPref
 	}
 }
 
+func convertUsernameClaimPrefixPolicyCSToRP(prefixPolicyCS string) (api.UsernameClaimPrefixPolicy, error) {
+	switch prefixPolicyCS {
+	case csUsernameClaimPrefixPolicyPrefix:
+		return api.UsernameClaimPrefixPolicyPrefix, nil
+	case csUsernameClaimPrefixPolicyNoPrefix:
+		return api.UsernameClaimPrefixPolicyNoPrefix, nil
+	case "":
+		return api.UsernameClaimPrefixPolicyNone, nil
+	default:
+		return "", conversionError[api.UsernameClaimPrefixPolicy](prefixPolicyCS)
+	}
+}
+
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
 	var state string
 
@@ -233,7 +257,29 @@ func convertExternalAuthClientTypeRPToCS(externalAuthClientTypeRP api.ExternalAu
 	}
 }
 
-func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionBuilder, error) {
+func convertExternalAuthClientTypeCSToRP(externalAuthClientTypeCS arohcpv1alpha1.ExternalAuthClientType) (api.ExternalAuthClientType, error) {
+	switch externalAuthClientTypeCS {
+	case arohcpv1alpha1.ExternalAuthClientTypeConfidential:
+		return api.ExternalAuthClientTypeConfidential, nil
+	case arohcpv1alpha1.ExternalAuthClientTypePublic:
+		return api.ExternalAuthClientTypePublic, nil
+	default:
+		return "", conversionError[api.ExternalAuthClientType](externalAuthClientTypeCS)
+	}
+}
+
+func convertTokenClaimValidationRuleRPToCS(rule externalAuthUpdateDispatchConfigValidationRule) (*arohcpv1alpha1.TokenClaimValidationRuleBuilder, error) {
+	switch rule.Type {
+	case api.TokenValidationRuleTypeRequiredClaim:
+		return arohcpv1alpha1.NewTokenClaimValidationRule().
+			Claim(rule.RequiredClaim.Claim).
+			RequiredValue(rule.RequiredClaim.RequiredValue), nil
+	default:
+		return nil, conversionError[*arohcpv1alpha1.TokenClaimValidationRuleBuilder](rule.Type)
+	}
+}
+
+func convertEtcdRPToCS(in api.EtcdProfile, activeKeyBuilder *arohcpv1alpha1.AzureKmsKeyBuilder) (*arohcpv1alpha1.AzureEtcdEncryptionBuilder, error) {
 	keyManagementMode, err := convertKeyManagementModeTypeRPToCS(in.DataEncryption.KeyManagementMode)
 	if err != nil {
 		return nil, err
@@ -250,13 +296,11 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 			EncryptionType(encryptionType)
 
 		if in.DataEncryption.CustomerManaged.Kms != nil {
-			azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().
+			activeKeyBuilder.
 				KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
-				KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).
-				KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
-			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
+				KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName)
+			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(activeKeyBuilder)
 
-			// Add KeyVault visibility if specified
 			if len(in.DataEncryption.CustomerManaged.Kms.Visibility) != 0 {
 				visibility, err := convertKeyVaultVisibilityRPToCS(in.DataEncryption.CustomerManaged.Kms.Visibility)
 				if err != nil {
@@ -276,9 +320,9 @@ func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alph
 	cidrBlockAllowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess()
 
 	if in.AuthorizedCIDRs == nil {
-		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowAll)
+		cidrBlockAllowAccess.Mode(CSCIDRBlockAllowAccessModeAllowAll)
 	} else if len(in.AuthorizedCIDRs) > 0 {
-		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowList)
+		cidrBlockAllowAccess.Mode(CSCIDRBlockAllowAccessModeAllowList)
 		cidrBlockAllowAccess.Values(in.AuthorizedCIDRs...)
 	} else {
 		// Unreachable: empty AuthorizedCIDRs list is disallowed by validation
@@ -326,7 +370,6 @@ func GetClusterServiceUserAssignedIdentities(clusterServiceCluster *arohcpv1alph
 }
 
 func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
-
 	// MaxNodeProvisionTime (string) - minutes e.g - “15m”
 	// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/autoscaler.go?ref_type=heads#L30-42
 	maxNodeProvisionDuration, err := time.ParseDuration(fmt.Sprint(in.MaxNodeProvisionTimeSeconds, "s"))
@@ -364,61 +407,57 @@ func convertImageDigestMirrorsToCSBuilder(in []api.ImageDigestMirror) []*arohcpv
 // requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
 // oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
 // are preserved as a base layer.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *api.ServiceProviderCluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
+func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *api.ServiceProviderCluster) (*arohcpv1alpha1.ClusterBuilder, error) {
 	var err error
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
+	clusterKMSActiveKeyBuilder := arohcpv1alpha1.NewAzureKmsKey()
+
+	var azureBuilder *arohcpv1alpha1.AzureBuilder
 
 	// These attributes cannot be updated after cluster creation.
 	if oldClusterServiceCluster == nil {
-		// Add attributes that cannot be updated after cluster creation.
-		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
+		csVersionID, err := clusterCSVersionID(serviceProviderCluster, hcpCluster)
+		if err != nil {
+			return nil, err
+		}
+		clusterBuilder, azureBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
 			resourceID.ResourceGroupName,
 			tenantID,
 			hcpCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL,
+			csVersionID,
 		)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		clusterAPIBuilder.Listening(apiListening)
 
 		ingressListening, err := convertIngressTypeToListening(hcpCluster.CustomerProperties.Ingress.Type)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		clusterBuilder.Ingresses(arohcpv1alpha1.NewIngressList().Items(
 			arohcpv1alpha1.NewIngress().Default(true).Listening(ingressListening),
 		))
+
+		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.CustomerProperties.Etcd, clusterKMSActiveKeyBuilder)
+		if err != nil {
+			return nil, err
+		}
+		azureBuilder.EtcdEncryption(etcdEncryption)
+		clusterBuilder.Azure(azureBuilder)
+
 	}
 
-	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-		Unit(csNodeDrainGracePeriodUnit).
-		Value(float64(hcpCluster.CustomerProperties.NodeDrainTimeoutMinutes)))
-
-	cidrBlockAccess, err := convertCIDRBlockAllowAccessRPToCS(hcpCluster.CustomerProperties.API)
-	if err != nil {
-		return nil, nil, err
-	}
-	clusterBuilder.API(clusterAPIBuilder.CIDRBlockAccess(cidrBlockAccess))
-
-	clusterBuilder.RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
-		ImageDigestMirrors(convertImageDigestMirrorsToCSBuilder(hcpCluster.CustomerProperties.ImageDigestMirrors)...))
-
-	clusterAutoscalerBuilder, err := convertRpAutoscalarToCSBuilder(&hcpCluster.CustomerProperties.Autoscaling)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Property layering: preserve existing CS properties (on update), then
-	// overlay caller-specified properties, then experimental features.
-	// Experimental feature properties are added when enabled and deleted
-	// when disabled to ensure tag removal clears previously set values.
+	// Property layering for CS Properties(): preserve existing values (on update),
+	// overlay caller-specified properties, then clusterUpdateDispatchConfig.applyToCSBuilders overlays
+	// dispatch-managed experimental features.
 	properties := map[string]string{}
 	if oldClusterServiceCluster != nil {
 		for k, v := range oldClusterServiceCluster.Properties() {
@@ -428,62 +467,65 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	for k, v := range requiredProperties {
 		properties[k] = v
 	}
-	experimentalFeatures := hcpCluster.ServiceProviderProperties.ExperimentalFeatures
-	if experimentalFeatures.ControlPlaneAvailability == api.SingleReplicaControlPlane {
-		properties[CSPropertySingleReplica] = CSPropertyEnabled
-	} else {
-		delete(properties, CSPropertySingleReplica)
-	}
-	if value, ok := DesiredHostedClusterSizeOverride(serviceProviderCluster, hcpCluster); ok {
-		properties[CSPropertySizeOverride] = value
-	} else {
-		delete(properties, CSPropertySizeOverride)
-	}
-	if experimentalFeatures.ControlPlaneOperatorImage != "" {
-		properties[CSPropertyCPOImageOverride] = experimentalFeatures.ControlPlaneOperatorImage
-	} else {
-		delete(properties, CSPropertyCPOImageOverride)
-	}
-	clusterBuilder = clusterBuilder.Properties(properties)
 
-	return clusterBuilder, clusterAutoscalerBuilder, nil
+	clusterUpdateDispatchConfig := clusterUpdateDispatchConfigFromRP(hcpCluster, serviceProviderCluster)
+	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, azureBuilder, clusterKMSActiveKeyBuilder, properties)
+	if err != nil {
+		return nil, err
+	}
+
+	return clusterBuilder, nil
 }
 
-// DesiredHostedClusterSizeOverride returns the value the CSPropertySizeOverride
-// entry should have for a given (ServiceProviderCluster, HCP cluster) pair,
-// and whether the property should be present at all. This is the single
-// source of truth for computing the override and is shared between the
-// BuildCSCluster property layering (frontend update path) and the
-// desired-control-plane-size reconciler (backend ServiceProviderCluster-driven
-// path) so the two cannot disagree.
+// clusterCSVersionID returns the OpenShift version ID for a new Cluster Service cluster
+// from ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.
+func clusterCSVersionID(serviceProviderCluster *api.ServiceProviderCluster, hcpCluster *api.HCPOpenShiftCluster) (string, error) {
+	if serviceProviderCluster == nil || serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion == nil {
+		return "", fmt.Errorf("control plane desired version is not set on the ServiceProviderCluster")
+	}
+	channelGroup := hcpCluster.CustomerProperties.Version.ChannelGroup
+	return NewOpenShiftVersionXYZ(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String(), channelGroup), nil
+}
+
+// ConvertHostedClusterSizeOverrideToCS returns the value the CSPropertySizeOverride
+// entry should have when receiving desiredClusterControlPlanePodSizing, which is the Cosmos
+// level ControlPlanePodSizing configuration, as well as the ServiceProviderCluster level one.
+// It also returns whether the property should be set at all on CS side.
+// This is the single source of truth for computing the override and is shared between the
+// cluster update dispatch controller (CS writer) and the desired-control-plane-size
+// status reconciler (SPC Status confirmation) so the two cannot disagree.
 //
 // Precedence:
-//  1. ServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize, when
-//     set, wins. Returned lowercased because cluster-service's
+//  1. desiredServiceProviderClusterControlPlanePodSizing, when set to non nil wins. Returned lowercased because cluster-service's
 //     clustersizingconfiguration uses lowercase tier names.
-//  2. Otherwise, hcpCluster.ServiceProviderProperties.ExperimentalFeatures.
-//     ControlPlanePodSizing == MinimalControlPlanePodSizing returns
+//  2. Otherwise, desiredClusterControlPlanePodSizing == MinimalControlPlanePodSizing returns
 //     CSPropertyE2EMinimalControlPlaneSize ("e2e_minimal"), the named
 //     internal-only tier cluster-service uses for the e2e minimal layout.
-//  3. Otherwise the property is absent.
-func DesiredHostedClusterSizeOverride(serviceProviderCluster *api.ServiceProviderCluster, hcpCluster *api.HCPOpenShiftCluster) (string, bool) {
-	if serviceProviderCluster != nil && serviceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize != nil {
-		return strings.ToLower(*serviceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize), true
+//  3. Otherwise the property is determined to need to be absent
+func ConvertHostedClusterSizeOverrideToCS(desiredClusterControlPlanePodSizing api.ControlPlanePodSizing, desiredServiceProviderClusterControlPlanePodSizing *string) (string, bool) {
+	if desiredServiceProviderClusterControlPlanePodSizing != nil {
+		return strings.ToLower(*desiredServiceProviderClusterControlPlanePodSizing), true
 	}
-	if hcpCluster != nil && hcpCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing == api.MinimalControlPlanePodSizing {
+
+	if desiredClusterControlPlanePodSizing == api.MinimalControlPlanePodSizing {
 		return CSPropertyE2EMinimalControlPlaneSize, true
 	}
+
 	return "", false
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL, csVersionID string) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.AzureBuilder, error) {
 	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	outboundType, err := convertOutboundTypeRPToCS(hcpCluster.CustomerProperties.Platform.OutboundType)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	fips, err := convertCryptoRestrictionsToCS(hcpCluster.CustomerProperties.CryptoRestrictions)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	clusterBuilder.
@@ -498,7 +540,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			Enabled(csHypershifEnabled)).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID(NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID, hcpCluster.CustomerProperties.Version.ChannelGroup)).
+			ID(csVersionID).
 			ChannelGroup(hcpCluster.CustomerProperties.Version.ChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
 			Type(string(hcpCluster.CustomerProperties.Network.NetworkType)).
@@ -508,7 +550,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			HostPrefix(int(hcpCluster.CustomerProperties.Network.HostPrefix))).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(clusterImageRegistryState)).
-		FIPS(hcpCluster.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled)
+		FIPS(fips)
 	azureBuilder := arohcpv1alpha1.NewAzure().
 		TenantID(tenantID).
 		SubscriptionID(strings.ToLower(subscriptionID)).
@@ -518,15 +560,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		SubnetResourceID(hcpCluster.CustomerProperties.Platform.SubnetID.String()).
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
 			OutboundType(outboundType))
-
-	// Only add etcd encryption if it's actually configured
-	if hcpCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode != "" || hcpCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil {
-		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.CustomerProperties.Etcd)
-		if err != nil {
-			return nil, err
-		}
-		azureBuilder.EtcdEncryption(etcdEncryption)
-	}
 
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
 	if hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID != nil {
@@ -560,14 +593,12 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 
 	azureBuilder.OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
 
-	clusterBuilder.Azure(azureBuilder)
-
 	// Cluster Service rejects an empty DomainPrefix string.
 	if hcpCluster.CustomerProperties.DNS.BaseDomainPrefix != "" {
 		clusterBuilder.DomainPrefix(hcpCluster.CustomerProperties.DNS.BaseDomainPrefix)
 	}
 
-	return clusterBuilder, nil
+	return clusterBuilder, azureBuilder, nil
 }
 
 // BuildCSNodePool creates a CS NodePoolBuilder object from an HCPOpenShiftClusterNodePool object.
@@ -606,33 +637,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
 
-	nodePoolBuilder.Labels(nodePool.Properties.Labels)
-
-	if nodePool.Properties.AutoScaling != nil {
-		nodePoolBuilder.Autoscaling(arohcpv1alpha1.NewNodePoolAutoscaling().
-			MinReplica(int(nodePool.Properties.AutoScaling.Min)).
-			MaxReplica(int(nodePool.Properties.AutoScaling.Max)))
-	} else {
-		nodePoolBuilder.Replicas(int(nodePool.Properties.Replicas))
-	}
-
-	if nodePool.Properties.Taints != nil {
-		taintBuilders := []*arohcpv1alpha1.TaintBuilder{}
-		for _, t := range nodePool.Properties.Taints {
-			newTaintBuilder := arohcpv1alpha1.NewTaint().
-				Effect(string(t.Effect)).
-				Key(t.Key).
-				Value(t.Value)
-			taintBuilders = append(taintBuilders, newTaintBuilder)
-		}
-		nodePoolBuilder.Taints(taintBuilders...)
-	}
-
-	if nodePool.Properties.NodeDrainTimeoutMinutes != nil {
-		nodePoolBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-			Unit(csNodeDrainGracePeriodUnit).
-			Value(float64(*nodePool.Properties.NodeDrainTimeoutMinutes)))
-	}
+	nodePoolUpdateDispatchConfigFromRP(nodePool).applyToCSBuilder(nodePoolBuilder)
 
 	return nodePoolBuilder, nil
 }
@@ -646,74 +651,16 @@ func BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClus
 		externalAuthBuilder.ID(strings.ToLower(externalAuth.Name))
 	}
 
-	externalAuthBuilder.Issuer(arohcpv1alpha1.NewTokenIssuer().
-		URL(externalAuth.Properties.Issuer.URL).
-		CA(externalAuth.Properties.Issuer.CA).
-		Audiences(externalAuth.Properties.Issuer.Audiences...),
-	)
-
-	clientConfigs := []*arohcpv1alpha1.ExternalAuthClientConfigBuilder{}
-	for _, t := range externalAuth.Properties.Clients {
-		clientType, err := convertExternalAuthClientTypeRPToCS(t.Type)
-		if err != nil {
-			return nil, err
-		}
-
-		newClientConfig := arohcpv1alpha1.NewExternalAuthClientConfig().
-			ID(t.ClientID).
-			Component(arohcpv1alpha1.NewClientComponent().
-				Name(t.Component.Name).
-				Namespace(t.Component.AuthClientNamespace),
-			).
-			ExtraScopes(t.ExtraScopes...).
-			Type(clientType)
-		clientConfigs = append(clientConfigs, newClientConfig)
+	dispatchConfig, err := externalAuthUpdateDispatchConfigFromRP(externalAuth)
+	if err != nil {
+		return nil, err
 	}
-	externalAuthBuilder.Clients(clientConfigs...)
-
-	err := buildClaims(externalAuthBuilder, *externalAuth)
+	err = dispatchConfig.applyToCSBuilder(externalAuthBuilder)
 	if err != nil {
 		return nil, err
 	}
 
 	return externalAuthBuilder, nil
-}
-
-func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExternalAuth api.HCPOpenShiftClusterExternalAuth) error {
-	usernameClaimPrefixPolicy, err := convertUsernameClaimPrefixPolicyRPToCS(hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)
-	if err != nil {
-		return err
-	}
-
-	tokenClaimMappingsBuilder := arohcpv1alpha1.NewTokenClaimMappings().
-		UserName(arohcpv1alpha1.NewUsernameClaim().
-			Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
-			Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
-			PrefixPolicy(usernameClaimPrefixPolicy),
-		)
-	if hcpExternalAuth.Properties.Claim.Mappings.Groups != nil {
-		tokenClaimMappingsBuilder = tokenClaimMappingsBuilder.Groups(
-			arohcpv1alpha1.NewGroupsClaim().
-				Claim(hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim).
-				Prefix(hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix),
-		)
-	}
-
-	validationRules := []*arohcpv1alpha1.TokenClaimValidationRuleBuilder{}
-	for _, t := range hcpExternalAuth.Properties.Claim.ValidationRules {
-		newClientConfig := arohcpv1alpha1.NewTokenClaimValidationRule().
-			Claim(t.RequiredClaim.Claim).
-			RequiredValue(t.RequiredClaim.RequiredValue)
-		validationRules = append(validationRules, newClientConfig)
-	}
-
-	externalAuthBuilder.
-		Claim(arohcpv1alpha1.NewExternalAuthClaim().
-			Mappings(tokenClaimMappingsBuilder).
-			ValidationRules(validationRules...),
-		)
-
-	return nil
 }
 
 // ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential object.

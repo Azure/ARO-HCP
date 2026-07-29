@@ -46,6 +46,10 @@ spec:
           mountPath: /app/appsettings.json
           subPath: appsettings.json
           readOnly: true
+        {{- if .Values.audit.connectSocket }}
+        - name: mdsd-asa-run-vol
+          mountPath: /var/run/mdsd
+        {{- end }}
         env:
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: "{{ .Values.tracing.address }}"
@@ -55,3 +59,9 @@ spec:
       - name: mise-config
         configMap:
           name: mise-config
+      {{- if .Values.audit.connectSocket }}
+      - name: mdsd-asa-run-vol
+        hostPath:
+          path: /var/run/mdsd
+          type: Directory
+      {{- end }}

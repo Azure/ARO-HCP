@@ -49,6 +49,7 @@ var _ = Describe("Customer", func() {
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName       = "ea-cluster"
@@ -189,6 +190,7 @@ var _ = Describe("Customer", func() {
 
 			// MSGraph is eventually consistent, wait up to 2 minutes for the token to be valid
 			var accessToken azcore.AccessToken
+			var lastTokenErr string
 			Eventually(func() error {
 				var err error
 				accessToken, err = cred.GetToken(ctx, policy.TokenRequestOptions{
@@ -196,7 +198,10 @@ var _ = Describe("Customer", func() {
 				})
 
 				if err != nil {
-					GinkgoWriter.Printf("GetToken failed: %v\n", err)
+					if msg := err.Error(); msg != lastTokenErr {
+						GinkgoWriter.Printf("GetToken failed: %v\n", err)
+						lastTokenErr = msg
+					}
 				}
 				return err
 			}, 2*time.Minute, 10*time.Second).Should(Succeed())

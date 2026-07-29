@@ -34,27 +34,32 @@ import (
 // Hydrator takes a draft chain produced by the agent and populates share URIs
 // and result tables for all Kusto proofs by re-running the queries deterministically.
 type Hydrator struct {
-	kustoClient   KustoClient
-	kustoEndpoint string
-	kustoDatabase string
-	worktreePaths map[string]string // repo name → local checkout path
-	testError     string            // contents of test error.log
-	testOutput    string            // contents of test output.log
-	dataDir       string            // root of the gathered data directory
+	kustoClient        KustoClient
+	kustoEndpoint      string
+	kustoDatabase      string
+	worktreePaths      map[string]string // repo name → local checkout path
+	testError          string            // contents of test error.log
+	testOutput         string            // contents of test output.log
+	nodeConsoleLogs    map[string]string // filename → contents of node console log
+	nodeConsoleLogURLs map[string]string // filename → artifact download URL
+	dataDir            string            // root of the gathered data directory
 }
 
 // NewHydrator creates a Hydrator with the given Kusto client, cluster details,
 // worktree paths for resolving code proof excerpts, test log contents for
-// resolving log proof excerpts, and data directory for resolving discovery paths.
-func NewHydrator(kustoClient KustoClient, kustoEndpoint, kustoDatabase string, worktreePaths map[string]string, testError, testOutput, dataDir string) *Hydrator {
+// resolving log proof excerpts, node console log contents and URLs for resolving
+// node_console_log proof excerpts, and data directory for resolving discovery paths.
+func NewHydrator(kustoClient KustoClient, kustoEndpoint, kustoDatabase string, worktreePaths map[string]string, testError, testOutput string, nodeConsoleLogs, nodeConsoleLogURLs map[string]string, dataDir string) *Hydrator {
 	return &Hydrator{
-		kustoClient:   kustoClient,
-		kustoEndpoint: kustoEndpoint,
-		kustoDatabase: kustoDatabase,
-		worktreePaths: worktreePaths,
-		testError:     testError,
-		testOutput:    testOutput,
-		dataDir:       dataDir,
+		kustoClient:        kustoClient,
+		kustoEndpoint:      kustoEndpoint,
+		kustoDatabase:      kustoDatabase,
+		worktreePaths:      worktreePaths,
+		testError:          testError,
+		testOutput:         testOutput,
+		nodeConsoleLogs:    nodeConsoleLogs,
+		nodeConsoleLogURLs: nodeConsoleLogURLs,
+		dataDir:            dataDir,
 	}
 }
 
@@ -165,11 +170,14 @@ func (h *Hydrator) Hydrate(ctx context.Context, draft *DraftChain) (*HydratedCha
 			}
 
 			if proof.Type == "log" && proof.Source != "" {
-				excerpt, err := h.extractLogExcerpt(proof.Source, proof.Lines[0], proof.Lines[1])
+				excerpt, err := h.extractLogExcerpt(proof.Source, proof.File, proof.Lines[0], proof.Lines[1])
 				if err != nil {
 					slog.WarnContext(ctx, "Failed to extract log excerpt; continuing without excerpt.", "question", link.Question, "source", proof.Source, "error", err)
 				} else {
 					hp.LogExcerpt = excerpt
+				}
+				if proof.Source == "node_console_log" {
+					hp.ArtifactURL = h.nodeConsoleLogURLs[proof.File]
 				}
 			}
 
@@ -275,14 +283,20 @@ func (h *Hydrator) extractCodeExcerpt(repo, filePath string, start, end int) (st
 }
 
 // extractLogExcerpt extracts lines [start, end] (1-indexed, inclusive) from
-// the test error or output log held in memory.
-func (h *Hydrator) extractLogExcerpt(source string, start, end int) (string, error) {
+// the test error or output log held in memory, or from a node console log file.
+func (h *Hydrator) extractLogExcerpt(source, file string, start, end int) (string, error) {
 	var content string
 	switch source {
 	case "error":
 		content = h.testError
 	case "output":
 		content = h.testOutput
+	case "node_console_log":
+		var ok bool
+		content, ok = h.nodeConsoleLogs[file]
+		if !ok {
+			return "", fmt.Errorf("node console log file %q not found", file)
+		}
 	default:
 		return "", fmt.Errorf("unknown log source %q", source)
 	}

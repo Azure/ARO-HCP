@@ -17,6 +17,7 @@ package identitypool
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
@@ -35,7 +36,12 @@ type identityPool struct {
 	Slots              []slots.ExpandedSlot
 }
 
-func loadIdentityPools(ctx context.Context, catalogPath, environment string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
+// loadIdentityPools loads pools for the given environment. When
+// subscriptionFilter is non-empty, only pools whose subscription_name matches
+// one of the filter values are included (regardless of identity_provisioning).
+// When subscriptionFilter is empty, pools with identity_provisioning: unmanaged
+// are skipped.
+func loadIdentityPools(ctx context.Context, catalogPath, environment string, subscriptionFilter []string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
 	catalog, err := slots.LoadCatalog(catalogPath)
 	if err != nil {
 		return nil, err
@@ -46,9 +52,29 @@ func loadIdentityPools(ctx context.Context, catalogPath, environment string, res
 		return nil, fmt.Errorf("unknown environment %q", environment)
 	}
 
+	filterSet := make(map[string]struct{}, len(subscriptionFilter))
+	for _, name := range subscriptionFilter {
+		// Ignore empty/whitespace-only entries so that a wrapper passing an
+		// empty --subscription value (e.g. an unset env var) does not produce
+		// a non-empty filter that silently skips every pool.
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		filterSet[name] = struct{}{}
+	}
+
 	resolvedIDs := map[string]string{}
 	pools := make([]identityPool, 0, len(environmentConfig.Pools))
 	for _, pool := range environmentConfig.Pools {
+		if len(filterSet) > 0 {
+			if _, match := filterSet[pool.SubscriptionName]; !match {
+				continue
+			}
+		} else if pool.IsUnmanaged() {
+			continue
+		}
+
 		subscriptionID, found := resolvedIDs[pool.SubscriptionName]
 		if !found {
 			subscriptionID, err = resolveSubscriptionID(ctx, pool.SubscriptionName)

@@ -17,7 +17,6 @@ package informers
 import (
 	"context"
 	"sync"
-	"time"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
@@ -28,9 +27,9 @@ import (
 )
 
 // FleetInformers bundles one SharedIndexInformer per fleet type plus the
-// matching listers. Both the fleet management binary (future) and the
-// backend (cross-partition) construct one of these with the appropriate
-// database.FleetGlobalListers — the factory does not care which.
+// matching listers. Both the fleet management binary and the backend
+// construct one of these with the appropriate database.FleetGlobalListers
+// and database.FleetDBClient — the factory does not care which.
 type FleetInformers interface {
 	Stamps() (cache.SharedIndexInformer, listers.StampLister)
 	ManagementClusters() (cache.SharedIndexInformer, listers.ManagementClusterLister)
@@ -53,23 +52,11 @@ func (f *fleetInformers) ManagementClusters() (cache.SharedIndexInformer, lister
 }
 
 // NewFleetInformers creates FleetInformers with default relist durations.
-func NewFleetInformers(ctx context.Context, gl database.FleetGlobalListers) FleetInformers {
-	return NewFleetInformersWithRelistDuration(ctx, gl, nil)
-}
-
-// NewFleetInformersWithRelistDuration creates FleetInformers with a configurable relist duration.
-func NewFleetInformersWithRelistDuration(ctx context.Context, gl database.FleetGlobalListers, relistDuration *time.Duration) FleetInformers {
-	stampRelistDuration := StampRelistDuration
-	managementClusterRelistDuration := ManagementClusterRelistDuration
-	if relistDuration != nil {
-		stampRelistDuration = *relistDuration
-		managementClusterRelistDuration = *relistDuration
-	}
-
+func NewFleetInformers(ctx context.Context, globalListers database.FleetGlobalListers, fleetDBClient database.FleetDBClient) FleetInformers {
 	ret := &fleetInformers{}
-	ret.stampInformer = NewStampInformerWithRelistDuration(gl.Stamps(), stampRelistDuration)
+	ret.stampInformer = NewStampInformer(globalListers.Stamps(), fleetDBClient)
 	ret.stampLister = listers.NewStampLister(ret.stampInformer.GetIndexer())
-	ret.managementClusterInformer = NewManagementClusterInformerWithRelistDuration(gl.ManagementClusters(), managementClusterRelistDuration)
+	ret.managementClusterInformer = NewManagementClusterInformer(globalListers.ManagementClusters(), fleetDBClient)
 	ret.managementClusterLister = listers.NewManagementClusterLister(ret.managementClusterInformer.GetIndexer())
 
 	return ret

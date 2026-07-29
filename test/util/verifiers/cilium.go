@@ -63,6 +63,8 @@ func (v verifyCiliumOperational) Verify(ctx context.Context, adminRESTConfig *re
 
 	// Wait for all cilium pods to be running
 	var lastErr error
+	var lastErrMsg string
+	var lastNotRunningPods []string
 	err = wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		listOptions := metav1.ListOptions{}
 		if v.ciliumLabelSelector != "" {
@@ -71,13 +73,21 @@ func (v verifyCiliumOperational) Verify(ctx context.Context, adminRESTConfig *re
 		pods, err := kubeClient.CoreV1().Pods(v.ciliumNamespace).List(ctx, listOptions)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to list pods in %s namespace: %w", v.ciliumNamespace, err)
-			logger.Info("failed to list pods", "error", err)
+			lastNotRunningPods = nil
+			if msg := lastErr.Error(); msg != lastErrMsg {
+				logger.Info("failed to list pods", "error", err)
+				lastErrMsg = msg
+			}
 			return false, nil
 		}
 
 		if len(pods.Items) == 0 {
 			lastErr = fmt.Errorf("no cilium pods found in %s namespace", v.ciliumNamespace)
-			logger.Info("no cilium pods found yet in namespace", "namespace", v.ciliumNamespace)
+			lastNotRunningPods = nil
+			if msg := lastErr.Error(); msg != lastErrMsg {
+				logger.Info("no cilium pods found yet in namespace", "namespace", v.ciliumNamespace)
+				lastErrMsg = msg
+			}
 			return false, nil
 		}
 
@@ -89,33 +99,18 @@ func (v verifyCiliumOperational) Verify(ctx context.Context, adminRESTConfig *re
 		}
 
 		if len(notRunningPods) > 0 {
+			slices.Sort(notRunningPods)
 			lastErr = fmt.Errorf("cilium pods not yet running: %v", notRunningPods)
-			logger.Info("waiting for cilium pods to be running", "notRunning", notRunningPods)
+			if !slices.Equal(notRunningPods, lastNotRunningPods) {
+				logger.Info("waiting for cilium pods to be running", "notRunning", notRunningPods)
+				lastNotRunningPods = notRunningPods
+			}
 			return false, nil
 		}
 
 		return true, nil
 	})
 	if err != nil {
-		// Log all events in cilium namespace to help debug issues
-		events, eventsErr := kubeClient.CoreV1().Events(v.ciliumNamespace).List(ctx, metav1.ListOptions{})
-		if eventsErr != nil {
-			logger.Error(eventsErr, "failed to list events for debugging", "namespace", v.ciliumNamespace)
-		} else {
-			logger.Info("listing events for debugging", "namespace", v.ciliumNamespace, "eventCount", len(events.Items))
-			for _, event := range events.Items {
-				logger.Info("event",
-					"type", event.Type,
-					"reason", event.Reason,
-					"message", event.Message,
-					"object", fmt.Sprintf("%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Name),
-					"count", event.Count,
-					"firstTimestamp", event.FirstTimestamp,
-					"lastTimestamp", event.LastTimestamp,
-				)
-			}
-		}
-
 		if lastErr != nil {
 			return fmt.Errorf("not all pods in %s namespace are running: %w", v.ciliumNamespace, lastErr)
 		}
@@ -276,23 +271,6 @@ func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTCon
 			return scheduled >= 2, nil
 		})
 		if waitErr != nil {
-			events, eventsErr := kubeClient.CoreV1().Events(namespaceName).List(ctx, metav1.ListOptions{})
-			if eventsErr != nil {
-				logger.Error(eventsErr, "failed to list events for debugging", "namespace", namespaceName)
-			} else {
-				logger.Info("listing events for debugging echo scheduling failure", "namespace", namespaceName, "eventCount", len(events.Items))
-				for _, event := range events.Items {
-					logger.Info("event",
-						"type", event.Type,
-						"reason", event.Reason,
-						"message", event.Message,
-						"object", fmt.Sprintf("%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Name),
-						"count", event.Count,
-						"firstTimestamp", event.FirstTimestamp,
-						"lastTimestamp", event.LastTimestamp,
-					)
-				}
-			}
 			return fmt.Errorf("echo-a/echo-b pods were not scheduled in time: %w", waitErr)
 		}
 		logger.Info("echo-a and echo-b pods are scheduled, deploying remaining resources")
@@ -387,25 +365,6 @@ func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTCon
 	// If the waiting failed on a timeout, some connectivity check pod must
 	// have failed, so we need to report what failed exactly.
 	if err != nil {
-		// Log all events in the test namespace to help with debugging, as
-		// failures in liveness or readiness probes will be visible there
-		events, eventsErr := kubeClient.CoreV1().Events(namespaceName).List(ctx, metav1.ListOptions{})
-		if eventsErr != nil {
-			logger.Error(eventsErr, "failed to list k8s events", "namespace", namespaceName)
-		} else {
-			logger.Info("listing k8s events", "namespace", namespaceName, "eventCount", len(events.Items))
-			for _, event := range events.Items {
-				logger.Info("event",
-					"type", event.Type,
-					"reason", event.Reason,
-					"message", event.Message,
-					"object", fmt.Sprintf("%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Name),
-					"count", event.Count,
-					"firstTimestamp", event.FirstTimestamp,
-					"lastTimestamp", event.LastTimestamp,
-				)
-			}
-		}
 		// The pods use "terminationMessagePolicy: FallbackToLogsOnError"
 		// to report errors, so we log termination messages
 		pods, podsErr := kubeClient.CoreV1().Pods(namespaceName).List(ctx, metav1.ListOptions{})

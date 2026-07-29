@@ -73,6 +73,8 @@ func (l *dbBackedManagementClusterLister) List(ctx context.Context) ([]*fleet.Ma
 // Callers that span multiple management clusters (the backend) hold a
 // KubeApplierDBClients (plural) and obtain a per-MC client via For().
 type KubeApplierDBClient interface {
+	ChangeFeedClient
+
 	// ApplyDesiresForCluster returns a CRUD scoped to a cluster parent.
 	ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
 	// ApplyDesiresForNodePool returns a CRUD scoped to a nodepool parent.
@@ -128,13 +130,12 @@ type kubeApplierCosmosDBClient struct {
 
 var _ KubeApplierDBClient = &kubeApplierCosmosDBClient{}
 
-// NewKubeApplierDBClient wraps a pre-opened Cosmos container client for a single
-// management cluster.
-func NewKubeApplierDBClient(container *azcosmos.ContainerClient, managementClusterResourceID *azcorearm.ResourceID) KubeApplierDBClient {
+// NewKubeApplierDBClient wraps a pre-opened Cosmos container client for a single management cluster.
+func NewKubeApplierDBClient(container *azcosmos.ContainerClient, managementClusterResourceID *azcorearm.ResourceID) (KubeApplierDBClient, error) {
 	return &kubeApplierCosmosDBClient{
 		kubeApplier:                 container,
 		managementClusterResourceID: managementClusterResourceID,
-	}
+	}, nil
 }
 
 // NewKubeApplierDBClientFromDatabase opens the named container under the given
@@ -145,7 +146,7 @@ func NewKubeApplierDBClientFromDatabase(database *azcosmos.DatabaseClient, conta
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	return NewKubeApplierDBClient(container, managementClusterResourceID), nil
+	return NewKubeApplierDBClient(container, managementClusterResourceID)
 }
 
 func (c *kubeApplierCosmosDBClient) ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
@@ -200,6 +201,19 @@ func (c *kubeApplierCosmosDBClient) Listers() KubeApplierListers {
 
 func (c *kubeApplierCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
 	return NewUntypedCRUDWithPartitionKey(c.kubeApplier, parentResourceID, KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}), nil
+}
+
+func (c *kubeApplierCosmosDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	return c.kubeApplier.GetChangeFeed(ctx, options)
+}
+
+func (c *kubeApplierCosmosDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+	resourcesFeedRanges, err := c.kubeApplier.GetFeedRanges(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	return resourcesFeedRanges, nil
 }
 
 // cosmosKubeApplierListers implements KubeApplierListers against a single per-MC
@@ -321,7 +335,11 @@ func (c *kubeApplierDBClients) For(ctx context.Context, managementClusterResourc
 	// documents written into this container must carry a matching
 	// Spec.ManagementCluster. The kube-applier binary is started with the same
 	// string via --management-cluster.
-	client := NewKubeApplierDBClient(container, managementClusterResourceID)
+	client, err := NewKubeApplierDBClient(container, managementClusterResourceID)
+	if err != nil {
+		logger.Error(err, "failed to construct kube-applier DB client; treating as unavailable", "containerName", containerName)
+		return nil
+	}
 	c.clients[key] = client
 	return client
 }

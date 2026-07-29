@@ -431,7 +431,7 @@ func PostAsyncNotification(ctx context.Context, notificationClient *http.Client,
 // convertClusterStatus attempts to translate a ClusterStatus object from
 // Cluster Service into an ARM provisioning state and, if necessary, a
 // structured OData error.
-func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, operation *api.Operation, clusterStatus *arohcpv1alpha1.ClusterStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, operation *api.Operation, clusterStatus *arohcpv1alpha1.ClusterStatus, clusterServiceID api.InternalID) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
 	var newOperationStatus = operation.Status
 	var opError *arm.CloudErrorBody
 	var err error
@@ -452,7 +452,7 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 		// Construct the cloud error code depending on the provision error code.
 		switch code {
 		case InflightChecksFailedProvisionErrorCode:
-			opError, err = convertInflightChecks(ctx, clusterServiceClient, operation.InternalID)
+			opError, err = convertInflightChecks(ctx, clusterServiceClient, clusterServiceID)
 			if err != nil {
 				return newOperationStatus, opError, err
 			}
@@ -476,9 +476,24 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 	case arohcpv1alpha1.ClusterStatePending, arohcpv1alpha1.ClusterStateValidating:
 		// These are valid cluster states for ARO-HCP but there are
 		// no unique ProvisioningState values for them. They should
-		// only occur when ProvisioningState is Accepted.
-		if newOperationStatus != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateAccepted)
+		// only occur when the set of ProvisioningStates matches the expected
+		// ones that can be set for the operation request. If they don't match, we
+		// error. If they match we leave the current provisioning state as is.
+		switch operation.Request {
+		case api.OperationRequestCreate:
+			if newOperationStatus != arm.ProvisioningStateAccepted && newOperationStatus != arm.ProvisioningStateProvisioning {
+				err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s' or '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateAccepted, arm.ProvisioningStateProvisioning)
+			}
+		case api.OperationRequestUpdate:
+			if newOperationStatus != arm.ProvisioningStateAccepted && newOperationStatus != arm.ProvisioningStateUpdating {
+				err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s' or '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateAccepted, arm.ProvisioningStateUpdating)
+			}
+		case api.OperationRequestDelete:
+			if newOperationStatus != arm.ProvisioningStateDeleting {
+				err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateDeleting)
+			}
+		default:
+			err = fmt.Errorf("unrecognized operation request: %s", operation.Request)
 		}
 	default:
 		err = fmt.Errorf("unhandled ClusterState '%s' (description: %q)", state, clusterStatus.Description())
@@ -560,40 +575,6 @@ func convertExternalAuthStatus(operation *api.Operation, externalAuthStatus *aro
 		err = fmt.Errorf("unhandled ExternalAuthState '%s' (message: %q)", state, msg)
 	}
 	return newOperationStatus, opError, err
-}
-
-// pollExternalAuthStatus converts an external auth status from Cluster
-// Service to info for an Azure async operation status endpoint.
-func pollExternalAuthStatus(
-	ctx context.Context,
-	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
-	operation *api.Operation,
-	notificationClient *http.Client) error {
-	// XXX This is currently called by the operationExternalAuthCreate and
-	//     operationExternalAuthUpdate controllers because the logic flows
-	//     are identical. If the logic flows ever diverge, then this
-	//     function should be split up and the pieces moved back to
-	//     their respective controllers.
-
-	logger := utils.LoggerFromContext(ctx)
-
-	_, err := clusterServiceClient.GetExternalAuth(ctx, operation.InternalID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	newOperationStatus := arm.ProvisioningStateSucceeded
-	logger.Info("new status", "newStatus", newOperationStatus)
-
-	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, clock, resourcesDBClient, operation, newOperationStatus, nil, postAsyncNotificationFn(notificationClient))
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	return nil
 }
 
 // convertInflightChecks gets a cluster internal ID, fetches inflight check errors from CS endpoint, and converts them

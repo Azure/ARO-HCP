@@ -44,10 +44,17 @@ import (
 
 const (
 	gcsBucket          = "test-platform-results"
-	prConfigPath       = "aro-hcp-provision-environment/artifacts/config.yaml"
 	testStepPersistent = "aro-hcp-test-persistent"
 	testStepLocal      = "aro-hcp-test-local"
 )
+
+// prConfigPaths lists the known GCS step artifact paths where config.yaml
+// may be found. The first match wins. Rehearsal jobs for openshift/hypershift
+// use aro-hcp-hypershift-deploy instead of aro-hcp-provision-environment.
+var prConfigPaths = []string{
+	"aro-hcp-provision-environment/artifacts/config.yaml",
+	"aro-hcp-hypershift-deploy/artifacts/config.yaml",
+}
 
 // ProwJobInfo holds the parsed information from a Prow job URL.
 type ProwJobInfo struct {
@@ -60,15 +67,22 @@ type ProwJobInfo struct {
 // IsPullRequest reports whether the job is a pull-ci (PR) job,
 // determined by the job name prefix.
 func (p *ProwJobInfo) IsPullRequest() bool {
-	return strings.HasPrefix(p.JobName, "pull-ci")
+	return strings.HasPrefix(p.JobName, "pull-ci") || p.IsRehearsalPullRequest()
+}
+
+// IsRehearsalPullRequest reports whether the job is a Prow rehearsal of a
+// pull-ci job (rehearse-NNN-pull-ci-...).
+func (p *ProwJobInfo) IsRehearsalPullRequest() bool {
+	return strings.HasPrefix(p.JobName, "rehearse") && strings.Contains(p.JobName, "pull-ci")
 }
 
 // ProwJobConfig holds the Kusto connection info extracted from a Prow job's config.yaml.
 type ProwJobConfig struct {
-	Region          string
-	KustoName       string
-	HCPDatabase     string
-	ServiceDatabase string
+	Region                   string
+	KustoName                string
+	HCPDatabase              string
+	ServiceDatabase          string
+	MonitoringEventsDatabase string
 
 	// ServiceClusterName and ManagementClusterName are the AKS cluster names
 	// used to filter Kusto queries to only relevant clusters. These are only
@@ -154,9 +168,10 @@ type TestResult struct {
 }
 
 // ParseProwURL extracts job name, Prow ID, GCS prefix, and PR status from a Prow job URL.
-// Supports two formats:
+// Supports three formats:
 //   - Periodic/postsubmit: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<prow-id>
 //   - Presubmit (PR): https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/<org_repo>/<pr>/<job>/<prow-id>
+//   - Batch: https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/batch/<job>/<prow-id>
 func ParseProwURL(rawURL string) (*ProwJobInfo, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -172,11 +187,29 @@ func ParseProwURL(rawURL string) (*ProwJobInfo, error) {
 
 	for i, seg := range segments {
 		if seg == "pr-logs" {
+			if i+2 >= len(segments) || segments[i+1] != "pull" {
+				return nil, fmt.Errorf("expected \"pull\" after \"pr-logs\" in URL path, got %q", u.Path)
+			}
+			// Batch jobs use "batch" instead of <org_repo>/<pr>:
+			//   pr-logs/pull/batch/<job>/<prow-id>
+			if segments[i+2] == "batch" {
+				if i+4 >= len(segments) {
+					return nil, fmt.Errorf("URL path must contain pr-logs/pull/batch/<job>/<prow-id>, got %q", u.Path)
+				}
+				prowID := segments[i+4]
+				if _, err := strconv.ParseUint(prowID, 10, 64); err != nil {
+					return nil, fmt.Errorf("prow ID %q is not a valid number", prowID)
+				}
+				return &ProwJobInfo{
+					URL:       rawURL,
+					JobName:   segments[i+3],
+					ProwID:    prowID,
+					GCSPrefix: strings.Join(segments[i:i+5], "/"),
+				}, nil
+			}
+			// Regular PR jobs: pr-logs/pull/<org_repo>/<pr>/<job>/<prow-id>
 			if i+5 >= len(segments) {
 				return nil, fmt.Errorf("URL path must contain pr-logs/pull/<org_repo>/<pr>/<job>/<prow-id>, got %q", u.Path)
-			}
-			if segments[i+1] != "pull" {
-				return nil, fmt.Errorf("expected \"pull\" after \"pr-logs\" in URL path, got %q", segments[i+1])
 			}
 			prowID := segments[i+5]
 			if _, err := strconv.ParseUint(prowID, 10, 64); err != nil {
@@ -223,8 +256,9 @@ func FetchProwJobConfig(ctx context.Context, info *ProwJobInfo, sdpPipelinesDir 
 	return fetchNonPRJobConfig(ctx, info, sdpPipelinesDir, logger)
 }
 
-// fetchPRJobConfig downloads the config.yaml from the aro-hcp-provision-environment
-// GCS artifact for a PR job and parses the Kusto connection info.
+// fetchPRJobConfig downloads config.yaml from a PR job's GCS artifacts and
+// parses the Kusto connection info. It searches prConfigPaths in order,
+// returning the first one found.
 func fetchPRJobConfig(ctx context.Context, info *ProwJobInfo, logger logr.Logger) (*ProwJobConfig, error) {
 	gcsClient, err := storage.NewClient(ctx, option.WithoutAuthentication())
 	if err != nil {
@@ -238,13 +272,20 @@ func fetchPRJobConfig(ctx context.Context, info *ProwJobInfo, logger logr.Logger
 	}
 	logger.V(1).Info("Found artifact directory", "dir", artifactDir)
 
-	configGCSPath := fmt.Sprintf("%s/artifacts/%s/%s", info.GCSPrefix, artifactDir, prConfigPath)
-	configData, err := downloadObject(ctx, gcsClient, configGCSPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to download config.yaml from provision-environment: %w", err)
+	var configData []byte
+	for _, configPath := range prConfigPaths {
+		configGCSPath := fmt.Sprintf("%s/artifacts/%s/%s", info.GCSPrefix, artifactDir, configPath)
+		configData, err = downloadObject(ctx, gcsClient, configGCSPath)
+		if err == nil {
+			logger.V(1).Info("Found config.yaml", "path", configPath)
+			break
+		}
+	}
+	if configData == nil {
+		return nil, fmt.Errorf("failed to find config.yaml in any known step artifact path: %v", prConfigPaths)
 	}
 
-	jobConfig, err := parseConfig(configData)
+	jobConfig, err := ParseConfig(configData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse config.yaml: %w", err)
 	}
@@ -305,7 +346,7 @@ func fetchNonPRJobConfig(ctx context.Context, info *ProwJobInfo, sdpPipelinesDir
 		return nil, fmt.Errorf("failed to run git show in %s: %w", sdpPipelinesDir, err)
 	}
 
-	jobConfig, err := parseConfig(configData)
+	jobConfig, err := ParseConfig(configData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse rendered config from sdp-pipelines: %w", err)
 	}
@@ -559,6 +600,7 @@ type sourceKusto struct {
 	Location                       string `json:"location"`
 	HostedControlPlaneLogsDatabase string `json:"hostedControlPlaneLogsDatabase"`
 	ServiceLogsDatabase            string `json:"serviceLogsDatabase"`
+	MonitoringEventsDatabase       string `json:"monitoringEventsDatabase"`
 }
 
 type sourceAKS struct {
@@ -569,19 +611,25 @@ type sourceAKSName struct {
 	Name string `json:"name"`
 }
 
-func parseConfig(data []byte) (*ProwJobConfig, error) {
+// ParseConfig parses a rendered environment config YAML and extracts the
+// Kusto connection info and AKS cluster names into a ProwJobConfig. This is
+// the single source of truth for mapping config keys to ProwJobConfig fields;
+// all callers that need these values should use this function to avoid
+// independent config-key reads drifting out of sync.
+func ParseConfig(data []byte) (*ProwJobConfig, error) {
 	var src sourceConfig
 	if err := yaml.Unmarshal(data, &src); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
 	return &ProwJobConfig{
-		Region:                src.Kusto.Location,
-		KustoName:             src.Kusto.KustoName,
-		HCPDatabase:           src.Kusto.HostedControlPlaneLogsDatabase,
-		ServiceDatabase:       src.Kusto.ServiceLogsDatabase,
-		ServiceClusterName:    src.Svc.AKS.Name,
-		ManagementClusterName: src.Mgmt.AKS.Name,
+		Region:                   src.Kusto.Location,
+		KustoName:                src.Kusto.KustoName,
+		HCPDatabase:              src.Kusto.HostedControlPlaneLogsDatabase,
+		ServiceDatabase:          src.Kusto.ServiceLogsDatabase,
+		MonitoringEventsDatabase: src.Kusto.MonitoringEventsDatabase,
+		ServiceClusterName:       src.Svc.AKS.Name,
+		ManagementClusterName:    src.Mgmt.AKS.Name,
 	}, nil
 }
 
@@ -654,6 +702,170 @@ func downloadObject(ctx context.Context, gcsClient *storage.Client, path string)
 		return nil, fmt.Errorf("failed to read object %s: %w", path, err)
 	}
 	return data, nil
+}
+
+// NodeConsoleLogFile holds a downloaded VM serial console log file from GCS.
+type NodeConsoleLogFile struct {
+	// NodeName is the Azure VM name, derived from the filename minus the "-console.log" suffix.
+	NodeName string
+
+	// FileName is the base filename (e.g. "cilium-cluster-cilium-np-75x6r-4rwqj-console.log").
+	FileName string
+
+	// Content is the cleaned file content, with ANSI escape sequences stripped,
+	// GRUB preamble removed, and blank lines removed. The original unprocessed
+	// file is available via ArtifactURL.
+	Content []byte
+
+	// ArtifactURL is the gcsweb URL for downloading the original artifact.
+	ArtifactURL string
+}
+
+// AzureLogFile holds the downloaded per-test azure.log from GCS: the client-side
+// azcore request/response/retry log (correlation IDs, retries, LRO).
+type AzureLogFile struct {
+	// Content is the raw azure.log content (JSON-lines slog output), uncleaned.
+	Content []byte
+
+	// ArtifactURL is the gcsweb URL for downloading the original artifact.
+	ArtifactURL string
+}
+
+// sanitizeTestNameForGCS replicates the test framework's sanitization logic
+// from test/util/framework/per_test_framework.go:sanitizeTestName. This is
+// different from SanitizeTestName (which is stricter) — the test framework
+// only replaces / \ : * ? " < > | and space with underscores, keeping
+// characters like commas and parentheses intact.
+func sanitizeTestNameForGCS(name string) string {
+	name = strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || r == ':' || r == '*' || r == '?' || r == '"' || r == '<' || r == '>' || r == '|' {
+			return '_'
+		}
+		if r == ' ' {
+			return '_'
+		}
+		return r
+	}, name)
+	if len(name) > 200 {
+		name = name[:200]
+	}
+	return name
+}
+
+// FetchNodeConsoleLogs downloads VM serial console log files (*-console.log) from
+// the GCS artifacts for a specific test. These files are written by the test framework's
+// DownloadAllVirtualMachineConsoleLogs function into the per-test artifact directory.
+// Returns nil (not an error) if no console logs are found — not every test creates VMs.
+func FetchNodeConsoleLogs(ctx context.Context, info *ProwJobInfo, testName string) ([]NodeConsoleLogFile, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	gcsClient, err := storage.NewClient(ctx, option.WithoutAuthentication())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCS client: %w", err)
+	}
+	defer gcsClient.Close()
+
+	artifactDir, err := findArtifactDir(ctx, gcsClient, info.JobName, info.GCSPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find artifact directory: %w", err)
+	}
+
+	testStep := testStepPersistent
+	if info.IsPullRequest() {
+		testStep = testStepLocal
+	}
+
+	sanitizedName := sanitizeTestNameForGCS(testName)
+	prefix := fmt.Sprintf("%s/artifacts/%s/%s/artifacts/%s/", info.GCSPrefix, artifactDir, testStep, sanitizedName)
+
+	logger.V(1).Info("Searching for console logs", "prefix", prefix)
+	objects, err := listObjects(ctx, gcsClient, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list console log objects: %w", err)
+	}
+
+	var consoleLogs []NodeConsoleLogFile
+	for _, objPath := range objects {
+		fileName := objPath[strings.LastIndex(objPath, "/")+1:]
+		if !strings.HasSuffix(fileName, "-console.log") {
+			continue
+		}
+
+		data, err := downloadObject(ctx, gcsClient, objPath)
+		if err != nil {
+			logger.Error(err, "Failed to download console log, skipping", "path", objPath)
+			continue
+		}
+
+		nodeName := strings.TrimSuffix(fileName, "-console.log")
+		artifactURL := (&url.URL{
+			Scheme: "https",
+			Host:   "gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com",
+			Path:   "/gcs/" + gcsBucket + "/" + objPath,
+		}).String()
+
+		consoleLogs = append(consoleLogs, NodeConsoleLogFile{
+			NodeName:    nodeName,
+			FileName:    fileName,
+			Content:     CleanConsoleLog(data),
+			ArtifactURL: artifactURL,
+		})
+		logger.V(1).Info("Downloaded console log", "node", nodeName, "size", len(data))
+	}
+
+	if len(consoleLogs) > 0 {
+		logger.Info("Found node console logs", "count", len(consoleLogs))
+	}
+
+	return consoleLogs, nil
+}
+
+// FetchAzureLog downloads a test's client-side azure.log from the Prow job's
+// GCS artifacts (same per-test prefix as node console logs). It returns
+// (nil, nil) when the test produced no azure.log, so absence is non-fatal.
+func FetchAzureLog(ctx context.Context, info *ProwJobInfo, testName string) (*AzureLogFile, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	gcsClient, err := storage.NewClient(ctx, option.WithoutAuthentication())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCS client: %w", err)
+	}
+	defer gcsClient.Close()
+
+	artifactDir, err := findArtifactDir(ctx, gcsClient, info.JobName, info.GCSPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find artifact directory: %w", err)
+	}
+
+	testStep := testStepPersistent
+	if info.IsPullRequest() {
+		testStep = testStepLocal
+	}
+
+	sanitizedName := sanitizeTestNameForGCS(testName)
+	objPath := fmt.Sprintf("%s/artifacts/%s/%s/artifacts/%s/azure.log", info.GCSPrefix, artifactDir, testStep, sanitizedName)
+
+	logger.V(1).Info("Fetching azure.log", "path", objPath)
+	data, err := downloadObject(ctx, gcsClient, objPath)
+	if err != nil {
+		if errors.Is(err, storage.ErrObjectNotExist) {
+			logger.V(1).Info("No azure.log found for test", "path", objPath)
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to download azure.log: %w", err)
+	}
+
+	artifactURL := (&url.URL{
+		Scheme: "https",
+		Host:   "gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com",
+		Path:   "/gcs/" + gcsBucket + "/" + objPath,
+	}).String()
+
+	logger.Info("Found azure.log", "size", len(data))
+	return &AzureLogFile{
+		Content:     data,
+		ArtifactURL: artifactURL,
+	}, nil
 }
 
 // SanitizeTestName replaces characters that are not alphanumeric, dashes, or

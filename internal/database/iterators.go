@@ -158,6 +158,57 @@ func (iter *queryBillingIterator) GetError() error {
 	return iter.err
 }
 
+type queryTypedDocumentIterator struct {
+	pager             *runtime.Pager[azcosmos.QueryItemsResponse]
+	singlePage        bool
+	continuationToken string
+	err               error
+}
+
+func newQueryTypedDocumentIterator(pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[TypedDocument] {
+	return &queryTypedDocumentIterator{pager: pager}
+}
+
+func newQueryTypedDocumentSinglePageIterator(pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[TypedDocument] {
+	return &queryTypedDocumentIterator{pager: pager, singlePage: true}
+}
+
+func (iter *queryTypedDocumentIterator) Items(ctx context.Context) DBClientIteratorItem[TypedDocument] {
+	return func(yield func(string, *TypedDocument) bool) {
+		for iter.pager.More() {
+			response, err := iter.pager.NextPage(ctx)
+			if err != nil {
+				iter.err = err
+				return
+			}
+			if iter.singlePage && response.ContinuationToken != nil {
+				iter.continuationToken = *response.ContinuationToken
+			}
+			for _, itemJSON := range response.Items {
+				var doc TypedDocument
+				if err := json.Unmarshal(itemJSON, &doc); err != nil {
+					iter.err = err
+					return
+				}
+				if !yield(doc.ID, &doc) {
+					return
+				}
+			}
+			if iter.singlePage {
+				return
+			}
+		}
+	}
+}
+
+func (iter *queryTypedDocumentIterator) GetContinuationToken() string {
+	return iter.continuationToken
+}
+
+func (iter *queryTypedDocumentIterator) GetError() error {
+	return iter.err
+}
+
 // ListAll accumulates all pages from a DB GlobalLister into a slice.
 // It calls listFn with a page size hint of pageSize and follows continuation tokens
 // until all items have been collected.

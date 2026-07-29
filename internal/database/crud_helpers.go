@@ -20,7 +20,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -29,6 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+const SoftDeleteTTLSeconds = 30
 
 func OldResourceIDToCosmosID(resourceID *azcorearm.ResourceID) (string, error) {
 	if resourceID == nil {
@@ -76,7 +81,19 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 		return nil, utils.TrackError(err)
 	}
 
+	if IsSoftDeleted(responseItem.Value) {
+		return nil, NewNotFoundError()
+	}
+
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosID, responseItem)
+}
+
+func IsSoftDeleted(data []byte) bool {
+	var doc TypedDocument
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return false
+	}
+	return doc.DeletionTimestamp != nil
 }
 
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
@@ -101,9 +118,9 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 		PageSizeHint: -1,
 	}
 	if prefix == nil {
-		query = "SELECT * FROM c WHERE LENGTH(c.resourceID) > 0"
+		query = "SELECT * FROM c WHERE LENGTH(c.resourceID) > 0 AND (NOT IS_DEFINED(c.deletionTimestamp))"
 	} else {
-		query = "SELECT * FROM c WHERE STARTSWITH(c.resourceID, @prefix, true)"
+		query = "SELECT * FROM c WHERE STARTSWITH(c.resourceID, @prefix, true) AND (NOT IS_DEFINED(c.deletionTimestamp))"
 		queryOptions = azcosmos.QueryOptions{
 			PageSizeHint: -1,
 			QueryParameters: []azcosmos.QueryParameter{
@@ -347,20 +364,80 @@ func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClie
 		return utils.TrackError(err)
 	}
 
-	_, err = containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), cosmosID, nil)
+	return softDeleteByCosmosID(ctx, containerClient, partitionKeyString, cosmosID)
+}
+
+func deleteByCosmosID(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString, cosmosID string) error {
+	return softDeleteByCosmosID(ctx, containerClient, partitionKeyString, cosmosID)
+}
+
+func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString, cosmosID string) error {
+	pk := azcosmos.NewPartitionKeyString(partitionKeyString)
+
+	responseItem, err := containerClient.ReadItem(ctx, pk, cosmosID, nil)
 	if IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
+
+	var doc GenericDocument[map[string]interface{}]
+	if err := json.Unmarshal(responseItem.Value, &doc); err != nil {
+		return fmt.Errorf("failed to unmarshal document for soft delete: %w", err)
+	}
+
+	if doc.DeletionTimestamp != nil {
+		return nil
+	}
+
+	if err := SetSoftDeleteFields(&doc, time.Now()); err != nil {
+		return utils.TrackError(err)
+	}
+
+	modified, err := json.Marshal(doc)
+	if err != nil {
+		return fmt.Errorf("failed to marshal soft-deleted document: %w", err)
+	}
+
+	opts := &azcosmos.ItemOptions{
+		IfMatchEtag: &responseItem.ETag,
+	}
+	_, err = containerClient.ReplaceItem(ctx, pk, cosmosID, modified, opts)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 	return nil
 }
 
-func deleteByCosmosID(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString, cosmosID string) error {
-	_, err := containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), cosmosID, nil)
-	if err != nil {
-		return utils.TrackError(err)
+// SetSoftDeleteFields marks a document as soft-deleted and increments its instanceVersion.
+// We use map[string]interface{} instead of unstructured.Unstructured because
+// Unstructured.UnmarshalJSON requires kind/apiVersion fields and fails with
+// "Object 'Kind' is missing in '<json>'" on Cosmos documents.
+func SetSoftDeleteFields(doc *GenericDocument[map[string]interface{}], now time.Time) error {
+	if doc.DeletionTimestamp != nil {
+		return nil
+	}
+
+	ts := metav1.NewTime(now)
+	doc.DeletionTimestamp = &ts
+	doc.TimeToLive = SoftDeleteTTLSeconds
+
+	// allow deleting legacy content
+	if doc.Content == nil {
+		return nil
+	}
+
+	fv, found, err := unstructured.NestedFloat64(doc.Content, "cosmosMetadata", "instanceVersion")
+	current := int64(1)
+	if err == nil && found {
+		current = int64(fv)
+		if current < 1 {
+			current = 1
+		}
+	}
+	if err := unstructured.SetNestedField(doc.Content, current+1, "cosmosMetadata", "instanceVersion"); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to set instanceVersion during soft delete: %w", err))
 	}
 	return nil
 }

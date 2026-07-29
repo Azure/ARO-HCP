@@ -51,15 +51,6 @@ param svcMonitorName string
 @description('Name of the Azure Monitor Workspace for hosted control planes')
 param hcpMonitorName string
 
-@description('Maximum active time series limit for Azure Monitor Workspaces in millions (2M initial, bump when hitting 50% utilization)')
-param amwMaxActiveTimeSeriesMillions int = 2
-
-@description('Maximum events per minute limit for Azure Monitor Workspaces in millions (2M initial, bump when hitting 50% utilization)')
-param amwMaxEventsPerMinuteMillions int = 2
-
-@description('Use the internal Microsoft API version for the HCP Azure Monitor Workspace')
-param hcpMonitorUseInternalApi bool = false
-
 import { determineZoneRedundancyForRegion } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
 
@@ -172,30 +163,10 @@ module hcpMonitor '../modules/metrics/monitor.bicep' = {
     grafanaResourceId: grafanaResourceId
     monitorName: hcpMonitorName
     purpose: 'hcps'
-    useInternalApiVersion: hcpMonitorUseInternalApi
   }
 }
 
-// Configure ingestion limits for Azure Monitor Workspaces
-// 2M initial limit - bump per environment when hitting 50% utilization
-module svcMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
-  name: 'svc-monitor-ingestion-limits'
-  params: {
-    azureMonitorWorkspaceName: svcMonitorName
-    location: location
-    maxActiveTimeSeriesMillions: amwMaxActiveTimeSeriesMillions
-    maxEventsPerMinuteMillions: amwMaxEventsPerMinuteMillions
-  }
-  dependsOn: [svcMonitor]
-}
-
-module hcpMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
-  name: 'hcp-monitor-ingestion-limits'
-  params: {
-    azureMonitorWorkspaceName: hcpMonitorName
-    location: location
-    maxActiveTimeSeriesMillions: amwMaxActiveTimeSeriesMillions
-    maxEventsPerMinuteMillions: amwMaxEventsPerMinuteMillions
-  }
-  dependsOn: [hcpMonitor]
-}
+// Ingestion limits for Azure Monitor Workspaces are managed dynamically by the
+// AMW scaling controller in the fleet component (fleet/pkg/controllers/amwscaling).
+// Do NOT set metricsContainers limits here — a region redeploy would overwrite
+// controller-driven increases back to static config values.

@@ -81,6 +81,11 @@ var (
 const (
 	StandardPollInterval            = 10 * time.Second
 	StandardResourceGroupExpiration = 4 * time.Hour
+	// keyVaultPurgeTimeout bounds the best-effort soft-deleted Key Vault purge
+	// on resource-group teardown so a stalled purge (or Azure control-plane
+	// stall) can never hang the cleanup goroutine and flake the overall E2E
+	// teardown.
+	keyVaultPurgeTimeout = 5 * time.Minute
 )
 
 // azureRetryOptions configures the Azure SDK retry policy for e2e tests.
@@ -136,6 +141,23 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 	}
 
 	if tc.isDevelopmentEnvironment {
+		// The development environment flag controls endpoint routing and relaxed security
+		// (talking directly to the RP frontend rather than ARM); it is intentionally decoupled
+		// from credential acquisition. When service principal env vars are present (as they are
+		// in CI), prefer a pure-Go ClientSecretCredential. AzureCLICredential.GetToken() spawns
+		// an `az` subprocess on every Azure API call, which does not scale under high test
+		// parallelism (dozens of concurrent Python processes) and leads to OOM kills. The CLI
+		// credential is only needed for genuine local `az login`-only developer runs.
+		if clientID, clientSecret, tenantID := os.Getenv("AZURE_CLIENT_ID"), os.Getenv("AZURE_CLIENT_SECRET"), os.Getenv("AZURE_TENANT_ID"); clientID != "" && clientSecret != "" && tenantID != "" {
+			azureCredentials, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed building development environment client secret credential: %w", err)
+			}
+			tc.azureCredentials = azureCredentials
+
+			return tc.azureCredentials, nil
+		}
+
 		azureCredentials, err := azidentity.NewAzureCLICredential(nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed building development environment CLI credential: %w", err)

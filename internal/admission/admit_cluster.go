@@ -18,16 +18,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -42,6 +44,7 @@ import (
 // UPDATE-time admission checks that depend on existing server-side state
 // (e.g., version-skew validation).
 type ClusterAdmissionContext struct {
+	Clock        utilsclock.PassiveClock
 	Subscription *arm.Subscription
 	// OriginalCluster is a deepcopy of the inbound cluster as the user submitted
 	// it, taken before any admission mutation runs. It is the read-only source
@@ -53,6 +56,16 @@ type ClusterAdmissionContext struct {
 	// ClusterNodePools is the list of node pools belonging to the cluster, used
 	// for minor-version skew checks against the desired cluster version.
 	ClusterNodePools []ClusterAdmissionNodePool
+	// SubscriptionClusters lists cluster documents in the same subscription
+	// (not including the current cluster being admitted), used
+	// for cross-cluster platform resource uniqueness on CREATE.
+	// The list is empty on UPDATE.
+	SubscriptionClusters []*api.HCPOpenShiftCluster
+	// SubscriptionNodePools lists node pool documents under SubscriptionClusters,
+	// used to ensure a cluster subnet is not already assigned to another cluster's
+	// node pool on CREATE.
+	// The list is empty on UPDATE.
+	SubscriptionNodePools []*api.HCPOpenShiftClusterNodePool
 }
 
 // ClusterAdmissionNodePool is a single node pool plus its prefetched service
@@ -83,6 +96,7 @@ func mutateClusterServiceProviderProperties(ctx context.Context, admissionContex
 
 	errs = append(errs, mutateClusterUID(ctx, admissionContext, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, validation.ToClusterServiceProviderPropertiesClusterUID))...)
 	errs = append(errs, mutateClusterExperimentalFeatures(ctx, admissionContext, op, fldPath.Child("experimentalFeatures"), &newObj.ExperimentalFeatures, safe.Field(oldObj, toSPExperimentalFeatures))...)
+	errs = append(errs, mutateCreateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("createOperationCompletionDeadline"), &newObj.CreateOperationCompletionDeadline)...)
 
 	return errs
 }
@@ -125,7 +139,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterCPOImageOverride, api.TagClusterFIPSEnabled)
+	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterCPOImageOverride, api.TagClusterMaxCreationDuration)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), api.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -174,16 +188,6 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 		}
 	}
 
-	fipsEnabled := lookupTag(tags, api.TagClusterFIPSEnabled)
-	if fipsEnabled != "" {
-		boolValue, err := strconv.ParseBool(fipsEnabled)
-		if err != nil {
-			errs = append(errs, field.Invalid(tagsPath.Key(api.TagClusterFIPSEnabled), fipsEnabled, "must be true or false"))
-		} else {
-			experimentalFeatures.FIPSEnabled = boolValue
-		}
-	}
-
 	if len(errs) > 0 {
 		return errs
 	}
@@ -201,6 +205,46 @@ func lookupTag(tags map[string]string, key string) string {
 		}
 	}
 	return ""
+}
+
+const defaultCreateOperationCompletionDeadlineDuration = 60 * time.Minute
+const minCreateOperationCompletionDeadlineDuration = time.Minute
+
+// mutateCreateOperationCompletionDeadline sets the deadline by which a cluster
+// creation operation must complete. On CREATE it defaults to 60 minutes from
+// now; when the subscription has the ExperimentalReleaseFeatures AFEC
+// registered, the caller may override the duration via the
+// TagClusterMaxCreationDuration ARM resource tag.
+func mutateCreateOperationCompletionDeadline(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, _ *field.Path, newObj **metav1.Time) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	duration := defaultCreateOperationCompletionDeadlineDuration
+
+	subscription := admissionContext.Subscription
+	if subscription != nil && subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
+		var tags map[string]string
+		if admissionContext.OriginalCluster != nil {
+			tags = admissionContext.OriginalCluster.Tags
+		}
+		if tagValue := lookupTag(tags, api.TagClusterMaxCreationDuration); len(tagValue) > 0 {
+			parsed, err := time.ParseDuration(tagValue)
+			if err != nil {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(api.TagClusterMaxCreationDuration), tagValue, "must be a valid Go duration string (e.g. \"19m\", \"30m\")")}
+			}
+			if parsed < minCreateOperationCompletionDeadlineDuration {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(api.TagClusterMaxCreationDuration), tagValue, fmt.Sprintf("must be at least %s", minCreateOperationCompletionDeadlineDuration))}
+			}
+			duration = parsed
+		}
+	}
+
+	deadline := metav1.NewTime(admissionContext.Clock.Now().Add(duration))
+	*newObj = &deadline
+	return nil
 }
 
 // AdmitCluster performs non-static checks of cluster. Checks that require more
@@ -222,6 +266,144 @@ func admitClusterCustomerProperties(ctx context.Context, admissionContext *Clust
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitClusterVersionProfile(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToClusterCustomerPropertiesVersion))...)
+	errs = append(errs, admitClusterEtcdKmsKeyVersionChange(ctx, admissionContext, op, fldPath.Child("etcd", "dataEncryption", "customerManaged", "kms", "activeKey", "version"), newObj, oldObj)...)
+	errs = append(errs, admitClusterPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform)...)
+
+	return errs
+}
+
+func admitClusterPlatform(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, admitClusterManagedResourceGroupName(ctx, admissionContext, op, fldPath, newObj)...)
+	errs = append(errs, admitClusterSubnetResourceID(ctx, admissionContext, op, fldPath, newObj)...)
+	errs = append(errs, admitClusterNetworkSecurityGroupResourceID(ctx, admissionContext, op, fldPath, newObj)...)
+	return errs
+}
+
+// admitClusterManagedResourceGroupName ensures the managed resource group name
+// is unique within the subscription on CREATE.
+//
+// Best-effort only: compares against SubscriptionClusters prefetched before
+// admission runs. Concurrent creates with the same MRG name can both succeed.
+func admitClusterManagedResourceGroupName(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	if admissionContext.OriginalCluster == nil {
+		return field.ErrorList{field.InternalError(fldPath, errors.New("original cluster is required for admission"))}
+	}
+
+	mrgPath := fldPath.Child("managedResourceGroup")
+	if len(newObj.ManagedResourceGroup) == 0 {
+		return field.ErrorList{field.Required(mrgPath, "")}
+	}
+
+	subscriptionID := admissionContext.OriginalCluster.ID.SubscriptionID
+	var errs field.ErrorList
+
+	for _, existing := range admissionContext.SubscriptionClusters {
+		if strings.EqualFold(newObj.ManagedResourceGroup, existing.CustomerProperties.Platform.ManagedResourceGroup) {
+			errs = append(errs, field.Invalid(
+				mrgPath,
+				newObj.ManagedResourceGroup,
+				fmt.Sprintf("Cluster with managed resource group name '%s' in subscription '%s' "+
+					"already exists, please provide a unique managed resource group name",
+					newObj.ManagedResourceGroup, subscriptionID),
+			))
+			break
+		}
+	}
+
+	return errs
+}
+
+// admitClusterSubnetResourceID ensures that the subnet ID is not already in use by any other
+// cluster or node pool within the same subscription when creating a new cluster.
+//
+// Best-effort only: compares against SubscriptionClusters and SubscriptionNodePools
+// prefetched before admission runs. Concurrent creates (or a create racing with a
+// node pool create) using the same subnet can both succeed.
+func admitClusterSubnetResourceID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	subnetPath := fldPath.Child("subnetId")
+	if newObj.SubnetID == nil {
+		return field.ErrorList{field.Required(subnetPath, "")}
+	}
+	subnetID := newObj.SubnetID.String()
+	var errs field.ErrorList
+
+	for _, existing := range admissionContext.SubscriptionClusters {
+		existingSubnet := existing.CustomerProperties.Platform.SubnetID
+		if existingSubnet == nil {
+			errs = append(errs, field.InternalError(subnetPath, errors.New("existing cluster is missing subnetId")))
+			continue
+		}
+		if strings.EqualFold(subnetID, existingSubnet.String()) {
+			errs = append(errs, field.Invalid(
+				subnetPath,
+				subnetID,
+				fmt.Sprintf("Subnet '%s' is already in use by another cluster", subnetID),
+			))
+			break
+		}
+	}
+
+	for _, nodePool := range admissionContext.SubscriptionNodePools {
+		nodePoolSubnet := nodePool.Properties.Platform.SubnetID
+		if nodePoolSubnet == nil {
+			errs = append(errs, field.InternalError(subnetPath, errors.New("existing node pool is missing subnetId")))
+			continue
+		}
+		if strings.EqualFold(subnetID, nodePoolSubnet.String()) {
+			errs = append(errs, field.Invalid(
+				subnetPath,
+				subnetID,
+				fmt.Sprintf("Subnet '%s' is already in use by another cluster", subnetID),
+			))
+			break
+		}
+	}
+
+	return errs
+}
+
+// admitClusterNetworkSecurityGroupResourceID ensures that the network security group ID is not already in use by any other
+// cluster within the same subscription when creating a new cluster.
+//
+// Best-effort only: compares against SubscriptionClusters prefetched before
+// admission runs. Concurrent creates with the same NSG can both succeed.
+func admitClusterNetworkSecurityGroupResourceID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	nsgPath := fldPath.Child("networkSecurityGroupId")
+	if newObj.NetworkSecurityGroupID == nil {
+		return field.ErrorList{field.Required(nsgPath, "")}
+	}
+	nsgID := newObj.NetworkSecurityGroupID.String()
+	var errs field.ErrorList
+
+	for _, existing := range admissionContext.SubscriptionClusters {
+		existingNSG := existing.CustomerProperties.Platform.NetworkSecurityGroupID
+		if existingNSG == nil {
+			errs = append(errs, field.InternalError(nsgPath, errors.New("existing cluster is missing networkSecurityGroupId")))
+			continue
+		}
+		if strings.EqualFold(nsgID, existingNSG.String()) {
+			errs = append(errs, field.Invalid(
+				nsgPath,
+				nsgID,
+				fmt.Sprintf("Network Security Group '%s' is already in use by another cluster", nsgID),
+			))
+			break
+		}
+	}
 
 	return errs
 }
@@ -270,4 +452,43 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 	}
 
 	return errs
+}
+
+// minKmsKeyVersionRotationVersion is the minimum OCP version whose CPO
+// supports etcd KMS key version rotation.
+var minKmsKeyVersionRotationVersion = semver.Version{Major: 4, Minor: 22}
+
+// admitClusterEtcdKmsKeyVersionChange rejects KMS key version changes when the
+// cluster's active control plane version predates the CPO support (< 4.22).
+// Only runs for API versions >= v20260630Preview where version is mutable;
+// older API versions block version changes via the immutability check in validation.
+func admitClusterEtcdKmsKeyVersionChange(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
+	if op.Type != operation.Update || oldObj == nil {
+		return nil
+	}
+
+	if newObj.Etcd.DataEncryption.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged && newObj.Etcd.DataEncryption.KeyManagementMode != oldObj.Etcd.DataEncryption.KeyManagementMode {
+		return field.ErrorList{field.Forbidden(fldPath, "KMS key version rotation is only supported for customer-managed encryption")}
+	}
+
+	if newObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version == oldObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version {
+		return nil
+	}
+
+	apiVersion := api.APIVersionFromOptions(op.Options)
+	if apiVersion.LT(api.APIVersionV20260630Preview) {
+		return field.ErrorList{field.Forbidden(fldPath, "KMS key version is immutable for this API version")}
+	}
+
+	if admissionContext.ServiceProviderCluster == nil {
+		return field.ErrorList{field.InternalError(fldPath, errors.New("cannot validate KMS key version rotation"))}
+	}
+
+	lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(admissionContext.ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
+	clusterVersion := semver.Version{Major: lowest.Major, Minor: lowest.Minor}
+	if clusterVersion.LT(minKmsKeyVersionRotationVersion) {
+		return field.ErrorList{field.Invalid(fldPath, newObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version, fmt.Sprintf("KMS key version rotation requires cluster version %s or above", minKmsKeyVersionRotationVersion))}
+	}
+
+	return nil
 }

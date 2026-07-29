@@ -19,6 +19,7 @@ import (
 	"io/fs"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -166,6 +167,10 @@ type subscriptionKeyWrapper struct {
 
 func newSubscriptionKeyWrapper(delegate controllerutils.Controller) controllerutils.Controller {
 	return &subscriptionKeyWrapper{delegate: delegate}
+}
+
+func (w *subscriptionKeyWrapper) QueueForInformers(resyncDuration time.Duration, notifiers ...controllerutils.Notifier) error {
+	return w.delegate.QueueForInformers(resyncDuration, notifiers...)
 }
 
 func (w *subscriptionKeyWrapper) SyncOnce(ctx context.Context, keyObj any) error {

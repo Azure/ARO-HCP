@@ -115,7 +115,7 @@ func (c *operationClusterDelete) legacySynchronizeOperation(ctx context.Context,
 		return utils.TrackError(err)
 	}
 
-	newOperationStatus, newOperationError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus)
+	newOperationStatus, newOperationError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus, operation.InternalID)
 	if err != nil {
 		return utils.TrackError(err)
 	}

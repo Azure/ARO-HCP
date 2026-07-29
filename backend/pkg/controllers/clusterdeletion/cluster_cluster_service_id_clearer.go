@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,7 +39,6 @@ import (
 // Cluster and, on 404, zero out the stored ClusterServiceID so downstream
 // code knows the CS resource is fully gone.
 type clusterClusterServiceIDClearer struct {
-	cooldownChecker      controllerutil.CooldownChecker
 	clusterLister        listers.ClusterLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -51,12 +49,10 @@ var _ controllerutils.ClusterSyncer = (*clusterClusterServiceIDClearer)(nil)
 func NewClusterClusterServiceIDClearerController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &clusterClusterServiceIDClearer{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		clusterLister:        clusterLister,
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
@@ -70,10 +66,6 @@ func NewClusterClusterServiceIDClearerController(
 		time.Minute,
 		syncer,
 	)
-}
-
-func (c *clusterClusterServiceIDClearer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // NeedsWork reports whether this controller has unfinished business for the

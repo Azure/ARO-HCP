@@ -97,26 +97,28 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
-        severity: info
-        slo: nodepool-errors
+        component: slo
         long_window: 1h
+        severity: info
         short_window: 5m
+        slo: nodepool-errors
       exp_annotations:
         summary: "mgmt-1: Node Pool operation error rate critically high (>72%)"
         description: "More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # Degradation also fires (15% threshold met at 80%)
   - eval_time: 35m
     alertname: UJNodePoolErrorsDegradation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        component: slo
         severity: info
         slo: nodepool-errors
       exp_annotations:
         summary: "mgmt-1: Node Pool operation failure rate exceeds 15% for 30 minutes"
         description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 3: Degradation — 20% failure rate, only degradation alert fires
 # ========================================
@@ -162,12 +164,13 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        component: slo
         severity: info
         slo: nodepool-errors
       exp_annotations:
         summary: "mgmt-1: Node Pool operation failure rate exceeds 15% for 30 minutes"
         description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 4: Stuck operation — operation in "updating" for > 2 hours
 # ========================================
@@ -186,17 +189,18 @@ tests:
     alertname: UJNodePoolStuckOperation
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/3/np/stuck"
-        subscription_id: "sub-3"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        cluster: "mgmt-1"
+        component: slo
         operation_type: "update"
         phase: "updating"
-        cluster: "mgmt-1"
+        resource_id: "/sub/3/np/stuck"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        subscription_id: "sub-3"
       exp_annotations:
-        summary: "mgmt-1: Node Pool operation stuck in updating for over 2 hours"
+        summary: "mgmt-1: Node Pool operation for /sub/3/np/stuck stuck in updating for over 2 hours"
         description: "Node pool operation for /sub/3/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 5: No stuck operation — operation in "updating" for < 2 hours
 # ========================================
@@ -247,13 +251,14 @@ tests:
     alertname: UJNodePoolSaturationQueueDepth
     exp_alerts:
     - exp_labels:
-        name: "OperationNodePoolUpdate"
         cluster: "mgmt-1"
+        component: slo
+        name: "OperationNodePoolUpdate"
         severity: info
       exp_annotations:
         summary: "mgmt-1: Node Pool controller workqueue OperationNodePoolUpdate depth is high"
         description: "Node pool controller workqueue OperationNodePoolUpdate has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 8: Queue depth normal — below threshold, no alert
 # ========================================
@@ -278,13 +283,14 @@ tests:
     alertname: UJNodePoolSaturationRetryHotLoop
     exp_alerts:
     - exp_labels:
-        name: "OperationNodePoolUpdate"
         cluster: "mgmt-1"
+        component: slo
+        name: "OperationNodePoolUpdate"
         severity: info
       exp_annotations:
         summary: "mgmt-1: Node Pool controller workqueue OperationNodePoolUpdate retry hot loop"
         description: "Node pool controller workqueue OperationNodePoolUpdate has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 10: Retry hot loop — low retry ratio, no alert
 # ========================================
@@ -352,14 +358,15 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
-        severity: info
-        slo: nodepool-errors
+        component: slo
         long_window: 6h
+        severity: info
         short_window: 30m
+        slo: nodepool-errors
       exp_annotations:
         summary: "mgmt-1: Node Pool operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # 50% < 72% → fast burn should NOT fire
   - eval_time: 35m
     alertname: UJNodePoolErrors1h5m
@@ -378,14 +385,135 @@ tests:
     alertname: UJNodePoolStuckOperation
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/7/np/stuck-del"
-        subscription_id: "sub-7"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        cluster: "mgmt-1"
+        component: slo
         operation_type: "delete"
         phase: "deleting"
-        cluster: "mgmt-1"
+        resource_id: "/sub/7/np/stuck-del"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        subscription_id: "sub-7"
       exp_annotations:
-        summary: "mgmt-1: Node Pool operation stuck in deleting for over 2 hours"
+        summary: "mgmt-1: Node Pool operation for /sub/7/np/stuck-del stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/7/np/stuck-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+# ========================================
+# Test 13: Stuck delete that flaps (backend retry resets start_time)
+# ========================================
+# A genuinely-wedged delete stays in "deleting" the whole time, but the backend
+# retries the operation at t=240m and resets
+# backend_resource_operation_start_time_seconds, so (time() - start_time) briefly
+# drops below the 7200s threshold (raw condition false for t=240..360m). The
+# max_over_time(...[6h:]) hold must keep the SAME alert firing across this gap so a
+# continuously-stuck resource maps to a single long-lived IcM incident instead of a
+# fresh incident every few hours.
+- interval: 1m
+  input_series:
+  # phase stays "deleting" throughout
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/8/np/flap-del", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "1+0x480"
+  # start_time=0 until t=239m (age crosses 7200s at t=120m); backend retries at
+  # t=240m so start_time jumps to 14400s and age re-crosses 7200s only at t=360m.
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/8/np/flap-del", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "0+0x239 14400+0x240"
+  alert_rule_test:
+  # Raw condition true (age 9000s > 7200s) → firing.
+  - eval_time: 150m
+    alertname: UJNodePoolStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        operation_type: "delete"
+        phase: "deleting"
+        resource_id: "/sub/8/np/flap-del"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        severity: info
+        subscription_id: "sub-8"
+      exp_annotations:
+        summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
+        description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+  # Raw condition FALSE here (start_time reset → age < 7200s) but the resource is
+  # still wedged. The 6h hold keeps the same alert firing → no resolve, no duplicate.
+  - eval_time: 300m
+    alertname: UJNodePoolStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        operation_type: "delete"
+        phase: "deleting"
+        resource_id: "/sub/8/np/flap-del"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        severity: info
+        subscription_id: "sub-8"
+      exp_annotations:
+        summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
+        description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+  # Raw condition true again after re-crossing 7200s — still one continuous alert.
+  - eval_time: 470m
+    alertname: UJNodePoolStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        operation_type: "delete"
+        phase: "deleting"
+        resource_id: "/sub/8/np/flap-del"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        severity: info
+        subscription_id: "sub-8"
+      exp_annotations:
+        summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
+        description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+# ========================================
+# Test 14: Stuck delete completes — alert clears after the 6h hold
+# ========================================
+# The resource is wedged (deleting) through t=150m, then the operation completes
+# (phase_info flips to 0). The 6h hold keeps the alert firing for a while (still
+# firing at t=300m) but it resolves once there has been no stuck sample for 6h (not
+# firing at t=520m). Confirms the stickiness is bounded and does not fire forever.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/9/np/done-del", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "1+0x150 0+0x400"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/9/np/done-del", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "0+0x551"
+  alert_rule_test:
+  # Within the 6h hold after the last stuck sample (t=150m) → still firing.
+  - eval_time: 300m
+    alertname: UJNodePoolStuckOperation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        component: slo
+        operation_type: "delete"
+        phase: "deleting"
+        resource_id: "/sub/9/np/done-del"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        severity: info
+        subscription_id: "sub-9"
+      exp_annotations:
+        summary: "mgmt-1: Node Pool operation for /sub/9/np/done-del stuck in deleting for over 2 hours"
+        description: "Node pool operation for /sub/9/np/done-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+  # 6h after the last stuck sample (150m + 360m = 510m) the hold expires → resolved.
+  - eval_time: 520m
+    alertname: UJNodePoolStuckOperation
+# ========================================
+# Test 15: Stuck operation does not fire for e2e subscription
+# ========================================
+# Same pattern as Test 4 but with an e2e subscription_id that should be excluded.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/np/stuck", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "0+0x155"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/np/stuck", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "1+0x155"
+  alert_rule_test:
+  - eval_time: 150m
+    alertname: UJNodePoolStuckOperation
+    exp_alerts: []

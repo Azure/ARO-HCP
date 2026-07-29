@@ -1,11 +1,11 @@
-cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
 | where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
 {{- if and .ServiceClusterName .ManagementClusterName }}
 | where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
 {{- end }}
-| where container_name == 'aro-hcp-backend'
-| where log.controller_name == 'datadump'
-| where log.content.resourceID =~ '{{ .ResourceID }}'
-| summarize content=take_any(log.content) by etag=tostring(log.content._etag)
+| where subscriptionID == '{{ .SubscriptionID }}'
+| where resourceGroup =~ '{{ .ResourceGroup }}'
+| where resourceID =~ '{{ .ResourceID }}'
+| summarize content=take_any(content) by etag=tostring(content._etag)
 | sort by tolong(content._ts) asc
 | project content

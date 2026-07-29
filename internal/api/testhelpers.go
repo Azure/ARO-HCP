@@ -50,6 +50,9 @@ const (
 	TestVirtualNetworkName        = "testVirtualNetwork"
 	TestSubnetName                = "testSubnet"
 	TestVnetIntegrationSubnetName = "testVnetIntegrationSubnet"
+	TestKMSKeyName                = "testKMSKeyName"
+	TestKMSKeyVaultName           = "testKMSKeyVaultName"
+	TestKMSKeyVersion             = "testKMSKeyVersion"
 )
 
 var (
@@ -78,11 +81,36 @@ func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource := NewDefaultHCPOpenShiftCluster(Must(azcorearm.ParseResourceID(TestClusterResourceID)), TestLocation)
 	resource.CustomerProperties.Version.ID = "4.20"
 	resource.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
+	resource.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+	resource.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &CustomerManagedEncryptionProfile{
+		EncryptionType: CustomerManagedEncryptionTypeKMS,
+		Kms: &KmsEncryptionProfile{
+			Visibility: KeyVaultVisibilityPublic,
+			ActiveKey: KmsKey{
+				Name:      TestKMSKeyName,
+				VaultName: TestKMSKeyVaultName,
+				Version:   TestKMSKeyVersion,
+			},
+		},
+	}
 	resource.CustomerProperties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
 	resource.CustomerProperties.Platform.SubnetID = Must(azcorearm.ParseResourceID(TestSubnetResourceID))
 	resource.CustomerProperties.Platform.VnetIntegrationSubnetID = Must(azcorearm.ParseResourceID(TestVnetIntegrationSubnetResourceID))
 	resource.CustomerProperties.Platform.NetworkSecurityGroupID = Must(azcorearm.ParseResourceID(TestNetworkSecurityGroupResourceID))
 	resource.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = TestManagedIdentitiesDataPlaneIdentityURL
+	// PlatformManaged etcd encryption is not currently supported; require CustomerManaged for a valid cluster.
+	resource.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+	resource.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &CustomerManagedEncryptionProfile{
+		EncryptionType: CustomerManagedEncryptionTypeKMS,
+		Kms: &KmsEncryptionProfile{
+			Visibility: KeyVaultVisibilityPublic,
+			ActiveKey: KmsKey{
+				Name:      "test-key",
+				VaultName: "test-vault",
+				Version:   "test-version",
+			},
+		},
+	}
 	// Add required systemData fields
 	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	resource.SystemData = &arm.SystemData{

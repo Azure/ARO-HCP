@@ -140,8 +140,14 @@ func (o *Options) runControllersUnderLeaderElection(
 	// scoped to this pod's MC; Listers() lists exactly that container's *Desires.
 	listers := o.KubeApplierDBClient.Listers()
 
-	applyInformer := informers.NewApplyDesireInformer(listers.ApplyDesires())
-	readInformer := informers.NewReadDesireInformer(listers.ReadDesires())
+	applyInformer := informers.NewApplyDesireInformer(listers.ApplyDesires(), o.KubeApplierDBClient)
+	readInformer := informers.NewReadDesireInformer(listers.ReadDesires(), o.KubeApplierDBClient)
+
+	collector := newDesireCollector(
+		applyInformer.GetStore(),
+		readInformer.GetStore(),
+		o.metricsRegisterer(),
+	)
 
 	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, o.DynamicClient, o.KubeApplierDBClient, apply_desire.Config{})
 	if err != nil {
@@ -169,6 +175,7 @@ func (o *Options) runControllersUnderLeaderElection(
 					return
 				}
 
+				go collector.Run(ctx)
 				go applyCtl.Run(ctx, threadsApply)
 				go readMgr.Run(ctx, threadsReadManager)
 			},

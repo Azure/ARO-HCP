@@ -32,6 +32,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -54,29 +55,20 @@ import (
 )
 
 type Frontend struct {
+	clock                utilsclock.PassiveClock
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	listener             net.Listener
 	metricsListener      net.Listener
 	server               http.Server
 	metricsServer        http.Server
 	resourcesDBClient    database.ResourcesDBClient
-	locksDBClient        database.LocksDBClient
 	auditClient          audit.Client
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
 	// this is the azure location for this instance of the frontend
 	azureLocation string
 
-	// clusterServiceProvisionShard pins cluster requests to a specific
-	// Cluster Service provision shard during testing.
-	clusterServiceProvisionShard string
-	// clusterServiceNoopProvision short-circuits the full provision flow
-	// during testing.
-	clusterServiceNoopProvision bool
-	// clusterServiceNoopDeprovision short-circuits the full deprovision flow
-	// during testing.
-	clusterServiceNoopDeprovision bool
-	apiRegistry                   api.APIRegistry
+	apiRegistry api.APIRegistry
 
 	exitOnPanic bool
 }
@@ -88,13 +80,9 @@ func NewFrontend(
 	registerer prometheus.Registerer,
 	gatherer prometheus.Gatherer,
 	resourcesDBClient database.ResourcesDBClient,
-	locksDBClient database.LocksDBClient,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
-	clusterServiceProvisionShard string,
-	clusterServiceNoopProvision bool,
-	clusterServiceNoopDeprovision bool,
 	exitOnPanic bool,
 ) *Frontend {
 	// zero side-effect registration path
@@ -104,6 +92,7 @@ func NewFrontend(
 	api.Must[any](nil, v20260630preview.RegisterVersion(apiRegistry))
 
 	f := &Frontend{
+		clock:                utilsclock.RealClock{},
 		clusterServiceClient: csClient,
 		listener:             listener,
 		metricsListener:      metricsListener,
@@ -119,13 +108,9 @@ func NewFrontend(
 				return utils.ContextWithLogger(context.Background(), logger)
 			},
 		},
-		auditClient:                   auditClient,
-		resourcesDBClient:             resourcesDBClient,
-		locksDBClient:                 locksDBClient,
-		collector:                     metrics.NewSubscriptionCollector(registerer, resourcesDBClient, azureLocation),
-		clusterServiceProvisionShard:  clusterServiceProvisionShard,
-		clusterServiceNoopProvision:   clusterServiceNoopProvision,
-		clusterServiceNoopDeprovision: clusterServiceNoopDeprovision,
+		auditClient:       auditClient,
+		resourcesDBClient: resourcesDBClient,
+		collector:         metrics.NewSubscriptionCollector(registerer, resourcesDBClient, azureLocation),
 		healthGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
@@ -510,6 +495,16 @@ func (f *Frontend) ArmOperationsList(writer http.ResponseWriter, request *http.R
 		pagedResponse.AddValue(jsonBytes)
 	}
 
+	// XXX We are temporarily hosting an operation list for the
+	//     ARO "Classic" service. See routes.go for more context.
+	for _, operation := range AvailableClassicOperations {
+		jsonBytes, err := arm.MarshalJSON(operation)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		pagedResponse.AddValue(jsonBytes)
+	}
+
 	_, err := arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
 	if err != nil {
 		return utils.TrackError(err)
@@ -767,7 +762,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 			op := operation.Operation{
 				Type:    operation.Create,
-				Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+				Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), api.APIVersion(versionedInterface.String())),
 			}
 			validationErrs := validation.ValidateNodePool(ctx, op, newInternalNodePool, nil)
 			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)

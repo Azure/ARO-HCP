@@ -271,6 +271,7 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 	}
 
 	attempt := 0
+	var lastErrMsg string
 	for {
 		attempt++
 		err := state.assignNTo(specID(), count)
@@ -285,8 +286,11 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 			return fmt.Errorf("failed to assign identity containers: %w", err)
 		}
 
-		ginkgo.GinkgoLogr.Info("Not enough free identity containers, waiting to retry",
-			"error", err, "attempt", attempt, "retryIn", waitBetweenRetries, "elapsed", time.Since(startTime).Round(time.Second))
+		if errMsg := err.Error(); errMsg != lastErrMsg {
+			ginkgo.GinkgoLogr.Info("Not enough free identity containers, waiting to retry",
+				"error", err, "attempt", attempt, "retryIn", waitBetweenRetries, "elapsed", time.Since(startTime).Round(time.Second))
+			lastErrMsg = errMsg
+		}
 
 		select {
 		case <-ctx.Done():
@@ -793,14 +797,23 @@ func (e *leasedIdentityPoolEntry) use(me string) error {
 	return nil
 }
 
+// release transitions the entry back to free. Cleanup functions are only
+// executed when the entry was busy; assigned-only entries have not created
+// resources (FICs, role assignments) that need cleanup.
 func (e *leasedIdentityPoolEntry) release(cleanups ...func() error) error {
 	if e.Current.State == leaseStateFree {
 		return nil
 	}
+	assignedOnly := e.Current.State == leaseStateAssigned
+
 	e.History = append(e.History, e.Current)
 	e.Current.State = leaseStateFree
 	e.Current.LeasedBy = ""
 	e.Current.TransitionedAt = time.Now().UTC().Format(time.RFC3339)
+
+	if assignedOnly {
+		return nil
+	}
 
 	errs := []error{}
 	for _, cleanup := range cleanups {

@@ -364,6 +364,11 @@ var (
 
 	azureVMName      = `^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,62}[a-zA-Z0-9_])?$`
 	azureVMNameRegex = regexp.MustCompile(azureVMName)
+
+	// diskEncryptionSetName See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
+	diskEncryptionSetName            = `^[a-zA-Z0-9_-]+$`
+	diskEncryptionSetNameRegex       = regexp.MustCompile(diskEncryptionSetName)
+	diskEncryptionSetNameErrorString = `(must contain only alphanumeric characters, underscores, and hyphens)`
 )
 
 func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, regex *regexp.Regexp, errorString string) field.ErrorList {
@@ -653,6 +658,24 @@ func SameSubscription(ctx context.Context, op operation.Operation, fldPath *fiel
 
 	if !strings.EqualFold(value.SubscriptionID, subscriptionID) {
 		return field.ErrorList{field.Invalid(fldPath, value.String(), fmt.Sprintf("must be in the same Azure subscription: %q", subscriptionID))}
+	}
+
+	return nil
+}
+
+// SameVirtualNetwork checks that value and otherSubnet belong to the same Azure VNet.
+// Both must be subnet resource IDs whose Parent is the VNet.
+func SameVirtualNetwork(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *azcorearm.ResourceID, otherSubnet *azcorearm.ResourceID) field.ErrorList {
+	if value == nil || otherSubnet == nil || value.Parent == nil || otherSubnet.Parent == nil {
+		return nil
+	}
+
+	if !strings.EqualFold(value.Parent.String(), otherSubnet.Parent.String()) {
+		return field.ErrorList{field.Invalid(
+			fldPath,
+			value.String(),
+			fmt.Sprintf("must belong to the same VNet as subnetId '%s'", otherSubnet.String()),
+		)}
 	}
 
 	return nil
@@ -957,6 +980,12 @@ func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions
 		return av.Version != nil && av.Version.EQ(desiredVersion)
 	}) {
 		return nil
+	}
+	if lowestCPVersion == nil {
+		return fmt.Errorf("cannot validate node pool version change because lowest control plane version is not known")
+	}
+	if highestCPVersion == nil {
+		return fmt.Errorf("cannot validate node pool version change because highest control plane version is not known")
 	}
 
 	lowest, highest := apihelpers.FindLowestAndHighestNodePoolVersion(activeVersions)

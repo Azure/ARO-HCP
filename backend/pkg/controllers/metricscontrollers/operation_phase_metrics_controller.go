@@ -39,17 +39,16 @@ var operationMetricLabelNames = []string{"resource_id", "subscription_id", "reso
 // resources. This matches the format already used by the sibling
 // backend_resource_provision_state metric family.
 //
-// Multiple operations on the same ARM resource id collapse to one
-// series. On the AllOperations() informer's unordered iteration
-// (every relist / resync, or backend restart) whichever operation
-// is processed last wins for that resource_id; this may temporarily
-// or persistently reflect an older terminal op until a later emit
-// for that resource supersedes it. If the resource is idle, the stale
-// labels can persist indefinitely. Separate limitation: when the
-// last operation for a resource ages out of the Cosmos TTL, its
-// series persists until process restart (Delete is a no-op; see
-// Delete doc-comment for the rationale). Resource-level conditions
-// are the longer-term direction.
+// Multiple operations of the SAME type on the same ARM resource id
+// collapse to one series. On the AllOperations() informer's unordered
+// iteration (every relist / resync, or backend restart) whichever
+// same-type operation is processed last wins for that resource_id +
+// operation_type combination. Operations of DIFFERENT types (e.g. a
+// completed "create" and an in-flight "delete") coexist independently
+// and do not clobber each other. When the last operation for a
+// resource ages out of the Cosmos TTL, its series persists until
+// process restart (Delete is a no-op; see Delete doc-comment for the
+// rationale). Resource-level conditions are the longer-term direction.
 type operationPhaseMetricsHandler struct {
 	phaseInfo          *prometheus.GaugeVec
 	startTime          *prometheus.GaugeVec
@@ -104,17 +103,20 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *api.Operati
 		return
 	}
 
-	// Clear any previous series for this resource before writing the current labels.
-	// Phase and operation labels are part of the metric identity, so updates would
-	// otherwise leave stale series behind for older label combinations. Multiple
-	// operations sharing this resource_id collapse to the latest-emitted labels.
-	h.deleteByResourceID(resourceID)
+	// Clear any previous series for this resource and operation type before writing
+	// the current labels. Phase is part of the metric identity, so updates would
+	// otherwise leave stale series behind for older phase values. We scope the
+	// deletion to resource_id + operation_type so that concurrent operations of
+	// different types (e.g. a completed "create" and an in-flight "delete") coexist
+	// without clobbering each other on informer relists.
+	opType := operationTypeMetricLabel(op.Request)
+	h.deleteByResourceIDAndOperationType(resourceID, opType)
 
 	labels := prometheus.Labels{
 		"resource_id":     resourceID,
 		"subscription_id": subscriptionID,
 		"resource_type":   resourceIDToTypeMetricLabel(op.ExternalID),
-		"operation_type":  operationTypeMetricLabel(op.Request),
+		"operation_type":  opType,
 		"phase":           phaseMetricLabel(op.Status),
 	}
 	h.phaseInfo.With(labels).Set(1.0)
@@ -151,14 +153,15 @@ func (h *operationPhaseMetricsHandler) Delete(key string) {
 	// no-op; see doc-comment above
 }
 
-// deleteByResourceID is used by Sync to clear stale labels before
-// writing new ones. Delete intentionally does not call this; see
-// the Delete doc-comment.
-func (h *operationPhaseMetricsHandler) deleteByResourceID(resourceID string) {
+// deleteByResourceIDAndOperationType is used by Sync to clear stale labels
+// before writing new ones. Scoped to resource_id + operation_type so that
+// operations of different types on the same resource are not affected.
+// Delete intentionally does not call this; see the Delete doc-comment.
+func (h *operationPhaseMetricsHandler) deleteByResourceIDAndOperationType(resourceID, operationType string) {
 	if len(resourceID) == 0 {
 		return
 	}
-	deleteSelector := prometheus.Labels{"resource_id": resourceID}
+	deleteSelector := prometheus.Labels{"resource_id": resourceID, "operation_type": operationType}
 	h.phaseInfo.DeletePartialMatch(deleteSelector)
 	h.startTime.DeletePartialMatch(deleteSelector)
 	h.lastTransitionTime.DeletePartialMatch(deleteSelector)

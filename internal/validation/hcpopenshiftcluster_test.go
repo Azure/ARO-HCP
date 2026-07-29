@@ -116,6 +116,10 @@ func TestClusterRequired(t *testing.T) {
 					FieldPath: "customerProperties.ingress.type",
 				},
 				{
+					Message:   "Unsupported value",
+					FieldPath: "customerProperties.cryptoRestrictions",
+				},
+				{
 					Message:   "Required value",
 					FieldPath: "customerProperties.platform.managedResourceGroup",
 				},
@@ -207,6 +211,14 @@ func TestClusterRequired(t *testing.T) {
 				{
 					Message:   "Required value",
 					FieldPath: "customerProperties.platform.networkSecurityGroupId",
+				},
+				{
+					Message:   "Unsupported value",
+					FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
+				},
+				{
+					Message:   "Required value",
+					FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
 				},
 				{
 					Message:   "Required value",
@@ -634,15 +646,11 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Customer managed ETCD key management mode requires CustomerManaged fields",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Etcd: api.EtcdProfile{
-						DataEncryption: api.EtcdDataEncryptionProfile{
-							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-						},
-					},
-				},
-			},
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
+				return r
+			}(),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "must be specified when `keyManagementMode` is \"CustomerManaged\"",
@@ -651,42 +659,12 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Platform managed ETCD key management mode excludes CustomerManaged fields",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Etcd: api.EtcdProfile{
-						DataEncryption: api.EtcdDataEncryptionProfile{
-							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
-							CustomerManaged:   &api.CustomerManagedEncryptionProfile{},
-						},
-					},
-				},
-			},
-			expectErrors: []utils.ExpectedError{
-				{
-					Message:   "may only be specified when `keyManagementMode` is \"CustomerManaged\"",
-					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged",
-				},
-				{
-					Message:   "supported values: \"KMS\"",
-					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.encryptionType",
-				},
-			},
-		},
-		{
 			name: "Customer managed Key Management Service (KMS) requires Kms fields",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Etcd: api.EtcdProfile{
-						DataEncryption: api.EtcdDataEncryptionProfile{
-							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-							CustomerManaged: &api.CustomerManagedEncryptionProfile{
-								EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-							},
-						},
-					},
-				},
-			},
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = nil
+				return r
+			}(),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "must be specified when `encryptionType` is \"KMS\"",
@@ -697,19 +675,12 @@ func TestClusterValidate(t *testing.T) {
 		{
 			// FIXME Use a valid alternate EncryptionType once we have one.
 			name: "Alternate customer managed ETCD encyption type excludes Kms fields",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Etcd: api.EtcdProfile{
-						DataEncryption: api.EtcdDataEncryptionProfile{
-							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-							CustomerManaged: &api.CustomerManagedEncryptionProfile{
-								EncryptionType: "Alternate",
-								Kms:            &api.KmsEncryptionProfile{},
-							},
-						},
-					},
-				},
-			},
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged.EncryptionType = "Alternate"
+				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = &api.KmsEncryptionProfile{}
+				return r
+			}(),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "supported values: \"KMS\"",
@@ -806,6 +777,7 @@ func TestClusterValidate(t *testing.T) {
 						// Use a different resource group name to avoid a subnet ID error.
 						SubnetID:                api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestSubnetName))),
 						VnetIntegrationSubnetID: api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestVnetIntegrationSubnetName))),
+						NetworkSecurityGroupID:  api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "networkSecurityGroups", api.TestNetworkSecurityGroupName))),
 					},
 				},
 			},
@@ -818,15 +790,13 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with invalid subnet ID",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
-						ManagedResourceGroup:    "MRG",
-						SubnetID:                api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet")),
-						VnetIntegrationSubnetID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/anotherResourceGroup/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testVnetIntegrationSubnet")),
-					},
-				},
-			},
+			resource: func() *api.HCPOpenShiftCluster {
+				c := api.MinimumValidClusterTestCase()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "MRG"
+				c.CustomerProperties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet"))
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/anotherResourceGroup/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testVnetIntegrationSubnet"))
+				return c
+			}(),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "must not be the same resource group name: \"MRG\"",
@@ -835,6 +805,10 @@ func TestClusterValidate(t *testing.T) {
 				{
 					Message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
 					FieldPath: "customerProperties.platform.subnetId",
+				},
+				{
+					Message:   "must belong to the same VNet as subnetId",
+					FieldPath: "customerProperties.platform.vnetIntegrationSubnetId",
 				},
 				{
 					Message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
@@ -927,6 +901,14 @@ func TestClusterValidate(t *testing.T) {
 				},
 			},
 			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "must be unique within the cluster",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators",
+				},
+				{
+					Message:   "must be unique within the cluster",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+				},
 				{
 					Message:   "identity is used multiple times",
 					FieldPath: "identity.userAssignedIdentities",

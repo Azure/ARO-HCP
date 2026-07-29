@@ -9,7 +9,7 @@ resourceGroups:
   - name: output
     action: ARM
     template: templates/output-global.bicep
-    parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    parameters: ../dev-infrastructure/configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
   - name: mirror-image
@@ -38,145 +38,130 @@ resourceGroups:
       - "unauthorized: authentication required"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: kusto-lookup
+    action: ARM
+    template: ../dev-infrastructure/templates/kusto-lookup.bicep
+    parameters: ../dev-infrastructure/configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: service
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
+  - name: output
+    action: ARM
+    template: ../dev-infrastructure/modules/cluster-service/cluster-service-lookup.bicep
+    parameters: ../dev-infrastructure/configurations/cluster-service-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: deploy
+    action: Helm
     aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: make -f Deploy.mk deploy
-    workingDir: ./
-    dependsOn:
-    - resourceGroup: global
-      step: mirror-image
-    variables:
-    - name: OPERATOR_ROLE_SET_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.roleSetName
-    - name: REGION
-      configRef: region
-    - name: RESOURCEGROUP
-      configRef: svc.rg
-    - name: AKS_NAME
-      configRef: svc.aks.name
-    - name: SERVICE_KV
-      configRef: serviceKeyVault.name
-    - name: OIDC_STORAGE_ACCOUNT
-      configRef: oidc.storageAccount.name
-    - name: OIDC_SUBDOMAIN
-      configRef: oidc.frontdoor.subdomain
-    - name: IMAGE_REPO
-      configRef: clustersService.image.repository
-    - name: IMAGE_DIGEST
-      configRef: clustersService.image.digest
-    - name: ACR_NAME
-      configRef: acr.svc.name
-    - name: CS_BATCH_PROCESSES_DRY_RUN
-      configRef: clustersService.batchProcessesDryRun
-    - name: CS_BATCH_PROCESSES
-      configRef: clustersService.batchProcesses
-    - name: OCP_ACR_NAME
-      configRef: acr.ocp.name
-    - name: AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID
-      configRef: firstPartyAppClientId
-    - name: FPA_CERT_NAME
-      configRef: firstPartyAppCertificate.name
-    - name: AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID
-      configRef: miMockPrincipalId
-    - name: AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID
-      configRef: miMockClientId
-    - name: AZURE_ARM_HELPER_IDENTITY_CLIENT_ID
-      configRef: armHelperClientId
-    - name: AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID
-      configRef: armHelperFPAPrincipalId
-    - name: MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME
-      configRef: miMockCertName
-    - name: AZURE_CLOUD_ENVIRONMENT_NAME
-      configRef: cloudEnvironmentName
-    - name: ARM_HELPER_CERT_NAME
-      configRef: armHelperCertName
-    - name: SVC_PARENT_DNS_ZONE_NAME
-      configRef: dns.svcParentZoneName
-    - name: REGIONAL_DNS_SUBDOMAIN
-      configRef: dns.regionalSubdomain
-    - name: USE_AZURE_DB
-      configRef: clustersService.postgres.deploy
-    - name: DATABASE_SERVER_NAME
-      configRef: clustersService.postgres.name
-    - name: ISTO_TAG
-      configRef: svc.istio.tag
-    - name: MI_NAME
-      configRef: clustersService.managedIdentityName
-    - name: NAMESPACE
-      configRef: clustersService.k8s.namespace
-    - name: SERVICE_ACCOUNT_NAME
-      configRef: clustersService.k8s.serviceAccountName
-    - name: REPLICAS
-      configRef: clustersService.k8s.replicas
-    - name: ENVIRONMENT
-      configRef: clustersService.environment
-    - name: DENYASSIGNMENTS
-      configRef: clustersService.denyAssignments
-    - name: MI_DATAPLANE_AUDIENCE_RESOURCE
-      configRef: msiRp.dataPlaneAudienceResource
-    - name: CS_DEPLOYMENT_ROLLINGUPDATE_MAX_SURGE
-      configRef: clustersService.k8s.deploymentStrategy.rollingUpdate.maxSurge
-    - name: CS_DEPLOYMENT_ROLLINGUPDATE_MAX_UNAVAILABLE
-      configRef: clustersService.k8s.deploymentStrategy.rollingUpdate.maxUnavailable
-    - name: OCP_ACR_RESOURCE_ID
-      input:
-        resourceGroup: global
-        step: output
-        name: ocpAcrResourceId
-    - name: OCP_ACR_URL
-      input:
+    releaseName: 'cluster-service'
+    releaseNamespace: '{{ .clustersService.k8s.namespace }}'
+    chartDir: ./deploy
+    valuesFile: './values.yaml'
+    namespaceFiles:
+    - namespace.yaml
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'clustersServiceLogs'
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    inputVariables:
+      ocpAcrResourceUrl:
         resourceGroup: global
         step: output
         name: ocpAcrLoginServer
-    - name: REGIONAL_RESOURCEGROUP
-      configRef: regionRG
-    - name: TRACING_ADDRESS
-      configRef: clustersService.tracing.address
-    - name: TLS_CERTIFICATES_ISSUER
-      configRef: clustersService.azureRuntimeConfig.tlsCertificatesIssuer
-    - name: AVAILABILITY_ZONE_COUNT
-      configRef: azureRegionAvailabilityZoneCount
-    - name: CS_MEMORY_REQUEST
-      configRef: clustersService.k8s.resources.requests.memory
-    - name: CS_CPU_REQUEST
-      configRef: clustersService.k8s.resources.requests.cpu
-    - name: CS_MEMORY_LIMIT
-      configRef: clustersService.k8s.resources.limits.memory
-    - name: DATA_PLANE_HA_PROXY_IMAGE
-      configRef: clustersService.dataPlaneHAProxyImage
-    shellIdentity:
-      input:
+      ocpAcrResourceId:
         resourceGroup: global
         step: output
-        name: globalMSIId
+        name: ocpAcrResourceId
+      azureCsMiClientId:
+        resourceGroup: service
+        step: output
+        name: csMsiClientId
+      databaseAuthMethod:
+        resourceGroup: service
+        step: output
+        name: databaseAuthMethod
+      databaseDisableTls:
+        resourceGroup: service
+        step: output
+        name: databaseDisableTls
+      databaseHost:
+        resourceGroup: service
+        step: output
+        name: databaseHost
+      databaseName:
+        resourceGroup: service
+        step: output
+        name: databaseName
+      databasePassword:
+        resourceGroup: service
+        step: output
+        name: databasePassword
+      databaseUser:
+        resourceGroup: service
+        step: output
+        name: databaseUser
+      imagePullerMsiClientId:
+        resourceGroup: service
+        step: output
+        name: imagePullerMsiClientId
+      oidcIssuerBaseUrl:
+        resourceGroup: service
+        step: output
+        name: oidcIssuerBaseUrl
+      oidcIssuerBlobServiceUrl:
+        resourceGroup: service
+        step: output
+        name: oidcIssuerBlobServiceUrl
+      tenantId:
+        resourceGroup: service
+        step: output
+        name: tenantId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    dependsOn:
+    - resourceGroup: service
+      step: output
+    - resourceGroup: global
+      step: mirror-image
     automatedRetry:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+    timeout: 10m
   - name: deploy-cs-debug-jobs
+    action: Helm
     aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: make -f Deploy.mk deploy-cs-debug-jobs
-    workingDir: ./
+    releaseName: 'cs-debug-jobs'
+    releaseNamespace: '{{ .clustersService.k8s.namespace }}'
+    chartDir: ./cs-debug-jobs/deploy
+    valuesFile: './cs-debug-jobs/values.yaml'
+    namespaceFiles:
+    - namespace.yaml
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'clustersServiceLogs'
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
     dependsOn:
     - resourceGroup: service
       step: deploy
-    variables:
-    - name: NAMESPACE
-      configRef: clustersService.k8s.namespace
-    - name: IMAGE_DIGEST
-      configRef: clustersService.image.digest
-    - name: DEPLOY_DEBUG_JOBS
-      configRef: clustersService.deployDebugJobs
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    timeout: 10m

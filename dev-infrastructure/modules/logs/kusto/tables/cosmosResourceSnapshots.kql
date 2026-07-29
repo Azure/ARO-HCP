@@ -1,0 +1,30 @@
+.create-merge table cosmosResourceSnapshots (
+  timestamp: datetime,
+  environment: string,
+  region: string,
+  cluster: string,
+  cosmosContainer: string,
+  subscriptionID: string,
+  resourceGroup: string,
+  resourceType: string,
+  resourceName: string,
+  resourceID: string,
+  content: dynamic
+)
+
+.create-or-alter table cosmosResourceSnapshots ingestion json mapping 'ingestionMapping'
+```
+[
+  {"column":"timestamp","Properties":{"path":"$.timestamp"}},
+  {"column":"environment","Properties":{"path":"$.log.environment"}},
+  {"column":"region","Properties":{"path":"$.log.region"}},
+  {"column":"cluster","Properties":{"path":"$.log.cluster"}},
+  {"column":"cosmosContainer","Properties":{"path":"$.log.objectMetadata.cosmosContainer"}},
+  {"column":"subscriptionID","Properties":{"path":"$.log.objectMetadata.subscriptionID"}},
+  {"column":"resourceGroup","Properties":{"path":"$.log.objectMetadata.resourceGroup"}},
+  {"column":"resourceType","Properties":{"path":"$.log.objectMetadata.resourceType"}},
+  {"column":"resourceName","Properties":{"path":"$.log.objectMetadata.resourceName"}},
+  {"column":"resourceID","Properties":{"path":"$.log.objectMetadata.resourceID"}},
+  {"column":"content","Properties":{"path":"$.log.content"}}
+]
+```

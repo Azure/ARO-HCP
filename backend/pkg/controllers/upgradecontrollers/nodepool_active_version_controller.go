@@ -26,8 +26,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -44,7 +44,6 @@ const NodePoolActiveVersionsControllerName = "NodePoolActiveVersions"
 // management cluster's Hypershift NodePool object). Reading from the cached
 // NodePool CR replaces the previous round-trip through Cluster Service.
 type nodePoolActiveVersionSyncer struct {
-	cooldownChecker               internalcontrollerutils.CooldownChecker
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 	resourcesDBClient             database.ResourcesDBClient
 	readDesireLister              dblisters.ReadDesireLister
@@ -57,14 +56,12 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolActiveVersionSyncer)(nil)
 // per-node-pool ReadDesire's observed Hypershift NodePool.
 func NewNodePoolActiveVersionController(
 	resourcesDBClient database.ResourcesDBClient,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
 	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
 	syncer := &nodePoolActiveVersionSyncer{
-		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 		resourcesDBClient:             resourcesDBClient,
 		readDesireLister:              readDesireLister,
@@ -81,7 +78,7 @@ func NewNodePoolActiveVersionController(
 }
 
 func (c *nodePoolActiveVersionSyncer) CooldownChecker() internalcontrollerutils.CooldownChecker {
-	return c.cooldownChecker
+	return nil
 }
 
 // NeedsWork reports whether the controller has a ServiceProviderNodePool to
@@ -116,7 +113,7 @@ func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controll
 		return nil
 	}
 
-	hsNodePool, err := maestrohelpers.GetCachedNodePoolForNodePool(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	hsNodePool, err := kubeapplierhelpers.GetCachedNodePoolForNodePool(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool from ReadDesire: %w", err))
 	}

@@ -164,13 +164,17 @@ const (
 	// EtcdDataEncryptionKeyManagementModeTypeCustomerManaged - Customer managed encryption key management mode type.
 	EtcdDataEncryptionKeyManagementModeTypeCustomerManaged EtcdDataEncryptionKeyManagementModeType = "CustomerManaged"
 	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - Platform managed encryption key management mode type.
+	// Not currently supported; left defined so EnsureDefaults / Cosmos defaults keep
+	// filling the historic value, but excluded from ValidEtcdDataEncryptionKeyManagementModeType until
+	// platform-managed etcd encryption is supported.
 	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "PlatformManaged"
 )
 
 var (
 	ValidEtcdDataEncryptionKeyManagementModeType = sets.New[EtcdDataEncryptionKeyManagementModeType](
 		EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-		EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+		// TODO: re-enable once platform-managed etcd encryption is supported.
+		// EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 	)
 )
 
@@ -252,5 +256,22 @@ const (
 var (
 	ValidMirrorSourcePolicies = sets.New[MirrorSourcePolicy](
 		MirrorSourcePolicyAllowContactingSource,
+	)
+)
+
+// CryptoRestrictions represents cryptographic restrictions for a cluster.
+type CryptoRestrictions string
+
+const (
+	// CryptoRestrictionsNone - no cryptographic restrictions will be applied to the cluster
+	CryptoRestrictionsNone CryptoRestrictions = "None"
+	// CryptoRestrictionsFIPS - FIPS cryptographic restrictions will be applied to the cluster
+	CryptoRestrictionsFIPS CryptoRestrictions = "FIPS"
+)
+
+var (
+	ValidCryptoRestrictions = sets.New[CryptoRestrictions](
+		CryptoRestrictionsNone,
+		CryptoRestrictionsFIPS,
 	)
 )

@@ -119,6 +119,16 @@ data:
         Tag             systemd.*
         Systemd_Filter  _SYSTEMD_UNIT=containerd.service
         Systemd_Filter  _SYSTEMD_UNIT=kubelet.service
+        # AROSLSRE-1465: capture kernel ring-buffer (kmsg) messages so we can see
+        # the guest kernel stack (hung_task/soft-lockup/panic) in the seconds
+        # before a userswft node hard-freezes into NodeNotReady. Kernel journal
+        # records carry no _SYSTEMD_UNIT; they are matched by _TRANSPORT=kernel.
+        # Systemd_Filter entries are OR'd, so this only adds kernel lines. They
+        # flow to the existing systemdLogs Kusto table (no schema change): the
+        # full record is preserved in the `log` dynamic column, so _TRANSPORT /
+        # SYSLOG_IDENTIFIER / PRIORITY stay queryable, and `message` maps from
+        # $.log.MESSAGE. systemd_unit is simply empty for kernel lines.
+        Systemd_Filter  _TRANSPORT=kernel
         Read_From_Tail  On
         Strip_Underscores On
         DB              /var/fluent-bit/flb-storage/flb-systemdb.db
@@ -139,6 +149,24 @@ data:
         Alias   filter.drop_kube_proxy_topology_noise
         Match   kubernetes.var.log.containers.kube-proxy*
         Exclude log Ignoring same-(node|zone) topology hints
+
+    [FILTER]
+        # AROSLSRE-1465: the kernel journal (_TRANSPORT=kernel, captured by the
+        # systemd input above) carries SELinux/audit-subsystem records that are
+        # routed through kmsg: lines beginning with "audit:" (audit types such as
+        # 1300/1325/1327/1130/1131 -- syscall, netfilter and service-state audit
+        # events) and the "kauditd_printk_skb: N callbacks suppressed" throttle
+        # notices. These are process/security audit events, NOT kernel-health
+        # signals, and they account for ~87% of kernel-transport log volume. They
+        # are useless for diagnosing node hard-freezes (hung_task, soft lockup,
+        # RCU stall, OOM, MCE, kernel panic), so we drop them here and keep only
+        # actionable kernel diagnostics. kubelet/containerd systemd records and
+        # all non-audit kernel lines are unaffected (their MESSAGE never starts
+        # with these prefixes).
+        Name    grep
+        Alias   filter.drop_kernel_audit_noise
+        Match   systemd.*
+        Exclude MESSAGE ^(audit:|kauditd_printk_skb:)
 
     [FILTER]
         Name modify
@@ -184,6 +212,7 @@ data:
         Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
         Rule            $kubernetes['container_name'] ^fleet-controller* fleet-controller.logs true
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
+        Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Emitter_Name    re_emitted_container_name_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
@@ -191,11 +220,44 @@ data:
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller|mgmt-agent)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
         Reserve_Data On
+
+    [FILTER]
+        # Route mgmt-agent logs with snapshotType=kubernetes
+        # to a dedicated tag for the kubernetesResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.resource_snapshot_router
+        Match           mgmt-agent.logs
+        Rule            $snapshotType ^kubernetes$ resource-snapshots.logs false
+        Emitter_Name    re_emitted_resource_snapshot_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route backend logs with snapshotType=cosmos
+        # to a dedicated tag for the cosmosResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router
+        Match           aro-hcp-backend.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
+        Emitter_Name    re_emitted_cosmos_snapshot_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route frontend logs with snapshotType=cosmos
+        # to the same cosmosResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router_frontend
+        Match           aro-hcp-frontend.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
+        Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
   output.conf: |
     [OUTPUT]
         Name  prometheus_exporter
@@ -303,6 +365,57 @@ data:
         scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
+
+    [OUTPUT]
+        Match resource-snapshots.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name kubernetesResourceSnapshots
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key resourceSnapshots
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+    [OUTPUT]
+        Match cosmos-snapshots.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name cosmosResourceSnapshots
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key cosmosResourceSnapshots
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
     [OUTPUT]
         Match kubernetes.*
         Name azure_kusto
@@ -482,7 +595,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 2dbcfcb8ccec730e935c42c2cc3a4972ce31fec6b50ebf7b3bb38a4de9cd1a5b
+        checksum/configmap: 22327a23cb5bbbabffa1eb8d5a05f88ba64dd5f550e62130bbe8700412773f46
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

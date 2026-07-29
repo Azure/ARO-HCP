@@ -82,6 +82,23 @@ alerts:
   metadata:
     knownIssue: false
     monitoringWorkspace: /subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/hcp-underlay-test-rg/providers/microsoft.monitor/accounts/test-workspace
+filterKeys:
+- alertname
+- cluster
+- namespace
+- classification
+filterOptions:
+  alertname:
+  - BackendControllerRetryHotLoop
+  - KubePodImagePull
+  - MiseEnvoyScrapeDown
+  classification:
+  - unknown
+  - known
+  cluster:
+  - test-svc
+  namespace:
+  - aro-hcp
 summary:
   bySeverity:
     Sev3: 1

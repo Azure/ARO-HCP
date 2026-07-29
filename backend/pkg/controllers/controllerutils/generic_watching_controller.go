@@ -158,6 +158,12 @@ func (c *genericWatchingController[T]) QueueForInformers(resyncDuration time.Dur
 // It is exposed so that individual controllers can add other items to requeue based on easily.
 func (c *genericWatchingController[T]) QueueForInformersWithMaxDepth(resyncDuration time.Duration, maxDepth int, notifiers ...Notifier) error {
 	errs := []error{}
+
+	logger := utils.DefaultLogger()
+	logger = logger.WithValues(
+		utils.LogValues{}.AddControllerName(c.name)...,
+	)
+
 	for _, notifier := range notifiers {
 		_, err := notifier.AddEventHandlerWithOptions(
 			cache.ResourceEventHandlerFuncs{
@@ -165,6 +171,7 @@ func (c *genericWatchingController[T]) QueueForInformersWithMaxDepth(resyncDurat
 				UpdateFunc: c.enqueueCosmosUpdateFunc(maxDepth),
 			},
 			cache.HandlerOptions{
+				Logger:       &logger,
 				ResyncPeriod: ptr.To(resyncDuration),
 			})
 		errs = append(errs, err)
@@ -206,7 +213,11 @@ func (c *genericWatchingController[T]) EnqueueResourceIDAddWithMaxDepth(resource
 	key := c.syncer.MakeKey(resourceID)
 
 	logger := utils.DefaultLogger()
-	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
+	logger = logger.WithValues(
+		utils.LogValues{}.
+			AddControllerName(c.name).
+			AddLogValuesForResourceID(resourceID)...,
+	)
 	logger = utils.AddLoggerValues(logger, key)
 	ctx := logr.NewContext(context.TODO(), logger)
 	ctx = utils.ContextWithControllerName(ctx, c.name)
@@ -217,7 +228,8 @@ func (c *genericWatchingController[T]) EnqueueResourceIDAddWithMaxDepth(resource
 		return
 	}
 
-	if !c.syncer.CooldownChecker().CanSync(ctx, key) {
+	if cooldownChecker := c.syncer.CooldownChecker(); cooldownChecker != nil && !cooldownChecker.CanSync(ctx, key) {
+		logger.Info("Skipping notification")
 		return
 	}
 

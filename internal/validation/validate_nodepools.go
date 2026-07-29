@@ -31,7 +31,40 @@ import (
 const (
 	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-virtual-machines-limits---azure-resource-manager
 	MaxNodePoolNodes = 200
+
+	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
+	MaxDiskEncryptionSetNameLen       = 80
+	nodePoolK8sLabelKeyNodeRoleMaster = "node-role.kubernetes.io/master"
+	nodePoolK8sLabelKeyNodeRoleWorker = "node-role.kubernetes.io/worker"
+	nodePoolK8sLabelKeyMachineRole    = "machine.openshift.io/cluster-api-machine-role"
+	nodePoolK8sLabelKeyMachineType    = "machine.openshift.io/cluster-api-machine-type"
+
+	// MaxManagedOSDiskSizeGiB is the maximum allowed OS disk size (GiB) for Managed (persistent) OS disks.
+	// See https://learn.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview#os-disk
+	MaxManagedOSDiskSizeGiB int32 = 4095
+	// MaxEphemeralOSDiskSizeGiB is the absolute maximum allowed OS disk size (GiB) for Ephemeral OS disks.
+	// Azure may enforce a lower effective limit per VM size based on local cache/temp/NVMe capacity.
+	// Values above this absolute cap are rejected here; values within this cap but above the selected
+	// VM size's local disk capacity are accepted by this validator and fail later during Azure
+	// provisioning.
+	// See https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+	MaxEphemeralOSDiskSizeGiB int32 = 2040
 )
+
+// nodePoolForbiddenK8sLabelValuesByKey maps Kubernetes label keys to forbidden values.
+// A nil value set means the entire label key is forbidden regardless of value.
+var nodePoolForbiddenK8sLabelValuesByKey = map[string]map[string]struct{}{
+	nodePoolK8sLabelKeyNodeRoleMaster: nil,
+	nodePoolK8sLabelKeyNodeRoleWorker: nil,
+	nodePoolK8sLabelKeyMachineRole: {
+		"master": {},
+		"infra":  {},
+	},
+	nodePoolK8sLabelKeyMachineType: {
+		"master": {},
+		"infra":  {},
+	},
+}
 
 func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
 	return validateNodePool(ctx, op, newObj, oldObj)
@@ -112,6 +145,10 @@ func toNodePoolPropertiesTaints(oldObj *api.HCPOpenShiftClusterNodePoolPropertie
 	return oldObj.Taints
 }
 
+func toNodePoolPropertiesNodeDrainTimeoutMinutes(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *int32 {
+	return oldObj.NodeDrainTimeoutMinutes
+}
+
 func validateNodePoolProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
@@ -160,6 +197,7 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 		nil,
 		KubeLabelValue,
 	)...)
+	errs = append(errs, validateNodePoolForbiddenLabels(fldPath.Child("labels"), newObj.Labels)...)
 
 	//Taints                  []Taint                 `json:"taints,omitempty"`
 	errs = append(errs, validate.EachSliceVal(
@@ -170,7 +208,36 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	)...)
 
 	//NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
-	// TODO why do we allow this to be negative?
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodePoolPropertiesNodeDrainTimeoutMinutes), 0)...)
+	errs = append(errs, Maximum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodePoolPropertiesNodeDrainTimeoutMinutes), 10080)...)
+
+	return errs
+}
+
+func validateNodePoolForbiddenLabels(fldPath *field.Path, newLabels map[string]string) field.ErrorList {
+	if len(newLabels) == 0 {
+		return nil
+	}
+
+	errs := field.ErrorList{}
+	for key, value := range newLabels {
+		keyPath := fldPath.Key(key)
+
+		forbiddenValues, restricted := nodePoolForbiddenK8sLabelValuesByKey[key]
+		if !restricted {
+			continue
+		}
+
+		if forbiddenValues == nil {
+			errs = append(errs, field.Invalid(keyPath, key, "label key is not allowed on node pools"))
+			continue
+		}
+
+		if _, forbidden := forbiddenValues[value]; !forbidden {
+			continue
+		}
+		errs = append(errs, field.Invalid(keyPath, value, "label value is not allowed for this label key"))
+	}
 
 	return errs
 }
@@ -241,6 +308,7 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 	//VMSize                 string        `json:"vmSize,omitempty"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize), enabledNodePoolAzureVMSizes(), nil)...)
 
 	//EnableEncryptionAtHost bool          `json:"enableEncryptionAtHost"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("enableEncryptionAtHost"), &newObj.EnableEncryptionAtHost, safe.Field(oldObj, toNodePoolPlatformProfileEnableEncryptionAtHost))...)
@@ -275,8 +343,19 @@ func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath 
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("diskType"), &newObj.DiskType, safe.Field(oldObj, toOSDiskProfileDiskType))...)
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskType"), &newObj.DiskType, safe.Field(oldObj, toOSDiskProfileDiskType), api.ValidOsDiskTypes, nil)...)
 
+	switch newObj.DiskType {
+	case api.OsDiskTypeManaged:
+		errs = append(errs, Maximum(ctx, op, fldPath.Child("sizeGiB"), newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), MaxManagedOSDiskSizeGiB)...)
+	case api.OsDiskTypeEphemeral:
+		errs = append(errs, Maximum(ctx, op, fldPath.Child("sizeGiB"), newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), MaxEphemeralOSDiskSizeGiB)...)
+	}
+
 	//EncryptionSetID        string                 `json:"encryptionSetId,omitempty"`
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("encryptionSetId"), newObj.EncryptionSetID, safe.Field(oldObj, toOSDiskProfileEncryptionSetID), "Microsoft.Compute/diskEncryptionSets")...)
+	if newObj.EncryptionSetID != nil {
+		errs = append(errs, MaxLen(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID.Name, nil, MaxDiskEncryptionSetNameLen)...)
+		errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID.Name, nil, diskEncryptionSetNameRegex, diskEncryptionSetNameErrorString)...)
+	}
 
 	return errs
 }

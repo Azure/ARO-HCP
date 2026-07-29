@@ -47,6 +47,12 @@ param aksNetworkDataplane string
 @description('Network policy plugin for the AKS cluster')
 param aksNetworkPolicy string
 
+@description('Maximum surge for AKS node pool upgrades')
+param aksUpgradeSettingsMaxSurge string
+
+@description('Maximum unavailable for AKS node pool upgrades')
+param aksUpgradeSettingsMaxUnavailable string
+
 @description('Name of the user agent pool')
 param userAgentPoolName string
 
@@ -685,6 +691,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     pullAcrResourceIds: [svcAcrResourceId]
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: false
+    upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
+    upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
     owningTeamTagValue: owningTeamTagValue
     aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }

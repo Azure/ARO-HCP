@@ -8,14 +8,14 @@ import "time"
 
 // APIProfile - Information about the API of a cluster.
 type APIProfile struct {
-	// The internet visibility of the OpenShift API server
-	Visibility *Visibility
-
 	// READ-ONLY; URL endpoint for the API server
 	URL *string
 
 	// The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries.
 	AuthorizedCIDRs []*string
+
+	// The internet visibility of the OpenShift API server
+	Visibility *Visibility
 }
 
 // AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
@@ -87,6 +87,25 @@ type ClusterImageRegistryProfile struct {
 	State *ClusterImageRegistryState
 }
 
+// Condition represents an observation of a resource's state.
+type Condition struct {
+	// READ-ONLY; The last time the condition transitioned from one status to another.
+	LastTransitionTime *time.Time
+
+	// READ-ONLY; A human readable message indicating details about the transition. This may be an empty string.
+	Message *string
+
+	// READ-ONLY; A programmatic identifier indicating the reason for the condition's last transition. This value should be a
+	// CamelCase string.
+	Reason *string
+
+	// READ-ONLY; The status of the condition.
+	Status *StatusType
+
+	// READ-ONLY; Type of the condition. This is a PascalCase identifier representing the type of the condition.
+	Type *ConditionType
+}
+
 // ConsoleProfile - Configuration of the cluster web console
 type ConsoleProfile struct {
 	// READ-ONLY; The cluster web console URL endpoint
@@ -101,6 +120,13 @@ type CustomerManagedEncryptionProfile struct {
 	// The Key Management Service (KMS) encryption key details.
 	// Required when encryptionType is "KMS".
 	Kms *KmsEncryptionProfile
+}
+
+// CustomerManagedEncryptionProfileUpdate - Customer managed encryption key profile.
+type CustomerManagedEncryptionProfileUpdate struct {
+	// The Key Management Service (KMS) encryption key details.
+	// Required when encryptionType is "KMS".
+	Kms *KmsEncryptionProfileUpdate
 }
 
 // DNSProfile - DNS contains the DNS settings of the cluster
@@ -157,10 +183,22 @@ type EtcdDataEncryptionProfile struct {
 	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
 }
 
+// EtcdDataEncryptionProfileUpdate - The ETCD data encryption settings.
+type EtcdDataEncryptionProfileUpdate struct {
+	// Specify customer managed encryption key details. Required when keyManagementMode is "CustomerManaged".
+	CustomerManaged *CustomerManagedEncryptionProfileUpdate
+}
+
 // EtcdProfile - The ETCD settings and configuration options.
 type EtcdProfile struct {
 	// ETCD Data Encryption settings. If not specified platform managed keys are used.
 	DataEncryption *EtcdDataEncryptionProfile
+}
+
+// EtcdProfileUpdate - The ETCD settings and configuration options.
+type EtcdProfileUpdate struct {
+	// ETCD Data Encryption settings. If not specified platform managed keys are used.
+	DataEncryption *EtcdDataEncryptionProfileUpdate
 }
 
 // ExternalAuth resource
@@ -252,6 +290,9 @@ type ExternalAuthProperties struct {
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ExternalAuthProvisioningState
+
+	// READ-ONLY; Status of the external auth resource
+	Status *ResourceStatus
 }
 
 // ExternalAuthPropertiesUpdate - External Auth profile
@@ -370,6 +411,9 @@ type HcpOpenShiftClusterProperties struct {
 	// OpenShift internal image registry
 	ClusterImageRegistry *ClusterImageRegistryProfile
 
+	// Cryptographic restrictions for kernel and userspace libraries
+	CryptoRestrictions *CryptoRestrictions
+
 	// Cluster DNS configuration
 	DNS *DNSProfile
 
@@ -379,6 +423,9 @@ type HcpOpenShiftClusterProperties struct {
 	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
 	// WARNING: Updating this array will redeploy all node pools in the cluster.
 	ImageDigestMirrors []*ImageDigestMirror
+
+	// The cluster ingress configuration
+	Ingress *IngressProfile
 
 	// Cluster network configuration
 	Network *NetworkProfile
@@ -398,12 +445,18 @@ type HcpOpenShiftClusterProperties struct {
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
+
+	// READ-ONLY; Status of the cluster resource
+	Status *ResourceStatus
 }
 
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
 type HcpOpenShiftClusterPropertiesUpdate struct {
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
+
+	// Configure ETCD.
+	Etcd *EtcdProfileUpdate
 
 	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
 	// WARNING: Updating this array will redeploy all node pools in the cluster.
@@ -559,6 +612,12 @@ type ImageDigestMirror struct {
 	Source *string
 }
 
+// IngressProfile - Information about the Ingress of a cluster.
+type IngressProfile struct {
+	// The type of the default cluster ingress.
+	Type *IngressType
+}
+
 // KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used
 // to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
 // set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)
@@ -573,12 +632,26 @@ type KmsEncryptionProfile struct {
 	Visibility *KeyVaultVisibility
 }
 
+// KmsEncryptionProfileUpdate - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application
+// used to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
+// set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)
+type KmsEncryptionProfileUpdate struct {
+	// The details of the active key.
+	ActiveKey *KmsKeyUpdate
+}
+
 // KmsKey - A representation of a KeyVault Secret.
 type KmsKey struct {
 	// REQUIRED; name is the name of the keyvault key used for encryption/decryption.
 	Name *string
 
 	// REQUIRED; version contains the version of the key to use.
+	Version *string
+}
+
+// KmsKeyUpdate - A representation of a KeyVault Secret.
+type KmsKeyUpdate struct {
+	// version contains the version of the key to use.
 	Version *string
 }
 
@@ -739,6 +812,9 @@ type NodePoolProperties struct {
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ProvisioningState
+
+	// READ-ONLY; Status of the node pool resource
+	Status *ResourceStatus
 }
 
 // NodePoolPropertiesUpdate - Represents the node pool properties
@@ -984,6 +1060,12 @@ type Resource struct {
 
 	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
 	Type *string
+}
+
+// ResourceStatus represents the observed status of the resource.
+type ResourceStatus struct {
+	// READ-ONLY; The conditions on the resource
+	Conditions []*Condition
 }
 
 // RoleDefinition - A single role definition required by a given operator

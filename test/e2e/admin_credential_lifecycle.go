@@ -57,6 +57,7 @@ var _ = Describe("Customer", func() {
 		labels.High,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			clusterName := "admin-cred-lifecycle-" + rand.String(6)
 			tc := framework.NewTestContext()

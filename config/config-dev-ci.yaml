@@ -7,7 +7,7 @@ $schema: config-dev-ci.schema.json
 #     --topology-file="${PROJECT_ROOT_DIR}/topology-dev-ci.yaml" \
 #     --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
 #     --dev-environment dev-ci \
-#     --service-group Microsoft.Azure.ARO.HCP.DevCI.Infra
+#     --service-group Microsoft.Azure.ARO.HCP.DevCI.Unprivileged
 #
 # Prerequisites for manual deployment:
 #   - Build templatize: make templatize
@@ -16,6 +16,8 @@ $schema: config-dev-ci.schema.json
 clouds:
   dev:
     defaults:
+      environmentName: "{{ .ctx.environment }}"
+      region: "{{ .ctx.region }}"
       svc:
         rg: "opstool-{{ .ctx.region }}"
         subscription:
@@ -38,9 +40,12 @@ clouds:
           vnetAddressPrefix: "10.0.0.0/16"
           subnetPrefix: "10.0.1.0/24"
           podSubnetPrefix: "10.0.2.0/24"
-          kubernetesVersion: 1.32.5
+          kubernetesVersion: "1.35"
           networkDataplane: "cilium"
           networkPolicy: "cilium"
+          upgradeSettings:
+            maxSurge: "10%"
+            maxUnavailable: "0"
           clusterOutboundIPAddressIPTags: ""
           etcd:
             name: "opstool-etcd-{{ .ctx.regionShort }}"
@@ -124,7 +129,7 @@ clouds:
           image:
             registry: "quay.io"
             repository: "roivaz/cihealth"
-            tag: "9763534"
+            tag: "0c8550b"
           disableRuntimeWorkloads: false
           app:
             replicas: 2
@@ -195,6 +200,14 @@ clouds:
               regions:
               - uksouth
             - name: "ARO HCP E2E Hosted Clusters - Stage - 00"
+              roleAssignmentLimit: 8000
+              regions:
+              - uksouth
+            - name: "ARO HCP E2E Hosted Clusters - Prod - 00"
+              roleAssignmentLimit: 8000
+              regions:
+              - uksouth
+            - name: "ARO HCP E2E Hosted Clusters - Prod - 01"
               roleAssignmentLimit: 8000
               regions:
               - uksouth

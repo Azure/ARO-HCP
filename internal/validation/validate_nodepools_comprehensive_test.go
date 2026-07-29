@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -146,6 +147,46 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "valid nodepool with node drain timeout zero - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](0)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "valid nodepool with node drain timeout at maximum - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](10080)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "negative node drain timeout - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](-1)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "properties.nodeDrainTimeoutMinutes"},
+			},
+		},
+		{
+			name: "node drain timeout too large - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](10081)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 10080", FieldPath: "properties.nodeDrainTimeoutMinutes"},
+			},
 		},
 		{
 			name: "valid nodepool with version ID - create",
@@ -281,6 +322,18 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "Required value", FieldPath: "properties.platform.vmSize"},
+				{Message: "Unsupported value", FieldPath: "properties.platform.vmSize"},
+			},
+		},
+		{
+			name: "invalid VM size - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.VMSize = "invalid_vm_size"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.platform.vmSize"},
 			},
 		},
 		{
@@ -292,6 +345,53 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "must be greater than or equal to 64", FieldPath: "properties.platform.osDisk.sizeGiB"},
+			},
+		},
+		{
+			name: "managed OS disk size at maximum - valid - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeManaged
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](MaxManagedOSDiskSizeGiB)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "managed OS disk size over maximum - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeManaged
+				np.Properties.Platform.OSDisk.DiskStorageAccountType = api.DiskStorageAccountTypeStandardSSD_LRS
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](MaxManagedOSDiskSizeGiB + 1)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 4095", FieldPath: "properties.platform.osDisk.sizeGiB"},
+			},
+		},
+		{
+			name: "ephemeral OS disk size at maximum - valid - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeEphemeral
+				np.Properties.AutoRepair = true
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](MaxEphemeralOSDiskSizeGiB)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "ephemeral OS disk size over maximum - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeEphemeral
+				np.Properties.AutoRepair = true
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](MaxEphemeralOSDiskSizeGiB + 1)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 2040", FieldPath: "properties.platform.osDisk.sizeGiB"},
 			},
 		},
 		{
@@ -347,6 +447,38 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "resource ID must reference an instance of type", FieldPath: "properties.platform.osDisk.encryptionSetId"},
+			},
+		},
+		{
+			name: "encryption set name at maximum length - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/" + strings.Repeat("a", MaxDiskEncryptionSetNameLen)))
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "encryption set name too long - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/" + strings.Repeat("a", MaxDiskEncryptionSetNameLen+1)))
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Too long", FieldPath: "properties.platform.osDisk.encryptionSetId"},
+			},
+		},
+		{
+			name: "encryption set name with invalid characters - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
+				np.Properties.Platform.OSDisk.EncryptionSetID.Name = "test.des"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must contain only alphanumeric characters, underscores, and hyphens", FieldPath: "properties.platform.osDisk.encryptionSetId"},
 			},
 		},
 		{
@@ -515,6 +647,95 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "restricted node role master label key - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyNodeRoleMaster: "true",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label key is not allowed on node pools", FieldPath: "properties.labels[node-role.kubernetes.io/master]"},
+			},
+		},
+		{
+			name: "restricted node role worker label key - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyNodeRoleWorker: "true",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label key is not allowed on node pools", FieldPath: "properties.labels[node-role.kubernetes.io/worker]"},
+			},
+		},
+		{
+			name: "restricted machine role label value master - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "master",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label value is not allowed for this label key", FieldPath: "properties.labels[machine.openshift.io/cluster-api-machine-role]"},
+			},
+		},
+		{
+			name: "restricted machine role label value infra - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "infra",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label value is not allowed for this label key", FieldPath: "properties.labels[machine.openshift.io/cluster-api-machine-role]"},
+			},
+		},
+		{
+			name: "restricted machine type label value master - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineType: "master",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label value is not allowed for this label key", FieldPath: "properties.labels[machine.openshift.io/cluster-api-machine-type]"},
+			},
+		},
+		{
+			name: "restricted machine type label value infra - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineType: "infra",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label value is not allowed for this label key", FieldPath: "properties.labels[machine.openshift.io/cluster-api-machine-type]"},
+			},
+		},
+		{
+			name: "valid machine role label value worker - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "worker",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
 			name: "empty label key - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
@@ -611,6 +832,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				{Message: "No Major.Minor.Patch elements found", FieldPath: "properties.version.id"},
 				{Message: "Short version cannot contain PreRelease/Build meta data", FieldPath: "properties.version.id"},
 				{Message: "Required value", FieldPath: "properties.platform.vmSize"},
+				{Message: "Unsupported value", FieldPath: "properties.platform.vmSize"},
 				{Message: "must be greater than or equal to 64", FieldPath: "properties.platform.osDisk.sizeGiB"},
 				{Message: "must be greater than or equal to 0", FieldPath: "properties.replicas"},
 			},
@@ -942,6 +1164,30 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
+			name: "negative node drain timeout - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](-1)
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "properties.nodeDrainTimeoutMinutes"},
+			},
+		},
+		{
+			name: "node drain timeout too large - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](10081)
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 10080", FieldPath: "properties.nodeDrainTimeoutMinutes"},
+			},
+		},
+		{
 			name: "valid nodepool update - version change",
 			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
@@ -980,7 +1226,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			}(),
 			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.VMSize = "Standard_D2s_v3"
+				np.Properties.Platform.VMSize = "Standard_D8s_v3"
 				return np
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -1155,6 +1401,80 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "restricted node role master label key on update - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyNodeRoleMaster: "true",
+				}
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label key is not allowed on node pools", FieldPath: "properties.labels[node-role.kubernetes.io/master]"},
+			},
+		},
+		{
+			name: "restricted machine role label value on update - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "master",
+				}
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "worker",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label value is not allowed for this label key", FieldPath: "properties.labels[machine.openshift.io/cluster-api-machine-role]"},
+			},
+		},
+		{
+			name: "restricted label key unchanged on update - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyNodeRoleMaster: "true",
+				}
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyNodeRoleMaster: "true",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label key is not allowed on node pools", FieldPath: "properties.labels[node-role.kubernetes.io/master]"},
+			},
+		},
+		{
+			name: "restricted machine role label value unchanged on update - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "master",
+				}
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "master",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label value is not allowed for this label key", FieldPath: "properties.labels[machine.openshift.io/cluster-api-machine-role]"},
+			},
+		},
+		{
 			name: "invalid taints on update - update",
 			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
@@ -1255,7 +1575,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
 				np.Properties.ProvisioningState = arm.ProvisioningStateSucceeded
-				np.Properties.Platform.VMSize = "Standard_D2s_v3"
+				np.Properties.Platform.VMSize = "Standard_D8s_v3"
 				np.Properties.AutoRepair = true
 				np.Location = "eastus"
 				return np
@@ -1434,7 +1754,7 @@ func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
 	nodePool.Properties.Version.ID = "4.20.8"
 	nodePool.Properties.Version.ChannelGroup = "stable"
 	nodePool.Properties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
-	nodePool.Properties.Platform.VMSize = "Standard_D2s_v3"
+	nodePool.Properties.Platform.VMSize = "Standard_D8s_v3"
 	nodePool.Properties.Replicas = 3
 
 	// Add required systemData fields

@@ -1,0 +1,4 @@
+services:
+- serviceGroup: TestSvcInvalid
+  pipelinePath: svc-invalid/pipeline.yaml
+  purpose: Test service with invalid bicepparam templates

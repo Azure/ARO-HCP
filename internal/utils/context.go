@@ -202,6 +202,14 @@ func (lv LogValues) AddResourceType(value string) LogValues {
 	return append(lv, "resourceType", strings.ToLower(value))
 }
 
+func (lv LogValues) AddResourceTypes(values ...azcorearm.ResourceType) LogValues {
+	ret := lv
+	for _, value := range values {
+		ret = ret.AddResourceType(value.String())
+	}
+	return ret
+}
+
 // AddSubscriptionID adds the "subscription_id" key with the lowercased value.
 func (lv LogValues) AddSubscriptionID(value string) LogValues {
 	return append(lv, "subscription_id", strings.ToLower(value))

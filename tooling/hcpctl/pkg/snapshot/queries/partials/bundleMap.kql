@@ -20,19 +20,17 @@ let bundleMapCS = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}'
 {{- end -}}
 
 {{- define "bundleMapBackend" -}}
-{{ if and .ResourceGroup .ClusterResourceName .ServiceProviderResourceType -}}
-let bundleMapBackend = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
+{{ if and .ClusterResourceID .ServiceProviderResourceType -}}
+let bundleMapBackend = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
 | where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
 {{- if and .ServiceClusterName .ManagementClusterName }}
 | where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
 {{- end }}
-| where container_name == 'aro-hcp-backend'
-| where log.controller_name == 'datadump'
-| where log.resource_group == '{{ .ResourceGroup }}'
-| where log.resource_name == '{{ .ClusterResourceName }}'
-| where log.content.resourceType =~ '{{ .ServiceProviderResourceType }}'
-| where log.content.resourceID has '{{ .ResourceName }}'
-| summarize content = take_any(log.content) by etag = tostring(log.content._etag)
+| where subscriptionID == '{{ .SubscriptionID }}'
+| where resourceGroup =~ '{{ .ResourceGroup }}'
+| where resourceID startswith '{{ .ClusterResourceID }}'
+| where resourceType =~ '{{ .ServiceProviderResourceType }}'
+| summarize content = take_any(content) by etag = tostring(content._etag)
 | mv-expand readOnlyBundle = content.properties.status.maestroReadonlyBundles
 | where tostring(readOnlyBundle) != ''
 | mv-expand resourceIdentifier = readOnlyBundle.resourceIdentifiers
@@ -52,9 +50,9 @@ let bundleMapBackend = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabas
 {{ template "bundleMapBackend" . -}}
 let bundleMap = union
 {{ if .ClusterID -}}
-    (bundleMapCS | project bundleId, groupVersion, resourceKind, resourceNamespace, resourceName, source = 'clustersService', label = strcat(groupVersion, '/', resourceKind, ' ', resource)){{ if and .ResourceGroup .ClusterResourceName .ServiceProviderResourceType }},{{ end }}
+    (bundleMapCS | project bundleId, groupVersion, resourceKind, resourceNamespace, resourceName, source = 'clustersService', label = strcat(groupVersion, '/', resourceKind, ' ', resource)){{ if and .ClusterResourceID .ServiceProviderResourceType }},{{ end }}
 {{ end -}}
-{{ if and .ResourceGroup .ClusterResourceName .ServiceProviderResourceType -}}
+{{ if and .ClusterResourceID .ServiceProviderResourceType -}}
     (bundleMapBackend | project bundleId = maestroBundleId, groupVersion, resourceKind, resourceNamespace, resourceName, source = 'backend', label = strcat(groupVersion, '/', resourceKind, ' ', resourceNamespace, '/', resourceName))
 {{ end -}}
 | summarize groupVersion = take_any(groupVersion), resourceKind = take_any(resourceKind), source = take_any(source), label = take_any(label), resourceNamespace = take_any(resourceNamespace), resourceName = take_any(resourceName) by bundleId;

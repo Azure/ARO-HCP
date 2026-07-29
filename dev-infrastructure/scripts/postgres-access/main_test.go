@@ -162,6 +162,40 @@ func TestUserPrincipalName(t *testing.T) {
 	}
 }
 
+func TestIsManagedIdentityToken(t *testing.T) {
+	// MSI token has xms_mirid claim.
+	if !isManagedIdentityToken(map[string]any{"xms_mirid": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/my-mi", "appid": "abc", "oid": "o"}) {
+		t.Error("expected MSI token to be detected")
+	}
+	// SP token has no xms_mirid.
+	if isManagedIdentityToken(map[string]any{"appid": "abc", "oid": "o"}) {
+		t.Error("SP token should not be detected as MSI")
+	}
+	// User token has no xms_mirid.
+	if isManagedIdentityToken(map[string]any{"upn": "user@x", "oid": "o"}) {
+		t.Error("user token should not be detected as MSI")
+	}
+}
+
+func TestServicePrincipalAppID(t *testing.T) {
+	// SP token with appid claim (v1 token).
+	if got := servicePrincipalAppID(map[string]any{"appid": "abc-123", "oid": "o"}); got != "abc-123" {
+		t.Errorf("appid = %q, want abc-123", got)
+	}
+	// SP token with azp claim (v2 token).
+	if got := servicePrincipalAppID(map[string]any{"azp": "def-456"}); got != "def-456" {
+		t.Errorf("azp = %q, want def-456", got)
+	}
+	// appid takes precedence over azp when both present.
+	if got := servicePrincipalAppID(map[string]any{"appid": "first", "azp": "second"}); got != "first" {
+		t.Errorf("expected appid precedence, got %q", got)
+	}
+	// User token has no appid/azp.
+	if got := servicePrincipalAppID(map[string]any{"upn": "user@x", "oid": "o"}); got != "" {
+		t.Errorf("user token should have empty appid, got %q", got)
+	}
+}
+
 func TestParseTokenClaims(t *testing.T) {
 	// header.payload.signature with payload {"upn":"u@x","oid":"o","tid":"t"}
 	const tok = "aaa.eyJ1cG4iOiJ1QHgiLCJvaWQiOiJvIiwidGlkIjoidCJ9.bbb"

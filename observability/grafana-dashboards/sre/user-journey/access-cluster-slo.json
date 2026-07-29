@@ -26,7 +26,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### Access the Cluster SLO Dashboard\n\nMonitors credential operation health (requestcredential, revokecredentials) against defined SLOs.\n\n**SLO Targets (Proposed — pending baseline):**\n- Credential operation success rate: 95% over 7-day rolling window\n- Stuck operations: none > 1 hour\n\n**Metrics Source:** `backend_resource_operation_phase_info`, `backend_resource_operation_start_time_seconds` (Cosmos DB-backed)\n\n**Jira:** [ARO-26191](https://redhat.atlassian.net/browse/ARO-26191) | **TSG:** [Access the ARO HCP Cluster TSG](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/access-the-aro-hcp-cluster-tsg.html)",
+        "content": "### Access the Cluster SLO Dashboard\n\nMonitors credential operation health (requestcredential, revokecredentials) against defined SLOs.\n\n**SLO Targets (Proposed — pending baseline):**\n- Credential operation success rate: 95% over 7-day rolling window\n- Stuck operations: none > 1 hour\n\n**Metrics Source:** `backend_resource_operation_phase_info`, `backend_resource_operation_start_time_seconds` (Cosmos DB-backed)\n\n**Jira:** [ARO-26191](https://redhat.atlassian.net/browse/ARO-26191) | **Runbook:** [Access the Cluster](https://aka.ms/arohcp-runbook-access-cluster)",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",

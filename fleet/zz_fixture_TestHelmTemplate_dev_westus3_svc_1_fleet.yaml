@@ -134,6 +134,12 @@ spec:
         - 'http://clusters-service.clusters-service.svc.cluster.local:8000'
         - --kube-namespace
         - 'fleet'
+        - "--amw-scaling-poll-interval"
+        - "30s"
+        - "--amw-workspace-resource-id"
+        - "__svcAzureMonitorWorkspaceId__"
+        - "--amw-workspace-resource-id"
+        - "__hcpAzureMonitorWorkspaceId__"
         ports:
         - name: healthz
           containerPort: 8080

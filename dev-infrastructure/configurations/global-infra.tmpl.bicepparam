@@ -14,12 +14,6 @@ param keyVaultTagKey = '{{ .global.keyVault.tagKey }}'
 param keyVaultTagValue = '{{ .global.keyVault.tagValue }}'
 param keyVaultEncryptionKeyName = '{{ .global.keyVault.encryptionKeyName }}'
 
-param grafanaName = '{{ .monitoring.grafanaName }}'
-param grafanaMajorVersion = '{{ .monitoring.grafanaMajorVersion }}'
-param grafanaZoneRedundantMode = '{{ .monitoring.grafanaZoneRedundantMode }}'
-param grafanaRoles = '{{ .monitoring.grafanaRoles }}'
-param crossTenantSecurityGroup = '{{ .monitoring.crossTenantSecurityGroup }}'
-
 param globalNSPName = '{{ .global.nsp.name }}'
 param globalNSPAccessMode = '{{ .global.nsp.accessMode }}'
 

@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -39,7 +38,6 @@ import (
 // deletion pipelines. The orphan scraper handles controller status after the
 // Cluster document itself is removed.
 type clusterChildResourcesCleanupController struct {
-	cooldownChecker      controllerutil.CooldownChecker
 	clusterLister        listers.ClusterLister
 	resourcesDBClient    database.ResourcesDBClient
 	kubeApplierDBClients database.KubeApplierDBClients
@@ -50,12 +48,10 @@ var _ controllerutils.ClusterSyncer = (*clusterChildResourcesCleanupController)(
 func NewClusterChildResourcesCleanupController(
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &clusterChildResourcesCleanupController{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		clusterLister:        clusterLister,
 		resourcesDBClient:    resourcesDBClient,
 		kubeApplierDBClients: kubeApplierDBClients,
@@ -69,10 +65,6 @@ func NewClusterChildResourcesCleanupController(
 		time.Minute,
 		syncer,
 	)
-}
-
-func (c *clusterChildResourcesCleanupController) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *clusterChildResourcesCleanupController) NeedsWork(cluster *api.HCPOpenShiftCluster) bool {

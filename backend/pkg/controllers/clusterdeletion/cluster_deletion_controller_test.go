@@ -193,7 +193,6 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &clusterDeletionController{
-				cooldownChecker:              &alwaysSyncCooldownChecker{},
 				clusterLister:                &listertesting.SliceClusterLister{Clusters: clustersForLister},
 				serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: spcForLister},
 				resourcesDBClient:            mockResourcesDBClient,

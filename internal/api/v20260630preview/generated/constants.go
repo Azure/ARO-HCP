@@ -80,6 +80,24 @@ func PossibleCreatedByTypeValues() []CreatedByType {
 	}
 }
 
+// CryptoRestrictions - Cryptographic restrictions for kernel and userspace libraries
+type CryptoRestrictions string
+
+const (
+	// CryptoRestrictionsFIPS - Use only FIPS-validated algorithms and implementations
+	CryptoRestrictionsFIPS CryptoRestrictions = "FIPS"
+	// CryptoRestrictionsNone - No restrictions
+	CryptoRestrictionsNone CryptoRestrictions = "None"
+)
+
+// PossibleCryptoRestrictionsValues returns the possible values for the CryptoRestrictions const type.
+func PossibleCryptoRestrictionsValues() []CryptoRestrictions {
+	return []CryptoRestrictions{
+		CryptoRestrictionsFIPS,
+		CryptoRestrictionsNone,
+	}
+}
+
 // CustomerManagedEncryptionType - The encryption type used. By default, "KMS" is used.
 type CustomerManagedEncryptionType string
 
@@ -138,22 +156,18 @@ func PossibleEffectValues() []Effect {
 	}
 }
 
-// EtcdDataEncryptionKeyManagementModeType - Specify the key management strategy used for the encryption key that encrypts
-// the ETCD data. By default, "PlatformManaged" is used.
+// EtcdDataEncryptionKeyManagementModeType - The encryption key management mode types supported for ETCD data encryption.
 type EtcdDataEncryptionKeyManagementModeType string
 
 const (
 	// EtcdDataEncryptionKeyManagementModeTypeCustomerManaged - Customer managed encryption key management mode type.
 	EtcdDataEncryptionKeyManagementModeTypeCustomerManaged EtcdDataEncryptionKeyManagementModeType = "CustomerManaged"
-	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - Platform managed encryption key management mode type.
-	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "PlatformManaged"
 )
 
 // PossibleEtcdDataEncryptionKeyManagementModeTypeValues returns the possible values for the EtcdDataEncryptionKeyManagementModeType const type.
 func PossibleEtcdDataEncryptionKeyManagementModeTypeValues() []EtcdDataEncryptionKeyManagementModeType {
 	return []EtcdDataEncryptionKeyManagementModeType{
 		EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-		EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 	}
 }
 

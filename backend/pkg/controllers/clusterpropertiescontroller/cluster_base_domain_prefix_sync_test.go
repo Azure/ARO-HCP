@@ -95,7 +95,6 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &clusterBaseDomainPrefixSyncer{
-				cooldownChecker:      &alwaysSyncCooldownChecker{},
 				clusterLister:        clusterLister,
 				resourcesDBClient:    mockResourcesDB,
 				clusterServiceClient: mockCSClient,

@@ -240,6 +240,34 @@ environments:
 	}
 }
 
+func TestLoadCatalogRejectsInvalidIdentityProvisioning(t *testing.T) {
+	t.Parallel()
+
+	invalidCatalog := `version: 1
+environments:
+  dev:
+    deploy_envs: [ci00]
+    pools:
+      - subscription_name: dev-sub-1
+        region: westus3
+        region_mode: fixed
+        identity_provisioning: unmanged
+        resource_type: aro-hcp-dev-westus3-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 1
+`
+
+	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
+	if err := os.WriteFile(catalogPath, []byte(invalidCatalog), 0o644); err != nil {
+		t.Fatalf("expected invalid catalog write to succeed: %v", err)
+	}
+
+	if _, err := LoadCatalog(catalogPath); err == nil {
+		t.Fatal("expected catalog with a typo in identity_provisioning to fail validation")
+	}
+}
+
 func TestLoadCatalogRejectsDuplicateRuntimeSelectedSubscriptionPools(t *testing.T) {
 	t.Parallel()
 

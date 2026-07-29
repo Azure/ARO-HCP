@@ -37,7 +37,6 @@ func TestBillingDumpController_SyncOnce(t *testing.T) {
 
 	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
 	syncer := &billingDump{
-		cooldownChecker:   &alwaysSyncCooldownChecker{},
 		resourcesDBClient: mockResourcesDBClient,
 		billingDBClient:   mockBillingDBClient,
 		nextDumpChecker:   &alwaysSyncCooldownChecker{},
@@ -52,22 +51,6 @@ func TestBillingDumpController_SyncOnce(t *testing.T) {
 	// SyncOnce should never return an error (best effort)
 	err = syncer.SyncOnce(ctx, key)
 	require.NoError(t, err)
-}
-
-func TestBillingDumpController_CooldownChecker(t *testing.T) {
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-
-	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
-	syncer := &billingDump{
-		cooldownChecker:   &alwaysSyncCooldownChecker{},
-		resourcesDBClient: mockResourcesDBClient,
-		billingDBClient:   mockBillingDBClient,
-		nextDumpChecker:   &alwaysSyncCooldownChecker{},
-	}
-
-	// Should return a cooldown checker
-	cooldown := syncer.CooldownChecker()
-	require.NotNil(t, cooldown)
 }
 
 func TestNewBillingDumpController(t *testing.T) {
@@ -95,7 +78,6 @@ func TestBillingDumpController_SyncOnce_WithBillingDoc(t *testing.T) {
 	require.NoError(t, err)
 
 	syncer := &billingDump{
-		cooldownChecker:   &alwaysSyncCooldownChecker{},
 		resourcesDBClient: mockResourcesDBClient,
 		billingDBClient:   mockBillingDBClient,
 		nextDumpChecker:   &alwaysSyncCooldownChecker{},
@@ -128,7 +110,6 @@ func TestBillingDumpController_CooldownRespected(t *testing.T) {
 	// Test that cooldown prevents sync
 	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
 	syncer := &billingDump{
-		cooldownChecker:   &alwaysSyncCooldownChecker{},
 		resourcesDBClient: mockResourcesDBClient,
 		billingDBClient:   mockBillingDBClient,
 		nextDumpChecker:   neverSyncChecker,

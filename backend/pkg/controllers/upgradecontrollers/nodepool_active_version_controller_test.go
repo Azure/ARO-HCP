@@ -32,8 +32,8 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
@@ -49,7 +49,7 @@ func nodePoolReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 	return api.Must(azcorearm.ParseResourceID(
 		kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-			maestrohelpers.ReadDesireNameReadonlyNodePool)))
+			kubeapplierhelpers.ReadDesireNameReadonlyNodePool)))
 }
 
 // newNodePoolReadDesireWithNodeVersions builds a ReadDesire whose
@@ -306,7 +306,6 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolActiveVersionSyncer{
-				cooldownChecker:               &alwaysSyncCooldownChecker{},
 				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 				resourcesDBClient:             mockDB,
 				readDesireLister:              &internallistertesting.SliceReadDesireLister{Desires: desires},
@@ -338,7 +337,6 @@ func TestNodePoolActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testing.T
 	beforeETag := before.CosmosETag
 
 	syncer := &nodePoolActiveVersionSyncer{
-		cooldownChecker:               &alwaysSyncCooldownChecker{},
 		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 		resourcesDBClient:             mockDB,
 		readDesireLister: &internallistertesting.SliceReadDesireLister{

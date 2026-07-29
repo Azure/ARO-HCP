@@ -52,12 +52,6 @@ const (
 	testNodePoolCSIDStr     = testClusterServiceIDStr + "/node_pools/" + testNodePoolName
 )
 
-type alwaysSyncCooldownChecker struct{}
-
-func (c *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
-	return true
-}
-
 func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 	testKey := controllerutils.HCPNodePoolKey{
 		SubscriptionID:    testSubscriptionID,
@@ -259,7 +253,6 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolClusterServiceCreateSyncer{
-				cooldownChecker:       &alwaysSyncCooldownChecker{},
 				nodePoolLister:        &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
 				clusterLister:         &listertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:     mockResourcesDBClient,

@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -36,8 +35,8 @@ import (
 // nodePoolValidationSyncer is a NodePool syncer that performs a NodePool
 // validation.
 type nodePoolValidationSyncer struct {
-	cooldownChecker   controllerutil.CooldownChecker
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient             database.ResourcesDBClient
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 
 	// validation is the validation to perform on the node pool.
 	validation validations.NodePoolValidation
@@ -51,14 +50,15 @@ func NewNodePoolValidationController(
 	validation validations.NodePoolValidation,
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 
 	syncer := &nodePoolValidationSyncer{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		resourcesDBClient: resourcesDBClient,
-		validation:        validation,
+		resourcesDBClient:             resourcesDBClient,
+		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		validation:                    validation,
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
@@ -96,15 +96,20 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 		return nil
 	}
 
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
+	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderNodePool will populate it; we'll be re-enqueued via the ServiceProviderNodePool informer.
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
 	}
 
-	shouldProcess := c.shouldProcess(existingServiceProviderNodePool)
+	shouldProcess := c.shouldProcess(cachedServiceProviderNodePool)
 	if !shouldProcess {
 		return nil // no work to do
 	}
+	existingServiceProviderNodePool := cachedServiceProviderNodePool.DeepCopy()
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingNodePool.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
@@ -132,6 +137,10 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 
 	serviceProviderNodePoolsCosmosClient := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	_, err = serviceProviderNodePoolsCosmosClient.Replace(ctx, existingServiceProviderNodePool, nil)
+	if database.IsPreconditionFailedError(err) {
+		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}
@@ -143,8 +152,4 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 // it failed to run successfully in a previous attempt.
 func (c *nodePoolValidationSyncer) shouldProcess(serviceProviderNodePool *api.ServiceProviderNodePool) bool {
 	return !meta.IsStatusConditionTrue(serviceProviderNodePool.Status.Validations, c.validation.Name())
-}
-
-func (c *nodePoolValidationSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }

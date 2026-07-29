@@ -38,8 +38,8 @@ func modeFromString(mode string) armresources.DeploymentMode {
 	}
 }
 
-func transformBicepToARMDeployment(ctx context.Context, bicepClient *bicep.LSPClient, bicepParameterTemplateFile, deploymentMode, pipelineWorkingDir string, cfg types.Configuration, inputs map[string]any) (*armresources.DeploymentProperties, error) {
-	template, params, err := transformParameters(ctx, bicepClient, cfg, inputs, bicepParameterTemplateFile, pipelineWorkingDir)
+func transformBicepToARMDeployment(ctx context.Context, bicepClient *bicep.LSPClient, bicepParameterTemplateFile, deploymentMode, pipelineWorkingDir string, cfg types.Configuration, inputs map[string]any, skipBicepparamValidation bool) (*armresources.DeploymentProperties, error) {
+	template, params, err := transformParameters(ctx, bicepClient, cfg, inputs, bicepParameterTemplateFile, pipelineWorkingDir, skipBicepparamValidation)
 	if err != nil {
 		return nil, err
 	}
@@ -50,8 +50,17 @@ func transformBicepToARMDeployment(ctx context.Context, bicepClient *bicep.LSPCl
 	}, nil
 }
 
-func transformParameters(ctx context.Context, bicepClient *bicep.LSPClient, cfg types.Configuration, inputs map[string]any, bicepParameterTemplateFile, pipelineWorkingDir string) (map[string]interface{}, map[string]interface{}, error) {
+func transformParameters(ctx context.Context, bicepClient *bicep.LSPClient, cfg types.Configuration, inputs map[string]any, bicepParameterTemplateFile, pipelineWorkingDir string, skipBicepparamValidation bool) (map[string]interface{}, map[string]interface{}, error) {
 	bicepParameterFile := filepath.Join(pipelineWorkingDir, bicepParameterTemplateFile)
+	if !skipBicepparamValidation {
+		rawContent, err := os.ReadFile(bicepParameterFile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to read bicepparam template %s: %w", bicepParameterFile, err)
+		}
+		if err := config.ValidateSimpleFieldAccess(rawContent); err != nil {
+			return nil, nil, fmt.Errorf("invalid bicepparam template %s: %w", bicepParameterFile, err)
+		}
+	}
 	bicepParamContent, err := config.PreprocessFile(bicepParameterFile, cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to preprocess file: %w", err)

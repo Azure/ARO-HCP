@@ -35,7 +35,6 @@ import (
 )
 
 type csStateDump struct {
-	cooldownChecker   controllerutil.CooldownChecker
 	resourcesDBClient database.ResourcesDBClient
 	csClient          ocm.ClusterServiceClientSpec
 
@@ -52,7 +51,6 @@ func NewCSStateDumpController(
 	csClient ocm.ClusterServiceClientSpec,
 ) controllerutils.Controller {
 	syncer := &csStateDump{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient: resourcesDBClient,
 		csClient:          csClient,
 		nextDumpChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
@@ -159,10 +157,6 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	}
 
 	return nil
-}
-
-func (c *csStateDump) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // csObjectToMap serializes a cluster-service object to JSON and then decodes it into a map[string]any

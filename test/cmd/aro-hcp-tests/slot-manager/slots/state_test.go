@@ -43,7 +43,7 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	if err := WriteAcquiredSlotState(sharedDir, state); err != nil {
 		t.Fatalf("expected state write to succeed: %v", err)
 	}
-	if err := WriteEnvFile(sharedDir, state, "ARO HCP E2E Hosted Clusters (EA Subscription)"); err != nil {
+	if err := WriteEnvFile(sharedDir, state, "ARO HCP E2E Hosted Clusters (EA Subscription)", "/var/run/aro-hcp-dev"); err != nil {
 		t.Fatalf("expected env file write to succeed: %v", err)
 	}
 
@@ -78,6 +78,9 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	}
 	if !strings.Contains(content, `export LEASED_MSI_CONTAINERS='aro-hcp-msi-container-dev-00-00 aro-hcp-msi-container-dev-00-01 aro-hcp-msi-container-dev-00-02'`) {
 		t.Fatalf("expected env file to contain LEASED_MSI_CONTAINERS export, got %q", content)
+	}
+	if !strings.Contains(content, `export SELECTED_CLUSTER_PROFILE_DIR='/var/run/aro-hcp-dev'`) {
+		t.Fatalf("expected env file to contain SELECTED_CLUSTER_PROFILE_DIR export, got %q", content)
 	}
 	if !strings.Contains(content, `export SELECTED_LOCATION='eastus2'`) {
 		t.Fatalf("expected env file to contain SELECTED_LOCATION export, got %q", content)

@@ -32,7 +32,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -54,7 +53,6 @@ const missingClusterServiceIDTimeout = 120 * time.Second
 // the delete on subsequent syncs.
 type clusterClusterServiceDeleteDispatchSyncer struct {
 	clock                utilsclock.PassiveClock
-	cooldownChecker      controllerutil.CooldownChecker
 	clusterLister        listers.ClusterLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -71,13 +69,11 @@ func NewClusterClusterServiceDeleteDispatchController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &clusterClusterServiceDeleteDispatchSyncer{
 		clock:                           clock,
-		cooldownChecker:                 controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		clusterLister:                   clusterLister,
 		resourcesDBClient:               resourcesDBClient,
 		clusterServiceClient:            clusterServiceClient,
@@ -92,10 +88,6 @@ func NewClusterClusterServiceDeleteDispatchController(
 		time.Minute,
 		syncer,
 	)
-}
-
-func (c *clusterClusterServiceDeleteDispatchSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given
@@ -191,6 +183,10 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 
 	cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: c.clock.Now().UTC()}
 	_, err = clusterCRUD.Replace(ctx, cluster, nil)
+	if database.IsPreconditionFailedError(err) {
+		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to stamp ClusterServiceDeletionTimestamp: %w", err))
 	}

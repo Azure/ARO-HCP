@@ -32,24 +32,26 @@ import (
 
 // RawFromResourceOptions holds the unvalidated CLI options for from-resource.
 type RawFromResourceOptions struct {
-	Kusto           string
-	Region          string
-	ServiceDatabase string
-	HCPDatabase     string
-	ResourceGroup   string
-	StartTime       string
-	EndTime         string
-	OutputDir       string
-	QueryTimeout    time.Duration
-	Concurrency     int
+	Kusto                    string
+	Region                   string
+	ServiceDatabase          string
+	HCPDatabase              string
+	MonitoringEventsDatabase string
+	ResourceGroup            string
+	StartTime                string
+	EndTime                  string
+	OutputDir                string
+	QueryTimeout             time.Duration
+	Concurrency              int
 }
 
 func defaultFromResourceOptions() *RawFromResourceOptions {
 	return &RawFromResourceOptions{
-		ServiceDatabase: "intSVCLogs",
-		HCPDatabase:     "intHCPLogs",
-		QueryTimeout:    5 * time.Minute,
-		OutputDir:       fmt.Sprintf("snapshot-%s", time.Now().Format("20060102-150405")),
+		ServiceDatabase:          "ServiceLogs",
+		HCPDatabase:              "HostedControlPlaneLogs",
+		MonitoringEventsDatabase: "MonitoringEvents",
+		QueryTimeout:             5 * time.Minute,
+		OutputDir:                fmt.Sprintf("snapshot-%s", time.Now().Format("20060102-150405")),
 	}
 }
 
@@ -58,6 +60,7 @@ func bindFromResourceOptions(opts *RawFromResourceOptions, cmd *cobra.Command) e
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Azure Data Explorer cluster region (required)")
 	cmd.Flags().StringVar(&opts.ServiceDatabase, "service-database", opts.ServiceDatabase, "Kusto database for service logs")
 	cmd.Flags().StringVar(&opts.HCPDatabase, "hcp-database", opts.HCPDatabase, "Kusto database for hosted control plane logs")
+	cmd.Flags().StringVar(&opts.MonitoringEventsDatabase, "monitoring-events-database", opts.MonitoringEventsDatabase, "Kusto database for monitoring events (alerts)")
 	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "Azure resource group name (required)")
 	cmd.Flags().StringVar(&opts.StartTime, "start-time", opts.StartTime, "Query start time in RFC3339 format (required)")
 	cmd.Flags().StringVar(&opts.EndTime, "end-time", opts.EndTime, "Query end time in RFC3339 format (required)")
@@ -74,15 +77,16 @@ func bindFromResourceOptions(opts *RawFromResourceOptions, cmd *cobra.Command) e
 }
 
 type validatedFromResourceOptions struct {
-	kustoEndpoint   *url.URL
-	serviceDatabase string
-	hcpDatabase     string
-	resourceGroup   string
-	startTime       time.Time
-	endTime         time.Time
-	outputDir       string
-	queryTimeout    time.Duration
-	concurrency     int
+	kustoEndpoint            *url.URL
+	serviceDatabase          string
+	hcpDatabase              string
+	monitoringEventsDatabase string
+	resourceGroup            string
+	startTime                time.Time
+	endTime                  time.Time
+	outputDir                string
+	queryTimeout             time.Duration
+	concurrency              int
 }
 
 func (o *RawFromResourceOptions) validate() (*validatedFromResourceOptions, error) {
@@ -104,15 +108,16 @@ func (o *RawFromResourceOptions) validate() (*validatedFromResourceOptions, erro
 	}
 
 	return &validatedFromResourceOptions{
-		kustoEndpoint:   kustoEndpoint,
-		serviceDatabase: o.ServiceDatabase,
-		hcpDatabase:     o.HCPDatabase,
-		resourceGroup:   o.ResourceGroup,
-		startTime:       startTime,
-		endTime:         endTime,
-		outputDir:       o.OutputDir,
-		queryTimeout:    o.QueryTimeout,
-		concurrency:     o.Concurrency,
+		kustoEndpoint:            kustoEndpoint,
+		serviceDatabase:          o.ServiceDatabase,
+		hcpDatabase:              o.HCPDatabase,
+		monitoringEventsDatabase: o.MonitoringEventsDatabase,
+		resourceGroup:            o.ResourceGroup,
+		startTime:                startTime,
+		endTime:                  endTime,
+		outputDir:                o.OutputDir,
+		queryTimeout:             o.QueryTimeout,
+		concurrency:              o.Concurrency,
 	}, nil
 }
 
@@ -151,10 +156,11 @@ func (o *completedFromResourceOptions) run(ctx context.Context) error {
 
 	gatherer := snapshotpkg.NewGatherer(o.kustoClient)
 	input := snapshotpkg.GatherInput{
-		ClusterURI:      o.kustoEndpoint.String(),
-		ServiceDatabase: o.serviceDatabase,
-		HCPDatabase:     o.hcpDatabase,
-		ResourceGroup:   o.resourceGroup,
+		ClusterURI:               o.kustoEndpoint.String(),
+		ServiceDatabase:          o.serviceDatabase,
+		HCPDatabase:              o.hcpDatabase,
+		MonitoringEventsDatabase: o.monitoringEventsDatabase,
+		ResourceGroup:            o.resourceGroup,
 		TimeWindow: snapshotpkg.TimeWindow{
 			Start: o.startTime,
 			End:   o.endTime,

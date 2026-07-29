@@ -29,7 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -39,7 +38,6 @@ import (
 const NodePoolClusterServiceCreateControllerName = "NodePoolClusterServiceCreate"
 
 type nodePoolClusterServiceCreateSyncer struct {
-	cooldownChecker       controllerutil.CooldownChecker
 	resourcesDBClient     database.ResourcesDBClient
 	nodePoolLister        listers.NodePoolLister
 	clusterLister         listers.ClusterLister
@@ -49,14 +47,12 @@ type nodePoolClusterServiceCreateSyncer struct {
 func NewNodePoolClusterServiceCreateController(
 	resourcesDBClient database.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	_, clusterLister := informers.Clusters()
 	syncer := &nodePoolClusterServiceCreateSyncer{
-		cooldownChecker:       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:     resourcesDBClient,
 		nodePoolLister:        nodePoolLister,
 		clusterLister:         clusterLister,
@@ -174,10 +170,6 @@ func (c *nodePoolClusterServiceCreateSyncer) findCSNodePool(ctx context.Context,
 		return nil, err
 	}
 	return np, nil
-}
-
-func (c *nodePoolClusterServiceCreateSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *nodePoolClusterServiceCreateSyncer) isOCMErrorBadRequest(err error) bool {

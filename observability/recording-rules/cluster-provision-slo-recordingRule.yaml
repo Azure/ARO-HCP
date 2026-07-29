@@ -1,0 +1,74 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: cluster-provision-slo-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Cluster Provisioning SLO Recording Rules
+  # ========================================
+  # These rules track the Errors SLO for HCP cluster provisioning (install).
+  # SLO: 95% of cluster create operations should succeed (not reach "failed"
+  # terminal phase). Error Budget: 5% (1 - 0.95).
+  #
+  # Metrics are gauge-based (backend_resource_operation_phase_info) from Cosmos DB,
+  # so we use count() aggregations rather than rate() on counters.
+  #
+  # Scope: covers create operations on hcpOpenShiftClusters (the cluster install
+  # user journey). Update/delete are covered by the async-operations stuck alert;
+  # node pool operations have their own SLO (nodepool-slo-prometheusRule.yaml).
+  #
+  # Grouping is by the `cluster` label (the management cluster serving the
+  # request), which is a per-region proxy: a regional install failure (e.g. the
+  # ACR canary-replica endpoint outage in AROSLSRE-1592 that failed ~100% of
+  # eastus2 installs) surfaces as a spike in the per-management-cluster error rate.
+  - name: arohcp_cluster_provision_slo_recording_rules
+    interval: 1m
+    rules:
+    # Instantaneous count of succeeded cluster create operations per cluster
+    - record: errors:backend_cluster_provision:succeeded_total
+      expr: |
+        count by (cluster) (backend_resource_operation_phase_info{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+          operation_type="create",
+          phase="succeeded"
+        })
+    # Instantaneous count of all terminal cluster create operations per cluster
+    - record: errors:backend_cluster_provision:terminal_total
+      expr: |
+        count by (cluster) (backend_resource_operation_phase_info{
+          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+          operation_type="create",
+          phase=~"succeeded|failed|canceled"
+        })
+    # Instantaneous error rate per cluster: fraction of terminal operations that failed
+    - record: errors:backend_cluster_provision:error_rate
+      expr: |
+        (
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="create",
+            phase="failed"
+          })
+          or
+          0 * count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="create",
+            phase=~"succeeded|failed|canceled"
+          })
+        )
+        /
+        clamp_min(
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="create",
+            phase=~"succeeded|failed|canceled"
+          }),
+          1
+        )

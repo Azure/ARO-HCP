@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"dario.cat/mergo"
+	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -60,6 +61,38 @@ pAqEAuV4DNoxQKKWmhVv+J0ptMWD25Pnpxeq5sXzghfJnslJlQND
 )
 
 var dummyAudiences = []string{"audience1", "audience2"}
+
+func spcWithDesiredVersion(version string) *api.ServiceProviderCluster {
+	return &api.ServiceProviderCluster{
+		Spec: api.ServiceProviderClusterSpec{
+			ControlPlaneVersion: api.ServiceProviderClusterSpecVersion{
+				DesiredVersion: ptr.To(semver.MustParse(normalizeDesiredVersionForSemver(version))),
+			},
+		},
+	}
+}
+
+func normalizeDesiredVersionForSemver(version string) string {
+	if strings.Contains(version, "-") {
+		return version
+	}
+	parts := strings.Split(version, ".")
+	if len(parts) >= 3 {
+		return version
+	}
+	if patch, ok := map[string]string{"4.19": "34", "4.20": "25", "4.21": "20", "4.22": "1"}[version]; ok {
+		return version + "." + patch
+	}
+	return version + ".0"
+}
+
+func spcWithDesiredVersionFromHCPCluster(hcpCluster *api.HCPOpenShiftCluster) *api.ServiceProviderCluster {
+	versionID := hcpCluster.CustomerProperties.Version.ID
+	if versionID == "" {
+		versionID = "4.20"
+	}
+	return spcWithDesiredVersion(versionID)
+}
 
 func TestWithImmutableAttributes(t *testing.T) {
 	testCases := []struct {
@@ -138,23 +171,19 @@ func TestWithImmutableAttributes(t *testing.T) {
 				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.20").ChannelGroup("stable"))),
 		},
 		{
-			name: "with FIPS enabled",
+			name: "with CryptoRestrictions set to FIPS",
 			hcpCluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ExperimentalFeatures: api.ExperimentalFeatures{
-						FIPSEnabled: true,
-					},
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					CryptoRestrictions: api.CryptoRestrictionsFIPS,
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).FIPS(true)),
 		},
 		{
-			name: "with FIPS disabled",
+			name: "with CryptoRestrictions set to None",
 			hcpCluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ExperimentalFeatures: api.ExperimentalFeatures{
-						FIPSEnabled: false,
-					},
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					CryptoRestrictions: api.CryptoRestrictionsNone,
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).FIPS(false)),
@@ -166,16 +195,20 @@ func TestWithImmutableAttributes(t *testing.T) {
 			var buf bytes.Buffer
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(tc.want, &buf))
 			want := buf.String()
-			builder, err := withImmutableAttributes(
+			hcpCluster := api.ClusterTestCase(t, tc.hcpCluster)
+			csVersionID, err := clusterCSVersionID(spcWithDesiredVersionFromHCPCluster(hcpCluster), hcpCluster)
+			require.NoError(t, err)
+			builder, azureBuilder, err := withImmutableAttributes(
 				ocmClusterDefaults(api.TestLocation),
-				api.ClusterTestCase(t, tc.hcpCluster),
+				hcpCluster,
 				api.TestSubscriptionID,
 				api.TestResourceGroupName,
 				api.TestTenantID,
 				api.TestManagedIdentitiesDataPlaneIdentityURL,
+				csVersionID,
 			)
 			require.NoError(t, err)
-			result, err := builder.Build()
+			result, err := builder.Azure(azureBuilder).Build()
 			require.NoError(t, err)
 			buf.Reset()
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(result, &buf))
@@ -220,9 +253,6 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		API(arohcpv1alpha1.NewClusterAPI().
 			Listening(arohcpv1alpha1.ListeningMethodExternal)).
 		Azure(arohcpv1alpha1.NewAzure().
-			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
-				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-					KeyManagementMode(csKeyManagementModePlatformManaged))).
 			ManagedResourceGroupName(api.TestManagedResourceGroupName).
 			NetworkSecurityGroupResourceID(api.TestNetworkSecurityGroupResourceID).
 			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
@@ -621,22 +651,66 @@ func TestBuildCSExternalAuth(t *testing.T) {
 	}
 }
 
+// defaultTestKMSUpdateAzureBuilder returns the Azure builder that applyToCSBuilders
+// produces for an UPDATE when the test cluster has default KMS etcd encryption
+// (from MinimumValidClusterTestCase). Only the key version is dispatch-managed on update.
+func defaultTestKMSUpdateAzureBuilder() *arohcpv1alpha1.AzureBuilder {
+	return arohcpv1alpha1.NewAzure().
+		EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+			DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+				CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+					Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+						ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+							KeyVersion("test-version"))))))
+}
+
 func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 	var builder *arohcpv1alpha1.ClusterBuilder
 	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
 
 	if updating {
-		builder = arohcpv1alpha1.NewCluster()
+		builder = arohcpv1alpha1.NewCluster().
+			Azure(defaultTestKMSUpdateAzureBuilder())
 	} else {
 		builder = ocmClusterDefaults(api.TestLocation)
 		clusterAPIBuilder = clusterAPIBuilder.Listening(arohcpv1alpha1.ListeningMethodExternal)
 		builder.Ingresses(arohcpv1alpha1.NewIngressList().Items(
 			arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
 		))
+		builder.Azure(arohcpv1alpha1.NewAzure().
+			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+					KeyManagementMode(csKeyManagementModeCustomerManaged).
+					CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+						EncryptionType("kms").
+						Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+							Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
+							ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+								KeyName("test-key").
+								KeyVaultName("test-vault").
+								KeyVersion("test-version"),
+							),
+						),
+					))).
+			ManagedResourceGroupName(api.TestManagedResourceGroupName).
+			NetworkSecurityGroupResourceID(api.TestNetworkSecurityGroupResourceID).
+			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
+				OutboundType(csOutboundType)).
+			OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
+				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
+					ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
+					DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+					ManagedIdentitiesDataPlaneIdentityUrl(api.TestManagedIdentitiesDataPlaneIdentityURL))).
+			ResourceGroupName(strings.ToLower(api.TestResourceGroupName)).
+			ResourceName(strings.ToLower(api.TestClusterName)).
+			SubnetResourceID(api.TestSubnetResourceID).
+			VnetIntegrationSubnetResourceID(api.TestVnetIntegrationSubnetResourceID).
+			SubscriptionID(strings.ToLower(api.TestSubscriptionID)).
+			TenantID(api.TestTenantID))
 	}
 
 	// Add common mutable fields that BuildCSCluster always sets
-	return builder.
+	builder = builder.
 		NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
 			Unit(csNodeDrainGracePeriodUnit).
 			Value(float64(0))).
@@ -649,8 +723,10 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 		Properties(map[string]string{}).
 		API(clusterAPIBuilder.CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 			Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
-				Mode(csCIDRBlockAllowAccessModeAllowAll)))).
+				Mode(CSCIDRBlockAllowAccessModeAllowAll)))).
 		RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().ImageDigestMirrors())
+
+	return builder
 }
 
 func TestBuildCSCluster(t *testing.T) {
@@ -697,7 +773,7 @@ func TestBuildCSCluster(t *testing.T) {
 					Listening(arohcpv1alpha1.ListeningMethodInternal).
 					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
-							Mode(csCIDRBlockAllowAccessModeAllowList).
+							Mode(CSCIDRBlockAllowAccessModeAllowList).
 							Values("10.0.0.0/8", "192.168.0.0/16")))),
 		},
 		{
@@ -768,7 +844,7 @@ func TestBuildCSCluster(t *testing.T) {
 				API(arohcpv1alpha1.NewClusterAPI().
 					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
-							Mode(csCIDRBlockAllowAccessModeAllowList).
+							Mode(CSCIDRBlockAllowAccessModeAllowList).
 							Values("172.16.0.0/12", "203.0.113.0/24")))),
 		},
 		{
@@ -1040,7 +1116,7 @@ func TestBuildCSCluster(t *testing.T) {
 					Listening(arohcpv1alpha1.ListeningMethodExternal).
 					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
-							Mode(csCIDRBlockAllowAccessModeAllowAll)))).
+							Mode(CSCIDRBlockAllowAccessModeAllowAll)))).
 				Ingresses(arohcpv1alpha1.NewIngressList().Items(
 					arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
 				)).
@@ -1110,7 +1186,7 @@ func TestBuildCSCluster(t *testing.T) {
 					Listening(arohcpv1alpha1.ListeningMethodExternal).
 					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
-							Mode(csCIDRBlockAllowAccessModeAllowAll)))).
+							Mode(CSCIDRBlockAllowAccessModeAllowAll)))).
 				Ingresses(arohcpv1alpha1.NewIngressList().Items(
 					arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
 				)).
@@ -1147,6 +1223,48 @@ func TestBuildCSCluster(t *testing.T) {
 					TenantID(api.TestTenantID),
 				),
 		},
+		{
+			name: "UPDATE - sets new KMS key version",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Etcd: api.EtcdProfile{
+						DataEncryption: api.EtcdDataEncryptionProfile{
+							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+							CustomerManaged: &api.CustomerManagedEncryptionProfile{
+								EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+								Kms: &api.KmsEncryptionProfile{
+									Visibility: api.KeyVaultVisibilityPublic,
+									ActiveKey: api.KmsKey{
+										Name:      "test-key",
+										VaultName: "test-vault",
+										Version:   "v2",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Azure(arohcpv1alpha1.NewAzure().
+					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+										KeyVersion("v2"),
+									),
+								),
+							),
+						))),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1165,8 +1283,13 @@ func TestBuildCSCluster(t *testing.T) {
 			resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 			require.NoError(t, err)
 
+			var serviceProviderCluster *api.ServiceProviderCluster
+			if tc.oldClusterServiceCluster == nil {
+				serviceProviderCluster = spcWithDesiredVersion("4.20.25")
+			}
+
 			// Build actual CS cluster
-			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, api.TestTenantID, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster, nil)
+			actualClusterBuilder, err := BuildCSCluster(resourceID, api.TestTenantID, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster, serviceProviderCluster)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)
@@ -1180,7 +1303,7 @@ func TestBuildCSCluster(t *testing.T) {
 			expected, err := tc.expectedCSCluster.Build()
 			require.NoError(t, err)
 
-			actual, err := actualClusterBuilder.Autoscaler(actualAutoscalerBuilder).Build()
+			actual, err := actualClusterBuilder.Build()
 			require.NoError(t, err)
 
 			// Compare
@@ -1189,67 +1312,106 @@ func TestBuildCSCluster(t *testing.T) {
 	}
 }
 
-func TestDesiredHostedClusterSizeOverride(t *testing.T) {
-	largeStr := "Large"
-	spcWithSize := func(s *string) *api.ServiceProviderCluster {
+func TestClusterCSVersionID(t *testing.T) {
+	hcpCluster := func(versionID string) *api.HCPOpenShiftCluster {
+		c := &api.HCPOpenShiftCluster{}
+		c.CustomerProperties.Version.ID = versionID
+		c.CustomerProperties.Version.ChannelGroup = "stable"
+		return c
+	}
+	spcWithDesired := func(v string) *api.ServiceProviderCluster {
 		return &api.ServiceProviderCluster{
 			Spec: api.ServiceProviderClusterSpec{
-				DesiredHostedClusterControlPlaneSize: s,
+				ControlPlaneVersion: api.ServiceProviderClusterSpecVersion{
+					DesiredVersion: ptr.To(semver.MustParse(v)),
+				},
 			},
 		}
 	}
-	clusterWithPodSizing := func(p api.ControlPlanePodSizing) *api.HCPOpenShiftCluster {
-		c := &api.HCPOpenShiftCluster{}
-		c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = p
-		return c
-	}
 
 	tests := []struct {
-		name         string
-		spc          *api.ServiceProviderCluster
-		hcpCluster   *api.HCPOpenShiftCluster
-		expectValue  string
-		expectActive bool
+		name       string
+		spc        *api.ServiceProviderCluster
+		hcpCluster *api.HCPOpenShiftCluster
+		want       string
+		wantError  string
 	}{
 		{
-			name:         "SPC size wins over experimental feature",
-			spc:          spcWithSize(&largeStr),
-			hcpCluster:   clusterWithPodSizing(api.MinimalControlPlanePodSizing),
-			expectValue:  "large",
-			expectActive: true,
+			name:       "error when SPC is nil",
+			spc:        nil,
+			hcpCluster: hcpCluster("4.20"),
+			wantError:  "control plane desired version is not set on the ServiceProviderCluster",
 		},
 		{
-			name:         "SPC size set, no experimental feature",
-			spc:          spcWithSize(&largeStr),
-			hcpCluster:   clusterWithPodSizing(""),
-			expectValue:  "large",
-			expectActive: true,
+			name:       "error when SPC has no DesiredVersion",
+			spc:        &api.ServiceProviderCluster{},
+			hcpCluster: hcpCluster("4.20"),
+			wantError:  "control plane desired version is not set on the ServiceProviderCluster",
 		},
 		{
-			name:         "SPC nil, experimental feature active → legacy sentinel",
-			spc:          nil,
-			hcpCluster:   clusterWithPodSizing(api.MinimalControlPlanePodSizing),
-			expectValue:  CSPropertyE2EMinimalControlPlaneSize,
-			expectActive: true,
-		},
-		{
-			name:         "SPC has nil size, experimental feature active → legacy sentinel",
-			spc:          spcWithSize(nil),
-			hcpCluster:   clusterWithPodSizing(api.MinimalControlPlanePodSizing),
-			expectValue:  CSPropertyE2EMinimalControlPlaneSize,
-			expectActive: true,
-		},
-		{
-			name:         "neither input set → property absent",
-			spc:          nil,
-			hcpCluster:   clusterWithPodSizing(""),
-			expectActive: false,
+			name:       "uses SPC DesiredVersion",
+			spc:        spcWithDesired("4.20.8"),
+			hcpCluster: hcpCluster("4.20"),
+			want:       "openshift-v4.20.8",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			value, active := DesiredHostedClusterSizeOverride(tc.spc, tc.hcpCluster)
+			got, err := clusterCSVersionID(tc.spc, tc.hcpCluster)
+			if tc.wantError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantError)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestConvertHostedClusterSizeOverrideToCS(t *testing.T) {
+	largeStr := "Large"
+
+	tests := []struct {
+		name                         string
+		clusterControlPlanePodSizing api.ControlPlanePodSizing
+		spcControlPlaneSize          *string
+		expectValue                  string
+		expectActive                 bool
+	}{
+		{
+			name:                         "SPC size wins over experimental feature",
+			clusterControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+			spcControlPlaneSize:          &largeStr,
+			expectValue:                  "large",
+			expectActive:                 true,
+		},
+		{
+			name:                         "SPC size set, no experimental feature",
+			clusterControlPlanePodSizing: "",
+			spcControlPlaneSize:          &largeStr,
+			expectValue:                  "large",
+			expectActive:                 true,
+		},
+		{
+			name:                         "SPC nil, experimental feature active returns legacy sentinel",
+			clusterControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+			spcControlPlaneSize:          nil,
+			expectValue:                  CSPropertyE2EMinimalControlPlaneSize,
+			expectActive:                 true,
+		},
+		{
+			name:                         "neither input set returns property absent",
+			clusterControlPlanePodSizing: "",
+			spcControlPlaneSize:          nil,
+			expectActive:                 false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			value, active := ConvertHostedClusterSizeOverrideToCS(tc.clusterControlPlanePodSizing, tc.spcControlPlaneSize)
 			assert.Equal(t, tc.expectActive, active)
 			if tc.expectActive {
 				assert.Equal(t, tc.expectValue, value)

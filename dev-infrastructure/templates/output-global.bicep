@@ -61,10 +61,12 @@ output svcParentZoneResourceId string = svcParentZone.id
 //   G R A F A N A
 //
 
-// TODO(ARO-28044): re-enable after ARO-28040.
-// Grafana reconciliation is paused; emit empty outputs so dependent steps stay no-ops.
-output grafanaResourceId string = ''
-output grafanaPrincipalId string = ''
+resource grafana 'Microsoft.Dashboard/grafana@2024-10-01' existing = {
+  name: grafanaName
+}
+
+output grafanaResourceId string = grafana.id
+output grafanaPrincipalId string = grafana.identity.principalId
 
 //
 //   A Z U R E   F R O N T   D O O R

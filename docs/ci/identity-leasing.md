@@ -7,8 +7,8 @@ ARO HCP E2E uses two related Boskos-backed leasing mechanisms:
 
 The important operational distinction today is that the managed identity container pool is acquired in two different ways:
 
-- DEV `e2e-parallel` uses `slot-manager` through the `aro-hcp-local-e2e` workflow
-- all other E2E jobs still use the older ci-operator `leases:` path directly
+- DEV, INT, and STG `e2e-parallel` jobs use `slot-manager` through the `aro-hcp-local-e2e` workflow
+- PROD is being migrated onto the same slot-manager model; until its `openshift/release` job wiring lands it still uses the older ci-operator `leases:` path directly
 
 The high-level execution flow is summarized in [CI Execution](execution.md). This document preserves the deeper mechanics that matter when you need to reason about parallelism, pool sizing, workflow wiring, or lease-related failures.
 
@@ -79,9 +79,9 @@ For background on how leases work in OpenShift CI, see:
 - [Quota and Leases](https://docs.ci.openshift.org/docs/architecture/quota-and-leases/)
 - [Step Registry - Leases](https://docs.ci.openshift.org/docs/architecture/step-registry/#leases)
 
-#### DEV `e2e-parallel`: slot-managed acquisition
+#### DEV, INT, and STG `e2e-parallel`: slot-managed acquisition
 
-The only live slot-manager consumer today is the DEV `e2e-parallel` job in `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`.
+The live slot-manager consumers today are the DEV, INT, and STG `e2e-parallel` jobs in `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`. PROD is being onboarded onto the same path.
 
 That job uses `openshift/release: ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml`, whose pre-steps start with:
 
@@ -106,9 +106,9 @@ That runtime contract includes:
 
 Downstream steps then source that file and map `SELECTED_LOCATION` to the runtime `LOCATION` they consume. The test framework still sees `LEASED_MSI_CONTAINERS`; the difference is that slot-manager now decides which subscription, slot, and identity-container set back that variable.
 
-#### Higher environments: legacy ci-operator leases
+#### Remaining legacy ci-operator leases
 
-INT, STG, and PROD E2E jobs still use the legacy acquire model.
+Any E2E job not yet migrated to slot-manager uses the legacy acquire model. Today that is PROD (during its onboarding) plus the non-`e2e-parallel` job variants such as the `__e2e` and `__periodic` jobs.
 
 Those jobs run the persistent workflow in `openshift/release: ci-operator/step-registry/aro-hcp/e2e/aro-hcp-e2e-workflow.yaml`, which does not call slot-manager acquire or release. Instead, the job definitions in:
 
@@ -116,21 +116,21 @@ Those jobs run the persistent workflow in `openshift/release: ci-operator/step-r
 - `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml`
 - `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml`
 
-still request environment-specific identity-container resource types through ci-operator `leases:`. Those leases populate `LEASED_MSI_CONTAINERS` directly, and the test framework consumes them exactly as it did before the DEV slot-manager rollout.
+still request environment-specific identity-container resource types through ci-operator `leases:`. Those leases populate `LEASED_MSI_CONTAINERS` directly, and the test framework consumes them exactly as it did before the slot-manager rollout.
 
 ### Subscription Sharding And Region Selection
 
-The slot-manager path is what lets DEV CI shard `e2e-parallel` across multiple customer subscriptions without forking the workflow or the test binary.
+The slot-manager path is what lets CI shard `e2e-parallel` across multiple customer subscriptions without forking the workflow or the test binary.
 
 The current model is:
 
-- the canonical DEV slot inventory lives in `test/e2e-config/e2e-slots.yaml`
+- the canonical slot inventory lives in `test/e2e-config/e2e-slots.yaml`
 - each slot pool has a Boskos `resource_type`, a customer `subscription_name`, slot count, and identity-container settings
 - `slot-manager acquire` maps `ARO_HCP_DEPLOY_ENV` to the catalog environment and builds an ordered candidate pool list
 - `ALLOWED_SUBSCRIPTIONS` narrows the candidate pool set when a job needs to pin or restrict shard selection
 - when `region_mode: runtime-selected` is used, the concrete runtime region is driven by the job's runtime override and exported as `SELECTED_LOCATION`
 
-The current DEV rollout intentionally keeps the implementation details in [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md). For day-to-day CI understanding, the important points are:
+The current slot-manager rollout intentionally keeps the implementation details in [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md). For day-to-day CI understanding, the important points are:
 
 - subscription sharding is driven by the slot catalog and slot-manager candidate pool selection
 - candidate pools are tried in catalog order when more than one pool is eligible
@@ -192,7 +192,7 @@ For the current live capacity model:
 
 ### Scaling Constraints
 
-Two bottlenecks still matter:
+Three bottlenecks matter:
 
 **Bottleneck 1: maximum concurrent E2E runs.**
 
@@ -205,6 +205,25 @@ max-concurrent-runs = floor(pool-size / per-job-lease-count)
 - In the slot-managed DEV model, concurrency is instead bounded by the number of available slots across the shard pools that the job is allowed to consume.
 
 **Bottleneck 2: parallelism within a single run.** The per-job identity-container set still caps how many HCP clusters a single suite execution can run simultaneously. When the suite has more specs requiring HCPs than available leased containers, specs run in waves — the first wave runs, and the remaining specs block inside `AssignIdentityContainers()` until containers are released. This means adding more test specs increases total suite runtime even if the specs themselves are fast.
+
+**Bottleneck 3: deny assignments per subscription (AME only — STG and PROD).** The Azure Authorization RP allows at most **2000 deny assignments per subscription**. The RP currently creates *sharded* (per-cluster) deny assignments — roughly 21 per HCP — which caps a single subscription at about **92 concurrent HCP clusters**, regardless of role-assignment quota or identity-pool size:
+
+```text
+DENY_ASSIGNMENTS_PER_SUB   = 2000  (Authorization RP hard limit)
+DENY_ASSIGNMENTS_PER_HCP   = 21    (current sharded, per-cluster count)
+
+max-hcps-per-sub = floor(DENY_ASSIGNMENTS_PER_SUB / DENY_ASSIGNMENTS_PER_HCP) ≈ 92
+```
+
+This applies to **AME environments only (STG and PROD)**: the RP only creates deny assignments in AME. In practice it is the binding constraint for PROD slot sizing — STG runs a single slot per subscription, well under the ceiling. It translates into slot count as:
+
+```text
+max-slots-per-sub = floor(max-hcps-per-sub / identity-container-count-per-slot)
+```
+
+where `identity-container-count-per-slot` is the pool's `identity_container_count` (the max HCPs a single suite run provisions concurrently). The PROD `slot_count` in `test/e2e-config/e2e-slots.yaml` is sized to stay within this cap; that catalog is the source of truth for the current per-subscription values.
+
+The RP is expected to consolidate the per-cluster deny assignments into a single deny assignment with all managed identities excluded once Azure raises the excluded-principals limit from 10 to 25. When that lands, this per-subscription HCP ceiling is lifted and the PROD `slot_count` can be raised accordingly.
 
 The path to higher throughput is still adding subscription capacity, because each additional customer subscription brings its own role-assignment budget and its own managed identity container fleet. In DEV, slot-manager is what lets CI consume that extra capacity through one job family rather than through separate workflows.
 
@@ -251,22 +270,22 @@ Personal development environments continue using the existing single `miMockClie
 
 ### Infrastructure Setup
 
-The pool currently uses a mixed-management setup. `MSI_MOCK_POOL_SIZE` in `dev-infrastructure/Makefile` still controls the local helper defaults, but customer-subscription RBAC is now reconciled from `config/config-dev-ci.yaml` through the standalone `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC` rollout.
+The pool currently uses a mixed-management setup. `MSI_MOCK_POOL_SIZE` in `dev-infrastructure/Makefile` still controls the local helper defaults, but customer-subscription RBAC is now reconciled from `config/config-dev-ci.yaml` through the standalone, **Owner-only** `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (run on demand by an OWNERS-group member with `make dev-ci-privileged-local-run`; it is not part of the `dev-ci` postsubmit).
 
 Typical maintainer flow:
 
 1. From `dev-infrastructure/`, run `make create-msi-mock-pool`.
 2. If any pooled principal object IDs changed, update `config/config-dev-ci.yaml` under `ci.dev.devMockIdentities.msiMockPool.principals`.
-3. From the repository root, run `make dev-ci-e2e-subscription-rbac-local-run`.
+3. From the repository root, ask an OWNERS-group member to run `make dev-ci-privileged-local-run` (requires subscription Owner).
 4. From `dev-infrastructure/`, run `make populate-msi-mock-pool`.
 5. If the pool size or Boskos key set changed, update the release-side Boskos inventory and step-registry lease wiring as well.
 
 In the current model:
 
 - `make create-msi-mock-pool` is itself hybrid:
-  - `dev-infrastructure/templates/mock-identity-pool.bicep` ensures the Key Vault certificate set.
+  - `dev-infrastructure/scripts/create-kv-cert.sh` (invoked from `dev-infrastructure/Makefile`) ensures the Key Vault certificate set via `az keyvault certificate create`.
   - `dev-infrastructure/scripts/create-sp-for-rbac.sh` and the surrounding `dev-infrastructure/Makefile` loop still create or update the `aro-dev-msi-mock-pool-<i>` Entra app and service principal objects and apply the home-subscription grants.
-- `make dev-ci-e2e-subscription-rbac-local-run` reconciles pooled-principal access on the DEV E2E customer subscriptions from the principal IDs recorded in `config/config-dev-ci.yaml`.
+- `make dev-ci-privileged-local-run` reconciles pooled-principal access on the DEV E2E customer subscriptions from the principal IDs recorded in `config/config-dev-ci.yaml`.
 - `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam` still preserves legacy assignment IDs for the first DEV E2E subscription so the rollout can adopt existing grants without recreating them.
 - `make populate-msi-mock-pool` performs live Entra lookups and rewrites `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`, which remains the static catalog consumed by release-side jobs.
 
@@ -304,7 +323,7 @@ Jobs only consume the Boskos key and the static `msi-mock-pool.yaml` catalog at 
 When you need to change or debug identity leasing, start here:
 
 - [CI Execution](execution.md)
-- [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md)
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
 - [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md)
 - ARO HCP test framework: `test/util/framework/identities_helper.go`
 - slot-managed identity-pool code: `test/cmd/aro-hcp-tests/slot-manager/identity-pool/`
@@ -317,7 +336,7 @@ When you need to change or debug identity leasing, start here:
 - mock-SP pool setup and mixed management:
   - `config/config-dev-ci.yaml`
   - `dev-infrastructure/Makefile`
-  - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
+  - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
   - `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam`
   - `dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh`
 
@@ -325,7 +344,7 @@ When you need to change or debug identity leasing, start here:
 
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
-- [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md)
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
 - [CI Quota Monitoring](quota-monitoring.md)
 - [CI Operations](operations.md)
 - [CI EV2 Integration](ev2-integration.md)

@@ -132,6 +132,16 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 				// Complete the cluster creation operation
 				clusterResourceID := api.Must(azcorearm.ParseResourceID(scenario.ClusterResourceID))
 				require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, clusterResourceID.Name))
+
+				// Seed ServiceProviderCluster with active_versions so CREATE-time
+				// skew validation can find lowest/highest control plane versions.
+				loadCosmosFromArtifact(t, ctx, testInfo, scenario.dir+"/service_provider_cluster.json")
+
+				require.NoError(t, integrationutils.StampRandomClusterServiceID(
+					ctx,
+					testInfo.ResourcesDBClient(),
+					scenario.ClusterResourceID,
+				))
 			}
 
 			// Create the resource under test using the scenario's createVersion
@@ -245,4 +255,16 @@ func prettyJSON(t *testing.T, v any) string {
 		return fmt.Sprintf("%v", v)
 	}
 	return strings.TrimSpace(string(b))
+}
+
+func loadCosmosFromArtifact(
+	t *testing.T,
+	ctx context.Context,
+	testInfo *integrationutils.IntegrationTestInfo,
+	artifactPath string,
+) {
+	t.Helper()
+
+	content := api.Must(artifacts.ReadFile(artifactPath))
+	require.NoError(t, testInfo.LoadContent(ctx, content))
 }

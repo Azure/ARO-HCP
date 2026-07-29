@@ -25,7 +25,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -35,7 +34,6 @@ import (
 // clusterBaseDomainPrefixSyncer synchronizes CustomerProperties.DNS.BaseDomainPrefix from
 // Cluster Service to Cosmos DB when the field is unset.
 type clusterBaseDomainPrefixSyncer struct {
-	cooldownChecker      controllerutil.CooldownChecker
 	clusterLister        listers.ClusterLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -48,14 +46,12 @@ var _ controllerutils.ClusterSyncer = (*clusterBaseDomainPrefixSyncer)(nil)
 func NewClusterBaseDomainPrefixSyncController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 
 	syncer := &clusterBaseDomainPrefixSyncer{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		clusterLister:        clusterLister,
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
@@ -69,10 +65,6 @@ func NewClusterBaseDomainPrefixSyncController(
 		5*time.Minute,
 		syncer,
 	)
-}
-
-func (c *clusterBaseDomainPrefixSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *clusterBaseDomainPrefixSyncer) needsWork(existingCluster *api.HCPOpenShiftCluster) bool {

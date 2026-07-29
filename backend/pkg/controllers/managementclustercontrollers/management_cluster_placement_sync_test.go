@@ -119,13 +119,6 @@ func testProvisionShardHREF(shardID string) string {
 	return "/api/aro_hcp/v1alpha1/provision_shards/" + shardID
 }
 
-// alwaysSyncCooldownChecker always allows syncing
-type alwaysSyncCooldownChecker struct{}
-
-func (c *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
-	return true
-}
-
 func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 	testCases := []struct {
 		name                                string
@@ -302,7 +295,6 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 
 			// Create syncer
 			syncer := &managementClusterPlacementSyncer{
-				cooldownChecker:              &alwaysSyncCooldownChecker{},
 				serviceProviderClusterLister: spcLister,
 				clusterLister:                clusterLister,
 				managementClusterLister:      mgmtClusterLister,

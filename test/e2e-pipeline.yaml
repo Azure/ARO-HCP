@@ -28,6 +28,7 @@ resourceGroups:
     tokenSecret: "{{ .e2e.prow.globalKeyVaultTokenSecret }}"
     jobName: "{{ .e2e.regionTest.prowJobName }}"
     gatePromotion: "{{ .e2e.regionTest.gatePromotion }}"
+    allowedSubscriptions: "{{ .e2e.regionTest.allowedSubscriptions }}"
     identityFrom:
       resourceGroup: global
       step: output

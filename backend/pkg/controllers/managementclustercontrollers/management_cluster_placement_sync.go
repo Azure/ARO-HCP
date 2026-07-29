@@ -23,7 +23,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -34,8 +33,6 @@ import (
 // managementClusterPlacementSyncer resolves the management cluster an HCP runs on
 // and updates the ServiceProviderCluster document with the ManagementClusterResourceID.
 type managementClusterPlacementSyncer struct {
-	cooldownChecker controllerutil.CooldownChecker
-
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 	clusterLister                listers.ClusterLister
 	managementClusterLister      dblisters.ManagementClusterLister
@@ -50,7 +47,6 @@ var _ controllerutils.ClusterSyncer = (*managementClusterPlacementSyncer)(nil)
 func NewManagementClusterPlacementSyncController(
 	cosmosClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	managementClusterLister dblisters.ManagementClusterLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
@@ -59,7 +55,6 @@ func NewManagementClusterPlacementSyncController(
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 
 	syncer := &managementClusterPlacementSyncer{
-		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		clusterLister:                clusterLister,
 		managementClusterLister:      managementClusterLister,
@@ -77,10 +72,6 @@ func NewManagementClusterPlacementSyncController(
 	)
 
 	return controller
-}
-
-func (c *managementClusterPlacementSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // needsWork checks if the ServiceProviderCluster still needs its ManagementClusterResourceID resolved.

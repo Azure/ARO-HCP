@@ -4,10 +4,12 @@ use (
 	./admin/client
 	./admin/server
 	./backend
+	./dev-infrastructure/scripts/grafana-group-roles
 	./dev-infrastructure/scripts/postgres-access
 	./fleet
 	./frontend
 	./hack/verify-gomega-assertions
+	./hack/verify-mi-containers
 	./hack/verify-schema-additional-properties
 	./internal
 	./kube-applier
@@ -16,12 +18,14 @@ use (
 	./test
 	./test-integration
 	./tooling/aro-hcp-exporter
+	./tooling/azutils
 	./tooling/cleanup-sweeper
 	./tooling/grafanactl
 	./tooling/hcpctl
 	./tooling/helmtest
 	./tooling/image-updater
 	./tooling/kustoctl
+	./tooling/metricscache
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules

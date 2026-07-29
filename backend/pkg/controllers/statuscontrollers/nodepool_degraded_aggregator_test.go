@@ -216,7 +216,6 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 
 			clock := clocktesting.NewFakePassiveClock(fixedNow)
 			syncer := &nodePoolDegradedAggregator{
-				cooldownChecker:   alwaysSyncCooldownChecker{},
 				nodePoolLister:    &listertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
 				controllerLister:  &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
 				resourcesDBClient: mockDB,

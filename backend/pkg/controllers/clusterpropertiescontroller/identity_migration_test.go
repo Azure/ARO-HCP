@@ -233,7 +233,6 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 
 			// Create syncer
 			syncer := &identityMigrationSyncer{
-				cooldownChecker:      &alwaysSyncCooldownChecker{},
 				clusterLister:        sliceClusterLister,
 				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,

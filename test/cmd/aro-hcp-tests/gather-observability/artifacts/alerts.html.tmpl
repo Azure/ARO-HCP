@@ -210,6 +210,7 @@
     }
     .alert-row {
       margin: 10px 0;
+      padding-bottom: 4px;
     }
     .duration-bar-fill-unknown { background: #da3633; }
     .duration-bar-fill-known   { background: #9e6a03; }
@@ -336,6 +337,93 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
+
+    /* --- Filter bar --- */
+    .filter-bar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #30363d;
+      margin-bottom: 16px;
+    }
+    .filter-bar-label {
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #8b949e;
+      margin-right: 4px;
+    }
+    .filter-dropdown {
+      position: relative;
+      display: inline-block;
+    }
+    .filter-dropdown-btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      padding: 5px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .filter-dropdown-btn:hover { border-color: #8b949e; }
+    .filter-dropdown-btn .filter-count {
+      color: #8b949e;
+      font-size: 11px;
+      margin-left: 4px;
+    }
+    .filter-dropdown-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 4px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 6px 0;
+      min-width: 200px;
+      max-height: 280px;
+      overflow-y: auto;
+      z-index: 100;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .filter-dropdown-menu.open { display: block; }
+    .filter-checkbox-item {
+      display: flex;
+      align-items: center;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #c9d1d9;
+    }
+    .filter-checkbox-item:hover { background: #21262d; }
+    .filter-checkbox-item input {
+      margin-right: 8px;
+      accent-color: #58a6ff;
+    }
+    .filter-checkbox-item .filter-value {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .filter-reset-btn {
+      background: none;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      padding: 5px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .filter-reset-btn:hover { color: #e6edf3; border-color: #8b949e; }
   </style>
 </head>
 
@@ -362,6 +450,23 @@
     </div>
     {{end}}
   </div>
+
+  {{if .FilterKeys}}
+  <div class="filter-bar" id="filterBar">
+    <span class="filter-bar-label">Filters</span>
+    {{range $key := .FilterKeys}}{{$values := index $.FilterOptions $key}}
+    <div class="filter-dropdown" data-filter-key="{{$key}}">
+      <button class="filter-dropdown-btn" type="button">{{$key}} <span class="filter-count">(0/{{len $values}})</span></button>
+      <div class="filter-dropdown-menu">
+        {{range $values}}
+        <label class="filter-checkbox-item"><input type="checkbox" value="{{.}}"><span class="filter-value">{{.}}</span></label>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+    <button class="filter-reset-btn" id="resetFilters" type="button">Reset Filters</button>
+  </div>
+  {{end}}
 
   <div class="time-slider-group" id="timeSliderContainer">
     <div class="time-slider-header">
@@ -471,9 +576,16 @@
     if (totalDuration <= 0) return;
 
     var alerts = [
-      {{range $i, $a := .Alerts}}{ idx: {{$i}}, start: {{if $a.Alert.StartsAt}}new Date("{{formatTime $a.Alert.StartsAt}} UTC").getTime(){{else}}0{{end}}, end: {{if $a.Alert.EndsAt}}new Date("{{formatTime $a.Alert.EndsAt}} UTC").getTime(){{else}}windowEnd{{end}} },
+      {{range $i, $a := .Alerts}}{ idx: {{$i}}, start: {{if $a.Alert.StartsAt}}new Date("{{formatTime $a.Alert.StartsAt}} UTC").getTime(){{else}}0{{end}}, end: {{if $a.Alert.EndsAt}}new Date("{{formatTime $a.Alert.EndsAt}} UTC").getTime(){{else}}windowEnd{{end}}, known: {{if $a.Metadata.KnownIssue}}true{{else}}false{{end}}, severity: "{{$a.Alert.Severity}}", labels: {{alertFilterJSON $a}} },
       {{end}}
     ];
+
+    var alertLabels = alerts.map(function(a) { return a.labels; });
+
+    // Store original summary values
+    var origTotal = {{.Summary.Total}};
+    var origUnknown = {{.Summary.Unknown}};
+    var origKnown = {{.Summary.Known}};
 
     function fmt(ms) {
       var d = new Date(ms);
@@ -491,7 +603,7 @@
       bar.style.width = width + '%';
     });
 
-    // Time slider
+    // Time slider state
     var filterStart = windowStart;
     var filterEnd = windowEnd;
     var startHandle = document.getElementById('timeSliderStart');
@@ -512,15 +624,151 @@
       document.getElementById('timeSliderValues').textContent = fmt(filterStart) + ' \u2014 ' + fmt(filterEnd);
     }
 
-    function filterCards() {
-      alerts.forEach(function(a) {
-        var card = document.querySelector('[data-alert-idx="' + a.idx + '"]');
-        if (!card) return;
-        var visible = a.start <= filterEnd && a.end >= filterStart;
-        card.style.display = visible ? '' : 'none';
+    // --- Label filter state ---
+    // Filters default to unselected except classification, which
+    // pre-selects "unknown" to surface unclassified alerts on load.
+    // Checking a value restricts to only matching alerts.
+    // Cascading: each dropdown's options recompute from alerts passing
+    // all OTHER active filters, so you never see options that do nothing.
+    function getCheckedValues() {
+      var checked = {};
+      document.querySelectorAll('.filter-dropdown').forEach(function(dd) {
+        var key = dd.getAttribute('data-filter-key');
+        var vals = [];
+        dd.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+          if (cb.checked) vals.push(cb.value);
+        });
+        if (vals.length > 0) checked[key] = vals;
+      });
+      return checked;
+    }
+
+    function passesFilters(idx, filters) {
+      var labels = alertLabels[idx];
+      for (var key in filters) {
+        var allowed = filters[key];
+        var val = labels[key];
+        if (val === undefined || val === '') return false;
+        if (allowed.indexOf(val) === -1) return false;
+      }
+      return true;
+    }
+
+    function passesTimeFilter(a) {
+      return a.start <= filterEnd && a.end >= filterStart;
+    }
+
+    // Rebuild a dropdown's checkboxes from available values.
+    // Preserves checked state for values that still exist.
+    function rebuildDropdown(dd, availableValues) {
+      var menu = dd.querySelector('.filter-dropdown-menu');
+      var currentChecked = {};
+      menu.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+        if (cb.checked) currentChecked[cb.value] = true;
+      });
+      var sorted = availableValues.slice().sort();
+      menu.innerHTML = '';
+      sorted.forEach(function(val) {
+        var label = document.createElement('label');
+        label.className = 'filter-checkbox-item';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = val;
+        if (currentChecked[val]) cb.checked = true;
+        cb.addEventListener('change', filterCards);
+        var span = document.createElement('span');
+        span.className = 'filter-value';
+        span.textContent = val;
+        label.appendChild(cb);
+        label.appendChild(span);
+        menu.appendChild(label);
       });
     }
 
+    function updateDropdownOptions() {
+      var checked = getCheckedValues();
+      var dropdowns = document.querySelectorAll('.filter-dropdown');
+
+      dropdowns.forEach(function(dd) {
+        var thisKey = dd.getAttribute('data-filter-key');
+        // Build filters excluding this dropdown's key
+        var otherFilters = {};
+        for (var k in checked) {
+          if (k !== thisKey) otherFilters[k] = checked[k];
+        }
+        // Collect values for thisKey from alerts passing all other filters + time
+        var available = {};
+        alerts.forEach(function(a, i) {
+          if (!passesTimeFilter(a)) return;
+          if (!passesFilters(i, otherFilters)) return;
+          var val = alertLabels[i][thisKey];
+          if (val !== undefined && val !== '') available[val] = true;
+        });
+        rebuildDropdown(dd, Object.keys(available));
+        // Update button count
+        var cbs = dd.querySelectorAll('input[type="checkbox"]');
+        var total = cbs.length;
+        var checkedCount = 0;
+        cbs.forEach(function(cb) { if (cb.checked) checkedCount++; });
+        var countSpan = dd.querySelector('.filter-count');
+        if (countSpan) countSpan.textContent = '(' + checkedCount + '/' + total + ')';
+      });
+    }
+
+    // --- Unified filter: time + labels ---
+    function filterCards() {
+      var checked = getCheckedValues();
+      var visTotal = 0, visKnown = 0, visUnknown = 0;
+
+      alerts.forEach(function(a, i) {
+        var card = document.querySelector('[data-alert-idx="' + a.idx + '"]');
+        if (!card) return;
+        var visible = passesTimeFilter(a) && passesFilters(i, checked);
+        card.style.display = visible ? '' : 'none';
+        if (visible) {
+          visTotal++;
+          if (a.known) visKnown++;
+          else visUnknown++;
+        }
+      });
+
+      updateSummaryCards(visTotal, visUnknown, visKnown);
+      updateDropdownOptions();
+    }
+
+    function updateSummaryCards(visTotal, visUnknown, visKnown) {
+      var cards = document.querySelectorAll('.summary-card');
+      if (cards.length < 3) return;
+      var isFiltered = visTotal !== origTotal;
+      cards[0].querySelector('.summary-card-number').textContent = isFiltered ? visTotal + ' / ' + origTotal : origTotal;
+      cards[1].querySelector('.summary-card-number').textContent = isFiltered ? visUnknown + ' / ' + origUnknown : origUnknown;
+      cards[2].querySelector('.summary-card-number').textContent = isFiltered ? visKnown + ' / ' + origKnown : origKnown;
+    }
+
+    // --- Dropdown toggle ---
+    document.querySelectorAll('.filter-dropdown-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var menu = btn.nextElementSibling;
+        var wasOpen = menu.classList.contains('open');
+        document.querySelectorAll('.filter-dropdown-menu').forEach(function(m) { m.classList.remove('open'); });
+        if (!wasOpen) menu.classList.toggle('open');
+      });
+    });
+    document.addEventListener('click', function() {
+      document.querySelectorAll('.filter-dropdown-menu').forEach(function(m) { m.classList.remove('open'); });
+    });
+
+    // --- Reset filters ---
+    var resetBtn = document.getElementById('resetFilters');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function() {
+        document.querySelectorAll('.filter-dropdown input[type="checkbox"]').forEach(function(cb) { cb.checked = false; });
+        filterCards();
+      });
+    }
+
+    // --- Time slider drag ---
     function onDrag(e) {
       if (!dragging) return;
       var rect = track.getBoundingClientRect();
@@ -560,6 +808,20 @@
     });
 
     updateSlider();
+
+    // Attach stopPropagation once per menu so clicks inside don't close the dropdown
+    document.querySelectorAll('.filter-dropdown-menu').forEach(function(menu) {
+      menu.addEventListener('click', function(e) { e.stopPropagation(); });
+    });
+
+    // Pre-check "unknown" in classification filter on page load
+    var classDD = document.querySelector('.filter-dropdown[data-filter-key="classification"]');
+    if (classDD) {
+      classDD.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+        if (cb.value === 'unknown') cb.checked = true;
+      });
+    }
+    filterCards();
   })();
   </script>
 </body>

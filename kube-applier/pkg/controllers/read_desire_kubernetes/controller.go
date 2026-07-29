@@ -140,7 +140,7 @@ func NewReadDesireKubernetesController(
 		// with non-watchable backends, hence this wrapper for both paths.
 		&listWatchWithoutWatchListSemantics{ListWatch: c.singleObjectListWatch()},
 		&unstructured.Unstructured{},
-		cache.SharedIndexInformerOptions{ResyncPeriod: ResyncDuration},
+		cache.SharedIndexInformerOptions{ResyncPeriod: ResyncDuration, ObjectDescription: "ReadDesireKubernetes"},
 	)
 
 	// Register the event handler at construction so the SharedIndexInformer
@@ -307,6 +307,10 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 				conditions.SetSuccessful(&d.Status.Conditions, conditions.NewPreCheckError(
 					fmt.Errorf("informer cached unexpected type %T", rawObj)))
 			})
+		}
+		if isSecret(c.target) {
+			obj = obj.DeepCopy()
+			redactSecret(obj)
 		}
 		newRaw, err = json.Marshal(obj)
 		if err != nil {

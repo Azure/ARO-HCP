@@ -108,7 +108,7 @@ func TestKubeApplierInformers_ListByManagementCluster(t *testing.T) {
 	}
 
 	relistDuration := 250 * time.Millisecond
-	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), &relistDuration)
+	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &relistDuration)
 	startAndSync(t, ctx, info)
 
 	_, lister := info.ApplyDesires()
@@ -165,7 +165,7 @@ func TestKubeApplierInformers_ListForCluster_UnionsClusterAndNodePool(t *testing
 	}
 
 	relistDuration := 250 * time.Millisecond
-	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), &relistDuration)
+	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &relistDuration)
 	startAndSync(t, ctx, info)
 
 	_, lister := info.ApplyDesires()
@@ -201,7 +201,7 @@ func TestKubeApplierInformers_GetByID(t *testing.T) {
 	}
 
 	relistDuration := 250 * time.Millisecond
-	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), &relistDuration)
+	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &relistDuration)
 	startAndSync(t, ctx, info)
 
 	_, lister := info.ApplyDesires()

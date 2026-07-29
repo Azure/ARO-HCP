@@ -135,7 +135,12 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []utils.ExpectedError{}, // This field is not being validated for length in the actual function
+			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "may not be more than 256 bytes",
+					FieldPath: "properties.claim.mappings.username.claim",
+				},
+			},
 		},
 		{
 			name: "Max not satisfied for properties.claim.mappings.groups.claim",
@@ -216,15 +221,21 @@ func TestExternalAuthValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Bad properties.issuer.audiences",
+			name: "Bad properties.issuer.audiences - empty audience value",
 			tweaks: &api.HCPOpenShiftClusterExternalAuth{
 				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: api.TokenIssuerProfile{
-						Audiences: []string{"omitempty"},
+						URL:       "https://example.com",
+						Audiences: []string{""},
 					},
 				},
 			},
-			expectErrors: nil,
+			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "Required value",
+					FieldPath: "properties.issuer.audiences[0]",
+				},
+			},
 		},
 		{
 			name: "Missing prefix when policy is Prefix",
@@ -308,7 +319,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							Type: api.ExternalAuthClientTypeConfidential,
+							Type: api.ExternalAuthClientTypePublic,
 						},
 					},
 					Claim: api.ExternalAuthClaimProfile{
@@ -319,6 +330,39 @@ func TestExternalAuthValidate(t *testing.T) {
 				},
 			},
 			expectErrors: nil,
+		},
+		{
+			name: "Bad properties.clients.extraScopes - empty extraScope value",
+			tweaks: &api.HCPOpenShiftClusterExternalAuth{
+				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: api.TokenIssuerProfile{
+						URL:       "https://example.com",
+						Audiences: []string{ClientID1},
+					},
+					Clients: []api.ExternalAuthClientProfile{
+						{
+							ClientID: ClientID1,
+							Component: api.ExternalAuthClientComponentProfile{
+								Name:                ClientComponentName,
+								AuthClientNamespace: ClientComponentNamespace,
+							},
+							ExtraScopes: []string{""},
+							Type:        api.ExternalAuthClientTypePublic,
+						},
+					},
+					Claim: api.ExternalAuthClaimProfile{
+						Mappings: api.TokenClaimMappingsProfile{
+							Username: api.UsernameClaimProfile{Claim: "email"},
+						},
+					},
+				},
+			},
+			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "Required value",
+					FieldPath: "properties.clients[0].extraScopes[0]",
+				},
+			},
 		},
 		{
 			name: "Invalid ClientID not in audiences",
@@ -335,7 +379,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							Type: api.ExternalAuthClientTypeConfidential,
+							Type: api.ExternalAuthClientTypePublic,
 						},
 					},
 					Claim: api.ExternalAuthClaimProfile{
@@ -367,7 +411,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							Type: api.ExternalAuthClientTypeConfidential,
+							Type: api.ExternalAuthClientTypePublic,
 						},
 						{
 							ClientID: ClientID2,
@@ -375,7 +419,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							Type: api.ExternalAuthClientTypeConfidential,
+							Type: api.ExternalAuthClientTypePublic,
 						},
 					},
 					Claim: api.ExternalAuthClaimProfile{

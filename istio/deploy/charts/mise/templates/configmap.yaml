@@ -15,6 +15,11 @@ data:
         "ClientId": "{{ .Values.miseAppId }}",
         "TenantId": "{{ .Values.audit.tenantId }}",
         "Audiences": ["api://{{ .Values.miseAppId }}"],
+        {{- if .Values.audit.connectSocket }}
+        "AuditOptions": {
+          "CustomConnectionString": "Endpoint=unix:/var/run/mdsd/default_fluent.socket"
+        },
+        {{- end }}
         "Logging": {
           "LogLevel": "Information"
         },

@@ -235,8 +235,8 @@ func startControllers(parent context.Context, t *testing.T, kac database.KubeApp
 
 	listers := kac.Listers()
 
-	applyInformer := informers.NewApplyDesireInformerWithRelistDuration(listers.ApplyDesires(), fastRelist)
-	readInformer := informers.NewReadDesireInformerWithRelistDuration(listers.ReadDesires(), fastRelist)
+	applyInformer := informers.NewApplyDesireInformerWithRelistDuration(listers.ApplyDesires(), kac, fastRelist)
+	readInformer := informers.NewReadDesireInformerWithRelistDuration(listers.ReadDesires(), kac, fastRelist)
 
 	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, dyn, kac, apply_desire.Config{})
 	require.NoError(t, err)

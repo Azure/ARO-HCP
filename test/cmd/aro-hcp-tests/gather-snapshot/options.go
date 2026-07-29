@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/internal/testutil"
 	"github.com/Azure/ARO-HCP/test/util/junit"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
@@ -61,12 +60,15 @@ type ValidatedOptions struct {
 }
 
 type completedOptions struct {
-	OutputDir      string
-	KustoEndpoint  string
-	ServiceDB      string
-	HCPDB          string
-	TestTimingInfo map[string]timing.TimingInfo
-	kustoClient    *azkustodata.Client
+	OutputDir             string
+	KustoEndpoint         string
+	ServiceDB             string
+	HCPDB                 string
+	MonitoringEventsDB    string
+	ServiceClusterName    string
+	ManagementClusterName string
+	TestTimingInfo        map[string]timing.TimingInfo
+	kustoClient           *azkustodata.Client
 }
 
 type Options struct {
@@ -127,40 +129,35 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to create output directory %s: %w", o.OutputDir, err)
 	}
 
-	cfg, err := testutil.LoadRenderedConfig(o.RenderedConfig)
+	rawCfg, err := os.ReadFile(o.RenderedConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read rendered config %s: %w", o.RenderedConfig, err)
 	}
 
-	kustoName, err := testutil.ConfigGetString(cfg, "kusto.kustoName")
+	jobConfig, err := snapshot.ParseConfig(rawCfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get kusto name from config: %w", err)
-	}
-	serviceDB, err := testutil.ConfigGetString(cfg, "kusto.serviceLogsDatabase")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get service logs database from config: %w", err)
-	}
-	hcpDB, err := testutil.ConfigGetString(cfg, "kusto.hostedControlPlaneLogsDatabase")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get hosted control plane logs database from config: %w", err)
+		return nil, fmt.Errorf("failed to parse rendered config: %w", err)
 	}
 
-	kustoRegion, err := resolveKustoRegion(kustoName)
+	kustoRegion, err := resolveKustoRegion(jobConfig.KustoName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve kusto region: %w", err)
 	}
 
-	kustoEndpoint, err := kusto.KustoEndpoint(kustoName, kustoRegion)
+	kustoEndpoint, err := kusto.KustoEndpoint(jobConfig.KustoName, kustoRegion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build kusto endpoint: %w", err)
 	}
 
 	logger.Info("resolved kusto config",
-		"name", kustoName,
+		"name", jobConfig.KustoName,
 		"region", kustoRegion,
 		"endpoint", kustoEndpoint.String(),
-		"serviceDB", serviceDB,
-		"hcpDB", hcpDB,
+		"serviceDB", jobConfig.ServiceDatabase,
+		"hcpDB", jobConfig.HCPDatabase,
+		"monitoringEventsDB", jobConfig.MonitoringEventsDatabase,
+		"serviceCluster", jobConfig.ServiceClusterName,
+		"managementCluster", jobConfig.ManagementClusterName,
 	)
 
 	testTimingInfo, err := timing.LoadTestTimingInfo(ctx, o.TimingInputDir)
@@ -184,12 +181,15 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	return &Options{completedOptions: &completedOptions{
-		OutputDir:      o.OutputDir,
-		KustoEndpoint:  kustoEndpoint.String(),
-		ServiceDB:      serviceDB,
-		HCPDB:          hcpDB,
-		TestTimingInfo: testTimingInfo,
-		kustoClient:    kustoClient,
+		OutputDir:             o.OutputDir,
+		KustoEndpoint:         kustoEndpoint.String(),
+		ServiceDB:             jobConfig.ServiceDatabase,
+		HCPDB:                 jobConfig.HCPDatabase,
+		MonitoringEventsDB:    jobConfig.MonitoringEventsDatabase,
+		ServiceClusterName:    jobConfig.ServiceClusterName,
+		ManagementClusterName: jobConfig.ManagementClusterName,
+		TestTimingInfo:        testTimingInfo,
+		kustoClient:           kustoClient,
 	}}, nil
 }
 
@@ -230,10 +230,13 @@ func (o Options) Run(ctx context.Context) error {
 			)
 
 			input := snapshot.GatherInput{
-				ClusterURI:      o.KustoEndpoint,
-				ServiceDatabase: o.ServiceDB,
-				HCPDatabase:     o.HCPDB,
-				ResourceGroup:   rg,
+				ClusterURI:               o.KustoEndpoint,
+				ServiceDatabase:          o.ServiceDB,
+				HCPDatabase:              o.HCPDB,
+				MonitoringEventsDatabase: o.MonitoringEventsDB,
+				ResourceGroup:            rg,
+				ServiceClusterName:       o.ServiceClusterName,
+				ManagementClusterName:    o.ManagementClusterName,
 				TimeWindow: snapshot.TimeWindow{
 					Start:           ti.StartTime,
 					End:             ti.EndTime,
@@ -254,6 +257,16 @@ func (o Options) Run(ctx context.Context) error {
 			manifest, report, err := gatherer.Gather(ctx, input, testOutputDir)
 			if err != nil {
 				logger.Error(err, "Failed to gather snapshot", "test", testName, "resourceGroup", rg)
+				allReports = append(allReports, &snapshot.VerificationReport{
+					Cases: []snapshot.VerificationCase{{
+						Suite:        fmt.Sprintf("gather/%s", rg),
+						Query:        "gather",
+						Category:     "infrastructure",
+						ResourceType: "gather",
+						Status:       snapshot.VerificationFail,
+						Message:      fmt.Sprintf("failed to gather snapshot for test %q resource group %q: %v", testName, rg, err),
+					}},
+				})
 				if ctx.Err() != nil {
 					break
 				}

@@ -56,20 +56,21 @@ func (k *kubeApplierInformers) ReadDesires() (cache.SharedIndexInformer, listers
 	return k.readDesireInformer, k.readDesireLister
 }
 
-// NewKubeApplierInformers wires up the three *Desire informers + listers using
+// NewKubeApplierInformers wires up the *Desire informers + listers using
 // the default relist durations. Callers (kube-applier binary or backend) pass
-// the per-management-cluster KubeApplierListers from KubeApplierDBClient.Listers().
+// the per-management-cluster KubeApplierListers from KubeApplierDBClient.Listers()
+// and the KubeApplierDBClient itself as the ChangeFeedClient.
 func NewKubeApplierInformers(
-	ctx context.Context, gl database.KubeApplierListers,
+	ctx context.Context, gl database.KubeApplierListers, changeFeedClient database.ChangeFeedClient,
 ) KubeApplierInformers {
-	return NewKubeApplierInformersWithRelistDuration(ctx, gl, nil)
+	return NewKubeApplierInformersWithRelistDuration(ctx, gl, changeFeedClient, nil)
 }
 
 // NewKubeApplierInformersWithRelistDuration is the same as NewKubeApplierInformers
-// but lets the caller override the relist duration uniformly across all three
+// but lets the caller override the relist duration uniformly across all
 // informers. Tests use this to drive faster relists.
 func NewKubeApplierInformersWithRelistDuration(
-	ctx context.Context, gl database.KubeApplierListers, relistDuration *time.Duration,
+	ctx context.Context, gl database.KubeApplierListers, changeFeedClient database.ChangeFeedClient, relistDuration *time.Duration,
 ) KubeApplierInformers {
 	apply := ApplyDesireRelistDuration
 	read := ReadDesireRelistDuration
@@ -79,8 +80,8 @@ func NewKubeApplierInformersWithRelistDuration(
 	}
 
 	ret := &kubeApplierInformers{}
-	ret.applyDesireInformer = NewApplyDesireInformerWithRelistDuration(gl.ApplyDesires(), apply)
-	ret.readDesireInformer = NewReadDesireInformerWithRelistDuration(gl.ReadDesires(), read)
+	ret.applyDesireInformer = NewApplyDesireInformerWithRelistDuration(gl.ApplyDesires(), changeFeedClient, apply)
+	ret.readDesireInformer = NewReadDesireInformerWithRelistDuration(gl.ReadDesires(), changeFeedClient, read)
 
 	ret.applyDesireLister = listers.NewApplyDesireLister(ret.applyDesireInformer.GetIndexer())
 	ret.readDesireLister = listers.NewReadDesireLister(ret.readDesireInformer.GetIndexer())

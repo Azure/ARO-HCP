@@ -18,12 +18,15 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	utilsclock "k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -49,7 +52,7 @@ func TestMutateNodePool(t *testing.T) {
 		if subnetID != "" {
 			c.CustomerProperties.Platform.SubnetID = parseID(subnetID)
 		}
-		return &NodePoolAdmissionContext{Cluster: c}
+		return &NodePoolAdmissionContext{Clock: utilsclock.RealClock{}, Cluster: c}
 	}
 
 	nodePoolWithSubnet := func(subnetID string) *api.HCPOpenShiftClusterNodePool {
@@ -112,7 +115,234 @@ func TestMutateNodePool(t *testing.T) {
 				tt.oldObj,
 			)
 			require.Empty(t, errs)
+			// Clear the deadline before comparison — it's time-dependent and tested separately.
+			tt.newObj.ServiceProviderProperties.CreateOperationCompletionDeadline = nil
 			assertNodePoolEqual(t, tt.expected, tt.newObj)
+		})
+	}
+}
+
+func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
+	afecRegistered := &arm.Subscription{
+		Properties: &arm.SubscriptionProperties{
+			RegisteredFeatures: &[]arm.Feature{
+				{
+					Name:  ptr.To(api.FeatureExperimentalReleaseFeatures),
+					State: ptr.To("Registered"),
+				},
+			},
+		},
+	}
+	noAFEC := &arm.Subscription{
+		Properties: &arm.SubscriptionProperties{},
+	}
+
+	fixedNow, _ := time.Parse(time.RFC3339, "2025-01-15T10:00:00Z")
+	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+
+	tests := []struct {
+		name             string
+		subscription     *arm.Subscription
+		tags             map[string]string
+		op               operation.Operation
+		expectErrors     []utils.ExpectedError
+		expectDeadline   bool
+		expectedDuration time.Duration
+	}{
+		{
+			name:             "CREATE defaults to 60 minutes",
+			subscription:     noAFEC,
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:         "UPDATE does not set deadline",
+			subscription: noAFEC,
+			op:           operation.Operation{Type: operation.Update},
+		},
+		{
+			name:             "AFEC registered with max-creation-duration tag overrides default",
+			subscription:     afecRegistered,
+			tags:             map[string]string{api.TagNodePoolMaxCreationDuration: "19m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 19 * time.Minute,
+		},
+		{
+			name:             "AFEC registered without tag uses default",
+			subscription:     afecRegistered,
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:             "no AFEC ignores max-creation-duration tag, uses default",
+			subscription:     noAFEC,
+			tags:             map[string]string{api.TagNodePoolMaxCreationDuration: "19m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:         "AFEC registered with invalid duration value",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagNodePoolMaxCreationDuration: "not-a-duration"},
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be a valid Go duration string"},
+			},
+		},
+		{
+			name:             "AFEC registered with unrecognized experimental nodepool tag",
+			subscription:     afecRegistered,
+			tags:             map[string]string{"aro-hcp.experimental.nodepool.unknown": "value"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "unrecognized experimental tag"},
+			},
+		},
+		{
+			name:             "nil subscription still sets default deadline",
+			subscription:     nil,
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:             "AFEC registered with empty string tag uses default",
+			subscription:     afecRegistered,
+			tags:             map[string]string{api.TagNodePoolMaxCreationDuration: ""},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:             "AFEC registered with case insensitive tag key",
+			subscription:     afecRegistered,
+			tags:             map[string]string{"ARO-HCP.Experimental.Nodepool.Max-Creation-Duration": "25m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 25 * time.Minute,
+		},
+		{
+			name:             "AFEC registered with compound duration",
+			subscription:     afecRegistered,
+			tags:             map[string]string{api.TagNodePoolMaxCreationDuration: "1h30m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 90 * time.Minute,
+		},
+		{
+			name:             "AFEC registered with unrecognized experimental tag in mixed case",
+			subscription:     afecRegistered,
+			tags:             map[string]string{"ARO-HCP.Experimental.Nodepool.Unknown-Feature": "value"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "unrecognized experimental tag"},
+			},
+		},
+		{
+			name:             "non-experimental tags are ignored",
+			subscription:     afecRegistered,
+			tags:             map[string]string{"environment": "dev", "team": "platform"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:             "valid tag alongside unrecognized experimental tag fails",
+			subscription:     afecRegistered,
+			tags:             map[string]string{api.TagNodePoolMaxCreationDuration: "19m", "aro-hcp.experimental.nodepool.unknown": "value"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 19 * time.Minute,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "unrecognized experimental tag"},
+			},
+		},
+		{
+			name:             "no AFEC ignores unrecognized experimental nodepool tags",
+			subscription:     noAFEC,
+			tags:             map[string]string{"aro-hcp.experimental.nodepool.unknown": "value"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:         "AFEC registered with duration less than one minute is rejected",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagNodePoolMaxCreationDuration: "30s"},
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be at least 1m0s"},
+			},
+		},
+		{
+			name:         "AFEC registered with zero duration is rejected",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagNodePoolMaxCreationDuration: "0s"},
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be at least 1m0s"},
+			},
+		},
+		{
+			name:         "AFEC registered with negative duration is rejected",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagNodePoolMaxCreationDuration: "-5m"},
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be at least 1m0s"},
+			},
+		},
+		{
+			name:             "AFEC registered with exactly one minute is accepted",
+			subscription:     afecRegistered,
+			tags:             map[string]string{api.TagNodePoolMaxCreationDuration: "1m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: time.Minute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nodePool := &api.HCPOpenShiftClusterNodePool{
+				TrackedResource: arm.TrackedResource{
+					Tags: tt.tags,
+				},
+			}
+			admissionContext := &NodePoolAdmissionContext{
+				Clock:            fakeClock,
+				Subscription:     tt.subscription,
+				OriginalNodePool: nodePool.DeepCopy(),
+				Cluster:          &api.HCPOpenShiftCluster{},
+			}
+			errs := MutateNodePool(context.Background(), admissionContext, tt.op, nodePool, nil)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+
+			if !tt.expectDeadline {
+				if nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline != nil {
+					t.Errorf("expected no deadline, got %v", nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline)
+				}
+				return
+			}
+
+			deadline := nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline
+			if deadline == nil {
+				t.Fatal("expected deadline to be set, got nil")
+			}
+
+			expected := fixedNow.Add(tt.expectedDuration)
+			if !deadline.Time.Equal(expected) {
+				t.Errorf("expected deadline %v, got %v", expected, deadline.Time)
+			}
 		})
 	}
 }

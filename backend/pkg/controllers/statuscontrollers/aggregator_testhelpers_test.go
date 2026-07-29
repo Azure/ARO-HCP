@@ -15,7 +15,6 @@
 package statuscontrollers
 
 import (
-	"context"
 	"strings"
 	"time"
 
@@ -34,12 +33,6 @@ const (
 	testNodePoolName      = "test-nodepool"
 	testExternalAuthName  = "test-externalauth"
 )
-
-// alwaysSyncCooldownChecker permits every sync attempt. Aggregator unit
-// tests don't exercise the cooldown path.
-type alwaysSyncCooldownChecker struct{}
-
-func (alwaysSyncCooldownChecker) CanSync(_ context.Context, _ any) bool { return true }
 
 // controllerUnder builds an api.Controller doc that is a direct child of
 // the given parent resource ID (cluster, node pool, or external auth) with

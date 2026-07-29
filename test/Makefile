@@ -45,9 +45,15 @@ build: $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS)
 # ARM artifacts (e.g. msi-pools.json) from the source-of-truth Bicep before the binary
 # is (re)built and embeds them. Always run through this target instead of `go run`/
 # `go build`, otherwise a stale, git-ignored artifact may be embedded and applied.
+#
+# Set the optional SUBSCRIPTION variable to limit provisioning to the named
+# subscription(s); this is required to provision unmanaged pools
+# (identity_provisioning: unmanaged), which are skipped otherwise. Example:
+#   make -C test apply-identity-pool ENVIRONMENT=dev SUBSCRIPTION="Hypershift Managed Azure"
 apply-identity-pool: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) slot-manager apply-identity-pool \
-		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}"
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		$(if $(SUBSCRIPTION),--subscription "$(SUBSCRIPTION)")
 .PHONY: apply-identity-pool
 
 int-e2e:

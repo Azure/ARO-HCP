@@ -53,7 +53,9 @@ e2e-local/gather-snapshot: $(ARO_HCP_TESTS) $(TEMPLATIZE)
 	@echo "Kusto snapshot artifacts written to $(E2E_ARTIFACT_DIR)/snapshot"
 .PHONY: e2e-local/gather-snapshot
 
-OBSERVABILITY_OUTPUT ?= $(shell mktemp -d)
+ifndef OBSERVABILITY_OUTPUT
+  OBSERVABILITY_OUTPUT := $(shell mktemp -d)
+endif
 OBSERVABILITY_RENDERED_CONFIG := $(shell mktemp)
 
 e2e-local/gather-observability: $(ARO_HCP_TESTS) $(TEMPLATIZE)

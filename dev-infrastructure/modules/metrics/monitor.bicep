@@ -7,23 +7,12 @@ param monitorName string
 @description('Purpose of the monitor')
 param purpose string
 
-@description('Use the internal Microsoft API version for the Azure Monitor Workspace')
-param useInternalApiVersion bool = false
-
 import * as res from '../resource.bicep'
 
 var grafanaRef = res.grafanaRefFromId(grafanaResourceId)
 var hasGrafanaResourceId = !empty(grafanaResourceId)
 
-resource monitor 'microsoft.monitor/accounts@2021-06-03-preview' = if (!useInternalApiVersion) {
-  name: monitorName
-  location: resourceGroup().location
-  tags: {
-    aroHCPPurpose: purpose
-  }
-}
-
-resource monitorInternal 'microsoft.monitor/accounts@2021-06-01-preview' = if (useInternalApiVersion) {
+resource monitor 'microsoft.monitor/accounts@2021-06-03-preview' = {
   name: monitorName
   location: resourceGroup().location
   tags: {
@@ -39,7 +28,7 @@ resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' existing = if (hasGraf
   scope: resourceGroup(grafanaRef.resourceGroup.subscriptionId, grafanaRef.resourceGroup.name)
 }
 
-resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (hasGrafanaResourceId && !useInternalApiVersion) {
+resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (hasGrafanaResourceId) {
   name: guid(monitor.id, grafana!.id, dataReader)
   scope: monitor
   properties: {
@@ -49,17 +38,5 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = i
   }
 }
 
-resource roleAssignmentInternal 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (hasGrafanaResourceId && useInternalApiVersion) {
-  name: guid(monitorInternal.id, grafana!.id, dataReader)
-  scope: monitorInternal
-  properties: {
-    principalId: grafana!.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', dataReader)
-  }
-}
-
-output monitorId string = useInternalApiVersion ? monitorInternal.id : monitor.id
-output monitorPrometheusQueryEndpoint string = useInternalApiVersion
-  ? monitorInternal.properties.metrics.prometheusQueryEndpoint
-  : monitor.properties.metrics.prometheusQueryEndpoint
+output monitorId string = monitor.id
+output monitorPrometheusQueryEndpoint string = monitor.properties.metrics.prometheusQueryEndpoint

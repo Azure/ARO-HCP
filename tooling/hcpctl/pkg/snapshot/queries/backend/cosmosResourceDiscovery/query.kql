@@ -1,0 +1,9 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('cosmosResourceSnapshots')
+| where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where subscriptionID == '{{ .SubscriptionID }}'
+| where resourceGroup =~ '{{ .ResourceGroup }}'
+| where resourceID startswith '{{ .ClusterResourceID }}'
+| distinct resourceID=tolower(resourceID), resourceType=tolower(resourceType)

@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,7 +39,6 @@ import (
 // cluster-service for the ExternalAuth and, on 404, zero out the stored
 // ClusterServiceID so downstream code knows the CS resource is fully gone.
 type externalAuthClusterServiceIDClearer struct {
-	cooldownChecker      controllerutil.CooldownChecker
 	externalAuthLister   listers.ExternalAuthLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -51,12 +49,10 @@ var _ controllerutils.ExternalAuthSyncer = (*externalAuthClusterServiceIDClearer
 func NewExternalAuthClusterServiceIDClearerController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := informers.ExternalAuths()
 	syncer := &externalAuthClusterServiceIDClearer{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		externalAuthLister:   externalAuthLister,
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
@@ -69,10 +65,6 @@ func NewExternalAuthClusterServiceIDClearerController(
 		time.Minute,
 		syncer,
 	)
-}
-
-func (c *externalAuthClusterServiceIDClearer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // NeedsWork reports whether this controller has unfinished business for the

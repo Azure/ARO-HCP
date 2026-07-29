@@ -1,18 +1,25 @@
 entrypoints:
-- identifier: 'Microsoft.Azure.ARO.HCP.DevCI.Infra'
+- identifier: 'Microsoft.Azure.ARO.HCP.DevCI.Unprivileged'
   metadata:
     name: Dev CI Infrastructure
+# PRIVILEGED, on-demand only. Running this entrypoint requires BOTH Entra
+# directory privileges (to create and manage the CI bot Entra applications and
+# service principals) AND subscription Owner or User Access Administrator (to
+# write the custom role definitions and role assignments) — Azure RBAC alone is
+# not sufficient. Kept as a separate entrypoint so the unattended dev-ci
+# postsubmit (which runs the Unprivileged entrypoint) never touches it. Run
+# manually by an OWNERS-group member.
+- identifier: 'Microsoft.Azure.ARO.HCP.DevCI.Privileged'
+  metadata:
+    name: Dev CI Privileged Identities and Grants
 services:
-- serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Infra
+- serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Unprivileged
   pipelinePath: dev-infrastructure/dev-ci/cluster/opstool-aks-pipeline.yaml
   purpose: Deploy shared dev/CI network resources, the opstool AKS cluster, and the Prometheus monitoring stack.
   children:
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.TenantQuota
     pipelinePath: tooling/tenant-quota/pipeline.yaml
     purpose: Deploy the tenant-quota-collector.
-  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
-    pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml
-    purpose: Manage explicit dev E2E customer-subscription RBAC and shared custom-role assignable scopes.
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Gateway
     pipelinePath: dev-infrastructure/dev-ci/gateway/pipeline.yaml
     purpose: Deploy the shared Istio gateway and DNS wiring for opstool.
@@ -22,3 +29,14 @@ services:
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.CIHealth
     pipelinePath: dev-infrastructure/dev-ci/cihealth/pipeline.yaml
     purpose: Deploy the CIHealth runtime on cihealth.tools.hcpsvc.osadev.cloud.
+- serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Privileged
+  pipelinePath: dev-infrastructure/dev-ci/privileged/pipeline.yaml
+  purpose: No-op grouping root for the on-demand privileged entrypoint. Owner-only; run manually by an OWNERS-group member.
+  children:
+  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
+    pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml
+    purpose: Create/reconcile the CI bot Entra applications + service principals and rotate their Key Vault secrets. Involves Entra directory-object writes, so it runs on demand under an OWNERS-group member, not the unattended postsubmit.
+    children:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants
+      pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml
+      purpose: Manage explicit dev E2E customer-subscription RBAC and shared custom-role assignable scopes, plus the CI bot subscription-scoped RBAC. Runs after the CI bot identities exist. Owner-only; run on demand by an OWNERS-group member.

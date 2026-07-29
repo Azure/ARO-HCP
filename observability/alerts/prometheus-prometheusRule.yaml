@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: prometheus-wip-rules
+    labels:
+      component: monitoring-infrastructure
     rules:
     - alert: PrometheusJobUp
       # TODO: once PR #5732 (underlay_clusters source-of-truth metric) is merged and confirmed
@@ -27,17 +29,23 @@ spec:
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus is unreachable for 10 minutes.
     - alert: PrometheusUptime
-      expr: avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95
+      expr: |
+        (
+          sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+          /
+          sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+        ) < 0.95
       for: 10m
       labels:
         severity: critical
       annotations:
         description: |
-          Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
+          Fewer than 95% of present Prometheus self-up samples were healthy over the past 24 hours.
           This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
+          Missing samples are covered separately by PrometheusUptimeSampleCount.
           Please check the status of the Prometheus pods, service endpoints, and network connectivity.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
-        summary: Prometheus is unreachable for 1 day.
+        summary: Prometheus uptime below 95% over 24 hours.
     - alert: PrometheusUptimeSampleCount
       # The divisor 30 matches spec.scrapeInterval (30s) in prometheus.yaml. Update both together if the interval changes.
       # sum (not min) so pod restarts don't false-fire: old + new instance samples cover the full day.
@@ -56,7 +64,7 @@ spec:
       annotations:
         description: |
           Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
-          Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
+          Unlike PrometheusUptime which evaluates the health of present samples, this alert treats data gaps as downtime.
           Complete metric absence (no samples) will also trigger PrometheusMetricsAbsentPerCluster.
           Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
@@ -115,6 +123,8 @@ spec:
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus failed sample rate to remote storage is above 10%.
   - name: prometheus-rules
+    labels:
+      component: monitoring-infrastructure
     rules:
     - alert: PrometheusRemoteStorageFailures
       expr: ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])))) * 100 > 1
@@ -124,7 +134,7 @@ spec:
       annotations:
         description: Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
-        summary: Prometheus fails to send samples to remote storage.
+        summary: Prometheus {{ $labels.namespace }}/{{ $labels.pod }} failing to send to {{ $labels.remote_name }}:{{ $labels.url }}
     - alert: PrometheusNotIngestingSamples
       expr: (sum without (type) (rate(prometheus_tsdb_head_samples_appended_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) <= 0 and sum without (scrape_job) (prometheus_target_metadata_cache_entries{job="prometheus/prometheus",namespace="prometheus"}) > 0)
       for: 10m
@@ -133,7 +143,7 @@ spec:
       annotations:
         description: Prometheus {{$labels.namespace}}/{{$labels.pod}} is not ingesting samples.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples
-        summary: Prometheus is not ingesting samples.
+        summary: Prometheus {{ $labels.namespace }}/{{ $labels.pod }} is not ingesting samples
     - alert: PrometheusBadConfig
       expr: max_over_time(prometheus_config_last_reload_successful{job="prometheus/prometheus",namespace="prometheus"}[5m]) == 0
       for: 10m
@@ -142,7 +152,7 @@ spec:
       annotations:
         description: Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig
-        summary: Failed Prometheus configuration reload.
+        summary: Prometheus {{ $labels.namespace }}/{{ $labels.pod }} configuration reload failed
     - alert: PrometheusScrapeSampleLimitHit
       expr: increase(prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) > 0
       for: 15m
@@ -151,8 +161,10 @@ spec:
       annotations:
         description: Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
-        summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
+        summary: Prometheus {{ $labels.namespace }}/{{ $labels.pod }} scrapes exceeding sample limit
   - name: prometheus-operator-rules
+    labels:
+      component: monitoring-infrastructure
     rules:
     - alert: PrometheusOperatorNotReady
       expr: min by (cluster, controller, namespace) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0
@@ -162,7 +174,7 @@ spec:
       annotations:
         description: Prometheus operator in {{ $labels.namespace }} namespace isn't ready to reconcile {{ $labels.controller }} resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready
-        summary: Prometheus operator not ready
+        summary: Prometheus operator {{ $labels.namespace }}/{{ $labels.controller }} not ready
     - alert: PrometheusOperatorRejectedResources
       expr: min_over_time(prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected"}[5m]) > 0
       for: 20m
@@ -171,4 +183,4 @@ spec:
       annotations:
         description: Prometheus operator in {{ $labels.namespace }} namespace rejected {{ printf "%0.0f" $value }} {{ $labels.controller }}/{{ $labels.resource }} resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
-        summary: Resources rejected by Prometheus operator
+        summary: Prometheus operator {{ $labels.namespace }}/{{ $labels.controller }} rejecting {{ $labels.resource }} resources

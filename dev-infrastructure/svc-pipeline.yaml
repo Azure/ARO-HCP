@@ -65,6 +65,14 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: fleet-amw-permissions
+    action: ARM
+    template: templates/fleet-amw-permissions.bicep
+    parameters: configurations/fleet-amw-permissions.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
 - name: auditLogs
   resourceGroup: '{{ .auditLogsEventHub.rg }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -312,7 +320,7 @@ resourceGroups:
     issuer:
       configRef: maestro.certIssuer
     commonName:
-      configRef: maestro.server.certSAN
+      configRef: maestro.server.certCN
     dependsOn:
     - resourceGroup: service
       step: infra-output
@@ -467,6 +475,11 @@ resourceGroups:
       - "There was a problem communicating with the identity service"
       - "DeploymentScriptExceededMaxAllowedTime"
       - "was not found in the AAD tenant"
+      # Transient Network Security Perimeter association failures against the RP
+      # Cosmos DB account (exclusive-lock contention / backend retry exhaustion).
+      - "AnmPreconditionFailedException"
+      - "MaxRetryCountReached"
+      - "ServiceUnavailable"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: upgrade-aks-cluster
@@ -952,38 +965,3 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: exporter-output
-  - name: aro-hcp-exporter
-    aksCluster: '{{ .svc.aks.name }}'
-    action: Helm
-    releaseName: aro-hcp-exporter
-    releaseNamespace: aro-hcp-exporter
-    chartDir: ./../tooling/aro-hcp-exporter/deploy
-    valuesFile: ./../tooling/aro-hcp-exporter/deploy/values.yaml
-    kustoEndpoint:
-      resourceGroup: kusto
-      step: output
-      name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
-    kustoTable: 'containerLogs'
-    dependsOn:
-    - resourceGroup: service
-      step: upgrade-aks-cluster
-    - resourceGroup: service
-      step: prometheus
-    - resourceGroup: service
-      step: mirror-exporter-image
-    - resourceGroup: service
-      step: image-registry-policy
-    inputVariables:
-      kustoRegion:
-        resourceGroup: kusto
-        step: output
-        name: kustoRegion
-      msiClientId:
-        resourceGroup: service
-        step: exporter-output
-        name: msiClientId
-    identityFrom:
-      resourceGroup: global
-      step: output
-      name: globalMSIId

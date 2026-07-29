@@ -41,94 +41,242 @@ type ValidationContext struct {
 	TestError string
 	// TestOutput is the contents of the test output.log file.
 	TestOutput string
+	// NodeConsoleLogs maps console log filenames to their contents.
+	// Used for validating node_console_log proof items.
+	NodeConsoleLogs map[string]string
+}
+
+// ValidationProblem describes a single structured validation issue found in a DraftChain.
+type ValidationProblem struct {
+	// Category is a machine-readable identifier for the type of problem.
+	Category string `json:"category"`
+	// Chain is the chain link index where the problem was found, or -1 for top-level issues.
+	Chain int `json:"chain"`
+	// Proof is the proof item index (0-based) where the problem was found, or -1 if N/A.
+	Proof int `json:"proof"`
+	// Detail is the human-readable description of the problem.
+	Detail string `json:"detail"`
+}
+
+// ValidationResult holds the structured output of ValidateDraft.
+type ValidationResult struct {
+	// Problems is the list of validation issues found.
+	Problems []ValidationProblem
+	// Feedback is the human-readable text suitable for sending to the agent as
+	// a correction prompt. It is empty when there are no problems.
+	Feedback string
 }
 
 // ValidateDraft checks a DraftChain for structural problems and executes every
 // KQL snippet against the provided Kusto client. It validates log proof line
 // ranges against actual log contents, code proof line ranges against actual
 // source files, and discovery paths against the data directory.
-// It returns a human-readable feedback string describing all issues found,
-// suitable for sending back to the agent as a correction prompt. If everything
-// is valid, the returned string is empty.
-func ValidateDraft(ctx context.Context, client KustoClient, draft *DraftChain, vc *ValidationContext) string {
-	var problems []string
+// It returns a ValidationResult containing structured problems and a
+// human-readable feedback string for sending back to the agent.
+func ValidateDraft(ctx context.Context, client KustoClient, draft *DraftChain, vc *ValidationContext) ValidationResult {
+	var problems []ValidationProblem
 
 	// Structural checks.
 	if draft.RootCause == "" {
-		problems = append(problems, "- The root_cause is empty. Every analysis must include a terse, one-sentence root cause.")
+		problems = append(problems, ValidationProblem{
+			Category: "empty_root_cause",
+			Chain:    -1,
+			Proof:    -1,
+			Detail:   "- The root_cause is empty. Every analysis must include a terse, one-sentence root cause.",
+		})
 	}
 	if draft.Summary == "" {
-		problems = append(problems, "- The summary is empty. Every analysis must include a non-empty summary.")
+		problems = append(problems, ValidationProblem{
+			Category: "empty_summary",
+			Chain:    -1,
+			Proof:    -1,
+			Detail:   "- The summary is empty. Every analysis must include a non-empty summary.",
+		})
 	}
 	if len(draft.Chain) == 0 {
-		problems = append(problems, "- The chain is empty. Every analysis must include at least one causal chain link.")
+		problems = append(problems, ValidationProblem{
+			Category: "empty_chain",
+			Chain:    -1,
+			Proof:    -1,
+			Detail:   "- The chain is empty. Every analysis must include at least one causal chain link.",
+		})
 	}
 	for i, link := range draft.Chain {
 		if i == 0 && link.Question != FirstChainQuestion {
-			problems = append(problems, fmt.Sprintf(
-				"- The first chain link's question must be exactly %q, but got %q.",
-				FirstChainQuestion, link.Question,
-			))
+			problems = append(problems, ValidationProblem{
+				Category: "wrong_first_question",
+				Chain:    i,
+				Proof:    -1,
+				Detail: fmt.Sprintf(
+					"- The first chain link's question must be exactly %q, but got %q.",
+					FirstChainQuestion, link.Question,
+				),
+			})
 		} else if link.Question == "" {
-			problems = append(problems, fmt.Sprintf("- Chain link %d has an empty question.", i))
+			problems = append(problems, ValidationProblem{
+				Category: "empty_question",
+				Chain:    i,
+				Proof:    -1,
+				Detail:   fmt.Sprintf("- Chain link %d has an empty question.", i),
+			})
 		}
 		if link.Answer == "" {
-			problems = append(problems, fmt.Sprintf("- Chain link %d (%q) has an empty answer.", i, link.Question))
+			problems = append(problems, ValidationProblem{
+				Category: "empty_answer",
+				Chain:    i,
+				Proof:    -1,
+				Detail:   fmt.Sprintf("- Chain link %d (%q) has an empty answer.", i, link.Question),
+			})
 		}
 		if len(link.Proof) == 0 {
-			problems = append(problems, fmt.Sprintf("- Chain link %d (%q) has no proof items.", i, link.Question))
+			problems = append(problems, ValidationProblem{
+				Category: "missing_proof",
+				Chain:    i,
+				Proof:    -1,
+				Detail:   fmt.Sprintf("- Chain link %d (%q) has no proof items.", i, link.Question),
+			})
 		}
 		for j, proof := range link.Proof {
 			switch proof.Type {
 			case "kusto":
 				if proof.KQL == "" {
-					problems = append(problems, fmt.Sprintf("- Chain link %d (%q), proof #%d: kusto proof has empty KQL.", i, link.Question, j+1))
+					problems = append(problems, ValidationProblem{
+						Category: "empty_kql",
+						Chain:    i,
+						Proof:    j,
+						Detail:   fmt.Sprintf("- Chain link %d (%q), proof #%d: kusto proof has empty KQL.", i, link.Question, j+1),
+					})
 				}
 			case "code":
 				if proof.Repo == "" || proof.File == "" {
-					problems = append(problems, fmt.Sprintf("- Chain link %d (%q), proof #%d: code proof is missing repo or file.", i, link.Question, j+1))
+					problems = append(problems, ValidationProblem{
+						Category: "code_missing_fields",
+						Chain:    i,
+						Proof:    j,
+						Detail:   fmt.Sprintf("- Chain link %d (%q), proof #%d: code proof is missing repo or file.", i, link.Question, j+1),
+					})
 				} else if !vc.ValidRepos[proof.Repo] {
 					var available []string
 					for repo := range vc.ValidRepos {
 						available = append(available, fmt.Sprintf("%q", repo))
 					}
 					sort.Strings(available)
-					problems = append(problems, fmt.Sprintf(
-						"- Chain link %d (%q), proof #%d: code proof references repository %q which is not available as a worktree. "+
-							"Code proofs may only reference repositories with available source code. Available repositories: %s. "+
-							"Either use one of the available repositories or convert this proof to a different type.",
-						i, link.Question, j+1, proof.Repo, strings.Join(available, ", "),
-					))
+					problems = append(problems, ValidationProblem{
+						Category: "code_invalid_repo",
+						Chain:    i,
+						Proof:    j,
+						Detail: fmt.Sprintf(
+							"- Chain link %d (%q), proof #%d: code proof references repository %q which is not available as a worktree. "+
+								"Code proofs may only reference repositories with available source code. Available repositories: %s. "+
+								"Either use one of the available repositories or convert this proof to a different type.",
+							i, link.Question, j+1, proof.Repo, strings.Join(available, ", "),
+						),
+					})
 				} else if proof.Lines[0] < 1 || proof.Lines[1] < proof.Lines[0] {
-					problems = append(problems, fmt.Sprintf(
-						"- Chain link %d (%q), proof #%d: code proof has invalid line range [%d, %d] (must be 1-indexed with start <= end).",
-						i, link.Question, j+1, proof.Lines[0], proof.Lines[1],
-					))
+					problems = append(problems, ValidationProblem{
+						Category: "code_invalid_lines",
+						Chain:    i,
+						Proof:    j,
+						Detail: fmt.Sprintf(
+							"- Chain link %d (%q), proof #%d: code proof has invalid line range [%d, %d] (must be 1-indexed with start <= end).",
+							i, link.Question, j+1, proof.Lines[0], proof.Lines[1],
+						),
+					})
 				} else if worktreePath, ok := vc.WorktreePaths[proof.Repo]; ok {
 					lineCount, err := countFileLines(filepath.Join(worktreePath, proof.File))
 					if err != nil {
-						problems = append(problems, fmt.Sprintf(
-							"- Chain link %d (%q), proof #%d: code proof references file %q in repo %q which cannot be read: %s",
-							i, link.Question, j+1, proof.File, proof.Repo, err.Error(),
-						))
+						problems = append(problems, ValidationProblem{
+							Category: "code_file_unreadable",
+							Chain:    i,
+							Proof:    j,
+							Detail: fmt.Sprintf(
+								"- Chain link %d (%q), proof #%d: code proof references file %q in repo %q which cannot be read: %s",
+								i, link.Question, j+1, proof.File, proof.Repo, err.Error(),
+							),
+						})
 					} else if proof.Lines[1] > lineCount {
-						problems = append(problems, fmt.Sprintf(
-							"- Chain link %d (%q), proof #%d: code proof line range [%d, %d] exceeds the file length (%d lines) for %s in repo %q.",
-							i, link.Question, j+1, proof.Lines[0], proof.Lines[1], lineCount, proof.File, proof.Repo,
-						))
+						problems = append(problems, ValidationProblem{
+							Category: "code_lines_exceed_file",
+							Chain:    i,
+							Proof:    j,
+							Detail: fmt.Sprintf(
+								"- Chain link %d (%q), proof #%d: code proof line range [%d, %d] exceeds the file length (%d lines) for %s in repo %q.",
+								i, link.Question, j+1, proof.Lines[0], proof.Lines[1], lineCount, proof.File, proof.Repo,
+							),
+						})
 					}
 				}
 			case "log":
-				if proof.Source != "error" && proof.Source != "output" {
-					problems = append(problems, fmt.Sprintf(
-						"- Chain link %d (%q), proof #%d: log proof has invalid source %q (must be \"error\" or \"output\").",
-						i, link.Question, j+1, proof.Source,
-					))
+				if proof.Source != "error" && proof.Source != "output" && proof.Source != "node_console_log" {
+					problems = append(problems, ValidationProblem{
+						Category: "log_invalid_source",
+						Chain:    i,
+						Proof:    j,
+						Detail: fmt.Sprintf(
+							"- Chain link %d (%q), proof #%d: log proof has invalid source %q (must be \"error\", \"output\", or \"node_console_log\").",
+							i, link.Question, j+1, proof.Source,
+						),
+					})
+				} else if proof.Source == "node_console_log" {
+					if proof.File == "" {
+						problems = append(problems, ValidationProblem{
+							Category: "log_missing_file",
+							Chain:    i,
+							Proof:    j,
+							Detail: fmt.Sprintf(
+								"- Chain link %d (%q), proof #%d: node_console_log proof is missing the file field specifying which console log to reference.",
+								i, link.Question, j+1,
+							),
+						})
+					} else if proof.Lines[0] < 1 || proof.Lines[1] < proof.Lines[0] {
+						problems = append(problems, ValidationProblem{
+							Category: "log_invalid_lines",
+							Chain:    i,
+							Proof:    j,
+							Detail: fmt.Sprintf(
+								"- Chain link %d (%q), proof #%d: log proof has invalid line range [%d, %d] (must be 1-indexed with start <= end).",
+								i, link.Question, j+1, proof.Lines[0], proof.Lines[1],
+							),
+						})
+					} else if logContent, ok := vc.NodeConsoleLogs[proof.File]; !ok {
+						var available []string
+						for f := range vc.NodeConsoleLogs {
+							available = append(available, fmt.Sprintf("%q", f))
+						}
+						sort.Strings(available)
+						problems = append(problems, ValidationProblem{
+							Category: "log_missing_file",
+							Chain:    i,
+							Proof:    j,
+							Detail: fmt.Sprintf(
+								"- Chain link %d (%q), proof #%d: node_console_log proof references file %q which is not available. Available console logs: %s.",
+								i, link.Question, j+1, proof.File, strings.Join(available, ", "),
+							),
+						})
+					} else {
+						lineCount := strings.Count(logContent, "\n") + 1
+						if proof.Lines[1] > lineCount {
+							problems = append(problems, ValidationProblem{
+								Category: "log_lines_exceed_file",
+								Chain:    i,
+								Proof:    j,
+								Detail: fmt.Sprintf(
+									"- Chain link %d (%q), proof #%d: log proof line range [%d, %d] exceeds the console log %q length (%d lines).",
+									i, link.Question, j+1, proof.Lines[0], proof.Lines[1], proof.File, lineCount,
+								),
+							})
+						}
+					}
 				} else if proof.Lines[0] < 1 || proof.Lines[1] < proof.Lines[0] {
-					problems = append(problems, fmt.Sprintf(
-						"- Chain link %d (%q), proof #%d: log proof has invalid line range [%d, %d] (must be 1-indexed with start <= end).",
-						i, link.Question, j+1, proof.Lines[0], proof.Lines[1],
-					))
+					problems = append(problems, ValidationProblem{
+						Category: "log_invalid_lines",
+						Chain:    i,
+						Proof:    j,
+						Detail: fmt.Sprintf(
+							"- Chain link %d (%q), proof #%d: log proof has invalid line range [%d, %d] (must be 1-indexed with start <= end).",
+							i, link.Question, j+1, proof.Lines[0], proof.Lines[1],
+						),
+					})
 				} else {
 					var logContent string
 					if proof.Source == "error" {
@@ -137,22 +285,37 @@ func ValidateDraft(ctx context.Context, client KustoClient, draft *DraftChain, v
 						logContent = vc.TestOutput
 					}
 					if logContent == "" {
-						problems = append(problems, fmt.Sprintf(
-							"- Chain link %d (%q), proof #%d: log proof references %s log, but the %s log is empty.",
-							i, link.Question, j+1, proof.Source, proof.Source,
-						))
+						problems = append(problems, ValidationProblem{
+							Category: "log_empty_source",
+							Chain:    i,
+							Proof:    j,
+							Detail: fmt.Sprintf(
+								"- Chain link %d (%q), proof #%d: log proof references %s log, but the %s log is empty.",
+								i, link.Question, j+1, proof.Source, proof.Source,
+							),
+						})
 					} else {
 						lineCount := strings.Count(logContent, "\n") + 1
 						if proof.Lines[1] > lineCount {
-							problems = append(problems, fmt.Sprintf(
-								"- Chain link %d (%q), proof #%d: log proof line range [%d, %d] exceeds the %s log length (%d lines).",
-								i, link.Question, j+1, proof.Lines[0], proof.Lines[1], proof.Source, lineCount,
-							))
+							problems = append(problems, ValidationProblem{
+								Category: "log_lines_exceed_file",
+								Chain:    i,
+								Proof:    j,
+								Detail: fmt.Sprintf(
+									"- Chain link %d (%q), proof #%d: log proof line range [%d, %d] exceeds the %s log length (%d lines).",
+									i, link.Question, j+1, proof.Lines[0], proof.Lines[1], proof.Source, lineCount,
+								),
+							})
 						}
 					}
 				}
 			default:
-				problems = append(problems, fmt.Sprintf("- Chain link %d (%q), proof #%d: unknown proof type %q (expected \"kusto\", \"code\", or \"log\").", i, link.Question, j+1, proof.Type))
+				problems = append(problems, ValidationProblem{
+					Category: "unknown_proof_type",
+					Chain:    i,
+					Proof:    j,
+					Detail:   fmt.Sprintf("- Chain link %d (%q), proof #%d: unknown proof type %q (expected \"kusto\", \"code\", or \"log\").", i, link.Question, j+1, proof.Type),
+				})
 			}
 		}
 
@@ -167,7 +330,12 @@ func ValidateDraft(ctx context.Context, client KustoClient, draft *DraftChain, v
 				}
 			}
 			if !hasErrorLog {
-				problems = append(problems, "- The first chain link must include at least one log proof with source \"error\" referencing the test error log.")
+				problems = append(problems, ValidationProblem{
+					Category: "first_link_missing_error_log",
+					Chain:    0,
+					Proof:    -1,
+					Detail:   "- The first chain link must include at least one log proof with source \"error\" referencing the test error log.",
+				})
 			}
 		}
 	}
@@ -175,16 +343,26 @@ func ValidateDraft(ctx context.Context, client KustoClient, draft *DraftChain, v
 	// Discovery validation — each item must be a KQL query with a label.
 	for i, item := range draft.Discovery {
 		if item.KQL == "" {
-			problems = append(problems, fmt.Sprintf(
-				"- Discovery item %d has empty kql.",
-				i,
-			))
+			problems = append(problems, ValidationProblem{
+				Category: "discovery_empty_kql",
+				Chain:    -1,
+				Proof:    -1,
+				Detail: fmt.Sprintf(
+					"- Discovery item %d has empty kql.",
+					i,
+				),
+			})
 		}
 		if item.Label == "" {
-			problems = append(problems, fmt.Sprintf(
-				"- Discovery item %d: agent-authored KQL discovery must have a non-empty label.",
-				i,
-			))
+			problems = append(problems, ValidationProblem{
+				Category: "discovery_empty_label",
+				Chain:    -1,
+				Proof:    -1,
+				Detail: fmt.Sprintf(
+					"- Discovery item %d: agent-authored KQL discovery must have a non-empty label.",
+					i,
+				),
+			})
 		}
 	}
 
@@ -208,15 +386,20 @@ func ValidateDraft(ctx context.Context, client KustoClient, draft *DraftChain, v
 			repos = append(repos, fmt.Sprintf("%q", repo))
 		}
 		sort.Strings(repos)
-		problems = append(problems, fmt.Sprintf(
-			"- The chain contains no code proof items. When source code worktrees are available (%s), "+
-				"the analysis must include at least one code proof citing the specific file and line range "+
-				"that implements the behavior under investigation. Use code proofs to show *why* the system "+
-				"behaves the way it does — for example, the code path that produces an error, the timeout "+
-				"constant that was exceeded, or the retry logic that should have recovered. Read the source "+
-				"code in the worktrees and add code proof items to the relevant chain links.",
-			strings.Join(repos, ", "),
-		))
+		problems = append(problems, ValidationProblem{
+			Category: "no_code_proof",
+			Chain:    -1,
+			Proof:    -1,
+			Detail: fmt.Sprintf(
+				"- The chain contains no code proof items. When source code worktrees are available (%s), "+
+					"the analysis must include at least one code proof citing the specific file and line range "+
+					"that implements the behavior under investigation. Use code proofs to show *why* the system "+
+					"behaves the way it does — for example, the code path that produces an error, the timeout "+
+					"constant that was exceeded, or the retry logic that should have recovered. Read the source "+
+					"code in the worktrees and add code proof items to the relevant chain links.",
+				strings.Join(repos, ", "),
+			),
+		})
 	}
 
 	// KQL execution checks — run every query to verify it is syntactically and
@@ -227,39 +410,58 @@ func ValidateDraft(ctx context.Context, client KustoClient, draft *DraftChain, v
 		where := fmt.Sprintf("chain link %q, proof #%d", loc.Label, loc.ProofIndex+1)
 
 		if err != nil {
-			problems = append(problems, fmt.Sprintf(
-				"- %s: KQL query failed when executed against Kusto:\n  Error: %s\n  Query:\n  ```kql\n  %s\n  ```",
-				where, summarizeKustoError(err), loc.KQL,
-			))
+			problems = append(problems, ValidationProblem{
+				Category: "kql_failed",
+				Chain:    loc.ChainIndex,
+				Proof:    loc.ProofIndex,
+				Detail: fmt.Sprintf(
+					"- %s: KQL query failed when executed against Kusto:\n  Error: %s\n  Query:\n  ```kql\n  %s\n  ```",
+					where, summarizeKustoError(err), loc.KQL,
+				),
+			})
 			continue
 		}
 
 		if table == nil || len(table.Rows) == 0 {
-			problems = append(problems, fmt.Sprintf(
-				"- %s: KQL query returned no rows. A query used as evidence must return data. "+
-					"If the point of the query is to show that something did NOT happen, "+
-					"use a `summarize count=count()` and explicitly show a zero count instead of an empty result set.\n"+
-					"  Query:\n  ```kql\n  %s\n  ```",
-				where, loc.KQL,
-			))
+			problems = append(problems, ValidationProblem{
+				Category: "kql_empty_result",
+				Chain:    loc.ChainIndex,
+				Proof:    loc.ProofIndex,
+				Detail: fmt.Sprintf(
+					"- %s: KQL query returned no rows. A query used as evidence must return data. "+
+						"If the point of the query is to show that something did NOT happen, "+
+						"use a `summarize count=count()` and explicitly show a zero count instead of an empty result set.\n"+
+						"  Query:\n  ```kql\n  %s\n  ```",
+					where, loc.KQL,
+				),
+			})
 		}
 	}
 
 	if len(problems) == 0 {
-		return ""
+		return ValidationResult{}
 	}
 
-	return fmt.Sprintf(
-		"Your output has %d %s that must be fixed. Please correct all issues and re-emit the complete JSON output.\n\n%s",
-		len(problems),
-		pluralize(len(problems), "problem", "problems"),
-		strings.Join(problems, "\n\n"),
-	)
+	details := make([]string, len(problems))
+	for i, p := range problems {
+		details[i] = p.Detail
+	}
+
+	return ValidationResult{
+		Problems: problems,
+		Feedback: fmt.Sprintf(
+			"Your output has %d %s that must be fixed. Please correct all issues and re-emit the complete JSON output.\n\n%s",
+			len(problems),
+			pluralize(len(problems), "problem", "problems"),
+			strings.Join(details, "\n\n"),
+		),
+	}
 }
 
 // kqlLocation identifies where a KQL snippet came from in the draft chain.
 type kqlLocation struct {
 	Label      string // chain link question
+	ChainIndex int    // chain link index
 	ProofIndex int    // proof item index
 	KQL        string
 }
@@ -267,11 +469,12 @@ type kqlLocation struct {
 // extractKQL collects all KQL snippets from chain link proofs with their locations.
 func extractKQL(draft *DraftChain) []kqlLocation {
 	var locs []kqlLocation
-	for _, link := range draft.Chain {
+	for i, link := range draft.Chain {
 		for j, proof := range link.Proof {
 			if proof.Type == "kusto" && proof.KQL != "" {
 				locs = append(locs, kqlLocation{
 					Label:      link.Question,
+					ChainIndex: i,
 					ProofIndex: j,
 					KQL:        proof.KQL,
 				})

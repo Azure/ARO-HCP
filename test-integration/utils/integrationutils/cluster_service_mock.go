@@ -66,22 +66,12 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 	internalIDToCluster := s.GetOrCreateMockData(t.Name() + "_clusters")
 	internalIDToExternalAuth := s.GetOrCreateMockData(t.Name() + "_externalAuths")
 	internalIDToNodePool := s.GetOrCreateMockData(t.Name() + "_nodePools")
-	internalIDToAutoscaler := s.GetOrCreateMockData(t.Name() + "_autoscalers")
 	internalIDToProvisionShard := s.GetOrCreateMockData(t.Name() + "_provisionShards")
 	internalIDToHypershiftDetails := s.GetOrCreateMockData(t.Name() + "_hypershiftDetails")
 
-	s.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
+	s.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
 		justID := rand.String(10)
 		internalID := "/api/clusters_mgmt/v1/clusters/" + justID
-
-		if autoscalerBuilder != nil {
-			autoscaler, err := autoscalerBuilder.HREF(internalID).Build()
-			if err != nil {
-				return nil, err
-			}
-
-			internalIDToAutoscaler[internalID] = append(internalIDToAutoscaler[internalID], autoscaler)
-		}
 
 		ret, err := clusterBuilder.ID(justID).HREF(internalID).Build()
 		if err != nil {
@@ -112,21 +102,11 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 			return fmt.Errorf("cluster %q does not exist", id.String())
 		}
 		delete(internalIDToCluster, id.String())
-		delete(internalIDToAutoscaler, id.String())
 
 		return nil
 	}).AnyTimes()
-	s.MockClusterServiceClient.EXPECT().UpdateClusterAutoscaler(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, internalID ocm.InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error) {
-		ret, err := builder.HREF(internalID.String()).Build()
-		if err != nil {
-			return nil, err
-		}
-
-		internalIDToAutoscaler[internalID.String()] = append(internalIDToAutoscaler[internalID.String()], ret)
-		return ret, nil
-	}).AnyTimes()
 	s.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*csarhcpv1alpha1.Cluster, error) {
-		ret, err := mergeClusterServiceClusterAndAutoscaler(internalIDToCluster[id.String()], internalIDToAutoscaler[id.String()])
+		ret, err := mergeClusterServiceInstance[csarhcpv1alpha1.Cluster](internalIDToCluster[id.String()])
 		if err != nil {
 			return nil, fmt.Errorf("failed to merge cluster id %q: %w", id.String(), err)
 		}
@@ -136,7 +116,7 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 	s.MockClusterServiceClient.EXPECT().ListClusters(gomock.Any()).DoAndReturn(func(s string) ocm.ClusterListIterator {
 		allObjs := []*csarhcpv1alpha1.Cluster{}
 		for _, key := range sets.StringKeySet(internalIDToCluster).List() {
-			obj, err := mergeClusterServiceClusterAndAutoscaler(internalIDToCluster[key], internalIDToAutoscaler[key])
+			obj, err := mergeClusterServiceInstance[csarhcpv1alpha1.Cluster](internalIDToCluster[key])
 			if err != nil {
 				panic(fmt.Errorf("failed to merge cluster id %q: %w", key, err))
 			}
@@ -291,7 +271,6 @@ func (s *ClusterServiceMock) AddContent(t *testing.T, initialDataDir fs.FS) erro
 	internalIDToCluster := s.GetOrCreateMockData(t.Name() + "_clusters")
 	internalIDToExternalAuth := s.GetOrCreateMockData(t.Name() + "_externalAuths")
 	internalIDToNodePool := s.GetOrCreateMockData(t.Name() + "_nodePools")
-	internalIDToAutoscaler := s.GetOrCreateMockData(t.Name() + "_autoscalers")
 	internalIDToProvisionShard := s.GetOrCreateMockData(t.Name() + "_provisionShards")
 	internalIDToHypershiftDetails := s.GetOrCreateMockData(t.Name() + "_hypershiftDetails")
 
@@ -299,6 +278,9 @@ func (s *ClusterServiceMock) AddContent(t *testing.T, initialDataDir fs.FS) erro
 	if err != nil {
 		return fmt.Errorf("failed to read dir: %w", err)
 	}
+
+	var pendingAutoscalers []*arohcpv1alpha1.ClusterAutoscaler
+	internalIDToAutoscaler := make(map[string][]*arohcpv1alpha1.ClusterAutoscaler)
 
 	for _, dirEntry := range dirContent {
 		if dirEntry.IsDir() {
@@ -347,12 +329,13 @@ func (s *ClusterServiceMock) AddContent(t *testing.T, initialDataDir fs.FS) erro
 		case strings.HasSuffix(dirEntry.Name(), "-autoscaler.json"):
 			obj, err := arohcpv1alpha1.UnmarshalClusterAutoscaler(fileContent)
 			if err != nil {
-				return fmt.Errorf("failed to unmarshal cluster: %w", err)
+				return fmt.Errorf("failed to unmarshal autoscaler: %w", err)
 			}
 			if _, exists := internalIDToAutoscaler[obj.HREF()]; exists {
 				return fmt.Errorf("duplicate autoscaler: %s", obj.HREF())
 			}
-			internalIDToAutoscaler[obj.HREF()] = []any{obj}
+			internalIDToAutoscaler[obj.HREF()] = []*arohcpv1alpha1.ClusterAutoscaler{obj}
+			pendingAutoscalers = append(pendingAutoscalers, obj)
 
 		case strings.HasSuffix(dirEntry.Name(), "-provisionshard.json"):
 			href, err := clusterHrefFromClusterServiceSubResource(fileContent)
@@ -385,6 +368,19 @@ func (s *ClusterServiceMock) AddContent(t *testing.T, initialDataDir fs.FS) erro
 		default:
 			return fmt.Errorf("unknown file %s", dirEntry.Name())
 		}
+	}
+
+	for _, autoscaler := range pendingAutoscalers {
+		clusterHref := autoscaler.HREF()
+		clusterHistory, exists := internalIDToCluster[clusterHref]
+		if !exists {
+			return fmt.Errorf("autoscaler fixture references cluster %q but no matching -cluster.json was loaded", clusterHref)
+		}
+		updatedHistory, err := embedAutoscalerInClusterHistory(clusterHistory, autoscaler)
+		if err != nil {
+			return fmt.Errorf("failed to embed autoscaler into cluster %q: %w", clusterHref, err)
+		}
+		internalIDToCluster[clusterHref] = updatedHistory
 	}
 
 	return nil
@@ -564,24 +560,34 @@ func mergeClusterServiceInstance[T any](history []any) (*T, error) {
 	return unmarshalClusterServiceAny[T](mergedJSON)
 }
 
-func mergeClusterServiceClusterAndAutoscaler(clusterHistory []any, autoscalerHistory []any) (*arohcpv1alpha1.Cluster, error) {
-	cluster, err := mergeClusterServiceInstance[csarhcpv1alpha1.Cluster](clusterHistory)
+func embedAutoscalerInClusterHistory(clusterHistory []any, autoscaler *arohcpv1alpha1.ClusterAutoscaler) ([]any, error) {
+	if len(clusterHistory) == 0 {
+		return nil, fmt.Errorf("cluster history is empty")
+	}
+
+	if autoscaler == nil {
+		return nil, fmt.Errorf("autoscaler is nil")
+	}
+
+	mergedJSON, err := mergeClusterServiceReturn(clusterHistory)
 	if err != nil {
 		return nil, err
 	}
 
-	clusterBuilder := csarhcpv1alpha1.NewCluster().Copy(cluster)
-
-	if len(autoscalerHistory) > 0 {
-		autoscaler, err := mergeClusterServiceInstance[csarhcpv1alpha1.ClusterAutoscaler](autoscalerHistory)
-		if err != nil {
-			return nil, err
-		}
-
-		clusterBuilder.Autoscaler(csarhcpv1alpha1.NewClusterAutoscaler().Copy(autoscaler))
+	cluster, err := arohcpv1alpha1.UnmarshalCluster(mergedJSON)
+	if err != nil {
+		return nil, err
 	}
 
-	return clusterBuilder.Build()
+	embedded, err := arohcpv1alpha1.NewCluster().Copy(cluster).
+		Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().Copy(autoscaler)).
+		Build()
+	if err != nil {
+		return nil, err
+	}
+	result := append([]any(nil), clusterHistory[:len(clusterHistory)-1]...)
+	result = append(result, embedded)
+	return result, nil
 }
 
 func unmarshalClusterServiceAny[T any](mergedJSON []byte) (*T, error) {

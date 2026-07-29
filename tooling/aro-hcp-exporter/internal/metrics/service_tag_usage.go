@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -26,8 +27,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/pkg/cache"
 	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/pkg/graphquery"
+	"github.com/Azure/ARO-HCP/tooling/azutils/subscriptions"
+	"github.com/Azure/ARO-HCP/tooling/metricscache"
 )
 
 const (
@@ -47,7 +49,7 @@ var (
 // ServiceTagUsageCollector is a Prometheus collector that gathers public IP metrics from Azure
 type ServiceTagUsageCollector struct {
 	client       *graphquery.ResourceGraphClient
-	cache        *cache.MetricsCache
+	cache        *metricscache.Cache
 	errorCounter prometheus.Counter
 }
 
@@ -58,13 +60,13 @@ func NewServiceTagUsageCollector(ctx context.Context, subscriptionNames []string
 	var resourceGraphClient *graphquery.ResourceGraphClient
 	var err error
 
-	subscriptionIDs, err := getSubscriptionIDs(ctx, credential, subscriptionNames)
+	resolved, err := subscriptions.ResolveByName(ctx, credential, subscriptionNames)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscription IDs: %w", err)
 	}
-	subscriptionIDsPtrs := make([]*string, len(subscriptionIDs))
-	for i, subscriptionID := range subscriptionIDs {
-		subscriptionIDsPtrs[i] = to.Ptr(subscriptionID)
+	subscriptionIDsPtrs := make([]*string, 0, len(resolved))
+	for _, name := range subscriptionNames {
+		subscriptionIDsPtrs = append(subscriptionIDsPtrs, to.Ptr(resolved[name]))
 	}
 	resourceGraphClient, err = graphquery.NewResourceGraphClient(credential, subscriptionIDsPtrs)
 	if err != nil {
@@ -73,7 +75,7 @@ func NewServiceTagUsageCollector(ctx context.Context, subscriptionNames []string
 
 	return &ServiceTagUsageCollector{
 		client:       resourceGraphClient,
-		cache:        cache.NewMetricsCache(cacheTTL),
+		cache:        metricscache.NewCache(cacheTTL),
 		errorCounter: errorCounter,
 	}, nil
 }
@@ -87,7 +89,7 @@ func (c *ServiceTagUsageCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *ServiceTagUsageCollector) Collect(ch chan<- prometheus.Metric) {
-	for _, metric := range c.cache.GetAllMetrics() {
+	for _, metric := range c.cache.GetAll() {
 		ch <- metric
 	}
 }
@@ -158,20 +160,13 @@ func (c *ServiceTagUsageCollector) CollectMetricValues(ctx context.Context) {
 			}
 		}
 		for _, ipTag := range ipTags {
-			err = c.cache.AddMetric(prometheus.MustNewConstMetric(
+			labels := []string{publicIP.SubscriptionId, publicIP.Location, ipTag.ServiceTagType, ipTag.ServiceTagValue}
+			c.cache.Set(strings.Join(labels, "/"), prometheus.MustNewConstMetric(
 				ServiceTagUsageByPublicIpCountDesc,
 				prometheus.GaugeValue,
 				publicIP.Count,
-				publicIP.SubscriptionId,
-				publicIP.Location,
-				ipTag.ServiceTagType,
-				ipTag.ServiceTagValue,
+				labels...,
 			))
-			if err != nil {
-				c.errorCounter.Inc()
-				logger.Error(err, "error adding metric to cache")
-				continue
-			}
 		}
 	}
 }

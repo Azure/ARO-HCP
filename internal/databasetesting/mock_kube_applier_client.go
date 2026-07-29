@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
@@ -39,8 +40,9 @@ import (
 // represents one container. Tests that want multiple containers use
 // MockKubeApplierDBClients (plural).
 type MockKubeApplierDBClient struct {
-	mu        sync.RWMutex
-	documents map[string]json.RawMessage
+	mu         sync.RWMutex
+	documents  map[string]json.RawMessage
+	changeFeed mockChangeFeed
 }
 
 var _ database.KubeApplierDBClient = &MockKubeApplierDBClient{}
@@ -79,6 +81,7 @@ func (m *MockKubeApplierDBClient) StoreDocument(cosmosID string, data json.RawMe
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.documents[strings.ToLower(cosmosID)] = data
+	m.changeFeed.record(data)
 }
 
 func (m *MockKubeApplierDBClient) DeleteDocument(cosmosID string) {
@@ -183,6 +186,19 @@ func (m *MockKubeApplierDBClient) Listers() database.KubeApplierListers {
 
 func (m *MockKubeApplierDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (database.UntypedResourceCRUD, error) {
 	return &mockKubeApplierUntypedCRUD{store: m, parentResourceID: parentResourceID}, nil
+}
+
+func (m *MockKubeApplierDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	var continuation string
+	if options != nil && options.Continuation != nil {
+		continuation = *options.Continuation
+	}
+	docs, nextToken, hasNew := m.changeFeed.read(continuation)
+	return buildMockChangeFeedResponse(docs, nextToken, hasNew), nil
+}
+
+func (m *MockKubeApplierDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+	return []azcosmos.FeedRange{mockChangeFeedFeedRange}, nil
 }
 
 // --- KubeApplierListers (in-memory) ----------------------------------------

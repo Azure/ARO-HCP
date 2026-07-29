@@ -565,20 +565,16 @@ func TestOperationPhaseMetricsHandler_DeleteIsNoOp(t *testing.T) {
 	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
 }
 
-// TestOperationPhaseMetricsHandler_MultipleOpsSameExternalIDCollapseToOneSeries
-// documents the design decision that multiple operations sharing one
-// ARM resource id collapse to a single Prometheus series. The handler
-// emits one series per resource (last-emitted-labels-win); operation_id
-// is intentionally not in the label set.
+// TestOperationPhaseMetricsHandler_MultipleOpsSameExternalIDCoexistByOperationType
+// documents the design decision that multiple operations of DIFFERENT types
+// sharing one ARM resource id coexist as independent Prometheus series. The
+// handler emits one series per (resource_id, operation_type) combination;
+// only operations of the SAME type collapse (last-emitted-labels-win).
 //
-// This test exercises natural processing order (older op first, newer
-// op second) and asserts the resulting collapse to one series with
-// the second op's labels. It does NOT assert "newest by
-// LastTransitionTime wins" under adversarial / relist iteration order
-// where the newer op might be processed first; that property is not
-// provided by the handler. See the handler doc-comment for the flutter
-// limitation.
-func TestOperationPhaseMetricsHandler_MultipleOpsSameExternalIDCollapseToOneSeries(t *testing.T) {
+// This ensures that e.g. a completed "create" operation does not clobber
+// an in-flight "delete" operation's metrics on informer relists, which
+// previously caused false alerts when the iteration order was unfavorable.
+func TestOperationPhaseMetricsHandler_MultipleOpsSameExternalIDCoexistByOperationType(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
 
@@ -587,12 +583,43 @@ func TestOperationPhaseMetricsHandler_MultipleOpsSameExternalIDCollapseToOneSeri
 
 	handler, reg := newTestOperationHandler(t)
 
-	// Two ops on the same ARM id, processed in order. After both Syncs,
-	// the second emission's labels are the only ones present because
-	// DeletePartialMatch wipes by resource_id before each emit.
+	// Two ops of different types on the same ARM id. After both Syncs,
+	// both series are present because deletion is scoped to
+	// resource_id + operation_type.
 	handler.Sync(context.Background(), op1)
 	handler.Sync(context.Background(), op2)
 
+	expected := `# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
+# TYPE backend_resource_operation_phase_info gauge
+backend_resource_operation_phase_info{operation_type="create",phase="succeeded",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
+backend_resource_operation_phase_info{operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
+`
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
+	require.Equal(t, 2, testutil.CollectAndCount(handler.phaseInfo))
+
+	// The bug this test guards against is specifically about start_time and
+	// last_transition_time being clobbered across operation types. Verify
+	// these metric vecs also retain both series.
+	require.Equal(t, 2, testutil.CollectAndCount(handler.startTime))
+	require.Equal(t, 2, testutil.CollectAndCount(handler.lastTransitionTime))
+}
+
+// TestOperationPhaseMetricsHandler_SameOperationTypeCollapsesToOneSeries
+// verifies that multiple operations of the SAME type on one ARM resource
+// still collapse: the last-processed operation's labels win.
+func TestOperationPhaseMetricsHandler_SameOperationTypeCollapsesToOneSeries(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
+
+	op1 := newTestOperation(t, "op-1", api.OperationRequestUpdate, arm.ProvisioningStateSucceeded, armID, now, now)
+	op2 := newTestOperation(t, "op-2", api.OperationRequestUpdate, arm.ProvisioningStateProvisioning, armID, now.Add(time.Hour), now.Add(time.Hour))
+
+	handler, reg := newTestOperationHandler(t)
+
+	handler.Sync(context.Background(), op1)
+	handler.Sync(context.Background(), op2)
+
+	// Only op2's labels remain (same operation_type, last writer wins).
 	expected := `# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
 backend_resource_operation_phase_info{operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
@@ -603,9 +630,9 @@ backend_resource_operation_phase_info{operation_type="update",phase="provisionin
 
 // TestOperationPhaseMetricsHandler_DeleteOnSiblingDoesNotBlankActiveSeries
 // is the direct regression guard for the bug a previous iteration of
-// this PR introduced: when two operations share an ExternalID
-// (collapsed to one series), Delete on the older terminal operation
-// must NOT blank the newer operation's currently-emitted series.
+// this PR introduced: when two operations share an ExternalID,
+// Delete on the older terminal operation must NOT blank the newer
+// operation's currently-emitted series.
 // The fix is that Delete is a no-op; this test pins it.
 func TestOperationPhaseMetricsHandler_DeleteOnSiblingDoesNotBlankActiveSeries(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -620,8 +647,8 @@ func TestOperationPhaseMetricsHandler_DeleteOnSiblingDoesNotBlankActiveSeries(t 
 	handler.Sync(context.Background(), op1)
 	handler.Sync(context.Background(), op2)
 
-	// op2's labels currently own the shared series.
-	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
+	// Both ops coexist (different operation_type).
+	require.Equal(t, 2, testutil.CollectAndCount(handler.phaseInfo))
 
 	// op1 ages out of cosmos TTL: the controller framework calls
 	// handler.Delete with op1's cosmos doc id. This must NOT blank
@@ -630,10 +657,11 @@ func TestOperationPhaseMetricsHandler_DeleteOnSiblingDoesNotBlankActiveSeries(t 
 	require.NoError(t, err)
 	handler.Delete(op1CosmosKey)
 
-	// op2's series is still emitted.
-	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
+	// Both series are still emitted (Delete is a no-op).
+	require.Equal(t, 2, testutil.CollectAndCount(handler.phaseInfo))
 	expected := `# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
+backend_resource_operation_phase_info{operation_type="create",phase="succeeded",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
 backend_resource_operation_phase_info{operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
 `
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
@@ -641,11 +669,11 @@ backend_resource_operation_phase_info{operation_type="update",phase="provisionin
 
 // TestOperationPhaseMetricsHandler_NilOperationIDDoesNotBlankSibling
 // guards against future regressions of the nil-OperationID branch
-// in Sync. The branch must NOT call deleteByResourceID, because a
-// sibling operation may already own the emitted series for the
-// shared ExternalID. Implicit child-resource cleanups (parent
-// Delete cascades) produce nil-OperationID ops on child ARM ids in
-// production cosmos shape.
+// in Sync. The branch must NOT call deleteByResourceIDAndOperationType,
+// because a sibling operation may already own the emitted series for
+// the shared ExternalID and operation type. Implicit child-resource
+// cleanups (parent Delete cascades) produce nil-OperationID ops on
+// child ARM ids in production cosmos shape.
 func TestOperationPhaseMetricsHandler_NilOperationIDDoesNotBlankSibling(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
