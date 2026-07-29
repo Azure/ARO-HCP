@@ -17,6 +17,7 @@ resources:
   limits:
     memory: "{{ .customExporter.k8s.resources.limits.memory }}"
 clusterTypes: "{{ .customExporter.clusterTypes }}"
+clusterNameFilter: "{{ .customExporter.clusterNameFilter }}"
 region: "{{ .region }}"
 listenAddress: ":8080"
 cacheTTL: "60m"

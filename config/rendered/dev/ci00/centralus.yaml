@@ -213,6 +213,7 @@ clustersService:
     address: http://ingest.observability:4318
     exporter: otlp
 customExporter:
+  clusterNameFilter: ci00-j7654321
   clusterTypes: svc-cluster,mgmt-cluster
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:

@@ -29,6 +29,7 @@ spec:
         args:
         - serve
         - --cluster-types={{ .Values.clusterTypes }}
+        - --cluster-name-filter={{ .Values.clusterNameFilter }}
         - --region={{ .Values.region }}
         - --listen-address={{ .Values.listenAddress }}
         - --cache-ttl={{ .Values.cacheTTL }}

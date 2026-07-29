@@ -40,7 +40,7 @@ func (m *mockQuerier) ExecuteConvertRequest(_ context.Context, request graphquer
 }
 
 func TestClusterDiscoveryPoller_GetDiscoverResult_BeforePoll(t *testing.T) {
-	poller := NewClusterDiscoveryPoller(nil, "eastus", []string{"svc-cluster"}, time.Minute)
+	poller := NewClusterDiscoveryPoller(nil, "eastus", []string{"svc-cluster"}, "", time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -57,7 +57,7 @@ func TestClusterDiscoveryPoller_Poll_UpdatesResults(t *testing.T) {
 			{Name: "mgmt-1", SubscriptionId: "sub-b"},
 		},
 	}
-	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, 0)
+	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, "", 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -77,7 +77,7 @@ func TestClusterDiscoveryPoller_Poll_DeduplicatesSubscriptionIDs(t *testing.T) {
 			{Name: "cluster-c", SubscriptionId: "sub-1"},
 		},
 	}
-	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, 0)
+	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, "", 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -93,7 +93,7 @@ func TestClusterDiscoveryPoller_Poll_PreservesResultsAcrossMultiplePolls(t *test
 	querier := &mockQuerier{
 		rows: []clusterRow{{Name: "c1", SubscriptionId: "s1"}},
 	}
-	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, 0)
+	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, "", 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -110,7 +110,7 @@ func TestClusterDiscoveryPoller_Poll_ErrorKeepsPreviousResults(t *testing.T) {
 	querier := &mockQuerier{
 		rows: []clusterRow{{Name: "existing", SubscriptionId: "sub-1"}},
 	}
-	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, 0)
+	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, "", 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -131,7 +131,7 @@ func TestClusterDiscoveryPoller_Poll_RespectsContextCancellation(t *testing.T) {
 	querier := &mockQuerier{
 		rows: []clusterRow{{Name: "new", SubscriptionId: "sub-1"}},
 	}
-	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, time.Hour)
+	poller := NewClusterDiscoveryPoller(querier, "eastus", []string{"svc-cluster"}, "", time.Hour)
 
 	cancelledCtx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -145,10 +145,12 @@ func TestClusterDiscoveryPoller_Poll_RespectsContextCancellation(t *testing.T) {
 
 func TestBuildClusterQuery(t *testing.T) {
 	tests := []struct {
-		name         string
-		region       string
-		clusterTypes []string
-		wantContains []string
+		name            string
+		region          string
+		clusterTypes    []string
+		clusterFilter   string
+		wantContains    []string
+		wantNotContains []string
 	}{
 		{
 			name:         "single cluster type",
@@ -159,6 +161,7 @@ func TestBuildClusterQuery(t *testing.T) {
 				"| where tags['clusterType'] in~ ('svc-cluster')",
 				"| project name, subscriptionId",
 			},
+			wantNotContains: []string{"| where name contains"},
 		},
 		{
 			name:         "multiple cluster types",
@@ -177,15 +180,35 @@ func TestBuildClusterQuery(t *testing.T) {
 				"| where location =~ 'eastus'",
 			},
 		},
+		{
+			name:          "with cluster name filter",
+			region:        "westus3",
+			clusterTypes:  []string{"svc-cluster", "mgmt-cluster"},
+			clusterFilter: "cspr-westus3",
+			wantContains: []string{
+				"| where name contains 'cspr-westus3'",
+				"| project name, subscriptionId",
+			},
+		},
+		{
+			name:            "empty cluster name filter omits clause",
+			region:          "eastus",
+			clusterTypes:    []string{"svc-cluster"},
+			clusterFilter:   "",
+			wantNotContains: []string{"| where name contains"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			query := BuildClusterQuery(tt.region, tt.clusterTypes)
+			query := BuildClusterQuery(tt.region, tt.clusterTypes, tt.clusterFilter)
 
 			assert.Contains(t, query, "| where type =~ 'Microsoft.ContainerService/managedClusters'")
 			for _, want := range tt.wantContains {
 				assert.Contains(t, query, want)
+			}
+			for _, notWant := range tt.wantNotContains {
+				assert.NotContains(t, query, notWant)
 			}
 		})
 	}

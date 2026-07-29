@@ -64,6 +64,7 @@ spec:
         args:
         - serve
         - --cluster-types=svc-cluster,mgmt-cluster
+        - --cluster-name-filter=
         - --region=westus3
         - --listen-address=:8080
         - --cache-ttl=60m

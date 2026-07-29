@@ -51,10 +51,10 @@ type ClusterDiscoveryPoller struct {
 	sleepTime    time.Duration
 }
 
-func NewClusterDiscoveryPoller(client graphquery.Querier, region string, clusterTypes []string, sleepTime time.Duration) *ClusterDiscoveryPoller {
+func NewClusterDiscoveryPoller(client graphquery.Querier, region string, clusterTypes []string, clusterNameFilter string, sleepTime time.Duration) *ClusterDiscoveryPoller {
 	return &ClusterDiscoveryPoller{
 		client:       client,
-		query:        BuildClusterQuery(region, clusterTypes),
+		query:        BuildClusterQuery(region, clusterTypes, clusterNameFilter),
 		resultMutex:  sync.Mutex{},
 		sleepTime:    sleepTime,
 		discovered:   false,
@@ -137,18 +137,24 @@ func clusterNames(rows []clusterRow) sets.Set[string] {
 
 // BuildClusterQuery constructs a KQL query that finds AKS managed clusters
 // in the specified region with a clusterType tag matching the given type.
-func BuildClusterQuery(region string, clusterTypes []string) string {
+// When clusterNameFilter is non-empty, an additional "contains" filter
+// restricts results to clusters whose name contains the given substring.
+func BuildClusterQuery(region string, clusterTypes []string, clusterNameFilter string) string {
 	quoted := make([]string, 0, len(clusterTypes))
 	for _, clusterType := range clusterTypes {
 		quoted = append(quoted, fmt.Sprintf("'%s'", graphquery.EscapeKQL(clusterType)))
 	}
-	return fmt.Sprintf(
+	query := fmt.Sprintf(
 		"resources\n"+
 			"| where type =~ 'Microsoft.ContainerService/managedClusters'\n"+
 			"| where location =~ '%s'\n"+
-			"| where tags['clusterType'] in~ (%s)\n"+
-			"| project name, subscriptionId",
+			"| where tags['clusterType'] in~ (%s)",
 		graphquery.EscapeKQL(region),
 		strings.Join(quoted, ", "),
 	)
+	if clusterNameFilter != "" {
+		query += fmt.Sprintf("\n| where name contains '%s'", graphquery.EscapeKQL(clusterNameFilter))
+	}
+	query += "\n| project name, subscriptionId"
+	return query
 }

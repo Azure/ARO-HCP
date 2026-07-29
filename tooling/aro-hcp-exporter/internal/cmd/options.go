@@ -40,14 +40,16 @@ const (
 )
 
 var (
-	validAzureRegion = regexp.MustCompile(`^[a-z][a-z0-9]+$`)
-	validClusterType = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+	validAzureRegion       = regexp.MustCompile(`^[a-z][a-z0-9]+$`)
+	validClusterType       = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+	validClusterNameFilter = regexp.MustCompile(`^[A-Za-z0-9_.\-]+$`)
 )
 
 type RawOptions struct {
 	ListenAddress       string
 	ClusterTypes        []string
 	Region              string
+	ClusterNameFilter   string
 	CacheTTL            time.Duration
 	CollectionInterval  time.Duration
 	EnabledCollectors   []string
@@ -76,6 +78,7 @@ type ValidatedOptions struct {
 	ListenAddress      string
 	ClusterTypes       []string
 	Region             string
+	ClusterNameFilter  string
 	CacheTTL           time.Duration
 	CollectionInterval time.Duration
 	EnabledCollectors  []string
@@ -120,6 +123,11 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 		return nil, fmt.Errorf("invalid region %q: must be a lowercase Azure region name (e.g. eastus, westus3)", o.Region)
 	}
 
+	clusterNameFilter := strings.TrimSpace(o.ClusterNameFilter)
+	if clusterNameFilter != "" && !validClusterNameFilter.MatchString(clusterNameFilter) {
+		return nil, fmt.Errorf("invalid cluster-name-filter %q: must match %s", o.ClusterNameFilter, validClusterNameFilter.String())
+	}
+
 	if o.CacheTTL == 0 {
 		return nil, fmt.Errorf("cache TTL is required")
 	}
@@ -138,6 +146,7 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 		ListenAddress:      o.ListenAddress,
 		ClusterTypes:       clusterTypes,
 		Region:             region,
+		ClusterNameFilter:  clusterNameFilter,
 		CacheTTL:           o.CacheTTL,
 		CollectionInterval: o.CollectionInterval,
 		EnabledCollectors:  o.EnabledCollectors,
@@ -158,7 +167,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 		return nil, fmt.Errorf("failed to create Resource Graph client: %w", err)
 	}
 
-	clusterPoller := cluster.NewClusterDiscoveryPoller(rgClient, o.Region, o.ClusterTypes, o.CollectionInterval)
+	clusterPoller := cluster.NewClusterDiscoveryPoller(rgClient, o.Region, o.ClusterTypes, o.ClusterNameFilter, o.CollectionInterval)
 
 	collectors, err := o.CreateEnabledCollectors(ctx, cred, clusterPoller)
 	if err != nil {
@@ -186,6 +195,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ListenAddress, "listen-address", opts.ListenAddress, fmt.Sprintf("Address to listen on for metrics (default: %s)", DefaultListenAddress))
 	cmd.Flags().StringSliceVar(&opts.ClusterTypes, "cluster-types", opts.ClusterTypes, "AKS cluster type tag values for Resource Graph discovery")
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Azure region this exporter is deployed in")
+	cmd.Flags().StringVar(&opts.ClusterNameFilter, "cluster-name-filter", opts.ClusterNameFilter, "Filter discovered clusters to those whose name contains this substring")
 	cmd.Flags().DurationVar(&opts.CacheTTL, "cache-ttl", opts.CacheTTL, fmt.Sprintf("Cache TTL (default: %s)", DefaultCacheTTL.String()))
 	cmd.Flags().DurationVar(&opts.CollectionInterval, "collection-interval", opts.CollectionInterval, fmt.Sprintf("Collection interval (default: %s)", DefaultCollectionInterval.String()))
 	cmd.Flags().StringSliceVar(&opts.EnabledCollectors, "enabled-collectors", opts.EnabledCollectors, fmt.Sprintf("Enabled collectors (default: %s)", strings.Join(opts.supportedCollectors, ", ")))

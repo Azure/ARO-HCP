@@ -196,6 +196,7 @@ defaults:
     managedIdentityName: "aro-hcp-exporter"
     enabledCollectors: "service-tag-usage,kusto-logs-current"
     clusterTypes: "svc-cluster,mgmt-cluster"
+    clusterNameFilter: ""
     k8s:
       namespace: aro-hcp-exporter
       serviceAccountName: aro-hcp-exporter
@@ -1667,6 +1668,8 @@ clouds:
                 secondaryNicCount: 7
       ci00:
         defaults:
+          customExporter:
+            clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1762,6 +1765,8 @@ clouds:
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
+          customExporter:
+            clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           auditLogsEventHub:
             enabled: true
           kusto:

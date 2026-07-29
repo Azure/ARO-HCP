@@ -178,3 +178,68 @@ func TestValidateClusterTypes(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateClusterNameFilter(t *testing.T) {
+	tests := []struct {
+		name            string
+		filter          string
+		wantErrContains string
+		wantFilter      string
+	}{
+		{
+			name:       "empty filter is valid",
+			filter:     "",
+			wantFilter: "",
+		},
+		{
+			name:       "valid environment-region prefix",
+			filter:     "cspr-westus3",
+			wantFilter: "cspr-westus3",
+		},
+		{
+			name:       "valid pers prefix with short region",
+			filter:     "pers-ws3jbol",
+			wantFilter: "pers-ws3jbol",
+		},
+		{
+			name:       "whitespace is trimmed",
+			filter:     "  cspr-westus3  ",
+			wantFilter: "cspr-westus3",
+		},
+		{
+			name:            "filter with single quote",
+			filter:          "cspr'westus3",
+			wantErrContains: "invalid cluster-name-filter",
+		},
+		{
+			name:            "filter with semicolon",
+			filter:          "cspr;drop",
+			wantErrContains: "invalid cluster-name-filter",
+		},
+		{
+			name:            "filter with spaces",
+			filter:          "cspr westus3",
+			wantErrContains: "invalid cluster-name-filter",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := DefaultOptions()
+			opts.ClusterTypes = []string{"svc-cluster"}
+			opts.Region = "eastus"
+			opts.ClusterNameFilter = tt.filter
+
+			validated, err := opts.Validate(context.Background())
+
+			if tt.wantErrContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrContains)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantFilter, validated.ClusterNameFilter)
+		})
+	}
+}

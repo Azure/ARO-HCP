@@ -213,6 +213,7 @@ clustersService:
     address: ""
     exporter: ""
 customExporter:
+  clusterNameFilter: ""
   clusterTypes: svc-cluster,mgmt-cluster
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
