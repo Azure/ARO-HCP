@@ -81,7 +81,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [EV2 Deployment](ev2-deployment.md)
   - Deployment process from pipeline.yaml to EV2 deployment
   - Building and executing an ADO pipeline
-- [Per-region EV2 Rollout Lock](ev2-region-lock.md)
+- [Per-region rollout ordering for incremental prod rollouts](ev2-region-lock.md)
   - Design for running multiple prod rollouts at once in strict per-region commit order
   - Ordering gate, per-region lease, and evolution to step-level locking
 - [Secret Synchronization](secret-sync.md)

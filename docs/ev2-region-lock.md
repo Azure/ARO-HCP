@@ -1,24 +1,47 @@
-# Per-region EV2 rollout lock
+# Per-region rollout ordering for incremental prod rollouts
 
-This document describes the design of a **per-region rollout lock** for ARO HCP
-production deployments. The lock lets several prod rollouts run at once while
-guaranteeing that, in any given region, an older commit always deploys before a
-newer one. No newer commit can overtake an older one in a region.
+This document describes how we let several ARO HCP production rollouts run at the
+same time while guaranteeing that, in any given region, an older change always
+deploys before a newer one. A newer change can never overtake an older one in a
+region.
 
-This is a design document. The mechanism is implemented in the
+The goal is not a new bespoke gate bolted onto rollouts. The goal is to make our
+existing **incremental rollouts** safe to run in prod, continuously and
+unattended, several times a day, without an SRE babysitting each one to completion.
+
+This is a design document. The ordering mechanism is implemented in the
 [sdp-pipelines](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/tooling)
-EV2 tooling and the lock-store infrastructure lives in this repository's
-[global service group](#lock-store-infrastructure). See
-[EV2 Deployment](ev2-deployment.md) for the base rollout flow this builds on.
+EV2 tooling, next to the incremental-rollout generator it builds on. See
+[EV2 Deployment](ev2-deployment.md) for the base rollout flow.
+
+## Contents
+
+- [Problem](#problem)
+- [Goal](#goal)
+- [Background: incremental rollouts and the missing signal](#background-incremental-rollouts-and-the-missing-signal)
+- [Design overview](#design-overview)
+- [Ordering key: commit lineage](#ordering-key-commit-lineage)
+- [The gate: a single immediate predecessor](#the-gate-a-single-immediate-predecessor)
+- [Failure and cancellation semantics](#failure-and-cancellation-semantics)
+- [Recovery: failed rollouts and hotfixes](#recovery-failed-rollouts-and-hotfixes)
+- [Intent and completion store](#intent-and-completion-store)
+- [Mutual exclusion: a TTL and fenced lease](#mutual-exclusion-a-ttl-and-fenced-lease)
+- [Release mechanism: bounded retries, no central config](#release-mechanism-bounded-retries-no-central-config)
+- [EV2 APIs and guarantees](#ev2-apis-and-guarantees)
+- [Environments](#environments)
+- [Where each piece lives](#where-each-piece-lives)
+- [Possible future: step-level ordering](#possible-future-step-level-ordering)
+- [Discarded alternatives](#discarded-alternatives)
+- [Open items](#open-items)
 
 ## Problem
 
-Prod rollouts are long. A single rollout walks every prod region in sequence,
-and each region can be held for a long time by validation baking. Two operational
+Prod rollouts are long. A single rollout walks every prod region in sequence, and
+each region can be held for a long time by validation baking. Two operational
 constraints stretch this out further:
 
-- **Read-only Fridays.** There is no ARO SL SRE on-call over the weekend, so prod
-  rollouts are frozen from Friday to Monday. A rollout that starts mid-week can sit
+- **Read-only weekends.** There is no ARO SL SRE on-call over the weekend, so prod
+  rollouts are frozen Friday to Monday. A rollout that starts mid-week can sit
   half-done across the weekend.
 - **Baking windows.** Once per-region baking lands, a region is intentionally held
   for hours to days before the rollout advances.
@@ -29,399 +52,430 @@ that serializes prod to roughly one rollout per week, which is too slow.
 
 We want to **start a new prod rollout while the previous one is still in flight**,
 possibly several per day, and let them all complete **unattended**. The risk this
-introduces is **ordering**: without a guard, rollout `N+1` could reach region R and
-deploy commit `N+1` there before rollout `N` has deployed commit `N` to R, leaving
-that region on a newer commit than an earlier one shipped. That must never happen.
+introduces is **ordering**. Without a guard, rollout `N+1` could reach region R and
+deploy its change there before rollout `N` has deployed to R, leaving that region
+on a newer change than an earlier one shipped. That must never happen.
 
 The failure we are preventing, in one picture:
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant N as Rollout N (older)
+    participant N as Rollout N (older change)
     participant R as Region R
-    participant N1 as Rollout N+1 (newer)
-    Note over N,N1: both in flight, no per-region lock
-    N->>R: still baking commit N in an earlier region...
-    N1->>R: deploy commit N+1
-    Note over R: R now on N+1
-    N->>R: deploy commit N
-    Note over R: R rolled BACK to N ❌ out of order
+    participant M as Rollout N+1 (newer change)
+    Note over N,M: both in flight, N is delayed by baking
+    M->>R: deploy newer change to R
+    Note over R: R now runs the newer change
+    N->>R: deploy older change to R
+    Note over R: R silently regressed to the older change
 ```
+
+The region ends on the **older** change because the two rollouts raced. We need R
+to accept `N` before `N+1`, every time, without anyone watching.
 
 ## Goal
 
-- A **per-region ordering lock** for prod: rollout `N+1` must not begin deploying a
-  region until every older in-flight rollout has finished that same region (or was
-  cancelled).
-- Multiple prod rollouts in flight at once, completing **in commit order, per
-  region, unattended.**
-- Ordering is an **absolute invariant.** If it cannot be honored, the region step
-  **fails and exits the pipeline** rather than deploying out of order.
+Make incremental rollouts safe to run continuously in prod:
 
-## Non-goals
+- Start prod rollouts on a schedule (daily or more), overlapping in time.
+- Let every region deploy changes in the correct order with no manual sequencing.
+- Let rollouts complete **unattended**, including across the weekend freeze.
+- Recover cleanly when a rollout fails, including shipping a hotfix on top.
 
-- **Not a pipeline-level lock.** Azure DevOps already serializes and skips pipelines.
-  This is a finer, per-region guard so region-by-region progress cannot overtake
-  itself.
-- **Not for int/stg.** Those environments are effectively single-region, so one
-  rollout at a time is enough and there is no ordering to enforce. **Prod only.**
-- **Cancelled rollouts never block.** A cancelled older rollout is not going to
-  finish region R, so it must not hold up its successors. Only in-progress, pending,
-  or failed-not-cancelled older rollouts block.
+Non-goals:
 
-## Background: EV2 has no native cross-rollout region lock
+- Ordering **within** a rollout across steps. That is a possible future extension,
+  discussed at the end, and is not part of this design.
+- Replacing baking, approvals, or any existing rollout safety control. This sits
+  on top of them.
 
-EV2 orchestrates region ordering *within* a single rollout, but it has no primitive
-that makes one rollout wait on another rollout's per-region progress. Every
-concurrency knob EV2 exposes is scoped to a single rollout:
+## Background: incremental rollouts and the missing signal
 
-- **StageMap concurrency** (region/stamp concurrency, promotion, validation baking)
-  controls how *one* rollout walks its own regions. It says nothing about a second,
-  concurrent rollout over the same region.
-- **RolloutPolicy is declarative, not a programmable evaluator.** It has two shapes:
-  - `noRollout` is a time-and-location freeze window. This is exactly the mechanism
-    behind read-only Fridays and change-freeze (CCOA) windows: it suspends running
-    rollouts and blocks new ones during the window. It cannot look at another
-    rollout's state.
-  - `safeRollout` is static region staging (allowed/disallowed regions, max
-    parallelism, region pairs). Also fixed at authoring time, also blind to other
-    rollouts.
-- **`wait` action with `completeOn: configExists`** holds a step until a named EV2
-  configuration setting exists. It is the only unattended, programmable, pre-step
-  wait trigger (`manual` needs a human, `incidentResolution` needs an ICM). But the
-  setting it waits on has to be published through EV2's configuration service, which
-  is external to the rollout and gated behind internal EV2 docs.
-- **Health checks** (`restHealthCheck`, `mdmHealthCheck`) are post-deploy monitors,
-  capped under 24h. They can gate advancing *past* a region, not *starting* one.
+We already generate **incremental rollouts**. The generator compares the digest of
+each step against the digest that step last deployed successfully, and only runs
+the steps whose content changed. The core of this lives in
+[`incremental.go`](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/tooling/pkg/ev2/manifests/generate/incremental.go):
+each step becomes a `StepUpgrade{From: previousDeployment(...), To: {Digest}}`, and
+`previousDeployment()` resolves to the **most recent successful rollout** of that
+step. A step runs when there is no prior rollout, when the digest differs, or when
+the prior record is not well formed. The reason codes are
+`no_prior_rollout`, `digest_differs`, and `not_well_formed`
+([`rollout.go`](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/internal/storageaccount/rollout.go)).
 
-So cross-rollout, per-region mutual exclusion has to be built on top of EV2, using
-EV2's own rollout state as the source of truth.
+The reason we cannot simply run these in prod today is the missing signal Steve
+called out: incremental generation assumes it can answer **"did the previous
+rollout succeed in this region?"** and act on it. When rollouts overlap, that
+answer is not available at plan time, because the predecessor may still be in
+flight. Falling back to a full rollout every time is not acceptable either. Full
+rollouts are expensive in wall-clock time and, just as importantly, they disturb
+Azure resources far more often than we want.
+
+So the design below is about **supplying that missing signal at runtime**: a small
+store that records, per region, which change each rollout intends to deploy and
+which change actually succeeded, plus a gate that reads it and either proceeds,
+waits, or fails fast.
 
 ## Design overview
 
-Three parts, layered on the base EV2 flow:
-
-1. An **ordering gate** injected at the head of every prod region. It blocks the
-   region until all older in-flight rollouts have landed that region, then lets the
-   region deploy. This is where ordering is enforced.
-2. A **per-region mutex** (a blob lease) taken around the actual deploy, so two
-   rollouts can never write the same region at the same instant during hand-off.
-3. A **lock store** (a storage account in the global service group) that backs the
-   lease.
+The model presumes **regularity**. Rollouts are scheduled in a known order. When we
+schedule rollout `N`, we assume its immediate predecessor by lineage will succeed,
+and we generate `N` as the incremental diff on top of it. At runtime, before `N`
+touches region R, a small gate step checks the store to confirm the assumption
+held **in R**. If it did, `N` proceeds. If the predecessor is still working R, `N`
+waits. If the predecessor finished and did **not** succeed in R, `N` fails fast in
+R rather than deploying on a stale base.
 
 ```mermaid
 flowchart TD
-    subgraph rollout_np1["Rollout N+1 (region R)"]
-        gate["Ordering gate<br/>region-lock check"]
-        lease["Acquire per-region<br/>blob lease"]
-        deploy["Deploy region R"]
-        release["Release lease"]
+    subgraph rollout[Prod rollout N in region R]
+        gate[Ordering gate step] --> deploy[Existing service steps]
     end
-    status["EV2 rollout state<br/>(RegionStatuses)"] -->|older rollouts<br/>landed R?| gate
-    gate -->|"yes: all older landed / cancelled"| lease
-    gate -->|"no, and an older is still going"| wait["Wait, re-check later"]
-    wait --> gate
-    gate -->|"invariant violated"| fail["Fail step,<br/>exit pipeline"]
-    lease --> deploy --> release
-    store[("Lock store<br/>(global storage account)")] --- lease
+    store[(Intent + completion store<br/>per serviceGroup, env, region)]
+    lease[(TTL + fenced lease<br/>per env, region)]
+    gate -->|read predecessor completion| store
+    gate -->|write own intent| store
+    gate -->|acquire before mutate| lease
+    deploy -->|on success write completion| store
+    classDef s fill:#eef,stroke:#88a
+    class store,lease s
 ```
 
-## The ordering gate
+Three pieces make this work:
 
-The gate is the brain. For a rollout deploying region R, it answers one question:
-**may I deploy R now?**
+1. An **ordering key** derived from commit lineage, so "older" and "newer" are well
+   defined and cannot be faked by triggering a rollout from an old commit.
+2. A **single immediate predecessor** per rollout, so the gate has exactly one
+   thing to check per region and it lines up with the incremental diff.
+3. A **store** of intent and completion records that the gate reads and writes,
+   protected by a short lease for mutual exclusion.
 
-Answer *yes* only when, for region R, **every rollout older than me is either done
-with R or cancelled.** Otherwise wait. If I have somehow already passed an older
-rollout that has not finished R, that is an invariant violation and the step fails.
+## Ordering key: commit lineage
 
-### Ordering key
+The ordering key is **commit lineage**, not the ADO build id.
 
-Rollouts are ordered by `Umbrella.BuildID`, the ADO build id, which is monotonic
-(lower id = older rollout). Rollout `StartTime` is the fallback. The umbrella is
-already carried on each region's landed state, so the gate does not need any new
-metadata:
+Build id and wall-clock time are wrong. An SRE can, by mistake or on purpose,
+trigger a rollout from an **older** commit. That rollout has a newer build id and a
+newer timestamp, but logically older content. If we ordered by build id, that stale
+rollout would be treated as the newest and allowed to overwrite regions that
+already have newer content. That is exactly the regression we are trying to
+prevent.
 
-```text
-Umbrella { AROHCPCommit, SDPPipelinesCommit, BuildID }
-```
+Lineage is the git ancestry distance along the release branch. We already compute
+this in the release dashboard using first-parent ancestry:
 
-### Gate logic
+- `git log --first-parent --ancestry-path <ref>..<branch>` to walk the path, and
+- `git rev-list --first-parent --count <ref>..<branch>` to get the distance,
 
-```text
-CanProceed(region R, me = my BuildID):
-  older = rollouts targeting R with BuildID < me
-  for each o in older:
-    if o is Cancelled:              skip        # never blocks
-    if o has landed R (Succeeded):  ok
-    else:                           BLOCK       # older still working R -> wait
-  if any older non-cancelled rollout is *newer-landed* than me on R:
-    FAIL   # ordering already violated -> exit pipeline
-  return PROCEED
-```
-
-The gate reads live rollout state through the existing `RegionStatuses()` primitive
-in the sdp-pipelines EV2 tooling (EV2 REST today; the same shape can be sourced from
-Kusto rollout step-metadata later). No new EV2 API is required.
-
-### Why this yields strict order for N concurrent rollouts
-
-Ordering falls out of the gate, not the lock. Each rollout's blocking set contains
-its **immediate predecessor**, so the fan-in of N concurrent rollouts chains into
-strict commit order automatically. There is no queue or FIFO structure to maintain:
-
-```text
-region R:  N blocks on (nothing older)   -> N deploys R
-           N+1 blocks on N               -> N+1 deploys R only after N landed R
-           N+2 blocks on N and N+1       -> ... after N+1 landed R
-```
-
-Because `N+2` blocks on `N+1`, and `N+1` blocks on `N`, the three can be in flight
-at once and still land R in the order N, N+1, N+2 with no coordinator.
+from
+[`candidate_commits_controller.go`](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/release-dashboard/backend/pkg/controllers/candidate_commits_controller.go).
+A rollout for a commit that is an **ancestor** of another is unambiguously older,
+regardless of when it was triggered. Ordering by lineage means a rollout launched
+from an old commit sorts **behind** the changes that already shipped, so it cannot
+jump the queue.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant N as Rollout N
-    participant N1 as Rollout N+1
-    participant N2 as Rollout N+2
-    participant R as Region R
-    par three rollouts in flight
-        N->>R: gate: nothing older -> deploy N
-        and
-        N1-->>R: gate: blocked on N (waiting)
-        and
-        N2-->>R: gate: blocked on N, N+1 (waiting)
-    end
-    Note over R: R landed N
-    N1->>R: gate opens -> deploy N+1
-    Note over R: R landed N+1
-    N2->>R: gate opens -> deploy N+2
-    Note over R: R landed N, N+1, N+2 in order ✔
+    participant Old as Rollout from old commit (low lineage)
+    participant G as Gate in region R
+    participant New as Rollout from new commit (high lineage)
+    New->>G: intent for high-lineage change in R
+    G-->>New: proceed (predecessor succeeded in R)
+    Old->>G: intent for low-lineage change in R
+    G-->>Old: R already past this lineage, do not deploy
+    Note over Old,New: lineage, not build id or time, decides order
 ```
 
-## Release mechanism: shell gate step + autoRestart
+## The gate: a single immediate predecessor
 
-The gate has to hold a region until its predecessor lands it, which can take hours
-to days once baking and the weekend freeze are involved. Two facts shape the
-mechanism:
+Each rollout has exactly **one** immediate predecessor, its parent by lineage
+(`N-1`). Not a set of predecessors. A single immediate predecessor is the robust,
+correct model, and it lines up naturally with the incremental diff: `N` is the
+diff of `N` on top of `N-1`, so the only thing the gate must confirm in region R is
+that `N-1` actually landed in R.
 
-- EV2 shell steps have a `maxExecutionTime` and EV2 **terminates** them at timeout.
-  A shell step cannot simply busy-wait for days.
-- The only native way to hold with *no process* for days is `wait` +
-  `configExists`, but publishing the release signal it waits on needs EV2's config
-  service, which is gated. See [Open items](#open-items).
-
-So the release mechanism does **not** depend on `configExists`. Instead the gate is
-a short, leading shell step that **polls and re-runs**:
-
-- The gate step runs `region-lock check`. If the predecessor has landed R it exits
-  `0` and the region deploys.
-- If it is not yet R's turn, the step exits non-zero. EV2 `autoRestart` re-runs it
-  later: `waitDurationAfterFailure` is the poll interval, `maxRestartAttempts` is
-  set high (the schema has no cap), and `skipSucceeded` means only the gate re-runs,
-  not completed work. Between attempts there is **no process**, so the hold spans
-  hours to days for free.
-- Read-only Fridays already freeze all rollouts over the weekend (a `noRollout`
-  window), so the gate's *active* wait is realistically under a day; `autoRestart`
-  covers the tail.
-
-`wait` + `configExists` stays as a nicer future swap (a process-less native hold
-with no retry churn) if the EV2 config-publish path is confirmed. The gate logic is
-identical either way; only the EV2-side trigger differs.
-
-The gate step's lifecycle, driven entirely by exit code and `autoRestart`:
+The gate runs as the first step of the rollout in each region and asks one
+question per region: **did my immediate predecessor succeed in this region?**
 
 ```mermaid
 stateDiagram-v2
     [*] --> Check
-    Check --> Deploy: exit 0 (all older landed or cancelled)
-    Check --> Waiting: exit non-zero (older still working R)
-    Waiting --> Check: autoRestart after waitDurationAfterFailure
-    Check --> Fail: invariant violated (older overtaken)
-    Deploy --> [*]: region done
-    Fail --> [*]: exit pipeline
+    Check --> Proceed: predecessor succeeded in R
+    Check --> Wait: predecessor still in flight in R
+    Wait --> Check: re-check
+    Check --> FailFast: predecessor finished and did NOT succeed in R
+    Check --> FailFast: this rollout is behind R's current lineage
+    Proceed --> [*]
+    FailFast --> [*]
 ```
 
-Between `Waiting` and the next `Check` there is no running process, so the hold
-costs nothing while it spans baking windows and the weekend freeze.
+- **Proceed.** The predecessor's completion record for R shows success at the
+  expected lineage. `N` deploys R.
+- **Wait.** The predecessor has not finished R yet. `N` waits and re-checks. This
+  is the normal overlap case and is **not** an error.
+- **Fail fast.** The predecessor finished but did not succeed in R, or R has
+  already advanced past this rollout's lineage. `N` fails in R immediately rather
+  than deploying on a base that no longer holds.
 
-The active wait is bounded in practice, because read-only Fridays freeze everything
-over the weekend regardless:
+The key distinction, which resolves the tension Steve flagged between "order is an
+absolute invariant" and "complete unattended": **waiting is the default, hard
+failure is rare.** A predecessor that is merely still running just makes the
+successor wait. We only fail the pipeline on a genuine ordering violation, never on
+"the predecessor is not done yet."
 
-```mermaid
-gantt
-    title Concurrent prod rollouts landing region R in order
-    dateFormat  YYYY-MM-DD
-    axisFormat  %a
-    section Rollout N
-    deploy + bake R      :done, n, 2026-01-05, 1d
-    section Rollout N+1
-    gate wait on N       :active, w1, 2026-01-05, 1d
-    deploy + bake R      :n1, after n, 1d
-    section Read-only Fri
-    weekend freeze (noRollout) :crit, fr, 2026-01-09, 2d
-    section Rollout N+2
-    gate wait on N+1     :active, w2, 2026-01-05, 3d
-    deploy + bake R      :n2, after fr, 1d
+## Failure and cancellation semantics
+
+The single rule that keeps this simple:
+
+> **Only unfinished lower-lineage rollouts block. A finished rollout, whether it
+> succeeded, failed, or was cancelled, never blocks anyone.**
+
+From that rule:
+
+- A **successful** predecessor lets its successor proceed in R.
+- A **finished-failed** predecessor is done, so it stops blocking. But because it
+  did not succeed in R, its successor's incremental base for R is stale, so the
+  successor **fails fast** in R. The region simply stays on the last good change
+  until a fix arrives.
+- A **cancelled** rollout is finished, so it also stops blocking. Cancelling a
+  rollout invalidates the incremental successors that were generated assuming it
+  would land, so those successors must be regenerated against the real last-success
+  base (see recovery, below). Cancellation never wedges the queue.
+
+This is why cancellation "does not block" but still cannot be ignored: it unblocks
+the ordering immediately, and it forces a base recompute for anything generated on
+top of it.
+
+## Recovery: failed rollouts and hotfixes
+
+This is the case Steve asked us to design for: `N` fails, and we ship a hotfix.
+
+The foundation is already in the incremental generator: `previousDeployment()`
+resolves to the **most recent successful** rollout of a step, not the most recently
+**scheduled** one. So the incremental base is naturally "last success," and it is
+computed per step. The ordering layer must order on lineage, but base the **diff**
+on last-success, per region.
+
+Worked example, ordering left to right by lineage:
+
+```text
+... N-4 (last success in R)   N-3   N-2   N-1   N  (fails in R)   N+1 (hotfix)
 ```
-
-## Mutual exclusion: per-region blob lease
-
-The gate orders the *start* of a region. A short **per-region blob lease** protects
-the hand-off window so two rollouts can never deploy the same region at the same
-instant:
-
-- Blob path per region: `<serviceGroup>/<env>/<region>`.
-- The wrapped deploy step (short, within `maxExecutionTime`) acquires the lease,
-  re-checks the ordering invariant, runs the deploy, records the outcome, and
-  releases the lease.
-- If, at acquire time, any older non-cancelled rollout has not landed R, the step
-  **fails and exits the pipeline** — order must never be violated.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant N1 as Rollout N+1
-    participant L as Blob lease<br/>(region R)
-    participant D as Region R deploy
-    N1->>L: acquire lease for R
-    alt lease free
-        L-->>N1: acquired
-        N1->>N1: re-check invariant<br/>(all older landed R?)
-        alt invariant holds
-            N1->>D: run deploy
-            D-->>N1: outcome recorded
-            N1->>L: release lease
-        else older not landed
-            N1->>L: release lease
-            N1->>N1: fail step, exit pipeline
-        end
-    else lease held by another rollout
-        L-->>N1: busy -> back off, retry
-    end
+    participant Nf as Rollout N (fails in R)
+    participant R as Region R
+    participant S as Store
+    participant H as Hotfix N+1
+    Nf->>R: deploy, fails in R
+    Nf->>S: completion(R) = failed
+    Note over R: R stays on last good change (N-4)
+    H->>S: read last success in R = N-4
+    H->>R: incremental diff N-4 -> N+1
+    R-->>H: success
+    H->>S: completion(R) = success at N+1 lineage
 ```
 
-## Lock store infrastructure
+How the questions Steve raised resolve:
 
-There is no existing global store to reuse — the global service group today deploys
-only a global managed identity, a global Key Vault, DNS, and an encryption key. The
-lock needs a small new resource:
+- **Does `N` wait on `N-2 .. N-1`?** `N` waits only on predecessors that are still
+  **unfinished** in R. Once `N-1` finishes, whatever its result, it stops blocking.
+  If `N-1` failed, `N` fails fast in R rather than deploying on a stale base.
+- **Why does hotfix `N+1` not concern itself with `N` having failed?** Because `N`
+  is **finished**, it does not block. And `N+1`'s incremental base is recomputed to
+  the last success in R (`N-4` in the example), so `N+1` skips the failed `N`
+  entirely. `N+1` only requires that the last-success record for R is present and
+  that no lower-lineage rollout is still working R.
 
-- A **storage account** in the `global-shared-resources` resource group (the prod
-  global service group), added to `global-infra.bicep`.
-- A blob container `region-locks`, one blob per `<serviceGroup>/<env>/<region>`.
-- A role assignment granting the global EV2 identity (`global-ev2-identity`)
-  **Storage Blob Data Contributor** on the account.
+So recovery needs no special "unwind" logic. The generator already bases the diff
+on last-success; the ordering layer just has to (1) not block on finished rollouts
+and (2) fail fast when a region's base is stale, prompting the hotfix.
+
+## Intent and completion store
+
+To support "an older rollout is still going, wait for it," a successor needs to
+know that an earlier rollout **exists and intends to reach this region**, before it
+has produced any result. A pure "did it succeed" record is not enough, because a
+predecessor that has not started R yet has no success record and no failure record.
+So the store holds two kinds of record, keyed by `(serviceGroup, environment,
+region)`:
+
+- **Intent.** "Rollout for change C intends to deploy region R." Written by the
+  gate when the rollout starts, before it mutates anything.
+- **Completion.** "Change C succeeded in region R" (or failed). Written after the
+  deploy step finishes.
+
+The gate reads predecessor completion, writes its own intent, deploys, then writes
+its own completion. Intent lets a successor see an in-flight predecessor and wait;
+completion lets it confirm success and lets the incremental generator find the
+last-success base.
+
+This store is **ours**. It is a small storage account we control, not the EV2
+central config server. We deliberately do not put this state into EV2 central
+config: having an external process mutate central config invites races and a large
+blast radius, and there is a reason we do not build on the central config server
+today. Keeping our own intent/completion store keeps the blast radius to this one
+storage account.
+
+## Mutual exclusion: a TTL and fenced lease
+
+When the gate mutates the store (claim intent, record completion, advance the
+region's lineage) it takes a short lease so two overlapping rollouts cannot both
+believe they are next in R. The lease must be crash-safe:
+
+- **TTL.** The lease auto-expires. If the step that holds it crashes, or the
+  underlying ACI dies, the lease is released on its own and the system does not
+  deadlock waiting on a holder that will never come back.
+- **Fencing token.** Each acquisition gets a monotonically increasing token. A
+  mutation only applies if it carries the current token, so a stalled holder that
+  wakes up after its lease expired cannot corrupt state that a newer holder has
+  already advanced.
 
 ```mermaid
-flowchart TD
-    subgraph rg["Resource group: global-shared-resources (prod global)"]
-        msi["global-ev2-identity<br/>(managed identity)"]
-        subgraph sa["Storage account (new)"]
-            cont["Container: region-locks"]
-            cont --> b1["blob: svcGroup/prod/eastus2euap"]
-            cont --> b2["blob: svcGroup/prod/eastus2"]
-            cont --> b3["blob: svcGroup/prod/..."]
-        end
-    end
-    msi -->|Storage Blob Data Contributor| sa
-    gate["region-lock CLI<br/>(sdp-pipelines)"] -->|lease acquire/release| cont
+sequenceDiagram
+    autonumber
+    participant A as Rollout A gate
+    participant L as Lease (TTL + token)
+    participant B as Rollout B gate
+    A->>L: acquire (token=7)
+    Note over A: A's ACI crashes mid-mutation
+    L-->>L: TTL expires, lease released
+    B->>L: acquire (token=8)
+    B->>L: mutate with token 8 (applies)
+    A->>L: late mutate with token 7 (rejected)
 ```
 
-This is the one part of the mechanism that lives in this repository, because ARO HCP
-owns the global-infra templates that sdp-pipelines vendors and deploys. The gate
-logic, the lease client, and the EV2 step injection live in sdp-pipelines.
+The lease is short-lived and only guards the store mutations. It does not span the
+long baking window; the ordering gate, not a held lease, is what enforces sequence
+across long waits.
 
-## CLI surface
+## Release mechanism: bounded retries, no central config
 
-The gate and lease are exposed as a subcommand of the EV2 rollout tooling, mirroring
-the existing `status` and `deployed` verbs:
+The gate step needs to hold a rollout in R until its predecessor lands, then let it
+go. Two things this design explicitly does **not** do:
 
-```text
-aro ev2 rollout region-lock check    --env prod --region <R>   # gate decision
-aro ev2 rollout region-lock acquire  --env prod --region <R>   # take the lease
-aro ev2 rollout region-lock release  --env prod --region <R>   # drop the lease
-```
+- It does **not** touch EV2 central config. No `configExists`-style flag flipped by
+  an outside process. All coordination goes through our own store, for the
+  blast-radius reasons above.
+- It does **not** rely on an unbounded `autoRestart` to "hold the step for days for
+  free." EV2 restart attempts are **finite** (see the next section), so a gate that
+  waits by failing-and-restarting must assume a bounded number of attempts.
 
-`check` is read-only and safe to run anywhere. `acquire`/`release` operate on the
-lock store.
+So the gate uses **bounded retries**: it waits and re-checks a bounded number of
+times, and if it exhausts them without the predecessor landing, the rollout **fails
+cleanly** and is rescheduled rather than hanging. In normal operation the gate only
+needs to bridge the predecessor's ordinary per-region duration, not the whole
+weekend. The weekend freeze is handled by not scheduling across it, not by a step
+that sleeps for two days.
+
+## EV2 APIs and guarantees
+
+The pieces this design leans on, and what each guarantees:
+
+- **Per-region rollout status.** We already read per-region status through
+  `RegionStatuses`, which lists batched rollouts and fetches their per-region
+  statuses
+  ([`status/options.go`](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/tooling/pkg/ev2/rollout/status/options.go),
+  [`client.go`](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/internal/clients/ev2/client.go)).
+  This is the read side the gate builds on for confirming a predecessor's regional
+  outcome.
+- **Incremental generation.** `StepUpgrade{From, To}` with `From =
+  previousDeployment()` gives us the last-success base per step
+  ([`incremental.go`](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/tooling/pkg/ev2/manifests/generate/incremental.go)).
+- **Restart attempts are finite.** `maxRestartAttempts` in
+  [`RolloutPolicy.json`](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/internal/types/ev2/schemas/RolloutPolicy.json)
+  is a required integer, and the region-agnostic spec defines an
+  `onLastAutoRestart` incident condition, which means EV2 has a defined **last**
+  restart. Restarts are bounded, so the gate cannot lean on them for an unbounded
+  hold. This is the concrete result of Steve's ask to check the internal EV2
+  codebase for caps.
+
+Open follow-up: confirm the exact `maxRestartAttempts` ceiling and any timeout caps
+against the internal EV2 service, so we size bounded retries correctly. Tracked as a
+non-blocking item below.
+
+## Environments
+
+The design is **environment-agnostic**. Nothing about lineage ordering, the
+intent/completion store, or the lease is prod-specific.
+
+Prod is the **first target** because prod is the multi-region environment where
+overlapping long rollouts actually collide. Int and stg are single-region, so the
+ordering question degenerates: with one region, "did my predecessor succeed in R"
+is the whole story and there is no cross-region race. The same gate runs there
+harmlessly and gives us a consistent mechanism everywhere, so we do not special-case
+prod in the tooling. We just get the most value from it in prod.
 
 ## Where each piece lives
 
-| Piece | Repository |
-| --- | --- |
-| This design doc | ARO HCP (`docs/`) |
-| Lock-store storage account + role (bicep) | ARO HCP (`global-infra.bicep`) |
-| Gate logic (`region-lock check`) | sdp-pipelines (`tooling`) |
-| Blob-lease client (`acquire`/`release`) | sdp-pipelines (`tooling`) |
-| EV2 shell-step injection + `autoRestart` wiring | sdp-pipelines (pipeline generation) |
+Two things need a home: the coordination **code** (gate step, lease, store client)
+and the **store** itself.
 
-## Evolution to step-level locking
+- **Code** lives in
+  [sdp-pipelines](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/tooling),
+  next to the incremental generator and the EV2 client it reuses. This is the same
+  place all EV2 rollout tooling already lives.
+- **The gate step** can be attached to the rollout by **topology merging** in
+  sdp-pipelines, dangling the step off the existing global service group, rather
+  than adding new bicep to this repository's global-infra. This keeps ARO HCP's
+  global-infra untouched and keeps the whole mechanism in the tooling repo that
+  owns rollout generation.
+- **The store** is a small storage account. The preferred option is to provision
+  and own it in sdp-pipelines alongside the tooling, for the same reason: keep the
+  coordination surface in one place. Provisioning it in ARO HCP global-infra is a
+  possible alternative if we decide the store should live with product infra, but
+  it is not the default.
 
-This design is deliberately the **coarsest instance of a reusable substrate**. The
-same shell-step wrapper, per-key blob-lease mutex, and ordering-gate algorithm can
-be narrowed from *per region* to *per step* to give the step-level lock tracked as a
-separate work item. The gate algorithm does not change; only the **lock key** and
-the **"landed" state source** do.
+For context on the global service group this would attach to: it deploys the global
+infrastructure, reconciles the global **Grafana** instance and its roles, and
+deploys the **SVC and OCP ACRs**, along with the shared MSI, key vault, DNS, and
+encryption key
+([`global-pipeline.yaml`](https://github.com/Azure/ARO-HCP/blob/main/dev-infrastructure/global-pipeline.yaml)).
+It is not limited to MSI, key vault, DNS, and the encryption key.
+
+## Possible future: step-level ordering
+
+A natural question is whether we later want the same ordering **between steps**
+within a rollout, not just between whole rollouts. This is left as a speculative
+future direction, not a committed part of this design. There is no clear agreement
+that we want per-step locking, and it adds real complexity, so this document scopes
+the mechanism to whole-rollout, per-region ordering and leaves step-level ordering
+as an open question to revisit only if a concrete need appears.
 
 ```mermaid
 flowchart LR
-    subgraph substrate["Shared substrate"]
-        wrap["Shell-step wrapper<br/>(choke point)"]
-        gate["Ordering gate<br/>skip-cancelled, BuildID order,<br/>invariant -> fail"]
-        lease["Per-key blob lease"]
-    end
-    substrate --> region["Region lock<br/>key: region<br/>state: EV2 RegionStatuses"]
-    substrate --> step["Step lock (evolution)<br/>key: region/step<br/>state: Kusto step-metadata"]
-    region -. narrow key +<br/>finer state .-> step
+    A[Per-region ordering<br/>between rollouts<br/>this design] -.->|only if a concrete<br/>need appears| B[Per-step ordering<br/>within a rollout<br/>speculative]
+    classDef now fill:#e8f5e9,stroke:#4a4
+    classDef later fill:#f5f5f5,stroke:#999,stroke-dasharray: 4 3
+    class A now
+    class B later
 ```
-
-What is reused as-is: the wrapper choke point, the gate logic (block older
-non-cancelled rollouts that have not landed the key, skip cancelled, order by
-`Umbrella.BuildID`, fail on invariant violation), the blob-lease mutex, the
-`autoRestart` release mechanism, and the CLI shape.
-
-What changes going region to step:
-
-- **Lock key** narrows from `<serviceGroup>/<env>/<region>` to
-  `<serviceGroup>/<env>/<region>/<step>`.
-- **State source** moves from per-region EV2 `RegionStatuses()` to **per-step Kusto
-  step-metadata**, because per-region rollout status is too coarse to know that an
-  individual step landed. Producing that reliable per-step signal is the substrate
-  the step-lock work item delivers.
-- **Injection points** grow from one per region to one per (region, step).
-
-Practical guidance for the evolution: apply step-locking only to
-**ordering-sensitive** steps rather than every step, so lease and evaluation cost
-stay bounded and independent/idempotent steps are not needlessly serialized.
 
 ## Discarded alternatives
 
-- **A native EV2 per-region lock.** None exists. StageMap concurrency is
-  intra-rollout; RolloutPolicy is declarative. Rejected as unavailable.
-- **RolloutPolicy `safeRollout` to stage regions.** Static, authoring-time region
-  staging. It cannot look at another rollout's per-region state, so it cannot
-  enforce cross-rollout order. Rejected.
-- **A dynamic `noRollout` freeze controller** that opens/closes freeze windows to
-  gate regions. Abuses a coarse, time-based freeze primitive for fine per-region
-  ordering, races the EV2 policy cache, and freezes *all* rollouts, not just the
-  out-of-order one. Rejected.
-- **Health-check gate (`restHealthCheck`/`mdmHealthCheck`).** Post-deploy monitors,
-  capped under 24h. They gate advancing past a region, not starting one, and cannot
-  hold across baking/weekends. Rejected for the pre-region hold.
-- **`wait` + `manual`/`incidentResolution` triggers.** `manual` needs a human, which
-  breaks unattended operation; `incidentResolution` needs an ICM. Rejected.
-- **A pipeline-level lock.** Too coarse — ADO already serializes pipelines, and this
-  would not stop region-by-region overtaking within the allowed concurrency.
-  Rejected as out of scope.
+- **Order by ADO build id or wall-clock time.** Rejected: a rollout triggered from
+  an older commit gets a newer build id and timestamp but older content, so it
+  would be allowed to overwrite newer regions. Lineage is the correct key.
+- **A set of predecessors per rollout.** Rejected in favor of a single immediate
+  predecessor, which is simpler, matches the incremental diff, and gives the gate
+  exactly one thing to check per region.
+- **Store coordination state in EV2 central config.** Rejected: an external process
+  mutating central config invites races and a large blast radius. We keep our own
+  small store.
+- **Hold a step open via a large `autoRestart` count.** Rejected: EV2 restarts are
+  finite (`onLastAutoRestart`), so this is unsafe. We use bounded retries plus
+  reschedule, and rely on scheduling to avoid the weekend.
+- **Serialize prod to one rollout at a time.** The status quo. Rejected as too slow
+  given weekend freezes and baking windows.
 
 ## Open items
 
-- **`configExists` publish path.** The one remaining unknown is which config service
-  backs EV2 `wait` + `configExists` and how a rollout identity publishes the release
-  signal. The docs are gated behind internal EV2 documentation. This does **not**
-  block the design: the release mechanism uses the polling shell gate +
-  `autoRestart` above and needs no config API. `configExists` is tracked only as a
-  future optimization.
+- Confirm the exact `maxRestartAttempts` ceiling and any per-step timeout caps in
+  the internal EV2 service, to size bounded retries. Non-blocking.
+- Decide whether the store is provisioned in sdp-pipelines (preferred) or ARO HCP
+  global-infra.
+- Define the store's record schema and retention (how long intent and completion
+  records are kept per region).
