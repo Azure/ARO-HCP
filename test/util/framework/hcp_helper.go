@@ -94,7 +94,7 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep("Collect admin credentials for cluster", startTime, finishTime)
+		tc.RecordTestStep(StepIDCollectAdminCredentials, "Collect admin credentials for cluster", startTime, finishTime)
 	}()
 
 	adminCredentialRequestPoller, err := hcpClient.BeginRequestAdminCredential(
@@ -152,7 +152,7 @@ func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait20240610(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep("Collect revoke admin credentials for cluster", startTime, finishTime)
+		tc.RecordTestStep(StepIDRevokeAdminCredentials, "Collect revoke admin credentials for cluster", startTime, finishTime)
 	}()
 
 	poller, err := hcpClient.BeginRevokeCredentials(ctx, resourceGroupName, hcpClusterName, nil)

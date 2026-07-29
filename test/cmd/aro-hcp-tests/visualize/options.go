@@ -180,6 +180,7 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 				continue
 			}
 			steps = append(steps, StepTimingMetadata{
+				ID:         step.ID,
 				Name:       step.Name,
 				StartedAt:  stepStarted,
 				FinishedAt: stepFinished,
@@ -312,6 +313,7 @@ type TestInfo struct {
 }
 
 type StepTimingMetadata struct {
+	ID         string
 	Name       string
 	StartedAt  time.Time
 	FinishedAt time.Time

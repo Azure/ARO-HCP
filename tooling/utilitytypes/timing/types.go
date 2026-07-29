@@ -26,6 +26,9 @@ type SpecTimingMetadata struct {
 }
 
 type StepTimingMetadata struct {
+	// ID is a machine-readable identifier for the step, suitable for post-hoc aggregation.
+	// Steps with the same ID represent the same logical operation across different test runs.
+	ID   string `json:"id"`
 	Name string `json:"name"`
 	// StartedAt is the time at which the step started, formatted as RFC3339 date+time: 2025-11-05T13:16:20.624264+00:00
 	StartedAt string `json:"startedAt"`
