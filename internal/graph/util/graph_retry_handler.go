@@ -70,8 +70,16 @@ func (h *graphRetryHandler) retryIfNeeded(pipeline kiotahttp.Pipeline, middlewar
 			if _, err := s.Seek(0, io.SeekStart); err != nil {
 				return resp, err
 			}
+		} else if req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return resp, err
+			}
+			req.Body = body
 		}
 	}
+
+	resp.Body.Close()
 
 	ctx := req.Context()
 	t := time.NewTimer(delay)
@@ -104,8 +112,12 @@ func (h *graphRetryHandler) isRetriableStatusCode(code int, req *nethttp.Request
 
 func (h *graphRetryHandler) isRetriableRequest(req *nethttp.Request) bool {
 	isBodiedMethod := req.Method == nethttp.MethodPost || req.Method == nethttp.MethodPut || req.Method == nethttp.MethodPatch
-	if isBodiedMethod && req.Body != nil {
-		return req.ContentLength != -1
+	if isBodiedMethod && req.Body != nil && req.Body != nethttp.NoBody {
+		if req.ContentLength == -1 {
+			return false
+		}
+		_, isSeeker := req.Body.(io.Seeker)
+		return isSeeker || req.GetBody != nil
 	}
 	return true
 }
