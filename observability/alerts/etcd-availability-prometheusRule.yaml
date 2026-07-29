@@ -32,7 +32,7 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd backend commit duration is high for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd backend commit duration is high for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance. Fast burn (1h/5m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     - alert: userJourneyEtcdBackendCommitDurationHigh6h30m
@@ -47,7 +47,7 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd backend commit duration is high for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd backend commit duration is high for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance. Medium burn (6h/30m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     - alert: userJourneyEtcdBackendCommitDurationHigh3d
@@ -60,7 +60,7 @@ spec:
         long_window: 3d
         short_window: 6h
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd backend commit duration is chronically high for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd backend commit duration is chronically high for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance. Slow burn (3d)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
@@ -77,7 +77,7 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd database fragmentation is high for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd database fragmentation is high for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 50%). Database defragmentation may be needed to reclaim space. Fast burn (1h/5m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     - alert: userJourneyEtcdDatabaseHighFragmentation6h30m
@@ -90,7 +90,7 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd database fragmentation is high for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd database fragmentation is high for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 50%). Database defragmentation may be needed to reclaim space. Medium burn (6h/30m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     - alert: userJourneyEtcdDatabaseHighFragmentation3d
@@ -103,7 +103,7 @@ spec:
         long_window: 3d
         short_window: 6h
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd database fragmentation is chronically high for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd database fragmentation is chronically high for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 50%). Database defragmentation may be needed to reclaim space. Slow burn (3d)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
@@ -120,7 +120,7 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd database size is too large for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd database size is too large for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Fast burn (1h/5m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     - alert: userJourneyEtcdDatabaseSizeExceeded6h30m
@@ -133,7 +133,7 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd database size is too large for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd database size is too large for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Medium burn (6h/30m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     - alert: userJourneyEtcdDatabaseSizeExceeded3d
@@ -146,7 +146,7 @@ spec:
         long_window: 3d
         short_window: 6h
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd database size is chronically too large for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd database size is chronically too large for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
@@ -163,7 +163,7 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd cluster experiencing frequent leader changes for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd cluster experiencing frequent leader changes for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Fast burn (1h/5m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     - alert: userJourneyEtcdFrequentLeaderChanges6h30m
@@ -176,7 +176,7 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd cluster experiencing frequent leader changes for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd cluster experiencing frequent leader changes for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Medium burn (6h/30m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     - alert: userJourneyEtcdFrequentLeaderChanges3d
@@ -189,7 +189,7 @@ spec:
         long_window: 3d
         short_window: 6h
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd cluster experiencing chronic frequent leader changes for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd cluster experiencing chronic frequent leader changes for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Slow burn (3d)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
@@ -208,7 +208,7 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd peer round-trip time is high for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd peer round-trip time is high for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Fast burn (1h/5m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     - alert: userJourneyEtcdPeerRoundTripTimeHigh6h30m
@@ -223,7 +223,7 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd peer round-trip time is high for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd peer round-trip time is high for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Medium burn (6h/30m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     - alert: userJourneyEtcdPeerRoundTripTimeHigh3d
@@ -236,7 +236,7 @@ spec:
         long_window: 3d
         short_window: 6h
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd peer round-trip time is chronically high for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd peer round-trip time is chronically high for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
 
@@ -255,7 +255,7 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd WAL fsync duration is high for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd WAL fsync duration is high for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability. Fast burn (1h/5m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     - alert: userJourneyEtcdWALFsyncDurationHigh6h30m
@@ -270,7 +270,7 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd WAL fsync duration is high for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd WAL fsync duration is high for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability. Medium burn (6h/30m)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     - alert: userJourneyEtcdWALFsyncDurationHigh3d
@@ -283,6 +283,6 @@ spec:
         long_window: 3d
         short_window: 6h
       annotations:
-        summary: "{{ $labels.cluster }} {{ $labels.instance }} etcd WAL fsync duration is chronically high for {{ $labels.resource_id }}"
+        summary: "{{ $labels.instance }} etcd WAL fsync duration is chronically high for {{ $labels.resource_id }}"
         description: "{{ $labels.resource_id }} etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability. Slow burn (3d)."
         runbook_url: https://aka.ms/arohcp-runbook-etcd
