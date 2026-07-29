@@ -52,7 +52,7 @@ var (
 			Name: "aro_hcp_orphaned_managed_resource_groups_found_total",
 			Help: "Total number of orphaned cluster managed resource groups found",
 		},
-		[]string{"location", "subscription_id", "resource_group"},
+		[]string{"location", "subscription_id", "managed_resource_group_name"},
 	)
 
 	orphanedMRGsDeletionFailed = promauto.With(legacyregistry.Registerer()).NewCounterVec(
@@ -60,7 +60,7 @@ var (
 			Name: "aro_hcp_orphaned_managed_resource_groups_deletion_failed_total",
 			Help: "Total number of orphaned cluster managed resource groups where deletion failed",
 		},
-		[]string{"location", "subscription_id", "resource_group"},
+		[]string{"location", "subscription_id", "managed_resource_group_name"},
 	)
 )
 
