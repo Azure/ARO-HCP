@@ -15,10 +15,9 @@
 package app
 
 import (
-	"strconv"
 	"strings"
-	"sync"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -29,8 +28,7 @@ import (
 
 // Operation type constants for metrics labels
 const (
-	OperationCreate = "create"
-	OperationUpdate = "update"
+	OperationApply  = "apply"
 	OperationDelete = "delete"
 	OperationResync = "resync"
 )
@@ -43,13 +41,11 @@ const (
 )
 
 // desireOperationMetrics tracks operation-level metrics for kube-applier desires.
-// These metrics provide visibility into create/update/delete/resync operations
+// These metrics provide visibility into apply/delete/resync operations
 // broken down by resource type (cluster vs nodepool) and success status.
 type desireOperationMetrics struct {
-	operationsTotal         *prometheus.CounterVec
-	operationLastTimestamp  *prometheus.GaugeVec
-	mu                      sync.RWMutex
-	lastProcessedGeneration map[string]int64 // tracks desire resourceID -> instance version to detect changes
+	operationsTotal        *prometheus.CounterVec
+	operationLastTimestamp *prometheus.GaugeVec
 }
 
 func newDesireOperationMetrics(registerer prometheus.Registerer) *desireOperationMetrics {
@@ -57,9 +53,9 @@ func newDesireOperationMetrics(registerer prometheus.Registerer) *desireOperatio
 		operationsTotal: promauto.With(registerer).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "kube_applier_desire_operations_total",
-				Help: "Total number of desire operations completed, by operation type, resource type, and success status",
+				Help: "Total number of desire operations completed, by operation type, resource type, condition status, and reason",
 			},
-			[]string{"operation", "resource_type", "successful"},
+			[]string{"operation", "resource_type", "status", "reason"},
 		),
 		operationLastTimestamp: promauto.With(registerer).NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -68,36 +64,29 @@ func newDesireOperationMetrics(registerer prometheus.Registerer) *desireOperatio
 			},
 			[]string{"operation", "resource_type"},
 		),
-		lastProcessedGeneration: make(map[string]int64),
 	}
 }
 
 // recordApplyDesireOperation records metrics for an ApplyDesire operation.
-// It determines the operation type (create/update/delete) based on the desire's
-// type, status, and previous state.
 func (m *desireOperationMetrics) recordApplyDesireOperation(desire *kubeapplier.ApplyDesire) {
 	// Guard against nil ResourceID
 	if desire.ResourceID == nil {
 		return
 	}
 
-	resourceIDStr := desire.ResourceID.String()
-	resourceType := extractResourceType(resourceIDStr)
+	resourceType := extractResourceType(desire.ResourceID.String())
 
-	m.mu.Lock()
-	// Only record an operation if the InstanceVersion has changed
-	lastVersion, exists := m.lastProcessedGeneration[resourceIDStr]
-	if !exists || lastVersion != desire.InstanceVersion {
-		operation := determineApplyOperation(desire, m.lastProcessedGeneration)
-		m.lastProcessedGeneration[resourceIDStr] = desire.InstanceVersion
-		m.mu.Unlock()
-
-		successful := isDesireSuccessful(desire.Status.Conditions)
-		// Record metrics (extracted to helper to avoid duplication)
-		m.recordOperation(operation, resourceType, successful)
+	// Determine operation type from the desire's spec
+	var operation string
+	if desire.Spec.Type == kubeapplier.ApplyDesireTypeDelete {
+		operation = OperationDelete
 	} else {
-		m.mu.Unlock()
+		// ServerSideApply is always "apply" - no create/update distinction
+		operation = OperationApply
 	}
+
+	status, reason := getConditionStatusAndReason(desire.Status.Conditions)
+	m.recordOperation(operation, resourceType, status, reason)
 }
 
 // recordReadDesireOperation records metrics for a ReadDesire operation (resync).
@@ -107,32 +96,20 @@ func (m *desireOperationMetrics) recordReadDesireOperation(desire *kubeapplier.R
 		return
 	}
 
-	resourceIDStr := desire.ResourceID.String()
-	resourceType := extractResourceType(resourceIDStr)
-
-	m.mu.Lock()
-	// Only record a resync operation if the InstanceVersion has changed
-	lastVersion, exists := m.lastProcessedGeneration[resourceIDStr]
-	if !exists || lastVersion != desire.InstanceVersion {
-		m.lastProcessedGeneration[resourceIDStr] = desire.InstanceVersion
-		m.mu.Unlock()
-
-		successful := isDesireSuccessful(desire.Status.Conditions)
-		// ReadDesire operations are always "resync" operations
-		m.recordOperation(OperationResync, resourceType, successful)
-	} else {
-		m.mu.Unlock()
-	}
+	resourceType := extractResourceType(desire.ResourceID.String())
+	status, reason := getConditionStatusAndReason(desire.Status.Conditions)
+	m.recordOperation(OperationResync, resourceType, status, reason)
 }
 
 // recordOperation is a helper that records common metrics to avoid duplication
 // between recordApplyDesireOperation and recordReadDesireOperation.
-func (m *desireOperationMetrics) recordOperation(operation, resourceType string, successful bool) {
+func (m *desireOperationMetrics) recordOperation(operation, resourceType, status, reason string) {
 	// Record operation count
 	m.operationsTotal.With(prometheus.Labels{
 		"operation":     operation,
 		"resource_type": resourceType,
-		"successful":    strconv.FormatBool(successful),
+		"status":        status,
+		"reason":        reason,
 	}).Inc()
 
 	// Record last operation timestamp
@@ -143,64 +120,39 @@ func (m *desireOperationMetrics) recordOperation(operation, resourceType string,
 }
 
 // extractResourceType parses the Cosmos resourceID to determine if this is a
-// cluster or nodepool desire.
+// cluster or nodepool desire using Azure SDK ResourceID parsing.
 //
 // ResourceID format:
 //
 //	subscriptions/{sub}/resourceGroups/{rg}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{name}/*desires/{desire}
 //	subscriptions/{sub}/resourceGroups/{rg}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{name}/nodepools/{np}/*desires/{desire}
-func extractResourceType(resourceID string) string {
-	// Use case-insensitive matching to handle variations in casing
-	lowerResourceID := strings.ToLower(resourceID)
-	if strings.Contains(lowerResourceID, "/nodepools/") {
+func extractResourceType(resourceIDStr string) string {
+	parsed, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return ResourceTypeUnknown
+	}
+
+	// Check the ResourceType to determine cluster vs nodepool
+	resourceTypeStr := strings.ToLower(parsed.ResourceType.String())
+	if strings.Contains(resourceTypeStr, "nodepools") {
 		return ResourceTypeNodePool
 	}
-	if strings.Contains(lowerResourceID, "/hcpopenshiftclusters/") {
+	if strings.Contains(resourceTypeStr, "hcpopenshiftclusters") {
 		return ResourceTypeCluster
 	}
+
 	return ResourceTypeUnknown
 }
 
-// determineApplyOperation determines whether an ApplyDesire represents a create,
-// update, or delete operation.
-//
-// Logic:
-//   - If Type=Delete: operation is "delete"
-//   - If Type=ServerSideApply and no previous instance version seen: operation is "create"
-//   - If Type=ServerSideApply and previous instance version exists: operation is "update"
-func determineApplyOperation(desire *kubeapplier.ApplyDesire, lastProcessed map[string]int64) string {
-	if desire.Spec.Type == kubeapplier.ApplyDesireTypeDelete {
-		return OperationDelete
-	}
 
-	// ServerSideApply: distinguish create vs update based on whether we've seen this desire before
-	if _, seen := lastProcessed[desire.ResourceID.String()]; seen {
-		return OperationUpdate
-	}
-
-	return OperationCreate
-}
-
-// cleanupStaleEntries removes entries from lastProcessedGeneration for desires
-// that are no longer present in the informer stores. This prevents unbounded
-// memory growth when desires are deleted.
-func (m *desireOperationMetrics) cleanupStaleEntries(currentDesires map[string]bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	for resourceIDStr := range m.lastProcessedGeneration {
-		if !currentDesires[resourceIDStr] {
-			delete(m.lastProcessedGeneration, resourceIDStr)
-		}
-	}
-}
-
-// isDesireSuccessful checks if the "Successful" condition is True.
-func isDesireSuccessful(conditions []metav1.Condition) bool {
+// getConditionStatusAndReason extracts the status and reason from the "Successful" condition.
+// Returns the condition status (True/False/Unknown) and reason, or defaults if not found.
+func getConditionStatusAndReason(conditions []metav1.Condition) (string, string) {
 	for _, cond := range conditions {
 		if cond.Type == kubeapplier.ConditionTypeSuccessful {
-			return cond.Status == metav1.ConditionTrue
+			return string(cond.Status), cond.Reason
 		}
 	}
-	return false
+	// If Successful condition not found, default to Unknown with empty reason
+	return string(metav1.ConditionUnknown), ""
 }

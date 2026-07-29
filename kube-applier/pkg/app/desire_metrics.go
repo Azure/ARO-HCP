@@ -66,18 +66,11 @@ func (c *desireCollector) Run(ctx context.Context) {
 func (c *desireCollector) collect() {
 	counts := initCounts()
 
-	// Track current desires for cleanup
-	currentDesires := make(map[string]bool)
-
 	for _, obj := range c.applyStore.List() {
 		if d, ok := obj.(*kubeapplier.ApplyDesire); ok {
 			countTrueConditions(counts["apply"], d.Status.Conditions)
 			// Record operation-level metrics for ApplyDesires
 			c.operationMetrics.recordApplyDesireOperation(d)
-			// Track this desire as currently present (guard against nil ResourceID)
-			if d.ResourceID != nil {
-				currentDesires[d.ResourceID.String()] = true
-			}
 		}
 	}
 	for _, obj := range c.readStore.List() {
@@ -85,15 +78,8 @@ func (c *desireCollector) collect() {
 			countTrueConditions(counts["read"], d.Status.Conditions)
 			// Record operation-level metrics for ReadDesires
 			c.operationMetrics.recordReadDesireOperation(d)
-			// Track this desire as currently present (guard against nil ResourceID)
-			if d.ResourceID != nil {
-				currentDesires[d.ResourceID.String()] = true
-			}
 		}
 	}
-
-	// Clean up stale entries from the operation metrics map
-	c.operationMetrics.cleanupStaleEntries(currentDesires)
 
 	for desireType, condMap := range counts {
 		for condType, n := range condMap {

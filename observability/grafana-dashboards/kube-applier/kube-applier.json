@@ -199,7 +199,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (operation, resource_type) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\", successful=\"false\"}[5m])) / sum by (operation, resource_type) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
+          "expr": "sum by (operation, resource_type) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\", status!=\"True\"}[5m])) / sum by (operation, resource_type) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
           "legendFormat": "{{operation}}/{{resource_type}}",
           "refId": "A"
         }
@@ -289,8 +289,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (resource_type, successful) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
-          "legendFormat": "{{resource_type}} ({{successful}})",
+          "expr": "sum by (resource_type, status) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
+          "legendFormat": "{{resource_type}} ({{status}})",
           "refId": "A"
         }
       ],
