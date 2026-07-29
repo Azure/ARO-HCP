@@ -20,11 +20,4 @@ knownIssues:
 - name: "BackendAsyncOperation.*Stuck"
   reason: "Newly added stuck-async-operation alerts (https://github.com/Azure/ARO-HCP/pull/5952) surface a pre-existing problem: Azure Monitor Workspace ingestion latency (metrics can take ~10min to ingest) makes async operations look stuck and latches onto E2E runs even when the tests pass. Observed blocking green E2E runs (per https://cihealth.tools.hcpsvc.osadev.cloud/run-log?q=BackendAsync): BackendAsyncOperationClusterDeleteStuck, BackendAsyncOperationExternalAuthDeleteStuck, BackendAsyncOperationClusterCreateStuck, BackendAsyncOperationNodePoolDeleteStuck, BackendAsyncOperationNodePoolCreateStuck, BackendAsyncOperationStuck. Owner @stevekuznetsov; durable fix is the AMW auto-scaler (https://github.com/Azure/ARO-HCP/pull/6036). Marked known so it stops blocking the merge queue until that lands."
 - name: "KubePodNotReady"
-  labels:
-    namespace: "klusterlet-.*"
-  reason: "Klusterlet addon pods take a while to start when clusters are slow to provision, so this is a downstream issue and just noise."
-- name: "KubePodNotReady"
-  labels:
-    namespace: "ocm-.*"
-    pod: "(packageserver|olm-operator|catalog-operator)-.*"
-  reason: "OLM pods in hosted control plane namespaces are simply uninteresting to us."
+  reason: "If a pod is not not, e2e should fail. If it takes more than a couple minutes, but tests pass, fine. This error makes sense in standing environments, not in CI."
