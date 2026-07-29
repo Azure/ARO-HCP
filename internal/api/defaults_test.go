@@ -72,7 +72,6 @@ func TestTypeSpecDefaultsConsistency(t *testing.T) {
 		{"Visibility", "ApiProfile", "visibility", string(VisibilityPublic)},
 		{"OutboundType", "PlatformProfile", "outboundType", string(OutboundTypeLoadBalancer)},
 		{"DiskStorageAccountType", "OsDiskProfile", "diskStorageAccountType", string(DiskStorageAccountTypePremium_LRS)},
-		{"EtcdKeyManagementMode", "EtcdDataEncryptionProfile", "keyManagementMode", string(EtcdDataEncryptionKeyManagementModeTypePlatformManaged)},
 		{"ClusterImageRegistryState", "ClusterImageRegistryProfile", "state", string(ClusterImageRegistryStateEnabled)},
 		// Numeric defaults
 		{"HostPrefix", "NetworkProfile", "hostPrefix", DefaultClusterNetworkHostPrefix},

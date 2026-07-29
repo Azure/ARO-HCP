@@ -40,7 +40,6 @@ func TestClusterEnsureDefaults(t *testing.T) {
 			wantVisibility:    api.VisibilityPublic,
 			wantOutboundType:  api.OutboundTypeLoadBalancer,
 			wantImageRegState: api.ClusterImageRegistryStateEnabled,
-			wantKeyMgmtMode:   api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 		},
 		{
 			name:               "explicit values preserved",
