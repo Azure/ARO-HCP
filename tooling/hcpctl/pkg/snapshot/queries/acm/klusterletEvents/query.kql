@@ -1,0 +1,14 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesEvents')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where eventNamespace == strcat('klusterlet-', '{{ .ClusterID }}')
+| project
+    timestamp,
+    objectKind,
+    objectName,
+    reason,
+    message,
+    type
+| order by timestamp asc

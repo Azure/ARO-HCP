@@ -645,22 +645,23 @@ var allQueries = []querySpec{
 		requiredWhen:  isClusterOrNodePool,
 	},
 
-	// --- mgmt-agent: pod lifecycle events from PodWatcher ---
+	// --- ACM: ManagedCluster conditions and klusterlet events ---
 	{
-		component:    "mgmtAgent",
-		queryName:    "podEvents",
-		templatePath: "queries/mgmtAgent/podEvents/query.kql",
+		component:    "acm",
+		queryName:    "managedClusterConditions",
+		templatePath: "queries/acm/managedClusterConditions/query.kql",
 		database:     "service",
-		category:     categoryResourceEvents,
+		category:     categoryConditions,
 		ready: func(d queryData) bool {
 			return d.ClusterID != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
 		prerequisites: "ClusterID, ResourceType is cluster",
+		requiredWhen:  isClusterType,
 	},
 	{
-		component:    "mgmtAgent",
-		queryName:    "podEvictions",
-		templatePath: "queries/mgmtAgent/podEvictions/query.kql",
+		component:    "acm",
+		queryName:    "klusterletEvents",
+		templatePath: "queries/acm/klusterletEvents/query.kql",
 		database:     "service",
 		category:     categoryResourceEvents,
 		ready: func(d queryData) bool {

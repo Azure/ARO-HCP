@@ -28,7 +28,9 @@ Customer → ARM → Frontend → Backend (async) → Clusters Service → Maest
 ## Deletion Flow
 
 A customer deletion operation follows the same component chain, but cleanup on the management
-cluster involves a sequential **destruct chain** managed by Clusters Service:
+cluster involves a sequential **destruct chain** managed by Clusters Service.
+
+### Cluster Deletion
 
 ```
 Customer → ARM → Frontend → Backend (async) → Clusters Service → Management Cluster cleanup
@@ -36,19 +38,31 @@ Customer → ARM → Frontend → Backend (async) → Clusters Service → Manag
 
 1. **ARM** delivers the DELETE request to the **Frontend**, which creates an async operation.
 2. The **Backend** translates it into a Clusters Service API call.
-3. **Clusters Service** sets the cluster state to `'uninstalling'` and runs the destruct chain:
+3. **Clusters Service** sets the cluster state to `'uninstalling'` and runs the cluster destruct
+   chain (see `aro-hcp-clusters-service` repo, `pkg/controllers/cluster_destructor.go`):
    - `hypershift-managed-cluster-destructor`: waits for the **ManagedCluster** (ACM/MCE) to
      finish `Detaching`. Detaching triggers cleanup of **ManagedClusterAddon** resources whose
      pre-delete hook pods must complete and remove their finalizers before the ManagedCluster
      can be deleted.
    - `hypershift-manifest-work-destructor`: deletes Maestro resource bundles, which removes
      ManifestWork objects, cascading to HostedCluster / NodePool / control plane deletion.
+   - `break-glass-credential-secrets-deleter`: removes break-glass credential secrets.
+   - `swift-podnetworkinstance-deleter`: removes PodNetworkInstance resources.
 4. **HyperShift** reconciles the HostedCluster deletion, cleaning up the control plane namespace
    and cloud resources.
 
-The destruct chain is **sequential**: if one destructor cannot complete (e.g. ManagedCluster stuck
+### Node Pool Deletion
+
+Node pool deletion follows a simpler path — there is no `uninstalling` phase and no dedicated
+destruct chain. CS deletes the node pool's Maestro resource bundles directly, which cascades
+through the ManifestWork to HyperShift for NodePool resource cleanup on the management cluster.
+
+### Destruct Chain Behavior
+
+Each destruct chain is **sequential**: if one destructor cannot complete (e.g. ManagedCluster stuck
 in `Detaching`), all subsequent destructors are skipped. CS logs `Not continuing to the next
-destructor for cluster` on each iteration until the blocking destructor resolves.
+destructor for cluster` on each iteration until the blocking destructor resolves. Check
+`conditions/acm/managedClusterConditions` for the ManagedCluster state when the chain is stuck.
 
 ## Topology
 

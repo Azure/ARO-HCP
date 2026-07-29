@@ -171,7 +171,7 @@ interactive debugging session.
 
 ## Worked-example analyses
 
-Fully-worked end-to-end analyses (causal chain, queries, code citations)
+End-to-end analyses (causal chain, queries, code citations)
 live in
 [tooling/hcpctl/pkg/agent/prompts/exemplars/](../../tooling/hcpctl/pkg/agent/prompts/exemplars/):
 
@@ -179,7 +179,7 @@ live in
 - `cluster-cleanup-unknown-failure.md`
 - `kubernetes-events.md` — `ServiceLogs.kubernetesEvents` and ad-hoc filtering beyond snapshot `controlPlaneEvents`
 - `mgmt-agent-event-logs.md` — ad-hoc KQL for mgmt-agent `resource event` / `pod event` timelines
-- `cluster-deletion-addon-pod-eviction.md` — cluster deletion stuck at ManagedCluster destructor due to addon pod eviction (MemoryPressure)
+- `cluster-deletion-timeout-because-managedcluster-cr-deletion-stuck.md` — cluster deletion stuck at ManagedCluster destructor due to addon pod eviction (MemoryPressure)
 
 Read these when you need a concrete template for what a thorough RCA looks
 like in this stack.
