@@ -23,6 +23,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/go-logr/logr"
 )
 
 // GraphClient queries the public Cincinnati graph and releasestream APIs.
@@ -62,17 +64,23 @@ func (c graphClient) ChannelExists(ctx context.Context, channelGroup, minor stri
 }
 
 func (c graphClient) nightlyChannelExists(ctx context.Context, minor string) (bool, error) {
+	logger, _ := logr.FromContext(ctx)
 	releaseStream := fmt.Sprintf("%s.0-0.nightly-multi", minor)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/v1/releasestream/%s/tags?phase=Accepted", c.nightlyAPIBase, url.PathEscape(releaseStream)), nil)
+	requestURL := fmt.Sprintf("%s/api/v1/releasestream/%s/tags?phase=Accepted", c.nightlyAPIBase, url.PathEscape(releaseStream))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return false, fmt.Errorf("create nightly tags request for %s: %w", releaseStream, err)
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
+	start := time.Now()
 	resp, err := client.Do(req)
+	duration := time.Since(start)
 	if err != nil {
+		logger.Info("Cincinnati ChannelExists (nightly)", "url", requestURL, "duration", duration.String(), "err", err)
 		return false, fmt.Errorf("query nightly tags for %s: %w", releaseStream, err)
 	}
+	logger.Info("Cincinnati ChannelExists (nightly)", "url", requestURL, "duration", duration.String(), "status", resp.StatusCode)
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
@@ -93,17 +101,23 @@ func (c graphClient) nightlyChannelExists(ctx context.Context, minor string) (bo
 }
 
 func (c graphClient) channelExistsFromGraphURL(ctx context.Context, channelGroup, minor string) (bool, error) {
+	logger, _ := logr.FromContext(ctx)
 	channel := fmt.Sprintf("%s-%s", channelGroup, minor)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/upgrades_info/v1/graph?channel=%s", c.graphAPIBase, url.QueryEscape(channel)), nil)
+	requestURL := fmt.Sprintf("%s/api/upgrades_info/v1/graph?channel=%s", c.graphAPIBase, url.QueryEscape(channel))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return false, fmt.Errorf("create graph request for %s: %w", channel, err)
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
+	start := time.Now()
 	resp, err := client.Do(req)
+	duration := time.Since(start)
 	if err != nil {
+		logger.Info("Cincinnati ChannelExists", "url", requestURL, "duration", duration.String(), "err", err)
 		return false, fmt.Errorf("query graph for %s: %w", channel, err)
 	}
+	logger.Info("Cincinnati ChannelExists", "url", requestURL, "duration", duration.String(), "status", resp.StatusCode)
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {

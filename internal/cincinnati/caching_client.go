@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
+	"github.com/go-logr/logr"
 
 	utilsclock "k8s.io/utils/clock"
 
@@ -72,7 +73,10 @@ func (c *CachingClient) GetUpdates(ctx context.Context, uri *url.URL, desiredArc
 	c.mu.RUnlock()
 
 	uriClone := *uri
+	logger, _ := logr.FromContext(ctx)
+	start := c.clock.Now()
 	current, updates, conditionalUpdates, err := c.inner.GetUpdates(ctx, &uriClone, desiredArch, currentArch, channel, version)
+	logger.Info("Cincinnati GetUpdates (uncached)", "url", uriClone.String(), "duration", c.clock.Now().Sub(start).String(), "err", err)
 
 	// Only cache successful responses and VersionNotFound (a stable signal that
 	// the version is absent from the graph). Transient failures (network errors,
