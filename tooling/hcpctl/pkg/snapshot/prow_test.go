@@ -60,6 +60,17 @@ func TestParseProwURL(t *testing.T) {
 			wantIsPR: true,
 		},
 		{
+			name:   "rehearsal PR job",
+			rawURL: "https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_release/82457/rehearse-82457-pull-ci-openshift-hypershift-main-e2e-aro-hcp/2081917423216234496",
+			wantInfo: &ProwJobInfo{
+				URL:       "https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_release/82457/rehearse-82457-pull-ci-openshift-hypershift-main-e2e-aro-hcp/2081917423216234496",
+				JobName:   "rehearse-82457-pull-ci-openshift-hypershift-main-e2e-aro-hcp",
+				ProwID:    "2081917423216234496",
+				GCSPrefix: "pr-logs/pull/openshift_release/82457/rehearse-82457-pull-ci-openshift-hypershift-main-e2e-aro-hcp/2081917423216234496",
+			},
+			wantIsPR: true,
+		},
+		{
 			name:    "no logs segment",
 			rawURL:  "https://prow.ci.openshift.org/view/gs/test-platform-results/something-else",
 			wantErr: true,

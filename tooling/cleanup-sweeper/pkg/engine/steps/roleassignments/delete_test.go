@@ -15,14 +15,11 @@
 package roleassignments
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	"github.com/go-logr/logr"
+	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/common"
@@ -78,7 +75,7 @@ func TestMustNewDeleteOrphanedStep_PanicsWhenInvalid(t *testing.T) {
 	t.Parallel()
 
 	cfg := validDeleteOrphanedStepConfig()
-	cfg.AzureCredential = nil
+	cfg.GraphClient = nil
 
 	defer func() {
 		if recover() == nil {
@@ -200,13 +197,7 @@ func strPtr(value string) *string { return &value }
 func validDeleteOrphanedStepConfig() DeleteOrphanedStepConfig {
 	return DeleteOrphanedStepConfig{
 		RoleAssignmentsClient: &armauthorization.RoleAssignmentsClient{},
-		AzureCredential:       roleAssignmentsTestCredential{},
+		GraphClient:           &msgraphsdk.GraphServiceClient{},
 		SubscriptionID:        "00000000-0000-0000-0000-000000000000",
 	}
-}
-
-type roleAssignmentsTestCredential struct{}
-
-func (roleAssignmentsTestCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
-	return azcore.AccessToken{Token: "token", ExpiresOn: time.Now().Add(time.Hour)}, nil
 }

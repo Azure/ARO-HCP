@@ -23,6 +23,22 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Global.StgGlobal
 rolloutName: Global Resource Rollout (STG V2)
+# Pre-build the Go helper invoked by the grafana-group-roles Shell step before the
+# rollout runs. The EV2 Shell runner image ships no Azure CLI, so the Group Grafana
+# role assignment is done in Go (see scripts/grafana-group-roles), same pattern as
+# scripts/postgres-access in svc-pipeline.yaml.
+buildStep:
+  command: bash
+  args:
+  - -c
+  - |
+    set -euo pipefail
+    tmp="$(mktemp ./scripts/grafana-group-roles/grafana-group-roles.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/grafana-group-roles
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/grafana-group-roles/grafana-group-roles
+    trap - EXIT
 resourceGroups:
 - name: singleton
   resourceGroup: '{{ .global.rg }}'
@@ -74,6 +90,46 @@ resourceGroups:
     dependsOn:
     - resourceGroup: singleton
       step: grafana-reconcile
+  # Grant the global EV2 MSI a constrained RBAC Administrator role on the stg2
+  # Grafana so the grafana-group-roles Shell step (which runs under that MSI) can
+  # assign Group principals. The canonical grafana-roles ARM step above runs under
+  # the EV2 compound identity, whose roleAssignments/write is ABAC-restricted to
+  # PrincipalType == 'ServicePrincipal', so it cannot assign the team Viewer (a Group).
+  - name: grafana-group-rbac
+    action: ARM
+    template: templates/grafana-group-rbac.bicep
+    parameters: configurations/grafana-group-rbac-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: singleton
+      step: grafana-reconcile
+  # Assign the Group Grafana roles (team Viewer) under the global EV2 MSI. Done in
+  # Go (not az) because the EV2 Shell runner image has no Azure CLI; see
+  # scripts/grafana-group-roles and the buildStep above.
+  - name: grafana-group-roles
+    action: Shell
+    command: ./scripts/grafana-group-roles/grafana-group-roles
+    workingDir: .
+    variables:
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: singleton
+        step: grafana-group-rbac
+        name: subscriptionId
+    - name: RESOURCE_GROUP
+      configRef: global.rg
+    - name: GRAFANA_NAME
+      configRef: stgGlobalV2.grafanaName
+    - name: GRAFANA_ROLES
+      configRef: stgGlobalV2.grafanaRoles
+    shellIdentity:
+      input:
+        resourceGroup: singleton
+        step: infra
+        name: globalMSIId
+    dependsOn:
+    - resourceGroup: singleton
+      step: grafana-group-rbac
   - name: output
     action: ARM
     template: templates/output-global.bicep

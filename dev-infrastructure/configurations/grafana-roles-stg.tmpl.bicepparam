@@ -7,5 +7,11 @@ using '../templates/grafana-roles.bicep'
 
 param grafanaName = '{{ .stgGlobalV2.grafanaName }}'
 param globalMSIName = '{{ .global.globalMSIName }}'
-param grafanaRoles = '{{ .stgGlobalV2.grafanaRoles }}'
+// grafanaRoles is intentionally empty here: the EV2 compound identity that runs this
+// ARM step cannot assign Group principals (roleAssignments/write is ABAC-restricted to
+// PrincipalType == 'ServicePrincipal'). Group role assignments (the team Viewer) are
+// handled by the grafana-group-roles Shell step, which reads stgGlobalV2.grafanaRoles
+// and runs under the global EV2 MSI. The MSI Grafana Admin assignment is unaffected
+// (grafana-roles.bicep sets it from globalMSIName, independent of grafanaRoles).
+param grafanaRoles = ''
 param azureFrontDoorProfileName = '{{ .stgGlobalV2.frontDoorName }}'

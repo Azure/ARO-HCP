@@ -122,12 +122,11 @@ type DNSProfile struct {
 
 // EtcdDataEncryptionProfile - The ETCD data encryption settings.
 type EtcdDataEncryptionProfile struct {
+	// REQUIRED; Specify the key management strategy used for the encryption key that encrypts the ETCD data.
+	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
+
 	// Specify customer managed encryption key details. Required when keyManagementMode is "CustomerManaged".
 	CustomerManaged *CustomerManagedEncryptionProfile
-
-	// Specify the key management strategy used for the encryption key that encrypts the ETCD data. By default, "PlatformManaged"
-	// is used.
-	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
 }
 
 // EtcdDataEncryptionProfileUpdate - The ETCD data encryption settings.
