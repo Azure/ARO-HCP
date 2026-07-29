@@ -1035,6 +1035,34 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 | **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Status.Conditions[Degraded]`** = aggregated union</li></ul> |
 | **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Status.Conditions[Degraded]`** = aggregated union</li></ul> |
 
+#### ClusterRequirementsValidAggregator
+
+**File:** [cluster_requirements_valid_aggregator.go](../backend/pkg/controllers/statuscontrollers/cluster_requirements_valid_aggregator.go)
+**Trigger:** Cluster / ServiceProviderCluster informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `ServiceProviderCluster` exists
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`Status.UserFacingConditions` (skip write when unchanged)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.Validations` (non-True = Status False or Unknown)</li></ul> |
+| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Status.UserFacingConditions[RequirementsValid]`** = True/Valid when no failures; False/Degraded with unioned failed validation messages otherwise</li></ul> |
+
+#### NodePoolRequirementsValidAggregator
+
+**File:** [nodepool_requirements_valid_aggregator.go](../backend/pkg/controllers/statuscontrollers/nodepool_requirements_valid_aggregator.go)
+**Trigger:** NodePool / ServiceProviderNodePool informer, 1-minute resync
+**Gate (SyncOnce preconditions):**
+- `NodePool.ServiceProviderProperties.DeletionTimestamp` == nil
+- `ServiceProviderNodePool` exists
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`Status.UserFacingConditions` (skip write when unchanged)</li></ul> |
+| Read | `ServiceProviderNodePool` | <ul><li>`Status.Validations` (non-True = Status False or Unknown)</li></ul> |
+| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Status.UserFacingConditions[RequirementsValid]`** = True/Valid when no failures; False/Degraded with unioned failed validation messages otherwise</li></ul> |
+
 #### CreateClusterScopedReadDesires / CreateNodePoolScopedReadDesires
 
 **File:** [create_cluster_scoped_read_desires_controller.go](../backend/pkg/controllers/create_cluster_scoped_read_desires_controller.go), [create_nodepool_scoped_read_desires_controller.go](../backend/pkg/controllers/create_nodepool_scoped_read_desires_controller.go)
@@ -1293,6 +1321,22 @@ Single writer, but gates billing lifecycle.
 | [ClusterDegradedAggregator](#degradedaggregators-cluster--nodepool--externalauth) | Aggregated `Degraded` condition from all controller status docs |
 
 Single writer.
+
+### `HCPOpenShiftCluster.Status.UserFacingConditions`
+
+| Actor | When |
+|-------|------|
+| [ClusterRequirementsValidAggregator](#clusterrequirementsvalidaggregator) | Aggregated `RequirementsValid` condition from `ServiceProviderCluster.Status.Validations` |
+
+Single writer today (`RequirementsValid` only).
+
+### `HCPOpenShiftClusterNodePool.Status.UserFacingConditions`
+
+| Actor | When |
+|-------|------|
+| [NodePoolRequirementsValidAggregator](#nodepoolrequirementsvalidaggregator) | Aggregated `RequirementsValid` condition from `ServiceProviderNodePool.Status.Validations` |
+
+Single writer today (`RequirementsValid` only).
 
 ### `HCPOpenShiftClusterNodePool.Properties.ProvisioningState`
 
