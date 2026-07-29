@@ -97,7 +97,7 @@ func NewControlPlaneDesiredVersionController(
 		clock:            clock,
 		readDesireLister: readDesireLister,
 		cincinnatiClient: cincinnati.NewCachingClient(
-			cvocincinnati.NewClient(uuid.Nil, http.DefaultTransport.(*http.Transport).Clone(), "ARO-HCP", cincinnati.NewAlwaysConditionRegistry()),
+			cvocincinnati.NewClient(uuid.Nil, http.DefaultTransport.(*http.Transport).Clone(), "ARO-HCP", cincinnati.NewAcceptAllConditionRegistry()),
 			clock, 1*time.Hour,
 		),
 		graphClient:                   cincinnati.NewGraphClient(),

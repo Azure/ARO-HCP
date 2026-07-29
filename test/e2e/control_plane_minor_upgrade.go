@@ -67,7 +67,7 @@ var _ = Describe("Customer", func() {
 			previousMinorLine := fmt.Sprintf("%d.%d", previousMinor.Major, previousMinor.Minor)
 			targetMinorLine := fmt.Sprintf("%d.%d", targetVer.Major, targetVer.Minor)
 
-			cincinnatiClient := cvocincinnati.NewClient(uuid.NameSpaceDNS, &http.Transport{}, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
+			cincinnatiClient := cvocincinnati.NewClient(uuid.NameSpaceDNS, &http.Transport{}, "ARO-HCP", cincinnati.NewAcceptAllConditionRegistry())
 			cachingClient := cincinnati.NewCachingClient(cincinnatiClient, utilsclock.RealClock{}, 1*time.Hour)
 			cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
 			Expect(err).NotTo(HaveOccurred(), "failed to get Cincinnati URI for channel %s", channelGroup)

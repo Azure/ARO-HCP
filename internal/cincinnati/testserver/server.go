@@ -95,7 +95,7 @@ func (s *Server) NewClient() cvocincinnati.Client {
 		uuid.New(),
 		http.DefaultTransport.(*http.Transport).Clone(),
 		"test-harness",
-		cincinnati.NewAlwaysConditionRegistry(),
+		cincinnati.NewAcceptAllConditionRegistry(),
 	)
 }
 

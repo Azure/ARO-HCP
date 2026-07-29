@@ -81,7 +81,7 @@ func NewNodePoolVersionController(
 		subscriptionLister:            subscriptionLister,
 		resourcesDBClient:             resourcesDBClient,
 		cincinnatiClient: cincinnati.NewCachingClient(
-			cvocincinnati.NewClient(uuid.Nil, http.DefaultTransport.(*http.Transport).Clone(), "ARO-HCP", cincinnati.NewAlwaysConditionRegistry()),
+			cvocincinnati.NewClient(uuid.Nil, http.DefaultTransport.(*http.Transport).Clone(), "ARO-HCP", cincinnati.NewAcceptAllConditionRegistry()),
 			clock, 1*time.Hour,
 		),
 	}

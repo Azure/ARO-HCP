@@ -78,6 +78,13 @@ func (c *CachingClient) GetUpdates(ctx context.Context, uri *url.URL, desiredArc
 	current, updates, conditionalUpdates, err := c.inner.GetUpdates(ctx, &uriClone, desiredArch, currentArch, channel, version)
 	logger.Info("Cincinnati GetUpdates (uncached)", "url", uriClone.String(), "duration", c.clock.Now().Sub(start).String(), "err", err)
 
+	// ARO-HCP treats all Cincinnati edges as available upgrade paths regardless
+	// of conditional risk gates. The CVO client moves versions that appear in
+	// both unconditional and conditional edges into the conditional list only,
+	// so we merge them back to ensure callers see every reachable version.
+	updates = mergeConditionalUpdates(updates, conditionalUpdates)
+	conditionalUpdates = nil
+
 	// Only cache successful responses and VersionNotFound (a stable signal that
 	// the version is absent from the graph). Transient failures (network errors,
 	// 5xx, context cancellation) must NOT be cached so the next caller retries
@@ -95,4 +102,21 @@ func (c *CachingClient) GetUpdates(ctx context.Context, uri *url.URL, desiredArc
 	}
 
 	return current, updates, conditionalUpdates, err
+}
+
+func mergeConditionalUpdates(updates []configv1.Release, conditional []configv1.ConditionalUpdate) []configv1.Release {
+	if len(conditional) == 0 {
+		return updates
+	}
+	seen := make(map[string]bool, len(updates))
+	for _, u := range updates {
+		seen[u.Image] = true
+	}
+	for _, cu := range conditional {
+		if !seen[cu.Release.Image] {
+			updates = append(updates, cu.Release)
+			seen[cu.Release.Image] = true
+		}
+	}
+	return updates
 }

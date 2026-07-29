@@ -176,7 +176,7 @@ func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string,
 	if transport == nil {
 		transport = &http.Transport{}
 	}
-	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
+	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinnati.NewAcceptAllConditionRegistry())
 	channel := fmt.Sprintf("%s-%d.%d", channelGroup, getUpdatesGraphRoots[0].Major, getUpdatesGraphRoots[0].Minor)
 
 	maj, min := getUpdatesGraphRoots[0].Major, getUpdatesGraphRoots[0].Minor
@@ -277,7 +277,7 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 	if transport == nil {
 		transport = &http.Transport{}
 	}
-	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
+	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinnati.NewAcceptAllConditionRegistry())
 
 	possibleCandidates, err := retryOnTransientError(ctx, func() ([]configv1.Release, error) {
 		_, candidates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", channel, fromVer)

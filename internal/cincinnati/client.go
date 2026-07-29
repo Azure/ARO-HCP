@@ -25,7 +25,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
-	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 )
 
 // Client is an interface for fetching cluster updates from the Cincinnati service.
@@ -52,9 +51,23 @@ type Client interface {
 
 var _ Client = (*cincinnati.Client)(nil)
 
-func NewAlwaysConditionRegistry() clusterconditions.ConditionRegistry {
-	conditionRegistry := clusterconditions.NewConditionRegistry()
-	conditionRegistry.Register("Always", &always.Always{})
+// acceptAllConditionRegistry is a ConditionRegistry that treats every condition
+// type as valid and always matching. This causes the CVO client to preserve all
+// conditional updates instead of pruning those with unrecognized condition types
+// (e.g. PromQL). ARO-HCP does not evaluate conditional risk gates on-cluster;
+// all Cincinnati edges are treated as available upgrade paths.
+type acceptAllConditionRegistry struct{}
 
-	return conditionRegistry
+func (acceptAllConditionRegistry) Register(string, clusterconditions.Condition) {}
+
+func (acceptAllConditionRegistry) PruneInvalid(_ context.Context, matchingRules []configv1.ClusterCondition) ([]configv1.ClusterCondition, error) {
+	return matchingRules, nil
+}
+
+func (acceptAllConditionRegistry) Match(_ context.Context, _ []configv1.ClusterCondition) (bool, error) {
+	return true, nil
+}
+
+func NewAcceptAllConditionRegistry() clusterconditions.ConditionRegistry {
+	return acceptAllConditionRegistry{}
 }
