@@ -1090,6 +1090,8 @@ svc:
           poll: true
         - name: ManagedGatewayAPIPreview
           poll: true
+        - name: IdentityBindingPreview
+          poll: true
         poll: true
       Microsoft.Dashboard:
         poll: true
