@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -492,18 +493,24 @@ func (tc *perItOrDescribeTestContext) findManagedResourceGroups(ctx context.Cont
 	return managedResourceGroups, nil
 }
 
-// waitForManagedResourceGroupsDeletion polls findManagedResourceGroups until no managed resource groups remain for the given parent resource group
-// This handles the case where managed RGs are still being deleted (e.g. because the HCP cluster was already in a deleting state prior to cleanup)
-// Returns the remaining managed resource groups (empty if all were deleted)
+// waitForManagedResourceGroupsDeletion polls findManagedResourceGroups until no deletable managed
+// resource groups remain for the given parent resource group. This handles the case where managed
+// RGs are still being deleted (e.g. because the HCP cluster was already in a deleting state prior
+// to cleanup). Managed groups locked by a system-protected deny assignment are re-checked on every
+// poll and never counted as pending: they can never be deleted from our side, so waiting for them
+// would only burn the timeout even after the deletable groups are gone. Returns the deletable
+// (non-locked) managed resource groups still present (empty if all deletable ones were deleted).
 func (tc *perItOrDescribeTestContext) waitForManagedResourceGroupsDeletion(ctx context.Context, resourceGroupName string, timeout time.Duration) ([]string, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded waiting for managed resource groups in %s to be deleted", timeout.Minutes(), resourceGroupName))
 	defer cancel()
 
+	var previousPending []string
 	for {
 		select {
 		case <-ctx.Done():
 			remaining, _ := tc.findManagedResourceGroups(context.Background(), resourceGroupName)
-			return remaining, fmt.Errorf("timed out waiting for managed resource groups in %q to be deleted, caused by: %w, error: %w", resourceGroupName, context.Cause(ctx), ctx.Err())
+			_, pending := tc.partitionDenyAssignmentLockedResourceGroups(context.Background(), remaining)
+			return pending, fmt.Errorf("timed out waiting for managed resource groups in %q to be deleted, caused by: %w, error: %w", resourceGroupName, context.Cause(ctx), ctx.Err())
 		case <-time.After(StandardPollInterval):
 		}
 
@@ -512,14 +519,19 @@ func (tc *perItOrDescribeTestContext) waitForManagedResourceGroupsDeletion(ctx c
 			return nil, fmt.Errorf("failed to search for managed resource groups while waiting for deletion: %w", err)
 		}
 
-		if len(managedResourceGroups) == 0 {
-			ginkgo.GinkgoLogr.Info("all managed resource groups deleted",
+		_, pendingManagedResourceGroups := tc.partitionDenyAssignmentLockedResourceGroups(ctx, managedResourceGroups)
+		if len(pendingManagedResourceGroups) == 0 {
+			ginkgo.GinkgoLogr.Info("all deletable managed resource groups deleted",
 				"resourceGroup", resourceGroupName)
 			return nil, nil
 		}
 
-		ginkgo.GinkgoLogr.Info("waiting for managed resource group deletion",
-			"resourceGroup", resourceGroupName, "remaining", managedResourceGroups)
+		// delta-only logging: only emit when the set of pending groups changes between polls
+		if !slices.Equal(pendingManagedResourceGroups, previousPending) {
+			ginkgo.GinkgoLogr.Info("waiting for managed resource group deletion",
+				"resourceGroup", resourceGroupName, "remaining", pendingManagedResourceGroups)
+			previousPending = pendingManagedResourceGroups
+		}
 	}
 }
 
@@ -576,8 +588,10 @@ func (tc *perItOrDescribeTestContext) resourceGroupHasSystemProtectedDenyAssignm
 			return false, fmt.Errorf("failed listing deny assignments for resource group %q: %w", resourceGroupName, err)
 		}
 		for _, denyAssignment := range page.Value {
-			if denyAssignment.Properties != nil &&
-				denyAssignment.Properties.IsSystemProtected != nil &&
+			if denyAssignment == nil || denyAssignment.Properties == nil {
+				continue
+			}
+			if denyAssignment.Properties.IsSystemProtected != nil &&
 				*denyAssignment.Properties.IsSystemProtected {
 				return true, nil
 			}
@@ -648,15 +662,12 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		if len(pendingManagedResourceGroups) > 0 {
 			ginkgo.GinkgoLogr.Info("managed resource groups still present, waiting for deletion",
 				"resourceGroup", resourceGroupName, "managedResourceGroups", pendingManagedResourceGroups)
-			remainingManagedResourceGroups, waitErr := tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
-			if waitErr != nil {
-				// waitForManagedResourceGroupsDeletion re-lists every managed group for the parent,
-				// so the deny-assignment-locked ones always remain and are expected here. Only fail
-				// when a group without a deny assignment is left behind, which is a genuine anomaly.
-				_, stillPendingManagedResourceGroups := tc.partitionDenyAssignmentLockedResourceGroups(ctx, remainingManagedResourceGroups)
-				if len(stillPendingManagedResourceGroups) > 0 {
-					return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(stillPendingManagedResourceGroups), resourceGroupName, stillPendingManagedResourceGroups, waitErr)
-				}
+			// waitForManagedResourceGroupsDeletion re-checks deny assignments on every poll and
+			// returns only the deletable (non-locked) groups still present, so the deny-locked
+			// ones never block the wait. A deletable group still present here is a genuine anomaly.
+			stillPendingManagedResourceGroups, waitErr := tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
+			if waitErr != nil && len(stillPendingManagedResourceGroups) > 0 {
+				return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(stillPendingManagedResourceGroups), resourceGroupName, stillPendingManagedResourceGroups, waitErr)
 			}
 		}
 	} else {
