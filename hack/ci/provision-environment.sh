@@ -123,6 +123,21 @@ else
   echo "No MSI mock SP lease provided, skipping mock SP overrides"
 fi
 
+# Temporary MGMT cluster sizing overrides for single-wave E2E parallelism.
+# These will be removed once the matching config.yaml defaults land in ARO-HCP.
+# Only apply when identity containers are leased (E2E runs); healthcheck
+# workflows provision without leases and should use the default sizing.
+if [[ -n "${LEASED_MSI_CONTAINERS:-}" ]]; then
+  yq -i "
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.mgmt.aks.userAgentPool.minCount = 7 |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.mgmt.aks.infraAgentPool.vmSize = \"Standard_D8ds_v6\"
+  " "${OVERRIDE_CONFIG_FILE}"
+else
+  yq -i "
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.mgmt.aks.userAgentPool.minCount = 1
+  " "${OVERRIDE_CONFIG_FILE}"
+fi
+
 # Merge hypershift image overrides if present (written by aro-hcp-hypershift-images-push)
 HYPERSHIFT_OVERRIDES="${SHARED_DIR}/hypershift-image-overrides.yaml"
 if [[ -f "${HYPERSHIFT_OVERRIDES}" ]]; then
@@ -155,12 +170,21 @@ finalize() {
 trap finalize EXIT
 
 unset GOFLAGS
+
+EXTRA_ARGS="--region ${LOCATION}"
+if [[ "${ARO_HCP_PROVISION_ABORT_IF_EXISTS:-true}" == "true" ]]; then
+  EXTRA_ARGS+=" --abort-if-regional-exist"
+fi
+
+STEP_NAME="${PROVISION_STEP_NAME:-entrypoint}"
+# Sanitize to safe filename characters to prevent path traversal or word-splitting
+STEP_NAME="${STEP_NAME//[^a-zA-Z0-9_-]/}"
 make -o "tooling/templatize/templatize-$(uname -m)" entrypoint/Region \
   DEPLOY_ENV="${DEPLOY_ENV}" \
   OVERRIDE_CONFIG_FILE="${OVERRIDE_CONFIG_FILE}" \
-  EXTRA_ARGS="--region ${LOCATION} --abort-if-regional-exist" \
+  EXTRA_ARGS="${EXTRA_ARGS}" \
   TIMING_OUTPUT=${SHARED_DIR}/steps.yaml.gz \
-  ENTRYPOINT_JUNIT_OUTPUT=${ARTIFACT_DIR}/junit_entrypoint.xml \
+  ENTRYPOINT_JUNIT_OUTPUT=${ARTIFACT_DIR}/junit_${STEP_NAME}.xml \
   CONFIG_OUTPUT=${CONFIG_PROV}
 
 touch "${SHARED_DIR}/provision-complete"
