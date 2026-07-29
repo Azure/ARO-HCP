@@ -45,6 +45,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
@@ -522,6 +523,69 @@ func (tc *perItOrDescribeTestContext) waitForManagedResourceGroupsDeletion(ctx c
 	}
 }
 
+// partitionDenyAssignmentLockedResourceGroups splits managed resource groups into those blocked
+// by a system-protected deny assignment (locked: the reaper can never delete them, they need
+// RP-side remediation) and the rest. A probe failure is treated as "not locked" so the caller
+// falls back to the existing wait-and-report behaviour rather than skipping a group that might
+// still be deletable.
+func (tc *perItOrDescribeTestContext) partitionDenyAssignmentLockedResourceGroups(ctx context.Context, resourceGroupNames []string) (locked, pending []string) {
+	for _, resourceGroupName := range resourceGroupNames {
+		isLocked, err := tc.resourceGroupHasSystemProtectedDenyAssignment(ctx, resourceGroupName)
+		if err != nil {
+			ginkgo.GinkgoLogr.Error(err, "failed to check for a system-protected deny assignment, treating resource group as not locked",
+				"resourceGroup", resourceGroupName)
+			pending = append(pending, resourceGroupName)
+			continue
+		}
+		if isLocked {
+			locked = append(locked, resourceGroupName)
+		} else {
+			pending = append(pending, resourceGroupName)
+		}
+	}
+	return locked, pending
+}
+
+// resourceGroupHasSystemProtectedDenyAssignment reports whether the resource group carries a
+// system-protected deny assignment. The RP creates such a deny assignment on the managed
+// resource group holding customer infrastructure (isSystemProtected=true), which blocks
+// resourceGroups/delete for every principal except the RP first-party service principals. Once
+// the parent HCP cluster is gone, the managed resource group is orphaned and the reaper can
+// never delete it, so there is no point waiting for it to disappear.
+func (tc *perItOrDescribeTestContext) resourceGroupHasSystemProtectedDenyAssignment(ctx context.Context, resourceGroupName string) (bool, error) {
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return false, err
+	}
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		return false, err
+	}
+	denyAssignmentsClient, err := armauthorization.NewDenyAssignmentsClient(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		return false, err
+	}
+
+	pager := denyAssignmentsClient.NewListForResourceGroupPager(resourceGroupName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isResourceGroupNotFoundError(err) {
+				return false, nil
+			}
+			return false, fmt.Errorf("failed listing deny assignments for resource group %q: %w", resourceGroupName, err)
+		}
+		for _, denyAssignment := range page.Value {
+			if denyAssignment.Properties != nil &&
+				denyAssignment.Properties.IsSystemProtected != nil &&
+				*denyAssignment.Properties.IsSystemProtected {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
 // cleanupResourceGroup is the standard resourcegroup cleanup.  It attempts to
 // 1. delete all HCP clusters via the RP and wait for success
 // 2. wait for any managed resource groups to be deleted
@@ -567,14 +631,33 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	}
 
 	if len(managedResourceGroups) > 0 {
-		ginkgo.GinkgoLogr.Info("managed resource groups still present, waiting for deletion",
-			"resourceGroup", resourceGroupName, "managedResourceGroups", managedResourceGroups)
-		managedResourceGroups, err = tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
-		if err != nil {
-			if len(managedResourceGroups) > 0 {
-				return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(managedResourceGroups), resourceGroupName, managedResourceGroups, err)
+		// A managed resource group carrying a system-protected deny assignment (created by the
+		// RP to guard customer infrastructure) cannot be deleted by cleanup once its parent HCP
+		// cluster is gone: the deny assignment blocks resourceGroups/delete for every principal
+		// except the RP first-party service principals. Waiting for such an orphaned group to
+		// disappear only burns the timeout on every reaper run and then abandons the deletable
+		// parent resource group. Skip the wait for those, record them for RP-side remediation
+		// (AROSLSRE-1591), and still delete the parent below to shrink the leak surface.
+		lockedManagedResourceGroups, pendingManagedResourceGroups := tc.partitionDenyAssignmentLockedResourceGroups(ctx, managedResourceGroups)
+
+		if len(lockedManagedResourceGroups) > 0 {
+			ginkgo.GinkgoLogr.Info("leaving behind managed resource groups locked by a system-protected deny assignment; they cannot be deleted by cleanup and require RP-side remediation (AROSLSRE-1591)",
+				"resourceGroup", resourceGroupName, "lockedManagedResourceGroups", lockedManagedResourceGroups)
+		}
+
+		if len(pendingManagedResourceGroups) > 0 {
+			ginkgo.GinkgoLogr.Info("managed resource groups still present, waiting for deletion",
+				"resourceGroup", resourceGroupName, "managedResourceGroups", pendingManagedResourceGroups)
+			remainingManagedResourceGroups, waitErr := tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
+			if waitErr != nil {
+				// waitForManagedResourceGroupsDeletion re-lists every managed group for the parent,
+				// so the deny-assignment-locked ones always remain and are expected here. Only fail
+				// when a group without a deny assignment is left behind, which is a genuine anomaly.
+				_, stillPendingManagedResourceGroups := tc.partitionDenyAssignmentLockedResourceGroups(ctx, remainingManagedResourceGroups)
+				if len(stillPendingManagedResourceGroups) > 0 {
+					return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(stillPendingManagedResourceGroups), resourceGroupName, stillPendingManagedResourceGroups, waitErr)
+				}
 			}
-			return fmt.Errorf("failed waiting for managed resource group deletion in %s: %w", resourceGroupName, err)
 		}
 	} else {
 		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
