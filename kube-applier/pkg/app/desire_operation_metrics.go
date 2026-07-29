@@ -77,19 +77,19 @@ func newDesireOperationMetrics(registerer prometheus.Registerer) *desireOperatio
 // type, status, and previous state.
 func (m *desireOperationMetrics) recordApplyDesireOperation(desire *kubeapplier.ApplyDesire) {
 	// Guard against nil ResourceID
-	if desire.CosmosMetadata.ResourceID == nil {
+	if desire.ResourceID == nil {
 		return
 	}
 
-	resourceIDStr := desire.CosmosMetadata.ResourceID.String()
+	resourceIDStr := desire.ResourceID.String()
 	resourceType := extractResourceType(resourceIDStr)
 
 	m.mu.Lock()
 	// Only record an operation if the InstanceVersion has changed
 	lastVersion, exists := m.lastProcessedGeneration[resourceIDStr]
-	if !exists || lastVersion != desire.CosmosMetadata.InstanceVersion {
+	if !exists || lastVersion != desire.InstanceVersion {
 		operation := determineApplyOperation(desire, m.lastProcessedGeneration)
-		m.lastProcessedGeneration[resourceIDStr] = desire.CosmosMetadata.InstanceVersion
+		m.lastProcessedGeneration[resourceIDStr] = desire.InstanceVersion
 		m.mu.Unlock()
 
 		successful := isDesireSuccessful(desire.Status.Conditions)
@@ -103,18 +103,18 @@ func (m *desireOperationMetrics) recordApplyDesireOperation(desire *kubeapplier.
 // recordReadDesireOperation records metrics for a ReadDesire operation (resync).
 func (m *desireOperationMetrics) recordReadDesireOperation(desire *kubeapplier.ReadDesire) {
 	// Guard against nil ResourceID
-	if desire.CosmosMetadata.ResourceID == nil {
+	if desire.ResourceID == nil {
 		return
 	}
 
-	resourceIDStr := desire.CosmosMetadata.ResourceID.String()
+	resourceIDStr := desire.ResourceID.String()
 	resourceType := extractResourceType(resourceIDStr)
 
 	m.mu.Lock()
 	// Only record a resync operation if the InstanceVersion has changed
 	lastVersion, exists := m.lastProcessedGeneration[resourceIDStr]
-	if !exists || lastVersion != desire.CosmosMetadata.InstanceVersion {
-		m.lastProcessedGeneration[resourceIDStr] = desire.CosmosMetadata.InstanceVersion
+	if !exists || lastVersion != desire.InstanceVersion {
+		m.lastProcessedGeneration[resourceIDStr] = desire.InstanceVersion
 		m.mu.Unlock()
 
 		successful := isDesireSuccessful(desire.Status.Conditions)
@@ -146,8 +146,9 @@ func (m *desireOperationMetrics) recordOperation(operation, resourceType string,
 // cluster or nodepool desire.
 //
 // ResourceID format:
-//   subscriptions/{sub}/resourceGroups/{rg}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{name}/*desires/{desire}
-//   subscriptions/{sub}/resourceGroups/{rg}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{name}/nodepools/{np}/*desires/{desire}
+//
+//	subscriptions/{sub}/resourceGroups/{rg}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{name}/*desires/{desire}
+//	subscriptions/{sub}/resourceGroups/{rg}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{name}/nodepools/{np}/*desires/{desire}
 func extractResourceType(resourceID string) string {
 	// Use case-insensitive matching to handle variations in casing
 	lowerResourceID := strings.ToLower(resourceID)
@@ -173,7 +174,7 @@ func determineApplyOperation(desire *kubeapplier.ApplyDesire, lastProcessed map[
 	}
 
 	// ServerSideApply: distinguish create vs update based on whether we've seen this desire before
-	if _, seen := lastProcessed[desire.CosmosMetadata.ResourceID.String()]; seen {
+	if _, seen := lastProcessed[desire.ResourceID.String()]; seen {
 		return OperationUpdate
 	}
 

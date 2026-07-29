@@ -32,10 +32,10 @@ import (
 const desireCollectInterval = 30 * time.Second
 
 type desireCollector struct {
-	applyStore        cache.Store
-	readStore         cache.Store
-	total             *prometheus.GaugeVec
-	operationMetrics  *desireOperationMetrics
+	applyStore       cache.Store
+	readStore        cache.Store
+	total            *prometheus.GaugeVec
+	operationMetrics *desireOperationMetrics
 }
 
 func newDesireCollector(
@@ -75,8 +75,8 @@ func (c *desireCollector) collect() {
 			// Record operation-level metrics for ApplyDesires
 			c.operationMetrics.recordApplyDesireOperation(d)
 			// Track this desire as currently present (guard against nil ResourceID)
-			if d.CosmosMetadata.ResourceID != nil {
-				currentDesires[d.CosmosMetadata.ResourceID.String()] = true
+			if d.ResourceID != nil {
+				currentDesires[d.ResourceID.String()] = true
 			}
 		}
 	}
@@ -86,8 +86,8 @@ func (c *desireCollector) collect() {
 			// Record operation-level metrics for ReadDesires
 			c.operationMetrics.recordReadDesireOperation(d)
 			// Track this desire as currently present (guard against nil ResourceID)
-			if d.CosmosMetadata.ResourceID != nil {
-				currentDesires[d.CosmosMetadata.ResourceID.String()] = true
+			if d.ResourceID != nil {
+				currentDesires[d.ResourceID.String()] = true
 			}
 		}
 	}
