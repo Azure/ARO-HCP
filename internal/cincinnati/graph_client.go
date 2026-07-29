@@ -14,8 +14,6 @@
 
 package cincinnati
 
-//go:generate $MOCKGEN -typed -source=graph_client.go -destination=mock_graph_client.go -package cincinnati GraphClient
-
 import (
 	"context"
 	"encoding/json"
@@ -37,6 +35,10 @@ type GraphClient interface {
 	//     channels also return HTTP 200 with an empty nodes array (not 404).
 	//   - nightly: uses the CI releasestream tags API; missing streams return HTTP 404.
 	ChannelExists(ctx context.Context, channelGroup, minor string) (bool, error)
+
+	// ChannelExistsURL returns the URL that ChannelExists would query for the
+	// given channel group and minor, for diagnostic messages.
+	ChannelExistsURL(channelGroup, minor string) string
 }
 
 type graphClient struct {
@@ -119,4 +121,13 @@ func (c graphClient) channelExistsFromGraphURL(ctx context.Context, channelGroup
 		return false, fmt.Errorf("decode graph response for %s: %w", channel, err)
 	}
 	return len(payload.Nodes) > 0, nil
+}
+
+func (c graphClient) ChannelExistsURL(channelGroup, minor string) string {
+	if channelGroup == "nightly" {
+		releaseStream := fmt.Sprintf("%s.0-0.nightly-multi", minor)
+		return fmt.Sprintf("%s/api/v1/releasestream/%s/tags?phase=Accepted", c.nightlyAPIBase, url.PathEscape(releaseStream))
+	}
+	channel := fmt.Sprintf("%s-%s", channelGroup, minor)
+	return fmt.Sprintf("%s/api/upgrades_info/v1/graph?channel=%s", c.graphAPIBase, url.QueryEscape(channel))
 }

@@ -116,3 +116,7 @@ func (c *testGraphClient) ChannelExists(_ context.Context, channelGroup, minor s
 	}
 	return len(g.nodes) > 0, nil
 }
+
+func (c *testGraphClient) ChannelExistsURL(channelGroup, minor string) string {
+	return fmt.Sprintf("https://test.example.com/graph?channel=%s-%s", channelGroup, minor)
+}

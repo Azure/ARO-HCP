@@ -36,9 +36,11 @@ import (
 // versions reachable from the cluster's active versions have a valid transitive
 // upgrade chain. The cluster must wait for Cincinnati to publish a new edge.
 type NoGatewayError struct {
-	ActiveVersions []semver.Version
-	DesiredMinor   string
-	NextMinor      string
+	ActiveVersions  []semver.Version
+	DesiredMinor    string
+	NextMinor       string
+	ChannelCheckURL string
+	GatewayProbeURL string
 }
 
 func (e *NoGatewayError) Error() string {
@@ -46,12 +48,19 @@ func (e *NoGatewayError) Error() string {
 	for _, v := range e.ActiveVersions {
 		versions = append(versions, v.String())
 	}
-	return fmt.Sprintf(
+	msg := fmt.Sprintf(
 		"no upgrade path from active versions [%s] to next minor %s: "+
 			"the %s channel exists but no reachable candidate in %s is a gateway; "+
 			"the cluster must wait for a new edge to be published",
 		strings.Join(versions, ", "), e.NextMinor, e.NextMinor, e.DesiredMinor,
 	)
+	if e.ChannelCheckURL != "" {
+		msg += fmt.Sprintf(" (channel check: %s)", e.ChannelCheckURL)
+	}
+	if e.GatewayProbeURL != "" {
+		msg += fmt.Sprintf(" (gateway probe: %s)", e.GatewayProbeURL)
+	}
+	return msg
 }
 
 // SelectControlPlaneVersion selects the best z-stream within desiredYVersion's
@@ -107,10 +116,15 @@ func SelectControlPlaneVersion(ctx context.Context, channelStability string, des
 	}
 
 	nextMajor, nextMinorNum := nextMinorVersion(desiredMinor)
+	nextMinorStr := fmt.Sprintf("%d.%d", nextMajor, nextMinorNum)
+	nextChannel := formatChannel(channelStability, semver.Version{Major: nextMajor, Minor: nextMinorNum})
+	gatewayProbeURL := formatCincinnatiURL(cincinnatiURI, nextChannel)
 	return nil, &NoGatewayError{
-		ActiveVersions: activeVersions,
-		DesiredMinor:   fmt.Sprintf("%d.%d", desiredMinor.Major, desiredMinor.Minor),
-		NextMinor:      fmt.Sprintf("%d.%d", nextMajor, nextMinorNum),
+		ActiveVersions:  activeVersions,
+		DesiredMinor:    fmt.Sprintf("%d.%d", desiredMinor.Major, desiredMinor.Minor),
+		NextMinor:       nextMinorStr,
+		ChannelCheckURL: graphClient.ChannelExistsURL(channelStability, nextMinorStr),
+		GatewayProbeURL: gatewayProbeURL,
 	}
 }
 
@@ -429,6 +443,15 @@ func isCincinnatiVersionNotFound(err error) bool {
 		return false
 	}
 	return cErr.Reason == "VersionNotFound"
+}
+
+func formatCincinnatiURL(baseURI *url.URL, channel string) string {
+	u := cloneURL(baseURI)
+	q := u.Query()
+	q.Set("arch", "multi")
+	q.Set("channel", channel)
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func cloneURL(u *url.URL) *url.URL {
