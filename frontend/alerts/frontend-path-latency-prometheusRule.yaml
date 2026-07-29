@@ -1,4 +1,4 @@
-apiVersion: monitoring.coreos.com/v1
+﻿apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   labels:
@@ -17,10 +17,11 @@ spec:
     # Early / CI-facing path latency signal (kusto lane).
     # severity: warning → Sev3 so gather-observability (--severity-threshold Sev3) fails CI.
     # Short rate window so the alert can fire within a typical e2e run (ARO-28090).
+    # Keep cluster in the aggregation so firings stay per-cluster (correlationId uses $labels.cluster).
     - alert: FrontendPathLatency
       expr: |
         histogram_quantile(0.99,
-          sum by (le, route, method) (
+          sum by (le, route, method, cluster) (
             rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])
           )
         ) > 1

@@ -5,15 +5,15 @@ tests:
 # Test: FrontendPathLatency does not fire when 99th percentile is below 1 second
 - interval: 1m
   input_series:
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET", cluster="test"}'
     values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test"}'
     values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test"}'
     values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/api/clusters", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/api/clusters", method="GET", cluster="test"}'
     values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test"}'
     values: '0+60x15'
   alert_rule_test:
   - eval_time: 10m
@@ -23,15 +23,15 @@ tests:
 - interval: 1m
   input_series:
   # All observations land above 1s (cumulative buckets stay flat until le="5")
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET", cluster="test"}'
     values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test"}'
     values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test"}'
     values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/api/clusters", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/api/clusters", method="GET", cluster="test"}'
     values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test"}'
     values: '0+60x15'
   alert_rule_test:
   - eval_time: 10m
@@ -42,6 +42,7 @@ tests:
         severity: warning
         method: GET
         route: /api/clusters
+        cluster: test
       exp_annotations:
         description: 'The 99th percentile of frontend request latency for GET /api/clusters has exceeded 1 second over the past 5 minutes.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
@@ -49,15 +50,15 @@ tests:
 # Test: excluded hcpoperationresults route does not fire even when slow
 - interval: 1m
   input_series:
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test"}'
     values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test"}'
     values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test"}'
     values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test"}'
     values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET"}'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test"}'
     values: '0+60x15'
   alert_rule_test:
   - eval_time: 10m
