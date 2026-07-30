@@ -98,7 +98,7 @@ spec:
         - name: OPERAND_IMAGE_HYPERSHIFT_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-rhel9-operator@sha256:e85d83ae338069d3e925ae2baa513ee077363f8180d97c87b171add1e720cc39'
         - name: OPERAND_IMAGE_IMAGE_BASED_INSTALL_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/image-based-install-rhel9@sha256:91aa74c8a95913e60c09816145f875e0d0e2eb17a907d415392e948e82f1527b'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/image-based-install-rhel9@sha256:c0a7d4e82216bd1ed630d745e60fea1a6eafdd0b9d9155714f1ced1199ce2bf0'
         - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/kube-rbac-proxy-mce-rhel9@sha256:4e5a74a5822aeeb2cd2f21b0140c772f398173b1e39bdf9ee42ffadad672560e'
         - name: OPERAND_IMAGE_MANAGEDCLUSTER_IMPORT_CONTROLLER
@@ -110,7 +110,7 @@ spec:
         - name: OPERAND_IMAGE_PROVIDER_CREDENTIAL_CONTROLLER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/provider-credential-controller-rhel9@sha256:1b45105a89f728f7cf7ea8e2342e63414d4c7500626576a7217e1daf25433872'
         - name: OPERAND_IMAGE_PLACEMENT
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/placement-rhel9@sha256:ebb99f77e31825d665c98564d6925554feaa5095bdb5f5dcd16db992c25f2adc'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/placement-rhel9@sha256:f126a6df7d182ca56d2da3a48ee5341ed76900e13ca0f598e003a37753b7d823'
         - name: OPERAND_IMAGE_REGISTRATION
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/registration-rhel9@sha256:1375e7a35a29ae8a249c78f614d3c660e0cbd40eb56e1a53cc3a8cdb898b758c'
         - name: OPERAND_IMAGE_REGISTRATION_OPERATOR

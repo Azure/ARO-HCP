@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:bda19d4f4411ea496d2cacde57755b68e85667f8b4892eb336a20d2bc49fbed9
+      digest: sha256:c8b9aa2f3e0d3db6c11974c2ae820dab5cf3c290f7de8b5115e1839e0a8aab1d
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:d1c41ac902c8f44741958adf9e9d041088805f0f933ab2e42e4e497453b40118
+      digest: sha256:72b7793fba6c2f320616b4c2b8542e6c93fed6793ee51e19e019ba92dd1b2334
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -449,7 +449,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:db494fb318d496183b2be22da0367920c4d9664fa52f2e88ee21842bb84648ce
+    digest: sha256:0a0397b7e1fec51b2704e5c9ca131ebc1cb607d1ee9c882fd6205f9b7ca6b724
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -469,7 +469,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:2a618f4ae865b5a57c25d0111e3916e59760ef75ed6c7001da1b1988080b9940
+      digest: sha256:aa1a693a0d0d990392bc851153352a8d9180a1d9b1e501af22a13234af52a7d3
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -555,7 +555,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:3352a36cbcab4708883a3e77b64f64159e11e1aab358c010e1c4e465dbfb4f57
+        digest: sha256:b770cd63558c97c4e19d6f0dbe22b7a636b1eb4d267efe37f1ad44cdaecfddb9
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certIssuer: Self
