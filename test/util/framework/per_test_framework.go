@@ -55,6 +55,7 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
@@ -70,6 +71,7 @@ type perItOrDescribeTestContext struct {
 	clientFactory20240610         *hcpsdk20240610preview.ClientFactory
 	clientFactory20251223         *hcpsdk20251223preview.ClientFactory
 	clientFactory20260630         *hcpsdk20260630preview.ClientFactory
+	clientFactory20260901         *hcpsdk20260901preview.ClientFactory
 	armComputeClientFactory       *armcompute.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
@@ -947,10 +949,6 @@ func (tc *perItOrDescribeTestContext) GetARMComputeClientFactoryOrDie(ctx contex
 	return Must(tc.GetARMComputeClientFactory(ctx))
 }
 
-func (tc *perItOrDescribeTestContext) Get20240610ClientFactoryOrDie(ctx context.Context) *hcpsdk20240610preview.ClientFactory {
-	return Must(tc.Get20240610ClientFactory(ctx))
-}
-
 func (tc *perItOrDescribeTestContext) GetARMSubscriptionsClientFactory() (*armsubscriptions.ClientFactory, error) {
 	tc.contextLock.RLock()
 	if tc.clientFactory20240610 != nil {
@@ -1092,82 +1090,6 @@ func (tc *perItOrDescribeTestContext) getARMComputeClientFactoryUnlocked(ctx con
 	return tc.armComputeClientFactory, nil
 }
 
-func (tc *perItOrDescribeTestContext) Get20240610ClientFactory(ctx context.Context) (*hcpsdk20240610preview.ClientFactory, error) {
-	tc.contextLock.RLock()
-	if tc.clientFactory20240610 != nil {
-		defer tc.contextLock.RUnlock()
-		return tc.clientFactory20240610, nil
-	}
-	tc.contextLock.RUnlock()
-
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-
-	return tc.get20240610ClientFactoryUnlocked(ctx)
-}
-
-func (tc *perItOrDescribeTestContext) get20240610ClientFactoryUnlocked(ctx context.Context) (*hcpsdk20240610preview.ClientFactory, error) {
-	if tc.clientFactory20240610 != nil {
-		return tc.clientFactory20240610, nil
-	}
-
-	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
-	if err != nil {
-		return nil, err
-	}
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
-	if err != nil {
-		return nil, err
-	}
-	clientFactory, err := hcpsdk20240610preview.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions())
-	if err != nil {
-		return nil, err
-	}
-	tc.clientFactory20240610 = clientFactory
-
-	return tc.clientFactory20240610, nil
-}
-
-func (tc *perItOrDescribeTestContext) Get20251223ClientFactory(ctx context.Context) (*hcpsdk20251223preview.ClientFactory, error) {
-	tc.contextLock.RLock()
-	if tc.clientFactory20251223 != nil {
-		defer tc.contextLock.RUnlock()
-		return tc.clientFactory20251223, nil
-	}
-	tc.contextLock.RUnlock()
-
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-
-	return tc.get20251223ClientFactoryUnlocked(ctx)
-}
-
-func (tc *perItOrDescribeTestContext) Get20251223ClientFactoryOrDie(ctx context.Context) *hcpsdk20251223preview.ClientFactory {
-	return Must(tc.Get20251223ClientFactory(ctx))
-}
-
-func (tc *perItOrDescribeTestContext) get20251223ClientFactoryUnlocked(ctx context.Context) (*hcpsdk20251223preview.ClientFactory, error) {
-	if tc.clientFactory20251223 != nil {
-		return tc.clientFactory20251223, nil
-	}
-
-	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
-	if err != nil {
-		return nil, err
-	}
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
-	if err != nil {
-		return nil, err
-	}
-	clientFactory, err := hcpsdk20251223preview.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions())
-	if err != nil {
-		return nil, err
-	}
-	tc.clientFactory20251223 = clientFactory
-
-	return tc.clientFactory20251223, nil
-}
-
 func (tc *perItOrDescribeTestContext) getSubscriptionIDUnlocked(ctx context.Context) (string, error) {
 	if len(tc.subscriptionID) > 0 {
 		return tc.subscriptionID, nil
@@ -1207,45 +1129,6 @@ func (tc *perItOrDescribeTestContext) getGraphClientUnlocked(ctx context.Context
 	return graphutil.NewClient(ctx, creds)
 }
 
-func (tc *perItOrDescribeTestContext) Get20260630ClientFactory(ctx context.Context) (*hcpsdk20260630preview.ClientFactory, error) {
-	tc.contextLock.RLock()
-	if tc.clientFactory20260630 != nil {
-		defer tc.contextLock.RUnlock()
-		return tc.clientFactory20260630, nil
-	}
-	tc.contextLock.RUnlock()
-
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-
-	return tc.get20260630ClientFactoryUnlocked(ctx)
-}
-
-func (tc *perItOrDescribeTestContext) Get20260630ClientFactoryOrDie(ctx context.Context) *hcpsdk20260630preview.ClientFactory {
-	return Must(tc.Get20260630ClientFactory(ctx))
-}
-
-func (tc *perItOrDescribeTestContext) get20260630ClientFactoryUnlocked(ctx context.Context) (*hcpsdk20260630preview.ClientFactory, error) {
-	if tc.clientFactory20260630 != nil {
-		return tc.clientFactory20260630, nil
-	}
-
-	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
-	if err != nil {
-		return nil, err
-	}
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
-	if err != nil {
-		return nil, err
-	}
-	clientFactory, err := hcpsdk20260630preview.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions())
-	if err != nil {
-		return nil, err
-	}
-	tc.clientFactory20260630 = clientFactory
-
-	return tc.clientFactory20260630, nil
-}
 func (tc *perItOrDescribeTestContext) Location() string {
 	return tc.perBinaryInvocationTestContext.Location()
 }
