@@ -28,3 +28,8 @@ knownIssues:
     namespace: "ocm-.*"
     pod: "(packageserver|olm-operator|catalog-operator)-.*"
   reason: "OLM pods in hosted control plane namespaces are simply uninteresting to us."
+- name: "KubePodNotReady"
+  labels:
+    namespace: "ocm-.*"
+    pod: "hosted-cluster-config-operator-.*"
+  reason: "HCCO pods are transiently not-ready during cluster provisioning because the init container (availability-prober) blocks until the guest cluster kube-apiserver and 18+ CRDs are bootstrapped, which routinely exceeds the 5-minute KubePodNotReady threshold."
