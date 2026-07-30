@@ -89,7 +89,7 @@ The token only reaches Key Vault when the `decrypt-and-ingest-secrets` step in [
 | What | Where |
 |------|-------|
 | Token source (K8s) | `aro-hcp-prow-ci` namespace, `api-token-secret` secret, on OpenShift CI cluster |
-| Token storage (Azure) | 4 global Key Vaults: `arohcpdev-global`, `arohcpint-global`, `arohcpstg-global`, `arohcpprod-global` |
+| Token storage (Azure) | 4 global Key Vaults: `arohcpdev-global`, `arohcpint-global`, `arohcpstg2-global`, `arohcpprod-global` |
 | Encrypted at rest | [`dev-infrastructure/data/encryptedsecrets.yaml`](../../dev-infrastructure/data/encryptedsecrets.yaml) |
 | Renewal script | [`dev-infrastructure/openshift-ci/renew-prow-token.sh`](../../dev-infrastructure/openshift-ci/renew-prow-token.sh) |
 | Config reference | [`config/config.yaml`](../../config/config.yaml) → `e2e.prow.globalKeyVaultTokenSecret: "prow-token"` |

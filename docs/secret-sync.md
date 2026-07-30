@@ -17,7 +17,7 @@ The target key vaults (one per environment) in `encryptedsecrets.yaml` are:
 |---|---|
 | `arohcpdev-global` | dev |
 | `arohcpint-global` | int |
-| `arohcpstg-global` | stg |
+| `arohcpstg2-global` | stg |
 | `arohcpprod-global` | prod |
 
 ### Register vs Populate
@@ -152,7 +152,7 @@ Run once per target environment. The `--cloud` flag must match: `dev` for the de
     --secret-name my-new-secret
 ```
 
-Repeat for each environment you need to target (`arohcpstg-global`, `arohcpprod-global`).
+Repeat for each environment you need to target (`arohcpstg2-global`, `arohcpprod-global`).
 
 The command is idempotent — re-running with the same secret name overwrites the encrypted value. This is also how rotation works.
 

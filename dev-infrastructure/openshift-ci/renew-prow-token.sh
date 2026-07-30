@@ -28,7 +28,9 @@ OPENSHIFT_CI_NAMESPACE="aro-hcp-prow-ci"
 OPENSHIFT_CI_SECRET="api-token-secret"
 OPENSHIFT_CI_CONSOLE="https://console-openshift-console.apps.ci.l2s4.p1.openshiftapps.com/"
 
-VAULT_NAMES=("arohcpdev-global" "arohcpint-global" "arohcpstg-global" "arohcpprod-global")
+# STG-global cutover (AROSLSRE-529): stg's global secrets moved to the dedicated
+# hcp-stg-global key vault (arohcpstg2-global); the shared arohcpstg-global is retired for stg.
+VAULT_NAMES=("arohcpdev-global" "arohcpint-global" "arohcpstg2-global" "arohcpprod-global")
 
 cloud_for_vault() {
     case "$1" in

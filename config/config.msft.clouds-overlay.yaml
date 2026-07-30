@@ -76,9 +76,44 @@ clouds:
         defaults:
           # This must be defined here, so our ci jobs can know this
           kusto:
-            kustoName: "hcp-stg-uk-2"
-          # Transient STG-global "V2" names for the parallel infra in the dedicated
-          # hcp-stg-global sub during coexistence. Removed at decommission.
+            # STG-global cutover (AROSLSRE-529): live stg moves to the new
+            # dedicated Kusto cluster (was hcp-stg-uk-2).
+            kustoName: "hcp-{{ .ctx.environment }}-uk-3"
+          # STG-global cutover (AROSLSRE-529): flip live stg off the shared
+          # hcp-global subscription onto the dedicated hcp-stg-global sub, and
+          # point the canonical resource names at the dedicated "…2" infra the V2
+          # rollout already stood up. These are the same resources the stgGlobalV2
+          # block below feeds to the transient V2 pipelines, now promoted to their
+          # canonical paths so the live pipelines deploy them. int/prod untouched.
+          global:
+            subscription:
+              key: hcp-stg-global
+            keyVault:
+              name: "arohcp{{ .ctx.environment }}2-global"
+          acr:
+            svc:
+              name: "arohcpsvc{{ .ctx.environment }}2"
+            ocp:
+              name: "arohcpocp{{ .ctx.environment }}2"
+          geneva:
+            actions:
+              keyVault:
+                name: "arohcp{{ .ctx.environment }}2-geneva-kv"
+          oidc:
+            storageAccount:
+              name: "arohcp{{ .ctx.environment }}2oidc{{ .ctx.regionShort }}"
+            frontdoor:
+              name: "arohcp{{ .ctx.environment }}2"
+              keyVault:
+                name: "ah-{{ .ctx.environment }}2-afd"
+          monitoring:
+            grafanaName: "arohcp-{{ .ctx.environment }}2"
+          # TRANSIENT — STG-global "V2" migration: real globally-unique names +
+          # dedicated DNS zones for the parallel infra deployed into the dedicated
+          # STG-global subscription during coexistence. Overrides the public.defaults
+          # empty-sentinel; only stg gets real values. "2" suffix is the only literal
+          # vs the canonical names. Live stg.defaults names (acr.svc.name etc.) are
+          # untouched until cutover. Removed at decommission.
           stgGlobalV2:
             acrSvcName: "arohcpsvc{{ .ctx.environment }}2"
             acrOcpName: "arohcpocp{{ .ctx.environment }}2"
