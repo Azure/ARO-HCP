@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -67,7 +68,7 @@ type shoeboxLogVerifier interface {
 }
 
 type shoeboxCategoryObserver interface {
-	ObservedCategories(context.Context) (map[string]bool, error)
+	ObservedCategories(context.Context) ([]string, error)
 }
 
 type storageAccountResult struct {
@@ -119,19 +120,16 @@ func pollVerifier(ctx context.Context, name string, verifier shoeboxLogVerifier,
 	}
 }
 
-// categoryCoverage splits newShoeboxLogCategories into those the observer has seen and
-// those it has not.
-func categoryCoverage(observed map[string]bool) (present, missing []string) {
-	present = make([]string, 0, len(newShoeboxLogCategories))
-	missing = make([]string, 0, len(newShoeboxLogCategories))
+// missingCategories returns the entries of newShoeboxLogCategories that are absent from
+// observed.
+func missingCategories(observed []string) []string {
+	var missing []string
 	for _, category := range newShoeboxLogCategories {
-		if observed[verifiers.NormalizeLogCategory(category)] {
-			present = append(present, category)
-		} else {
+		if !slices.Contains(observed, category) {
 			missing = append(missing, category)
 		}
 	}
-	return present, missing
+	return missing
 }
 
 // reportCategoryCoverage polls the storage account until every category in
@@ -142,37 +140,35 @@ func categoryCoverage(observed map[string]bool) (present, missing []string) {
 // capi-provider are low volume enough to stay quiet for an entire run on an idle cluster,
 // so their absence is reported for triage rather than asserted. Polling exists so that a
 // category that simply had not flushed yet is not reported as missing.
+// Every poll logs what it saw, so the final line only has to say why polling stopped.
 func reportCategoryCoverage(ctx context.Context, observer shoeboxCategoryObserver, timeout time.Duration) {
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 	timer := time.After(timeout)
 
-	var present, missing []string
 	for {
 		observed, err := observer.ObservedCategories(ctx)
 		if err != nil {
-			GinkgoLogr.Error(err, "failed to determine observed shoebox log categories")
+			GinkgoLogr.Error(err, "failed to list observed shoebox log categories")
+		} else if missing := missingCategories(observed); len(missing) == 0 {
+			GinkgoLogr.Info("all new shoebox log categories observed",
+				"categories", newShoeboxLogCategories,
+				"observed", observed,
+			)
+			return
 		} else {
-			present, missing = categoryCoverage(observed)
-			if len(missing) == 0 {
-				GinkgoLogr.Info("all new shoebox log categories observed", "present", present)
-				return
-			}
+			GinkgoLogr.Info("waiting for new shoebox log categories",
+				"missing", missing,
+				"observed", observed,
+			)
 		}
 
 		select {
 		case <-timer:
-			GinkgoLogr.Info("new shoebox log categories not observed before timeout",
-				"present", present,
-				"missing", missing,
-				"timeout", timeout.String(),
-			)
+			GinkgoLogr.Info("gave up waiting for new shoebox log categories", "timeout", timeout.String())
 			return
 		case <-ctx.Done():
-			GinkgoLogr.Error(ctx.Err(), "context cancelled while collecting shoebox log category coverage",
-				"present", present,
-				"missing", missing,
-			)
+			GinkgoLogr.Error(ctx.Err(), "context cancelled while waiting for new shoebox log categories")
 			return
 		case <-ticker.C:
 		}
@@ -223,11 +219,17 @@ type eventHubResult struct {
 
 func createEventHub(ctx context.Context, subscriptionID string, creds azcore.TokenCredential, resourceGroupName, location string) (*eventHubResult, error) {
 	const (
-		namespaceName = "shoebox-eh-ns"
-		hubName       = "shoebox-eh"
-		authRuleName  = "shoebox-eh-auth"
-		pollTimeout   = 10 * time.Minute
+		hubName      = "shoebox-eh"
+		authRuleName = "shoebox-eh-auth"
+		pollTimeout  = 10 * time.Minute
 	)
+
+	// An Event Hub namespace name backs a <name>.servicebus.windows.net DNS record, so it
+	// must be unique across all of Azure, not merely within the resource group. A fixed
+	// name collides with any concurrent run and with namespaces left behind by earlier
+	// ones. The hub and authorization rule below are scoped to the namespace, so they can
+	// stay fixed.
+	namespaceName := "shoebox-eh-ns-" + rand.String(6)
 
 	nsClient, err := armeventhub.NewNamespacesClient(subscriptionID, creds, nil)
 	if err != nil {
