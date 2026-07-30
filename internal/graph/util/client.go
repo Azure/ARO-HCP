@@ -57,22 +57,12 @@ func (a *azureAuthProvider) AuthenticateRequest(ctx context.Context, request *ab
 func NewClient(ctx context.Context, cred azcore.TokenCredential) (*Client, error) {
 	authProvider := &azureAuthProvider{cred: cred}
 
-	middlewares := kiotahttp.GetDefaultMiddlewares()
-	var filtered []kiotahttp.Middleware
-	for _, m := range middlewares {
-		if _, ok := m.(*kiotahttp.RetryHandler); !ok {
-			filtered = append(filtered, m)
-		}
-	}
-	filtered = append(filtered, newGraphRetryHandler())
-
-	httpClient := kiotahttp.GetDefaultClient(filtered...)
-	adapter, err := kiotahttp.NewNetHttpRequestAdapterWithParseNodeFactoryAndSerializationWriterFactoryAndHttpClient(authProvider, nil, nil, httpClient)
+	httpClient, err := kiotahttp.NewNetHttpRequestAdapter(authProvider)
 	if err != nil {
 		return nil, fmt.Errorf("create request adapter: %w", err)
 	}
 
-	graphClient := graphsdk.NewGraphBaseServiceClient(adapter, nil)
+	graphClient := graphsdk.NewGraphBaseServiceClient(httpClient, nil)
 
 	isUser, objectID, err := identifyCallerFromToken(ctx, cred)
 	if err != nil {
