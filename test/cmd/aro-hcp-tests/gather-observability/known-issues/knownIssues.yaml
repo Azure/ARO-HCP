@@ -33,3 +33,8 @@ knownIssues:
     namespace: "ocm-.*"
     pod: "hosted-cluster-config-operator-.*"
   reason: "HCCO pods are transiently not-ready during cluster provisioning because the init container (availability-prober) blocks until the guest cluster kube-apiserver and 18+ CRDs are bootstrapped, which routinely exceeds the 5-minute KubePodNotReady threshold."
+- name: "KubePodNotReady"
+  labels:
+    namespace: "ocm-.*"
+    pod: "capi-provider-.*"
+  reason: "capi-provider pods are transiently not-ready during HCP provisioning due to a deliberate bootstrap dependency cycle: the pod mounts the service-network-admin-kubeconfig secret (created by the KAS component), but capi-provider is intentionally excluded from the KAS dependency gate in HyperShift (componentsExcludedFromKubeAPIServerDependency) because node provisioning cannot wait for KAS to fully roll out. The pod sits in ContainerCreating with FailedMount errors until KAS reconciles and creates the secret, then the availability-prober init container gates on KAS /livez before starting the main container. This is by design and consistently exceeds the 5-minute KubePodNotReady threshold during provisioning (~56 alerts/day across 32 pods)."
