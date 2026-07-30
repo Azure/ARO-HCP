@@ -671,9 +671,9 @@ tests:
 # fire for all subscriptions. The recording rule filters them at runtime.
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/a", subscription_id="e2e-sub-00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/a", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "0+0x25"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/a", subscription_id="e2e-sub-00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/a", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "1+0x25"
   alert_rule_test:
   - eval_time: 21m
@@ -682,7 +682,7 @@ tests:
     - exp_labels:
         alertname: BackendAsyncOperationClusterCreateStuck
         resource_id: /sub/e2e/cluster/a
-        subscription_id: "e2e-sub-00000000-0000-0000-0000-000000000001"
+        subscription_id: "00000000-0000-0000-0000-000000000001"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         operation_type: create
         phase: provisioning
@@ -698,9 +698,9 @@ tests:
 # Test: backstop fires for e2e subscription (filtering is at generator level, not YAML)
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/b", subscription_id="e2e-sub-00000000-0000-0000-0000-000000000007", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/b", subscription_id="00000000-0000-0000-0000-000000000007", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "0+0x65"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/b", subscription_id="e2e-sub-00000000-0000-0000-0000-000000000007", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/b", subscription_id="00000000-0000-0000-0000-000000000007", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "1+0x65"
   alert_rule_test:
   - eval_time: 61m
@@ -709,7 +709,7 @@ tests:
     - exp_labels:
         alertname: BackendAsyncOperationStuck
         resource_id: /sub/e2e/cluster/b
-        subscription_id: "e2e-sub-00000000-0000-0000-0000-000000000007"
+        subscription_id: "00000000-0000-0000-0000-000000000007"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         operation_type: create
         phase: provisioning

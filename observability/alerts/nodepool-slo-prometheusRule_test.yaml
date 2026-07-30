@@ -483,9 +483,9 @@ tests:
 # the alert fires for all subscriptions including internal ones.
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/np/stuck", subscription_id="e2e-sub-00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/np/stuck", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
     values: "0+0x155"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/np/stuck", subscription_id="e2e-sub-00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/np/stuck", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
     values: "1+0x155"
   alert_rule_test:
   - eval_time: 150m
@@ -494,7 +494,7 @@ tests:
     - exp_labels:
         alertname: UJNodePoolStuckOperation
         resource_id: /sub/e2e/np/stuck
-        subscription_id: "e2e-sub-00000000-0000-0000-0000-000000000001"
+        subscription_id: "00000000-0000-0000-0000-000000000001"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         operation_type: update
         phase: updating

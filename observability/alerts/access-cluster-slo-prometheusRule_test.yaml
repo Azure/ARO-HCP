@@ -425,9 +425,9 @@ tests:
 # the alert fires for all subscriptions including internal ones.
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/stuck", subscription_id="e2e-sub-00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/stuck", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
     values: "0+0x95"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/stuck", subscription_id="e2e-sub-00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/stuck", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
     values: "1+0x95"
   alert_rule_test:
   - eval_time: 90m
@@ -436,7 +436,7 @@ tests:
     - exp_labels:
         alertname: userJourneyAccessClusterStuckOperation
         resource_id: /sub/e2e/cluster/stuck
-        subscription_id: "e2e-sub-00000000-0000-0000-0000-000000000001"
+        subscription_id: "00000000-0000-0000-0000-000000000001"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         operation_type: requestcredential
         phase: accepted
