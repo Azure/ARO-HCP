@@ -188,6 +188,8 @@ func CommonRoundTripFuzzFuncs() []interface{} {
 			j.ClusterUID = ""
 			j.BillingDocumentCosmosID = ""
 			j.UsesNewClusterDeletionApproach = false
+			j.DeleteOperationCompletionTimeout = nil
+			j.DeleteOperationCompletionDeadline = nil
 		},
 		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)

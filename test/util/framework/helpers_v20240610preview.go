@@ -119,6 +119,7 @@ func NewDefaultClusterParams20240610() ClusterParams20240610 {
 		Tags: map[string]*string{
 			api.TagClusterSizeOverride:        to.Ptr(string(api.MinimalControlPlanePodSizing)),
 			api.TagClusterMaxCreationDuration: to.Ptr((ClusterCreationTimeout - time.Minute).String()),
+			api.TagClusterMaxDeletionDuration: to.Ptr((HCPClusterDeletionTimeout - time.Minute).String()),
 		},
 	}
 	applyCPOImageOverride(params.Tags)

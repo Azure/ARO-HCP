@@ -793,13 +793,16 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 	}
 
 	if cluster.ServiceProviderProperties.DeletionTimestamp == nil {
-		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
+		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: f.clock.Now().UTC()}
 	}
 	cluster.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	cluster.ServiceProviderProperties.ProvisioningState = operationDoc.Status
 	// TODO remove this once migration of the new cluster deletion from frontend to backend approach is fully completed in all ARO-HCP
 	// permanent environments, for all regions.
 	cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = true
+
+	cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline = computeDeleteOperationCompletionDeadline(cluster)
+
 	_, err = f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).
 		AddReplaceToTransaction(ctx, transaction, cluster, nil)
 	if err != nil {
@@ -829,6 +832,15 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 	}
 
 	return nil
+}
+
+func computeDeleteOperationCompletionDeadline(cluster *api.HCPOpenShiftCluster) *metav1.Time {
+	duration := admission.DefaultDeleteOperationCompletionDeadlineDuration
+	if cluster.ServiceProviderProperties.DeleteOperationCompletionTimeout != nil {
+		duration = *cluster.ServiceProviderProperties.DeleteOperationCompletionTimeout
+	}
+	deadline := metav1.NewTime(cluster.ServiceProviderProperties.DeletionTimestamp.Add(duration))
+	return &deadline
 }
 
 func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*api.HCPOpenShiftCluster, error) {
