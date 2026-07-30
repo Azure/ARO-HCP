@@ -158,7 +158,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:1c08423483e1c4bd336c1102a6f7d2eb4cd436791956abb18b342acbfc680b52 # v5.0.4 (2026-07-14 11:04)
+        digest: sha256:c81f949228a0d446aea4966d8da39cfcd63f17c69a5eae143ce8264ddddc5777 # v5.0.4 (2026-07-28 19:40)
       resources:
         requests:
           cpu: 100m
@@ -174,7 +174,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:206f073201e176734ee99b6166dec7ddf4befdfa13544a577ea7659e598760e4 # 1.43.0-20260724-2 (2026-07-24 02:01)
+        digest: sha256:5c0159feac3312c447b10c840558a5db6591f78c498cf9150e010be9fa860a20 # 1.43.0-20260728-3 (2026-07-28 17:38)
   # Kube Events
   kubeEvents:
     enabled: true
@@ -365,7 +365,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:6c7bf8907fc4c1679899e9740760b6ae65f53c58a08c95418211b598aeded037 # 02c0659e4c791eb139431ba4bc0c8646fd09e0e3 (2026-07-27 12:49)
+      digest: sha256:db494fb318d496183b2be22da0367920c4d9664fa52f2e88ee21842bb84648ce # c5c1b86e55365f267065fa17eaec2b6b4d82037d (2026-07-29 22:08)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -465,15 +465,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:47123c8d7d2b251ed06f6a6842474a96107ef40f6098b75c34cc50ed3ddebfbe # 1.6.1 (2026-07-14 19:56)
+      digest: sha256:a48979677ab533f849bf8c15eaab148f74857c8f48da945f52f10f029fdb569c # 1.6.1 (2026-07-27 18:10)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:a3e54c83a5f3655a8337964b4375d3ee676daecdb38c7ad311f26b50b261095c # 1.6.1 (2026-07-27 13:52)
+      digest: sha256:c4c26fca6614917e9b2812415e8f912fc45cfe6ea1755efea443670763898e3d # 1.6.1 (2026-07-27 18:00)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:327b3ef02f3580dd28ab5ecf5f30c509708275733cf5eeb609be7dc8a523ffce # 1.6.1 (2026-07-14 19:55)
+      digest: sha256:e072512980311316a92b5cfc9252b7d71fc9e534d8db8a9db2ff1d7004e1524b # 1.6.1 (2026-07-27 18:00)
   # SVC cluster specifics
   svc:
     subscription:
@@ -572,13 +572,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: dba7abd5f2d0045614ad81d3b594784a6145e18c2ed1fbec2b9030f920b53079 # v0.92.1 (2026-07-13 23:18)
+          sha: 5d7972807c5809c4dcb5ddb73782d9e1ac5933ff6d4d9b70e8baf9b97bfc98ab # v0.93.0 (2026-07-29 11:25)
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: bfdfd1b32e7fa6bf7420fa09cf0e4d46a4757c301ddc345a99b46efac8fb9ebc # v3.12.0 (2026-07-22 13:40)
+          sha: addf21a90b6d1af9c3e3b8bf3242209a307880ce93daa354b7c6e4cf08e4c95d # v3.12.0 (2026-07-27 19:17)
         version: ""
         resources:
           requests:
@@ -592,7 +592,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: 8e259204db001c773408a4dfe5f028ef4606c55d48f9e5273b8659abb559c7ff # v0.92.1 (2026-07-14 01:51)
+          sha: e502320119de5f35c2fbc803bab5b78ba3a7ed177dd45b5493dd9130b7760da7 # v0.93.0 (2026-07-29 11:19)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -704,13 +704,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: dba7abd5f2d0045614ad81d3b594784a6145e18c2ed1fbec2b9030f920b53079 # v0.92.1 (2026-07-13 23:18)
+          sha: 5d7972807c5809c4dcb5ddb73782d9e1ac5933ff6d4d9b70e8baf9b97bfc98ab # v0.93.0 (2026-07-29 11:25)
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: bfdfd1b32e7fa6bf7420fa09cf0e4d46a4757c301ddc345a99b46efac8fb9ebc # v3.12.0 (2026-07-22 13:40)
+          sha: addf21a90b6d1af9c3e3b8bf3242209a307880ce93daa354b7c6e4cf08e4c95d # v3.12.0 (2026-07-27 19:17)
         resources:
           requests:
             cpu: NONE
@@ -723,7 +723,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: 8e259204db001c773408a4dfe5f028ef4606c55d48f9e5273b8659abb559c7ff # v0.92.1 (2026-07-14 01:51)
+          sha: e502320119de5f35c2fbc803bab5b78ba3a7ed177dd45b5493dd9130b7760da7 # v0.93.0 (2026-07-29 11:19)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -1014,25 +1014,25 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:ce18b280552cf120b48a1727c2941a519629fdf6eee8819d0e53654e52d41b9d # a6f773d61d5be43bae49438c855cb0a0a48306cd (2026-07-28 21:53)
+      digest: sha256:b18d465c3adeb15d59fb20be899c40b3693b039f0465e6cb27b5ceb930d76e63 # 298be013b66f81f8df298ee44ed1866d8d465845 (2026-07-29 22:19)
   # ACM
   acm:
     operator:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:ea926296090348eb9da4e6c21d1d4d1980663114b60fe206597795b42efe1681 # v2.16.3-540 (2026-07-27 11:23)
+        digest: sha256:d1c41ac902c8f44741958adf9e9d041088805f0f933ab2e42e4e497453b40118 # v2.16.3-545 (2026-07-29 22:27)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:9914fc94ed0ae2769a489c7bffc30dd7230787bd40e1f6c1cf94279a873dd3b8 # v2.11.4-585 (2026-07-26 16:20)
+        digest: sha256:bda19d4f4411ea496d2cacde57755b68e85667f8b4892eb336a20d2bc49fbed9 # v2.11.4-590 (2026-07-29 22:22)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:be309bb2edbf13e80bd00a29087be7e972c04e138c43b9dc0f89a0311ca8250a # 2f86d57349b7df92aabb258619511975a71268bd (2026-07-27 14:26)
+      digest: sha256:981637a1e08c3a6c86f3631c6642f6f1412c2e89d306590f72958712f7a9211d # 9b8050b0c3afb0a70d866f38cc912680cc745ba9 (2026-07-29 16:14)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1094,7 +1094,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:d1640e5efc8b323555e23c53e81803d09f491c023f5fa3e27fd7b139ad205e5b # 3ef73e3 (2026-07-27 13:45)
+        digest: sha256:2a618f4ae865b5a57c25d0111e3916e59760ef75ed6c7001da1b1988080b9940 # 327dbf0 (2026-07-29 21:36)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
