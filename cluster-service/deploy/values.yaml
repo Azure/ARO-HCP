@@ -9,6 +9,7 @@ replicas: 1
 imageRegistry: "localhost"
 imageRepository: "clusters-service"
 imageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+waitForKeyvaultSpcImage: "localhost/aks-command-runtime:latest"
 logLevel: 4
 runtimeMode: "aro-hcp"
 defaultExpiration: "0"

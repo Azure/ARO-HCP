@@ -21,6 +21,10 @@ imageRegistry: "{{ .acr.svc.name }}.azurecr.io"
 imageRepository: "{{ .clustersService.image.repository }}"
 # Image Digest
 imageDigest: "{{ .clustersService.image.digest }}"
+# Image used by the wait-for-keyvault-spc init container to poll for the
+# cs-keyvault SecretProviderClass via kubectl before mounting the keyvault
+# CSI volume.
+waitForKeyvaultSpcImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
 # log verbosity level. It is a go-logr/logr verbosity level.
 logLevel: 4
 # Number of replicas of the service to run.

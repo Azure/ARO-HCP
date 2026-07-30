@@ -7807,6 +7807,40 @@ data:
           version_constraints:
             min_version: 4.11.0
 ---
+# Source: clusters-service/templates/cs-keyvault.rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cs-keyvault-spc-reader
+  namespace: 'clusters-service'
+  labels:
+    app: clusters-service
+rules:
+- apiGroups:
+  - secrets-store.csi.x-k8s.io
+  resources:
+  - secretproviderclasses
+  verbs:
+  - get
+  - list
+---
+# Source: clusters-service/templates/cs-keyvault.rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cs-keyvault-spc-reader
+  namespace: 'clusters-service'
+  labels:
+    app: clusters-service
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cs-keyvault-spc-reader
+subjects:
+- kind: ServiceAccount
+  name: 'clusters-service'
+  namespace: 'clusters-service'
+---
 # Source: clusters-service/templates/service.yaml
 apiVersion: v1
 kind: Service
@@ -7966,6 +8000,41 @@ spec:
           volumeAttributes:
             secretProviderClass: cs-keyvault
       initContainers:
+      - name: wait-for-keyvault-spc
+        # Waits for the "cs-keyvault" SecretProviderClass to exist before the
+        # next init container mounts the CSI-backed "keyvault" volume that
+        # depends on it. Helm has no ordering guarantee between this
+        # Deployment and the SecretProviderClass resource (it's an
+        # unrecognized Kind to Helm's installer, so it can land before or
+        # after the Deployment on any given install/upgrade), so on a fresh
+        # cluster bring-up the Deployment's pods can be scheduled before the
+        # SecretProviderClass object exists, causing FailedMount/CrashLoop on
+        # clusters-service-init until it shows up. This container does not
+        # mount the "keyvault" volume itself, so kubelet can start it
+        # immediately regardless of CSI/SecretProviderClass state. On
+        # upgrades, where the SecretProviderClass already exists from a
+        # prior install, this is a fast no-op.
+        image: 'mcr.microsoft.com/aks/command/runtime@sha256:1234567890'
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          until kubectl get secretproviderclass cs-keyvault -n "${POD_NAMESPACE}" >/dev/null 2>&1; do
+            echo "waiting for secretproviderclass cs-keyvault to exist"
+            sleep 2
+          done
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        resources:
+          requests:
+            memory: "16Mi"
+            cpu: "10m"
+          limits:
+            memory: "32Mi"
       - name: clusters-service-init
         image: 'arohcpsvcdev.azurecr.io/app-sre/aro-hcp-clusters-service@sha256:1234567890'
         imagePullPolicy: IfNotPresent

@@ -1,0 +1,31 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cs-keyvault-spc-reader
+  namespace: '{{ .Release.Namespace }}'
+  labels:
+    app: clusters-service
+rules:
+- apiGroups:
+  - secrets-store.csi.x-k8s.io
+  resources:
+  - secretproviderclasses
+  verbs:
+  - get
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cs-keyvault-spc-reader
+  namespace: '{{ .Release.Namespace }}'
+  labels:
+    app: clusters-service
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cs-keyvault-spc-reader
+subjects:
+- kind: ServiceAccount
+  name: '{{ .Values.serviceAccountName }}'
+  namespace: '{{ .Release.Namespace }}'

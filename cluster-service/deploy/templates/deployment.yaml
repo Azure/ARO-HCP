@@ -97,6 +97,41 @@ spec:
           volumeAttributes:
             secretProviderClass: cs-keyvault
       initContainers:
+      - name: wait-for-keyvault-spc
+        # Waits for the "cs-keyvault" SecretProviderClass to exist before the
+        # next init container mounts the CSI-backed "keyvault" volume that
+        # depends on it. Helm has no ordering guarantee between this
+        # Deployment and the SecretProviderClass resource (it's an
+        # unrecognized Kind to Helm's installer, so it can land before or
+        # after the Deployment on any given install/upgrade), so on a fresh
+        # cluster bring-up the Deployment's pods can be scheduled before the
+        # SecretProviderClass object exists, causing FailedMount/CrashLoop on
+        # clusters-service-init until it shows up. This container does not
+        # mount the "keyvault" volume itself, so kubelet can start it
+        # immediately regardless of CSI/SecretProviderClass state. On
+        # upgrades, where the SecretProviderClass already exists from a
+        # prior install, this is a fast no-op.
+        image: '{{ .Values.waitForKeyvaultSpcImage }}'
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          until kubectl get secretproviderclass cs-keyvault -n "${POD_NAMESPACE}" >/dev/null 2>&1; do
+            echo "waiting for secretproviderclass cs-keyvault to exist"
+            sleep 2
+          done
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        resources:
+          requests:
+            memory: "16Mi"
+            cpu: "10m"
+          limits:
+            memory: "32Mi"
       - name: clusters-service-init
         image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}'
         imagePullPolicy: IfNotPresent
