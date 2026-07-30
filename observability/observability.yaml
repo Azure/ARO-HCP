@@ -34,5 +34,5 @@ grafana-dashboards:
   - name: SRE Cluster Health
     path: ./grafana-dashboards/sre/cluster-health
   scratchFolders:
-  - name: Scratchpad (regularly autodeleted)
+  - name: Scratchpad (all dashboards get deleted regularly)
     maxAge: 168h
