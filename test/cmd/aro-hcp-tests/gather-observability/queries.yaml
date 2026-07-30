@@ -2,17 +2,18 @@ panels:
 - title: "Frontend Metrics"
   queries:
   - title: "Frontend Request Latency"
-    description: "Latency of frontend requests, measured as the 95th percentile of request duration. High latency indicates performance issues."
+    description: "P99 frontend request latency by method/route (matches FrontendPathLatency). No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alert)."
     query: |
-      histogram_quantile(0.95,
+      histogram_quantile(0.99,
         sum by (le, route, method) (
-            rate(frontend_http_requests_duration_seconds_bucket[5m])
+          max without (prometheus_replica) (
+            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])
           )
+        )
       )
     unit: seconds
     workspace: svc
     step: "60s"
-    minPeakThreshold: 2.5
 - title: "Backend Metrics"
   queries:
   - title: "Controller Workqueue Retry Ratio"
