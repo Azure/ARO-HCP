@@ -53,20 +53,37 @@ Customer → ARM → Frontend → Backend (async) → Clusters Service → Manag
 
 ### Node Pool Deletion
 
-Node pool deletion follows a simpler path — there is no `uninstalling` phase and no dedicated
-destruct chain. CS deletes the node pool's Maestro resource bundles directly, which cascades
-through the ManifestWork to HyperShift for NodePool resource cleanup on the management cluster.
+Node pool deletion follows a simpler path with its own 3-step destruct chain
+(see `aro-hcp-clusters-service` repo, `pkg/nodepoolprovisioner/acm/aro/destruct/`):
+
+1. The API handler sets the node pool state to `'uninstalling'`. Once in this state, the node
+   pool cannot transition to any other state.
+2. The delete node pool worker picks it up and runs the destruct chain:
+   - `nodePoolCrDestructor`: deletes the ManifestWork for the node pool from the service cluster.
+     ACM propagates the deletion to the management cluster, where HyperShift drains nodes and
+     deallocates Azure VMs. The destructor waits until the ManifestWork is fully gone.
+   - `RhManagedNsgSubnetDissociationDestructor`: removes the RH-managed NSG association from the
+     node pool's subnet (only if the subnet differs from the cluster default).
+   - `nodePoolDbDestructor`: deletes the node pool record and associated resource key from the DB.
+
+Unlike cluster deletion, node pool deletion does not involve ManagedCluster, addon pre-delete
+hooks, or namespace cleanup — it only needs the ManifestWork removal, Azure networking cleanup,
+and DB record deletion.
 
 ### Destruct Chain Behavior
 
-Each destruct chain is **sequential** and runs as Go function calls within the Clusters Service
-process (not as Kubernetes Jobs on the management cluster). The chain always restarts from step 0
-on each reconcile — completed steps return immediately since their resources are already gone.
-If one destructor cannot complete (e.g. ManagedCluster CR stuck pending deletion), all subsequent
-destructors are skipped. CS logs `Not continuing to the next destructor for cluster` on each
-iteration. There is no built-in timeout — the chain retries indefinitely until the blocking step
-resolves or an operator intervenes. Check `conditions/acm/managedClusterConditions` for the
-ManagedCluster state when the chain is stuck.
+Both cluster and node pool destruct chains are **sequential** and run as Go function calls within
+the Clusters Service process (not as Kubernetes Jobs on the management cluster). Each chain
+restarts from step 0 on each reconcile — completed steps return immediately since their resources
+are already gone. If one destructor cannot complete (e.g. ManagedCluster CR stuck pending
+deletion, or a ManifestWork still has a `DeletionTimestamp`), all subsequent destructors are
+skipped. CS logs `destructor ... has not completed yet` or `Not continuing to the next destructor`
+on each iteration. There is no built-in timeout — the chain retries indefinitely until the
+blocking step resolves or an operator intervenes.
+
+For cluster deletion stuck at the ManagedCluster step, check
+`conditions/acm/managedClusterConditions` for the ManagedCluster state. For node pool deletion
+stuck at the CR destructor step, check HyperShift NodePool conditions and ManifestWork status.
 
 ## Topology
 
