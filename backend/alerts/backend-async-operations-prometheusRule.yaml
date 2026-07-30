@@ -44,8 +44,7 @@ spec:
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
             time() - backend_resource_operation_start_time_seconds{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-              operation_type="create",
-              subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
+              operation_type="create"
             }
           )
           and
@@ -58,6 +57,7 @@ spec:
           ) == 1
         ) > 1200
       labels:
+        exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
@@ -73,8 +73,7 @@ spec:
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
             time() - backend_resource_operation_start_time_seconds{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-              operation_type="update",
-              subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
+              operation_type="update"
             }
           )
           and
@@ -87,6 +86,7 @@ spec:
           ) == 1
         ) > 2700
       labels:
+        exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
@@ -101,8 +101,7 @@ spec:
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
             time() - backend_resource_operation_start_time_seconds{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-              operation_type="delete",
-              subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
+              operation_type="delete"
             }
           )
           and
@@ -115,6 +114,7 @@ spec:
           ) == 1
         ) > 1500
       labels:
+        exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
@@ -131,8 +131,7 @@ spec:
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
             time() - backend_resource_operation_start_time_seconds{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-              operation_type="requestcredential",
-              subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
+              operation_type="requestcredential"
             }
           )
           and
@@ -145,6 +144,7 @@ spec:
           ) == 1
         ) > 600
       labels:
+        exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
@@ -158,8 +158,7 @@ spec:
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
             time() - backend_resource_operation_start_time_seconds{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-              operation_type="revokecredentials",
-              subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
+              operation_type="revokecredentials"
             }
           )
           and
@@ -172,6 +171,7 @@ spec:
           ) == 1
         ) > 900
       labels:
+        exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
@@ -188,8 +188,7 @@ spec:
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
             time() - backend_resource_operation_start_time_seconds{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools",
-              operation_type="create",
-              subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
+              operation_type="create"
             }
           )
           and
@@ -202,6 +201,7 @@ spec:
           ) == 1
         ) > 1200
       labels:
+        exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
@@ -216,8 +216,7 @@ spec:
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
             time() - backend_resource_operation_start_time_seconds{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools",
-              operation_type="update",
-              subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
+              operation_type="update"
             }
           )
           and
@@ -230,6 +229,7 @@ spec:
           ) == 1
         ) > 2700
       labels:
+        exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
@@ -243,8 +243,7 @@ spec:
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
             time() - backend_resource_operation_start_time_seconds{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools",
-              operation_type="delete",
-              subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
+              operation_type="delete"
             }
           )
           and
@@ -257,6 +256,7 @@ spec:
           ) == 1
         ) > 1500
       labels:
+        exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
@@ -274,8 +274,7 @@ spec:
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
             time() - backend_resource_operation_start_time_seconds{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
-              operation_type="create",
-              subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
+              operation_type="create"
             }
           )
           and
@@ -288,6 +287,7 @@ spec:
           ) == 1
         ) > 900
       labels:
+        exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
@@ -302,8 +302,7 @@ spec:
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
             time() - backend_resource_operation_start_time_seconds{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
-              operation_type="update",
-              subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
+              operation_type="update"
             }
           )
           and
@@ -316,6 +315,7 @@ spec:
           ) == 1
         ) > 600
       labels:
+        exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
@@ -329,8 +329,7 @@ spec:
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
             time() - backend_resource_operation_start_time_seconds{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
-              operation_type="delete",
-              subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
+              operation_type="delete"
             }
           )
           and
@@ -343,6 +342,7 @@ spec:
           ) == 1
         ) > 900
       labels:
+        exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
@@ -360,8 +360,7 @@ spec:
         (
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
             time() - backend_resource_operation_start_time_seconds{
-              subscription_id!~"974ebd46-8ad3-41e3-afef-7ef25fd5c371|e8c5a115-842d-4d7e-98ad-cfb2c50b209e|e627aa70-36a3-40b0-8e68-975269e39d7b|6ed122d1-7e03-4a01-baae-9020abf350d4|64f0619f-ebc2-4156-9d91-c4c781de7e54|dee2f1be-a999-4e19-b027-221e7adaf7d3|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51|403d9de9-132b-4974-94a5-5b78bdfa191e"
-            }
+              }
           )
           and
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
@@ -371,6 +370,7 @@ spec:
           ) == 1
         ) > 3600
       labels:
+        exclude_internal_subscriptions: "true"
         severity: "3"
       annotations:
         correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'

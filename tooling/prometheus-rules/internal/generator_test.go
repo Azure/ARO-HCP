@@ -455,6 +455,60 @@ spec:
 				assert.True(t, hasDep, "expected a test dependency rule file")
 			},
 		},
+		{
+			name: "config with internal subscription filter enabled",
+			configFile: `
+prometheusRules:
+  rulesFolders:
+  - alerts
+  outputBicep: generated.bicep
+internalSubscriptionFilter:
+  enabled: true
+  table: internal_subscription:info
+`,
+			setupFiles: func(tmpDir string) error {
+				alertsDir := filepath.Join(tmpDir, "alerts")
+				if err := os.Mkdir(alertsDir, 0755); err != nil {
+					return err
+				}
+				if err := os.WriteFile(filepath.Join(alertsDir, "test.yaml"),
+					[]byte("apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: test\nspec:\n  groups:\n  - name: test\n    rules:\n    - alert: TestAlert\n      expr: up == 0\n"), 0644); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(alertsDir, "test_test.yaml"),
+					[]byte("rule_files:\n  - test.yaml\nevaluation_interval: 1m\ntests: []\n"), 0644)
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, opts *Options) {
+				assert.True(t, opts.internalSubFilter.Enabled)
+				assert.Equal(t, "internal_subscription:info", opts.internalSubFilter.Table)
+			},
+		},
+		{
+			name: "config with internal subscription filter enabled but no table",
+			configFile: `
+prometheusRules:
+  rulesFolders:
+  - alerts
+  outputBicep: generated.bicep
+internalSubscriptionFilter:
+  enabled: true
+`,
+			setupFiles: func(tmpDir string) error {
+				alertsDir := filepath.Join(tmpDir, "alerts")
+				if err := os.Mkdir(alertsDir, 0755); err != nil {
+					return err
+				}
+				if err := os.WriteFile(filepath.Join(alertsDir, "test.yaml"),
+					[]byte("apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: test\nspec:\n  groups:\n  - name: test\n    rules:\n    - alert: TestAlert\n      expr: up == 0\n"), 0644); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(alertsDir, "test_test.yaml"),
+					[]byte("rule_files:\n  - test.yaml\nevaluation_interval: 1m\ntests: []\n"), 0644)
+			},
+			expectError: true,
+			errorMsg:    "internalSubscriptionFilter is enabled but no table",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1085,6 +1139,115 @@ func TestOptionsGenerate(t *testing.T) {
 
 		assert.Contains(t, generated, `namespace="already-scoped"`)
 		assert.NotContains(t, generated, `namespace=~"aro-hcp"`)
+	})
+
+	t.Run("exclude_internal_subscriptions label appends unless clause when filter enabled", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			internalSubFilter: InternalSubscriptionFilterConfig{
+				Enabled: true,
+				Table:   "internal_subscription:info",
+			},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test.rules",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "FilteredAlert",
+											Expr:  intstr.FromString(`max by (subscription_id, cluster) (some_metric{}) > 100`),
+											Labels: map[string]string{
+												"severity":                        "3",
+												"component":                       "backend",
+												"exclude_internal_subscriptions":   "true",
+											},
+											Annotations: map[string]string{
+												"summary": "test {{ $labels.cluster }}",
+											},
+										},
+										{
+											Alert: "UnfilteredAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity":  "3",
+												"component": "test",
+											},
+											Annotations: map[string]string{
+												"summary": "test {{ $labels.cluster }}",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		// FilteredAlert should have unless clause appended
+		assert.Contains(t, generated, "unless on(subscription_id) internal_subscription:info")
+		// exclude_internal_subscriptions label should be stripped from output
+		assert.NotContains(t, generated, "exclude_internal_subscriptions")
+		// UnfilteredAlert should NOT have unless clause
+		assert.Contains(t, generated, "alert: 'UnfilteredAlert'")
+	})
+
+	t.Run("exclude_internal_subscriptions label errors when filter not enabled", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			// Filter NOT enabled
+			internalSubFilter: InternalSubscriptionFilterConfig{
+				Enabled: false,
+			},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test.rules",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "MisconfiguredAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity":                        "3",
+												"component":                       "test",
+												"exclude_internal_subscriptions":   "true",
+											},
+											Annotations: map[string]string{
+												"summary": "test {{ $labels.cluster }}",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "exclude_internal_subscriptions label but internalSubscriptionFilter is not enabled")
 	})
 }
 
