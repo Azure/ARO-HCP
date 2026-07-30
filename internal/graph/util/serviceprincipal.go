@@ -17,6 +17,9 @@ package util
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/ARO-HCP/internal/graph/graphsdk/models"
 )
@@ -28,16 +31,25 @@ type ServicePrincipal struct {
 	DisplayName string `json:"displayName"`
 }
 
-// CreateServicePrincipal creates a new Microsoft Entra service principal.
-// Transient errors and eventual-consistency delays are retried by the
-// transport-level graphRetryHandler middleware.
+// CreateServicePrincipal creates a new Microsoft Entra service principal
 func (c *Client) CreateServicePrincipal(ctx context.Context, appId string) (*ServicePrincipal, error) {
 	sp := models.NewServicePrincipal()
 	sp.SetAppId(&appId)
 
-	createdSp, err := c.graphClient.ServicePrincipals().Post(ctx, sp, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create service principal: %w", err)
+	// Eventual consistency of MSGraph means sometimes you have to wait until the
+	// App registration is propagated before creating a service principal
+	var createdSp models.ServicePrincipalable
+	pollErr := wait.PollUntilContextTimeout(ctx, 5*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
+		var err error
+		createdSp, err = c.graphClient.ServicePrincipals().Post(ctx, sp, nil)
+		if err != nil {
+			// Retry on error
+			return false, nil
+		}
+		return true, nil
+	})
+	if pollErr != nil {
+		return nil, fmt.Errorf("failed to create service principal: %w", pollErr)
 	}
 
 	return &ServicePrincipal{
