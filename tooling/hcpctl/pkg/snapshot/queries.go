@@ -669,6 +669,17 @@ var allQueries = []querySpec{
 		},
 		prerequisites: "ClusterID, ResourceType is cluster",
 	},
+	{
+		component:    "acm",
+		queryName:    "klusterletLogs",
+		templatePath: "queries/acm/klusterletLogs/query.kql",
+		database:     "service",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.ClusterID != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "ClusterID, ResourceType is cluster",
+	},
 
 	// --- Events: time-windowed, component-scoped ---
 	{
