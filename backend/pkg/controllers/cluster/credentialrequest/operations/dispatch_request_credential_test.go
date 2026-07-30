@@ -28,10 +28,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -74,10 +74,21 @@ func TestDispatchRequestCredential_ShouldProcess(t *testing.T) {
 			expected: false,
 		},
 		{
+			name: "nil SystemAdminCredentialRequest should not process",
+			op: &coreapi.Operation{
+				Status:  coreapi.ProvisioningStateAccepted,
+				Request: coreapi.OperationRequestSystemAdminCredentialRequest,
+			},
+			expected: false,
+		},
+		{
 			name: "valid RequestCredential operation should process",
 			op: &coreapi.Operation{
 				Status:  coreapi.ProvisioningStateAccepted,
 				Request: coreapi.OperationRequestSystemAdminCredentialRequest,
+				SystemAdminCredentialRequest: &coreapi.OperationSystemAdminCredentialRequest{
+					CertificateSigningRequest: "-----BEGIN CERTIFICATE REQUEST-----\ntest\n-----END CERTIFICATE REQUEST-----",
+				},
 			},
 			expected: true,
 		},
@@ -99,7 +110,7 @@ func TestDispatchRequestCredential_SynchronizeOperation(t *testing.T) {
 		name        string
 		resources   []any
 		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verify      func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name: "creates credential and stamps credential resource ID",
@@ -108,7 +119,7 @@ func TestDispatchRequestCredential_SynchronizeOperation(t *testing.T) {
 				newTestOperation(coreapi.OperationRequestSystemAdminCredentialRequest),
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				require.NotNil(t, op.SystemAdminCredentialRequest, "SystemAdminCredentialRequest should be set")
@@ -133,7 +144,7 @@ func TestDispatchRequestCredential_SynchronizeOperation(t *testing.T) {
 				newTestOperation(coreapi.OperationRequestSystemAdminCredentialRequest),
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateCanceled, op.Status, "operation should be canceled")
@@ -150,7 +161,7 @@ func TestDispatchRequestCredential_SynchronizeOperation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-			db, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tc.resources)
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tc.resources)
 			require.NoError(t, err)
 
 			syncer := &dispatchRequestCredential{

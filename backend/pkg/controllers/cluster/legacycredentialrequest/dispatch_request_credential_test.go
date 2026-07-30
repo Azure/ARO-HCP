@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package operations
+package legacycredentialrequest
 
 import (
 	"context"
@@ -40,12 +40,15 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 	tests := []struct {
 		name                         string
 		revokeCredentialsOperationID string
+		operationOverride            func(*coreapi.Operation)
+		expectCSCall                 bool
 		expectError                  bool
 		verify                       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture)
 	}{
 		{
-			name:        "successful dispatch records a break-glass credential ID",
-			expectError: false,
+			name:         "successful dispatch records a break-glass credential ID",
+			expectCSCall: true,
+			expectError:  false,
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
@@ -53,8 +56,24 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			},
 		},
 		{
+			name:         "operation with SystemAdminCredentialRequest set is skipped",
+			expectCSCall: false,
+			operationOverride: func(o *coreapi.Operation) {
+				o.SystemAdminCredentialRequest = &coreapi.OperationSystemAdminCredentialRequest{
+					CertificateSigningRequest: "-----BEGIN CERTIFICATE REQUEST-----\ntest\n-----END CERTIFICATE REQUEST-----",
+				}
+			},
+			expectError: false,
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Empty(t, op.InternalID.String(), "InternalID should remain empty")
+			},
+		},
+		{
 			name:                         "in-progress revocation cancels operation",
 			revokeCredentialsOperationID: "test-revoke-operation-id",
+			expectCSCall:                 false,
 			expectError:                  false,
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
@@ -76,13 +95,16 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			cluster.ServiceProviderProperties.RevokeCredentialsOperationID = tt.revokeCredentialsOperationID
 			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestSystemAdminCredentialRequest)
 			operation.InternalID = metadataapi.InternalID{}
+			if tt.operationOverride != nil {
+				tt.operationOverride(operation)
+			}
 
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 
-			if len(tt.revokeCredentialsOperationID) == 0 {
+			if tt.expectCSCall {
 				breakGlassCredential, err := cmv1.NewBreakGlassCredential().
 					HREF(operationtesting.TestBreakGlassCredentialIDStr).
 					Build()

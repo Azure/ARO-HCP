@@ -40,8 +40,14 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
 	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
-	credentialsoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentials/operations"
+	credentialrequestcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/creation"
+	credentialrequestdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/deletion"
+	credentialrequestoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/operations"
+	credentialrevocationcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/creation"
+	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
+	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
@@ -423,6 +429,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	unionKubeApplierInformers := unionKubeApplierInformersController.Union()
 	_, unionReadDesireLister := unionKubeApplierInformers.ReadDesires()
+	_, unionApplyDesireLister := unionKubeApplierInformers.ApplyDesires()
 
 	clusterInformer, clusterLister := backendInformers.Clusters()
 	clusterHandler := metrics.NewClusterMetricsHandler(b.options.MetricsRegisterer)
@@ -460,17 +467,95 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	billingDumpController := datadump.NewBillingDumpController(b.options.ResourcesDBClient, b.options.BillingDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers)
 	managementClusterDumpController := datadump.NewManagementClusterDataDumpController(b.options.FleetDBClient, managementClusterLister, fleetInformers)
 	doNothingController := example.NewDoNothingExampleController(b.options.ResourcesDBClient, subscriptionLister)
-	dispatchRequestCredentialController := credentialsoperations.NewDispatchRequestCredentialController(
+	dispatchRequestCredentialController := legacycredentialrequest.NewDispatchRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationInformer,
 	)
-	dispatchRevokeCredentialsController := credentialsoperations.NewDispatchRevokeCredentialsController(
+	adminCredentialsDispatchRequestCredentialController := credentialrequestoperations.NewDispatchRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
 		activeOperationInformer,
+	)
+	adminCredentialsDispatchRevokeCredentialsController := credentialrevocationoperations.NewDispatchRevokeCredentialsController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		activeOperationInformer,
+	)
+	adminCredentialsOperationRequestCredentialPollController := credentialrequestoperations.NewOperationRequestCredentialPollController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		http.DefaultClient,
+		activeOperationInformer,
+	)
+	adminCredentialsOperationRevokeCredentialsPollController := credentialrevocationoperations.NewOperationRevokeCredentialsPollController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		http.DefaultClient,
+		activeOperationInformer,
+	)
+	adminCredentialsIssuanceObserverController := credentialrequestcreation.NewIssuanceObserverController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+		unionKubeApplierInformers,
+		unionReadDesireLister,
+	)
+	adminCredentialsDesiresCreatorController := credentialrequestcreation.NewDesiresCreatorController(
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	adminCredentialsPostIssuanceCleanupController := credentialrequestdeletion.NewPostIssuanceCleanupController(
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	adminCredentialsRevokedGCController := credentialrequestdeletion.NewRevokedGCController(
+		b.clock,
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+	adminCredentialsClusterDeletionCleanupController := credentialrequestdeletion.NewClusterDeletionCleanupController(
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	systemAdminCredentialRevocationMarkRequestsController := credentialrevocationcreation.NewRevocationMarkRequestsController(
+		b.clock,
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+	systemAdminCredentialRevocationDesiresController := credentialrevocationcreation.NewRevocationDesiresController(
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionApplyDesireLister,
+		unionReadDesireLister,
+	)
+	systemAdminCredentialRevocationCompletionController := credentialrevocationdeletion.NewRevocationCompletionController(
+		b.clock,
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		unionReadDesireLister,
+	)
+	systemAdminCredentialRevocationDeletionController := credentialrevocationdeletion.NewRevocationDeletionController(
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
 	)
 
 	operationClusterCreateController := clusteroperations.NewOperationClusterCreateController(
@@ -549,14 +634,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		http.DefaultClient,
 		activeOperationInformer,
 	)
-	operationRequestCredentialController := credentialsoperations.NewOperationRequestCredentialController(
-		b.clock,
-		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
-		http.DefaultClient,
-		activeOperationInformer,
-	)
-	operationRevokeCredentialsController := credentialsoperations.NewOperationRevokeCredentialsController(
+	operationRequestCredentialController := legacycredentialrequest.NewOperationRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -949,7 +1027,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go managementClusterDumpController.Run(ctx, 20)
 				go doNothingController.Run(ctx, 20)
 				go dispatchRequestCredentialController.Run(ctx, 20)
-				go dispatchRevokeCredentialsController.Run(ctx, 20)
+				go adminCredentialsDispatchRequestCredentialController.Run(ctx, 20)
+				go adminCredentialsDispatchRevokeCredentialsController.Run(ctx, 20)
+				go adminCredentialsOperationRequestCredentialPollController.Run(ctx, 20)
+				go adminCredentialsOperationRevokeCredentialsPollController.Run(ctx, 20)
+				go adminCredentialsIssuanceObserverController.Run(ctx, 20)
+				go adminCredentialsDesiresCreatorController.Run(ctx, 20)
+				go adminCredentialsPostIssuanceCleanupController.Run(ctx, 20)
+				go adminCredentialsRevokedGCController.Run(ctx, 20)
+				go adminCredentialsClusterDeletionCleanupController.Run(ctx, 20)
+				go systemAdminCredentialRevocationMarkRequestsController.Run(ctx, 20)
+				go systemAdminCredentialRevocationDesiresController.Run(ctx, 20)
+				go systemAdminCredentialRevocationCompletionController.Run(ctx, 20)
+				go systemAdminCredentialRevocationDeletionController.Run(ctx, 20)
 				go clusterPendingClusterServiceIDAssignController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
 				go nodePoolClusterServiceCreateController.Run(ctx, 20)
@@ -964,7 +1054,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go operationExternalAuthUpdateController.Run(ctx, 20)
 				go operationExternalAuthDeleteController.Run(ctx, 20)
 				go operationRequestCredentialController.Run(ctx, 20)
-				go operationRevokeCredentialsController.Run(ctx, 20)
 				go clusterServiceMatchingClusterController.Run(ctx, 20)
 				go alwaysSuccessClusterValidationController.Run(ctx, 20)
 				go deleteOrphanedCosmosResourcesController.Run(ctx, 20)

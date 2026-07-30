@@ -21,8 +21,8 @@ import (
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,17 +36,17 @@ func TestRevocationDeletion_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		setupDB     func(db *databasetesting.MockResourcesDBClient)
+		setupDB     func(db *corecosmosstoragetesting.MockResourcesDBClient)
 		expectError bool
 	}{
 		{
 			name:        "revocation not found returns nil",
-			setupDB:     func(db *databasetesting.MockResourcesDBClient) {},
+			setupDB:     func(db *corecosmosstoragetesting.MockResourcesDBClient) {},
 			expectError: false,
 		},
 		{
 			name: "revocation without DeletionTimestamp is no-op",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createTestRevocation(t, db, testRevocationName)
 			},
 			expectError: false,
@@ -56,7 +56,7 @@ func TestRevocationDeletion_SyncOnce(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			db := databasetesting.NewMockResourcesDBClient()
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tc.setupDB(db)
 
 			syncer := &revocationDeletion{
