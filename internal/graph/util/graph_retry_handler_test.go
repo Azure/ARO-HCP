@@ -88,19 +88,24 @@ func TestRetriableStatusCodes(t *testing.T) {
 		name       string
 		method     string
 		statusCode int
+		url        string
 		wantRetry  bool
 	}{
-		{"429 on GET retries", http.MethodGet, http.StatusTooManyRequests, true},
-		{"429 on POST retries", http.MethodPost, http.StatusTooManyRequests, true},
-		{"503 retries", http.MethodGet, http.StatusServiceUnavailable, true},
-		{"504 retries", http.MethodGet, http.StatusGatewayTimeout, true},
-		{"404 on POST retries", http.MethodPost, http.StatusNotFound, true},
-		{"404 on GET does not retry", http.MethodGet, http.StatusNotFound, false},
-		{"404 on DELETE does not retry", http.MethodDelete, http.StatusNotFound, false},
-		{"400 does not retry", http.MethodPost, http.StatusBadRequest, false},
-		{"403 does not retry", http.MethodPost, http.StatusForbidden, false},
-		{"500 does not retry", http.MethodPost, http.StatusInternalServerError, false},
-		{"200 does not retry", http.MethodPost, http.StatusOK, false},
+		{"429 on GET retries", http.MethodGet, http.StatusTooManyRequests, "", true},
+		{"429 on POST retries", http.MethodPost, http.StatusTooManyRequests, "", true},
+		{"503 retries", http.MethodGet, http.StatusServiceUnavailable, "", true},
+		{"504 retries", http.MethodGet, http.StatusGatewayTimeout, "", true},
+		{"404 on POST retries", http.MethodPost, http.StatusNotFound, "", true},
+		{"404 on GET does not retry", http.MethodGet, http.StatusNotFound, "", false},
+		{"404 on DELETE does not retry", http.MethodDelete, http.StatusNotFound, "", false},
+		{"400 on POST /servicePrincipals retries (eventual consistency)", http.MethodPost, http.StatusBadRequest, "https://graph.microsoft.com/v1.0/servicePrincipals", true},
+		{"400 on POST /applications does not retry", http.MethodPost, http.StatusBadRequest, "https://graph.microsoft.com/v1.0/applications", false},
+		{"400 on POST addPassword does not retry", http.MethodPost, http.StatusBadRequest, "", false},
+		{"400 on GET /servicePrincipals does not retry", http.MethodGet, http.StatusBadRequest, "https://graph.microsoft.com/v1.0/servicePrincipals", false},
+		{"400 on DELETE does not retry", http.MethodDelete, http.StatusBadRequest, "", false},
+		{"403 does not retry", http.MethodPost, http.StatusForbidden, "", false},
+		{"500 does not retry", http.MethodPost, http.StatusInternalServerError, "", false},
+		{"200 does not retry", http.MethodPost, http.StatusOK, "", false},
 	}
 
 	for _, tt := range tests {
@@ -113,7 +118,12 @@ func TestRetriableStatusCodes(t *testing.T) {
 			}
 
 			handler := newGraphRetryHandler()
-			req := newRequest(tt.method)
+			var req *http.Request
+			if tt.url != "" {
+				req = httptest.NewRequest(tt.method, tt.url, nil)
+			} else {
+				req = newRequest(tt.method)
+			}
 			resp, err := handler.Intercept(pipeline, 0, req)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
