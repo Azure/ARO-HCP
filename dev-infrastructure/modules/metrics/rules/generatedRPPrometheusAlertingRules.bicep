@@ -39,9 +39,9 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyAccessClusterErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of credential operations (requestcredential/revokecredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
           info: 'More than 72% of credential operations (requestcredential/revokecredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential operation error rate critically high (>72%)'
-          title: '{{ $labels.cluster }}: Credential operation error rate critically high (>72%)'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
+          summary: 'Credential operation error rate critically high (>72%)'
+          title: 'Credential operation error rate critically high (>72%)'
         }
         expression: 'errors:backend_credential_operation:error_rate > 0.72'
         for: 'PT5M'
@@ -70,9 +70,9 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyAccessClusterErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of credential operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           info: 'More than 30% of credential operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential operation error rate elevated (>30%) for 30+ minutes'
-          title: '{{ $labels.cluster }}: Credential operation error rate elevated (>30%) for 30+ minutes'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
+          summary: 'Credential operation error rate elevated (>30%) for 30+ minutes'
+          title: 'Credential operation error rate elevated (>30%) for 30+ minutes'
         }
         expression: 'errors:backend_credential_operation:error_rate > 0.3'
         for: 'PT30M'
@@ -100,9 +100,9 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyAccessClusterErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of credential operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           info: 'More than 5% of credential operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential operation error rate exceeds SLO target (>5%) for 6+ hours'
-          title: '{{ $labels.cluster }}: Credential operation error rate exceeds SLO target (>5%) for 6+ hours'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
+          summary: 'Credential operation error rate exceeds SLO target (>5%) for 6+ hours'
+          title: 'Credential operation error rate exceeds SLO target (>5%) for 6+ hours'
         }
         expression: 'errors:backend_credential_operation:error_rate > 0.05'
         for: 'PT6H'
@@ -129,9 +129,9 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyAccessClusterErrorsDegradation/{{ $labels.cluster }}'
           description: 'The credential operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
           info: 'The credential operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential operation failure rate exceeds 15% for 30 minutes'
-          title: '{{ $labels.cluster }}: Credential operation failure rate exceeds 15% for 30 minutes'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
+          summary: 'Credential operation failure rate exceeds 15% for 30 minutes'
+          title: 'Credential operation failure rate exceeds 15% for 30 minutes'
         }
         expression: 'errors:backend_credential_operation:error_rate > 0.15'
         for: 'PT30M'
@@ -157,9 +157,9 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyAccessClusterStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
           description: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
-          title: '{{ $labels.cluster }}: Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
+          summary: 'Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+          title: 'Credential operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
         }
         expression: '(((time() - backend_resource_operation_start_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"accepted|provisioning|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) > 3600) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
@@ -198,9 +198,9 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           correlationId: 'userJourneyAccessClusterSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} depth is high'
-          title: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} depth is high'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
+          summary: 'Credential controller workqueue {{ $labels.name }} depth is high'
+          title: 'Credential controller workqueue {{ $labels.name }} depth is high'
         }
         expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"})) > 10'
         for: 'PT5M'
@@ -226,9 +226,9 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           correlationId: 'userJourneyAccessClusterSaturationRetryHotLoop/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           info: 'Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
-          runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
-          summary: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop'
-          title: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop'
+          runbook_url: 'https://aka.ms/arohcp-runbook-access-cluster'
+          summary: 'Credential controller workqueue {{ $labels.name }} retry hot loop'
+          title: 'Credential controller workqueue {{ $labels.name }} retry hot loop'
         }
         expression: '(sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_retries_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m]))) / sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_adds_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m])))) > 0.5 and sum by (name, cluster, region) (max without (prometheus_replica) (rate(workqueue_adds_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m]))) > 0.008'
         for: 'PT10M'
@@ -257,7 +257,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJClusterProvisionErrors1h5m'
+        alert: 'userJourneyClusterProvisionErrors1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -267,12 +267,12 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UJClusterProvisionErrors1h5m/{{ $labels.cluster }}'
+          correlationId: 'userJourneyClusterProvisionErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters.'
           info: 'More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster provisioning error rate critically high (>72%)'
-          title: '{{ $labels.cluster }}: Cluster provisioning error rate critically high (>72%)'
+          summary: 'Cluster provisioning error rate critically high (>72%)'
+          title: 'Cluster provisioning error rate critically high (>72%)'
         }
         expression: 'errors:backend_cluster_provision:error_rate > 0.72'
         for: 'PT5M'
@@ -288,7 +288,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJClusterProvisionErrors6h30m'
+        alert: 'userJourneyClusterProvisionErrors6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -298,12 +298,12 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UJClusterProvisionErrors6h30m/{{ $labels.cluster }}'
+          correlationId: 'userJourneyClusterProvisionErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           info: 'More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster provisioning error rate elevated (>30%) for 30+ minutes'
-          title: '{{ $labels.cluster }}: Cluster provisioning error rate elevated (>30%) for 30+ minutes'
+          summary: 'Cluster provisioning error rate elevated (>30%) for 30+ minutes'
+          title: 'Cluster provisioning error rate elevated (>30%) for 30+ minutes'
         }
         expression: 'errors:backend_cluster_provision:error_rate > 0.3'
         for: 'PT30M'
@@ -319,7 +319,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJClusterProvisionErrors3d'
+        alert: 'userJourneyClusterProvisionErrors3d'
         enabled: true
         labels: {
           component: 'slo'
@@ -328,12 +328,12 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UJClusterProvisionErrors3d/{{ $labels.cluster }}'
+          correlationId: 'userJourneyClusterProvisionErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of cluster create (install) operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           info: 'More than 5% of cluster create (install) operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours'
-          title: '{{ $labels.cluster }}: Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours'
+          summary: 'Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours'
+          title: 'Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours'
         }
         expression: 'errors:backend_cluster_provision:error_rate > 0.05'
         for: 'PT6H'
@@ -349,7 +349,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
             }
           }
         ]
-        alert: 'UJClusterProvisionErrorsDegradation'
+        alert: 'userJourneyClusterProvisionErrorsDegradation'
         enabled: true
         labels: {
           component: 'slo'
@@ -357,12 +357,12 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
           slo: 'cluster-provision-errors'
         }
         annotations: {
-          correlationId: 'UJClusterProvisionErrorsDegradation/{{ $labels.cluster }}'
+          correlationId: 'userJourneyClusterProvisionErrorsDegradation/{{ $labels.cluster }}'
           description: 'The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
           info: 'The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-provision'
-          summary: '{{ $labels.cluster }}: Cluster provisioning failure rate exceeds 15% for 30 minutes'
-          title: '{{ $labels.cluster }}: Cluster provisioning failure rate exceeds 15% for 30 minutes'
+          summary: 'Cluster provisioning failure rate exceeds 15% for 30 minutes'
+          title: 'Cluster provisioning failure rate exceeds 15% for 30 minutes'
         }
         expression: 'errors:backend_cluster_provision:error_rate > 0.15'
         for: 'PT30M'
@@ -470,7 +470,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             }
           }
         ]
-        alert: 'UJNodePoolErrors1h5m'
+        alert: 'userJourneyNodePoolErrors1h5m'
         enabled: true
         labels: {
           component: 'slo'
@@ -480,12 +480,12 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrors1h5m/{{ $labels.cluster }}'
+          correlationId: 'userJourneyNodePoolErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
           info: 'More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation error rate critically high (>72%)'
-          title: '{{ $labels.cluster }}: Node Pool operation error rate critically high (>72%)'
+          summary: 'Node Pool operation error rate critically high (>72%)'
+          title: 'Node Pool operation error rate critically high (>72%)'
         }
         expression: 'errors:backend_nodepool_operation:error_rate > 0.72'
         for: 'PT5M'
@@ -501,7 +501,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             }
           }
         ]
-        alert: 'UJNodePoolErrors6h30m'
+        alert: 'userJourneyNodePoolErrors6h30m'
         enabled: true
         labels: {
           component: 'slo'
@@ -511,12 +511,12 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrors6h30m/{{ $labels.cluster }}'
+          correlationId: 'userJourneyNodePoolErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           info: 'More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30%) for 30+ minutes'
-          title: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30%) for 30+ minutes'
+          summary: 'Node Pool operation error rate elevated (>30%) for 30+ minutes'
+          title: 'Node Pool operation error rate elevated (>30%) for 30+ minutes'
         }
         expression: 'errors:backend_nodepool_operation:error_rate > 0.3'
         for: 'PT30M'
@@ -532,7 +532,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             }
           }
         ]
-        alert: 'UJNodePoolErrors3d'
+        alert: 'userJourneyNodePoolErrors3d'
         enabled: true
         labels: {
           component: 'slo'
@@ -541,12 +541,12 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrors3d/{{ $labels.cluster }}'
+          correlationId: 'userJourneyNodePoolErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           info: 'More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours'
-          title: '{{ $labels.cluster }}: Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours'
+          summary: 'Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours'
+          title: 'Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours'
         }
         expression: 'errors:backend_nodepool_operation:error_rate > 0.05'
         for: 'PT6H'
@@ -562,7 +562,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             }
           }
         ]
-        alert: 'UJNodePoolErrorsDegradation'
+        alert: 'userJourneyNodePoolErrorsDegradation'
         enabled: true
         labels: {
           component: 'slo'
@@ -570,12 +570,12 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrorsDegradation/{{ $labels.cluster }}'
+          correlationId: 'userJourneyNodePoolErrorsDegradation/{{ $labels.cluster }}'
           description: 'The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
           info: 'The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% for 30 minutes'
-          title: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% for 30 minutes'
+          summary: 'Node Pool operation failure rate exceeds 15% for 30 minutes'
+          title: 'Node Pool operation failure rate exceeds 15% for 30 minutes'
         }
         expression: 'errors:backend_nodepool_operation:error_rate > 0.15'
         for: 'PT30M'
@@ -591,19 +591,19 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             }
           }
         ]
-        alert: 'UJNodePoolStuckOperation'
+        alert: 'userJourneyNodePoolStuckOperation'
         enabled: true
         labels: {
           component: 'slo'
           severity: 'info'
         }
         annotations: {
-          correlationId: 'UJNodePoolStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
+          correlationId: 'userJourneyNodePoolStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
           description: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
-          title: '{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
+          summary: 'Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
+          title: 'Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours'
         }
         expression: '(max by (cluster, environment, region, subscription_id, resource_id, resource_type, operation_type, phase) (max_over_time((((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200)[6h:5m]))) unless on (subscription_id) internal_subscription:info'
         for: 'PT15M'
@@ -632,19 +632,19 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
             }
           }
         ]
-        alert: 'UJNodePoolSaturationQueueDepth'
+        alert: 'userJourneyNodePoolSaturationQueueDepth'
         enabled: true
         labels: {
           component: 'slo'
           severity: 'info'
         }
         annotations: {
-          correlationId: 'UJNodePoolSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
+          correlationId: 'userJourneyNodePoolSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high'
-          title: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high'
+          summary: 'Node Pool controller workqueue {{ $labels.name }} depth is high'
+          title: 'Node Pool controller workqueue {{ $labels.name }} depth is high'
         }
         expression: 'max by (name, cluster, region) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10'
         for: 'PT5M'
