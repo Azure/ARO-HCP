@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
@@ -807,6 +808,10 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(
 		},
 		nil,
 	)
+	if err != nil {
+		// flat fail during development so we can see if the new path works or fails.
+		return nil, utils.TrackError(err)
+	}
 	if err != nil {
 		// Fall back to the old 0240610 mechanism during the transition period.
 		fallbackFactory, fallbackErr := tc.Get20240610ClientFactory(ctx)
