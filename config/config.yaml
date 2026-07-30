@@ -219,6 +219,10 @@ defaults:
       namespace: mgmt-agent
       serviceAccountName: mgmt-agent
       replicas: 2
+      resources:
+        requests:
+          cpu: 50m
+          memory: 768Mi
   # Kube Applier Controller
   kubeApplier:
     image:
@@ -758,7 +762,7 @@ defaults:
       resources:
         requests:
           cpu: 100m
-          memory: 500Mi
+          memory: 1Gi
         limits:
           memory: unlimited
     azureRuntimeConfig:

@@ -251,10 +251,11 @@ spec:
         resources:
           requests:
             cpu: 50m
-            memory: 64Mi
+            memory: 768Mi
         volumeMounts: []
       volumes: []
       serviceAccountName: mgmt-agent
+      priorityClassName: service-lifecycle-critical
       terminationGracePeriodSeconds: 10
       nodeSelector:
 ---
