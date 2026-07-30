@@ -10,10 +10,10 @@ require (
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260729121920-58ceb447fbb3
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260729121920-58ceb447fbb3
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260729121920-58ceb447fbb3
+	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260727122144-6ea2301aeed1
 	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260729121920-58ceb447fbb3
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260729121920-58ceb447fbb3
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260729121920-58ceb447fbb3
-	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260727122144-6ea2301aeed1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2

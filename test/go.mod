@@ -77,10 +77,10 @@ require (
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260729121920-58ceb447fbb3 // indirect
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260729121920-58ceb447fbb3 // indirect
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260729121920-58ceb447fbb3 // indirect
+	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260727122144-6ea2301aeed1 // indirect
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260729121920-58ceb447fbb3 // indirect
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260729121920-58ceb447fbb3 // indirect
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260729121920-58ceb447fbb3 // indirect
-	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260727122144-6ea2301aeed1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0 // indirect
