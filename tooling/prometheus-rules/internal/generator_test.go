@@ -1163,9 +1163,9 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "FilteredAlert",
 											Expr:  intstr.FromString(`max by (subscription_id, cluster) (some_metric{}) > 100`),
 											Labels: map[string]string{
-												"severity":                        "3",
-												"component":                       "backend",
-												"exclude_internal_subscriptions":   "true",
+												"severity":                       "3",
+												"component":                      "backend",
+												"exclude_internal_subscriptions": "true",
 											},
 											Annotations: map[string]string{
 												"summary": "test {{ $labels.cluster }}",
@@ -1228,9 +1228,9 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "MisconfiguredAlert",
 											Expr:  intstr.FromString("up == 0"),
 											Labels: map[string]string{
-												"severity":                        "3",
-												"component":                       "test",
-												"exclude_internal_subscriptions":   "true",
+												"severity":                       "3",
+												"component":                      "test",
+												"exclude_internal_subscriptions": "true",
 											},
 											Annotations: map[string]string{
 												"summary": "test {{ $labels.cluster }}",
