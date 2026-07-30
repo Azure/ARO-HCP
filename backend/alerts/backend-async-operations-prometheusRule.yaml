@@ -359,8 +359,7 @@ spec:
       expr: |
         (
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
-            time() - backend_resource_operation_start_time_seconds{
-              }
+            time() - backend_resource_operation_start_time_seconds
           )
           and
           max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
