@@ -23,17 +23,17 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type dispatchRevokeCredentials struct {
 	clock             utilsclock.PassiveClock
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 // NewDispatchRevokeCredentialsController returns a Controller that handles the
@@ -53,7 +53,7 @@ type dispatchRevokeCredentials struct {
 //	  SystemAdminCredentialRevocation: nil
 func NewDispatchRevokeCredentialsController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &dispatchRevokeCredentials{
@@ -61,7 +61,7 @@ func NewDispatchRevokeCredentialsController(
 		resourcesDBClient: resourcesDBClient,
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"SystemAdminCredentialDispatchRevokeCredentials",
 		syncer,
 		10*time.Second,
@@ -90,7 +90,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	logger.Info("checking revoke operation")
 
 	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -133,7 +133,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	}
 
 	// Create the revocation document if it does not already exist.
-	if _, err := revocationCRUD.Get(ctx, revokeOpSuffix); database.IsNotFoundError(err) {
+	if _, err := revocationCRUD.Get(ctx, revokeOpSuffix); cosmosstorageutils.IsNotFoundError(err) {
 		newRevocation := &api.SystemAdminCredentialRevocation{
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID:   revocationResourceID,
@@ -144,7 +144,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 				RevokeOpSuffix: revokeOpSuffix,
 			},
 		}
-		if _, err := revocationCRUD.Create(ctx, newRevocation, nil); err != nil && !database.IsConflictError(err) {
+		if _, err := revocationCRUD.Create(ctx, newRevocation, nil); err != nil && !cosmosstorageutils.IsConflictError(err) {
 			return utils.TrackError(fmt.Errorf("failed to create SystemAdminCredentialRevocation: %w", err))
 		}
 	} else if err != nil {

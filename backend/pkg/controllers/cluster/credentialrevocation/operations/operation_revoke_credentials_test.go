@@ -27,10 +27,10 @@ import (
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -101,25 +101,25 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		setupDB     func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		setupDB     func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verify      func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:        "operation not found returns nil",
-			setupDB:     func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {},
+			setupDB:     func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {},
 			expectError: false,
 		},
 		{
 			name: "operation has no SystemAdminCredentialRevocation set waits",
-			setupDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op := newTestOperation(api.OperationRequestSystemAdminCredentialRevocation)
 				op.Status = arm.ProvisioningStateDeleting
 				_, err := db.Operations(testSubscriptionID).Create(ctx, op, nil)
 				require.NoError(t, err)
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status, "operation should remain Deleting")
@@ -127,7 +127,7 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "revocation doc still exists waits",
-			setupDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op := newTestOperation(api.OperationRequestSystemAdminCredentialRevocation)
 				op.Status = arm.ProvisioningStateDeleting
 				op.SystemAdminCredentialRevocation = &api.OperationSystemAdminCredentialRevocation{
@@ -155,7 +155,7 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status, "operation should remain Deleting while revocation exists")
@@ -163,7 +163,7 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "revocation doc gone marks operation Succeeded and clears cluster sentinel",
-			setupDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op := newTestOperation(api.OperationRequestSystemAdminCredentialRevocation)
 				op.Status = arm.ProvisioningStateDeleting
 				op.SystemAdminCredentialRevocation = &api.OperationSystemAdminCredentialRevocation{
@@ -178,7 +178,7 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status, "operation should be Succeeded")
@@ -193,7 +193,7 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			db := databasetesting.NewMockResourcesDBClient()
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tc.setupDB(t, ctx, db)
 
 			syncer := &operationRevokeCredentialsPoll{

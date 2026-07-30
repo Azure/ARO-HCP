@@ -26,10 +26,10 @@ import (
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -93,7 +93,7 @@ func TestDispatchRevokeCredentials_SynchronizeOperation(t *testing.T) {
 		name        string
 		resources   []any
 		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verify      func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:        "operation not found returns nil",
@@ -107,7 +107,7 @@ func TestDispatchRevokeCredentials_SynchronizeOperation(t *testing.T) {
 				newTestOperation(api.OperationRequestSystemAdminCredentialRevocation),
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status, "operation should remain Accepted")
@@ -121,7 +121,7 @@ func TestDispatchRevokeCredentials_SynchronizeOperation(t *testing.T) {
 				newTestOperation(api.OperationRequestSystemAdminCredentialRevocation),
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status, "operation should transition to Deleting")
@@ -146,7 +146,7 @@ func TestDispatchRevokeCredentials_SynchronizeOperation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-			db, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tc.resources)
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tc.resources)
 			require.NoError(t, err)
 
 			syncer := &dispatchRevokeCredentials{
