@@ -27,9 +27,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -46,18 +46,18 @@ func TestRevocationMarkRequests_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		setupDB     func(db *databasetesting.MockResourcesDBClient)
+		setupDB     func(db *corecosmosstoragetesting.MockResourcesDBClient)
 		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verify      func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:        "revocation not found returns nil",
-			setupDB:     func(db *databasetesting.MockResourcesDBClient) {},
+			setupDB:     func(db *corecosmosstoragetesting.MockResourcesDBClient) {},
 			expectError: false,
 		},
 		{
 			name: "revocation with DeletionTimestamp is no-op",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				now := metav1.NewTime(fixedTime)
 				createTestRevocation(t, db, testRevocationName, func(r *coreapi.SystemAdminCredentialRevocation) {
 					r.Status.DeletionTimestamp = &now
@@ -67,7 +67,7 @@ func TestRevocationMarkRequests_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "revocation with CredentialsMarkedForDeletion=True is no-op",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createTestRevocation(t, db, testRevocationName, func(r *coreapi.SystemAdminCredentialRevocation) {
 					meta.SetStatusCondition(&r.Status.Conditions, metav1.Condition{
 						Type:   coreapi.SystemAdminCredentialRevocationConditionCredentialsMarkedForDeletion,
@@ -80,13 +80,13 @@ func TestRevocationMarkRequests_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "marks existing credential requests and sets condition",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createTestRevocation(t, db, testRevocationName)
 				createTestCredentialRequest(t, db, "cred-01")
 				createTestCredentialRequest(t, db, "cred-02")
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				// All credential requests should have DeletionTimestamp set.
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				iter, err := credCRUD.List(ctx, nil)
@@ -106,11 +106,11 @@ func TestRevocationMarkRequests_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no credential requests still sets condition",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createTestRevocation(t, db, testRevocationName)
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				revocationCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRevocations(testClusterName)
 				revocation, err := revocationCRUD.Get(ctx, testRevocationName)
 				require.NoError(t, err)
@@ -123,7 +123,7 @@ func TestRevocationMarkRequests_SyncOnce(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			db := databasetesting.NewMockResourcesDBClient()
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tc.setupDB(db)
 
 			syncer := &revocationMarkRequests{

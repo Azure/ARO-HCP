@@ -26,17 +26,17 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 type dispatchRequestCredential struct {
 	clock             utilsclock.PassiveClock
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 // NewDispatchRequestCredentialController returns a Controller that creates a
@@ -53,7 +53,7 @@ type dispatchRequestCredential struct {
 //	  SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID: nil
 func NewDispatchRequestCredentialController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &dispatchRequestCredential{
@@ -61,7 +61,7 @@ func NewDispatchRequestCredentialController(
 		resourcesDBClient: resourcesDBClient,
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"SystemAdminCredentialDispatchRequestCredential",
 		syncer,
 		10*time.Second,
@@ -79,7 +79,10 @@ func (c *dispatchRequestCredential) ShouldProcess(ctx context.Context, operation
 	if operation.Request != coreapi.OperationRequestSystemAdminCredentialRequest {
 		return false
 	}
-	if operation.SystemAdminCredentialRequest != nil && operation.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID != nil {
+	if operation.SystemAdminCredentialRequest == nil {
+		return false
+	}
+	if operation.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID != nil {
 		return false
 	}
 	return true
@@ -90,7 +93,7 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 	logger.Info("checking operation")
 
 	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {

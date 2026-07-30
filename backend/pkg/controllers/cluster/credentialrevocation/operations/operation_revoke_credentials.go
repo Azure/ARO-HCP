@@ -23,16 +23,17 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type operationRevokeCredentialsPoll struct {
 	clock              utilsclock.PassiveClock
-	resourcesDBClient  database.ResourcesDBClient
+	resourcesDBClient  corecosmosstorage.ResourcesDBClient
 	notificationClient *http.Client
 }
 
@@ -45,7 +46,7 @@ type operationRevokeCredentialsPoll struct {
 // gone it clears the cluster's revoke sentinel and marks the operation Succeeded.
 func NewOperationRevokeCredentialsPollController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
@@ -55,7 +56,7 @@ func NewOperationRevokeCredentialsPollController(
 		notificationClient: notificationClient,
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"SystemAdminCredentialOperationRevokeCredentialsPoll",
 		syncer,
 		10*time.Second,
@@ -84,7 +85,7 @@ func (c *operationRevokeCredentialsPoll) SynchronizeOperation(ctx context.Contex
 	logger.Info("checking revoke operation poll")
 
 	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -110,14 +111,14 @@ func (c *operationRevokeCredentialsPoll) SynchronizeOperation(ctx context.Contex
 		logger.Info("waiting for revocation to complete", "revocation", revocationName)
 		return nil
 	}
-	if !database.IsNotFoundError(err) {
+	if !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRevocation: %w", err))
 	}
 
 	// The revocation document is gone: revocation is complete. Clear the cluster
 	// sentinel and mark the operation Succeeded.
 	cluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
-	if err != nil && !database.IsNotFoundError(err) {
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(err)
 	}
 	if err == nil && cluster.ServiceProviderProperties.RevokeCredentialsOperationID == operation.OperationID.Name {

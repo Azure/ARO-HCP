@@ -26,9 +26,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -39,21 +39,21 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name        string
 		credName    string
-		setupDB     func(db *databasetesting.MockResourcesDBClient)
+		setupDB     func(db *corecosmosstoragetesting.MockResourcesDBClient)
 		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verify      func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:     "deletes credential created more than 48h ago regardless of status",
 			credName: "old-revoked",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createdAt := metav1.NewTime(fixedTime.Add(-49 * time.Hour))
 				createTestCredentialRequest(t, db, "old-revoked",
 					withCondition(coreapi.SystemAdminCredentialRequestConditionRevoked),
 					withCreationTimestamp(createdAt))
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				iter, err := credCRUD.List(ctx, nil)
 				require.NoError(t, err)
@@ -68,14 +68,14 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 		{
 			name:     "deletes issued credential created more than 48h ago",
 			credName: "old-issued",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createdAt := metav1.NewTime(fixedTime.Add(-49 * time.Hour))
 				createTestCredentialRequest(t, db, "old-issued",
 					withCondition(coreapi.SystemAdminCredentialRequestConditionIssued),
 					withCreationTimestamp(createdAt))
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				iter, err := credCRUD.List(ctx, nil)
 				require.NoError(t, err)
@@ -90,14 +90,14 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 		{
 			name:     "does not delete credential created less than 48h ago",
 			credName: "recent-revoked",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createdAt := metav1.NewTime(fixedTime.Add(-24 * time.Hour))
 				createTestCredentialRequest(t, db, "recent-revoked",
 					withCondition(coreapi.SystemAdminCredentialRequestConditionRevoked),
 					withCreationTimestamp(createdAt))
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				iter, err := credCRUD.List(ctx, nil)
 				require.NoError(t, err)
@@ -112,12 +112,12 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 		{
 			name:     "skips credentials without a creation timestamp",
 			credName: "no-ts",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createTestCredentialRequest(t, db, "no-ts",
 					withCondition(coreapi.SystemAdminCredentialRequestConditionRevoked))
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				iter, err := credCRUD.List(ctx, nil)
 				require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 		{
 			name:        "no credentials returns nil",
 			credName:    "nonexistent",
-			setupDB:     func(db *databasetesting.MockResourcesDBClient) {},
+			setupDB:     func(db *corecosmosstoragetesting.MockResourcesDBClient) {},
 			expectError: false,
 		},
 	}
@@ -140,7 +140,7 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			db := databasetesting.NewMockResourcesDBClient()
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tc.setupDB(db)
 
 			syncer := &revokedGC{

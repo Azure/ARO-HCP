@@ -25,16 +25,17 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type operationRequestCredentialPoll struct {
 	clock              utilsclock.PassiveClock
-	resourcesDBClient  database.ResourcesDBClient
+	resourcesDBClient  corecosmosstorage.ResourcesDBClient
 	notificationClient *http.Client
 }
 
@@ -50,7 +51,7 @@ type operationRequestCredentialPoll struct {
 //	  SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID: set
 func NewOperationRequestCredentialPollController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
@@ -60,7 +61,7 @@ func NewOperationRequestCredentialPollController(
 		notificationClient: notificationClient,
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"SystemAdminCredentialOperationRequestCredentialPoll",
 		syncer,
 		10*time.Second,
@@ -89,7 +90,7 @@ func (c *operationRequestCredentialPoll) SynchronizeOperation(ctx context.Contex
 	logger.Info("checking operation")
 
 	oldOperation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {

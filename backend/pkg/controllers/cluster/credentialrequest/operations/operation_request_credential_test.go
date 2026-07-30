@@ -31,10 +31,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -122,9 +122,9 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 	tests := []struct {
 		name        string
 		resources   []any
-		setupDB     func(t *testing.T, db *databasetesting.MockResourcesDBClient)
+		setupDB     func(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient)
 		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verify      func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:        "operation not found returns nil",
@@ -138,7 +138,7 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 				op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID = credResourceID
 				return []any{op}
 			}(),
-			setupDB: func(t *testing.T, db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				cred := &coreapi.SystemAdminCredentialRequest{
 					CosmosMetadata: coreapi.CosmosMetadata{
@@ -154,7 +154,7 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status, "pending credential should set operation to Provisioning")
@@ -167,7 +167,7 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 				op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID = credResourceID
 				return []any{op}
 			}(),
-			setupDB: func(t *testing.T, db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				cred := &coreapi.SystemAdminCredentialRequest{
 					CosmosMetadata: coreapi.CosmosMetadata{
@@ -189,7 +189,7 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status, "issued credential should set operation to Succeeded")
@@ -202,7 +202,7 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 				op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID = credResourceID
 				return []any{op}
 			}(),
-			setupDB: func(t *testing.T, db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				cred := &coreapi.SystemAdminCredentialRequest{
 					CosmosMetadata: coreapi.CosmosMetadata{
@@ -224,7 +224,7 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status, "failed credential should set operation to Failed")
@@ -238,7 +238,7 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-			db, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tc.resources)
+			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tc.resources)
 			require.NoError(t, err)
 
 			if tc.setupDB != nil {
