@@ -39,11 +39,11 @@ Customer → ARM → Frontend → Backend (async) → Clusters Service → Manag
 1. **ARM** delivers the DELETE request to the **Frontend**, which creates an async operation.
 2. The **Backend** translates it into a Clusters Service API call.
 3. **Clusters Service** sets the cluster state to `'uninstalling'` and runs the cluster destruct
-   chain (see `aro-hcp-clusters-service` repo, `pkg/controllers/cluster_destructor.go`):
-   - `hypershift-managed-cluster-destructor`: waits for the **ManagedCluster** (ACM/MCE) to
-     finish `Detaching`. Detaching triggers cleanup of **ManagedClusterAddon** resources whose
-     pre-delete hook pods must complete and remove their finalizers before the ManagedCluster
-     can be deleted.
+   chain (see `aro-hcp-clusters-service` repo, `pkg/clusterprovisioner/acm/destruct/`):
+   - `hypershift-managed-cluster-destructor`: waits for the **ManagedCluster** (ACM/MCE) CR
+     to be fully deleted. Deletion requires **ManagedClusterAddon** pre-delete hook pods to
+     complete and remove their finalizers first. If the ManagedCluster CR still exists, the
+     destructor returns without advancing.
    - `hypershift-manifest-work-destructor`: deletes Maestro resource bundles, which removes
      ManifestWork objects, cascading to HostedCluster / NodePool / control plane deletion.
    - `break-glass-credential-secrets-deleter`: removes break-glass credential secrets.
@@ -59,10 +59,14 @@ through the ManifestWork to HyperShift for NodePool resource cleanup on the mana
 
 ### Destruct Chain Behavior
 
-Each destruct chain is **sequential**: if one destructor cannot complete (e.g. ManagedCluster stuck
-in `Detaching`), all subsequent destructors are skipped. CS logs `Not continuing to the next
-destructor for cluster` on each iteration until the blocking destructor resolves. Check
-`conditions/acm/managedClusterConditions` for the ManagedCluster state when the chain is stuck.
+Each destruct chain is **sequential** and runs as Go function calls within the Clusters Service
+process (not as Kubernetes Jobs on the management cluster). The chain always restarts from step 0
+on each reconcile — completed steps return immediately since their resources are already gone.
+If one destructor cannot complete (e.g. ManagedCluster CR stuck pending deletion), all subsequent
+destructors are skipped. CS logs `Not continuing to the next destructor for cluster` on each
+iteration. There is no built-in timeout — the chain retries indefinitely until the blocking step
+resolves or an operator intervenes. Check `conditions/acm/managedClusterConditions` for the
+ManagedCluster state when the chain is stuck.
 
 ## Topology
 
