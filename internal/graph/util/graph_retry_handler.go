@@ -18,6 +18,7 @@ import (
 	"io"
 	"math/rand"
 	nethttp "net/http"
+	"path"
 	"strconv"
 	"time"
 
@@ -106,11 +107,12 @@ func (h *graphRetryHandler) isRetriableStatusCode(code int, req *nethttp.Request
 		// right after app creation). GET/DELETE 404 is a real "not found".
 		return req.Method == nethttp.MethodPost
 	case nethttp.StatusBadRequest:
-		// 400 on POST can indicate eventual-consistency delay after resource
-		// creation (e.g. POST /servicePrincipals right after an app registration
-		// returns Request_BadRequest / NoBackingApplicationObject until the app
-		// replicates). GET/PUT/DELETE 400 is a real bad request.
-		return req.Method == nethttp.MethodPost
+		// Graph returns 400 Request_BadRequest with detail code
+		// NoBackingApplicationObject on POST /servicePrincipals when the
+		// just-created app registration has not yet replicated. Scope the
+		// retry to that endpoint so genuinely bad requests elsewhere stay
+		// fatal instead of being delayed by up to graphRetryMaxCumulativeDelay.
+		return req.Method == nethttp.MethodPost && path.Base(req.URL.Path) == "servicePrincipals"
 	default:
 		return false
 	}
