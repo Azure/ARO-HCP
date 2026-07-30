@@ -179,7 +179,7 @@ The "payload" section of an asynchronous operation document includes all the inf
 
 <a name="operation-document-request-field"></a>
 
-3. The `request` field captures the nature of the operation. Valid values are "Create", "Update", "Delete", "RequestCredential", and "RevokeCredentials".
+3. The `request` field captures the nature of the operation. Valid values are "Create", "Update", "Delete", "SystemAdminCredentialRequest", and "SystemAdminCredentialRevocation".
 
 4. The `externalId` field is the same as the [`resourceId` field](#resource-document-resourceid-field) in hosted control plane cluster and node pool documents.
 
