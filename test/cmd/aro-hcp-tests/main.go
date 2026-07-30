@@ -342,7 +342,10 @@ func setupCli() *cobra.Command {
 	// 	specs = specs.AddLabel("SLOW")
 
 	// Specs can be globally filtered...
-	// specs = specs.MustFilter([]string{`name.contains("filter")`})
+	// TEMPORARY: run only the shoebox diagnostic settings spec, to validate that the
+	// cluster-autoscaler and capi-provider log categories reach the storage account.
+	// REVERT THIS BEFORE MERGING - leaving it in place silently skips every other spec in CI.
+	specs = specs.MustFilter([]string{`name.contains("shoebox diagnostic settings")`})
 
 	// Or walked...
 	// specs = specs.Walk(func(spec *extensiontests.ExtensionTestSpec) {

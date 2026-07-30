@@ -50,10 +50,24 @@ var shoeboxLogCategories = []string{
 	"csi-azuredisk-controller",
 	"csi-azurefile-controller",
 	"csi-snapshot-controller",
+	"cluster-autoscaler",
+	"capi-provider",
+}
+
+// newShoeboxLogCategories are the categories most recently added to the arobit forwarder
+// config. Only these are reported on, since the older categories are already exercised by
+// the existing verification.
+var newShoeboxLogCategories = []string{
+	"cluster-autoscaler",
+	"capi-provider",
 }
 
 type shoeboxLogVerifier interface {
 	Verify(context.Context) error
+}
+
+type shoeboxCategoryObserver interface {
+	ObservedCategories(context.Context) (map[string]bool, error)
 }
 
 type storageAccountResult struct {
@@ -101,6 +115,66 @@ func pollVerifier(ctx context.Context, name string, verifier shoeboxLogVerifier,
 			}
 			GinkgoLogr.Info(name+" verified successfully", "timestamp", time.Now().UTC().Format(time.RFC3339))
 			return true
+		}
+	}
+}
+
+// categoryCoverage splits newShoeboxLogCategories into those the observer has seen and
+// those it has not.
+func categoryCoverage(observed map[string]bool) (present, missing []string) {
+	present = make([]string, 0, len(newShoeboxLogCategories))
+	missing = make([]string, 0, len(newShoeboxLogCategories))
+	for _, category := range newShoeboxLogCategories {
+		if observed[verifiers.NormalizeLogCategory(category)] {
+			present = append(present, category)
+		} else {
+			missing = append(missing, category)
+		}
+	}
+	return present, missing
+}
+
+// reportCategoryCoverage polls the storage account until every category in
+// newShoeboxLogCategories has delivered at least one record, then logs the final coverage.
+//
+// This is deliberately log-only and never fails the test. A category only materializes
+// once the control plane emits that kind of log, and both cluster-autoscaler and
+// capi-provider are low volume enough to stay quiet for an entire run on an idle cluster,
+// so their absence is reported for triage rather than asserted. Polling exists so that a
+// category that simply had not flushed yet is not reported as missing.
+func reportCategoryCoverage(ctx context.Context, observer shoeboxCategoryObserver, timeout time.Duration) {
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+	timer := time.After(timeout)
+
+	var present, missing []string
+	for {
+		observed, err := observer.ObservedCategories(ctx)
+		if err != nil {
+			GinkgoLogr.Error(err, "failed to determine observed shoebox log categories")
+		} else {
+			present, missing = categoryCoverage(observed)
+			if len(missing) == 0 {
+				GinkgoLogr.Info("all new shoebox log categories observed", "present", present)
+				return
+			}
+		}
+
+		select {
+		case <-timer:
+			GinkgoLogr.Info("new shoebox log categories not observed before timeout",
+				"present", present,
+				"missing", missing,
+				"timeout", timeout.String(),
+			)
+			return
+		case <-ctx.Done():
+			GinkgoLogr.Error(ctx.Err(), "context cancelled while collecting shoebox log category coverage",
+				"present", present,
+				"missing", missing,
+			)
+			return
+		case <-ticker.C:
 		}
 	}
 }
@@ -362,8 +436,13 @@ var _ = Describe("Customer", func() {
 				}
 				return nil
 			})
-			if err := g.Wait(); err != nil {
-				GinkgoLogr.Error(err, "shoebox log verification failed")
+			verifyErr := g.Wait()
+
+			By("reporting whether the cluster-autoscaler and capi-provider log categories reached the storage account")
+			reportCategoryCoverage(ctx, storageVerifier, 20*time.Minute)
+
+			if verifyErr != nil {
+				GinkgoLogr.Error(verifyErr, "shoebox log verification failed")
 				return
 			}
 		})
