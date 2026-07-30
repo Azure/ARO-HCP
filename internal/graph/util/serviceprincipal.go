@@ -37,7 +37,7 @@ func (c *Client) CreateServicePrincipal(ctx context.Context, appId string) (*Ser
 
 	createdSp, err := c.graphClient.ServicePrincipals().Post(ctx, sp, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create service principal: %w", err)
+		return nil, fmt.Errorf("create service principal: %w", odataErrorWithDiagnostics(err))
 	}
 
 	return &ServicePrincipal{

@@ -105,6 +105,12 @@ func (h *graphRetryHandler) isRetriableStatusCode(code int, req *nethttp.Request
 		// 404 on POST indicates eventual-consistency delay (e.g. AddPassword
 		// right after app creation). GET/DELETE 404 is a real "not found".
 		return req.Method == nethttp.MethodPost
+	case nethttp.StatusBadRequest:
+		// 400 on POST can indicate eventual-consistency delay after resource
+		// creation (e.g. POST /servicePrincipals right after an app registration
+		// returns Request_BadRequest / NoBackingApplicationObject until the app
+		// replicates). GET/PUT/DELETE 400 is a real bad request.
+		return req.Method == nethttp.MethodPost
 	default:
 		return false
 	}
