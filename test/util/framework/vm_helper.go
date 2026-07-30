@@ -16,7 +16,6 @@ package framework
 
 import (
 	"context"
-	"crypto/tls"
 	"embed"
 	"errors"
 	"fmt"
@@ -107,38 +106,6 @@ func RunKubectlOnVM(ctx context.Context, tc interface {
 		kubeconfigB64, kubectlArgs,
 	)
 	return RunVMCommand(ctx, tc, resourceGroup, vmName, cmd, pollTimeout)
-}
-
-// TestHTTPSConnectivity attempts an HTTPS connection to the given URL.
-// Returns nil if the connection succeeds, or an error if it fails (DNS, timeout,
-// connection refused, etc.). TLS validation is skipped — this tests network
-// reachability, not certificate validity. Redirects are not followed.
-func TestHTTPSConnectivity(ctx context.Context, url string, timeout time.Duration) error {
-	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(timeoutCtx, "GET", url, nil)
-	if err != nil {
-		return err
-	}
-
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return nil
 }
 
 // GetPrivateKASInternalIP finds the private IP address of the internal load
