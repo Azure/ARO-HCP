@@ -1,0 +1,13 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.BatchAnalysis
+rolloutName: Dev CI Batch Analysis Storage Rollout
+resourceGroups:
+- name: opstool
+  resourceGroup: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: storage
+    action: ARM
+    template: ../../templates/dev-ci-batch-analysis-storage.bicep
+    parameters: ../../configurations/dev-ci-batch-analysis-storage.tmpl.bicepparam
+    deploymentLevel: ResourceGroup

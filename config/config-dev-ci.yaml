@@ -144,6 +144,15 @@ clouds:
             gatewayNamespace: "aks-istio-ingress"
             sectionName: "tools-https"
             blockReviewPath: true
+        batchAnalysis:
+          storageAccount:
+            name: "arohcpdevcibatch{{ .ctx.regionShort }}"
+            location: "{{ .ctx.region }}"
+            containerName: "analyses"
+          chaiBot:
+            # app registration associated with chai-bot (same principal used as
+            # the shared Kusto viewerIdentity)
+            principalId: "5990dc26-1b73-4547-9bba-9a5bd64a0165"
         alerting:
           email: "aro-hcp-service-lifecycle-team@redhat.com"
           enabled: true

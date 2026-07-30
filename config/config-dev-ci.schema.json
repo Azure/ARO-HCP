@@ -334,6 +334,38 @@
                   }
                 }
               }
+            },
+            "batchAnalysis": {
+              "type": "object",
+              "description": "Configuration for the Chai-bot Tide-batch analysis output storage",
+              "properties": {
+                "storageAccount": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Globally-unique storage account name that holds Chai-bot batch-analysis artifacts"
+                    },
+                    "location": {
+                      "type": "string",
+                      "description": "Azure region for the storage account"
+                    },
+                    "containerName": {
+                      "type": "string",
+                      "description": "Blob container that receives analysis artifacts"
+                    }
+                  }
+                },
+                "chaiBot": {
+                  "type": "object",
+                  "properties": {
+                    "principalId": {
+                      "type": "string",
+                      "description": "Object (principal) ID of the Chai-bot service principal granted read/write on the storage account"
+                    }
+                  }
+                }
+              }
             }
           }
         },
