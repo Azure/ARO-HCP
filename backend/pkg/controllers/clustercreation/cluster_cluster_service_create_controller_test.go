@@ -77,6 +77,7 @@ func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftClu
 	cluster.Name = testClusterName
 	cluster.Type = rid.ResourceType.String()
 	cluster.ServiceProviderProperties.ClusterServiceID = nil
+	cluster.ServiceProviderProperties.PendingClusterServiceID = nil
 	cluster.ServiceProviderProperties.ClusterUID = testClusterUID
 	for _, opt := range opts {
 		opt(cluster)

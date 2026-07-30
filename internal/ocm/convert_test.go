@@ -275,6 +275,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		DomainPrefix("testcluster").
 		Hypershift(arohcpv1alpha1.NewHypershift().
 			Enabled(true)).
+		ID(api.TestPendingClusterServiceIDClusterIDSegment).
 		Name(strings.ToLower(api.TestClusterName)).
 		Network(arohcpv1alpha1.NewNetwork().
 			HostPrefix(23).

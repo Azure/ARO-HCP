@@ -35,24 +35,26 @@ import (
 // The definitions in this file are meant for unit tests.
 
 const (
-	TestLocation                  = "westus3"
-	TestAPIVersion                = "2024-06-10-preview"
-	TestTenantID                  = "00000000-0000-0000-0000-000000000000"
-	TestSubscriptionID            = "11111111-1111-1111-1111-111111111111"
-	TestAltSubscriptionID         = "22222222-2222-2222-2222-222222222222"
-	TestResourceGroupName         = "testResourceGroup"
-	TestClusterName               = "testCluster"
-	TestNodePoolName              = "testNodePool"
-	TestExternalAuthName          = "testExtAuth"
-	TestDeploymentName            = "testDeployment"
-	TestManagedResourceGroupName  = "testManagedResourceGroup"
-	TestNetworkSecurityGroupName  = "testNetworkSecurityGroup"
-	TestVirtualNetworkName        = "testVirtualNetwork"
-	TestSubnetName                = "testSubnet"
-	TestVnetIntegrationSubnetName = "testVnetIntegrationSubnet"
-	TestKMSKeyName                = "testKMSKeyName"
-	TestKMSKeyVaultName           = "testKMSKeyVaultName"
-	TestKMSKeyVersion             = "testKMSKeyVersion"
+	TestLocation                                = "westus3"
+	TestAPIVersion                              = "2024-06-10-preview"
+	TestTenantID                                = "00000000-0000-0000-0000-000000000000"
+	TestSubscriptionID                          = "11111111-1111-1111-1111-111111111111"
+	TestAltSubscriptionID                       = "22222222-2222-2222-2222-222222222222"
+	TestResourceGroupName                       = "testResourceGroup"
+	TestClusterName                             = "testCluster"
+	TestNodePoolName                            = "testNodePool"
+	TestExternalAuthName                        = "testExtAuth"
+	TestDeploymentName                          = "testDeployment"
+	TestManagedResourceGroupName                = "testManagedResourceGroup"
+	TestNetworkSecurityGroupName                = "testNetworkSecurityGroup"
+	TestVirtualNetworkName                      = "testVirtualNetwork"
+	TestSubnetName                              = "testSubnet"
+	TestVnetIntegrationSubnetName               = "testVnetIntegrationSubnet"
+	TestKMSKeyName                              = "testKMSKeyName"
+	TestKMSKeyVaultName                         = "testKMSKeyVaultName"
+	TestKMSKeyVersion                           = "testKMSKeyVersion"
+	TestPendingClusterServiceIDPath             = "/api/aro_hcp/v1alpha1/clusters/test-cluster-service-id"
+	TestPendingClusterServiceIDClusterIDSegment = "test-cluster-service-id"
 )
 
 var (
@@ -119,6 +121,8 @@ func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 		CreatedAt:     &createdAt,
 	}
 	resource.ServiceProviderProperties.ClusterUID = "00000000-0000-0000-0000-000000000000"
+	pendingID := Must(NewInternalID(TestPendingClusterServiceIDPath))
+	resource.ServiceProviderProperties.PendingClusterServiceID = &pendingID
 	return resource
 }
 

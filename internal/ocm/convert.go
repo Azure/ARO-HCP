@@ -528,6 +528,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	}
 
 	clusterBuilder.
+		ID(hcpCluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()).
 		Name(strings.ToLower(hcpCluster.Name)).
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(hcpCluster.Location)).
@@ -559,10 +560,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		SubnetResourceID(hcpCluster.CustomerProperties.Platform.SubnetID.String()).
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
 			OutboundType(outboundType))
-
-	if hcpCluster.ServiceProviderProperties.PendingClusterServiceID != nil {
-		clusterBuilder.ID(hcpCluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID())
-	}
 
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
 	if hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID != nil {
