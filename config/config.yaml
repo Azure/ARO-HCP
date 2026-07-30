@@ -428,6 +428,7 @@ defaults:
     # to chage "" to >- when you add a value.
     grafanaRoles: ""
     crossTenantSecurityGroup: ""
+    grafanaPublicNetworkAccess: "Disabled"
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
     amwScaling:
@@ -1450,6 +1451,7 @@ clouds:
         grafanaName: arohcp-dev
         grafanaMajorVersion: '12'
         grafanaZoneRedundantMode: Disabled
+        grafanaPublicNetworkAccess: Enabled
         grafanaRoles: >-
           6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
         svcWorkspaceName: 'services-{{ .ctx.regionShort }}'

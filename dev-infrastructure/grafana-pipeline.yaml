@@ -30,6 +30,8 @@ resourceGroups:
       configRef: monitoring.grafanaMajorVersion
     zoneRedundancy:
       configRef: monitoring.grafanaZoneRedundantMode
+    publicNetworkAccess:
+      configRef: monitoring.grafanaPublicNetworkAccess
     crossTenantSecurityGroup:
       configRef: monitoring.crossTenantSecurityGroup
     identityFrom:

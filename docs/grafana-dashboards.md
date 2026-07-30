@@ -2,6 +2,10 @@
 
 Grafana is deployed using a Managed Grafana instance. Data is available via preconfigured Datasources.
 
+## Prerequisites
+
+In staging, integration, and production environments, public network access to the Azure Managed Grafana instance is disabled. You must be connected to the **MSFT Corp VPN** to access Grafana in those environments. In dev environments, Grafana remains publicly accessible.
+
 ## Managing Dashboards
 
 There is a pipeline step to import dashboards. You need to create a `grafana-dashboards` folder in the ARO-HCP repo. This dashboard *MUST* be within the `observability/grafana-dashboards` folder, cause only observability is packaged into the EV2 artifact.
