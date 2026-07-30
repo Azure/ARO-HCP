@@ -2,10 +2,10 @@ panels:
 - title: "Frontend Metrics"
   queries:
   - title: "Frontend Request Latency"
-    description: "P99 frontend request latency by method/route (matches FrontendPathLatency). No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alert)."
+    description: "P99 frontend request latency by method/route/cluster (matches FrontendPathLatency). No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alert)."
     query: |
       histogram_quantile(0.99,
-        sum by (le, route, method) (
+        sum by (le, route, method, cluster) (
           max without (prometheus_replica) (
             rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])
           )
