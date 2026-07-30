@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package operations
+package legacycredentialrequest
 
 import (
 	"context"
@@ -89,6 +89,9 @@ func (opsync *operationRequestCredential) ShouldProcess(ctx context.Context, ope
 		return false
 	}
 	if len(operation.InternalID.String()) == 0 {
+		return false
+	}
+	if operation.SystemAdminCredentialRequest != nil {
 		return false
 	}
 	return true

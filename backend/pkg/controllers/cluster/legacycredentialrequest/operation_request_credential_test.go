@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package operations
+package legacycredentialrequest
 
 import (
 	"context"
@@ -57,6 +57,15 @@ func TestOperationRequestCredential_ShouldProcess(t *testing.T) {
 			name:              "Wrong operation request type should not be processed",
 			operationOverride: func(o *api.Operation) { o.Request = database.OperationRequestSystemAdminCredentialRevocation },
 			expectedResult:    false,
+		},
+		{
+			name: "SystemAdminCredentialRequest set should not be processed",
+			operationOverride: func(o *api.Operation) {
+				o.SystemAdminCredentialRequest = &api.OperationSystemAdminCredentialRequest{
+					CertificateSigningRequest: "-----BEGIN CERTIFICATE REQUEST-----\ntest\n-----END CERTIFICATE REQUEST-----",
+				}
+			},
+			expectedResult: false,
 		},
 	}
 

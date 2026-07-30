@@ -12,58 +12,53 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package operations
+package legacycredentialrequest
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
-	"strings"
 	"time"
 
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
-type dispatchRevokeCredentials struct {
+type dispatchRequestCredential struct {
 	clock                 utilsclock.PassiveClock
 	resourcesDBClient     database.ResourcesDBClient
 	clustersServiceClient ocm.ClusterServiceClientSpec
 }
 
-// NewDispatchRevokeCredentialsController returns a new Controller instance that
-// initiates an asynchronous credential revocation operation in Clusters Service.
+// NewDispatchRequestCredentialController returns a new Controller instance that
+// initiates an asynchronous admin credential request operation in Clusters Service.
 //
 // Operation documents relevant to this controller will have the following values:
 //
 //	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
-//	     Request: RevokeCredentials
+//	     Request: RequestCredential
 //	      Status: Accepted
-func NewDispatchRevokeCredentialsController(
+//	  InternalID: an empty value
+func NewDispatchRequestCredentialController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
-	syncer := &dispatchRevokeCredentials{
+	syncer := &dispatchRequestCredential{
 		clock:                 clock,
 		resourcesDBClient:     resourcesDBClient,
 		clustersServiceClient: clustersServiceClient,
 	}
 
 	controller := controllerutils.NewGenericOperationController(
-		"DispatchRevokeCredentials",
+		"DispatchRequestCredential",
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
@@ -73,27 +68,23 @@ func NewDispatchRevokeCredentialsController(
 	return controller
 }
 
-func (c *dispatchRevokeCredentials) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *dispatchRequestCredential) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestSystemAdminCredentialRevocation {
+	if operation.Request != database.OperationRequestSystemAdminCredentialRequest {
 		return false
 	}
-	// For this operation type, because there is no guarantee of break-
-	// glass credentials being present in Clusters Service to signal when
-	// the revocation has actually been dispatched, the operation's status
-	// field is instead used for controller coordination. "Accepted" means
-	// the credential revocation has not yet been dispatched to Clusters
-	// Service. Once dispatched, the operation status becomes "Deleting"
-	// and is ready for status polling.
-	if operation.Status != arm.ProvisioningStateAccepted {
+	if len(operation.InternalID.String()) > 0 {
+		return false
+	}
+	if operation.SystemAdminCredentialRequest != nil {
 		return false
 	}
 	return true
 }
 
-func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
+func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
@@ -108,14 +99,25 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 		return nil // no work to do
 	}
 
-	// Ensure the cluster's RevokeCredentialsOperationID still matches this operation's ID.
-
 	cluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if cluster.ServiceProviderProperties.RevokeCredentialsOperationID != operation.OperationID.Name {
-		logger.Info("cluster RevokeCredentialsOperationID mismatch",
+
+	// Make sure the cluster document has a ClusterServiceID.
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+		return fmt.Errorf("no ClusterServiceID set")
+	}
+
+	// Cancel the operation if a revocation is in progress.
+	//
+	// The frontend cancels all active RequestCredential operations when
+	// handling a revocation request, but it cannot do so atomically. So
+	// there is a slim chance of a straggler slipping through. This is a
+	// second line of defense.
+
+	if len(cluster.ServiceProviderProperties.RevokeCredentialsOperationID) > 0 {
+		logger.Info("revocation in progress, canceling operation",
 			"revoke_credentials_operation_id", cluster.ServiceProviderProperties.RevokeCredentialsOperationID)
 
 		replacement := operation.DeepCopy()
@@ -129,33 +131,26 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 		return nil
 	}
 
-	// Dispatch the revocation request to Clusters Service.
+	// Dispatch the credential request to Clusters Service.
 
-	logger.Info("dispatching DELETE break_glass_credentials to Clusters Service")
-	err = c.clustersServiceClient.DeleteBreakGlassCredentials(ctx, operation.InternalID)
-	var ocmError *ocmerrors.Error
-	if errors.As(err, &ocmError) && ocmError.Status() == http.StatusBadRequest {
-		// XXX Matching an error message is brittle, but Clusters Service
-		//     returns 400 Bad Request for a wide range of errors and there
-		//     is no other information in the response to distinguish them.
-		//
-		//     If the error is indicating that a credential revocation is
-		//     already in progress, dismiss it. This can happen on a retry
-		//     if the previous Clusters Service call was successful but the
-		//     Cosmos DB replace operation below failed.
-		if strings.Contains(ocmError.Reason(), "revocation has already been requested") {
-			err = nil
-		}
-	}
+	logger.Info("dispatching POST break_glass_credentials to Clusters Service")
+	csBreakGlassCredential, err := c.clustersServiceClient.PostBreakGlassCredential(ctx, *cluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	// Update the operation status to "Deleting" to commence Clusters
-	// Service polling in the "OperationRevokeCredentials" controller.
+	csBreakGlassCredentialID, err := api.NewInternalID(csBreakGlassCredential.HREF())
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	// If this operation document update fails then we will abandon the credential
+	// created by the Clusters Service call above and start a new credential on the
+	// next retry. The abandoned credential will live on but never reach the client.
+	// Its backing certificate will eventually expire or be revoked.
 
 	replacement := operation.DeepCopy()
-	replacement.Status = arm.ProvisioningStateDeleting
+	replacement.InternalID = csBreakGlassCredentialID
 
 	_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
 	if err != nil {
