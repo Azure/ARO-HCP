@@ -74,6 +74,14 @@ func runGrafanaManageStep(id graph.Identifier, step *types.GrafanaManageStep, ct
 		opts.ZoneRedundancy = zoneRedundancy
 	}
 
+	publicNetworkAccess, err := resolveOptionalValue(step.PublicNetworkAccess, options.Configuration, outputs, id.ServiceGroup)
+	if err != nil {
+		return fmt.Errorf("failed to resolve publicNetworkAccess: %w", err)
+	}
+	if publicNetworkAccess != "" {
+		opts.PublicNetworkAccess = publicNetworkAccess
+	}
+
 	crossTenantSecurityGroup, err := resolveOptionalValue(step.CrossTenantSecurityGroup, options.Configuration, outputs, id.ServiceGroup)
 	if err != nil {
 		return fmt.Errorf("failed to resolve crossTenantSecurityGroup: %w", err)

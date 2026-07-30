@@ -13,6 +13,10 @@ With [alert-tester][alert-tester-repo] we have a fast approach to verify alerts 
 >
 > All commands below need to be executed on a machine from which you can log in to your b- account!
 
+> [!NOTE]
+>
+> In staging, integration, and production environments, Grafana is restricted to the **MSFT Corp VPN**. Ensure you are connected to the VPN before running `atest` commands against non-dev Grafana instances.
+
 ## Verifying alerts with [alert-tester][alert-tester-repo]
 
 In a bash shell (on a machine from which you can log in to your b- account), e.g. WSL, Linux, or Git Bash:

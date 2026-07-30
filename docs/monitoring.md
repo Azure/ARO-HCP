@@ -96,6 +96,8 @@ A single **Azure Managed Grafana** instance is deployed globally and configured 
 - Region-agnostic dashboard experience
 - Consolidated alerting and monitoring workflows
 
+> **Note**: In staging, integration, and production environments, public network access to the Grafana instance is disabled. Access requires connection to the **MSFT Corp VPN**. Dev environment Grafana remains publicly accessible.
+
 ### Regional Azure Monitor Workspace
 
 Each region contains **two Azure Monitor Workspaces (AMW)**:
