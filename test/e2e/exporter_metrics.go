@@ -51,6 +51,7 @@ var _ = Describe("Engineering", func() {
 		labels.Positive,
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(0),
 		func(ctx context.Context) {
 			cancelCtx, cancel := context.WithCancel(ctx)
 			defer cancel()
