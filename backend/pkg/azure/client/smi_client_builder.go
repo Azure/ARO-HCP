@@ -48,7 +48,11 @@ type ServiceManagedIdentityClientBuilder interface {
 	BuilderType() ServiceManagedIdentityClientBuilderType
 	// UserAssignedIdentitiesClient returns a new User Assigned Identities client.
 	UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error)
-	// SubnetsClient returns a new Subnet client.
+	// NetworkSecurityGroupsClient returns a new Network Security Groups client
+	// authenticated as the cluster's Service Managed Identity.
+	NetworkSecurityGroupsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (NetworkSecurityGroupsClient, error)
+	// SubnetsClient returns a new Subnets client authenticated as the cluster's
+	// Service Managed Identity.
 	SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error)
 }
 
@@ -99,6 +103,17 @@ func (b *serviceManagedIdentityClientBuilder) SubnetsClient(ctx context.Context,
 		return nil, err
 	}
 	return armnetwork.NewSubnetsClient(subscriptionID, creds, b.azCoreARMClientOptions)
+}
+
+func (b *serviceManagedIdentityClientBuilder) NetworkSecurityGroupsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (NetworkSecurityGroupsClient, error) {
+	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get credentials for service managed identity: %w", err))
+	}
+
+	// We instantiate the SecurityGroupsClient using the
+	// the credentials we obtained from the Managed Identities Data Plane Service.
+	return armnetwork.NewSecurityGroupsClient(subscriptionID, creds, b.azCoreARMClientOptions)
 }
 
 func NewServiceManagedIdentityClientBuilder(fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder, options *azcorearm.ClientOptions) ServiceManagedIdentityClientBuilder {
