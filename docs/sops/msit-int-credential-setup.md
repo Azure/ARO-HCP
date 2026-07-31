@@ -46,7 +46,7 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
    `intFirstPartyCert`, `intArmHelperCert`, and `intMsiMockCert`, with the
    subject/DNS names that match `.ci.int.mockIdentities.*.certDns` in
    `config/config-dev-ci.yaml`. The privileged pipeline's `pin-mock-certs-int`
-   Shell step runs `scripts/pin-mock-identity-certs.sh`, which reads each cert's
+   Shell step runs `tooling/entra-app-credentials`, which reads each cert's
    public key and registers it as a pinned `keyCredential` on the app via
    Microsoft Graph. Templatize runs the step with the invoking OWNERS member's
    Azure CLI credentials. Auth is by pinned leaf **thumbprint** (not SNI, which

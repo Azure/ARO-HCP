@@ -186,7 +186,7 @@ step in the privileged pipeline:
    `pin-mock-certs` / `pin-mock-certs-int` Shell steps read each certificate's
    public key from Key Vault and register it as a pinned `keyCredential` on the
    corresponding Entra app via Microsoft Graph
-   (`scripts/pin-mock-identity-certs.sh`). Templatize executes the Shell steps
+   (`tooling/entra-app-credentials`). Templatize executes the Shell steps
    with the invoking OWNERS member's Azure CLI credentials.
 
 Bootstrap / rotation order: create the certs, then run the privileged entrypoint;

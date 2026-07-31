@@ -15,6 +15,19 @@ rolloutName: Dev CI E2E Subscription RBAC Grants Rollout
 # apply these grants. Run the Microsoft.Azure.ARO.HCP.DevCI.Privileged
 # entrypoint on demand with `make dev-ci-privileged-local-run` as a member
 # of the OWNERS group (who has real Owner) when a change touches these grants.
+buildStep:
+  command: bash
+  args:
+  - -c
+  - |
+    set -euo pipefail
+    tool_dir=../../../tooling/entra-app-credentials
+    tmp="$(mktemp "${tool_dir}/entra-app-credentials.XXXXXX")"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" "${tool_dir}"
+    chmod 0755 "${tmp}"
+    mv "${tmp}" "${tool_dir}/entra-app-credentials"
+    trap - EXIT
 resourceGroups:
 # Assigns the createdAt resource-group tag Azure Policy to the e2e/customer
 # subscriptions. Writing policy definitions/assignments needs
@@ -62,16 +75,23 @@ resourceGroups:
   - name: pin-mock-certs
     action: Shell
     command: |
-      export IDENTITIES="${FIRST_PARTY_APP_NAME}=firstPartyCert2
-      ${ARM_HELPER_APP_NAME}=armHelperCert2
-      ${MSI_MOCK_APP_NAME}=msiMockCert2"
-      ./pin-mock-identity-certs.sh
-    workingDir: ../../scripts
+      ./tooling/entra-app-credentials/entra-app-credentials pin \
+        --vault-url "${VAULT_URL}" \
+        --mapping "${FIRST_PARTY_APP_NAME}=firstPartyCert2" \
+        --mapping "${ARM_HELPER_APP_NAME}=armHelperCert2" \
+        --mapping "${MSI_MOCK_APP_NAME}=msiMockCert2" \
+        --indexed-application-base "${POOL_APP_BASE}" \
+        --indexed-certificate-base msiMockPoolCert \
+        --indexed-count "${POOL_SIZE}" \
+        --replace-all
+    workingDir: ../../..
     shellIdentity:
       value: unused-by-templatize
     variables:
-    - name: VAULT_NAME
-      value: aro-hcp-dev-svc-kv
+    - name: AZURE_TOKEN_CREDENTIALS
+      value: dev
+    - name: VAULT_URL
+      value: https://aro-hcp-dev-svc-kv.vault.azure.net
     - name: FIRST_PARTY_APP_NAME
       configRef: ci.dev.mockIdentities.firstParty.applicationName
     - name: ARM_HELPER_APP_NAME
@@ -80,8 +100,6 @@ resourceGroups:
       configRef: ci.dev.mockIdentities.msiMock.applicationName
     - name: POOL_APP_BASE
       configRef: ci.dev.mockIdentities.pool.appBaseName
-    - name: POOL_CERT_BASE
-      value: msiMockPoolCert
     - name: POOL_SIZE
       configRef: ci.dev.mockIdentities.pool.size
     dependsOn:
@@ -113,30 +131,26 @@ resourceGroups:
   - name: pin-mock-certs-int
     action: Shell
     command: |
-      export IDENTITIES="${FIRST_PARTY_APP_NAME}=intFirstPartyCert
-      ${ARM_HELPER_APP_NAME}=intArmHelperCert
-      ${MSI_MOCK_APP_NAME}=intMsiMockCert"
-      ./pin-mock-identity-certs.sh
-    workingDir: ../../scripts
+      ./tooling/entra-app-credentials/entra-app-credentials pin \
+        --vault-url "${VAULT_URL}" \
+        --mapping "${FIRST_PARTY_APP_NAME}=intFirstPartyCert" \
+        --mapping "${ARM_HELPER_APP_NAME}=intArmHelperCert" \
+        --mapping "${MSI_MOCK_APP_NAME}=intMsiMockCert" \
+        --replace-all
+    workingDir: ../../..
     shellIdentity:
       value: unused-by-templatize
     variables:
-    - name: VAULT_NAME
-      value: aro-hcp-int-kv
-    - name: VAULT_SUBSCRIPTION
-      value: ARO SRE Team - INT (EA Subscription 3)
+    - name: AZURE_TOKEN_CREDENTIALS
+      value: dev
+    - name: VAULT_URL
+      value: https://aro-hcp-int-kv.vault.azure.net
     - name: FIRST_PARTY_APP_NAME
       configRef: ci.int.mockIdentities.firstParty.applicationName
     - name: ARM_HELPER_APP_NAME
       configRef: ci.int.mockIdentities.armHelper.applicationName
     - name: MSI_MOCK_APP_NAME
       configRef: ci.int.mockIdentities.msiMock.applicationName
-    - name: POOL_APP_BASE
-      configRef: ci.int.mockIdentities.pool.appBaseName
-    - name: POOL_CERT_BASE
-      value: intMsiMockPoolCert
-    - name: POOL_SIZE
-      configRef: ci.int.mockIdentities.pool.size
     dependsOn:
     - resourceGroup: mock-idents
       step: mock-identity-apps-int

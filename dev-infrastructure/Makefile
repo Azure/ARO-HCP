@@ -144,19 +144,26 @@ create-int-mock-identity-certs:
 # current cert without running the full privileged pipeline. Requires Key Vault
 # data-plane read on $(SVC_KV_NAME) and owner/Application.ReadWrite on the apps.
 pin-mock-identity-certs:
-	VAULT_NAME=$(SVC_KV_NAME) \
-	POOL_APP_BASE=aro-dev-msi-mock-pool POOL_CERT_BASE=msiMockPoolCert \
-	POOL_SIZE=$(MSI_MOCK_POOL_SIZE) \
-	IDENTITIES=$$'aro-dev-first-party2=firstPartyCert2\naro-dev-arm-helper2=armHelperCert2\naro-dev-msi-mock2=msiMockCert2' \
-		./scripts/pin-mock-identity-certs.sh
+	AZURE_TOKEN_CREDENTIALS=dev go run ../tooling/entra-app-credentials pin \
+		--vault-url https://$(SVC_KV_NAME).vault.azure.net \
+		--mapping aro-dev-first-party2=firstPartyCert2 \
+		--mapping aro-dev-arm-helper2=armHelperCert2 \
+		--mapping aro-dev-msi-mock2=msiMockCert2 \
+		--indexed-application-base aro-dev-msi-mock-pool \
+		--indexed-certificate-base msiMockPoolCert \
+		--indexed-count $(MSI_MOCK_POOL_SIZE) \
+		--replace-all
 .PHONY: pin-mock-identity-certs
 
 # INT variant: certificates live in the INT global Key Vault; there is no pool in
 # INT (POOL_SIZE defaults to 0). See docs/sops/msit-int-credential-setup.md.
 pin-int-mock-identity-certs:
-	VAULT_NAME=aro-hcp-int-kv \
-	IDENTITIES=$$'aro-hcp-int-fp=intFirstPartyCert\naro-hcp-int-arm-helper=intArmHelperCert\naro-hcp-int-msi-mock=intMsiMockCert' \
-		./scripts/pin-mock-identity-certs.sh
+	AZURE_TOKEN_CREDENTIALS=dev go run ../tooling/entra-app-credentials pin \
+		--vault-url https://aro-hcp-int-kv.vault.azure.net \
+		--mapping aro-hcp-int-fp=intFirstPartyCert \
+		--mapping aro-hcp-int-arm-helper=intArmHelperCert \
+		--mapping aro-hcp-int-msi-mock=intMsiMockCert \
+		--replace-all
 .PHONY: pin-int-mock-identity-certs
 
 populate-msi-mock-pool:
