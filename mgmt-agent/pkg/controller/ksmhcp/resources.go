@@ -122,10 +122,10 @@ func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey st
 						WithResources(coreac.ResourceRequirements().
 							WithRequests(corev1.ResourceList{
 								corev1.ResourceCPU:    resource.MustParse("10m"),
-								corev1.ResourceMemory: resource.MustParse("32Mi"),
+								corev1.ResourceMemory: resource.MustParse("64Mi"),
 							}).
 							WithLimits(corev1.ResourceList{
-								corev1.ResourceMemory: resource.MustParse("64Mi"),
+								corev1.ResourceMemory: resource.MustParse("128Mi"),
 							})).
 						WithVolumeMounts(
 							coreac.VolumeMount().
