@@ -123,7 +123,6 @@ suppressions:
   - code: PreviewVersionOverOneYear
     from: openapi.json
     reason: API version will be deprecated when 2025-12-23-preview is deployed to Azure regions.
-
 ```
 
 
