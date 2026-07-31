@@ -36,7 +36,7 @@ type HCPOpenShiftCluster struct {
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	// Written by: Frontend PUT/PATCH Cluster (Create/Update), IdentityMigration
 	Identity *arm.ManagedServiceIdentity `json:"identity,omitempty"`
-	// Written by: ClusterDegradedAggregator
+	// Written by: ClusterDegradedAggregator, ClusterRequirementsValidAggregator
 	Status HCPOpenShiftClusterStatus `json:"status"`
 }
 
@@ -51,6 +51,22 @@ type HCPOpenShiftClusterStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// UserFacingConditions is a list of conditions that tracks user-facing cluster
+	// conditions. Each Condition Type should be unique among all conditions.
+	// The conditions here are exposed to the ARM API. This means that UserFacingConditions
+	// must not contain any internal details. This also means the Type and Reason
+	// values become part of the public API.
+	// Addition of new conditions here should be done only when strictly necessary, sparingly and only done
+	// when there is a clear benefit to doing so. We expect the number of conditions at this
+	// level to be kept to a minimum.
+	// Written by: ClusterRequirementsValidAggregator
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	UserFacingConditions []metav1.Condition `json:"userFacingConditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}

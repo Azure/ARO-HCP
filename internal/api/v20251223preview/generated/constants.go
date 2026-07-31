@@ -378,7 +378,7 @@ func PossibleProvisioningStateValues() []ProvisioningState {
 	}
 }
 
-// StatusType - Representation of the possible values of a external auths condition status.
+// StatusType - Representation of the possible values of a condition status.
 type StatusType string
 
 const (

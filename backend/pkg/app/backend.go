@@ -542,7 +542,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
-		unionKubeApplierInformers,
 	)
 	deleteOrphanedCosmosResourcesController := mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, subscriptionLister, managementClusterLister)
 	missingResourceIDController := mismatchcontrollers.NewMissingResourceIDController(b.options.ResourcesDBClient)
@@ -623,6 +622,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 		b.clock,
 	)
+	clusterRequirementsValidAggregatorController := statuscontrollers.NewClusterRequirementsValidAggregatorController(
+		b.options.ResourcesDBClient,
+		clusterLister,
+		serviceProviderClusterLister,
+		backendInformers,
+	)
 	nodePoolDegradedAggregatorController := statuscontrollers.NewNodePoolDegradedAggregatorController(
 		b.options.ResourcesDBClient,
 		nodePoolLister,
@@ -630,6 +635,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 		b.clock,
+	)
+	nodePoolRequirementsValidAggregatorController := statuscontrollers.NewNodePoolRequirementsValidAggregatorController(
+		b.options.ResourcesDBClient,
+		nodePoolLister,
+		serviceProviderNodePoolLister,
+		backendInformers,
 	)
 	externalAuthDegradedAggregatorController := statuscontrollers.NewExternalAuthDegradedAggregatorController(
 		b.options.ResourcesDBClient,
@@ -683,21 +694,18 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
-		unionKubeApplierInformers,
 	)
 	azureClusterResourceGroupExistenceValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAzureClusterResourceGroupExistenceValidation(b.options.FPAClientBuilder),
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
-		unionKubeApplierInformers,
 	)
 	azureClusterManagedIdentitiesExistenceValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAzureClusterManagedIdentitiesExistenceValidation(b.options.SMIClientBuilder),
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
-		unionKubeApplierInformers,
 	)
 	nodePoolVersionController := upgradecontrollers.NewNodePoolVersionController(
 		b.options.ResourcesDBClient,
@@ -896,7 +904,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterPropertiesSyncController.Run(ctx, 20)
 				go identityMigrationController.Run(ctx, 20)
 				go clusterDegradedAggregatorController.Run(ctx, 20)
+				go clusterRequirementsValidAggregatorController.Run(ctx, 20)
 				go nodePoolDegradedAggregatorController.Run(ctx, 20)
+				go nodePoolRequirementsValidAggregatorController.Run(ctx, 20)
 				go externalAuthDegradedAggregatorController.Run(ctx, 20)
 				go desiredControlPlaneSizeController.Run(ctx, 20)
 				go serviceProviderClusterPropertiesSyncController.Run(ctx, 20)

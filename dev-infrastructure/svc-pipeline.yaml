@@ -965,3 +965,38 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: exporter-output
+  - name: aro-hcp-exporter
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Helm
+    releaseName: aro-hcp-exporter
+    releaseNamespace: aro-hcp-exporter
+    chartDir: ./../tooling/aro-hcp-exporter/deploy
+    valuesFile: ./../tooling/aro-hcp-exporter/deploy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    dependsOn:
+    - resourceGroup: service
+      step: upgrade-aks-cluster
+    - resourceGroup: service
+      step: prometheus
+    - resourceGroup: service
+      step: mirror-exporter-image
+    - resourceGroup: service
+      step: image-registry-policy
+    inputVariables:
+      kustoRegion:
+        resourceGroup: kusto
+        step: output
+        name: kustoRegion
+      msiClientId:
+        resourceGroup: service
+        step: exporter-output
+        name: msiClientId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

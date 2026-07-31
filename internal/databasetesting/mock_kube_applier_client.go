@@ -188,16 +188,16 @@ func (m *MockKubeApplierDBClient) UntypedCRUD(parentResourceID azcorearm.Resourc
 	return &mockKubeApplierUntypedCRUD{store: m, parentResourceID: parentResourceID}, nil
 }
 
-func (m *MockKubeApplierDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+func (m *MockKubeApplierDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
 	var continuation string
 	if options != nil && options.Continuation != nil {
 		continuation = *options.Continuation
 	}
-	docs, nextToken, hasNew := m.changeFeed.read(continuation)
-	return buildMockChangeFeedResponse(docs, nextToken, hasNew), nil
+	items, nextToken, hasNew := m.changeFeed.read(continuation)
+	return buildMockChangeFeedResponse(items, nextToken, hasNew), nil
 }
 
-func (m *MockKubeApplierDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+func (m *MockKubeApplierDBClient) ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error) {
 	return []azcosmos.FeedRange{mockChangeFeedFeedRange}, nil
 }
 
