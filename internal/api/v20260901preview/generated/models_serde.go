@@ -942,6 +942,35 @@ func (h *HcpOpenShiftClusterAdminCredential) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaller interface for type HcpOpenShiftClusterAdminCredentialRequest.
+func (h HcpOpenShiftClusterAdminCredentialRequest) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "certificateSigningRequest", h.CertificateSigningRequest)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftClusterAdminCredentialRequest.
+func (h *HcpOpenShiftClusterAdminCredentialRequest) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", h, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "certificateSigningRequest":
+			err = unpopulate(val, "CertificateSigningRequest", &h.CertificateSigningRequest)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", h, err)
+		}
+	}
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaller interface for type HcpOpenShiftClusterListResult.
 func (h HcpOpenShiftClusterListResult) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
