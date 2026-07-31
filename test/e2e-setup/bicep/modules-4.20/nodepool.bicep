@@ -18,11 +18,11 @@ param vmSize string = 'Standard_D8s_v3'
 @description('Job attribution tags applied to resources created by this deployment')
 param jobTags object = {}
 
-resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview' existing = {
+resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2026-09-01-preview' existing = {
   name: clusterName
 }
 
-resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2024-06-10-preview' = {
+resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2026-09-01-preview' = {
   tags: jobTags
   parent: hcp
   name: nodePoolName
