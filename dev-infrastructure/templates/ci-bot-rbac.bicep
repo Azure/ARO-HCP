@@ -20,7 +20,8 @@ resource botSp 'Microsoft.Graph/servicePrincipals@beta' existing = {
   appId: botApp.appId
 }
 
-// E2E (customer test) subscriptions only receive the base test-runner roles.
+// E2E (customer test) subscriptions get the standard test-runner roles
+// (Contributor, RBAC Admin, plus AKS RBAC Cluster Admin when grantAksRbac is set).
 // Key Vault Admin and the global-only data-plane roles (Grafana Admin) are
 // reserved for infrastructure subscriptions, which opt in per-sub below, so
 // isGlobalSubscription and grantKeyVaultAdmin are intentionally always false here.

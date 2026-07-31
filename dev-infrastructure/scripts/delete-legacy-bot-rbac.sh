@@ -10,11 +10,6 @@ set -euo pipefail
 # Requires Owner or User Access Administrator on each subscription.
 # Dry-run by default; set APPLY=1 to actually delete.
 
-if [ -n "${DRY_RUN:-}" ] && [ -n "${APPLY:-}" ]; then
-  echo "ERROR: set either DRY_RUN (the default) or APPLY=1, not both"
-  exit 1
-fi
-
 if [ -n "${APPLY:-}" ]; then
   DRY_RUN_MODE=false
 else

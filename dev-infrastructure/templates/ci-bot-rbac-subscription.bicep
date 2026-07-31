@@ -3,7 +3,7 @@ targetScope = 'subscription'
 @description('Principal ID of the CI bot service principal')
 param botPrincipalId string
 
-@description('Whether this subscription hosts global infrastructure (grants Grafana Admin and other global-only data-plane roles)')
+@description('Whether this subscription hosts global infrastructure; grants the global-only data-plane roles (currently Grafana Admin)')
 param isGlobalSubscription bool = false
 
 @description('Whether to grant AKS RBAC Cluster Admin (only needed in DEV for NSG rule management)')
