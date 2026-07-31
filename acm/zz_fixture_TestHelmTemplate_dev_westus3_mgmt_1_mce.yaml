@@ -3461,6 +3461,15 @@ spec:
         ocm-antiaffinity-selector: backplane-operator
     spec:
       affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - infra
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
           - podAffinityTerm:
@@ -3607,8 +3616,6 @@ spec:
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: cert
           readOnly: true
-      nodeSelector:
-        aro-hcp.azure.com/role: infra
       securityContext:
         runAsNonRoot: true
         seccompProfile:
