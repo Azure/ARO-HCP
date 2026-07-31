@@ -21,6 +21,11 @@ knownIssues:
   reason: "Newly added stuck-async-operation alerts (https://github.com/Azure/ARO-HCP/pull/5952) surface a pre-existing problem: Azure Monitor Workspace ingestion latency (metrics can take ~10min to ingest) makes async operations look stuck and latches onto E2E runs even when the tests pass. Observed blocking green E2E runs (per https://cihealth.tools.hcpsvc.osadev.cloud/run-log?q=BackendAsync): BackendAsyncOperationClusterDeleteStuck, BackendAsyncOperationExternalAuthDeleteStuck, BackendAsyncOperationClusterCreateStuck, BackendAsyncOperationNodePoolDeleteStuck, BackendAsyncOperationNodePoolCreateStuck, BackendAsyncOperationStuck. Owner @stevekuznetsov; durable fix is the AMW auto-scaler (https://github.com/Azure/ARO-HCP/pull/6036). Marked known so it stops blocking the merge queue until that lands."
 - name: "KubePodNotReady"
   labels:
+    namespace: "clusters-service"
+    pod: "clusters-service-.*"
+  reason: "False positive caused by stale metrics in the remote write pipeline. The pod transitions from Pending to Running in under 2 minutes, but the metric update takes up to 4 minutes to propagate through OSS Prometheus remote write and Azure Monitor ingestion, making the 5-minute for duration insufficient. Upstream kube-prometheus-stack uses for: 15m to absorb this latency. Tracked in https://issues.redhat.com/browse/AROSLSRE-1656."
+- name: "KubePodNotReady"
+  labels:
     namespace: "klusterlet-.*"
   reason: "Klusterlet addon pods take a while to start when clusters are slow to provision, so this is a downstream issue and just noise."
 - name: "KubePodNotReady"
