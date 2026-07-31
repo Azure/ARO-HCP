@@ -3,11 +3,14 @@ targetScope = 'subscription'
 @description('Principal ID of the CI bot service principal')
 param botPrincipalId string
 
-@description('Whether this subscription hosts global infrastructure (extra data-plane roles)')
+@description('Whether this subscription hosts global infrastructure (grants Grafana Admin and other global-only data-plane roles)')
 param isGlobalSubscription bool = false
 
 @description('Whether to grant AKS RBAC Cluster Admin (only needed in DEV for NSG rule management)')
 param grantAksRbac bool = false
+
+@description('Whether to grant Key Vault Administrator (data-plane secret access) on this subscription; decoupled from isGlobalSubscription so a sub can get Key Vault Admin without the other global-only roles')
+param grantKeyVaultAdmin bool = false
 
 var contributorRole = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
 var rbacAdminRole = 'f58310d9-a9f6-439a-9e8d-f62e7b41a168'
@@ -52,7 +55,7 @@ resource aksRbacClusterAdminAssignment 'Microsoft.Authorization/roleAssignments@
   }
 }
 
-resource keyVaultAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (isGlobalSubscription) {
+resource keyVaultAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantKeyVaultAdmin) {
   name: guid(subscription().id, botPrincipalId, keyVaultAdminRole)
   scope: subscription()
   properties: {

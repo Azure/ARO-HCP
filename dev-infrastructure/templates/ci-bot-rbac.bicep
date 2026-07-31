@@ -28,6 +28,7 @@ module e2eRbac 'ci-bot-rbac-subscription.bicep' = [
       botPrincipalId: botSp.id
       isGlobalSubscription: false
       grantAksRbac: grantAksRbac
+      grantKeyVaultAdmin: false
     }
   }
 ]
@@ -40,6 +41,7 @@ module infraRbac 'ci-bot-rbac-subscription.bicep' = [
       botPrincipalId: botSp.id
       isGlobalSubscription: sub.?isGlobalSubscription ?? false
       grantAksRbac: grantAksRbac
+      grantKeyVaultAdmin: sub.?grantKeyVaultAdmin ?? false
     }
   }
 ]

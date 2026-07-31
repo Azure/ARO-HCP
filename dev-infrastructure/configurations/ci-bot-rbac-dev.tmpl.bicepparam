@@ -10,6 +10,7 @@ param infrastructureSubscriptions = [
 {{ range .ci.dev.infrastructureSubscriptions }}  {
     id: '{{ .id }}'
     isGlobalSubscription: {{ if index . "isGlobalSubscription" }}{{ .isGlobalSubscription }}{{ else }}false{{ end }}
+    grantKeyVaultAdmin: {{ if index . "grantKeyVaultAdmin" }}{{ .grantKeyVaultAdmin }}{{ else }}false{{ end }}
   }
 {{ end }}]
 
