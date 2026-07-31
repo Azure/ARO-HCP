@@ -74,6 +74,19 @@ clouds:
               # the uksouth hcp-stg-uk-* cluster.
               kustoName: "hcp-{{ .ctx.environment }}-us-1"
         defaults:
+          # Carry the environment in the subscription display names for stage, so the
+          # stg subscriptions are distinguishable from the identically-named prod ones.
+          # The base config.yaml default omits the environment (that stays as prod);
+          # this only overrides stage, matching the global sub which already includes it.
+          svc:
+            subscription:
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - SVC"
+          mgmt:
+            subscription:
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - MGMT - {{ .ctx.stamp }}"
+          serviceKeyVault:
+            subscription:
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - SVC"
           # This must be defined here, so our ci jobs can know this
           kusto:
             kustoName: "hcp-stg-uk-2"
