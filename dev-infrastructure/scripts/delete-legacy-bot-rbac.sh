@@ -81,7 +81,7 @@ for SUB_ID in "${SUBSCRIPTIONS[@]}"; do
     fi
     if [ "$DRY_RUN_MODE" = true ]; then
       echo "WOULD  ${SUB_ID} ${ROLE_NAME}"
-    elif az role assignment delete --ids "${ASSIGNMENT_ID}" 2>/dev/null; then
+    elif az role assignment delete --ids "${ASSIGNMENT_ID}"; then
       echo "DONE   ${SUB_ID} ${ROLE_NAME}"
       DELETED=$((DELETED + 1))
     else

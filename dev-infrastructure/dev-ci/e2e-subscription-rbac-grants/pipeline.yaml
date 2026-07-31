@@ -33,9 +33,11 @@ resourceGroups:
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  # Prerequisite: legacy role assignments from grant-openshift-release-bot-dev.sh
-  # must be deleted first (delete-legacy-bot-rbac.sh), otherwise this step fails
-  # with RoleAssignmentExists due to GUID collisions.
+  # Prerequisite: the legacy role assignments created by
+  # grant-openshift-release-bot-dev.sh must be deleted first
+  # (delete-legacy-bot-rbac.sh). Azure permits only one role assignment per
+  # (principal, role, scope), so a leftover legacy assignment for a role this
+  # step also assigns causes RoleAssignmentExists — regardless of assignment ID.
   - name: ci-bot-rbac-dev
     action: ARM
     template: ../../templates/ci-bot-rbac.bicep
