@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -51,7 +50,6 @@ func NewClusterValidationController(
 	resourcesDBClient database.ResourcesDBClient,
 	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
-	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 
 	syncer := &clusterValidationSyncer{
@@ -64,7 +62,7 @@ func NewClusterValidationController(
 		fmt.Sprintf("ClusterValidation%s", validation.Name()),
 		resourcesDBClient,
 		informers,
-		kubeApplierInformers,
+		nil, // as of now, validations do not depend on ReadDesire content
 		1*time.Minute,
 		syncer,
 	)
