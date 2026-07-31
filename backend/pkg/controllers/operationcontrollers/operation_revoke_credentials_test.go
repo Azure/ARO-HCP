@@ -53,7 +53,7 @@ func TestOperationRevokeCredentials_ShouldProcess(t *testing.T) {
 		},
 		{
 			name:              "Wrong operation request type should not be processed",
-			operationOverride: func(o *api.Operation) { o.Request = database.OperationRequestRequestCredential },
+			operationOverride: func(o *api.Operation) { o.Request = database.OperationRequestSystemAdminCredentialRequest },
 			expectedResult:    false,
 		},
 		{
@@ -69,7 +69,7 @@ func TestOperationRevokeCredentials_ShouldProcess(t *testing.T) {
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
 			fixture := newClusterTestFixture()
-			operation := fixture.newOperation(database.OperationRequestRevokeCredentials)
+			operation := fixture.newOperation(database.OperationRequestSystemAdminCredentialRevocation)
 			operation.Status = arm.ProvisioningStateDeleting
 			if tt.operationOverride != nil {
 				tt.operationOverride(operation)
@@ -226,7 +226,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			fixture := newClusterTestFixture()
 			cluster := fixture.newCluster(nil)
 			cluster.ServiceProviderProperties.RevokeCredentialsOperationID = tt.revokeCredentialsOperationID
-			operation := fixture.newOperation(database.OperationRequestRevokeCredentials)
+			operation := fixture.newOperation(database.OperationRequestSystemAdminCredentialRevocation)
 			operation.Status = arm.ProvisioningStateDeleting
 			if tt.operationOverride != nil {
 				tt.operationOverride(operation)

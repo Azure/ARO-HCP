@@ -78,7 +78,7 @@ func checkForProvisioningStateConflict(
 				"Cannot update resource while resource is %q",
 				strings.ToLower(string(provisioningState)))
 		}
-	case database.OperationRequestRequestCredential:
+	case database.OperationRequestSystemAdminCredentialRequest:
 		// Defer to Cluster Service for ProvisioningStateFailed since
 		// it is ambiguous about whether the resource is functional.
 		if !provisioningState.IsTerminal() {
@@ -87,7 +87,7 @@ func checkForProvisioningStateConflict(
 				"Cannot request credential while resource is %q",
 				strings.ToLower(string(provisioningState)))
 		}
-	case database.OperationRequestRevokeCredentials:
+	case database.OperationRequestSystemAdminCredentialRevocation:
 		// Defer to Cluster Service for ProvisioningStateFailed since
 		// it is ambiguous about whether the resource is functional.
 		if !provisioningState.IsTerminal() {

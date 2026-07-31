@@ -72,7 +72,7 @@ func (c *dispatchRequestCredential) ShouldProcess(ctx context.Context, operation
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestRequestCredential {
+	if operation.Request != database.OperationRequestSystemAdminCredentialRequest {
 		return false
 	}
 	if len(operation.InternalID.String()) > 0 {

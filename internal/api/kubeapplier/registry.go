@@ -44,4 +44,14 @@ var (
 	ClusterScopedReadDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, ReadDesireResourceTypeName)
 	// NodePoolScopedReadDesireResourceType is readDesires nested under a NodePool under a Cluster.
 	NodePoolScopedReadDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, api.NodePoolResourceTypeName, ReadDesireResourceTypeName)
+
+	// SystemAdminCredentialRequestScopedApplyDesireResourceType is applyDesires nested under a SystemAdminCredentialRequest under a Cluster.
+	SystemAdminCredentialRequestScopedApplyDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, api.SystemAdminCredentialRequestResourceTypeName, ApplyDesireResourceTypeName)
+	// SystemAdminCredentialRequestScopedReadDesireResourceType is readDesires nested under a SystemAdminCredentialRequest under a Cluster.
+	SystemAdminCredentialRequestScopedReadDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, api.SystemAdminCredentialRequestResourceTypeName, ReadDesireResourceTypeName)
+
+	// SystemAdminCredentialRevocationScopedApplyDesireResourceType is applyDesires nested under a SystemAdminCredentialRevocation under a Cluster.
+	SystemAdminCredentialRevocationScopedApplyDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, api.SystemAdminCredentialRevocationResourceTypeName, ApplyDesireResourceTypeName)
+	// SystemAdminCredentialRevocationScopedReadDesireResourceType is readDesires nested under a SystemAdminCredentialRevocation under a Cluster.
+	SystemAdminCredentialRevocationScopedReadDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, api.SystemAdminCredentialRevocationResourceTypeName, ReadDesireResourceTypeName)
 )

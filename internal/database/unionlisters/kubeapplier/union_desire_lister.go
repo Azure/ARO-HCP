@@ -46,6 +46,8 @@ type DesireLister[T any] interface {
 	List(ctx context.Context) ([]*T, error)
 	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*T, error)
 	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*T, error)
+	GetForSystemAdminCredentialRequest(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string) (*T, error)
+	GetForSystemAdminCredentialRevocation(ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string) (*T, error)
 	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*T, error)
 	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*T, error)
 	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*T, error)
@@ -158,6 +160,38 @@ func (u *UnionDesireLister[T]) GetForNodePool(
 ) (*T, error) {
 	for _, sub := range u.snapshot() {
 		d, err := sub.GetForNodePool(ctx, subscriptionID, resourceGroupName, clusterName, nodePoolName, name)
+		if err == nil {
+			return d, nil
+		}
+		if !database.IsNotFoundError(err) {
+			return nil, err
+		}
+	}
+	return nil, database.NewNotFoundError()
+}
+
+// GetForSystemAdminCredentialRequest tries each sublister in turn. First hit wins.
+func (u *UnionDesireLister[T]) GetForSystemAdminCredentialRequest(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
+) (*T, error) {
+	for _, sub := range u.snapshot() {
+		d, err := sub.GetForSystemAdminCredentialRequest(ctx, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name)
+		if err == nil {
+			return d, nil
+		}
+		if !database.IsNotFoundError(err) {
+			return nil, err
+		}
+	}
+	return nil, database.NewNotFoundError()
+}
+
+// GetForSystemAdminCredentialRevocation tries each sublister in turn. First hit wins.
+func (u *UnionDesireLister[T]) GetForSystemAdminCredentialRevocation(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
+) (*T, error) {
+	for _, sub := range u.snapshot() {
+		d, err := sub.GetForSystemAdminCredentialRevocation(ctx, subscriptionID, resourceGroupName, clusterName, revocationName, name)
 		if err == nil {
 			return d, nil
 		}
