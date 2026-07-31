@@ -38,7 +38,9 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
+	credentialsoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentials/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
 	clusterreaddesires "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/readdesires"
@@ -52,18 +54,19 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/example"
 	externalauthcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauth/creation"
 	externalauthdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauth/deletion"
+	externalauthoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauth/operations"
 	externalauthstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauth/status"
 	externalauthupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauth/update"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metrics"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
 	nodepoolcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/creation"
 	nodepooldeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/deletion"
+	nodepooloperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/operations"
 	nodepoolreaddesires "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/readdesires"
 	nodepoolstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/status"
 	nodepoolupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/update"
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validations"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -441,20 +444,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	billingDumpController := datadump.NewBillingDumpController(b.options.ResourcesDBClient, b.options.BillingDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers)
 	managementClusterDumpController := datadump.NewManagementClusterDataDumpController(b.options.FleetDBClient, managementClusterLister, fleetInformers)
 	doNothingController := example.NewDoNothingExampleController(b.options.ResourcesDBClient, subscriptionLister)
-	dispatchRequestCredentialController := operation.NewDispatchRequestCredentialController(
+	dispatchRequestCredentialController := credentialsoperations.NewDispatchRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationInformer,
 	)
-	dispatchRevokeCredentialsController := operation.NewDispatchRevokeCredentialsController(
+	dispatchRevokeCredentialsController := credentialsoperations.NewDispatchRevokeCredentialsController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationInformer,
 	)
 
-	operationClusterCreateController := operation.NewOperationClusterCreateController(
+	operationClusterCreateController := clusteroperations.NewOperationClusterCreateController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -463,7 +466,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionReadDesireLister,
 	)
-	operationClusterUpdateController := operation.NewOperationClusterUpdateController(
+	operationClusterUpdateController := clusteroperations.NewOperationClusterUpdateController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -472,7 +475,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationInformer,
 		backendInformers,
 	)
-	operationClusterDeleteController := operation.NewOperationClusterDeleteController(
+	operationClusterDeleteController := clusteroperations.NewOperationClusterDeleteController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.BillingDBClient,
@@ -480,7 +483,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		http.DefaultClient,
 		activeOperationInformer,
 	)
-	operationNodePoolCreateController := operation.NewOperationNodePoolCreateController(
+	operationNodePoolCreateController := nodepooloperations.NewOperationNodePoolCreateController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -488,7 +491,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationInformer,
 		backendInformers,
 	)
-	operationNodePoolUpdateController := operation.NewOperationNodePoolUpdateController(
+	operationNodePoolUpdateController := nodepooloperations.NewOperationNodePoolUpdateController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -497,14 +500,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationInformer,
 		backendInformers,
 	)
-	operationNodePoolDeleteController := operation.NewOperationNodePoolDeleteController(
+	operationNodePoolDeleteController := nodepooloperations.NewOperationNodePoolDeleteController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
-	operationExternalAuthCreateController := operation.NewOperationExternalAuthCreateController(
+	operationExternalAuthCreateController := externalauthoperations.NewOperationExternalAuthCreateController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -512,7 +515,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationInformer,
 		backendInformers,
 	)
-	operationExternalAuthUpdateController := operation.NewOperationExternalAuthUpdateController(
+	operationExternalAuthUpdateController := externalauthoperations.NewOperationExternalAuthUpdateController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -521,21 +524,21 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationInformer,
 		backendInformers,
 	)
-	operationExternalAuthDeleteController := operation.NewOperationExternalAuthDeleteController(
+	operationExternalAuthDeleteController := externalauthoperations.NewOperationExternalAuthDeleteController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
-	operationRequestCredentialController := operation.NewOperationRequestCredentialController(
+	operationRequestCredentialController := credentialsoperations.NewOperationRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
-	operationRevokeCredentialsController := operation.NewOperationRevokeCredentialsController(
+	operationRevokeCredentialsController := credentialsoperations.NewOperationRevokeCredentialsController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -544,7 +547,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	clusterServiceMatchingClusterController := mismatch.NewClusterServiceClusterMatchingController(b.options.ResourcesDBClient, subscriptionLister, b.options.ClustersServiceClient)
 	alwaysSuccessClusterValidationController := clustervalidation.NewClusterValidationController(
-		validations.NewAlwaysSuccessValidation(),
+		validationutils.NewAlwaysSuccessValidation(),
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
@@ -696,19 +699,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 
 	azureRPRegistrationValidationController := clustervalidation.NewClusterValidationController(
-		validations.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
+		validationutils.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
 	)
 	azureClusterResourceGroupExistenceValidationController := clustervalidation.NewClusterValidationController(
-		validations.NewAzureClusterResourceGroupExistenceValidation(b.options.FPAClientBuilder),
+		validationutils.NewAzureClusterResourceGroupExistenceValidation(b.options.FPAClientBuilder),
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
 	)
 	azureClusterManagedIdentitiesExistenceValidationController := clustervalidation.NewClusterValidationController(
-		validations.NewAzureClusterManagedIdentitiesExistenceValidation(b.options.SMIClientBuilder),
+		validationutils.NewAzureClusterManagedIdentitiesExistenceValidation(b.options.SMIClientBuilder),
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,

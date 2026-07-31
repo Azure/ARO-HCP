@@ -31,7 +31,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutil"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -44,9 +44,9 @@ import (
 // unchanged" path.
 func newTestClusterForAggregator(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
 	resourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + statusutil.TestSubscriptionID +
-			"/resourceGroups/" + statusutil.TestResourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutil.TestClusterName,
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
 	))
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
@@ -56,7 +56,7 @@ func newTestClusterForAggregator(opts ...func(*api.HCPOpenShiftCluster)) *api.HC
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
-				Name: statusutil.TestClusterName,
+				Name: statusutils.TestClusterName,
 				Type: resourceID.ResourceType.String(),
 			},
 		},
@@ -69,25 +69,25 @@ func newTestClusterForAggregator(opts ...func(*api.HCPOpenShiftCluster)) *api.HC
 
 func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 	parentResourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + statusutil.TestSubscriptionID +
-			"/resourceGroups/" + statusutil.TestResourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutil.TestClusterName,
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
 	))
 
 	// thirtySecondInertia / fiveMinuteOverrideInertia mirror the two
 	// inertia setups exercised in union_condition_test.go so the table
 	// stays readable.
-	thirtySecondInertia := statusutil.MustNewInertia(30 * time.Second).Inertia
-	fiveMinuteOverrideInertia := statusutil.MustNewInertia(
+	thirtySecondInertia := statusutils.MustNewInertia(30 * time.Second).Inertia
+	fiveMinuteOverrideInertia := statusutils.MustNewInertia(
 		30*time.Second,
-		statusutil.InertiaController{ControllerNameMatcher: regexp.MustCompile(`^SlowController$`), Duration: 5 * time.Minute},
+		statusutils.InertiaController{ControllerNameMatcher: regexp.MustCompile(`^SlowController$`), Duration: 5 * time.Minute},
 	).Inertia
 
 	tests := []struct {
 		name string
 
 		controllers []*api.Controller
-		inertia     statusutil.Inertia
+		inertia     statusutils.Inertia
 		// initialConditions, if set, is layered onto the cluster before SyncOnce
 		// runs. Used to drive the "no-op when conditions unchanged" case.
 		initialConditions []metav1.Condition
@@ -107,8 +107,8 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "all controllers report Degraded=False -> aggregate False/AsExpected",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
-				statusutil.ControllerUnder(parentResourceID, "BController", metav1.ConditionFalse, "NoErrors", "ok", 1*time.Minute),
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+				statusutils.ControllerUnder(parentResourceID, "BController", metav1.ConditionFalse, "NoErrors", "ok", 1*time.Minute),
 			},
 			inertia:       thirtySecondInertia,
 			expectStatus:  metav1.ConditionFalse,
@@ -118,7 +118,7 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "bad controller within 30s inertia is hidden -> aggregate stays default",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 5*time.Second),
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 5*time.Second),
 			},
 			inertia:       thirtySecondInertia,
 			expectStatus:  metav1.ConditionFalse,
@@ -128,7 +128,7 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "bad controller past 30s inertia flips aggregate to True",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 31*time.Second),
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 31*time.Second),
 			},
 			inertia:       thirtySecondInertia,
 			expectStatus:  metav1.ConditionTrue,
@@ -139,7 +139,7 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			name: "per-controller inertia override delays SlowController",
 			controllers: []*api.Controller{
 				// SlowController has 5m inertia; 2m old is still fresh -> NOT elder.
-				statusutil.ControllerUnder(parentResourceID, "SlowController", metav1.ConditionTrue, "Failed", "settling", 2*time.Minute),
+				statusutils.ControllerUnder(parentResourceID, "SlowController", metav1.ConditionTrue, "Failed", "settling", 2*time.Minute),
 			},
 			inertia:       fiveMinuteOverrideInertia,
 			expectStatus:  metav1.ConditionFalse,
@@ -150,9 +150,9 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			name: "per-controller inertia override + elder default controller -> aggregate flips",
 			controllers: []*api.Controller{
 				// SlowController has 5m inertia; 2m fresh -> not elder.
-				statusutil.ControllerUnder(parentResourceID, "SlowController", metav1.ConditionTrue, "Failed", "settling", 2*time.Minute),
+				statusutils.ControllerUnder(parentResourceID, "SlowController", metav1.ConditionTrue, "Failed", "settling", 2*time.Minute),
 				// NormalController uses default 30s inertia; 1m old -> elder.
-				statusutil.ControllerUnder(parentResourceID, "NormalController", metav1.ConditionTrue, "Failed", "boom", 1*time.Minute),
+				statusutils.ControllerUnder(parentResourceID, "NormalController", metav1.ConditionTrue, "Failed", "boom", 1*time.Minute),
 			},
 			inertia:      fiveMinuteOverrideInertia,
 			expectStatus: metav1.ConditionTrue,
@@ -164,7 +164,7 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "nil inertia propagates a fresh bad source immediately",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 1*time.Second),
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 1*time.Second),
 			},
 			inertia:       nil,
 			expectStatus:  metav1.ConditionTrue,
@@ -188,7 +188,7 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			inertia:      thirtySecondInertia,
 			expectStatus: metav1.ConditionFalse,
 			expectReason: "AsExpected",
-			// Even on the all-good path statusutil.UnionCondition surfaces the bad source's
+			// Even on the all-good path statusutils.UnionCondition surfaces the bad source's
 			// message so the aggregate stays attributable, just with a default
 			// (False/AsExpected) status.
 			expectMessage: "QuietController: Controller has not reported a Degraded condition",
@@ -212,7 +212,7 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "Degraded=Unknown past inertia flips (uses condition's real LastTransitionTime)",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "AController", metav1.ConditionUnknown, "Investigating", "still figuring out", 1*time.Minute),
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionUnknown, "Investigating", "still figuring out", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
 			// Unknown != defaultStatus, so it's counted as bad. With a real 1m old
@@ -225,7 +225,7 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "no-op when computed aggregate equals existing condition",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
 			// Pre-seed the cluster with the same Degraded=False/AsExpected condition
@@ -233,7 +233,7 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			// and skip the Replace; we still verify the resulting condition matches.
 			initialConditions: []metav1.Condition{
 				{
-					Type:    statusutil.DegradedConditionType,
+					Type:    statusutils.DegradedConditionType,
 					Status:  metav1.ConditionFalse,
 					Reason:  "AsExpected",
 					Message: "AController: fine",
@@ -262,27 +262,27 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			mockDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, seed)
 			require.NoError(t, err)
 
-			clock := clocktesting.NewFakePassiveClock(statusutil.FixedNow)
+			clock := clocktesting.NewFakePassiveClock(statusutils.FixedNow)
 			syncer := &clusterDegradedAggregator{
 				clusterLister:     &listertesting.DBClusterLister{ResourcesDBClient: mockDB},
 				controllerLister:  &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
 				resourcesDBClient: mockDB,
 				inertia:           tc.inertia,
 				clock:             clock,
-				firstObservedBad:  statusutil.NewFirstObservedBadCache(clock),
+				firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
 			}
 
 			err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
-				SubscriptionID:    statusutil.TestSubscriptionID,
-				ResourceGroupName: statusutil.TestResourceGroupName,
-				HCPClusterName:    statusutil.TestClusterName,
+				SubscriptionID:    statusutils.TestSubscriptionID,
+				ResourceGroupName: statusutils.TestResourceGroupName,
+				HCPClusterName:    statusutils.TestClusterName,
 			})
 			require.NoError(t, err)
 
-			updated, err := mockDB.HCPClusters(statusutil.TestSubscriptionID, statusutil.TestResourceGroupName).Get(ctx, statusutil.TestClusterName)
+			updated, err := mockDB.HCPClusters(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName).Get(ctx, statusutils.TestClusterName)
 			require.NoError(t, err)
 
-			cond := apimeta.FindStatusCondition(updated.Status.Conditions, statusutil.DegradedConditionType)
+			cond := apimeta.FindStatusCondition(updated.Status.Conditions, statusutils.DegradedConditionType)
 			require.NotNil(t, cond, "aggregator must set the Degraded condition on the cluster")
 			assert.Equal(t, tc.expectStatus, cond.Status, "status")
 			assert.Equal(t, tc.expectReason, cond.Reason, "reason")
@@ -307,9 +307,9 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 	ctx := context.Background()
 
 	parentResourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + statusutil.TestSubscriptionID +
-			"/resourceGroups/" + statusutil.TestResourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutil.TestClusterName,
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
 	))
 	quietController := &api.Controller{
 		CosmosMetadata: api.CosmosMetadata{
@@ -323,29 +323,29 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 	mockDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{existing, quietController})
 	require.NoError(t, err)
 
-	clock := clocktesting.NewFakePassiveClock(statusutil.FixedNow)
+	clock := clocktesting.NewFakePassiveClock(statusutils.FixedNow)
 	syncer := &clusterDegradedAggregator{
 		clusterLister:     &listertesting.DBClusterLister{ResourcesDBClient: mockDB},
 		controllerLister:  &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
 		resourcesDBClient: mockDB,
-		inertia:           statusutil.MustNewInertia(statusutil.DefaultInertia).Inertia,
+		inertia:           statusutils.MustNewInertia(statusutils.DefaultInertia).Inertia,
 		clock:             clock,
-		firstObservedBad:  statusutil.NewFirstObservedBadCache(clock),
+		firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
 	}
 	key := controllerutils.HCPClusterKey{
-		SubscriptionID:    statusutil.TestSubscriptionID,
-		ResourceGroupName: statusutil.TestResourceGroupName,
-		HCPClusterName:    statusutil.TestClusterName,
+		SubscriptionID:    statusutils.TestSubscriptionID,
+		ResourceGroupName: statusutils.TestResourceGroupName,
+		HCPClusterName:    statusutils.TestClusterName,
 	}
 
-	// First reconcile at statusutil.FixedNow: cache records first-observed-bad as now,
+	// First reconcile at statusutils.FixedNow: cache records first-observed-bad as now,
 	// synthesized entry is age=0 -> within the 30s inertia -> aggregate stays
 	// at the default Degraded=False/AsExpected.
 	require.NoError(t, syncer.SyncOnce(ctx, key))
 
-	afterFirst, err := mockDB.HCPClusters(statusutil.TestSubscriptionID, statusutil.TestResourceGroupName).Get(ctx, statusutil.TestClusterName)
+	afterFirst, err := mockDB.HCPClusters(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName).Get(ctx, statusutils.TestClusterName)
 	require.NoError(t, err)
-	firstCond := apimeta.FindStatusCondition(afterFirst.Status.Conditions, statusutil.DegradedConditionType)
+	firstCond := apimeta.FindStatusCondition(afterFirst.Status.Conditions, statusutils.DegradedConditionType)
 	require.NotNil(t, firstCond)
 	assert.Equal(t, metav1.ConditionFalse, firstCond.Status, "first reconcile: still inside inertia window")
 	assert.Equal(t, "AsExpected", firstCond.Reason)
@@ -354,12 +354,12 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 
 	// Advance the clock past the 30s default inertia. The cache entry is
 	// sticky, so the synthesized entry is now elder.
-	clock.SetTime(statusutil.FixedNow.Add(statusutil.DefaultInertia + time.Second))
+	clock.SetTime(statusutils.FixedNow.Add(statusutils.DefaultInertia + time.Second))
 	require.NoError(t, syncer.SyncOnce(ctx, key))
 
-	afterSecond, err := mockDB.HCPClusters(statusutil.TestSubscriptionID, statusutil.TestResourceGroupName).Get(ctx, statusutil.TestClusterName)
+	afterSecond, err := mockDB.HCPClusters(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName).Get(ctx, statusutils.TestClusterName)
 	require.NoError(t, err)
-	secondCond := apimeta.FindStatusCondition(afterSecond.Status.Conditions, statusutil.DegradedConditionType)
+	secondCond := apimeta.FindStatusCondition(afterSecond.Status.Conditions, statusutils.DegradedConditionType)
 	require.NotNil(t, secondCond)
 	assert.Equal(t, metav1.ConditionTrue, secondCond.Status, "second reconcile: past inertia -> aggregate must flip")
 	assert.Equal(t, "QuietController_MissingDegradedCondition", secondCond.Reason)

@@ -26,8 +26,8 @@ func TestCompareOperationState(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
-		lhs      *operationState
-		rhs      *operationState
+		lhs      *OperationState
+		rhs      *OperationState
 		expected int
 	}{
 		{
@@ -39,25 +39,25 @@ func TestCompareOperationState(t *testing.T) {
 		{
 			name:     "lhs nil",
 			lhs:      nil,
-			rhs:      newOperationState(arm.ProvisioningStateSucceeded, ""),
+			rhs:      NewOperationState(arm.ProvisioningStateSucceeded, ""),
 			expected: -1,
 		},
 		{
 			name:     "rhs nil",
-			lhs:      newOperationState(arm.ProvisioningStateSucceeded, ""),
+			lhs:      NewOperationState(arm.ProvisioningStateSucceeded, ""),
 			rhs:      nil,
 			expected: 1,
 		},
 		{
 			name:     "Succeeded > Provisioning",
-			lhs:      newOperationState(arm.ProvisioningStateSucceeded, ""),
-			rhs:      newOperationState(arm.ProvisioningStateProvisioning, ""),
+			lhs:      NewOperationState(arm.ProvisioningStateSucceeded, ""),
+			rhs:      NewOperationState(arm.ProvisioningStateProvisioning, ""),
 			expected: 1,
 		},
 		{
 			name:     "Deleting < Provisioning",
-			lhs:      newOperationState(arm.ProvisioningStateDeleting, ""),
-			rhs:      newOperationState(arm.ProvisioningStateProvisioning, ""),
+			lhs:      NewOperationState(arm.ProvisioningStateDeleting, ""),
+			rhs:      NewOperationState(arm.ProvisioningStateProvisioning, ""),
 			expected: -1,
 		},
 	}
@@ -65,7 +65,7 @@ func TestCompareOperationState(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := compareOperationState(tt.lhs, tt.rhs)
+			result := CompareOperationState(tt.lhs, tt.rhs)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -76,7 +76,7 @@ func TestPickWorstOperationState(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		states      []*operationState
+		states      []*OperationState
 		wantErr     string
 		wantProv    arm.ProvisioningState
 		wantMessage string
@@ -88,64 +88,64 @@ func TestPickWorstOperationState(t *testing.T) {
 		},
 		{
 			name:    "empty slice non-nil",
-			states:  []*operationState{},
+			states:  []*OperationState{},
 			wantErr: "no operation states",
 		},
 		{
 			name: "first state has empty provisioning state",
-			states: []*operationState{
-				newOperationState("", "ignored"),
+			states: []*OperationState{
+				NewOperationState("", "ignored"),
 			},
 			wantErr: "empty provisioning state",
 		},
 		{
 			name: "single state without source",
-			states: []*operationState{
-				newOperationState(arm.ProvisioningStateFailed, "first failure"),
+			states: []*OperationState{
+				NewOperationState(arm.ProvisioningStateFailed, "first failure"),
 			},
 			wantProv:    arm.ProvisioningStateFailed,
 			wantMessage: "[<no_source>] first failure",
 		},
 		{
 			name: "single state with source",
-			states: []*operationState{
-				newOperationState(arm.ProvisioningStateFailed, "NotReady: cluster is not ready").withSource("hypershiftHostedCluster"),
+			states: []*OperationState{
+				NewOperationState(arm.ProvisioningStateFailed, "NotReady: cluster is not ready").WithSource("hypershiftHostedCluster"),
 			},
 			wantProv:    arm.ProvisioningStateFailed,
 			wantMessage: "[hypershiftHostedCluster] NotReady: cluster is not ready",
 		},
 		{
 			name: "merges messages for consecutive same provisioning state",
-			states: []*operationState{
-				newOperationState(arm.ProvisioningStateFailed, "a"),
-				newOperationState(arm.ProvisioningStateFailed, "b"),
-				newOperationState(arm.ProvisioningStateFailed, "c"),
+			states: []*OperationState{
+				NewOperationState(arm.ProvisioningStateFailed, "a"),
+				NewOperationState(arm.ProvisioningStateFailed, "b"),
+				NewOperationState(arm.ProvisioningStateFailed, "c"),
 			},
 			wantProv:    arm.ProvisioningStateFailed,
 			wantMessage: "[<no_source>] a; [<no_source>] b; [<no_source>] c",
 		},
 		{
 			name: "merges messages with sources",
-			states: []*operationState{
-				newOperationState(arm.ProvisioningStateFailed, "a").withSource("checkA"),
-				newOperationState(arm.ProvisioningStateFailed, "b").withSource("checkB"),
+			states: []*OperationState{
+				NewOperationState(arm.ProvisioningStateFailed, "a").WithSource("checkA"),
+				NewOperationState(arm.ProvisioningStateFailed, "b").WithSource("checkB"),
 			},
 			wantProv:    arm.ProvisioningStateFailed,
 			wantMessage: "[checkA] a; [checkB] b",
 		},
 		{
 			name: "stops merging when provisioning state changes",
-			states: []*operationState{
-				newOperationState(arm.ProvisioningStateFailed, "worst"),
-				newOperationState(arm.ProvisioningStateSucceeded, "ignored"),
+			states: []*OperationState{
+				NewOperationState(arm.ProvisioningStateFailed, "worst"),
+				NewOperationState(arm.ProvisioningStateSucceeded, "ignored"),
 			},
 			wantProv:    arm.ProvisioningStateFailed,
 			wantMessage: "[<no_source>] worst",
 		},
 		{
 			name: "empty message uses placeholder",
-			states: []*operationState{
-				newOperationState(arm.ProvisioningStateFailed, "").withSource("checkA"),
+			states: []*OperationState{
+				NewOperationState(arm.ProvisioningStateFailed, "").WithSource("checkA"),
 			},
 			wantProv:    arm.ProvisioningStateFailed,
 			wantMessage: "[checkA] <no_message>",
@@ -156,7 +156,7 @@ func TestPickWorstOperationState(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := pickWorstOperationState(tt.states)
+			got, err := PickWorstOperationState(tt.states)
 			if tt.wantErr != "" {
 				assert.Nil(t, got)
 				assert.EqualError(t, err, tt.wantErr)

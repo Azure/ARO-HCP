@@ -29,7 +29,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutil"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -37,22 +37,22 @@ import (
 )
 
 // newTestValidationCondition builds a validation condition with a stable
-// LastTransitionTime derived from statusutil.FixedNow.
+// LastTransitionTime derived from statusutils.FixedNow.
 func newTestValidationCondition(name string, status metav1.ConditionStatus, reason, message string) metav1.Condition {
 	return metav1.Condition{
 		Type:               name,
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
-		LastTransitionTime: metav1.NewTime(statusutil.FixedNow.Add(-time.Minute)),
+		LastTransitionTime: metav1.NewTime(statusutils.FixedNow.Add(-time.Minute)),
 	}
 }
 
 func newTestServiceProviderClusterForAggregator(opts ...func(*api.ServiceProviderCluster)) *api.ServiceProviderCluster {
 	resourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + statusutil.TestSubscriptionID +
-			"/resourceGroups/" + statusutil.TestResourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutil.TestClusterName +
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
 			"/serviceProviderClusters/" + api.ServiceProviderClusterResourceName,
 	))
 	spc := &api.ServiceProviderCluster{
@@ -70,15 +70,15 @@ func newTestServiceProviderClusterForAggregator(opts ...func(*api.ServiceProvide
 func TestClusterRequirementsValidAggregator_SyncOnce(t *testing.T) {
 	failedValidation := newTestValidationCondition("AValidation", metav1.ConditionFalse, "Failed", "Validation failed: boom")
 	degradedCondition := metav1.Condition{
-		Type:    statusutil.RequirementsValidConditionType,
+		Type:    statusutils.RequirementsValidConditionType,
 		Status:  metav1.ConditionFalse,
-		Reason:  statusutil.RequirementsValidConditionReasonDegraded,
+		Reason:  statusutils.RequirementsValidConditionReasonDegraded,
 		Message: "AValidation: Validation failed: boom",
 	}
 	validCondition := metav1.Condition{
-		Type:    statusutil.RequirementsValidConditionType,
+		Type:    statusutils.RequirementsValidConditionType,
 		Status:  metav1.ConditionTrue,
-		Reason:  statusutil.RequirementsValidConditionReasonValid,
+		Reason:  statusutils.RequirementsValidConditionReasonValid,
 		Message: "",
 	}
 
@@ -156,16 +156,16 @@ func TestClusterRequirementsValidAggregator_SyncOnce(t *testing.T) {
 			}
 
 			err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
-				SubscriptionID:    statusutil.TestSubscriptionID,
-				ResourceGroupName: statusutil.TestResourceGroupName,
-				HCPClusterName:    statusutil.TestClusterName,
+				SubscriptionID:    statusutils.TestSubscriptionID,
+				ResourceGroupName: statusutils.TestResourceGroupName,
+				HCPClusterName:    statusutils.TestClusterName,
 			})
 			require.NoError(t, err)
 
-			updated, err := mockDB.HCPClusters(statusutil.TestSubscriptionID, statusutil.TestResourceGroupName).Get(ctx, statusutil.TestClusterName)
+			updated, err := mockDB.HCPClusters(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName).Get(ctx, statusutils.TestClusterName)
 			require.NoError(t, err)
 
-			cond := apimeta.FindStatusCondition(updated.Status.UserFacingConditions, statusutil.RequirementsValidConditionType)
+			cond := apimeta.FindStatusCondition(updated.Status.UserFacingConditions, statusutils.RequirementsValidConditionType)
 			if tc.wantCondition == nil {
 				assert.Nil(t, cond, "RequirementsValid must remain absent")
 				return

@@ -25,7 +25,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutil"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -40,9 +40,9 @@ type nodePoolDegradedAggregator struct {
 	nodePoolLister    listers.NodePoolLister
 	controllerLister  listers.ControllerLister
 	resourcesDBClient database.ResourcesDBClient
-	inertia           statusutil.Inertia
+	inertia           statusutils.Inertia
 	clock             utilsclock.PassiveClock
-	firstObservedBad  *statusutil.FirstObservedBadCache
+	firstObservedBad  *statusutils.FirstObservedBadCache
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDegradedAggregator)(nil)
@@ -51,8 +51,8 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolDegradedAggregator)(nil)
 // node-pool aggregator. Same shape as clusterDegradedAggregatorInertia
 // and kept independent so node-pool-specific controllers can be tuned
 // without affecting cluster-scoped propagation.
-func nodePoolDegradedAggregatorInertia() statusutil.Inertia {
-	return statusutil.MustNewInertia(statusutil.DefaultInertia).Inertia
+func nodePoolDegradedAggregatorInertia() statusutils.Inertia {
+	return statusutils.MustNewInertia(statusutils.DefaultInertia).Inertia
 }
 
 // NewNodePoolDegradedAggregatorController creates a controller that
@@ -79,7 +79,7 @@ func NewNodePoolDegradedAggregatorController(
 		resourcesDBClient: resourcesDBClient,
 		inertia:           nodePoolDegradedAggregatorInertia(),
 		clock:             clock,
-		firstObservedBad:  statusutil.NewFirstObservedBadCache(clock),
+		firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
 	}
 	return controllerutils.NewNodePoolWatchingController(
 		"NodePoolDegradedAggregator",
@@ -105,12 +105,12 @@ func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controlle
 		return utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
 	}
 
-	aggregated := statusutil.UnionCondition(
-		statusutil.DegradedConditionType,
+	aggregated := statusutils.UnionCondition(
+		statusutils.DegradedConditionType,
 		metav1.ConditionFalse,
 		c.inertia,
 		c.clock.Now(),
-		statusutil.CollectDegradedConditions(controllers, c.firstObservedBad)...,
+		statusutils.CollectDegradedConditions(controllers, c.firstObservedBad)...,
 	)
 
 	replacement := existing.DeepCopy()

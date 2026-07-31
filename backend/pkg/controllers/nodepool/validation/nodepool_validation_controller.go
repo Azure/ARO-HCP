@@ -23,7 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validations"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -39,7 +39,7 @@ type nodePoolValidationSyncer struct {
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 
 	// validation is the validation to perform on the node pool.
-	validation validations.NodePoolValidation
+	validation validationutils.NodePoolValidation
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolValidationSyncer)(nil)
@@ -47,7 +47,7 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolValidationSyncer)(nil)
 // NewNodePoolValidationController creates a new controller that
 // executes the provided NodePool validation on each node pool.
 func NewNodePoolValidationController(
-	validation validations.NodePoolValidation,
+	validation validationutils.NodePoolValidation,
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,

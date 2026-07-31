@@ -91,7 +91,7 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 		return nil
 	}
 
-	if !needToPatchOperation(existingOperation, newOperationStatus, newOperationError) {
+	if !NeedToPatchOperation(existingOperation, newOperationStatus, newOperationError) {
 		return nil
 	}
 
@@ -279,7 +279,7 @@ func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient 
 	return updated, nil
 }
 
-func needToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody) bool {
+func NeedToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody) bool {
 	statusChanged := oldOperation.Status != newOperationStatus
 	errorChanged := oldOperation.Error != newOperationError
 	needsNotification := len(oldOperation.NotificationURI) > 0 && newOperationStatus.IsTerminal()
@@ -290,11 +290,11 @@ func needToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.Pr
 	return false
 }
 
-// patchOperation patches the status and error fields of an OperationDocument.
-func patchOperation(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+// PatchOperation patches the status and error fields of an OperationDocument.
+func PatchOperation(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	if !needToPatchOperation(oldOperation, newOperationStatus, newOperationError) {
+	if !NeedToPatchOperation(oldOperation, newOperationStatus, newOperationError) {
 		// we rewrite the status when we missed a notification
 		// if we have nothing to write, we simply return without error
 		return nil
@@ -396,7 +396,7 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient database.Resour
 	}
 }
 
-func postAsyncNotificationFn(notificationClient *http.Client) PostAsyncNotificationFunc {
+func PostAsyncNotificationFn(notificationClient *http.Client) PostAsyncNotificationFunc {
 	return func(ctx context.Context, operation *api.Operation) error {
 		return PostAsyncNotification(ctx, notificationClient, operation)
 	}
@@ -428,10 +428,10 @@ func PostAsyncNotification(ctx context.Context, notificationClient *http.Client,
 	return nil
 }
 
-// convertClusterStatus attempts to translate a ClusterStatus object from
+// ConvertClusterStatus attempts to translate a ClusterStatus object from
 // Cluster Service into an ARM provisioning state and, if necessary, a
 // structured OData error.
-func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, operation *api.Operation, clusterStatus *arohcpv1alpha1.ClusterStatus, clusterServiceID api.InternalID) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+func ConvertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, operation *api.Operation, clusterStatus *arohcpv1alpha1.ClusterStatus, clusterServiceID api.InternalID) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
 	var newOperationStatus = operation.Status
 	var opError *arm.CloudErrorBody
 	var err error
@@ -502,10 +502,10 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 	return newOperationStatus, opError, err
 }
 
-// convertNodePoolStatus attempts to translate a NodePoolStatus object
+// ConvertNodePoolStatus attempts to translate a NodePoolStatus object
 // from Cluster Service into an ARM provisioning state and, if necessary,
 // a structured OData error.
-func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alpha1.NodePoolStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+func ConvertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alpha1.NodePoolStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
 	var newOperationStatus = operation.Status
 	var opError *arm.CloudErrorBody
 	var err error
@@ -550,7 +550,7 @@ func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 	return newOperationStatus, opError, err
 }
 
-func convertExternalAuthStatus(operation *api.Operation, externalAuthStatus *arohcpv1alpha1.ExternalAuthStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+func ConvertExternalAuthStatus(operation *api.Operation, externalAuthStatus *arohcpv1alpha1.ExternalAuthStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
 	var newOperationStatus = operation.Status
 	var opError *arm.CloudErrorBody
 	var err error
@@ -688,7 +688,7 @@ func SetDeleteOperationAsCompleted(ctx context.Context, clock utilsclock.Passive
 	}
 
 	// Save a final "succeeded" operation status until TTL expires.
-	err = patchOperation(ctx, clock, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
+	err = PatchOperation(ctx, clock, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
 	if err != nil {
 		return utils.TrackError(err)
 	}

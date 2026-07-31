@@ -23,7 +23,7 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutil"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -97,7 +97,7 @@ func (c *nodePoolRequirementsValidAggregator) SyncOnce(ctx context.Context, key 
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
 	}
 
-	aggregated := statusutil.AggregateRequirementsValidCondition(serviceProviderNodePool.Status.Validations)
+	aggregated := statusutils.AggregateRequirementsValidCondition(serviceProviderNodePool.Status.Validations)
 
 	replacement := existing.DeepCopy()
 	apimeta.SetStatusCondition(&replacement.Status.UserFacingConditions, aggregated)

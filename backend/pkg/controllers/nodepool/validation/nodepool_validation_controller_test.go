@@ -30,7 +30,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validations"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -114,13 +114,13 @@ func newTestSubscription() *arm.Subscription {
 	}
 }
 
-// mockNodePoolValidation implements validations.NodePoolValidation for tests.
+// mockNodePoolValidation implements validationutils.NodePoolValidation for tests.
 type mockNodePoolValidation struct {
 	name        string
 	validateErr error
 }
 
-var _ validations.NodePoolValidation = (*mockNodePoolValidation)(nil)
+var _ validationutils.NodePoolValidation = (*mockNodePoolValidation)(nil)
 
 func (m *mockNodePoolValidation) Name() string { return m.name }
 

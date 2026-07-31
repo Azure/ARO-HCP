@@ -202,7 +202,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationClusterCreate
 
-**File:** [operation_cluster_create.go](../backend/pkg/controllers/operation/operation_cluster_create.go)
+**File:** [operation_cluster_create.go](../backend/pkg/controllers/cluster/operations/operation_cluster_create.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Create`
@@ -223,7 +223,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationClusterUpdate
 
-**File:** [operation_cluster_update.go](../backend/pkg/controllers/operation/operation_cluster_update.go)
+**File:** [operation_cluster_update.go](../backend/pkg/controllers/cluster/operations/operation_cluster_update.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Update`
@@ -246,7 +246,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationClusterDelete
 
-**File:** [operation_cluster_delete.go](../backend/pkg/controllers/operation/operation_cluster_delete.go)
+**File:** [operation_cluster_delete.go](../backend/pkg/controllers/cluster/operations/operation_cluster_delete.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Delete`
@@ -267,7 +267,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationNodePoolCreate
 
-**File:** [operation_node_pool_create.go](../backend/pkg/controllers/operation/operation_node_pool_create.go)
+**File:** [operation_node_pool_create.go](../backend/pkg/controllers/nodepool/operations/operation_node_pool_create.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Create`
@@ -287,7 +287,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationNodePoolUpdate
 
-**File:** [operation_node_pool_update.go](../backend/pkg/controllers/operation/operation_node_pool_update.go)
+**File:** [operation_node_pool_update.go](../backend/pkg/controllers/nodepool/operations/operation_node_pool_update.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Update`
@@ -310,7 +310,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationNodePoolDelete
 
-**File:** [operation_node_pool_delete.go](../backend/pkg/controllers/operation/operation_node_pool_delete.go)
+**File:** [operation_node_pool_delete.go](../backend/pkg/controllers/nodepool/operations/operation_node_pool_delete.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Delete`
@@ -331,7 +331,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationExternalAuthCreate
 
-**File:** [operation_external_auth_create.go](../backend/pkg/controllers/operation/operation_external_auth_create.go)
+**File:** [operation_external_auth_create.go](../backend/pkg/controllers/externalauth/operations/operation_external_auth_create.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Create`
@@ -351,7 +351,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationExternalAuthUpdate
 
-**File:** [operation_external_auth_update.go](../backend/pkg/controllers/operation/operation_external_auth_update.go)
+**File:** [operation_external_auth_update.go](../backend/pkg/controllers/externalauth/operations/operation_external_auth_update.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Update`
@@ -372,7 +372,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationExternalAuthDelete
 
-**File:** [operation_external_auth_delete.go](../backend/pkg/controllers/operation/operation_external_auth_delete.go)
+**File:** [operation_external_auth_delete.go](../backend/pkg/controllers/externalauth/operations/operation_external_auth_delete.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Delete`
@@ -393,7 +393,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### DispatchRequestCredential
 
-**File:** [dispatch_request_credential.go](../backend/pkg/controllers/operation/dispatch_request_credential.go)
+**File:** [dispatch_request_credential.go](../backend/pkg/controllers/cluster/credentials/operations/dispatch_request_credential.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RequestCredential`
@@ -407,7 +407,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationRequestCredential
 
-**File:** [operation_request_credential.go](../backend/pkg/controllers/operation/operation_request_credential.go)
+**File:** [operation_request_credential.go](../backend/pkg/controllers/cluster/credentials/operations/operation_request_credential.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RequestCredential`
@@ -421,7 +421,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### DispatchRevokeCredentials
 
-**File:** [dispatch_revoke_credentials.go](../backend/pkg/controllers/operation/dispatch_revoke_credentials.go)
+**File:** [dispatch_revoke_credentials.go](../backend/pkg/controllers/cluster/credentials/operations/dispatch_revoke_credentials.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RevokeCredentials`
@@ -435,7 +435,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationRevokeCredentials
 
-**File:** [operation_revoke_credentials.go](../backend/pkg/controllers/operation/operation_revoke_credentials.go)
+**File:** [operation_revoke_credentials.go](../backend/pkg/controllers/cluster/credentials/operations/operation_revoke_credentials.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RevokeCredentials`
@@ -1496,6 +1496,10 @@ Key source locations to examine:
 - internal/database/{crud_helpers,crud_nested_resource,types_operation,database}.go
 - internal/conversion/readonly_{cluster,nodepool,externalauth}.go
 - backend/pkg/controllers/operation/*.go
+- backend/pkg/controllers/cluster/operations/*.go
+- backend/pkg/controllers/nodepool/operations/*.go
+- backend/pkg/controllers/externalauth/operations/*.go
+- backend/pkg/controllers/cluster/credentials/operations/*.go
 - backend/pkg/controllers/cluster/creation/*.go
 - backend/pkg/controllers/cluster/deletion/*.go
 - backend/pkg/controllers/nodepool/creation/*.go

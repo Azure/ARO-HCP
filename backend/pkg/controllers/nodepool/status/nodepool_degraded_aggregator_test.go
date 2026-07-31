@@ -31,7 +31,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutil"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -42,10 +42,10 @@ import (
 // suitable for the aggregator tests.
 func newTestNodePoolForAggregator(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
 	resourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + statusutil.TestSubscriptionID +
-			"/resourceGroups/" + statusutil.TestResourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutil.TestClusterName +
-			"/nodePools/" + statusutil.TestNodePoolName,
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
+			"/nodePools/" + statusutils.TestNodePoolName,
 	))
 	np := &api.HCPOpenShiftClusterNodePool{
 		CosmosMetadata: arm.CosmosMetadata{
@@ -55,7 +55,7 @@ func newTestNodePoolForAggregator(opts ...func(*api.HCPOpenShiftClusterNodePool)
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
-				Name: statusutil.TestNodePoolName,
+				Name: statusutils.TestNodePoolName,
 				Type: resourceID.ResourceType.String(),
 			},
 		},
@@ -68,31 +68,31 @@ func newTestNodePoolForAggregator(opts ...func(*api.HCPOpenShiftClusterNodePool)
 
 func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 	parentResourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + statusutil.TestSubscriptionID +
-			"/resourceGroups/" + statusutil.TestResourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutil.TestClusterName +
-			"/nodePools/" + statusutil.TestNodePoolName,
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
+			"/nodePools/" + statusutils.TestNodePoolName,
 	))
 
-	thirtySecondInertia := statusutil.MustNewInertia(30 * time.Second).Inertia
-	fiveMinuteOverrideInertia := statusutil.MustNewInertia(
+	thirtySecondInertia := statusutils.MustNewInertia(30 * time.Second).Inertia
+	fiveMinuteOverrideInertia := statusutils.MustNewInertia(
 		30*time.Second,
-		statusutil.InertiaController{ControllerNameMatcher: regexp.MustCompile(`^SlowController$`), Duration: 5 * time.Minute},
+		statusutils.InertiaController{ControllerNameMatcher: regexp.MustCompile(`^SlowController$`), Duration: 5 * time.Minute},
 	).Inertia
 
 	// Parent cluster — also needed so the resourcesDBClient is happy when the
 	// node-pool CRUD looks up the parent path internally during Replace.
 	parentClusterID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + statusutil.TestSubscriptionID +
-			"/resourceGroups/" + statusutil.TestResourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutil.TestClusterName,
+		"/subscriptions/" + statusutils.TestSubscriptionID +
+			"/resourceGroups/" + statusutils.TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
 	))
 
 	tests := []struct {
 		name string
 
 		controllers []*api.Controller
-		inertia     statusutil.Inertia
+		inertia     statusutils.Inertia
 		// initialConditions, if set, is layered onto the node pool before SyncOnce
 		// runs. Used to drive the "no-op when conditions unchanged" case.
 		initialConditions []metav1.Condition
@@ -112,7 +112,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "all controllers report Degraded=False -> aggregate False/AsExpected",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia:       thirtySecondInertia,
 			expectStatus:  metav1.ConditionFalse,
@@ -122,7 +122,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "bad controller within 30s inertia stays hidden",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 10*time.Second),
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 10*time.Second),
 			},
 			inertia:       thirtySecondInertia,
 			expectStatus:  metav1.ConditionFalse,
@@ -132,7 +132,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "bad controller past 30s inertia flips aggregate",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 31*time.Second),
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 31*time.Second),
 			},
 			inertia:       thirtySecondInertia,
 			expectStatus:  metav1.ConditionTrue,
@@ -142,7 +142,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "per-controller override: SlowController stays in inertia window",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "SlowController", metav1.ConditionTrue, "Failed", "settling", 2*time.Minute),
+				statusutils.ControllerUnder(parentResourceID, "SlowController", metav1.ConditionTrue, "Failed", "settling", 2*time.Minute),
 			},
 			inertia:       fiveMinuteOverrideInertia,
 			expectStatus:  metav1.ConditionFalse,
@@ -152,7 +152,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "per-controller override: SlowController past 5m flips",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "SlowController", metav1.ConditionTrue, "Failed", "stuck", 6*time.Minute),
+				statusutils.ControllerUnder(parentResourceID, "SlowController", metav1.ConditionTrue, "Failed", "stuck", 6*time.Minute),
 			},
 			inertia:       fiveMinuteOverrideInertia,
 			expectStatus:  metav1.ConditionTrue,
@@ -162,7 +162,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "nil inertia propagates immediately",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 1*time.Second),
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 1*time.Second),
 			},
 			inertia:       nil,
 			expectStatus:  metav1.ConditionTrue,
@@ -172,12 +172,12 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		{
 			name: "no-op when conditions unchanged",
 			controllers: []*api.Controller{
-				statusutil.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
+				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
 			initialConditions: []metav1.Condition{
 				{
-					Type:    statusutil.DegradedConditionType,
+					Type:    statusutils.DegradedConditionType,
 					Status:  metav1.ConditionFalse,
 					Reason:  "AsExpected",
 					Message: "AController: fine",
@@ -204,7 +204,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 					PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),
 				},
 				TrackedResource: arm.TrackedResource{
-					Resource: arm.Resource{ID: parentClusterID, Name: statusutil.TestClusterName, Type: parentClusterID.ResourceType.String()},
+					Resource: arm.Resource{ID: parentClusterID, Name: statusutils.TestClusterName, Type: parentClusterID.ResourceType.String()},
 				},
 			}
 
@@ -215,28 +215,28 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 			mockDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, seed)
 			require.NoError(t, err)
 
-			clock := clocktesting.NewFakePassiveClock(statusutil.FixedNow)
+			clock := clocktesting.NewFakePassiveClock(statusutils.FixedNow)
 			syncer := &nodePoolDegradedAggregator{
 				nodePoolLister:    &listertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
 				controllerLister:  &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
 				resourcesDBClient: mockDB,
 				inertia:           tc.inertia,
 				clock:             clock,
-				firstObservedBad:  statusutil.NewFirstObservedBadCache(clock),
+				firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
 			}
 
 			err = syncer.SyncOnce(ctx, controllerutils.HCPNodePoolKey{
-				SubscriptionID:    statusutil.TestSubscriptionID,
-				ResourceGroupName: statusutil.TestResourceGroupName,
-				HCPClusterName:    statusutil.TestClusterName,
-				HCPNodePoolName:   statusutil.TestNodePoolName,
+				SubscriptionID:    statusutils.TestSubscriptionID,
+				ResourceGroupName: statusutils.TestResourceGroupName,
+				HCPClusterName:    statusutils.TestClusterName,
+				HCPNodePoolName:   statusutils.TestNodePoolName,
 			})
 			require.NoError(t, err)
 
-			updated, err := mockDB.HCPClusters(statusutil.TestSubscriptionID, statusutil.TestResourceGroupName).NodePools(statusutil.TestClusterName).Get(ctx, statusutil.TestNodePoolName)
+			updated, err := mockDB.HCPClusters(statusutils.TestSubscriptionID, statusutils.TestResourceGroupName).NodePools(statusutils.TestClusterName).Get(ctx, statusutils.TestNodePoolName)
 			require.NoError(t, err)
 
-			cond := apimeta.FindStatusCondition(updated.Status.Conditions, statusutil.DegradedConditionType)
+			cond := apimeta.FindStatusCondition(updated.Status.Conditions, statusutils.DegradedConditionType)
 			require.NotNil(t, cond, "aggregator must set the Degraded condition on the node pool")
 			assert.Equal(t, tc.expectStatus, cond.Status, "status")
 			assert.Equal(t, tc.expectReason, cond.Reason, "reason")

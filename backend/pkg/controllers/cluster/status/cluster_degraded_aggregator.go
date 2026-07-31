@@ -25,7 +25,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutil"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -47,12 +47,12 @@ type clusterDegradedAggregator struct {
 	clusterLister     listers.ClusterLister
 	controllerLister  listers.ControllerLister
 	resourcesDBClient database.ResourcesDBClient
-	inertia           statusutil.Inertia
+	inertia           statusutils.Inertia
 	clock             utilsclock.PassiveClock
 	// firstObservedBad supplies a LastTransitionTime for controllers that
 	// have not yet reported a definite Degraded condition (missing or
 	// Unknown) so they too get inertia protection.
-	firstObservedBad *statusutil.FirstObservedBadCache
+	firstObservedBad *statusutils.FirstObservedBadCache
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterDegradedAggregator)(nil)
@@ -63,8 +63,8 @@ var _ controllerutils.ClusterSyncer = (*clusterDegradedAggregator)(nil)
 // that uses it. Add per-controller-name overrides to the variadic args
 // when a specific sub-controller needs a wider (or narrower) window than
 // the 30s default.
-func clusterDegradedAggregatorInertia() statusutil.Inertia {
-	return statusutil.MustNewInertia(statusutil.DefaultInertia).Inertia
+func clusterDegradedAggregatorInertia() statusutils.Inertia {
+	return statusutils.MustNewInertia(statusutils.DefaultInertia).Inertia
 }
 
 // NewClusterDegradedAggregatorController creates a controller that
@@ -90,7 +90,7 @@ func NewClusterDegradedAggregatorController(
 		resourcesDBClient: resourcesDBClient,
 		inertia:           clusterDegradedAggregatorInertia(),
 		clock:             clock,
-		firstObservedBad:  statusutil.NewFirstObservedBadCache(clock),
+		firstObservedBad:  statusutils.NewFirstObservedBadCache(clock),
 	}
 	return controllerutils.NewClusterWatchingController(
 		"ClusterDegradedAggregator",
@@ -116,12 +116,12 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 		return utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
 	}
 
-	aggregated := statusutil.UnionCondition(
-		statusutil.DegradedConditionType,
+	aggregated := statusutils.UnionCondition(
+		statusutils.DegradedConditionType,
 		metav1.ConditionFalse,
 		c.inertia,
 		c.clock.Now(),
-		statusutil.CollectDegradedConditions(controllers, c.firstObservedBad)...,
+		statusutils.CollectDegradedConditions(controllers, c.firstObservedBad)...,
 	)
 
 	replacement := existing.DeepCopy()

@@ -22,22 +22,22 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-type operationState struct {
+type OperationState struct {
 	// Source is a name that identifies the source of the operation state.
 	Source            string                `json:"source"`
 	ProvisioningState arm.ProvisioningState `json:"provisioningState"`
 	Message           string                `json:"message"`
 }
 
-// withSource sets the source of the operation state.
-func (s *operationState) withSource(source string) *operationState {
+// WithSource sets the source of the operation state.
+func (s *OperationState) WithSource(source string) *OperationState {
 	s.Source = source
 	return s
 }
 
-// newOperationState creates a new operation state with the given provisioning state and message, without a source.
-func newOperationState(provisioningState arm.ProvisioningState, message string) *operationState {
-	return &operationState{
+// NewOperationState creates a new operation state with the given provisioning state and message, without a source.
+func NewOperationState(provisioningState arm.ProvisioningState, message string) *OperationState {
+	return &OperationState{
 		ProvisioningState: provisioningState,
 		Message:           message,
 	}
@@ -58,7 +58,7 @@ var provisioningStatePriority = map[arm.ProvisioningState]int{
 	arm.ProvisioningStateSucceeded:      100,
 }
 
-func compareOperationState(lhs, rhs *operationState) int {
+func CompareOperationState(lhs, rhs *OperationState) int {
 	if lhs == nil && rhs == nil {
 		return 0
 	}
@@ -78,8 +78,8 @@ func compareOperationState(lhs, rhs *operationState) int {
 	return strings.Compare(lhs.Message, rhs.Message)
 }
 
-// pickWorstOperationState expects states pre-sorted and returns the worst state with merged messages.
-func pickWorstOperationState(states []*operationState) (*operationState, error) {
+// PickWorstOperationState expects states pre-sorted and returns the worst state with merged messages.
+func PickWorstOperationState(states []*OperationState) (*OperationState, error) {
 	if len(states) == 0 {
 		return nil, errors.New("no operation states")
 	}
@@ -102,5 +102,5 @@ func pickWorstOperationState(states []*operationState) (*operationState, error) 
 		}
 		messageParts = append(messageParts, fmt.Sprintf("[%s] %s", currentSource, currentMessage))
 	}
-	return newOperationState(worstProvisioningState, strings.Join(messageParts, "; ")), nil
+	return NewOperationState(worstProvisioningState, strings.Join(messageParts, "; ")), nil
 }

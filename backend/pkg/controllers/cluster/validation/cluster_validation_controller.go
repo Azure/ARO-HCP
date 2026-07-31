@@ -23,7 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validations"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -38,7 +38,7 @@ type clusterValidationSyncer struct {
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 
 	// validation is the validation to perform on the cluster.
-	validation validations.ClusterValidation
+	validation validationutils.ClusterValidation
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
@@ -46,7 +46,7 @@ var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
 // NewClusterValidationController creates a new controller that
 // executes the provided Cluster validation on each cluster.
 func NewClusterValidationController(
-	validation validations.ClusterValidation,
+	validation validationutils.ClusterValidation,
 	resourcesDBClient database.ResourcesDBClient,
 	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
