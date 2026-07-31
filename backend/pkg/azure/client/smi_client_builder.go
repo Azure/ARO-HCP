@@ -18,8 +18,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -44,6 +46,12 @@ type ServiceManagedIdentityClientBuilder interface {
 	BuilderType() ServiceManagedIdentityClientBuilderType
 	// UserAssignedIdentitiesClient returns a new User Assigned Identities client.
 	UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error)
+	// NetworkSecurityGroupsClient returns a new Network Security Groups client
+	// authenticated as the cluster's Service Managed Identity.
+	NetworkSecurityGroupsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (NetworkSecurityGroupsClient, error)
+	// SubnetsClient returns a new Subnets client authenticated as the cluster's
+	// Service Managed Identity.
+	SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error)
 }
 
 type serviceManagedIdentityClientBuilder struct {
@@ -58,6 +66,48 @@ func (b *serviceManagedIdentityClientBuilder) BuilderType() ServiceManagedIdenti
 }
 
 func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error) {
+	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get credentials for service managed identity: %w", err))
+	}
+
+	// We instantiate the UserAssignedIdentitiesClient using the
+	// the credentials we obtained from the Managed Identities Data Plane Service.
+	return armmsi.NewUserAssignedIdentitiesClient(subscriptionID, creds, b.azCoreARMClientOptions)
+}
+
+func (b *serviceManagedIdentityClientBuilder) NetworkSecurityGroupsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (NetworkSecurityGroupsClient, error) {
+	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get credentials for service managed identity: %w", err))
+	}
+
+	// We instantiate the SecurityGroupsClient using the
+	// the credentials we obtained from the Managed Identities Data Plane Service.
+	return armnetwork.NewSecurityGroupsClient(subscriptionID, creds, b.azCoreARMClientOptions)
+}
+
+func (b *serviceManagedIdentityClientBuilder) SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error) {
+	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get credentials for service managed identity: %w", err))
+	}
+
+	// We instantiate the SubnetsClient using the
+	// the credentials we obtained from the Managed Identities Data Plane Service.
+	return armnetwork.NewSubnetsClient(subscriptionID, creds, b.azCoreARMClientOptions)
+}
+
+// credentialsForServiceManagedIdentity obtains azidentity credentials for the
+// cluster's Service Managed Identity via the Managed Identity Data Plane.
+func (b *serviceManagedIdentityClientBuilder) credentialsForServiceManagedIdentity(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID) (azcore.TokenCredential, error) {
+	if clusterIdentityURL == "" {
+		return nil, utils.TrackError(fmt.Errorf("cluster managed identities data plane identity URL is not available yet"))
+	}
+	if smiResourceID == nil {
+		return nil, utils.TrackError(fmt.Errorf("cluster is missing serviceManagedIdentity"))
+	}
+
 	// We obtain the Managed Identity Data Plane client using the Cluster's Identity URL.
 	miDataplaneClient, err := b.fpaMIdataplaneClientBuilder.ManagedIdentitiesDataplane(clusterIdentityURL)
 	if err != nil {
@@ -79,17 +129,9 @@ func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx c
 	}
 
 	// We convert the received UserAssignedIdentityCredentials result into
-	// an azidentity.ClientCertificateCredential, which Azure Go SDK's uses
-	// to instantiate a UserAssignedIdentitiesClient.
+	// an azidentity.ClientCertificateCredential for Azure Go SDK clients.
 	userAssignedIdentityCredential := resp.ExplicitIdentities[0]
-	creds, err := dataplane.GetCredential(b.azCoreARMClientOptions.ClientOptions, userAssignedIdentityCredential)
-	if err != nil {
-		return nil, err
-	}
-
-	// We finally instantiate the UserAssignedIdentitiesClient using the
-	// the credentials we obtained from the Managed Identities Data Plane Service.
-	return armmsi.NewUserAssignedIdentitiesClient(subscriptionID, creds, b.azCoreARMClientOptions)
+	return dataplane.GetCredential(b.azCoreARMClientOptions.ClientOptions, userAssignedIdentityCredential)
 }
 
 func NewServiceManagedIdentityClientBuilder(fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder, options *azcorearm.ClientOptions) ServiceManagedIdentityClientBuilder {

@@ -718,12 +718,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		serviceProviderClusterLister,
 		backendInformers,
 	)
-	azureClusterManagedIdentitiesExistenceValidationController := clustervalidation.NewClusterValidationController(
-		validationutils.NewAzureClusterManagedIdentitiesExistenceValidation(b.options.SMIClientBuilder),
-		b.options.ResourcesDBClient,
-		serviceProviderClusterLister,
-		backendInformers,
-	)
 	azureVMSizeSupportsEphemeralOSDiskValidationController := nodepoolvalidation.NewNodePoolValidationController(
 		validationutils.NewAzureVMSizeSupportsEphemeralOSDiskValidation(virtualMachineResourceSKUsCachedReaderController),
 		activeOperationLister,
@@ -734,6 +728,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	azureNodePoolVMQuotaValidationController := nodepoolvalidation.NewNodePoolValidationController(
 		validationutils.NewAzureNodePoolVMQuotaValidation(virtualMachineResourceSKUsCachedReaderController, b.options.FPAClientBuilder),
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	nodePoolCustomerNSGValidationController := nodepoolvalidation.NewNodePoolValidationController(
+		validationutils.UserProvidedNodePoolNetworkSecurityGroupValidation(b.options.SMIClientBuilder),
 		activeOperationLister,
 		b.options.ResourcesDBClient,
 		serviceProviderNodePoolLister,
@@ -951,9 +953,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go serviceProviderClusterPropertiesSyncController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
-				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
 				go azureVMSizeSupportsEphemeralOSDiskValidationController.Run(ctx, 20)
 				go azureNodePoolVMQuotaValidationController.Run(ctx, 20)
+				go nodePoolCustomerNSGValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
