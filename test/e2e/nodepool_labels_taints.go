@@ -28,7 +28,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -62,13 +62,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group rg-np-labels-taints")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -82,11 +82,12 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20251223(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
@@ -102,7 +103,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
 			By("creating the node pool with initial labels and taints")
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
@@ -113,25 +114,25 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to resolve a small worker VM size; check VM SKU restrictions/quota for the test subscription in %s", tc.Location())
 			nodePoolParams.VMSize = smallVMSize
 
-			nodePool := framework.BuildNodePoolFromParams20240610(nodePoolParams, tc.Location())
+			nodePool := framework.BuildNodePoolFromParams20251223(nodePoolParams, tc.Location())
 
-			nodePool.Properties.Labels = []*hcpsdk20240610preview.Label{
+			nodePool.Properties.Labels = []*hcpsdk20251223preview.Label{
 				{
 					Key:   to.Ptr("key1"),
 					Value: to.Ptr("value1"),
 				},
 			}
-			nodePool.Properties.Taints = []*hcpsdk20240610preview.Taint{
+			nodePool.Properties.Taints = []*hcpsdk20251223preview.Taint{
 				{
 					Key:    to.Ptr("key1"),
 					Value:  to.Ptr("value1"),
-					Effect: to.Ptr(hcpsdk20240610preview.EffectNoSchedule),
+					Effect: to.Ptr(hcpsdk20251223preview.EffectNoSchedule),
 				},
 			}
 
-			_, err = framework.CreateNodePoolAndWait20240610(
+			_, err = framework.CreateNodePoolAndWait20251223(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
@@ -162,21 +163,21 @@ var _ = Describe("Customer", func() {
 
 			By("updating nodepool with new taints and scaling up")
 			taintReplicas := int32(3)
-			updateTaints := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+			updateTaints := hcpsdk20251223preview.NodePoolUpdate{
+				Properties: &hcpsdk20251223preview.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(taintReplicas),
-					Taints: []*hcpsdk20240610preview.Taint{
+					Taints: []*hcpsdk20251223preview.Taint{
 						{
 							Key:    to.Ptr("key2"),
 							Value:  to.Ptr("value2"),
-							Effect: to.Ptr(hcpsdk20240610preview.EffectPreferNoSchedule),
+							Effect: to.Ptr(hcpsdk20251223preview.EffectPreferNoSchedule),
 						},
 					},
 				},
 			}
 
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			_, err = framework.UpdateNodePoolAndWait20251223(ctx,
+				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
@@ -205,10 +206,10 @@ var _ = Describe("Customer", func() {
 
 			By("updating nodepool with a new label and scaling up")
 			finalReplicas := int32(4)
-			update := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+			update := hcpsdk20251223preview.NodePoolUpdate{
+				Properties: &hcpsdk20251223preview.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(finalReplicas),
-					Labels: []*hcpsdk20240610preview.Label{
+					Labels: []*hcpsdk20251223preview.Label{
 						{
 							Key:   to.Ptr("key2"),
 							Value: to.Ptr("value2"),
@@ -217,8 +218,8 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			_, err = framework.UpdateNodePoolAndWait20251223(ctx,
+				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
