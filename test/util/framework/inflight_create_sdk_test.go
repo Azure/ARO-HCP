@@ -35,6 +35,8 @@ import (
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpfake20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/fake"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpfake20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/fake"
 )
 
 const fakeSubscriptionID = "00000000-0000-0000-0000-000000000000"
@@ -224,6 +226,79 @@ func TestBeginCreateHCPClusterResumesInFlightCreateAfterConflict(t *testing.T) {
 	}
 	if ptr.Deref(result.Name, "") != "cluster-1" {
 		t.Errorf("PollUntilDone() result name = %q, want cluster-1", ptr.Deref(result.Name, ""))
+	}
+}
+
+func TestBeginCreateHCPCluster20260901ResumesInFlightCreateAfterConflict(t *testing.T) {
+	gets := 0
+	srv := hcpfake20260901preview.HcpOpenShiftClustersServer{
+		BeginCreateOrUpdate: func(_ context.Context, _, _ string, _ hcpsdk20260901preview.HcpOpenShiftCluster, _ *hcpsdk20260901preview.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[hcpsdk20260901preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], errResp azfake.ErrorResponder) {
+			errResp.SetResponseError(http.StatusConflict, "Conflict")
+			return
+		},
+		Get: func(_ context.Context, _, name string, _ *hcpsdk20260901preview.HcpOpenShiftClustersClientGetOptions) (resp azfake.Responder[hcpsdk20260901preview.HcpOpenShiftClustersClientGetResponse], errResp azfake.ErrorResponder) {
+			state := hcpsdk20260901preview.ProvisioningStateAccepted
+			if gets > 0 {
+				state = hcpsdk20260901preview.ProvisioningStateSucceeded
+			}
+			gets++
+			resp.SetResponse(http.StatusOK, hcpsdk20260901preview.HcpOpenShiftClustersClientGetResponse{HcpOpenShiftCluster: hcpsdk20260901preview.HcpOpenShiftCluster{
+				Name:       to.Ptr(name),
+				Location:   to.Ptr("uksouth"),
+				Properties: &hcpsdk20260901preview.HcpOpenShiftClusterProperties{ProvisioningState: to.Ptr(state)},
+			}}, nil)
+			return
+		},
+	}
+	client, err := hcpsdk20260901preview.NewHcpOpenShiftClustersClient(fakeSubscriptionID, &azfake.TokenCredential{}, fakeClientOptions(&retryableFirstPUT{next: hcpfake20260901preview.NewHcpOpenShiftClustersServerTransport(&srv), status: http.StatusServiceUnavailable}))
+	if err != nil {
+		t.Fatalf("failed to create fake client: %v", err)
+	}
+
+	poller, err := BeginCreateHCPCluster20260901(context.Background(), logr.Discard(), client, "rg", "cluster-1", ClusterParams20260901{}, "uksouth")
+	if err != nil {
+		t.Fatalf("BeginCreateHCPCluster20260901() unexpected error: %v", err)
+	}
+	result, err := poller.PollUntilDone(context.Background(), &runtime.PollUntilDoneOptions{Frequency: time.Second})
+	if err != nil {
+		t.Fatalf("PollUntilDone() unexpected error: %v", err)
+	}
+	if ptr.Deref(result.Name, "") != "cluster-1" {
+		t.Errorf("PollUntilDone() result name = %q, want cluster-1", ptr.Deref(result.Name, ""))
+	}
+}
+
+func TestCreateOrUpdateExternalAuth20260901ResumesInFlightCreateAfterConflict(t *testing.T) {
+	gets := 0
+	srv := hcpfake20260901preview.ExternalAuthsServer{
+		BeginCreateOrUpdate: func(_ context.Context, _, _, _ string, _ hcpsdk20260901preview.ExternalAuth, _ *hcpsdk20260901preview.ExternalAuthsClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[hcpsdk20260901preview.ExternalAuthsClientCreateOrUpdateResponse], errResp azfake.ErrorResponder) {
+			errResp.SetResponseError(http.StatusConflict, "Conflict")
+			return
+		},
+		Get: func(_ context.Context, _, _, name string, _ *hcpsdk20260901preview.ExternalAuthsClientGetOptions) (resp azfake.Responder[hcpsdk20260901preview.ExternalAuthsClientGetResponse], errResp azfake.ErrorResponder) {
+			state := hcpsdk20260901preview.ExternalAuthProvisioningStateAccepted
+			if gets > 0 {
+				state = hcpsdk20260901preview.ExternalAuthProvisioningStateSucceeded
+			}
+			gets++
+			resp.SetResponse(http.StatusOK, hcpsdk20260901preview.ExternalAuthsClientGetResponse{ExternalAuth: hcpsdk20260901preview.ExternalAuth{
+				Name:       to.Ptr(name),
+				Properties: &hcpsdk20260901preview.ExternalAuthProperties{ProvisioningState: to.Ptr(state)},
+			}}, nil)
+			return
+		},
+	}
+	client, err := hcpsdk20260901preview.NewExternalAuthsClient(fakeSubscriptionID, &azfake.TokenCredential{}, fakeClientOptions(&retryableFirstPUT{next: hcpfake20260901preview.NewExternalAuthsServerTransport(&srv), status: http.StatusServiceUnavailable}))
+	if err != nil {
+		t.Fatalf("failed to create fake client: %v", err)
+	}
+
+	result, err := CreateOrUpdateExternalAuthAndWait20260901(context.Background(), client, "rg", "cluster-1", "auth-1", hcpsdk20260901preview.ExternalAuth{}, time.Minute)
+	if err != nil {
+		t.Fatalf("CreateOrUpdateExternalAuthAndWait20260901() unexpected error: %v", err)
+	}
+	if ptr.Deref(result.Name, "") != "auth-1" {
+		t.Errorf("CreateOrUpdateExternalAuthAndWait20260901() result name = %q, want auth-1", ptr.Deref(result.Name, ""))
 	}
 }
 
