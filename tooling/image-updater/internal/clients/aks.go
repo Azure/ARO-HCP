@@ -20,9 +20,14 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/upgrade"
 )
+
+func newAzureCredential() (*azidentity.DefaultAzureCredential, error) {
+	return azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
+}
 
 // ListAKSMeshRevisions returns the AKS-default ASM revision for the given
 // location as a single-element slice. Overridable in tests. Called once per
@@ -43,11 +48,13 @@ func defaultListAKSMeshRevisions(ctx context.Context, subscriptionID, location s
 		return nil, fmt.Errorf("aks mesh revisions: location is required")
 	}
 
-	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
+	cred, err := newAzureCredential()
 	if err != nil {
 		return nil, fmt.Errorf("aks mesh revisions: create azure credential: %w", err)
 	}
 
+	// ARM requires a subscription in the URL even though the mesh revision
+	// data is product-wide and identical across all subscriptions.
 	client, err := armcontainerservice.NewManagedClustersClient(subscriptionID, cred, nil)
 	if err != nil {
 		return nil, fmt.Errorf("aks mesh revisions: create managed clusters client: %w", err)
@@ -82,6 +89,33 @@ func defaultListAKSMeshRevisions(ctx context.Context, subscriptionID, location s
 		return nil, err
 	}
 	return []string{defaultRev}, nil
+}
+
+// ResolveSubscription returns the first enabled subscription visible to the
+// current Azure credentials. This avoids requiring a hardcoded subscription
+// ID when the mesh revision profiles API data is product-wide anyway.
+func ResolveSubscription(ctx context.Context) (string, error) {
+	cred, err := newAzureCredential()
+	if err != nil {
+		return "", fmt.Errorf("resolve subscription: create credential: %w", err)
+	}
+	client, err := armsubscriptions.NewClient(cred, nil)
+	if err != nil {
+		return "", fmt.Errorf("resolve subscription: create client: %w", err)
+	}
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return "", fmt.Errorf("resolve subscription: list: %w", err)
+		}
+		for _, sub := range page.Value {
+			if sub != nil && sub.State != nil && *sub.State == armsubscriptions.SubscriptionStateEnabled && sub.SubscriptionID != nil {
+				return *sub.SubscriptionID, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("resolve subscription: no enabled subscriptions found for the current credentials")
 }
 
 // pickDefaultMeshRevision returns the AKS-default revision for a location given

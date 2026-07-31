@@ -19,8 +19,10 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/clients"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/config"
@@ -187,7 +189,7 @@ func (u *Updater) fetchLatestValue(ctx context.Context, source config.Source) (*
 func (u *Updater) fetchAzureAKSMeshRevisions(ctx context.Context, logger logr.Logger, source config.Source) (*clients.Tag, error) {
 	if source.PinnedMeshRevision != "" {
 		logger.V(2).Info("mesh revision hard-pinned; skipping upstream check", "pinned", source.PinnedMeshRevision)
-		return &clients.Tag{Name: source.PinnedMeshRevision, Version: source.PinnedMeshRevision}, nil
+		return &clients.Tag{Name: source.PinnedMeshRevision, Version: source.PinnedMeshRevision, LastModified: time.Now()}, nil
 	}
 
 	subscription := source.AzureAKSMeshRevisions.Subscription
@@ -195,19 +197,32 @@ func (u *Updater) fetchAzureAKSMeshRevisions(ctx context.Context, logger logr.Lo
 		subscription = os.Getenv("AZURE_SUBSCRIPTION_ID")
 	}
 	if subscription == "" {
-		return nil, fmt.Errorf("azure aks mesh revisions: subscription not set (config field or AZURE_SUBSCRIPTION_ID)")
-	}
-
-	locations := source.AzureAKSMeshRevisions.Locations
-	perLocation := make([][]string, 0, len(locations))
-	for _, loc := range locations {
-		logger.V(2).Info("fetching aks mesh revisions", "location", loc)
-		revs, err := u.ListMeshRevisions(ctx, subscription, loc)
+		logger.V(2).Info("no subscription configured; resolving from Azure credentials")
+		resolved, err := clients.ResolveSubscription(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("azure aks mesh revisions: %w", err)
 		}
-		logger.V(2).Info("aks returned revisions", "location", loc, "count", len(revs))
-		perLocation = append(perLocation, revs)
+		logger.V(2).Info("resolved subscription from credentials", "subscription", resolved)
+		subscription = resolved
+	}
+
+	locations := source.AzureAKSMeshRevisions.Locations
+	perLocation := make([][]string, len(locations))
+	g, gCtx := errgroup.WithContext(ctx)
+	for i, loc := range locations {
+		logger.V(2).Info("fetching aks mesh revisions", "location", loc)
+		g.Go(func() error {
+			revs, err := u.ListMeshRevisions(gCtx, subscription, loc)
+			if err != nil {
+				return fmt.Errorf("azure aks mesh revisions: %w", err)
+			}
+			logger.V(2).Info("aks returned revisions", "location", loc, "count", len(revs))
+			perLocation[i] = revs
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	revisions := upgrade.IntersectAsmRevisions(perLocation...)
@@ -234,7 +249,7 @@ func (u *Updater) fetchAzureAKSMeshRevisions(ctx context.Context, logger logr.Lo
 	if err != nil {
 		return nil, fmt.Errorf("azure aks mesh revisions: %w", err)
 	}
-	return &clients.Tag{Name: highest, Version: highest}, nil
+	return &clients.Tag{Name: highest, Version: highest, LastModified: time.Now()}, nil
 }
 
 // fetchGitHubLatestRelease resolves the latest published GitHub release tag.

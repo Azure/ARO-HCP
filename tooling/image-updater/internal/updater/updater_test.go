@@ -929,8 +929,8 @@ func TestUpdater_FetchAzureAKSMeshRevisions_MissingSubscription(t *testing.T) {
 	ctx := logr.NewContext(context.Background(), testLogger())
 
 	_, err := u.fetchAzureAKSMeshRevisions(ctx, testLogger(), source)
-	if err == nil || !strings.Contains(err.Error(), "subscription not set") {
-		t.Errorf("expected 'subscription not set' error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "resolve subscription") {
+		t.Errorf("expected 'resolve subscription' error, got %v", err)
 	}
 }
 

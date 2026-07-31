@@ -34,11 +34,11 @@ func ParseAsmRevision(rev string) (major, minor int, err error) {
 	}
 	major, err = strconv.Atoi(parts[0])
 	if err != nil {
-		return 0, 0, fmt.Errorf("asm revision %q: bad major: %w", rev, err)
+		return 0, 0, fmt.Errorf("asm revision %q: invalid major version: %w", rev, err)
 	}
 	minor, err = strconv.Atoi(parts[1])
 	if err != nil {
-		return 0, 0, fmt.Errorf("asm revision %q: bad minor: %w", rev, err)
+		return 0, 0, fmt.Errorf("asm revision %q: invalid minor version: %w", rev, err)
 	}
 	return major, minor, nil
 }
