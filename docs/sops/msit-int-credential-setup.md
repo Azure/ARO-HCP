@@ -23,26 +23,32 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
 
 1. **ONLY PERFORM THIS STEP IF NEEDED**. Create the global resource group and keyvault in the `ARO SRE Team - INT (EA Subscription 3)`.  This is not automated so create the global rg and keyvault (`aro-hcp-int-kv`) manually.
 
-1. **Create the INT mock identity certificates**
+1. **Create and pin the INT mock identity certificates**
    The INT mock identity Entra apps and service principals are created
    declaratively by `templates/mock-identity-apps.bicep` (the `mock-identity-apps-int`
    step of the Owner-only `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint,
-   run with `make dev-ci-privileged-local-run`). That template configures the apps
-   for SNI certificate authentication but does **not** create the certificates.
+   run with `make dev-ci-privileged-local-run`). That template creates the apps
+   but configures **no** authentication on them and does **not** create the
+   certificates.
 
-   Create the three certificates in the `aro-hcp-int-kv` Key Vault with the
-   dedicated target (idempotent — existing certs are left untouched):
+   Create the three certificates in the `aro-hcp-int-kv` Key Vault, then pin each
+   one onto its Entra app (both idempotent):
 
    ```bash
    cd dev-infrastructure/
-   make create-int-mock-identity-certs
+   make create-int-mock-identity-certs   # create certs in aro-hcp-int-kv
+   make pin-int-mock-identity-certs      # pin each cert as an app keyCredential
    ```
 
-   This runs `scripts/create-kv-cert.sh` for `intFirstPartyCert`,
-   `intArmHelperCert`, and `intMsiMockCert`, with the subject/DNS names that match
-   `.ci.int.mockIdentities.*.certDns` in `config/config-dev-ci.yaml`. Because the
-   apps use SNI, the certificates can be rotated later without redeploying the
-   Bicep, as long as the subject name is unchanged.
+   `create-int-mock-identity-certs` runs `scripts/create-kv-cert.sh` for
+   `intFirstPartyCert`, `intArmHelperCert`, and `intMsiMockCert`, with the
+   subject/DNS names that match `.ci.int.mockIdentities.*.certDns` in
+   `config/config-dev-ci.yaml`. `pin-int-mock-identity-certs` runs
+   `scripts/pin-mock-identity-certs.sh`, which reads each cert's public key and
+   registers it as a pinned `keyCredential` on the app via Microsoft Graph. Auth
+   is by pinned leaf **thumbprint** (not SNI, which does not validate for these
+   self-signed certs), so rotating a certificate requires re-running the pin
+   target to register the new thumbprint.
 
 1. **Update configuration**
    If new Entra apps were created, update the configuration, see [configuration](../configuration.md) for details about that process.  You can read the created client IDs with `az ad app list --display-name <applicationName> --query '[0].appId'` for each `.ci.int.mockIdentities.*.applicationName`.

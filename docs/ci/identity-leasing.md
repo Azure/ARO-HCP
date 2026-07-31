@@ -275,14 +275,16 @@ The pooled `aro-dev-msi-mock-pool-<i>` identities are now fully declarative. The
 Typical maintainer flow:
 
 1. If the pool size is changing, update **both** `.ci.dev.mockIdentities.pool.size` in `config/config-dev-ci.yaml` (and re-materialize) **and** `MSI_MOCK_POOL_SIZE` in `dev-infrastructure/Makefile` — keep them equal (see the two-sources note above).
-2. From `dev-infrastructure/`, run `make create-mock-identity-certs` to create any new pool members' Key Vault certificates in `aro-hcp-dev-svc-kv` (idempotent; `mock-identity-apps.bicep` configures SNI trust but does not create certificates — see [DEV Mock Identities → Certificates](dev-mock-identities.md#certificates)).
+2. From `dev-infrastructure/`, run `make create-mock-identity-certs` to create any new pool members' Key Vault certificates in `aro-hcp-dev-svc-kv` (idempotent; `mock-identity-apps.bicep` creates the apps but does not create or pin certificates — see [DEV Mock Identities → Certificates](dev-mock-identities.md#certificates)).
 3. Ask an OWNERS-group member to run `make dev-ci-privileged-local-run` (requires subscription Owner). This creates/updates the pool apps + service principals and applies their home- and E2E-subscription grants.
-4. From `dev-infrastructure/`, run `make populate-msi-mock-pool` to regenerate the static Boskos catalog.
-5. If the pool size or Boskos key set changed, update the release-side Boskos inventory and step-registry lease wiring as well.
+4. From `dev-infrastructure/`, run `make pin-mock-identity-certs` to pin each cert's public key onto its app as a `keyCredential` (idempotent; requires Key Vault read on `aro-hcp-dev-svc-kv` and owner/Application.ReadWrite on the apps). This is what actually enables the mock SPs to authenticate.
+5. From `dev-infrastructure/`, run `make populate-msi-mock-pool` to regenerate the static Boskos catalog.
+6. If the pool size or Boskos key set changed, update the release-side Boskos inventory and step-registry lease wiring as well.
 
 In the current model:
 
 - `make create-mock-identity-certs` creates the pooled members' Key Vault certificates via `dev-infrastructure/scripts/create-kv-cert.sh` (`az keyvault certificate create`); it is idempotent and separate from the templates because Bicep cannot create Key Vault certificates.
+- `make pin-mock-identity-certs` registers each cert's public key as a pinned `keyCredential` on the app via Microsoft Graph (`dev-infrastructure/scripts/pin-mock-identity-certs.sh`); it is separate from the templates because Bicep cannot read Key Vault certificate material. Auth is by pinned leaf thumbprint, not SNI.
 - `make dev-ci-privileged-local-run` both creates the pooled Entra objects (`mock-identity-apps.bicep`) and reconciles their access on the DEV home and E2E customer subscriptions (`mock-identity-rbac.bicep`), using principal IDs resolved via Graph lookup rather than recorded in config.
 - `make populate-msi-mock-pool` performs live Entra lookups and rewrites `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`, which remains the static catalog consumed by release-side jobs.
 
