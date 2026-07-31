@@ -19,13 +19,16 @@ fi
 
 az account show -o none 2>/dev/null || { echo "ERROR: not logged in to Azure"; exit 1; }
 
-SP_COUNT=$(az ad sp list --display-name "OpenShift Release Bot" --query 'length(@)' -o tsv 2>/dev/null)
-if [[ "${SP_COUNT}" -ne 1 ]]; then
-  echo "ERROR: expected 1 'OpenShift Release Bot' SP, found ${SP_COUNT}"
+if ! BOT_SP_IDS=$(az ad sp list --display-name "OpenShift Release Bot" --query '[].id' -o tsv); then
+  echo "ERROR: failed to look up the 'OpenShift Release Bot' service principal (see az output above)"
   exit 1
 fi
-
-BOT_SP_ID=$(az ad sp list --display-name "OpenShift Release Bot" --query '[0].id' -o tsv 2>/dev/null)
+SP_COUNT=$(grep -c . <<<"${BOT_SP_IDS}" || true)
+if [[ "${SP_COUNT}" -ne 1 ]]; then
+  echo "ERROR: expected exactly 1 'OpenShift Release Bot' SP, found ${SP_COUNT}"
+  exit 1
+fi
+BOT_SP_ID="${BOT_SP_IDS}"
 echo "Bot SP objectId: ${BOT_SP_ID}"
 
 SUBSCRIPTIONS=(
