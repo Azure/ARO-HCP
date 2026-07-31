@@ -169,9 +169,9 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 				"nodepool OSDisk.EncryptionSetID should match the DES resource ID")
 
 			By("getting credentials to verify cluster health")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,

@@ -7,11 +7,11 @@ param nodePoolName string
 @description('The version of OpenShift to use for the node pool (e.g. 4.20.16)')
 param nodePoolVersion string
 
-resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2025-12-23-preview' existing = {
+resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2026-09-01-preview' existing = {
   name: clusterName
 }
 
-resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2025-12-23-preview' = {
+resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2026-09-01-preview' = {
   parent: hcp
   name: nodePoolName
   location: resourceGroup().location

@@ -71,6 +71,13 @@
               "type": "string",
               "value": "[last(split(reference(resourceId('Microsoft.KeyVault/vaults/keys', variables('customerKeyVaultName'), parameters('customerEtcdEncryptionKeyName')), '2024-12-01-preview').keyUriWithVersion, '/'))]"
             },
+            "integrationSubnetName": {
+              "metadata": {
+                "description": "Integration Subnet Name"
+              },
+              "type": "string",
+              "value": "[parameters('customerVnetIntegrationSubnetName')]"
+            },
             "keyVaultName": {
               "metadata": {
                 "description": "Key Vault Name"
@@ -97,7 +104,7 @@
                 "description": "Customer VNet Integration Subnet Resource ID"
               },
               "type": "string",
-              "value": "[format('{0}/subnets/customer-vnet-integration-subnet', resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName')))]"
+              "value": "[format('{0}/subnets/{1}', resourceId('Microsoft.Network/virtualNetworks', parameters('customerVnetName')), parameters('customerVnetIntegrationSubnetName'))]"
             },
             "vnetName": {
               "metadata": {
@@ -147,6 +154,13 @@
               "defaultValue": "customer-nsg",
               "metadata": {
                 "description": "Network Security Group Name"
+              },
+              "type": "string"
+            },
+            "customerVnetIntegrationSubnetName": {
+              "defaultValue": "integration-subnet-1",
+              "metadata": {
+                "description": "Integration Subnet Name"
               },
               "type": "string"
             },
@@ -234,7 +248,7 @@
                     }
                   },
                   {
-                    "name": "customer-vnet-integration-subnet",
+                    "name": "[parameters('customerVnetIntegrationSubnetName')]",
                     "properties": {
                       "addressPrefix": "[variables('vnetIntegrationSubnetPrefix')]",
                       "delegations": [
@@ -2876,6 +2890,9 @@
           "identityValue": {
             "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'managedIdentities'), '2025-04-01').outputs.identityValue.value]"
           },
+          "integrationSubnetName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'customerInfra'), '2025-04-01').outputs.integrationSubnetName.value]"
+          },
           "keyVaultName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'customerInfra'), '2025-04-01').outputs.keyVaultName.value]"
           },
@@ -2944,6 +2961,12 @@
                 "description": "Cluster Managed Identities"
               },
               "type": "object"
+            },
+            "integrationSubnetName": {
+              "metadata": {
+                "description": "The integration subnet name for control plane connectivity."
+              },
+              "type": "string"
             },
             "keyVaultName": {
               "metadata": {
@@ -3019,9 +3042,10 @@
               "type": "Microsoft.KeyVault/vaults/keys"
             },
             "hcp": {
-              "apiVersion": "2024-06-10-preview",
+              "apiVersion": "2026-09-01-preview",
               "dependsOn": [
-                "etcdEncryptionKey"
+                "etcdEncryptionKey",
+                "keyVault"
               ],
               "identity": "[parameters('identityValue')]",
               "location": "[resourceGroup().location]",
@@ -3043,9 +3067,10 @@
                       "kms": {
                         "activeKey": {
                           "name": "[parameters('etcdEncryptionKeyName')]",
-                          "vaultName": "[parameters('keyVaultName')]",
                           "version": "[last(split(reference('etcdEncryptionKey').keyUriWithVersion, '/'))]"
-                        }
+                        },
+                        "vaultName": "[parameters('keyVaultName')]",
+                        "visibility": "[if(equals(reference('keyVault').publicNetworkAccess, 'Disabled'), 'Private', 'Public')]"
                       }
                     },
                     "keyManagementMode": "CustomerManaged"
@@ -3059,7 +3084,8 @@
                     "userAssignedIdentities": "[parameters('userAssignedIdentitiesValue')]"
                   },
                   "outboundType": "LoadBalancer",
-                  "subnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]"
+                  "subnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
+                  "vnetIntegrationSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('integrationSubnetName'))]"
                 },
                 "version": {
                   "channelGroup": "stable",
@@ -3092,6 +3118,12 @@
               "existing": true,
               "name": "[parameters('vnetName')]",
               "type": "Microsoft.Network/virtualNetworks"
+            },
+            "vnetIntegrationSubnet": {
+              "apiVersion": "2022-07-01",
+              "existing": true,
+              "name": "[format('{0}/{1}', parameters('vnetName'), parameters('integrationSubnetName'))]",
+              "type": "Microsoft.Network/virtualNetworks/subnets"
             }
           }
         }
