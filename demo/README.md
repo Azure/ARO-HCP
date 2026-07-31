@@ -27,31 +27,31 @@ source env_vars
 ### Show a cluster
 
 ```bash
-az resource show --ids "${CLUSTER_RESOURCE_ID}" --api-version 2025-12-23-preview
+az resource show --ids "${CLUSTER_RESOURCE_ID}" --api-version 2026-09-01-preview
 ```
 
 ### List clusters in a resource group
 
 ```bash
-az resource list --resource-group "${CUSTOMER_RG_NAME}" --resource-type "Microsoft.RedHatOpenShift/hcpOpenShiftClusters" --api-version 2025-12-23-preview
+az resource list --resource-group "${CUSTOMER_RG_NAME}" --resource-type "Microsoft.RedHatOpenShift/hcpOpenShiftClusters" --api-version 2026-09-01-preview
 ```
 
 ### Request admin credentials
 
 ```bash
-az resource invoke-action --ids "${CLUSTER_RESOURCE_ID}" --action requestAdminCredential --api-version 2025-12-23-preview
+az resource invoke-action --ids "${CLUSTER_RESOURCE_ID}" --action requestAdminCredential --api-version 2026-09-01-preview
 ```
 
 ### Show a node pool
 
 ```bash
-az resource show --ids "${NODE_POOL_RESOURCE_ID}" --api-version 2025-12-23-preview
+az resource show --ids "${NODE_POOL_RESOURCE_ID}" --api-version 2026-09-01-preview
 ```
 
 ### Show external auth
 
 ```bash
-az resource show --ids "${CLUSTER_RESOURCE_ID}/externalAuths/<EXTERNAL_AUTH_NAME>" --api-version 2025-12-23-preview
+az resource show --ids "${CLUSTER_RESOURCE_ID}/externalAuths/<EXTERNAL_AUTH_NAME>" --api-version 2026-09-01-preview
 ```
 
 ## E2E Testing
