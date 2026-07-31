@@ -476,11 +476,12 @@ tests:
   - eval_time: 520m
     alertname: UJNodePoolStuckOperation
 # ========================================
-# Test 15: e2e subscription is no longer filtered at the YAML level.
+# Test 15: Stuck operation fires for all subscriptions at YAML level
 # ========================================
-# The exclude_internal_subscriptions label tells the generator to append
-# an unless clause to the generated bicep. At the YAML level (promtool tests),
-# the alert fires for all subscriptions including internal ones.
+# Filtering of internal subscriptions happens in the generated bicep (via
+# the generator-injected `unless` clause), not in the source YAML. This test
+# confirms the source expression fires for an e2e subscription, proving that
+# promtool validates the unfiltered logic correctly.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/np/stuck", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
