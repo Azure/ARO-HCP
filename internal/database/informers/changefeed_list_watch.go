@@ -283,7 +283,8 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(fmt.Errorf("finished"))
 
-	feedRanges, err := c.changeFeedClient.GetFeedRanges(ctx)
+	options := &azcosmos.FeedRangesOptions{}
+	feedRanges, err := c.changeFeedClient.ReadFeedRanges(ctx, options)
 	if err != nil {
 		retErr := utils.TrackError(err)
 		utilruntime.HandleError(retErr)
@@ -348,7 +349,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	close(c.beginDelivery)
 }
 
-func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) processDocument(ctx context.Context, document json.RawMessage) error {
+func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) processItem(ctx context.Context, item []byte) error {
 	logger := utils.LoggerFromContext(ctx)
 	ready := false
 	for !ready {
@@ -365,7 +366,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	}
 
 	objAsTypedDocument := &database.TypedDocument{}
-	if err := json.Unmarshal(document, objAsTypedDocument); err != nil {
+	if err := json.Unmarshal(item, objAsTypedDocument); err != nil {
 		return utils.TrackError(err)
 	}
 	logger = logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(objAsTypedDocument.ResourceID)...)
@@ -389,7 +390,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	}
 
 	var cosmosObj CosmosAPIType
-	if err := json.Unmarshal(document, &cosmosObj); err != nil {
+	if err := json.Unmarshal(item, &cosmosObj); err != nil {
 		return utils.TrackError(err)
 	}
 	var internalObj InternalAPITypePointer
@@ -516,7 +517,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		}
 
 		logger.V(4).Info("reading feed range", "options", options)
-		response, err := c.changeFeedClient.GetChangeFeed(ctx, options)
+		response, err := c.changeFeedClient.ReadChangeFeed(ctx, options)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -524,8 +525,8 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		changeFeedStatus = response.RawResponse.StatusCode
 
 		if changeFeedStatus == http.StatusOK {
-			for _, doc := range response.Documents {
-				err = c.processDocument(ctx, doc)
+			for _, item := range response.Items {
+				err = c.processItem(ctx, item)
 				if err != nil {
 					return err
 				}

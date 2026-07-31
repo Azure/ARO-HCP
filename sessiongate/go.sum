@@ -94,8 +94,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f h1:y5//uYreIhSUg3J1GEMiLbxo1LJaP8RfCpH6pymGZus=
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
-github.com/openshift-eng/openshift-tests-extension v0.0.0-20260528165303-ac98bf018579 h1:9O8t7c4tYOBjePUF57UImkpVknpvlMW7svjuP4898Cc=
-github.com/openshift-eng/openshift-tests-extension v0.0.0-20260528165303-ac98bf018579/go.mod h1:pHOS9c6BjZv91OkkHyIHAOWnYhxwcxWQkyYGEvPyUCE=
+github.com/openshift-eng/openshift-tests-extension v0.0.0-20260707142426-572a3e9deb7a h1:ulT0JZ/x6S4hYhyjUJ9T49YAxDLl1i5idFOMm9RHBkY=
+github.com/openshift-eng/openshift-tests-extension v0.0.0-20260707142426-572a3e9deb7a/go.mod h1:pHOS9c6BjZv91OkkHyIHAOWnYhxwcxWQkyYGEvPyUCE=
 github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9 h1:lZw6pYY7El1giNk1lYvkp6hLungiqwIOqLlH+Hm7w9g=
 github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9/go.mod h1:pyVjK0nZ4sRs4fuQVQ4rubsJdahI1PB94LnQ8sGdvxo=
 github.com/openshift/hypershift/api v0.0.0-20260602200802-c135e0c47b37 h1:FtGnqS3NnYS98HM4MwCmRDQVZSfuhszjetaU9Cld1sk=

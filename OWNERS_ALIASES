@@ -17,3 +17,10 @@ aliases:
   - sclarkso 
   - venkateshsredhat 
   - weherdh
+  sre-approvers:
+  - SudoBrendan
+  - ehvs
+  - hawkowl
+  - swiencki
+  - tsatam
+  - tuxerrante

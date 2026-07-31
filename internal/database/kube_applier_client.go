@@ -203,12 +203,12 @@ func (c *kubeApplierCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.Resou
 	return NewUntypedCRUDWithPartitionKey(c.kubeApplier, parentResourceID, KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}), nil
 }
 
-func (c *kubeApplierCosmosDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
-	return c.kubeApplier.GetChangeFeed(ctx, options)
+func (c *kubeApplierCosmosDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	return c.kubeApplier.ReadChangeFeed(ctx, options)
 }
 
-func (c *kubeApplierCosmosDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
-	resourcesFeedRanges, err := c.kubeApplier.GetFeedRanges(ctx)
+func (c *kubeApplierCosmosDBClient) ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error) {
+	resourcesFeedRanges, err := c.kubeApplier.ReadFeedRanges(ctx, options)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

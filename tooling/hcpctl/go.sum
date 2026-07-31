@@ -20,8 +20,8 @@ cloud.google.com/go/storage v1.62.1 h1:Os0G3XbUbjZumkpDUf2Y0rLoXJTCF1kU2kWUujKYX
 cloud.google.com/go/storage v1.62.1/go.mod h1:cpYz/kRVZ+UQAF1uHeea10/9ewcRbxGoGNKsS9daSXA=
 cloud.google.com/go/trace v1.11.7 h1:kDNDX8JkaAG3R2nq1lIdkb7FCSi1rCmsEtKVsty7p+U=
 cloud.google.com/go/trace v1.11.7/go.mod h1:TNn9d5V3fQVf6s4SCveVMIBS2LJUqo73GACmq/Tky0s=
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260715002326-2555e1130350 h1:OKEEHnv7jJhynBgOkRTTNvKt2Nq5KyiCAeu9kx+RM24=
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260715002326-2555e1130350/go.mod h1:H9gQZNrqfswjQXfmHtTYbC8nMPdZIv8JmlME/wXjcJY=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260729121920-58ceb447fbb3 h1:NxN0mw3luqyfHBCf/+FeLAaaJ+zXIwwk2CqCazxiwx4=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260729121920-58ceb447fbb3/go.mod h1:m3Q8TZE7LOKeIu3L3LIP+H51fJvx8m2Dob6sw7A3S1s=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1 h1:De25JIENJVLYUMB4Z9LfAFzbgjGz1ozYJiL2zprs1KA=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1/go.mod h1:pYbM6A7z4XDU+3S0+OgoyUOuCOWPUe/hyEfnOCT6Gok=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 h1:jHb/wfvRikGdxMXYV3QG/SzUOPYN9KEUUuC0Yd0/vC0=
@@ -263,8 +263,8 @@ github.com/onsi/ginkgo/v2 v2.28.1 h1:S4hj+HbZp40fNKuLUQOYLDgZLwNUVn19N3Atb98NCyI
 github.com/onsi/ginkgo/v2 v2.28.1/go.mod h1:CLtbVInNckU3/+gC8LzkGUb9oF+e8W8TdUsxPwvdOgE=
 github.com/onsi/gomega v1.39.1 h1:1IJLAad4zjPn2PsnhH70V4DKRFlrCzGBNrNaru+Vf28=
 github.com/onsi/gomega v1.39.1/go.mod h1:hL6yVALoTOxeWudERyfppUcZXjMwIMLnuSfruD2lcfg=
-github.com/openshift-eng/openshift-tests-extension v0.0.0-20260528165303-ac98bf018579 h1:9O8t7c4tYOBjePUF57UImkpVknpvlMW7svjuP4898Cc=
-github.com/openshift-eng/openshift-tests-extension v0.0.0-20260528165303-ac98bf018579/go.mod h1:pHOS9c6BjZv91OkkHyIHAOWnYhxwcxWQkyYGEvPyUCE=
+github.com/openshift-eng/openshift-tests-extension v0.0.0-20260707142426-572a3e9deb7a h1:ulT0JZ/x6S4hYhyjUJ9T49YAxDLl1i5idFOMm9RHBkY=
+github.com/openshift-eng/openshift-tests-extension v0.0.0-20260707142426-572a3e9deb7a/go.mod h1:pHOS9c6BjZv91OkkHyIHAOWnYhxwcxWQkyYGEvPyUCE=
 github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9 h1:lZw6pYY7El1giNk1lYvkp6hLungiqwIOqLlH+Hm7w9g=
 github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9/go.mod h1:pyVjK0nZ4sRs4fuQVQ4rubsJdahI1PB94LnQ8sGdvxo=
 github.com/openshift/hypershift/api v0.0.0-20260602200802-c135e0c47b37 h1:FtGnqS3NnYS98HM4MwCmRDQVZSfuhszjetaU9Cld1sk=

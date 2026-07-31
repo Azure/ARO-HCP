@@ -112,16 +112,16 @@ func (m *MockFleetDBClient) StoreDocument(cosmosID string, data json.RawMessage)
 	m.changeFeed.record(data)
 }
 
-func (m *MockFleetDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+func (m *MockFleetDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
 	var continuation string
 	if options != nil && options.Continuation != nil {
 		continuation = *options.Continuation
 	}
-	docs, nextToken, hasNew := m.changeFeed.read(continuation)
-	return buildMockChangeFeedResponse(docs, nextToken, hasNew), nil
+	items, nextToken, hasNew := m.changeFeed.read(continuation)
+	return buildMockChangeFeedResponse(items, nextToken, hasNew), nil
 }
 
-func (m *MockFleetDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+func (m *MockFleetDBClient) ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error) {
 	return []azcosmos.FeedRange{mockChangeFeedFeedRange}, nil
 }
 

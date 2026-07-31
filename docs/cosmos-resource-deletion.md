@@ -73,7 +73,7 @@ and index-friendly. This filter applies to:
 
 ### Change Feed Behavior
 
-The `processDocument` method in `ChangeFeedWatcher` checks `DeletionTimestamp` on every
+The `processItem` method in `ChangeFeedWatcher` checks `DeletionTimestamp` on every
 document surfaced by the change feed:
 
 - **DeletionTimestamp is non-nil AND the resource was previously seen** (in the list snapshot

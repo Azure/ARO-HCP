@@ -279,7 +279,7 @@ resourceGroups:
   - name: mise-identity
     action: ARM
     template: templates/mise-identity.bicep
-    parameters: configurations/mise-identity.tmpl.bicepparam
+    parameters: configurations/mise-identity-stg.tmpl.bicepparam
     deploymentLevel: ResourceGroup
   - name: housekeeping
     action: Shell

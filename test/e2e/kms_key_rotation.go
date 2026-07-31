@@ -31,11 +31,14 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-const HCPClusterReencryptionUpgradeTimeout = 18 * time.Minute
+// UpdateTimeout of a cluster + the etcd re-encryption timeout
+// To check the p99 in the future and adjust times
+const HCPClusterReencryptionUpgradeTimeout = framework.UpdateHCPClusterTimeout + 20*time.Minute
 
 var _ = Describe("Customer", func() {
 	It("should be able to rotate KMS key for a cluster with version >= 4.22",
 		labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible, labels.Slow,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const clusterName = "kms-key-rotate-422"
 

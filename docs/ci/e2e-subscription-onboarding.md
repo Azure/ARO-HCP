@@ -140,7 +140,7 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 - `config/config-dev-ci.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
-- `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam`
+- `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
 - [Dev-CI Topology](dev-ci-topology.md)
 - [CI Identity Leasing](identity-leasing.md)
 

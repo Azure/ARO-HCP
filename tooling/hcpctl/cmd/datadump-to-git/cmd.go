@@ -21,6 +21,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -28,6 +29,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -108,6 +110,13 @@ type dataDumpEntry struct {
 	// ResourceID. Used for log entries that don't carry an Azure resource ID
 	// (e.g. cluster-service state dumps).
 	RelativePath string
+	// ContainerPrefix, when non-empty, is prepended to the tracking key
+	// and commit message to disambiguate documents from different Cosmos
+	// containers that share the same resource ID (e.g. billing vs
+	// resources). Only set for containers that would otherwise collide
+	// (billing); resources and kubeApplier are left empty for
+	// compatibility with log-based entries that have no container.
+	ContainerPrefix string
 }
 
 func NewCommand(group string) (*cobra.Command, error) {
@@ -217,49 +226,116 @@ func parseCSVFile(path string) ([]dataDumpEntry, error) {
 	}
 
 	reader := csv.NewReader(bufReader)
-	// Read header to find the "log" column index
 	header, err := reader.Read()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CSV header: %w", err)
 	}
 
-	logColIdx := -1
+	colIdx := make(map[string]int)
 	for i, col := range header {
-		// Handle BOM if present
 		cleanCol := strings.TrimPrefix(col, "\ufeff")
-		if strings.EqualFold(cleanCol, "log") {
-			logColIdx = i
-			break
-		}
-	}
-	if logColIdx < 0 {
-		return nil, fmt.Errorf("CSV file does not have a 'log' column")
+		colIdx[strings.ToLower(cleanCol)] = i
 	}
 
+	if logCol, ok := colIdx["log"]; ok {
+		return parseCSVLogColumn(reader, logCol)
+	}
+
+	return parseCSVDirectColumns(reader, colIdx)
+}
+
+func parseCSVLogColumn(reader *csv.Reader, logColIdx int) ([]dataDumpEntry, error) {
 	var entries []dataDumpEntry
 	for {
 		record, err := reader.Read()
 		if err != nil {
-			break // EOF or error
+			if err == io.EOF {
+				break
+			}
+			return entries, fmt.Errorf("error reading CSV: %w", err)
 		}
-
 		if logColIdx >= len(record) {
 			continue
 		}
-
 		logJSON := record[logColIdx]
-
 		if !looksLikeDataDump(logJSON) {
 			continue
 		}
-
 		entry, ok := parseLogJSON(logJSON)
 		if ok {
 			entries = append(entries, entry)
 		}
 	}
-
 	return entries, nil
+}
+
+func parseCSVDirectColumns(reader *csv.Reader, colIdx map[string]int) ([]dataDumpEntry, error) {
+	timestampCol, hasTimestamp := colIdx["timestamp"]
+	resourceIDCol, hasResourceID := colIdx["resourceid"]
+	contentCol, hasContent := colIdx["content"]
+	if !hasTimestamp || !hasResourceID || !hasContent {
+		return nil, fmt.Errorf("CSV file must have either a 'log' column or 'timestamp', 'resourceID', and 'content' columns")
+	}
+	containerCol, hasContainer := colIdx["cosmoscontainer"]
+
+	var entries []dataDumpEntry
+	for {
+		record, err := reader.Read()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return entries, fmt.Errorf("error reading CSV: %w", err)
+		}
+		if timestampCol >= len(record) || resourceIDCol >= len(record) || contentCol >= len(record) {
+			continue
+		}
+
+		resourceID := record[resourceIDCol]
+		content := record[contentCol]
+		if resourceID == "" || content == "" {
+			continue
+		}
+
+		timestamp := parseKustoTimestamp(record[timestampCol])
+
+		container := ""
+		if hasContainer && containerCol < len(record) {
+			container = strings.ToLower(record[containerCol])
+		}
+
+		var containerPrefix string
+		var relPath string
+		if container == "billing" {
+			containerPrefix = container
+			relPath = resourceIDToPath(resourceID + "/billing")
+		}
+
+		entries = append(entries, dataDumpEntry{
+			Timestamp:       timestamp,
+			ResourceID:      resourceID,
+			Content:         content,
+			FullMsg:         `{"content":` + content + `}`,
+			ContainerPrefix: containerPrefix,
+			RelativePath:    relPath,
+		})
+	}
+	return entries, nil
+}
+
+func parseKustoTimestamp(ts string) string {
+	ts = strings.TrimSpace(ts)
+	for _, layout := range []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"1/2/2006, 3:04:05.000 PM",
+		"1/2/2006, 3:04:05 PM",
+	} {
+		if t, err := time.Parse(layout, ts); err == nil {
+			return t.Format(time.RFC3339)
+		}
+	}
+	return ts
 }
 
 // looksLikeDataDump is a coarse substring filter to skip log lines that
@@ -534,6 +610,11 @@ func extractInstanceVersion(content map[string]interface{}) int64 {
 	}
 	cm, ok := content["cosmosMetadata"].(map[string]interface{})
 	if !ok {
+		if props, pOk := content["properties"].(map[string]interface{}); pOk {
+			cm, _ = props["cosmosMetadata"].(map[string]interface{})
+		}
+	}
+	if cm == nil {
 		return 0
 	}
 	switch v := cm["instanceVersion"].(type) {
@@ -556,6 +637,9 @@ func processEntries(ctx context.Context, entries []dataDumpEntry, outputDir stri
 	for i, entry := range entries {
 		// Normalize resource ID to lowercase for consistent tracking
 		normalizedResourceID := strings.ToLower(entry.ResourceID)
+		if entry.ContainerPrefix != "" {
+			normalizedResourceID = entry.ContainerPrefix + ":" + normalizedResourceID
+		}
 
 		// Convert resource_id to directory path structure
 		// For operation statuses, place them in the same directory as their externalId

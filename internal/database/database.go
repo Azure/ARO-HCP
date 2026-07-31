@@ -152,8 +152,8 @@ type ResourcesDBClient interface {
 // Any Cosmos container that exposes its change feed satisfies it — both the
 // shared "Resources" container and per-management-cluster kube-applier containers.
 type ChangeFeedClient interface {
-	GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error)
-	GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error)
+	ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error)
+	ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error)
 }
 
 var _ ResourcesDBClient = &resourcesCosmosDBClient{}
@@ -237,12 +237,12 @@ func (d *resourcesCosmosDBClient) ResourcesGlobalListers() ResourcesGlobalLister
 	return NewCosmosResourcesGlobalListers(d.resources)
 }
 
-func (d *resourcesCosmosDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
-	return d.resources.GetChangeFeed(ctx, options)
+func (d *resourcesCosmosDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	return d.resources.ReadChangeFeed(ctx, options)
 }
 
-func (d *resourcesCosmosDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
-	resourcesFeedRanges, err := d.resources.GetFeedRanges(ctx)
+func (d *resourcesCosmosDBClient) ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error) {
+	resourcesFeedRanges, err := d.resources.ReadFeedRanges(ctx, options)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
