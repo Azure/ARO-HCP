@@ -123,7 +123,12 @@ func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key contr
 		// 404 - cluster-service has finished deleting the Cluster, clear the CS ID.
 		logger.Info("cluster-service Cluster gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())
 		cluster.ServiceProviderProperties.ClusterServiceID = nil
-		if _, err := clusterCRUD.Replace(ctx, cluster, nil); err != nil {
+		_, err = clusterCRUD.Replace(ctx, cluster, nil)
+		if database.IsPreconditionFailedError(err) {
+			// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+			return nil
+		}
+		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
 		}
 		return nil
