@@ -45,17 +45,32 @@ type ImageConfig struct {
 
 // Source defines where to fetch the latest image digest (or version string) from
 type Source struct {
-	Image               string              `yaml:"image"`
-	GitHubLatestRelease string              `yaml:"githubLatestRelease,omitempty"` // If set, fetch latest release tag from GitHub (e.g. "istio/istio"); used for version-only targets, ignores Image for fetch
-	Tag                 string              `yaml:"tag,omitempty"`                 // Exact tag to use (mutually exclusive with TagPattern)
-	TagPattern          string              `yaml:"tagPattern,omitempty"`          // Regex pattern to filter tags (mutually exclusive with Tag)
-	VersionLabel        string              `yaml:"versionLabel,omitempty"`        // Container label to fetch for human-friendly version (defaults to "org.opencontainers.image.revision" when tag is used, empty when tagPattern is used)
-	Architecture        string              `yaml:"architecture,omitempty"`        // Specific architecture to use (e.g., "amd64", "arm64"). Mutually exclusive with MultiArch.
-	MultiArch           bool                `yaml:"multiArch,omitempty"`           // If true, fetch the multi-arch manifest list digest instead of a specific architecture
-	UseAuth             *bool               `yaml:"useAuth,omitempty"`             // true = use auth, nil/false = anonymous (default)
-	KeyVault            *KeyVaultConfig     `yaml:"keyVault,omitempty"`            // Optional: Azure Key Vault config for fetching pull secrets
-	RepoVersionUpgrade  *RepoVersionUpgrade `yaml:"repoVersionUpgrade,omitempty"`  // Optional: enables repository version upgrade checks for this component
+	Image                 string                       `yaml:"image"`
+	GitHubLatestRelease   string                       `yaml:"githubLatestRelease,omitempty"`   // If set, fetch latest release tag from GitHub (e.g. "istio/istio"); used for version-only targets, ignores Image for fetch
+	AzureAKSMeshRevisions *AzureAKSMeshRevisionsSource `yaml:"azureAKSMeshRevisions,omitempty"` // If set, query AKS mesh revision profiles across the listed locations and intersect; used for version-only targets
+	PinnedMeshRevision    string                       `yaml:"pinnedMeshRevision,omitempty"`    // With azureAKSMeshRevisions: hard override, write this exact value and skip the upstream check. Mutually exclusive with maxMeshRevision.
+	MaxMeshRevision       string                       `yaml:"maxMeshRevision,omitempty"`       // With azureAKSMeshRevisions: cap; ignore any revision above this. Mutually exclusive with pinnedMeshRevision.
+	Tag                   string                       `yaml:"tag,omitempty"`                   // Exact tag to use (mutually exclusive with TagPattern)
+	TagPattern            string                       `yaml:"tagPattern,omitempty"`            // Regex pattern to filter tags (mutually exclusive with Tag)
+	VersionLabel          string                       `yaml:"versionLabel,omitempty"`          // Container label to fetch for human-friendly version (defaults to "org.opencontainers.image.revision" when tag is used, empty when tagPattern is used)
+	Architecture          string                       `yaml:"architecture,omitempty"`          // Specific architecture to use (e.g., "amd64", "arm64"). Mutually exclusive with MultiArch.
+	MultiArch             bool                         `yaml:"multiArch,omitempty"`             // If true, fetch the multi-arch manifest list digest instead of a specific architecture
+	UseAuth               *bool                        `yaml:"useAuth,omitempty"`               // true = use auth, nil/false = anonymous (default)
+	KeyVault              *KeyVaultConfig              `yaml:"keyVault,omitempty"`              // Optional: Azure Key Vault config for fetching pull secrets
+	RepoVersionUpgrade    *RepoVersionUpgrade          `yaml:"repoVersionUpgrade,omitempty"`    // Optional: enables repository version upgrade checks for this component
 }
+
+// AzureAKSMeshRevisionsSource configures the AKS mesh revision profiles source.
+// The updater queries every location and picks the highest revision available
+// in all of them, so a rollout target is never above what any region supports.
+type AzureAKSMeshRevisionsSource struct {
+	Locations    []string `yaml:"locations"`              // ARM locations to intersect (e.g. [uksouth, westus3, eastus2]). Order does not matter.
+	Subscription string   `yaml:"subscription,omitempty"` // Optional; falls back to $AZURE_SUBSCRIPTION_ID.
+}
+
+// asmRevisionFormat matches asm-<major>-<minor>; enforced on
+// PinnedMeshRevision and MaxMeshRevision so typos surface at load time.
+var asmRevisionFormat = regexp.MustCompile(`^asm-\d+-\d+$`)
 
 // RepoVersionUpgrade configures repository version upgrade detection for a component.
 // When set, the update --repositories mode will check Quay for next-version repos.
@@ -75,32 +90,92 @@ type Target struct {
 	FilePath string `yaml:"filePath"`
 }
 
-// Validate checks if the Source configuration is valid
-func (s *Source) Validate() error {
-	if s.GitHubLatestRelease != "" {
-		// GitHub latest release: require "owner/repo" format with non-empty parts
-		parts := strings.SplitN(s.GitHubLatestRelease, "/", 2)
-		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			return fmt.Errorf("githubLatestRelease must be in format owner/repo (e.g. istio/istio)")
-		}
-		// Registry-specific fields are not allowed with githubLatestRelease
-		if s.Image != "" {
-			return fmt.Errorf("image must not be set when githubLatestRelease is used")
-		}
-		if s.Tag != "" || s.TagPattern != "" {
-			return fmt.Errorf("tag/tagPattern must not be set when githubLatestRelease is used")
-		}
-		if s.Architecture != "" || s.MultiArch {
-			return fmt.Errorf("architecture/multiArch must not be set when githubLatestRelease is used")
-		}
-		if s.UseAuth != nil || s.KeyVault != nil || s.VersionLabel != "" {
-			return fmt.Errorf("useAuth/keyVault/versionLabel must not be set when githubLatestRelease is used")
-		}
-		return nil
-	}
+// ProducesVersionString reports whether this source yields a plain version
+// string rather than a container digest. Add or remove version-only sources
+// here; call sites branch on this predicate.
+func (s *Source) ProducesVersionString() bool {
+	return s.GitHubLatestRelease != "" || s.AzureAKSMeshRevisions != nil
+}
 
+// VersionOnlySourceNames returns the yaml field names of version-only sources
+// for use in error messages. Keep in sync with ProducesVersionString.
+func VersionOnlySourceNames() []string {
+	return []string{"githubLatestRelease", "azureAKSMeshRevisions"}
+}
+
+// disallowRegistryFields errors if any registry-oriented field is populated.
+func (s *Source) disallowRegistryFields(sourceKind string) error {
+	switch {
+	case s.Image != "":
+		return fmt.Errorf("image must not be set when %s is used", sourceKind)
+	case s.Tag != "" || s.TagPattern != "":
+		return fmt.Errorf("tag/tagPattern must not be set when %s is used", sourceKind)
+	case s.Architecture != "" || s.MultiArch:
+		return fmt.Errorf("architecture/multiArch must not be set when %s is used", sourceKind)
+	case s.UseAuth != nil || s.KeyVault != nil || s.VersionLabel != "":
+		return fmt.Errorf("useAuth/keyVault/versionLabel must not be set when %s is used", sourceKind)
+	}
+	return nil
+}
+
+// Validate dispatches per source type; shape mirrors updater.fetchLatestValue.
+func (s *Source) Validate() error {
+	if s.AzureAKSMeshRevisions == nil && (s.PinnedMeshRevision != "" || s.MaxMeshRevision != "") {
+		return fmt.Errorf("pinnedMeshRevision/maxMeshRevision only apply when azureAKSMeshRevisions is set")
+	}
+	switch {
+	case s.AzureAKSMeshRevisions != nil:
+		return s.validateAzureAKSMeshRevisions()
+	case s.GitHubLatestRelease != "":
+		return s.validateGitHubLatestRelease()
+	default:
+		return s.validateRegistrySource()
+	}
+}
+
+func (s *Source) validateAzureAKSMeshRevisions() error {
+	if s.GitHubLatestRelease != "" {
+		return fmt.Errorf("githubLatestRelease and azureAKSMeshRevisions are mutually exclusive")
+	}
+	if len(s.AzureAKSMeshRevisions.Locations) == 0 {
+		return fmt.Errorf("azureAKSMeshRevisions.locations must list at least one Azure location")
+	}
+	seen := make(map[string]struct{}, len(s.AzureAKSMeshRevisions.Locations))
+	for _, loc := range s.AzureAKSMeshRevisions.Locations {
+		if loc == "" {
+			return fmt.Errorf("azureAKSMeshRevisions.locations must not contain empty strings")
+		}
+		if _, dup := seen[loc]; dup {
+			return fmt.Errorf("azureAKSMeshRevisions.locations contains duplicate entry %q", loc)
+		}
+		seen[loc] = struct{}{}
+	}
+	if err := s.disallowRegistryFields("azureAKSMeshRevisions"); err != nil {
+		return err
+	}
+	if s.PinnedMeshRevision != "" && s.MaxMeshRevision != "" {
+		return fmt.Errorf("pinnedMeshRevision and maxMeshRevision are mutually exclusive")
+	}
+	if s.PinnedMeshRevision != "" && !asmRevisionFormat.MatchString(s.PinnedMeshRevision) {
+		return fmt.Errorf("pinnedMeshRevision %q must match asm-<major>-<minor> (e.g. asm-1-28)", s.PinnedMeshRevision)
+	}
+	if s.MaxMeshRevision != "" && !asmRevisionFormat.MatchString(s.MaxMeshRevision) {
+		return fmt.Errorf("maxMeshRevision %q must match asm-<major>-<minor> (e.g. asm-1-29)", s.MaxMeshRevision)
+	}
+	return nil
+}
+
+func (s *Source) validateGitHubLatestRelease() error {
+	parts := strings.SplitN(s.GitHubLatestRelease, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return fmt.Errorf("githubLatestRelease must be in format owner/repo (e.g. istio/istio)")
+	}
+	return s.disallowRegistryFields("githubLatestRelease")
+}
+
+func (s *Source) validateRegistrySource() error {
 	if s.Image == "" {
-		return fmt.Errorf("image is required when githubLatestRelease is not set")
+		return fmt.Errorf("image is required when no version-only source (%s) is set", strings.Join(VersionOnlySourceNames(), ", "))
 	}
 	if s.Tag != "" && s.TagPattern != "" {
 		return fmt.Errorf("tag and tagPattern are mutually exclusive, only one can be specified")
@@ -138,9 +213,12 @@ func (s *Source) GetEffectiveVersionLabel() string {
 	return ""
 }
 
-// SourceDescription returns a short, opaque description of the source for logging (image ref or GitHub repo).
+// SourceDescription returns a short label for logs.
 func (s *Source) SourceDescription() string {
-	if s.GitHubLatestRelease != "" {
+	switch {
+	case s.AzureAKSMeshRevisions != nil:
+		return "aks mesh revision profiles (" + strings.Join(s.AzureAKSMeshRevisions.Locations, ",") + ")"
+	case s.GitHubLatestRelease != "":
 		return "github.com/" + s.GitHubLatestRelease
 	}
 	return s.Image
@@ -199,10 +277,10 @@ func Load(configPath string) (*Config, error) {
 		if err := imageConfig.Source.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid configuration for image %q: %w", name, err)
 		}
-		if imageConfig.Source.GitHubLatestRelease != "" {
+		if imageConfig.Source.ProducesVersionString() {
 			for _, target := range imageConfig.Targets {
 				if strings.HasSuffix(target.JsonPath, ".digest") || strings.HasSuffix(target.JsonPath, ".sha") {
-					return nil, fmt.Errorf("image %q: githubLatestRelease targets must not use .digest or .sha paths (got %q)", name, target.JsonPath)
+					return nil, fmt.Errorf("image %q: version-only sources (githubLatestRelease/azureAKSMeshRevisions) must not use .digest or .sha paths (got %q)", name, target.JsonPath)
 				}
 			}
 		}

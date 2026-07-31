@@ -1101,6 +1101,152 @@ func TestSource_Validate(t *testing.T) {
 			wantErr:    true,
 			wantErrMsg: "useAuth/keyVault/versionLabel must not be set",
 		},
+		{
+			name: "valid: azureAKSMeshRevisions minimal",
+			source: Source{
+				AzureAKSMeshRevisions: &AzureAKSMeshRevisionsSource{
+					Locations: []string{"westus3"},
+				},
+			},
+		},
+		{
+			name: "valid: azureAKSMeshRevisions multiple locations",
+			source: Source{
+				AzureAKSMeshRevisions: &AzureAKSMeshRevisionsSource{
+					Locations: []string{"uksouth", "westus3", "eastus2"},
+				},
+			},
+		},
+		{
+			name: "valid: azureAKSMeshRevisions with maxMeshRevision",
+			source: Source{
+				AzureAKSMeshRevisions: &AzureAKSMeshRevisionsSource{
+					Locations: []string{"westus3"},
+				},
+				MaxMeshRevision: "asm-1-29",
+			},
+		},
+		{
+			name: "valid: azureAKSMeshRevisions with pinnedMeshRevision",
+			source: Source{
+				AzureAKSMeshRevisions: &AzureAKSMeshRevisionsSource{
+					Locations: []string{"westus3"},
+				},
+				PinnedMeshRevision: "asm-1-28",
+			},
+		},
+		{
+			name: "valid: azureAKSMeshRevisions with explicit subscription",
+			source: Source{
+				AzureAKSMeshRevisions: &AzureAKSMeshRevisionsSource{
+					Locations:    []string{"westus3"},
+					Subscription: "00000000-0000-0000-0000-000000000000",
+				},
+			},
+		},
+		{
+			name: "invalid: azureAKSMeshRevisions empty locations",
+			source: Source{
+				AzureAKSMeshRevisions: &AzureAKSMeshRevisionsSource{
+					Locations: nil,
+				},
+			},
+			wantErr:    true,
+			wantErrMsg: "azureAKSMeshRevisions.locations must list at least one Azure location",
+		},
+		{
+			name: "invalid: azureAKSMeshRevisions blank location entry",
+			source: Source{
+				AzureAKSMeshRevisions: &AzureAKSMeshRevisionsSource{
+					Locations: []string{"westus3", ""},
+				},
+			},
+			wantErr:    true,
+			wantErrMsg: "azureAKSMeshRevisions.locations must not contain empty strings",
+		},
+		{
+			name: "invalid: azureAKSMeshRevisions duplicate locations",
+			source: Source{
+				AzureAKSMeshRevisions: &AzureAKSMeshRevisionsSource{
+					Locations: []string{"westus3", "westus3"},
+				},
+			},
+			wantErr:    true,
+			wantErrMsg: "azureAKSMeshRevisions.locations contains duplicate entry \"westus3\"",
+		},
+		{
+			name: "invalid: azureAKSMeshRevisions with githubLatestRelease",
+			source: Source{
+				AzureAKSMeshRevisions: &AzureAKSMeshRevisionsSource{
+					Locations: []string{"westus3"},
+				},
+				GitHubLatestRelease: "istio/istio",
+			},
+			wantErr:    true,
+			wantErrMsg: "githubLatestRelease and azureAKSMeshRevisions are mutually exclusive",
+		},
+		{
+			name: "invalid: azureAKSMeshRevisions with image",
+			source: Source{
+				AzureAKSMeshRevisions: &AzureAKSMeshRevisionsSource{
+					Locations: []string{"westus3"},
+				},
+				Image: "quay.io/foo/bar",
+			},
+			wantErr:    true,
+			wantErrMsg: "image must not be set when azureAKSMeshRevisions is used",
+		},
+		{
+			name: "invalid: pinnedMeshRevision and maxMeshRevision both set",
+			source: Source{
+				AzureAKSMeshRevisions: &AzureAKSMeshRevisionsSource{
+					Locations: []string{"westus3"},
+				},
+				PinnedMeshRevision: "asm-1-28",
+				MaxMeshRevision:    "asm-1-29",
+			},
+			wantErr:    true,
+			wantErrMsg: "pinnedMeshRevision and maxMeshRevision are mutually exclusive",
+		},
+		{
+			name: "invalid: pinnedMeshRevision malformed",
+			source: Source{
+				AzureAKSMeshRevisions: &AzureAKSMeshRevisionsSource{
+					Locations: []string{"westus3"},
+				},
+				PinnedMeshRevision: "1.28",
+			},
+			wantErr:    true,
+			wantErrMsg: "pinnedMeshRevision \"1.28\" must match asm-<major>-<minor>",
+		},
+		{
+			name: "invalid: pinnedMeshRevision without azureAKSMeshRevisions",
+			source: Source{
+				Image:              "quay.io/foo/bar",
+				Tag:                "v1",
+				PinnedMeshRevision: "asm-1-28",
+			},
+			wantErr:    true,
+			wantErrMsg: "pinnedMeshRevision/maxMeshRevision only apply when azureAKSMeshRevisions is set",
+		},
+		{
+			name: "invalid: pinnedMeshRevision with githubLatestRelease (regression guard)",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				PinnedMeshRevision:  "asm-1-28",
+			},
+			wantErr:    true,
+			wantErrMsg: "pinnedMeshRevision/maxMeshRevision only apply when azureAKSMeshRevisions is set",
+		},
+		{
+			name: "invalid: maxMeshRevision with githubLatestRelease (regression guard)",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				MaxMeshRevision:     "asm-1-29",
+			},
+			wantErr:    true,
+			wantErrMsg: "pinnedMeshRevision/maxMeshRevision only apply when azureAKSMeshRevisions is set",
+		},
 	}
 
 	for _, tt := range tests {

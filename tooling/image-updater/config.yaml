@@ -273,3 +273,34 @@ images:
     targets:
     - jsonPath: defaults.svc.istio.istioctlVersion
       filePath: ../../config/config.yaml
+  # AKS Istio add-on revision. Queries the AKS mesh revision profiles API in
+  # every listed location, derives each region's install-time default (the
+  # highest revision whose Upgrades list is non-empty), and only advances
+  # when every region agrees.
+  #
+  # Locations mirror the actual HCP deployment footprint pulled from
+  # sdp-pipelines/hcp/rendered/public: INT/STG deploy to uksouth only, PROD
+  # deploys to nine regions. Keep this list in sync when the deployment
+  # topology changes so the rollout target never runs ahead of what a slower
+  # region supports. See README for pinnedMeshRevision / maxMeshRevision
+  # escape hatches. Subscription falls back to $AZURE_SUBSCRIPTION_ID.
+  # TODO: drop the targetVersion target once ARO-HCP PR #6236 merges.
+  istio-asm-revision:
+    group: istio
+    source:
+      azureAKSMeshRevisions:
+        locations:
+        - uksouth          # INT, STG, PROD
+        - australiaeast    # PROD
+        - brazilsouth      # PROD
+        - canadacentral    # PROD
+        - centralindia     # PROD
+        - eastus2          # PROD
+        - eastus2euap      # PROD (canary/EUAP)
+        - switzerlandnorth # PROD
+        - westeurope       # PROD
+    targets:
+    - jsonPath: defaults.svc.istio.versions
+      filePath: ../../config/config.yaml
+    - jsonPath: defaults.svc.istio.targetVersion
+      filePath: ../../config/config.yaml
