@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"os"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 type SetupModel struct {
@@ -37,18 +37,18 @@ type CustomerEnv struct {
 	CustomerRGName   string                                              `json:"customer_rg_name,omitempty"`
 	CustomerVNetName string                                              `json:"customer_vnet_name,omitempty"`
 	CustomerNSGName  string                                              `json:"customer_nsg_name,omitempty"`
-	UAMIs            hcpsdk20240610preview.UserAssignedIdentitiesProfile `json:"uamis,omitempty"`
-	IdentityUAMIs    hcpsdk20240610preview.ManagedServiceIdentity        `json:"identity_uamis,omitempty"`
+	UAMIs            hcpsdk20251223preview.UserAssignedIdentitiesProfile `json:"uamis,omitempty"`
+	IdentityUAMIs    hcpsdk20251223preview.ManagedServiceIdentity        `json:"identity_uamis,omitempty"`
 }
 
 type Cluster struct {
 	Name    string                                    `json:"name,omitempty"`
-	ARMData hcpsdk20240610preview.HcpOpenShiftCluster `json:"armdata,omitempty"`
+	ARMData hcpsdk20251223preview.HcpOpenShiftCluster `json:"armdata,omitempty"`
 }
 
 type Nodepool struct {
 	Name    string                         `json:"name,omitempty"`
-	ARMData hcpsdk20240610preview.NodePool `json:"armdata,omitempty"`
+	ARMData hcpsdk20251223preview.NodePool `json:"armdata,omitempty"`
 }
 
 func LoadE2ESetupFile(path string) (SetupModel, error) {

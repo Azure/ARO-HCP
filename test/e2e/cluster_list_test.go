@@ -44,7 +44,7 @@ var _ = Describe("List HCPOpenShiftCluster", func() {
 			tc := framework.NewTestContext()
 
 			By("Preparing pager to list clusters")
-			pager := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListByResourceGroupPager(customerEnv.CustomerRGName, nil)
+			pager := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListByResourceGroupPager(customerEnv.CustomerRGName, nil)
 			By("Accessing IDs of all fetched clusters")
 			foundPreCreated := false
 			clusterCount := 0

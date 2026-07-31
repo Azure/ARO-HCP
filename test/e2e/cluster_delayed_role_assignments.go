@@ -178,10 +178,11 @@ var _ = Describe("ARO HCP Service", func() {
 				framework.WithClusterResourceGroup(*resourceGroup.Name),
 				framework.WithTimeout(10 * time.Minute),
 				framework.WithParameters(map[string]any{
-					"nsgName":      clusterParams.NsgName,
-					"vnetName":     clusterParams.VnetName,
-					"subnetName":   clusterParams.SubnetName,
-					"keyVaultName": clusterParams.KeyVaultName,
+					"nsgName":               clusterParams.NsgName,
+					"vnetName":              clusterParams.VnetName,
+					"subnetName":            clusterParams.SubnetName,
+					"integrationSubnetName": clusterParams.IntegrationSubnetName,
+					"keyVaultName":          clusterParams.KeyVaultName,
 				}),
 			}
 			if leasedPool != nil {
