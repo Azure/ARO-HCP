@@ -3,9 +3,17 @@ set -euo pipefail
 
 # One-time pre-merge script: deletes the legacy role assignments created by
 # grant-openshift-release-bot-dev.sh so that ci-bot-rbac-dev can recreate
-# them with deterministic guid()-based names.
+# them with deterministic guid()-based names. Only assignments for the roles
+# the declarative templates manage are removed; any other grant on the bot SP
+# is left untouched.
 #
 # Requires Owner or User Access Administrator on each subscription.
+# Dry-run by default; set APPLY=1 to actually delete.
+
+if [ -n "${DRY_RUN:-}" ] && [ -n "${APPLY:-}" ]; then
+  echo "ERROR: set either DRY_RUN (the default) or APPLY=1, not both"
+  exit 1
+fi
 
 if [ -n "${APPLY:-}" ]; then
   DRY_RUN_MODE=false
@@ -34,13 +42,26 @@ SUBSCRIPTIONS=(
   "6ed122d1-7e03-4a01-baae-9020abf350d4"
 )
 
+# Role definition GUIDs that ci-bot-rbac-subscription.bicep manages. The cleanup
+# only deletes assignments for these roles, so any unrelated grant on the bot SP
+# is preserved (the pipeline would not recreate it).
+MANAGED_ROLE_IDS=(
+  "b24988ac-6180-42a0-ab88-20f7382dd24c"  # Contributor
+  "f58310d9-a9f6-439a-9e8d-f62e7b41a168"  # Role Based Access Control Administrator
+  "b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b"  # Azure Kubernetes Service RBAC Cluster Admin
+  "00482a5a-887f-4fb3-b363-3b7fe8e74483"  # Key Vault Administrator
+  "22926164-76b3-42b3-bc55-97df8dab3e41"  # Grafana Admin
+)
+
 DELETED=0
+KEPT=0
 ERRORS=0
 for SUB_ID in "${SUBSCRIPTIONS[@]}"; do
+  # assignment id, role definition id, and friendly role name for every bot grant
   ASSIGNMENTS=$(az role assignment list \
     --assignee "${BOT_SP_ID}" \
     --subscription "${SUB_ID}" \
-    --query '[].id' -o tsv 2>/dev/null) || {
+    --query '[].[id, roleDefinitionId, roleDefinitionName]' -o tsv 2>/dev/null) || {
     echo "SKIP   ${SUB_ID} (no access)"
     continue
   }
@@ -50,22 +71,27 @@ for SUB_ID in "${SUBSCRIPTIONS[@]}"; do
     continue
   fi
 
-  while IFS= read -r ASSIGNMENT_ID; do
+  while IFS=$'\t' read -r ASSIGNMENT_ID ROLE_DEF_ID ROLE_NAME; do
+    [[ -z "${ASSIGNMENT_ID}" ]] && continue
+    ROLE_GUID="${ROLE_DEF_ID##*/}"
+    if [[ " ${MANAGED_ROLE_IDS[*]} " != *" ${ROLE_GUID} "* ]]; then
+      echo "KEEP   ${SUB_ID} ${ROLE_NAME} (not template-managed)"
+      KEPT=$((KEPT + 1))
+      continue
+    fi
     if [ "$DRY_RUN_MODE" = true ]; then
-      ROLE=$(az role assignment list --subscription "${SUB_ID}" \
-        --query "[?id=='${ASSIGNMENT_ID}'].roleDefinitionName | [0]" -o tsv 2>/dev/null)
-      echo "WOULD  ${SUB_ID} ${ROLE}"
+      echo "WOULD  ${SUB_ID} ${ROLE_NAME}"
     elif az role assignment delete --ids "${ASSIGNMENT_ID}" 2>/dev/null; then
-      echo "DONE   ${SUB_ID} ${ASSIGNMENT_ID##*/}"
+      echo "DONE   ${SUB_ID} ${ROLE_NAME}"
       DELETED=$((DELETED + 1))
     else
-      echo "FAIL   ${SUB_ID} ${ASSIGNMENT_ID##*/}"
+      echo "FAIL   ${SUB_ID} ${ROLE_NAME}"
       ERRORS=$((ERRORS + 1))
     fi
   done <<< "${ASSIGNMENTS}"
 done
 
 echo ""
-echo "deleted=${DELETED} errors=${ERRORS}"
+echo "deleted=${DELETED} kept=${KEPT} errors=${ERRORS}"
 [[ ${ERRORS} -gt 0 ]] && exit 1
 exit 0
