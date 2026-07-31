@@ -55,11 +55,11 @@ DELETED=0
 KEPT=0
 ERRORS=0
 for SUB_ID in "${SUBSCRIPTIONS[@]}"; do
-  # assignment id, role definition id, and friendly role name for every bot grant
+  # assignment id, role definition id, friendly role name, and scope per bot grant
   ASSIGNMENTS=$(az role assignment list \
     --assignee "${BOT_SP_ID}" \
     --subscription "${SUB_ID}" \
-    --query '[].[id, roleDefinitionId, roleDefinitionName]' -o tsv 2>/dev/null) || {
+    --query '[].[id, roleDefinitionId, roleDefinitionName, scope]' -o tsv 2>/dev/null) || {
     echo "SKIP   ${SUB_ID} (no access)"
     continue
   }
@@ -69,8 +69,15 @@ for SUB_ID in "${SUBSCRIPTIONS[@]}"; do
     continue
   fi
 
-  while IFS=$'\t' read -r ASSIGNMENT_ID ROLE_DEF_ID ROLE_NAME; do
+  while IFS=$'\t' read -r ASSIGNMENT_ID ROLE_DEF_ID ROLE_NAME SCOPE; do
     [[ -z "${ASSIGNMENT_ID}" ]] && continue
+    # The legacy script granted these at subscription scope; leave any
+    # narrower-scope (resource-group/resource) assignment untouched.
+    if [[ "${SCOPE}" != "/subscriptions/${SUB_ID}" ]]; then
+      echo "KEEP   ${SUB_ID} ${ROLE_NAME} (scope ${SCOPE}, not subscription-scope)"
+      KEPT=$((KEPT + 1))
+      continue
+    fi
     ROLE_GUID="${ROLE_DEF_ID##*/}"
     if [[ " ${MANAGED_ROLE_IDS[*]} " != *" ${ROLE_GUID} "* ]]; then
       echo "KEEP   ${SUB_ID} ${ROLE_NAME} (not template-managed)"
