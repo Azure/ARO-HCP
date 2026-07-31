@@ -44,6 +44,7 @@ module managedIdentities 'modules/managed-identities.bicep' = {
     useMsiPool: usePooledIdentities
     vnetName: customerInfra.outputs.vnetName
     subnetName: customerInfra.outputs.vnetSubnetName
+    integrationSubnetName: customerInfra.outputs.integrationSubnetName
     nsgName: customerInfra.outputs.nsgName
     keyVaultName: customerInfra.outputs.keyVaultName
   }
@@ -56,6 +57,7 @@ module AroHcpCluster 'modules/cluster.bicep' = {
     clusterName: clusterName
     vnetName: customerInfra.outputs.vnetName
     subnetName: customerInfra.outputs.vnetSubnetName
+    integrationSubnetName: customerInfra.outputs.integrationSubnetName
     nsgName: customerInfra.outputs.nsgName
     userAssignedIdentitiesValue: managedIdentities.outputs.userAssignedIdentitiesValue
     identityValue: managedIdentities.outputs.identityValue

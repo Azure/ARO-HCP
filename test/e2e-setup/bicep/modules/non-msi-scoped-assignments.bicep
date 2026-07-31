@@ -30,6 +30,9 @@ param vnetName string
 @description('The subnet name for deploying HCP cluster resources')
 param subnetName string
 
+@description('The integration subnet name for control plane connectivity.')
+param integrationSubnetName string
+
 @description('The KeyVault name that contains the etcd encryption key')
 param keyVaultName string
 
@@ -50,6 +53,11 @@ resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' existing = {
 
 resource subnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing = {
   name: subnetName
+  parent: vnet
+}
+
+resource vnetIntegrationSubnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing = {
+  name: integrationSubnetName
   parent: vnet
 }
 
@@ -406,7 +414,7 @@ resource serviceManagedIdentityRoleAssignmentResourceGroup 'Microsoft.Authorizat
   }
 }
 
-// grant service managed identity role to the service managed identity over the user provided subnet
+// grant service managed identity role to the service managed identity over the user provided virtual network
 resource serviceManagedIdentityRoleAssignmentVnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, vnet.id)
   scope: vnet
@@ -421,6 +429,17 @@ resource serviceManagedIdentityRoleAssignmentVnet 'Microsoft.Authorization/roleA
 resource serviceManagedIdentityRoleAssignmentSubnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, subnet.id)
   scope: subnet
+  properties: {
+    principalId: serviceManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: hcpServiceManagedIdentityRoleId
+  }
+}
+
+// grant service managed identity role to the service managed identity over the user provided integration subnet
+resource serviceManagedIdentityRoleAssignmentIntegrationSubnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
+  name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, vnetIntegrationSubnet.id)
+  scope: vnetIntegrationSubnet
   properties: {
     principalId: serviceManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
