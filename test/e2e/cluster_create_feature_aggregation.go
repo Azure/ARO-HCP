@@ -42,7 +42,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -233,9 +232,9 @@ var _ = Describe("Customer", func() {
 			Expect(*cluster.Properties.API.AuthorizedCIDRs[0]).To(Equal(vmCIDR), "cluster %q authorized CIDR should match the VM public IP", customerClusterName)
 
 			By("getting admin credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20251223(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -520,47 +519,47 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get Microsoft Graph client for external OIDC configuration")
 			pass, err := graphClient.AddPassword(ctx, app.ID, "agg-ext-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
 			Expect(err).NotTo(HaveOccurred(), "failed to add client secret to app registration for external OIDC configuration")
-			extAuth := hcpsdk20240610preview.ExternalAuth{
-				Properties: &hcpsdk20240610preview.ExternalAuthProperties{
-					Issuer: &hcpsdk20240610preview.TokenIssuerProfile{
+			extAuth := hcpsdk20251223preview.ExternalAuth{
+				Properties: &hcpsdk20251223preview.ExternalAuthProperties{
+					Issuer: &hcpsdk20251223preview.TokenIssuerProfile{
 						URL:       to.Ptr(fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tc.TenantID())),
 						Audiences: []*string{to.Ptr(app.AppID)},
 					},
-					Claim: &hcpsdk20240610preview.ExternalAuthClaimProfile{
-						Mappings: &hcpsdk20240610preview.TokenClaimMappingsProfile{
-							Username: &hcpsdk20240610preview.UsernameClaimProfile{
+					Claim: &hcpsdk20251223preview.ExternalAuthClaimProfile{
+						Mappings: &hcpsdk20251223preview.TokenClaimMappingsProfile{
+							Username: &hcpsdk20251223preview.UsernameClaimProfile{
 								Claim:        to.Ptr("sub"),
-								PrefixPolicy: to.Ptr(hcpsdk20240610preview.UsernameClaimPrefixPolicyPrefix),
+								PrefixPolicy: to.Ptr(hcpsdk20251223preview.UsernameClaimPrefixPolicyPrefix),
 								Prefix:       to.Ptr(externalAuthSubjectPrefix),
 							},
-							Groups: &hcpsdk20240610preview.GroupClaimProfile{
+							Groups: &hcpsdk20251223preview.GroupClaimProfile{
 								Claim: to.Ptr("groups"),
 							},
 						},
 					},
-					Clients: []*hcpsdk20240610preview.ExternalAuthClientProfile{
+					Clients: []*hcpsdk20251223preview.ExternalAuthClientProfile{
 						{
 							ClientID: to.Ptr(app.AppID),
-							Component: &hcpsdk20240610preview.ExternalAuthClientComponentProfile{
+							Component: &hcpsdk20251223preview.ExternalAuthClientComponentProfile{
 								Name:                to.Ptr("console"),
 								AuthClientNamespace: to.Ptr("openshift-console"),
 							},
-							Type: to.Ptr(hcpsdk20240610preview.ExternalAuthClientTypeConfidential),
+							Type: to.Ptr(hcpsdk20251223preview.ExternalAuthClientTypeConfidential),
 						},
 						{
 							ClientID: to.Ptr(app.AppID),
-							Component: &hcpsdk20240610preview.ExternalAuthClientComponentProfile{
+							Component: &hcpsdk20251223preview.ExternalAuthClientComponentProfile{
 								Name:                to.Ptr("cli"),
 								AuthClientNamespace: to.Ptr("openshift-console"),
 							},
-							Type: to.Ptr(hcpsdk20240610preview.ExternalAuthClientTypePublic),
+							Type: to.Ptr(hcpsdk20251223preview.ExternalAuthClientTypePublic),
 						},
 					},
 				},
 			}
-			_, err = framework.CreateOrUpdateExternalAuthAndWait20240610(
+			_, err = framework.CreateOrUpdateExternalAuthAndWait20251223(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+				tc.Get20251223ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerExternalAuthName,
@@ -568,9 +567,9 @@ var _ = Describe("Customer", func() {
 				framework.ExternalAuthCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create external auth config %q for cluster %q", customerExternalAuthName, customerClusterName)
-			extAuthResult, err := framework.GetExternalAuth20240610(
+			extAuthResult, err := framework.GetExternalAuth20251223(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+				tc.Get20251223ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerExternalAuthName,
@@ -578,7 +577,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get external auth config %q for cluster %q", customerExternalAuthName, customerClusterName)
 			Expect(extAuthResult.Properties).ToNot(BeNil(), "external auth %q Properties was nil", customerExternalAuthName)
 			Expect(extAuthResult.Properties.ProvisioningState).ToNot(BeNil(), "external auth %q ProvisioningState was nil", customerExternalAuthName)
-			Expect(*extAuthResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded), "external auth %q provisioning state should be Succeeded", customerExternalAuthName)
+			Expect(*extAuthResult.Properties.ProvisioningState).To(Equal(hcpsdk20251223preview.ExternalAuthProvisioningStateSucceeded), "external auth %q provisioning state should be Succeeded", customerExternalAuthName)
 
 			By("creating a cluster role binding for the external OIDC subject")
 			clusterRoleBindingName := "agg-external-auth-cluster-admin"

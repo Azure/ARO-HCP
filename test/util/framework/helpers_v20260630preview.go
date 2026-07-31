@@ -59,6 +59,7 @@ type ClusterParams20260630 struct {
 	EncryptionKeyManagementMode   string
 	EncryptionType                string
 	VnetIntegrationSubnetID       string
+	IntegrationSubnetName         string
 	KeyVaultVisibility            string
 	IngressType                   string
 	Network                       NetworkConfig
@@ -245,12 +246,17 @@ func PopulateClusterParamsFromCustomerInfraDeployment20260630(
 	if err != nil {
 		return params, fmt.Errorf("failed to get vnetSubnetName from customer infra deployment: %w", err)
 	}
+	integrationSubnetName, err := GetOutputValueString(customerInfraDeploymentResult, "integrationSubnetName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get integrationSubnetName from customer infra deployment: %w", err)
+	}
 	params.KeyVaultName = keyVaultName
 	params.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
 	params.EtcdEncryptionKeyName = etcdEncryptionKeyName
 	params.NsgResourceID = nsgResourceID
 	params.SubnetResourceID = subnetResourceID
 	params.VnetIntegrationSubnetID = vnetIntegrationSubnetID
+	params.IntegrationSubnetName = integrationSubnetName
 	params.VnetName = vnetName
 	params.NsgName = nsgName
 	params.SubnetName = subnetName
@@ -556,6 +562,7 @@ func BuildHCPClusterFromParams20260630(
 				},
 			},
 			ImageDigestMirrors: imageDigestMirrors,
+			Autoscaling:        parameters.Autoscaling,
 		},
 	}, nil
 }
@@ -661,7 +668,7 @@ func UpdateHCPCluster20260630(
 
 		// The v20260630 variant does not call checkOperationResult because
 		// the v20260630 SDK does not yet have a matching Get response type
-		// to compare against. The v20240610 variant above does this check.
+		// to compare against.
 		hcpOpenShiftCluster = &operationResult.HcpOpenShiftCluster
 		return true, nil
 	})
