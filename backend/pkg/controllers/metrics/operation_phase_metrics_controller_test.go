@@ -667,6 +667,99 @@ backend_resource_operation_phase_info{operation_type="update",phase="provisionin
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 }
 
+// TestOperationPhaseMetricsHandler_DeleteClearsLastOperationGauges demonstrates
+// the bug described in ARO-28723: when the LAST operation for a
+// (resourceID, operationType) pair is deleted (e.g. CosmosDB TTL expiry),
+// the gauge series should be cleared. Currently Delete is a no-op, so the
+// stale gauge persists indefinitely, inflating the provisioning failure
+// rate and triggering false IcM alerts.
+func TestOperationPhaseMetricsHandler_DeleteClearsLastOperationGauges(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	op := newTestOperation(
+		t,
+		"op-1",
+		api.OperationRequestCreate,
+		arm.ProvisioningStateFailed,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
+		now,
+		now,
+	)
+
+	handler, _ := newTestOperationHandler(t)
+	handler.Sync(context.Background(), op)
+
+	// Gauge is set after Sync.
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"phaseInfo should have 1 series after Sync")
+	require.Equal(t, 1, testutil.CollectAndCount(handler.startTime),
+		"startTime should have 1 series after Sync")
+	require.Equal(t, 1, testutil.CollectAndCount(handler.lastTransitionTime),
+		"lastTransitionTime should have 1 series after Sync")
+
+	// Simulate CosmosDB TTL expiry: the informer relist detects the
+	// document is gone and the controller framework calls Delete with
+	// the Cosmos doc key.
+	cosmosKey, err := resourceIDStoreKeyForObject(op)
+	require.NoError(t, err)
+	handler.Delete(cosmosKey)
+
+	// After deleting the LAST (and only) operation for this resource +
+	// operation type, all gauge series should be cleared.
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
+		"ARO-28723: phaseInfo gauge persists after Delete — stale series will inflate failure rate")
+	require.Equal(t, 0, testutil.CollectAndCount(handler.startTime),
+		"ARO-28723: startTime gauge persists after Delete")
+	require.Equal(t, 0, testutil.CollectAndCount(handler.lastTransitionTime),
+		"ARO-28723: lastTransitionTime gauge persists after Delete")
+}
+
+// TestOperationPhaseMetricsHandler_DeleteClearsLastOperationGauges_ViaController
+// is the end-to-end variant: operation enters the indexer, gets synced by
+// the controller, is removed from the indexer (simulating TTL expiry),
+// and the controller syncs again. The gauges should be cleared.
+func TestOperationPhaseMetricsHandler_DeleteClearsLastOperationGauges_ViaController(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	op := newTestOperation(
+		t,
+		"op-1",
+		api.OperationRequestCreate,
+		arm.ProvisioningStateFailed,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
+		now,
+		now,
+	)
+
+	indexer := cache.NewIndexer(resourceIDStoreKeyForObject, cache.Indexers{})
+	require.NoError(t, indexer.Add(op))
+
+	handler, _ := newTestOperationHandler(t)
+	controller := &Controller[*api.Operation]{
+		name:    "OperationPhaseMetrics",
+		indexer: indexer,
+		handler: handler,
+	}
+
+	key, err := resourceIDStoreKeyForObject(op)
+	require.NoError(t, err)
+
+	// First sync: gauge is set.
+	require.NoError(t, controller.syncResource(context.Background(), key))
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"phaseInfo should have 1 series after initial sync")
+
+	// Simulate TTL expiry: remove from indexer, sync again.
+	require.NoError(t, indexer.Delete(op))
+	require.NoError(t, controller.syncResource(context.Background(), key))
+
+	// Gauges should be cleared — no stale series.
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
+		"ARO-28723: phaseInfo gauge persists after indexer removal — stale series will inflate failure rate")
+	require.Equal(t, 0, testutil.CollectAndCount(handler.startTime),
+		"ARO-28723: startTime gauge persists after indexer removal")
+	require.Equal(t, 0, testutil.CollectAndCount(handler.lastTransitionTime),
+		"ARO-28723: lastTransitionTime gauge persists after indexer removal")
+}
+
 // TestOperationPhaseMetricsHandler_NilOperationIDDoesNotBlankSibling
 // guards against future regressions of the nil-OperationID branch
 // in Sync. The branch must NOT call deleteByResourceIDAndOperationType,
