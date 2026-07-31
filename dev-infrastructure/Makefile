@@ -93,8 +93,8 @@ deploy-mock-identity-apps: configurations/mock-identity-apps.bicepparam
 
 # Create the self-signed Key Vault certificates for the mock identity apps.
 # mock-identity-apps.bicep creates the apps but does not create or pin certs
-# (Bicep cannot create Key Vault certificates); the public key is pinned onto
-# each app separately by `make pin-mock-identity-certs`. Idempotent:
+# (Bicep cannot create Key Vault certificates); the privileged dev-ci pipeline
+# pins the public key onto each app after deploying it. Idempotent:
 # create-kv-cert.sh leaves an existing cert untouched unless FORCE=true, so this
 # is safe to re-run during bootstrap. Run once before the mock identities are
 # used. The cert subject DNS names mirror config/config-dev-ci.yaml
@@ -141,8 +141,8 @@ create-int-mock-identity-certs:
 # Service sends the cert chain, so SNI trust does not validate (AADSTS7000213);
 # pinning the public key and matching on leaf thumbprint is the working
 # mechanism. Idempotent: re-run after a certificate rotation to re-pin the
-# current cert. Requires Key Vault data-plane read on $(SVC_KV_NAME) and
-# owner/Application.ReadWrite on the apps.
+# current cert without running the full privileged pipeline. Requires Key Vault
+# data-plane read on $(SVC_KV_NAME) and owner/Application.ReadWrite on the apps.
 pin-mock-identity-certs:
 	VAULT_NAME=$(SVC_KV_NAME) \
 	POOL_APP_BASE=aro-dev-msi-mock-pool POOL_CERT_BASE=msiMockPoolCert \

@@ -39,6 +39,12 @@ resourceGroups:
 # mock-identity-rbac steps replace the removed customer-subscription-grants step
 # (e2e-subscription-rbac-assignments.bicep): they now own the e2e-subscription
 # mock RBAC via Graph lookup instead of hardcoded principalIds.
+#
+# The pipeline schema requires shellIdentity, but this DEV-only entrypoint runs
+# locally through templatize, which ignores it and executes Shell steps with the
+# invoking OWNERS member's Azure CLI credentials. The placeholder values below
+# are therefore not identities. The caller must be able to read the Key Vault
+# certificates and write credentials on the Entra apps.
 - name: mock-idents
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -53,6 +59,34 @@ resourceGroups:
       - "Failed to update one or more relationships in 'owners'"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: pin-mock-certs
+    action: Shell
+    command: |
+      export IDENTITIES="${FIRST_PARTY_APP_NAME}=firstPartyCert2
+      ${ARM_HELPER_APP_NAME}=armHelperCert2
+      ${MSI_MOCK_APP_NAME}=msiMockCert2"
+      ./pin-mock-identity-certs.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      value: unused-by-templatize
+    variables:
+    - name: VAULT_NAME
+      value: aro-hcp-dev-svc-kv
+    - name: FIRST_PARTY_APP_NAME
+      configRef: ci.dev.mockIdentities.firstParty.applicationName
+    - name: ARM_HELPER_APP_NAME
+      configRef: ci.dev.mockIdentities.armHelper.applicationName
+    - name: MSI_MOCK_APP_NAME
+      configRef: ci.dev.mockIdentities.msiMock.applicationName
+    - name: POOL_APP_BASE
+      configRef: ci.dev.mockIdentities.pool.appBaseName
+    - name: POOL_CERT_BASE
+      value: msiMockPoolCert
+    - name: POOL_SIZE
+      configRef: ci.dev.mockIdentities.pool.size
+    dependsOn:
+    - resourceGroup: mock-idents
+      step: mock-identity-apps
   - name: mock-identity-rbac
     action: ARM
     template: ../../templates/mock-identity-rbac.bicep
@@ -65,7 +99,7 @@ resourceGroups:
       durationBetweenRetries: 1m
     dependsOn:
     - resourceGroup: mock-idents
-      step: mock-identity-apps
+      step: pin-mock-certs
   - name: mock-identity-apps-int
     action: ARM
     template: ../../templates/mock-identity-apps.bicep
@@ -76,6 +110,36 @@ resourceGroups:
       - "Failed to update one or more relationships in 'owners'"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: pin-mock-certs-int
+    action: Shell
+    command: |
+      export IDENTITIES="${FIRST_PARTY_APP_NAME}=intFirstPartyCert
+      ${ARM_HELPER_APP_NAME}=intArmHelperCert
+      ${MSI_MOCK_APP_NAME}=intMsiMockCert"
+      ./pin-mock-identity-certs.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      value: unused-by-templatize
+    variables:
+    - name: VAULT_NAME
+      value: aro-hcp-int-kv
+    - name: VAULT_SUBSCRIPTION
+      value: ARO SRE Team - INT (EA Subscription 3)
+    - name: FIRST_PARTY_APP_NAME
+      configRef: ci.int.mockIdentities.firstParty.applicationName
+    - name: ARM_HELPER_APP_NAME
+      configRef: ci.int.mockIdentities.armHelper.applicationName
+    - name: MSI_MOCK_APP_NAME
+      configRef: ci.int.mockIdentities.msiMock.applicationName
+    - name: POOL_APP_BASE
+      configRef: ci.int.mockIdentities.pool.appBaseName
+    - name: POOL_CERT_BASE
+      value: intMsiMockPoolCert
+    - name: POOL_SIZE
+      configRef: ci.int.mockIdentities.pool.size
+    dependsOn:
+    - resourceGroup: mock-idents
+      step: mock-identity-apps-int
   - name: mock-identity-rbac-int
     action: ARM
     template: ../../templates/mock-identity-rbac.bicep
@@ -88,7 +152,7 @@ resourceGroups:
       durationBetweenRetries: 1m
     dependsOn:
     - resourceGroup: mock-idents
-      step: mock-identity-apps-int
+      step: pin-mock-certs-int
 - name: ci-bots
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'

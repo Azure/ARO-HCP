@@ -15,10 +15,11 @@
 // SNI config on redeploy.
 //
 // Instead, each app's Key Vault certificate PUBLIC key is registered as a pinned
-// `keyCredential` (AsymmetricX509Cert / Verify) out of band by
-// `make pin-mock-identity-certs` (DEV) / `make pin-int-mock-identity-certs`
-// (INT), which read the cert from Key Vault (Bicep cannot read Key Vault
-// certificate material) and PATCH it onto the app via Microsoft Graph. Entra
+// `keyCredential` (AsymmetricX509Cert / Verify) by the privileged dev-ci
+// pipeline's Shell steps, which read the cert from Key Vault (Bicep cannot read
+// Key Vault certificate material) and PATCH it onto the app via Microsoft Graph.
+// The `make pin-mock-identity-certs` / `make pin-int-mock-identity-certs` targets
+// remain available for targeted repair or rotation. Entra
 // then authenticates by matching the presented leaf's thumbprint against the
 // pinned keyCredentials — the proven, pre-SNI-migration behaviour. This module
 // deliberately does not manage `keyCredentials` (it defaults to empty, which

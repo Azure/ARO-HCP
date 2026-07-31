@@ -30,6 +30,8 @@ set -euo pipefail
 #
 # ENVIRONMENT VARIABLES
 #   VAULT_NAME     (required) Key Vault holding the certificates.
+#   VAULT_SUBSCRIPTION (optional) Subscription containing the Key Vault. Set
+#                  this when it differs from the pipeline step's subscription.
 #   IDENTITIES     (required) Newline-separated "appDisplayName=certName" pairs
 #                  for the named identities.
 #   POOL_APP_BASE  (optional) Base application name for pooled identities.
@@ -42,6 +44,7 @@ set -euo pipefail
 POOL_APP_BASE="${POOL_APP_BASE:-}"
 POOL_CERT_BASE="${POOL_CERT_BASE:-}"
 POOL_SIZE="${POOL_SIZE:-0}"
+VAULT_SUBSCRIPTION="${VAULT_SUBSCRIPTION:-}"
 
 GRAPH="https://graph.microsoft.com/v1.0"
 
@@ -52,6 +55,11 @@ resolve_app_id() {
 # pin <appDisplayName> <certName>
 pin() {
   local display="$1" cert="$2" app_id cer body_file
+  local -a vault_args=()
+
+  if [[ -n "${VAULT_SUBSCRIPTION}" ]]; then
+    vault_args+=(--subscription "${VAULT_SUBSCRIPTION}")
+  fi
 
   app_id="$(resolve_app_id "${display}")"
   if [[ -z "${app_id}" || "${app_id}" == "None" ]]; then
@@ -59,7 +67,7 @@ pin() {
     return 1
   fi
 
-  cer="$(az keyvault certificate show --vault-name "${VAULT_NAME}" --name "${cert}" --query cer -o tsv 2>/dev/null || true)"
+  cer="$(az keyvault certificate show "${vault_args[@]}" --vault-name "${VAULT_NAME}" --name "${cert}" --query cer -o tsv 2>/dev/null || true)"
   if [[ -z "${cer}" ]]; then
     echo "ERROR: could not read certificate '${cert}' from vault '${VAULT_NAME}'" >&2
     echo "       (needs a Key Vault data-plane role and network access to the vault)" >&2

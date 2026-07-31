@@ -135,9 +135,10 @@ unattended `dev-ci` postsubmit because it needs subscription Owner):
   authentication mechanism on the apps: the mock certificates are self-signed and
   Clusters Service authenticates in send-certificate-chain mode, so Subject Name
   and Issuer (SNI) trust does not validate (Entra rejects the self-signed chain
-  with `AADSTS7000213`). Instead the certificate's public key is **pinned** onto
-  each app as a `keyCredential` by a separate `make pin-mock-identity-certs` step
-  (see [Certificates](#certificates)), and Entra authenticates by matching the
+  with `AADSTS7000213`). Instead the privileged pipeline's `pin-mock-certs` Shell
+  step pins the certificate's public key onto each app as a `keyCredential`
+  immediately after app deployment (see [Certificates](#certificates)), and
+  Entra authenticates by matching the
   presented leaf's thumbprint. The template deliberately does not manage
   `keyCredentials`, so redeploying it does not wipe the pinned certs. It also does
   **not** create the Key Vault certificates themselves — those are created by a
@@ -173,22 +174,26 @@ Application definitions, role names, and the subscription lists are supplied by
 ### Certificates
 
 The mock identity apps authenticate with a **pinned certificate**
-(`keyCredentials`), not SNI. Two separate, idempotent steps are involved because
-Bicep can neither create Key Vault certificates nor read their material:
+(`keyCredentials`), not SNI. Bicep can neither create Key Vault certificates nor
+read their material, so creation remains a separate step and pinning is a Shell
+step in the privileged pipeline:
 
 1. **`make create-mock-identity-certs`** (DEV) / **`make
    create-int-mock-identity-certs`** (INT) create the self-signed certificates via
    `scripts/create-kv-cert.sh` (`az keyvault certificate create`) in the
    environment Key Vault (`aro-hcp-dev-svc-kv` for DEV, `aro-hcp-int-kv` for INT).
-2. **`make pin-mock-identity-certs`** (DEV) / **`make pin-int-mock-identity-certs`**
-   (INT) read each certificate's public key from Key Vault and register it as a
-   pinned `keyCredential` on the corresponding Entra app via Microsoft Graph
-   (`scripts/pin-mock-identity-certs.sh`).
+2. **`make dev-ci-privileged-local-run`** deploys the apps and then its
+   `pin-mock-certs` / `pin-mock-certs-int` Shell steps read each certificate's
+   public key from Key Vault and register it as a pinned `keyCredential` on the
+   corresponding Entra app via Microsoft Graph
+   (`scripts/pin-mock-identity-certs.sh`). Templatize executes the Shell steps
+   with the invoking OWNERS member's Azure CLI credentials.
 
-Bootstrap / rotation order: create the certs, deploy `mock-identity-apps.bicep`
-(creates the apps/SPs), then pin the certs. Because authentication is by pinned
-leaf **thumbprint**, rotating a certificate requires re-running the pin step so
-the new thumbprint is registered — the pin step is idempotent and safe to re-run.
+Bootstrap / rotation order: create the certs, then run the privileged entrypoint;
+it creates the apps/SPs and pins the certs before applying RBAC. Because
+authentication is by pinned leaf **thumbprint**, rotating a certificate requires
+re-running the privileged entrypoint (or the targeted `make pin-*-mock-identity-certs`
+helper) so the new thumbprint is registered. Pinning is idempotent and safe to re-run.
 
 > Historical note: an earlier iteration configured SNI
 > (`trustedSubjectNameAndIssuers`) on the apps instead of pinning. That does not

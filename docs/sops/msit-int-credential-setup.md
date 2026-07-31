@@ -31,24 +31,28 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
    but configures **no** authentication on them and does **not** create the
    certificates.
 
-   Create the three certificates in the `aro-hcp-int-kv` Key Vault, then pin each
-   one onto its Entra app (both idempotent):
+   Create the three certificates in the `aro-hcp-int-kv` Key Vault, then run the
+   privileged entrypoint. It deploys the apps and automatically pins each
+   certificate before applying RBAC (both operations are idempotent):
 
    ```bash
    cd dev-infrastructure/
    make create-int-mock-identity-certs   # create certs in aro-hcp-int-kv
-   make pin-int-mock-identity-certs      # pin each cert as an app keyCredential
+   cd ..
+   make dev-ci-privileged-local-run       # deploy apps, pin certs, apply RBAC
    ```
 
    `create-int-mock-identity-certs` runs `scripts/create-kv-cert.sh` for
    `intFirstPartyCert`, `intArmHelperCert`, and `intMsiMockCert`, with the
    subject/DNS names that match `.ci.int.mockIdentities.*.certDns` in
-   `config/config-dev-ci.yaml`. `pin-int-mock-identity-certs` runs
-   `scripts/pin-mock-identity-certs.sh`, which reads each cert's public key and
-   registers it as a pinned `keyCredential` on the app via Microsoft Graph. Auth
-   is by pinned leaf **thumbprint** (not SNI, which does not validate for these
-   self-signed certs), so rotating a certificate requires re-running the pin
-   target to register the new thumbprint.
+   `config/config-dev-ci.yaml`. The privileged pipeline's `pin-mock-certs-int`
+   Shell step runs `scripts/pin-mock-identity-certs.sh`, which reads each cert's
+   public key and registers it as a pinned `keyCredential` on the app via
+   Microsoft Graph. Templatize runs the step with the invoking OWNERS member's
+   Azure CLI credentials. Auth is by pinned leaf **thumbprint** (not SNI, which
+   does not validate for these self-signed certs), so rotating a certificate
+   requires re-running the privileged entrypoint (or the targeted
+   `make pin-int-mock-identity-certs` helper) to register the new thumbprint.
 
 1. **Update configuration**
    If new Entra apps were created, update the configuration, see [configuration](../configuration.md) for details about that process.  You can read the created client IDs with `az ad app list --display-name <applicationName> --query '[0].appId'` for each `.ci.int.mockIdentities.*.applicationName`.

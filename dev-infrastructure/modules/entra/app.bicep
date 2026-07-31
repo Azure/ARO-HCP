@@ -57,9 +57,9 @@ resource entraApp 'Microsoft.Graph/applications@beta' = {
   // An empty keyCredentials array is mapped to null so it is OMITTED from the
   // Graph request rather than actively clearing the app's credentials. This lets
   // certificates that are attached out-of-band (e.g. the mock identities pinned
-  // by `make pin-mock-identity-certs`, or the Geneva Actions dev cert) survive a
-  // redeploy of this module. Callers that DO manage keyCredentials declaratively
-  // still get them set as usual.
+  // by the privileged dev-ci pipeline, or the Geneva Actions dev cert) survive
+  // a redeploy of this module. Callers that DO manage keyCredentials
+  // declaratively still get them set as usual.
   keyCredentials: empty(keyCredentials) ? null : keyCredentials
 }
 

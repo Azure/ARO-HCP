@@ -57,7 +57,7 @@ The current `dev-ci` topology intentionally does not own several adjacent pieces
 - Prow jobs, ci-operator configuration, step-registry workflows, and Boskos inventory remain in `openshift/release`.
 - The on-demand DEV RP footprint created during local E2E jobs is still provisioned by the release-side workflow, not by `topology-dev-ci.yaml`.
 - Static consumer artifacts such as `dev-infrastructure/openshift-ci/msi-mock-pool.yaml` are still generated separately.
-- The Key Vault **certificates** backing the mock identities are created by a separate `make create-mock-identity-certs` step and pinned onto the apps by `make pin-mock-identity-certs`, not by the Bicep templates (Bicep can neither create Key Vault certificates nor read their material). The apps authenticate by pinned certificate thumbprint, not SNI.
+- The Key Vault **certificates** backing the mock identities are created by a separate `make create-mock-identity-certs` step because Bicep cannot create them. The privileged rollout pins them onto the apps in Shell steps because Bicep cannot read their material. The apps authenticate by pinned certificate thumbprint, not SNI.
 
 For the runtime lease model itself, see [CI Identity Leasing](identity-leasing.md).
 
@@ -66,14 +66,15 @@ For the runtime lease model itself, see [CI Identity Leasing](identity-leasing.m
 The DEV MSI mock service-principal pool used by local E2E jobs is now managed declaratively, with only two narrow hand-offs left.
 
 - The `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint owns the pool end to end on the Azure side:
-  - `dev-infrastructure/templates/mock-identity-apps.bicep` creates/updates the pooled Entra apps and service principals (looping `.ci.dev.mockIdentities.pool.size` times). It configures no auth on the apps; the certificate is pinned out-of-band (see below).
+  - `dev-infrastructure/templates/mock-identity-apps.bicep` creates/updates the pooled Entra apps and service principals (looping `.ci.dev.mockIdentities.pool.size` times). It configures no auth on the apps.
+  - The `pin-mock-certs` / `pin-mock-certs-int` Shell steps run `dev-infrastructure/scripts/pin-mock-identity-certs.sh` immediately after the corresponding app deployment and register each Key Vault certificate as a pinned `keyCredential`. Templatize runs these steps with the invoking OWNERS member's Azure CLI credentials.
   - `dev-infrastructure/templates/mock-identity-rbac.bicep` resolves each principal's object ID via Microsoft Graph and applies the home- and E2E-subscription grants. Principal IDs are no longer stored in `config/config-dev-ci.yaml`. Because those grants require subscription Owner, they are applied on demand rather than by the postsubmit (see [The Privileged Entrypoint](#the-privileged-entrypoint)).
 - What remains outside the rollout:
-  - The Key Vault **certificates** are created by `make create-mock-identity-certs` (`az keyvault certificate create`), and then **pinned** onto each app as a `keyCredential` by `make pin-mock-identity-certs` (`dev-infrastructure/scripts/pin-mock-identity-certs.sh`, via Microsoft Graph). Bicep can neither create Key Vault certificates nor read their material, so both are separate idempotent steps. Auth is by pinned leaf thumbprint, not SNI — SNI does not validate for these self-signed certs and previously caused a CI-wide outage (see [DEV Mock Identities → Certificates](dev-mock-identities.md#certificates)).
+  - The Key Vault **certificates** are created by `make create-mock-identity-certs` (`az keyvault certificate create`). Bicep cannot create Key Vault certificates, so creation remains a separate idempotent step. The rollout pins the resulting public keys onto the apps. Auth is by pinned leaf thumbprint, not SNI — SNI does not validate for these self-signed certs and previously caused a CI-wide outage (see [DEV Mock Identities → Certificates](dev-mock-identities.md#certificates)).
   - `make populate-msi-mock-pool` performs live Entra lookups and writes the static `dev-infrastructure/openshift-ci/msi-mock-pool.yaml` catalog that release-side jobs consume.
   - `openshift/release` still owns the Boskos inventory and lease contract for the `aro-hcp-msi-mock-cs-sp-dev` resource type.
 
-So the Entra objects and their RBAC are single-sourced in the topology; the remaining spread is limited to the certificate step and the release-side Boskos/catalog wiring.
+So the Entra objects, certificate pinning, and RBAC are single-sourced in the topology; the remaining spread is limited to certificate creation and the release-side Boskos/catalog wiring.
 
 ## Long-Term Direction
 
