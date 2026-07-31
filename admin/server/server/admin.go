@@ -126,6 +126,10 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("POST", "/desiredcontrolplanesize"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient).ServeHTTP)),
 	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("POST", "/nodepools/{nodepoolName}/minimumversion"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPMinimumNodePoolVersionHandler(resourcesDBClient).ServeHTTP)),
+	)
 
 	// Non-HCP admin routes
 	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
