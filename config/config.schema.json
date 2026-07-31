@@ -579,6 +579,11 @@
         },
         "upgradeSettings": {
           "$ref": "#/definitions/aksUpgradeSettings"
+        },
+        "tags": {
+          "type": "string",
+          "description": "CSV of key=value tag pairs for the AKS cluster resource (e.g. clusterType=svc-cluster,persist=true,owningTeam=myteam)",
+          "pattern": "^[A-Za-z0-9_.-]+=[A-Za-z0-9_.-]+(,[A-Za-z0-9_.-]+=[A-Za-z0-9_.-]+)*$"
         }
       },
       "required": [
@@ -2683,6 +2688,14 @@
           "type": "string",
           "description": "The collectors to enable for the exporter. Comma separated list of collectors."
         },
+        "clusterTypes": {
+          "type": "string",
+          "description": "Comma-separated list of AKS clusterType tag values to discover via Resource Graph (e.g. 'svc-cluster,mgmt-cluster')"
+        },
+        "clusterNameFilter": {
+          "type": "string",
+          "description": "Substring filter for discovered cluster names. Only clusters whose name contains this value will be included. Use environment-region prefix to scope to a specific deployment (e.g. 'cspr-westus3')."
+        },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         }
@@ -2691,7 +2704,9 @@
       "required": [
         "image",
         "managedIdentityName",
-        "k8s"
+        "k8s",
+        "clusterTypes",
+        "clusterNameFilter"
       ]
     },
     "kubeEvents": {
