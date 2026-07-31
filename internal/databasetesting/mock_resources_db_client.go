@@ -140,13 +140,13 @@ func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourc
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }
 
-// GetChangeFeed reads the in-memory change-feed log. Each
+// ReadChangeFeed reads the in-memory change-feed log. Each
 // successful StoreDocument call records a snapshot of the document;
 // reads return everything past the position encoded in
 // options.Continuation. Hard deletes are not recorded, which mirrors
 // "latest version" mode in real Cosmos DB. Soft deletes go through
 // StoreDocument and are therefore recorded.
-func (m *MockResourcesDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+func (m *MockResourcesDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
 	var continuation string
 	if options != nil && options.Continuation != nil {
 		continuation = *options.Continuation
@@ -155,11 +155,11 @@ func (m *MockResourcesDBClient) GetChangeFeed(ctx context.Context, options *azco
 	return buildMockChangeFeedResponse(docs, nextToken, hasNew), nil
 }
 
-// GetFeedRanges returns the single feed range the mock
+// ReadFeedRanges returns the single feed range the mock
 // advertises. Real Cosmos may report many ranges; one is enough for
 // the in-memory mock because there is no partition-level parallelism
 // to model.
-func (m *MockResourcesDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+func (m *MockResourcesDBClient) ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error) {
 	return []azcosmos.FeedRange{mockChangeFeedFeedRange}, nil
 }
 
@@ -243,7 +243,7 @@ func (m *MockResourcesDBClient) ListAllDocuments(ctx context.Context) ([]*databa
 
 // StoreDocument stores a raw JSON document in the mock database and
 // appends it to the in-memory change-feed log so that consumers of
-// GetChangeFeed see the mutation.
+// ReadChangeFeed see the mutation.
 func (m *MockResourcesDBClient) StoreDocument(cosmosID string, data json.RawMessage) {
 	m.mu.Lock()
 	m.documents[strings.ToLower(cosmosID)] = data

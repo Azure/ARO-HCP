@@ -283,7 +283,8 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(fmt.Errorf("finished"))
 
-	feedRanges, err := c.changeFeedClient.GetFeedRanges(ctx)
+	options := &azcosmos.FeedRangesOptions{}
+	feedRanges, err := c.changeFeedClient.ReadFeedRanges(ctx, options)
 	if err != nil {
 		retErr := utils.TrackError(err)
 		utilruntime.HandleError(retErr)
@@ -516,7 +517,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		}
 
 		logger.V(4).Info("reading feed range", "options", options)
-		response, err := c.changeFeedClient.GetChangeFeed(ctx, options)
+		response, err := c.changeFeedClient.ReadChangeFeed(ctx, options)
 		if err != nil {
 			return utils.TrackError(err)
 		}
