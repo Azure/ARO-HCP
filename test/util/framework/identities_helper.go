@@ -334,6 +334,64 @@ func (tc *perItOrDescribeTestContext) NextLeasedIdentityPool() (LeasedIdentityPo
 	return tc.getLeasedIdentities()
 }
 
+// DeleteUserAssignedIdentities deletes the named user-assigned managed identities from
+// the given resource group. It is used to simulate a customer deleting the managed
+// identities of a running cluster before requesting cluster deletion. Identities that
+// are already gone (HTTP 404) are treated as successfully deleted, so the call is
+// idempotent.
+//
+// Only use it on dedicated identities the test created itself (useMsiPool=false).
+// Deleting identities out of the shared pool would corrupt it for other specs and
+// consume Azure directory quota, so the call is rejected with an error when the given
+// resource group is one of the pool's identity containers.
+func (tc *perItOrDescribeTestContext) DeleteUserAssignedIdentities(ctx context.Context, resourceGroup string, identityNames []string) error {
+	startTime := time.Now()
+	defer func() {
+		tc.RecordTestStep(fmt.Sprintf("Delete %d user-assigned identities in resource group %s", len(identityNames), resourceGroup), startTime, time.Now())
+	}()
+
+	// The env var lists every container in the pool, so this also rejects containers
+	// leased by another spec, which tc.leasedIdentityContainers() would not catch. It is
+	// unset in non-pooled mode, where the loop is a no-op.
+	for _, pooledResourceGroup := range strings.Fields(os.Getenv(LeasedMSIContainersEnvvar)) {
+		if strings.EqualFold(pooledResourceGroup, resourceGroup) {
+			return fmt.Errorf("refusing to delete user-assigned identities in resource group %q: it is a shared identity container listed in %s; this helper may only be used on dedicated identities the test created itself (useMsiPool=false)", resourceGroup, LeasedMSIContainersEnvvar)
+		}
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
+	msiClientFactory, err := armmsi.NewClientFactory(subscriptionID, creds, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create MSI client factory: %w", err)
+	}
+	identitiesClient := msiClientFactory.NewUserAssignedIdentitiesClient()
+
+	var errs []error
+	for _, identityName := range identityNames {
+		if _, err := identitiesClient.Delete(ctx, resourceGroup, identityName, nil); err != nil {
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+				ginkgo.GinkgoLogr.Info("User-assigned identity already deleted",
+					"identity", identityName, "resourceGroup", resourceGroup)
+				continue
+			}
+			errs = append(errs, fmt.Errorf("failed to delete user-assigned identity %q in resource group %q: %w", identityName, resourceGroup, err))
+		}
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
+}
+
 // leasedIdentityContainers returns the list of resource groups that are currently leased
 // to the calling test spec.
 func (tc *perItOrDescribeTestContext) leasedIdentityContainers() ([]string, error) {
