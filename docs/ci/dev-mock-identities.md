@@ -188,8 +188,6 @@ first, then deploy `mock-identity-apps.bicep`.
   — inline custom role definitions + all assignments (per subscription)
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml` — the
   privileged pipeline that deploys the two templates above
-- `dev-infrastructure/scripts/delete-legacy-mock-identity-rbac.sh` — one-time
-  pre-merge cleanup of the legacy random-named role assignments
 - `backend/pkg/azure/client/hardcoded_identity_mi_dataplane_client.go` — the mock MSI
 - `internal/azure/cluster_scoped_identities_config.go` — product operator-role mapping
 - `cluster-service/helm-charts/cluster-service/templates/deployment.yaml` — how CS
