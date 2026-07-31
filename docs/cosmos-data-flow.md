@@ -202,7 +202,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationClusterCreate
 
-**File:** [operation_cluster_create.go](../backend/pkg/controllers/operationcontrollers/operation_cluster_create.go)
+**File:** [operation_cluster_create.go](../backend/pkg/controllers/operation/operation_cluster_create.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Create`
@@ -223,7 +223,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationClusterUpdate
 
-**File:** [operation_cluster_update.go](../backend/pkg/controllers/operationcontrollers/operation_cluster_update.go)
+**File:** [operation_cluster_update.go](../backend/pkg/controllers/operation/operation_cluster_update.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Update`
@@ -246,7 +246,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationClusterDelete
 
-**File:** [operation_cluster_delete.go](../backend/pkg/controllers/operationcontrollers/operation_cluster_delete.go)
+**File:** [operation_cluster_delete.go](../backend/pkg/controllers/operation/operation_cluster_delete.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Delete`
@@ -267,7 +267,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationNodePoolCreate
 
-**File:** [operation_node_pool_create.go](../backend/pkg/controllers/operationcontrollers/operation_node_pool_create.go)
+**File:** [operation_node_pool_create.go](../backend/pkg/controllers/operation/operation_node_pool_create.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Create`
@@ -287,7 +287,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationNodePoolUpdate
 
-**File:** [operation_node_pool_update.go](../backend/pkg/controllers/operationcontrollers/operation_node_pool_update.go)
+**File:** [operation_node_pool_update.go](../backend/pkg/controllers/operation/operation_node_pool_update.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Update`
@@ -310,7 +310,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationNodePoolDelete
 
-**File:** [operation_node_pool_delete.go](../backend/pkg/controllers/operationcontrollers/operation_node_pool_delete.go)
+**File:** [operation_node_pool_delete.go](../backend/pkg/controllers/operation/operation_node_pool_delete.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Delete`
@@ -331,7 +331,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationExternalAuthCreate
 
-**File:** [operation_external_auth_create.go](../backend/pkg/controllers/operationcontrollers/operation_external_auth_create.go)
+**File:** [operation_external_auth_create.go](../backend/pkg/controllers/operation/operation_external_auth_create.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Create`
@@ -351,7 +351,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationExternalAuthUpdate
 
-**File:** [operation_external_auth_update.go](../backend/pkg/controllers/operationcontrollers/operation_external_auth_update.go)
+**File:** [operation_external_auth_update.go](../backend/pkg/controllers/operation/operation_external_auth_update.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Update`
@@ -372,7 +372,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationExternalAuthDelete
 
-**File:** [operation_external_auth_delete.go](../backend/pkg/controllers/operationcontrollers/operation_external_auth_delete.go)
+**File:** [operation_external_auth_delete.go](../backend/pkg/controllers/operation/operation_external_auth_delete.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Delete`
@@ -393,7 +393,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### DispatchRequestCredential
 
-**File:** [dispatch_request_credential.go](../backend/pkg/controllers/operationcontrollers/dispatch_request_credential.go)
+**File:** [dispatch_request_credential.go](../backend/pkg/controllers/operation/dispatch_request_credential.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RequestCredential`
@@ -407,7 +407,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationRequestCredential
 
-**File:** [operation_request_credential.go](../backend/pkg/controllers/operationcontrollers/operation_request_credential.go)
+**File:** [operation_request_credential.go](../backend/pkg/controllers/operation/operation_request_credential.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RequestCredential`
@@ -421,7 +421,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### DispatchRevokeCredentials
 
-**File:** [dispatch_revoke_credentials.go](../backend/pkg/controllers/operationcontrollers/dispatch_revoke_credentials.go)
+**File:** [dispatch_revoke_credentials.go](../backend/pkg/controllers/operation/dispatch_revoke_credentials.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RevokeCredentials`
@@ -435,7 +435,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationRevokeCredentials
 
-**File:** [operation_revoke_credentials.go](../backend/pkg/controllers/operationcontrollers/operation_revoke_credentials.go)
+**File:** [operation_revoke_credentials.go](../backend/pkg/controllers/operation/operation_revoke_credentials.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RevokeCredentials`
@@ -455,7 +455,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### ClusterClusterServiceCreate
 
-**File:** [cluster_cluster_service_create_controller.go](../backend/pkg/controllers/clustercreation/cluster_cluster_service_create_controller.go)
+**File:** [cluster_cluster_service_create_controller.go](../backend/pkg/controllers/cluster/creation/cluster_cluster_service_create_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (needsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
@@ -476,7 +476,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### ClusterClusterServiceUpdateDispatch
 
-**File:** [cluster_cluster_service_update_dispatch_controller.go](../backend/pkg/controllers/clusterupdate/cluster_cluster_service_update_dispatch_controller.go)
+**File:** [cluster_cluster_service_update_dispatch_controller.go](../backend/pkg/controllers/cluster/update/cluster_cluster_service_update_dispatch_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (needsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
@@ -497,7 +497,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### ClusterClusterServiceDeleteDispatch
 
-**File:** [cluster_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/clusterdeletion/cluster_cluster_service_delete_dispatch_controller.go)
+**File:** [cluster_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_delete_dispatch_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (NeedsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
@@ -511,7 +511,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### ClusterDeletionClusterServiceIDClearer
 
-**File:** [cluster_cluster_service_id_clearer.go](../backend/pkg/controllers/clusterdeletion/cluster_cluster_service_id_clearer.go)
+**File:** [cluster_cluster_service_id_clearer.go](../backend/pkg/controllers/cluster/deletion/cluster_cluster_service_id_clearer.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (NeedsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
@@ -527,7 +527,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### ClusterChildResourcesCleanupController
 
-**File:** [cluster_child_resources_cleanup_controller.go](../backend/pkg/controllers/clusterdeletion/cluster_child_resources_cleanup_controller.go)
+**File:** [cluster_child_resources_cleanup_controller.go](../backend/pkg/controllers/cluster/deletion/cluster_child_resources_cleanup_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (NeedsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
@@ -545,7 +545,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### ClusterDeletionController
 
-**File:** [cluster_deletion_controller.go](../backend/pkg/controllers/clusterdeletion/cluster_deletion_controller.go)
+**File:** [cluster_deletion_controller.go](../backend/pkg/controllers/cluster/deletion/cluster_deletion_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (NeedsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
@@ -575,7 +575,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### NodePoolClusterServiceCreate
 
-**File:** [node_pool_cluster_service_create_controller.go](../backend/pkg/controllers/nodepoolcreationcontrollers/node_pool_cluster_service_create_controller.go)
+**File:** [node_pool_cluster_service_create_controller.go](../backend/pkg/controllers/nodepool/creation/node_pool_cluster_service_create_controller.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (needsWork on NodePool):**
 - `NodePool.ServiceProviderProperties.DeletionTimestamp` == nil
@@ -594,7 +594,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### NodePoolClusterServiceUpdateDispatch
 
-**File:** [node_pool_cluster_service_update_dispatch_controller.go](../backend/pkg/controllers/nodepoolupdate/node_pool_cluster_service_update_dispatch_controller.go)
+**File:** [node_pool_cluster_service_update_dispatch_controller.go](../backend/pkg/controllers/nodepool/update/node_pool_cluster_service_update_dispatch_controller.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (needsWork on NodePool):**
 - `NodePool.ServiceProviderProperties.DeletionTimestamp` == nil
@@ -613,7 +613,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### NodePoolClusterServiceDeleteDispatch
 
-**File:** [node_pool_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/nodepooldeletion/node_pool_cluster_service_delete_dispatch_controller.go)
+**File:** [node_pool_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/nodepool/deletion/node_pool_cluster_service_delete_dispatch_controller.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (NeedsWork on NodePool):**
 - `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
@@ -627,7 +627,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### NodePoolDeletionClusterServiceIDClearer
 
-**File:** [node_pool_cluster_service_id_clearer.go](../backend/pkg/controllers/nodepooldeletion/node_pool_cluster_service_id_clearer.go)
+**File:** [node_pool_cluster_service_id_clearer.go](../backend/pkg/controllers/nodepool/deletion/node_pool_cluster_service_id_clearer.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (NeedsWork on NodePool):**
 - `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
@@ -643,7 +643,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### NodePoolChildResourcesCleanupController
 
-**File:** [node_pool_child_resources_cleanup_controller.go](../backend/pkg/controllers/nodepooldeletion/node_pool_child_resources_cleanup_controller.go)
+**File:** [node_pool_child_resources_cleanup_controller.go](../backend/pkg/controllers/nodepool/deletion/node_pool_child_resources_cleanup_controller.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (NeedsWork on NodePool):**
 - `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
@@ -660,7 +660,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### NodePoolDeletionController
 
-**File:** [node_pool_deletion_controller.go](../backend/pkg/controllers/nodepooldeletion/node_pool_deletion_controller.go)
+**File:** [node_pool_deletion_controller.go](../backend/pkg/controllers/nodepool/deletion/node_pool_deletion_controller.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (NeedsWork on NodePool):**
 - `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
@@ -685,7 +685,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### ExternalAuthClusterServiceCreate
 
-**File:** [external_auth_cluster_service_create_controller.go](../backend/pkg/controllers/externalauthcreationcontrollers/external_auth_cluster_service_create_controller.go)
+**File:** [external_auth_cluster_service_create_controller.go](../backend/pkg/controllers/externalauth/creation/external_auth_cluster_service_create_controller.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (needsWork on ExternalAuth):**
 - `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` == nil
@@ -704,7 +704,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### ExternalAuthClusterServiceUpdateDispatch
 
-**File:** [external_auth_cluster_service_update_dispatch_controller.go](../backend/pkg/controllers/externalauthupdate/external_auth_cluster_service_update_dispatch_controller.go)
+**File:** [external_auth_cluster_service_update_dispatch_controller.go](../backend/pkg/controllers/externalauth/update/external_auth_cluster_service_update_dispatch_controller.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (needsWork on ExternalAuth):**
 - `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` == nil
@@ -723,7 +723,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### ExternalAuthClusterServiceDeleteDispatch
 
-**File:** [external_auth_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/externalauthdeletion/external_auth_cluster_service_delete_dispatch_controller.go)
+**File:** [external_auth_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_delete_dispatch_controller.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (NeedsWork on ExternalAuth):**
 - `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
@@ -737,7 +737,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### ExternalAuthDeletionClusterServiceIDClearer
 
-**File:** [external_auth_cluster_service_id_clearer.go](../backend/pkg/controllers/externalauthdeletion/external_auth_cluster_service_id_clearer.go)
+**File:** [external_auth_cluster_service_id_clearer.go](../backend/pkg/controllers/externalauth/deletion/external_auth_cluster_service_id_clearer.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (NeedsWork on ExternalAuth):**
 - `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
@@ -753,7 +753,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### ExternalAuthChildResourcesCleanupController
 
-**File:** [external_auth_child_resources_cleanup_controller.go](../backend/pkg/controllers/externalauthdeletion/external_auth_child_resources_cleanup_controller.go)
+**File:** [external_auth_child_resources_cleanup_controller.go](../backend/pkg/controllers/externalauth/deletion/external_auth_child_resources_cleanup_controller.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (NeedsWork on ExternalAuth):**
 - `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
@@ -768,7 +768,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### ExternalAuthDeletionController
 
-**File:** [external_auth_deletion_controller.go](../backend/pkg/controllers/externalauthdeletion/external_auth_deletion_controller.go)
+**File:** [external_auth_deletion_controller.go](../backend/pkg/controllers/externalauth/deletion/external_auth_deletion_controller.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (NeedsWork on ExternalAuth):**
 - `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
@@ -791,7 +791,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### ControlPlaneDesiredVersion
 
-**File:** [control_plane_desired_version_controller.go](../backend/pkg/controllers/upgradecontrollers/control_plane_desired_version_controller.go)
+**File:** [control_plane_desired_version_controller.go](../backend/pkg/controllers/cluster/version/control_plane_desired_version_controller.go)
 **Trigger:** Cluster informer, 5-minute resync
 **Gate:** No formal NeedsWork. Skips inside SyncOnce if `DeletionTimestamp != nil`, or if `DesiredVersion` already set AND cluster < 2hr old AND active Create operation exists.
 
@@ -807,7 +807,7 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 #### ControlPlaneActiveVersions
 
-**File:** [control_plane_active_version_controller.go](../backend/pkg/controllers/upgradecontrollers/control_plane_active_version_controller.go)
+**File:** [control_plane_active_version_controller.go](../backend/pkg/controllers/cluster/version/control_plane_active_version_controller.go)
 **Trigger:** Cluster informer, 5-minute resync
 
 | | Object | Fields |
@@ -823,7 +823,7 @@ No Cosmos writes. Posts `ControlPlaneUpgradePolicy` to Cluster Service.
 
 #### NodePoolVersion
 
-**File:** [nodepool_version_controller.go](../backend/pkg/controllers/upgradecontrollers/nodepool_version_controller.go)
+**File:** [nodepool_version_controller.go](../backend/pkg/controllers/nodepool/version/nodepool_version_controller.go)
 **Trigger:** NodePool informer, 5-minute resync
 **Gate (NeedsWork on NodePool + ServiceProviderNodePool):**
 - `len(NodePool.Properties.Version.ID)` > 0
@@ -839,7 +839,7 @@ No Cosmos writes. Posts `ControlPlaneUpgradePolicy` to Cluster Service.
 
 #### NodePoolActiveVersions
 
-**File:** [nodepool_active_version_controller.go](../backend/pkg/controllers/upgradecontrollers/nodepool_active_version_controller.go)
+**File:** [nodepool_active_version_controller.go](../backend/pkg/controllers/nodepool/version/nodepool_active_version_controller.go)
 **Trigger:** NodePool informer, 5-minute resync
 **Gate (NeedsWork on ServiceProviderNodePool):**
 - `ServiceProviderNodePool` != nil (document must exist)
@@ -861,7 +861,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### ClusterPropertiesSync
 
-**File:** [cluster_properties_sync.go](../backend/pkg/controllers/clusterpropertiescontroller/cluster_properties_sync.go)
+**File:** [cluster_properties_sync.go](../backend/pkg/controllers/cluster/properties/cluster_properties_sync.go)
 **Trigger:** Cluster informer, 5-minute resync
 **Gate:** No formal NeedsWork. Skips inside SyncOnce if `CustomerProperties.DNS.BaseDomainPrefix` empty or HostedCluster ReadDesire does not exist.
 
@@ -873,7 +873,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### ClusterBaseDomainPrefixSync
 
-**File:** [cluster_base_domain_prefix_sync.go](../backend/pkg/controllers/clusterpropertiescontroller/cluster_base_domain_prefix_sync.go)
+**File:** [cluster_base_domain_prefix_sync.go](../backend/pkg/controllers/cluster/properties/cluster_base_domain_prefix_sync.go)
 **Trigger:** Cluster informer, 5-minute resync
 **Gate (needsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
@@ -887,7 +887,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### DesiredControlPlaneSize
 
-**File:** [desired_control_plane_size_sync.go](../backend/pkg/controllers/clusterpropertiescontroller/desired_control_plane_size_sync.go)
+**File:** [desired_control_plane_size_sync.go](../backend/pkg/controllers/cluster/properties/desired_control_plane_size_sync.go)
 **Trigger:** Cluster informer, 5-minute resync
 **Gate (NeedsWork on ServiceProviderCluster):**
 - `ServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize` != `ServiceProviderCluster.Status.DesiredHostedClusterControlPlaneSize` (pointer comparison via `ptrStringEqual`)
@@ -901,7 +901,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### ServiceProviderClusterPropertiesSync
 
-**File:** [serviceprovidercluster_properties_sync.go](../backend/pkg/controllers/clusterpropertiescontroller/serviceprovidercluster_properties_sync.go)
+**File:** [serviceprovidercluster_properties_sync.go](../backend/pkg/controllers/cluster/properties/serviceprovidercluster_properties_sync.go)
 **Trigger:** Cluster informer, 5-minute resync
 **Gate:** No formal NeedsWork. Skips inside SyncOnce if ServiceProviderCluster does not exist or HostedCluster ReadDesire has no namespace/name.
 
@@ -913,7 +913,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### IdentityMigration
 
-**File:** [identity_migration.go](../backend/pkg/controllers/clusterpropertiescontroller/identity_migration.go)
+**File:** [identity_migration.go](../backend/pkg/controllers/cluster/properties/identity_migration.go)
 **Trigger:** Cluster informer, 60-minute resync
 **Gate (NeedsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
@@ -931,7 +931,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### ManagementClusterPlacementSync
 
-**File:** [management_cluster_placement_sync.go](../backend/pkg/controllers/managementclustercontrollers/management_cluster_placement_sync.go)
+**File:** [management_cluster_placement_sync.go](../backend/pkg/controllers/cluster/placement/management_cluster_placement_sync.go)
 **Trigger:** Cluster informer, 5-minute resync
 **Gate (needsWork on ServiceProviderCluster):**
 - `ServiceProviderCluster.Status.ManagementClusterResourceID` == nil
@@ -946,7 +946,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### BackfillClusterUID
 
-**File:** [backfill_cluster_uid.go](../backend/pkg/controllers/mismatchcontrollers/backfill_cluster_uid.go)
+**File:** [backfill_cluster_uid.go](../backend/pkg/controllers/mismatch/backfill_cluster_uid.go)
 **Trigger:** Cluster informer, 60-minute cooldown
 **Gate (NeedsWork on Cluster):**
 - `len(Cluster.ServiceProviderProperties.ClusterUID)` == 0
@@ -959,7 +959,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### CreateBillingDoc
 
-**File:** [create_billing_doc.go](../backend/pkg/controllers/billingcontrollers/create_billing_doc.go)
+**File:** [create_billing_doc.go](../backend/pkg/controllers/billing/create_billing_doc.go)
 **Trigger:** Cluster informer, 60-second cooldown
 **Gate (NeedsWork on Cluster):**
 - `len(Cluster.ServiceProviderProperties.ClusterUID)` > 0
@@ -975,7 +975,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### OrphanedBillingCleanup
 
-**File:** [orphaned_billing_cleanup.go](../backend/pkg/controllers/billingcontrollers/orphaned_billing_cleanup.go)
+**File:** [orphaned_billing_cleanup.go](../backend/pkg/controllers/billing/orphaned_billing_cleanup.go)
 **Trigger:** Time-based, 60-minute jitter (no informer — queues work directly)
 **Gate:**
 - `BillingDocument.DeletionTime` == nil (skip already-deleted docs)
@@ -989,7 +989,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### DeleteOrphanedCosmosResources
 
-**File:** [delete_orphaned_cosmos.go](../backend/pkg/controllers/mismatchcontrollers/delete_orphaned_cosmos.go)
+**File:** [delete_orphaned_cosmos.go](../backend/pkg/controllers/mismatch/delete_orphaned_cosmos.go)
 **Trigger:** Time-based, 60-minute jitter (no informer — queues all subscriptions)
 **Gate:**
 - Resource is not a cluster (clusters own themselves)
@@ -1008,7 +1008,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### ClusterValidation / NodePoolValidation
 
-**File:** [cluster_validation_controller.go](../backend/pkg/controllers/validationcontrollers/cluster_validation_controller.go), [nodepool_validation_controller.go](../backend/pkg/controllers/validationcontrollers/nodepool_validation_controller.go)
+**File:** [cluster_validation_controller.go](../backend/pkg/controllers/cluster/validation/cluster_validation_controller.go), [nodepool_validation_controller.go](../backend/pkg/controllers/nodepool/validation/nodepool_validation_controller.go)
 **Trigger:** Cluster/NodePool informer, 1-minute resync
 **Gate (shouldProcess on ServiceProviderCluster/ServiceProviderNodePool):**
 - `!meta.IsStatusConditionTrue(ServiceProviderCluster.Status.Validations, validation.Name())` (condition must not yet be True)
@@ -1025,7 +1025,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### DegradedAggregators (Cluster / NodePool / ExternalAuth)
 
-**File:** [cluster_degraded_aggregator.go](../backend/pkg/controllers/statuscontrollers/cluster_degraded_aggregator.go), [nodepool_degraded_aggregator.go](../backend/pkg/controllers/statuscontrollers/nodepool_degraded_aggregator.go), [externalauth_degraded_aggregator.go](../backend/pkg/controllers/statuscontrollers/externalauth_degraded_aggregator.go)
+**File:** [cluster_degraded_aggregator.go](../backend/pkg/controllers/cluster/status/cluster_degraded_aggregator.go), [nodepool_degraded_aggregator.go](../backend/pkg/controllers/nodepool/status/nodepool_degraded_aggregator.go), [externalauth_degraded_aggregator.go](../backend/pkg/controllers/externalauth/status/externalauth_degraded_aggregator.go)
 **Trigger:** Resource informer, 1-minute resync
 
 | | Object | Fields |
@@ -1065,7 +1065,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### CreateClusterScopedReadDesires / CreateNodePoolScopedReadDesires
 
-**File:** [create_cluster_scoped_read_desires_controller.go](../backend/pkg/controllers/create_cluster_scoped_read_desires_controller.go), [create_nodepool_scoped_read_desires_controller.go](../backend/pkg/controllers/create_nodepool_scoped_read_desires_controller.go)
+**File:** [create_cluster_scoped_read_desires_controller.go](../backend/pkg/controllers/cluster/readdesires/create_cluster_scoped_read_desires_controller.go), [create_nodepool_scoped_read_desires_controller.go](../backend/pkg/controllers/nodepool/readdesires/create_nodepool_scoped_read_desires_controller.go)
 **Trigger:** Cluster/NodePool informer, 1-minute resync
 **Gate (SyncOnce preconditions + readDesireNeedsWork):**
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
@@ -1495,20 +1495,20 @@ Key source locations to examine:
 - internal/api/arm/{resource,subscription,types_cosmosdata}.go
 - internal/database/{crud_helpers,crud_nested_resource,types_operation,database}.go
 - internal/conversion/readonly_{cluster,nodepool,externalauth}.go
-- backend/pkg/controllers/operationcontrollers/*.go
-- backend/pkg/controllers/clustercreation/*.go
-- backend/pkg/controllers/clusterdeletion/*.go
-- backend/pkg/controllers/nodepoolcreationcontrollers/*.go
-- backend/pkg/controllers/nodepooldeletion/*.go
-- backend/pkg/controllers/externalauthcreationcontrollers/*.go
-- backend/pkg/controllers/externalauthdeletion/*.go
+- backend/pkg/controllers/operation/*.go
+- backend/pkg/controllers/cluster/creation/*.go
+- backend/pkg/controllers/cluster/deletion/*.go
+- backend/pkg/controllers/nodepool/creation/*.go
+- backend/pkg/controllers/nodepool/deletion/*.go
+- backend/pkg/controllers/externalauth/creation/*.go
+- backend/pkg/controllers/externalauth/deletion/*.go
 - backend/pkg/controllers/upgradecontrollers/*.go
-- backend/pkg/controllers/clusterpropertiescontroller/*.go
+- backend/pkg/controllers/cluster/properties/*.go
 - backend/pkg/controllers/validationcontrollers/*.go
 - backend/pkg/controllers/statuscontrollers/*.go
-- backend/pkg/controllers/billingcontrollers/*.go
-- backend/pkg/controllers/managementclustercontrollers/*.go
-- backend/pkg/controllers/mismatchcontrollers/*.go
+- backend/pkg/controllers/billing/*.go
+- backend/pkg/controllers/cluster/placement/*.go
+- backend/pkg/controllers/mismatch/*.go
 - backend/pkg/controllers/create_*_read_desires_controller.go
 - backend/pkg/controllers/controllerutils/{cluster,nodepool,external_auth}_watching_controller.go
 - backend/pkg/controllers/controllerutils/generic_watching_controller.go
