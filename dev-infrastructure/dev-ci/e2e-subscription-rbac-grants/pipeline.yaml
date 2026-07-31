@@ -39,7 +39,7 @@ resourceGroups:
 # mock-identity-rbac steps replace the removed customer-subscription-grants step
 # (e2e-subscription-rbac-assignments.bicep): they now own the e2e-subscription
 # mock RBAC via Graph lookup instead of hardcoded principalIds.
-- name: mock-identities
+- name: mock-idents
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
@@ -64,7 +64,7 @@ resourceGroups:
       maximumRetryCount: 3
       durationBetweenRetries: 1m
     dependsOn:
-    - resourceGroup: mock-identities
+    - resourceGroup: mock-idents
       step: mock-identity-apps
   - name: mock-identity-apps-int
     action: ARM
@@ -87,7 +87,7 @@ resourceGroups:
       maximumRetryCount: 3
       durationBetweenRetries: 1m
     dependsOn:
-    - resourceGroup: mock-identities
+    - resourceGroup: mock-idents
       step: mock-identity-apps-int
 - name: ci-bots
   resourceGroup: '{{ .global.rg }}'
