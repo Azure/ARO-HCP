@@ -222,7 +222,7 @@ func TestChangeFeedListWatcher(t *testing.T) {
 				// Now write a bunch of *other* resource types under the
 				// same subscription. None of these should surface on the
 				// cluster watcher, and none should panic the type filter
-				// or the deserialization path inside processDocument.
+				// or the deserialization path inside processItem.
 				nodePoolRID := env.uniqueNodePoolResourceID(clusterRID, "np-a")
 				createdNP := env.createNodePool(t, nodePoolRID)
 				env.replaceNodePool(t, createdNP)
