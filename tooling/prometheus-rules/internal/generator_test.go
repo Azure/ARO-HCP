@@ -640,6 +640,21 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.NotContains(t, generated, "alert: 'BlockedAlert'")
 	})
 
+	t.Run("without rules suppresses unused parameters", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{outputBicep: outputFile}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+
+		assert.Contains(t, string(content), "#disable-next-line no-unused-params\nparam severityCeiling int = 0")
+	})
+
 	t.Run("preserves per-alert correlationId override", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")

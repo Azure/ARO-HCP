@@ -395,18 +395,23 @@ func (o *Options) Generate() error {
 
 	// Write parameters based on file type
 	if isAlertingRulesFile {
-		if _, err := output.Write([]byte(`#disable-next-line no-unused-params
+		severityCeilingLintSuppression := ""
+		if len(o.ruleFiles) == 0 {
+			severityCeilingLintSuppression = "#disable-next-line no-unused-params\n"
+		}
+
+		if _, err := fmt.Fprintf(output, `#disable-next-line no-unused-params
 param azureMonitoring string
 
 #disable-next-line no-unused-params
 param actionGroups array
 
 @description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
-param severityCeiling int = 0
+%sparam severityCeiling int = 0
 
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
-`)); err != nil {
+`, severityCeilingLintSuppression); err != nil {
 			return err
 		}
 	} else {
