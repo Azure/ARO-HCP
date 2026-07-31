@@ -31,6 +31,7 @@ var _ = Describe("Customer", func() {
 		labels.Medium,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(0),
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 

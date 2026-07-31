@@ -456,3 +456,18 @@ func safeTake(input string, maxLength int) string =>
     ))
     ? take(take(input, maxLength), length(take(input, maxLength)) - 1)
     : take(input, maxLength)
+
+// Highly privileged built-in role definition IDs that must never be sub-assigned
+// by a constrained RBAC Administrator (Owner, User Access Administrator, RBAC Administrator).
+var _ownerRoleDefinitionId = '8e3af657-a8ff-443c-a75c-2fe8c4bcb635'
+var _userAccessAdminRoleDefinitionId = '18d7d88d-d35e-4fb5-a5c3-7773c20a72d9'
+var _rbacAdminRoleDefinitionId = 'f58310d9-a9f6-439a-9e8d-f62e7b41a168'
+
+// ABAC condition (v2.0) restricting a role assignment so the grantee can create/delete
+// role assignments for any role EXCEPT the three privileged roles above. Shared verbatim
+// by every constrained RBAC-Administrator grant so the guarded role set stays in sync.
+@export()
+var restrictedRoleAssignmentCondition = '((!(ActionMatches{\'Microsoft.Authorization/roleAssignments/write\'})) OR (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAllValues:GuidNotEquals {${_ownerRoleDefinitionId}, ${_userAccessAdminRoleDefinitionId}, ${_rbacAdminRoleDefinitionId}})) AND ((!(ActionMatches{\'Microsoft.Authorization/roleAssignments/delete\'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAllValues:GuidNotEquals {${_ownerRoleDefinitionId}, ${_userAccessAdminRoleDefinitionId}, ${_rbacAdminRoleDefinitionId}}))'
+
+@export()
+var restrictedRoleAssignmentConditionVersion = '2.0'

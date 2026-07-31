@@ -51,6 +51,21 @@ type HCPOpenShiftClusterStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// UserFacingConditions is a list of conditions that tracks user-facing cluster
+	// conditions. Each Condition Type should be unique among all conditions.
+	// The conditions here are exposed to the ARM API. This means that UserFacingConditions
+	// must not contain any internal details. This also means the Type and Reason
+	// values become part of the public API.
+	// Addition of new conditions here should be done only when strictly necessary, sparingly and only done
+	// when there is a clear benefit to doing so. We expect the number of conditions at this
+	// level to be kept to a minimum.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	UserFacingConditions []metav1.Condition `json:"userFacingConditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
@@ -87,6 +102,8 @@ type HCPOpenShiftClusterCustomerProperties struct {
 type HCPOpenShiftClusterServiceProviderProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty"`
+	// PendingClusterServiceID will be written for our future transition.
+	PendingClusterServiceID *InternalID `json:"pendingClusterServiceID,omitempty"`
 	// Written by: Frontend PUT Cluster (Create), ClusterClusterServiceCreate, ClusterDeletionClusterServiceIDClearer
 	ClusterServiceID *InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
@@ -324,15 +341,6 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 				MaxNodeProvisionTimeSeconds: DefaultClusterMaxNodeProvisionTimeSeconds,
 				PodPriorityThreshold:        DefaultClusterPodPriorityThreshold,
 			},
-			// PlatformManaged is still the default for absent values (EnsureDefaults / Cosmos
-			// documents), but it is rejected by ValidEtcdDataEncryptionKeyManagementModeType
-			// until platform-managed etcd encryption is supported. CustomerManaged must be set
-			// for a create request to succeed.
-			Etcd: EtcdProfile{
-				DataEncryption: EtcdDataEncryptionProfile{
-					KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
-				},
-			},
 			ClusterImageRegistry: ClusterImageRegistryProfile{
 				State: ClusterImageRegistryStateEnabled,
 			},
@@ -364,9 +372,6 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 	}
 	if len(cluster.CustomerProperties.ClusterImageRegistry.State) == 0 {
 		cluster.CustomerProperties.ClusterImageRegistry.State = ClusterImageRegistryStateEnabled
-	}
-	if len(cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
-		cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = EtcdDataEncryptionKeyManagementModeTypePlatformManaged
 	}
 	if len(cluster.CustomerProperties.CryptoRestrictions) == 0 {
 		cluster.CustomerProperties.CryptoRestrictions = CryptoRestrictionsNone

@@ -41,6 +41,7 @@ var _ = Describe("Customer", func() {
 		labels.Medium,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName = "np-autoscale-cluster"
@@ -246,6 +247,7 @@ var _ = Describe("Customer", func() {
 		labels.Medium,
 		labels.Negative,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "node-limit-cluster"

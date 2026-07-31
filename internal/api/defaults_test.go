@@ -28,7 +28,7 @@ import (
 // Several fields lack "default" annotations in the OpenAPI spec due to a
 // TypeSpec bug (typespec-azure#1586). These are skipped with a comment.
 func TestTypeSpecDefaultsConsistency(t *testing.T) {
-	specPath := "../../api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2026-06-30-preview/openapi.json"
+	specPath := "../../api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2026-09-01-preview/openapi.json"
 	specData, err := os.ReadFile(specPath)
 	if err != nil {
 		t.Fatalf("failed to read OpenAPI spec: %v", err)
@@ -72,7 +72,6 @@ func TestTypeSpecDefaultsConsistency(t *testing.T) {
 		{"Visibility", "ApiProfile", "visibility", string(VisibilityPublic)},
 		{"OutboundType", "PlatformProfile", "outboundType", string(OutboundTypeLoadBalancer)},
 		{"DiskStorageAccountType", "OsDiskProfile", "diskStorageAccountType", string(DiskStorageAccountTypePremium_LRS)},
-		{"EtcdKeyManagementMode", "EtcdDataEncryptionProfile", "keyManagementMode", string(EtcdDataEncryptionKeyManagementModeTypePlatformManaged)},
 		{"ClusterImageRegistryState", "ClusterImageRegistryProfile", "state", string(ClusterImageRegistryStateEnabled)},
 		// Numeric defaults
 		{"HostPrefix", "NetworkProfile", "hostPrefix", DefaultClusterNetworkHostPrefix},

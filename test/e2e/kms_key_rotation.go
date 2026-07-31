@@ -31,14 +31,14 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-const HCPClusterReencryptionUpgradeTimeout = 18 * time.Minute
+// UpdateTimeout of a cluster + the etcd re-encryption timeout
+// To check the p99 in the future and adjust times
+const HCPClusterReencryptionUpgradeTimeout = framework.UpdateHCPClusterTimeout + 20*time.Minute
 
 var _ = Describe("Customer", func() {
-	// Deadline for v20260630preview API deployment in non-dev environments
-	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-07-31T00:00:00Z"))
-
 	It("should be able to rotate KMS key for a cluster with version >= 4.22",
 		labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible, labels.Slow,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const clusterName = "kms-key-rotate-422"
 
@@ -83,10 +83,10 @@ var _ = Describe("Customer", func() {
 				framework.ClusterCreationTimeout,
 			)
 			if isAPINotDeployedError(err) {
-				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
+				if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
+					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
 				}
-				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
+				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for KMS key rotation test")
 

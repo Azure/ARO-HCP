@@ -105,16 +105,11 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	if obj.Properties.Autoscaling.PodPriorityThreshold == nil {
 		obj.Properties.Autoscaling.PodPriorityThreshold = ptr.To(api.DefaultClusterPodPriorityThreshold)
 	}
-	//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
-	// TODO cannot change the default value for this version, but why keep it in our new version?
 	if obj.Properties.Etcd == nil {
 		obj.Properties.Etcd = &generated.EtcdProfile{}
 	}
 	if obj.Properties.Etcd.DataEncryption == nil {
 		obj.Properties.Etcd.DataEncryption = &generated.EtcdDataEncryptionProfile{}
-	}
-	if obj.Properties.Etcd.DataEncryption.KeyManagementMode == nil {
-		obj.Properties.Etcd.DataEncryption.KeyManagementMode = ptr.To(generated.EtcdDataEncryptionKeyManagementModeTypePlatformManaged)
 	}
 	if obj.Properties.ClusterImageRegistry == nil {
 		obj.Properties.ClusterImageRegistry = &generated.ClusterImageRegistryProfile{}
@@ -266,14 +261,35 @@ func newKmsKey(from *api.KmsKey) generated.KmsKey {
 }
 
 func newConditions(from []metav1.Condition) []*generated.Condition {
-	// TODO (bvesel): propose a method for how we want to translate our internal metav1.Conditions type to this external
-	// type.  Until then, we'll plumb it with empty data.
-	return []*generated.Condition{}
+	if from == nil {
+		return nil
+	}
+
+	out := make([]*generated.Condition, 0, len(from))
+	for i := range from {
+		c := from[i]
+		cond := &generated.Condition{
+			Type:    api.Ptr(generated.ConditionType(c.Type)),
+			Status:  api.Ptr(generated.StatusType(c.Status)),
+			Reason:  api.Ptr(c.Reason),
+			Message: api.Ptr(c.Message),
+		}
+		if !c.LastTransitionTime.IsZero() {
+			t := c.LastTransitionTime.Time
+			cond.LastTransitionTime = &t
+		}
+		out = append(out, cond)
+	}
+
+	return out
 }
 
-func newResourceStatus(from []metav1.Condition) *generated.ResourceStatus {
-	return &generated.ResourceStatus{
-		Conditions: newConditions(from),
+func newClusterResourceStatus(from *api.HCPOpenShiftClusterStatus) generated.ResourceStatus {
+	if from == nil {
+		return generated.ResourceStatus{}
+	}
+	return generated.ResourceStatus{
+		Conditions: newConditions(from.UserFacingConditions),
 	}
 }
 
@@ -384,7 +400,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
 				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
-				Status:                  newResourceStatus(from.Status.Conditions),
+				Status:                  api.PtrOrNil(newClusterResourceStatus(&from.Status)),
 				CryptoRestrictions:      api.PtrOrNil(generated.CryptoRestrictions(from.CustomerProperties.CryptoRestrictions)),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),

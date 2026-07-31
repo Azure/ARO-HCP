@@ -42,6 +42,7 @@ const (
 	APIVersionV20240610Preview APIVersion = "2024-06-10-preview"
 	APIVersionV20251223Preview APIVersion = "2025-12-23-preview"
 	APIVersionV20260630Preview APIVersion = "2026-06-30-preview"
+	APIVersionV20260901Preview APIVersion = "2026-09-01-preview"
 )
 
 // APIVersionOption returns the operation option string for an API version,

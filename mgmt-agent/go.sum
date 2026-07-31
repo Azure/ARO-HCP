@@ -1,5 +1,5 @@
-github.com/Azure/ARO-Tools/testutil v0.0.0-20260715002326-2555e1130350 h1:BT7jXSF8pldP/zgiMAHXajS9d1crVlZYqyT3kyK/YBA=
-github.com/Azure/ARO-Tools/testutil v0.0.0-20260715002326-2555e1130350/go.mod h1:vKa6bvu+tFVip4oWO9PNI2NbtmN1KUezvdX7rZCQtQU=
+github.com/Azure/ARO-Tools/testutil v0.0.0-20260729121920-58ceb447fbb3 h1:aqosyBkPUCVxsfPelq48QRvk4hBzStIXNl3x5AK3Uro=
+github.com/Azure/ARO-Tools/testutil v0.0.0-20260729121920-58ceb447fbb3/go.mod h1:vKa6bvu+tFVip4oWO9PNI2NbtmN1KUezvdX7rZCQtQU=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 h1:jHb/wfvRikGdxMXYV3QG/SzUOPYN9KEUUuC0Yd0/vC0=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1/go.mod h1:pzBXCYn05zvYIrwLgtK8Ap8QcjRg+0i76tMQdWN6wOk=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 h1:Hk5QBxZQC1jb2Fwj6mpzme37xbCDdNTxU7O9eb5+LB4=
@@ -20,8 +20,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/v3 
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/v3 v3.0.1/go.mod h1:8h8yhzh9o+0HeSIhUxYny+rEQajScrfIpNktvgYG3Q8=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1 h1:WJTmL004Abzc5wDB5VtZG2PJk5ndYDgVacGqfirKxjM=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1/go.mod h1:tCcJZ0uHAmvjsVYzEFivsRTN00oz5BEsRgQHu5JZ9WE=
-github.com/AzureAD/microsoft-authentication-library-for-go v1.7.0 h1:4iB+IesclUXdP0ICgAabvq2FYLXrJWKx1fJQ+GxSo3Y=
-github.com/AzureAD/microsoft-authentication-library-for-go v1.7.0/go.mod h1:HKpQxkWaGLJ+D/5H8QRpyQXA1eKjxkFlOMwck5+33Jk=
+github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 h1:RHK7bS+HQMslb1sZpAokUt+zTVmue0hKSs2C791hhzU=
+github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2/go.mod h1:HKpQxkWaGLJ+D/5H8QRpyQXA1eKjxkFlOMwck5+33Jk=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/blang/semver/v4 v4.0.0 h1:1PFHFE6yCCTv8C1TeyNNarDzntLi7wMI5i/pzqYIsAM=
