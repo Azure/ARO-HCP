@@ -133,10 +133,10 @@ func (h *graphRetryHandler) isRetriableRequest(req *nethttp.Request) bool {
 func (h *graphRetryHandler) getRetryDelay(resp *nethttp.Response, executionCount int) time.Duration {
 	if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
 		if seconds, err := strconv.ParseFloat(retryAfter, 64); err == nil {
-			return time.Duration(seconds * float64(time.Second))
+			return max(0, time.Duration(seconds*float64(time.Second)))
 		}
 		if t, err := time.Parse(time.RFC1123, retryAfter); err == nil {
-			return time.Until(t)
+			return max(0, time.Until(t))
 		}
 	}
 	exp := executionCount - 1
