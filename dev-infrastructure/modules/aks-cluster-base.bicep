@@ -50,8 +50,11 @@ param istioVersions array = []
 param vnetName string
 param nodeSubnetId string
 param podSubnetPrefix string
-@description('CSV of key=value tag pairs for the AKS cluster resource (e.g. clusterType=svc-cluster,persist=true,owningTeam=myteam)')
+@description('CSV of key=value tag pairs for the AKS cluster resource (e.g. clusterType=svc-cluster,persist=true)')
 param aksClusterTags string
+
+@description('Owning team tag value for alert rule routing')
+param owningTeamTagValue string
 param workloadIdentities array
 param networkDataplane string
 param networkPolicy string
@@ -268,7 +271,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-previ
     name: 'Base'
     tier: 'Standard'
   }
-  tags: csvTagsToObject(aksClusterTags)
+  tags: union(csvTagsToObject(aksClusterTags), { owningTeam: owningTeamTagValue })
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {

@@ -249,6 +249,7 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix
     aksClusterTags: aksClusterTags
+    owningTeamTagValue: owningTeamTagValue
     userOsDiskSizeGB: userOsDiskSizeGB
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount

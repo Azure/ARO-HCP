@@ -411,6 +411,9 @@ param fleetNamespace string
 @description('The service account name of the Fleet managed identity')
 param fleetServiceAccountName string
 
+@description('Owning team tag value for alert rule routing')
+param owningTeamTagValue string
+
 @description('CSV of key=value tag pairs for the AKS cluster resource')
 param aksClusterTags string
 
@@ -653,6 +656,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix
     aksClusterTags: aksClusterTags
+    owningTeamTagValue: owningTeamTagValue
     userOsDiskSizeGB: userOsDiskSizeGB
     userAgentPoolName: userAgentPoolName
     userAgentMinCount: userAgentMinCount
