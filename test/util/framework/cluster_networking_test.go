@@ -77,24 +77,6 @@ func TestBuildHCPClusterNetworking(t *testing.T) {
 	t.Setenv("ARO_HCP_OPENSHIFT_LATEST_Z_STREAM", "false")
 
 	builders := map[string]func(bool, map[string]*string, string, string) (any, error){
-		"20251223": func(disableSwift bool, tags map[string]*string, subnet, visibility string) (any, error) {
-			params := NewDefaultClusterParams20251223()
-			if !params.DisableSwift {
-				t.Fatal("20251223 default must disable SWIFT")
-			}
-			params.DisableSwift, params.Tags, params.VnetIntegrationSubnetID = disableSwift, tags, subnet
-			params.APIVisibility, params.KeyVaultVisibility = visibility, visibility
-			return BuildHCPClusterFromParams20251223(params, "test-location", nil)
-		},
-		"20260630": func(disableSwift bool, tags map[string]*string, subnet, visibility string) (any, error) {
-			params := NewDefaultClusterParams20260630()
-			if !params.DisableSwift {
-				t.Fatal("20260630 default must disable SWIFT")
-			}
-			params.DisableSwift, params.Tags, params.VnetIntegrationSubnetID = disableSwift, tags, subnet
-			params.APIVisibility, params.KeyVaultVisibility, params.IngressType = visibility, visibility, visibility
-			return BuildHCPClusterFromParams20260630(params, "test-location", nil)
-		},
 		"20260901": func(disableSwift bool, tags map[string]*string, subnet, visibility string) (any, error) {
 			params := NewDefaultClusterParams20260901()
 			if !params.DisableSwift {

@@ -454,7 +454,7 @@ resource serviceManagedIdentityRoleAssignmentResourceGroup 'Microsoft.Authorizat
   }
 }
 
-// grant service managed identity role to the service managed identity over the user provided subnet
+// grant service managed identity role to the service managed identity over the user provided virtual network
 resource serviceManagedIdentityRoleAssignmentVnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, vnet.id)
   scope: vnet

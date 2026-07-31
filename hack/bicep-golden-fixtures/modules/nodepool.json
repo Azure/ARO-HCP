@@ -49,7 +49,7 @@
   },
   "resources": [
     {
-      "apiVersion": "2024-06-10-preview",
+      "apiVersion": "2026-09-01-preview",
       "location": "[resourceGroup().location]",
       "name": "[format('{0}/{1}', parameters('clusterName'), parameters('nodePoolName'))]",
       "properties": {
@@ -58,7 +58,7 @@
             "diskStorageAccountType": "StandardSSD_LRS",
             "sizeGiB": "[parameters('osDiskSizeGiB')]"
           },
-          "subnetId": "[reference(resourceId('Microsoft.RedHatOpenShift/hcpOpenShiftClusters', parameters('clusterName')), '2024-06-10-preview').platform.subnetId]",
+          "subnetId": "[reference(resourceId('Microsoft.RedHatOpenShift/hcpOpenShiftClusters', parameters('clusterName')), '2026-09-01-preview').platform.subnetId]",
           "vmSize": "[parameters('vmSize')]"
         },
         "replicas": "[parameters('replicas')]",
