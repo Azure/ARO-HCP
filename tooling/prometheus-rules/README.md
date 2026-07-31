@@ -57,7 +57,9 @@ Note: `run`, `alerts`, and `recording-rules` automatically run `fmt-devinfra` af
 ### Command-line Options
 
 - `--config-file` (required): Path to configuration YAML file
-- `--force-info-severity`: Override all alert severities to "info" level (useful for testing)
+- `--promtool-path`: Path to promtool binary (default: `promtool`)
+- `--skip-tests`: Skip promtool test execution (generate Bicep only)
+- `--correlation-map`: Output a YAML correlation map instead of generating Bicep
 
 ## Configuration
 
