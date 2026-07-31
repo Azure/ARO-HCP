@@ -17,7 +17,6 @@ package pin
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -155,7 +154,10 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create Key Vault certificate client: %w", err)
 	}
-	graphClient := pinning.NewGraphClient(credential, http.DefaultClient)
+	graphClient, err := pinning.NewGraphClient(credential)
+	if err != nil {
+		return nil, err
+	}
 	return &Options{
 		ValidatedOptions: o,
 		pinner: pinning.NewPinner(

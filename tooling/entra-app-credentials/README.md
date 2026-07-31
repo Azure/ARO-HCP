@@ -2,7 +2,7 @@
 
 `entra-app-credentials` reconciles certificate credentials on Microsoft Entra
 applications. It reads public certificates directly from the Azure Key Vault
-data plane and updates the applications through Microsoft Graph.
+data plane and updates the applications through Microsoft's official Graph SDK.
 
 The `pin` command requires `--replace-all` because it intentionally replaces an
 application's complete `keyCredentials` collection. Use it only for applications

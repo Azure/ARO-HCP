@@ -17,79 +17,79 @@ package pinning
 import (
 	"context"
 	"crypto/sha1" //nolint:gosec // Microsoft Entra certificate thumbprints are defined as SHA-1.
+	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
+	kiotaabstractions "github.com/microsoft/kiota-abstractions-go"
+	graphmodels "github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
 
-type fakeCredential struct{}
+type fakeGraphAPI struct {
+	listResults [][]graphmodels.Applicationable
+	listErr     error
+	replaceID   string
+	replaceKey  []byte
+	replaceErrs []error
+	getResult   graphmodels.Applicationable
+	getErrs     []error
+}
 
-func (fakeCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
-	return azcore.AccessToken{Token: "token", ExpiresOn: time.Now().Add(time.Hour)}, nil
+func (f *fakeGraphAPI) ListApplications(context.Context, string) ([]graphmodels.Applicationable, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	result := f.listResults[0]
+	f.listResults = f.listResults[1:]
+	return result, nil
+}
+
+func (f *fakeGraphAPI) ReplaceKeyCredentials(_ context.Context, applicationID, _ string, certificate []byte) error {
+	if len(f.replaceErrs) > 0 {
+		err := f.replaceErrs[0]
+		f.replaceErrs = f.replaceErrs[1:]
+		if err != nil {
+			return err
+		}
+	}
+	f.replaceID = applicationID
+	f.replaceKey = certificate
+	return nil
+}
+
+func (f *fakeGraphAPI) GetApplication(context.Context, string) (graphmodels.Applicationable, error) {
+	if len(f.getErrs) > 0 {
+		err := f.getErrs[0]
+		f.getErrs = f.getErrs[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
+	return f.getResult, nil
 }
 
 func TestGraphClientFindApplication(t *testing.T) {
-	thumbprint := sha1.Sum([]byte("certificate")) //nolint:gosec // Microsoft Entra certificate thumbprints are defined as SHA-1.
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		assert.Equal(t, "Bearer token", request.Header.Get("Authorization"))
-		assert.Equal(t, "displayName eq 'app''name'", request.URL.Query().Get("$filter"))
-		_ = json.NewEncoder(writer).Encode(graphApplicationCollection{
-			Value: []graphApplication{{
-				ID:          "object-id",
-				AppID:       "client-id",
-				DisplayName: "app'name",
-				KeyCredentials: []graphKeyCredential{{
-					CustomKeyIdentifier: hex.EncodeToString(thumbprint[:]),
-					Type:                keyCredentialType,
-					Usage:               keyCredentialUsage,
-				}},
-			}},
-		})
-	}))
-	defer server.Close()
+	api := &fakeGraphAPI{listResults: [][]graphmodels.Applicationable{{newGraphApplication("object-id", "client-id", "app")}}}
+	client := newGraphClient(api)
 
-	client := newTestGraphClient(server)
-	application, err := client.FindApplication(context.Background(), "app'name")
+	application, err := client.FindApplication(context.Background(), "app")
 	require.NoError(t, err)
 	assert.Equal(t, "object-id", application.ID)
 	assert.Equal(t, "client-id", application.AppID)
-	require.Len(t, application.KeyCredentials, 1)
-	assert.Equal(t, thumbprint[:], application.KeyCredentials[0].CustomKeyIdentifier)
-}
-
-func TestDecodeCustomKeyIdentifier(t *testing.T) {
-	expected := []byte{0x01, 0x02, 0x03}
-
-	decoded, err := decodeCustomKeyIdentifier("010203")
-	require.NoError(t, err)
-	assert.Equal(t, expected, decoded)
-
-	decoded, err = decodeCustomKeyIdentifier("AQID")
-	require.NoError(t, err)
-	assert.Equal(t, expected, decoded)
-
-	_, err = decodeCustomKeyIdentifier("not-an-identifier")
-	require.Error(t, err)
 }
 
 func TestGraphClientRejectsDuplicateDisplayNames(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(writer).Encode(graphApplicationCollection{
-			Value: []graphApplication{{ID: "one"}, {ID: "two"}},
-		})
-	}))
-	defer server.Close()
+	api := &fakeGraphAPI{listResults: [][]graphmodels.Applicationable{{
+		newGraphApplication("one", "", "duplicate"),
+		newGraphApplication("two", "", "duplicate"),
+	}}}
+	client := newGraphClient(api)
 
-	client := newTestGraphClient(server)
 	_, err := client.FindApplication(context.Background(), "duplicate")
 	require.ErrorContains(t, err, "matched 2 applications")
 }
@@ -99,46 +99,88 @@ func TestGraphClientRetriesApplicationPropagation(t *testing.T) {
 	retryInterval = time.Millisecond
 	t.Cleanup(func() { retryInterval = oldInterval })
 
-	requests := 0
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		requests++
-		response := graphApplicationCollection{}
-		if requests > 1 {
-			response.Value = []graphApplication{{ID: "object-id"}}
-		}
-		_ = json.NewEncoder(writer).Encode(response)
-	}))
-	defer server.Close()
+	api := &fakeGraphAPI{listResults: [][]graphmodels.Applicationable{
+		nil,
+		{newGraphApplication("object-id", "", "app")},
+	}}
+	client := newGraphClient(api)
 
-	client := newTestGraphClient(server)
 	_, err := client.FindApplication(context.Background(), "app")
 	require.NoError(t, err)
-	assert.Equal(t, 2, requests)
+	assert.Empty(t, api.listResults)
 }
 
-func TestGraphClientReplaceKeyCredentials(t *testing.T) {
-	var body graphPatchRequest
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		assert.Equal(t, http.MethodPatch, request.Method)
-		require.NoError(t, json.NewDecoder(request.Body).Decode(&body))
-		writer.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
+func TestGraphClientReturnsSDKError(t *testing.T) {
+	client := newGraphClient(&fakeGraphAPI{listErr: errors.New("forbidden")})
 
-	client := newTestGraphClient(server)
+	_, err := client.FindApplication(context.Background(), "app")
+	require.ErrorContains(t, err, "forbidden")
+}
+
+func TestGraphClientDelegatesReplacement(t *testing.T) {
+	api := &fakeGraphAPI{}
+	client := newGraphClient(api)
+
 	err := client.ReplaceKeyCredentials(context.Background(), "object-id", "cert", []byte("certificate"))
 	require.NoError(t, err)
-	require.Len(t, body.KeyCredentials, 1)
-	assert.Equal(t, "cert", *body.KeyCredentials[0].DisplayName)
-	assert.Equal(t, []byte("certificate"), body.KeyCredentials[0].Key)
-	assert.Equal(t, keyCredentialType, body.KeyCredentials[0].Type)
-	assert.Equal(t, keyCredentialUsage, body.KeyCredentials[0].Usage)
+	assert.Equal(t, "object-id", api.replaceID)
+	assert.Equal(t, []byte("certificate"), api.replaceKey)
 }
 
-func newTestGraphClient(server *httptest.Server) *graphClient {
-	return &graphClient{
-		credential: fakeCredential{},
-		httpClient: server.Client(),
-		baseURL:    server.URL,
+func TestGraphClientRetriesTransientSDKErrors(t *testing.T) {
+	oldInterval := retryInterval
+	retryInterval = time.Millisecond
+	t.Cleanup(func() { retryInterval = oldInterval })
+
+	notFound := kiotaabstractions.NewApiError()
+	notFound.SetStatusCode(http.StatusNotFound)
+	serverError := kiotaabstractions.NewApiError()
+	serverError.SetStatusCode(http.StatusInternalServerError)
+
+	api := &fakeGraphAPI{
+		replaceErrs: []error{serverError, nil},
+		getErrs:     []error{notFound, nil},
+		getResult:   newGraphApplication("object-id", "client-id", "app"),
 	}
+	client := newGraphClient(api)
+
+	err := client.ReplaceKeyCredentials(context.Background(), "object-id", "cert", []byte("certificate"))
+	require.NoError(t, err)
+	assert.Empty(t, api.replaceErrs)
+
+	application, err := client.GetApplication(context.Background(), "object-id")
+	require.NoError(t, err)
+	assert.Equal(t, "object-id", application.ID)
+	assert.Empty(t, api.getErrs)
+}
+
+func TestClassifyGraphErrorDoesNotRetryClientErrors(t *testing.T) {
+	badRequest := kiotaabstractions.NewApiError()
+	badRequest.SetStatusCode(http.StatusBadRequest)
+
+	assert.Same(t, badRequest, classifyGraphError(badRequest))
+}
+
+func TestNormalizeCustomKeyIdentifier(t *testing.T) {
+	thumbprint := sha1.Sum([]byte("certificate")) //nolint:gosec // Microsoft Entra certificate thumbprints are defined as SHA-1.
+	hexValue := []byte(hex.EncodeToString(thumbprint[:]))
+	base64DecodedHex, err := base64.StdEncoding.DecodeString(string(hexValue))
+	require.NoError(t, err)
+
+	assert.Equal(t, thumbprint[:], normalizeCustomKeyIdentifier(thumbprint[:]))
+	assert.Equal(t, thumbprint[:], normalizeCustomKeyIdentifier(hexValue))
+	assert.Equal(t, thumbprint[:], normalizeCustomKeyIdentifier(base64DecodedHex))
+}
+
+func TestConvertApplicationRejectsMissingID(t *testing.T) {
+	_, err := convertApplication(graphmodels.NewApplication())
+	require.ErrorContains(t, err, "without an ID")
+}
+
+func newGraphApplication(id, appID, displayName string) graphmodels.Applicationable {
+	application := graphmodels.NewApplication()
+	application.SetId(&id)
+	application.SetAppId(&appID)
+	application.SetDisplayName(&displayName)
+	return application
 }

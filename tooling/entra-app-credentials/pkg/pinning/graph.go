@@ -15,237 +15,198 @@
 package pinning
 
 import (
-	"bytes"
 	"context"
+	"crypto/sha1" //nolint:gosec // Microsoft Entra certificate thumbprints are defined as SHA-1.
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"net"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	kiotaabstractions "github.com/microsoft/kiota-abstractions-go"
+	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
+	graphapplications "github.com/microsoftgraph/msgraph-sdk-go/applications"
+	graphmodels "github.com/microsoftgraph/msgraph-sdk-go/models"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
 
-const (
-	defaultGraphBaseURL = "https://graph.microsoft.com/v1.0"
-	graphScope          = "https://graph.microsoft.com/.default"
-	maxErrorBodyBytes   = 16 * 1024
-)
+const graphScope = "https://graph.microsoft.com/.default"
 
 var retryInterval = 2 * time.Second
 
+type graphAPI interface {
+	ListApplications(ctx context.Context, filter string) ([]graphmodels.Applicationable, error)
+	ReplaceKeyCredentials(ctx context.Context, applicationID, certificateName string, certificate []byte) error
+	GetApplication(ctx context.Context, applicationID string) (graphmodels.Applicationable, error)
+}
+
+type microsoftGraphAPI struct {
+	client *msgraphsdk.GraphServiceClient
+}
+
 type graphClient struct {
-	credential azcore.TokenCredential
-	httpClient *http.Client
-	baseURL    string
+	api graphAPI
 }
 
-type graphApplication struct {
-	ID             string               `json:"id"`
-	AppID          string               `json:"appId"`
-	DisplayName    string               `json:"displayName"`
-	KeyCredentials []graphKeyCredential `json:"keyCredentials"`
-}
-
-type graphKeyCredential struct {
-	CustomKeyIdentifier string  `json:"customKeyIdentifier,omitempty"`
-	DisplayName         *string `json:"displayName,omitempty"`
-	Key                 []byte  `json:"key,omitempty"`
-	Type                string  `json:"type,omitempty"`
-	Usage               string  `json:"usage,omitempty"`
-}
-
-type graphApplicationCollection struct {
-	Value []graphApplication `json:"value"`
-}
-
-type graphPatchRequest struct {
-	KeyCredentials []graphKeyCredential `json:"keyCredentials"`
-}
-
-// NewGraphClient creates a Microsoft Graph application client.
-func NewGraphClient(credential azcore.TokenCredential, httpClient *http.Client) ApplicationClient {
-	if httpClient == nil {
-		httpClient = http.DefaultClient
+// NewGraphClient creates an application client backed by Microsoft's official
+// Graph SDK.
+func NewGraphClient(credential azcore.TokenCredential) (ApplicationClient, error) {
+	client, err := msgraphsdk.NewGraphServiceClientWithCredentials(credential, []string{graphScope})
+	if err != nil {
+		return nil, fmt.Errorf("create Microsoft Graph client: %w", err)
 	}
-	return &graphClient{
-		credential: credential,
-		httpClient: httpClient,
-		baseURL:    defaultGraphBaseURL,
-	}
+	return newGraphClient(&microsoftGraphAPI{client: client}), nil
+}
+
+func newGraphClient(api graphAPI) ApplicationClient {
+	return &graphClient{api: api}
 }
 
 func (c *graphClient) FindApplication(ctx context.Context, displayName string) (*Application, error) {
 	var application *Application
 	err := retry(ctx, func() error {
-		query := url.Values{}
-		query.Set("$filter", fmt.Sprintf("displayName eq '%s'", strings.ReplaceAll(displayName, "'", "''")))
-		query.Set("$select", "id,appId,displayName,keyCredentials")
-
-		var response graphApplicationCollection
-		if err := c.doJSON(ctx, http.MethodGet, c.baseURL+"/applications?"+query.Encode(), nil, &response); err != nil {
-			return err
+		filter := fmt.Sprintf("displayName eq '%s'", strings.ReplaceAll(displayName, "'", "''"))
+		applications, err := c.api.ListApplications(ctx, filter)
+		if err != nil {
+			return classifyGraphError(err)
 		}
-		switch len(response.Value) {
+		switch len(applications) {
 		case 0:
 			return &transientError{err: fmt.Errorf("application %q is not visible in Microsoft Graph yet", displayName)}
 		case 1:
-			var err error
-			application, err = convertApplication(response.Value[0])
+			application, err = convertApplication(applications[0])
 			return err
 		default:
-			return fmt.Errorf("display name %q matched %d applications; expected exactly one", displayName, len(response.Value))
+			return fmt.Errorf("display name %q matched %d applications; expected exactly one", displayName, len(applications))
 		}
 	})
 	return application, err
 }
 
 func (c *graphClient) ReplaceKeyCredentials(ctx context.Context, applicationID, certificateName string, certificate []byte) error {
-	body := graphPatchRequest{
-		KeyCredentials: []graphKeyCredential{{
-			DisplayName: &certificateName,
-			Key:         certificate,
-			Type:        keyCredentialType,
-			Usage:       keyCredentialUsage,
-		}},
-	}
 	return retry(ctx, func() error {
-		return c.doJSON(ctx, http.MethodPatch, c.baseURL+"/applications/"+url.PathEscape(applicationID), body, nil)
+		return classifyGraphError(c.api.ReplaceKeyCredentials(ctx, applicationID, certificateName, certificate))
 	})
 }
 
 func (c *graphClient) GetApplication(ctx context.Context, applicationID string) (*Application, error) {
 	var application *Application
 	err := retry(ctx, func() error {
-		query := url.Values{}
-		query.Set("$select", "id,appId,displayName,keyCredentials")
-		var response graphApplication
-		if err := c.doJSON(ctx, http.MethodGet, c.baseURL+"/applications/"+url.PathEscape(applicationID)+"?"+query.Encode(), nil, &response); err != nil {
-			return err
+		graphApplication, err := c.api.GetApplication(ctx, applicationID)
+		if err != nil {
+			return classifyGraphError(err)
 		}
-		var err error
-		application, err = convertApplication(response)
+		application, err = convertApplication(graphApplication)
 		return err
 	})
 	return application, err
 }
 
-func convertApplication(application graphApplication) (*Application, error) {
-	credentials := make([]KeyCredential, 0, len(application.KeyCredentials))
-	for _, credential := range application.KeyCredentials {
-		customKeyIdentifier, err := decodeCustomKeyIdentifier(credential.CustomKeyIdentifier)
-		if err != nil {
-			return nil, fmt.Errorf("decode customKeyIdentifier for application %q: %w", application.DisplayName, err)
-		}
-		credentials = append(credentials, KeyCredential{
-			CustomKeyIdentifier: customKeyIdentifier,
-			Type:                credential.Type,
-			Usage:               credential.Usage,
-		})
+func (c *microsoftGraphAPI) ListApplications(ctx context.Context, filter string) ([]graphmodels.Applicationable, error) {
+	top := int32(2)
+	response, err := c.client.Applications().Get(ctx, &graphapplications.ApplicationsRequestBuilderGetRequestConfiguration{
+		QueryParameters: &graphapplications.ApplicationsRequestBuilderGetQueryParameters{
+			Filter: &filter,
+			Select: []string{"id", "appId", "displayName", "keyCredentials"},
+			Top:    &top,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list applications: %w", err)
 	}
-	return &Application{
-		ID:             application.ID,
-		AppID:          application.AppID,
-		DisplayName:    application.DisplayName,
-		KeyCredentials: credentials,
-	}, nil
+	if response == nil {
+		return nil, fmt.Errorf("list applications: Microsoft Graph returned an empty response")
+	}
+	return response.GetValue(), nil
 }
 
-func decodeCustomKeyIdentifier(value string) ([]byte, error) {
-	if value == "" {
-		return nil, nil
-	}
-	if decoded, err := hex.DecodeString(value); err == nil {
-		return decoded, nil
-	}
-	decoded, err := base64.StdEncoding.DecodeString(value)
-	if err != nil {
-		return nil, fmt.Errorf("value is neither hexadecimal nor base64: %w", err)
-	}
-	return decoded, nil
-}
+func (c *microsoftGraphAPI) ReplaceKeyCredentials(ctx context.Context, applicationID, certificateName string, certificate []byte) error {
+	credentialType := keyCredentialType
+	credentialUsage := keyCredentialUsage
+	keyCredential := graphmodels.NewKeyCredential()
+	keyCredential.SetDisplayName(&certificateName)
+	keyCredential.SetKey(certificate)
+	keyCredential.SetTypeEscaped(&credentialType)
+	keyCredential.SetUsage(&credentialUsage)
 
-func (c *graphClient) doJSON(ctx context.Context, method, endpoint string, requestBody, responseBody any) error {
-	var body io.Reader
-	if requestBody != nil {
-		encoded, err := json.Marshal(requestBody)
-		if err != nil {
-			return fmt.Errorf("marshal request: %w", err)
-		}
-		body = bytes.NewReader(encoded)
-	}
-
-	request, err := http.NewRequestWithContext(ctx, method, endpoint, body)
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	token, err := c.credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{graphScope}})
-	if err != nil {
-		return fmt.Errorf("get Microsoft Graph token: %w", err)
-	}
-	request.Header.Set("Authorization", "Bearer "+token.Token)
-	request.Header.Set("Accept", "application/json")
-	if requestBody != nil {
-		request.Header.Set("Content-Type", "application/json")
-	}
-
-	response, err := c.httpClient.Do(request)
-	if err != nil {
-		return &transientError{err: fmt.Errorf("send Microsoft Graph request: %w", err)}
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		errorBody, readErr := io.ReadAll(io.LimitReader(response.Body, maxErrorBodyBytes))
-		if readErr != nil {
-			return fmt.Errorf("read Microsoft Graph error response: %w", readErr)
-		}
-		graphErr := &httpError{
-			statusCode: response.StatusCode,
-			status:     response.Status,
-			body:       strings.TrimSpace(string(errorBody)),
-			retryAfter: parseRetryAfter(response.Header.Get("Retry-After")),
-		}
-		if graphErr.transient() {
-			return &transientError{err: graphErr, retryAfter: graphErr.retryAfter}
-		}
-		return graphErr
-	}
-
-	if responseBody == nil || response.StatusCode == http.StatusNoContent {
-		return nil
-	}
-	if err := json.NewDecoder(response.Body).Decode(responseBody); err != nil {
-		return fmt.Errorf("decode Microsoft Graph response: %w", err)
+	application := graphmodels.NewApplication()
+	application.SetKeyCredentials([]graphmodels.KeyCredentialable{keyCredential})
+	if _, err := c.client.Applications().ByApplicationId(applicationID).Patch(ctx, application, nil); err != nil {
+		return fmt.Errorf("patch application: %w", err)
 	}
 	return nil
 }
 
-type httpError struct {
-	statusCode int
-	status     string
-	body       string
-	retryAfter time.Duration
-}
-
-func (e *httpError) Error() string {
-	if e.body == "" {
-		return fmt.Sprintf("Microsoft Graph returned %s", e.status)
+func (c *microsoftGraphAPI) GetApplication(ctx context.Context, applicationID string) (graphmodels.Applicationable, error) {
+	application, err := c.client.Applications().ByApplicationId(applicationID).Get(
+		ctx,
+		&graphapplications.ApplicationItemRequestBuilderGetRequestConfiguration{
+			QueryParameters: &graphapplications.ApplicationItemRequestBuilderGetQueryParameters{
+				Select: []string{"id", "appId", "displayName", "keyCredentials"},
+			},
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get application: %w", err)
 	}
-	return fmt.Sprintf("Microsoft Graph returned %s: %s", e.status, e.body)
+	if application == nil {
+		return nil, fmt.Errorf("get application: Microsoft Graph returned an empty response")
+	}
+	return application, nil
 }
 
-func (e *httpError) transient() bool {
-	return e.statusCode == http.StatusNotFound ||
-		e.statusCode == http.StatusTooManyRequests ||
-		e.statusCode >= http.StatusInternalServerError
+func convertApplication(application graphmodels.Applicationable) (*Application, error) {
+	if application == nil || application.GetId() == nil || strings.TrimSpace(*application.GetId()) == "" {
+		return nil, fmt.Errorf("Microsoft Graph returned an application without an ID")
+	}
+
+	credentials := make([]KeyCredential, 0, len(application.GetKeyCredentials()))
+	for _, credential := range application.GetKeyCredentials() {
+		if credential == nil {
+			continue
+		}
+		credentials = append(credentials, KeyCredential{
+			CustomKeyIdentifier: normalizeCustomKeyIdentifier(credential.GetCustomKeyIdentifier()),
+			Type:                valueOrEmpty(credential.GetTypeEscaped()),
+			Usage:               valueOrEmpty(credential.GetUsage()),
+		})
+	}
+	return &Application{
+		ID:             *application.GetId(),
+		AppID:          valueOrEmpty(application.GetAppId()),
+		DisplayName:    valueOrEmpty(application.GetDisplayName()),
+		KeyCredentials: credentials,
+	}, nil
+}
+
+// Microsoft Graph currently serializes customKeyIdentifier as an uppercase hex
+// SHA-1 string even though the SDK model exposes it as []byte. Depending on the
+// Kiota parser version, the SDK may return the 20 thumbprint bytes, the 40 ASCII
+// hex bytes, or the base64-decoded bytes of that hex string.
+func normalizeCustomKeyIdentifier(value []byte) []byte {
+	if len(value) == 0 || len(value) == sha1.Size {
+		return value
+	}
+	if decoded, err := hex.DecodeString(string(value)); err == nil && len(decoded) == sha1.Size {
+		return decoded
+	}
+	reencoded := base64.StdEncoding.EncodeToString(value)
+	if decoded, err := hex.DecodeString(reencoded); err == nil && len(decoded) == sha1.Size {
+		return decoded
+	}
+	return value
+}
+
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 type transientError struct {
@@ -287,10 +248,41 @@ func retry(ctx context.Context, operation func() error) error {
 	}
 }
 
-func parseRetryAfter(value string) time.Duration {
-	seconds, err := strconv.Atoi(strings.TrimSpace(value))
-	if err != nil || seconds <= 0 {
+func classifyGraphError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var apiError kiotaabstractions.ApiErrorable
+	if errors.As(err, &apiError) {
+		statusCode := apiError.GetStatusCode()
+		if statusCode == http.StatusNotFound ||
+			statusCode == http.StatusTooManyRequests ||
+			statusCode >= http.StatusInternalServerError {
+			return &transientError{
+				err:        err,
+				retryAfter: retryAfter(apiError.GetResponseHeaders()),
+			}
+		}
+		return err
+	}
+
+	var networkError net.Error
+	if errors.As(err, &networkError) {
+		return &transientError{err: err}
+	}
+	return err
+}
+
+func retryAfter(headers *kiotaabstractions.ResponseHeaders) time.Duration {
+	if headers == nil {
 		return 0
 	}
-	return time.Duration(seconds) * time.Second
+	for _, value := range headers.Get("Retry-After") {
+		seconds, err := strconv.Atoi(strings.TrimSpace(value))
+		if err == nil && seconds > 0 {
+			return time.Duration(seconds) * time.Second
+		}
+	}
+	return 0
 }
