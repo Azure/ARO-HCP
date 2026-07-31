@@ -24,7 +24,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/log"
 )
@@ -112,8 +112,8 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 		log.Logger.Warnf("Failed to extract identityValue from deployment outputs: %v", err)
 	}
 
-	// Convert userAssignedIdentitiesValue to hcpsdk20240610preview.UserAssignedIdentitiesProfile
-	var uamis hcpsdk20240610preview.UserAssignedIdentitiesProfile
+	// Convert userAssignedIdentitiesValue to hcpsdk20260901preview.UserAssignedIdentitiesProfile
+	var uamis hcpsdk20260901preview.UserAssignedIdentitiesProfile
 	if userAssignedIdentitiesValueBytes != nil {
 		err := json.Unmarshal(userAssignedIdentitiesValueBytes, &uamis)
 		if err != nil {
@@ -121,8 +121,8 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 		}
 	}
 
-	// Convert identityValue to hcpsdk20240610preview.ManagedServiceIdentity
-	identityUAMIs := hcpsdk20240610preview.ManagedServiceIdentity{}
+	// Convert identityValue to hcpsdk20260901preview.ManagedServiceIdentity
+	identityUAMIs := hcpsdk20260901preview.ManagedServiceIdentity{}
 	if identityValueBytes != nil {
 		err := json.Unmarshal(identityValueBytes, &identityUAMIs)
 		if err != nil {
@@ -131,18 +131,18 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 	}
 
 	// Fetch ARM resources for ARMData
-	clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+	clusterClient := tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 	clusterResp, err := clusterClient.Get(ctx, resourceGroupName, clusterName, nil)
-	var clusterData hcpsdk20240610preview.HcpOpenShiftCluster
+	var clusterData hcpsdk20260901preview.HcpOpenShiftCluster
 	if err != nil {
 		log.Logger.Warnf("Failed to get cluster ARM data: %v", err)
 	} else {
 		clusterData = clusterResp.HcpOpenShiftCluster
 	}
 
-	nodepoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+	nodepoolClient := tc.Get20260901ClientFactoryOrDie(ctx).NewNodePoolsClient()
 	nodepoolResp, err := nodepoolClient.Get(ctx, resourceGroupName, clusterName, nodepoolName, nil)
-	var nodepoolData hcpsdk20240610preview.NodePool
+	var nodepoolData hcpsdk20260901preview.NodePool
 	if err != nil {
 		log.Logger.Warnf("Failed to get nodepool ARM data: %v", err)
 	} else {
