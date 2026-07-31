@@ -508,9 +508,14 @@ param location string = resourceGroup().location
 				// aggregation). If a future alert aggregates subscription_id away,
 				// the unless clause silently becomes a no-op instead of filtering.
 				excludeInternalSubs := false
-				if val, exists := labels["exclude_internal_subscriptions"]; exists && ptr.Deref(val, "") == "true" {
-					excludeInternalSubs = true
+				if val, exists := labels["exclude_internal_subscriptions"]; exists {
 					delete(labels, "exclude_internal_subscriptions")
+					switch ptr.Deref(val, "") {
+					case "true":
+						excludeInternalSubs = true
+					default:
+						return fmt.Errorf("alert %q has exclude_internal_subscriptions=%q; only \"true\" is valid", rule.Alert, ptr.Deref(val, ""))
+					}
 				}
 
 				annotations := map[string]*string{}
@@ -585,9 +590,11 @@ param location string = resourceGroup().location
 					}
 					if excludeInternalSubs && o.internalSubFilter.Enabled {
 						exprStr = fmt.Sprintf("(%s) unless on(subscription_id) %s", exprStr, o.internalSubFilter.Table)
-						if _, parseErr := normalizeExpr(exprStr); parseErr != nil {
+						normalized, parseErr := normalizeExpr(exprStr)
+						if parseErr != nil {
 							return fmt.Errorf("alert %q: internal subscription filter produced invalid PromQL: %w", rule.Alert, parseErr)
 						}
+						exprStr = normalized
 					} else if excludeInternalSubs && !o.internalSubFilter.Enabled {
 						return fmt.Errorf("alert %q has exclude_internal_subscriptions label but internalSubscriptionFilter is not enabled in the config", rule.Alert)
 					}

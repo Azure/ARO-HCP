@@ -713,7 +713,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Cluster create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Cluster create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1200) unless on(subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1200) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -740,7 +740,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Cluster update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Cluster update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 2700) unless on(subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 2700) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -767,7 +767,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Cluster delete for {{ $labels.resource_id }} stuck'
           title: 'Cluster delete for {{ $labels.resource_id }} stuck'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1500) unless on(subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 1500) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -794,7 +794,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Credential request for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Credential request for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="requestcredential",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="requestcredential",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 600) unless on(subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="requestcredential",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="requestcredential",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 600) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -821,7 +821,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Credential revoke for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Credential revoke for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="revokecredentials",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 900) unless on(subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="revokecredentials",phase=~"accepted|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 900) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -848,7 +848,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Node pool create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Node pool create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 1200) unless on(subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 1200) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -875,7 +875,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Node pool update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'Node pool update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 2700) unless on(subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 2700) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -902,7 +902,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Node pool delete for {{ $labels.resource_id }} stuck'
           title: 'Node pool delete for {{ $labels.resource_id }} stuck'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 1500) unless on(subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"}) == 1) > 1500) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -929,7 +929,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'External auth create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'External auth create for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|awaitingsecret|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 900) unless on(subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="create",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="create",phase=~"accepted|awaitingsecret|provisioning",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 900) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -956,7 +956,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'External auth update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: 'External auth update for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 600) unless on(subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="update",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="update",phase=~"accepted|updating",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 600) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -983,7 +983,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'External auth delete for {{ $labels.resource_id }} stuck'
           title: 'External auth delete for {{ $labels.resource_id }} stuck'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 900) unless on(subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"}) == 1) > 900) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -1010,7 +1010,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: '{{ $labels.operation_type }} {{ $labels.resource_type }} operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
           title: '{{ $labels.operation_type }} {{ $labels.resource_type }} operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }}'
         }
-        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{phase=~"accepted|provisioning|updating|deleting|awaitingsecret"}) == 1) > 3600) unless on(subscription_id) internal_subscription:info'
+        expression: '((max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (time() - backend_resource_operation_start_time_seconds) and max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (backend_resource_operation_phase_info{phase=~"accepted|provisioning|updating|deleting|awaitingsecret"}) == 1) > 3600) unless on (subscription_id) internal_subscription:info'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -1199,11 +1200,15 @@ func TestOptionsGenerate(t *testing.T) {
 		generated := string(content)
 
 		// FilteredAlert should have unless clause appended
-		assert.Contains(t, generated, "unless on(subscription_id) internal_subscription:info")
+		assert.Contains(t, generated, "unless on (subscription_id) internal_subscription:info")
 		// exclude_internal_subscriptions label should be stripped from output
 		assert.NotContains(t, generated, "exclude_internal_subscriptions")
-		// UnfilteredAlert should NOT have unless clause
+		// UnfilteredAlert should exist but NOT have unless clause
 		assert.Contains(t, generated, "alert: 'UnfilteredAlert'")
+		// Split output by alert to verify per-alert scoping
+		parts := strings.Split(generated, "alert: 'UnfilteredAlert'")
+		assert.Len(t, parts, 2, "expected exactly one UnfilteredAlert in output")
+		assert.NotContains(t, parts[1], "unless on", "UnfilteredAlert should not have the unless clause")
 	})
 
 	t.Run("exclude_internal_subscriptions label errors when filter not enabled", func(t *testing.T) {
