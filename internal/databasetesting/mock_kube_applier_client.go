@@ -193,8 +193,8 @@ func (m *MockKubeApplierDBClient) ReadChangeFeed(ctx context.Context, options *a
 	if options != nil && options.Continuation != nil {
 		continuation = *options.Continuation
 	}
-	docs, nextToken, hasNew := m.changeFeed.read(continuation)
-	return buildMockChangeFeedResponse(docs, nextToken, hasNew), nil
+	items, nextToken, hasNew := m.changeFeed.read(continuation)
+	return buildMockChangeFeedResponse(items, nextToken, hasNew), nil
 }
 
 func (m *MockKubeApplierDBClient) ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error) {

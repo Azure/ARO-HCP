@@ -117,8 +117,8 @@ func (m *MockFleetDBClient) ReadChangeFeed(ctx context.Context, options *azcosmo
 	if options != nil && options.Continuation != nil {
 		continuation = *options.Continuation
 	}
-	docs, nextToken, hasNew := m.changeFeed.read(continuation)
-	return buildMockChangeFeedResponse(docs, nextToken, hasNew), nil
+	items, nextToken, hasNew := m.changeFeed.read(continuation)
+	return buildMockChangeFeedResponse(items, nextToken, hasNew), nil
 }
 
 func (m *MockFleetDBClient) ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error) {

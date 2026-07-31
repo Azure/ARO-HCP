@@ -151,8 +151,8 @@ func (m *MockResourcesDBClient) ReadChangeFeed(ctx context.Context, options *azc
 	if options != nil && options.Continuation != nil {
 		continuation = *options.Continuation
 	}
-	docs, nextToken, hasNew := m.changeFeed.read(continuation)
-	return buildMockChangeFeedResponse(docs, nextToken, hasNew), nil
+	items, nextToken, hasNew := m.changeFeed.read(continuation)
+	return buildMockChangeFeedResponse(items, nextToken, hasNew), nil
 }
 
 // ReadFeedRanges returns the single feed range the mock
