@@ -251,12 +251,10 @@ backend_resource_operation_phase_info{operation_type="create",phase="accepted",r
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 }
 
-// TestOperationControllerSyncResource_DeleteIsNoOp documents that
-// the controller framework calls handler.Delete when an operation
-// is removed from the indexer, but the operation handler's Delete
-// is intentionally a no-op (see Delete doc-comment). The previously-
-// emitted series persists until process restart.
-func TestOperationControllerSyncResource_DeleteIsNoOp(t *testing.T) {
+// TestOperationControllerSyncResource_DeleteClearsGauges verifies
+// that the controller framework's syncResource path clears gauges
+// when the operation is removed from the indexer (simulating TTL expiry).
+func TestOperationControllerSyncResource_DeleteClearsGauges(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	op := newTestOperation(
 		t,
@@ -281,17 +279,22 @@ func TestOperationControllerSyncResource_DeleteIsNoOp(t *testing.T) {
 	key, err := resourceIDStoreKeyForObject(op)
 	require.NoError(t, err)
 	require.NoError(t, controller.syncResource(context.Background(), key))
-	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
-	require.Equal(t, 1, testutil.CollectAndCount(handler.startTime))
-	require.Equal(t, 1, testutil.CollectAndCount(handler.lastTransitionTime))
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"phaseInfo should have 1 series after Sync")
+	require.Equal(t, 1, testutil.CollectAndCount(handler.startTime),
+		"startTime should have 1 series after Sync")
+	require.Equal(t, 1, testutil.CollectAndCount(handler.lastTransitionTime),
+		"lastTransitionTime should have 1 series after Sync")
 
 	require.NoError(t, indexer.Delete(op))
 	require.NoError(t, controller.syncResource(context.Background(), key))
 
-	// All three metric vectors persist after Delete (no-op behavior).
-	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
-	require.Equal(t, 1, testutil.CollectAndCount(handler.startTime))
-	require.Equal(t, 1, testutil.CollectAndCount(handler.lastTransitionTime))
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
+		"phaseInfo should be cleared after indexer removal")
+	require.Equal(t, 0, testutil.CollectAndCount(handler.startTime),
+		"startTime should be cleared after indexer removal")
+	require.Equal(t, 0, testutil.CollectAndCount(handler.lastTransitionTime),
+		"lastTransitionTime should be cleared after indexer removal")
 }
 
 func TestResourceIDStoreKeyForObject_MatchesMetaNamespaceKeyFuncForOperation(t *testing.T) {
@@ -535,12 +538,10 @@ backend_resource_operation_phase_info{operation_type="create",phase="accepted",r
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 }
 
-// TestOperationPhaseMetricsHandler_DeleteIsNoOp verifies that
-// handler.Delete does NOT remove series for the operation. See the
-// Delete doc-comment for the rationale: Delete is intentionally a
-// no-op because deleting by resource_id can blank a sibling
-// operation's currently-emitted series.
-func TestOperationPhaseMetricsHandler_DeleteIsNoOp(t *testing.T) {
+// TestOperationPhaseMetricsHandler_DeleteClearsSoleOperation verifies
+// that deleting the only operation for a (resourceID, operationType)
+// pair clears all gauge series. This is the core ARO-28723 fix.
+func TestOperationPhaseMetricsHandler_DeleteClearsSoleOperation(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	op := newTestOperation(
 		t,
@@ -554,15 +555,20 @@ func TestOperationPhaseMetricsHandler_DeleteIsNoOp(t *testing.T) {
 
 	handler, _ := newTestOperationHandler(t)
 	handler.Sync(context.Background(), op)
-	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"phaseInfo should have 1 series after Sync")
 
 	cosmosKey, err := resourceIDStoreKeyForObject(op)
 	require.NoError(t, err)
 
 	handler.Delete(cosmosKey)
 
-	// Series persists after Delete (no-op behavior).
-	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
+		"phaseInfo should be cleared after deleting the sole operation")
+	require.Equal(t, 0, testutil.CollectAndCount(handler.startTime),
+		"startTime should be cleared after deleting the sole operation")
+	require.Equal(t, 0, testutil.CollectAndCount(handler.lastTransitionTime),
+		"lastTransitionTime should be cleared after deleting the sole operation")
 }
 
 // TestOperationPhaseMetricsHandler_MultipleOpsSameExternalIDCoexistByOperationType
@@ -628,13 +634,11 @@ backend_resource_operation_phase_info{operation_type="update",phase="provisionin
 	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
 }
 
-// TestOperationPhaseMetricsHandler_DeleteOnSiblingDoesNotBlankActiveSeries
-// is the direct regression guard for the bug a previous iteration of
-// this PR introduced: when two operations share an ExternalID,
-// Delete on the older terminal operation must NOT blank the newer
-// operation's currently-emitted series.
-// The fix is that Delete is a no-op; this test pins it.
-func TestOperationPhaseMetricsHandler_DeleteOnSiblingDoesNotBlankActiveSeries(t *testing.T) {
+// TestOperationPhaseMetricsHandler_DeleteDifferentTypeClearsOnlyExpired
+// verifies that when two operations of DIFFERENT types share an ARM
+// resource ID, deleting one clears only that type's gauge and leaves
+// the other type's series intact.
+func TestOperationPhaseMetricsHandler_DeleteDifferentTypeClearsOnlyExpired(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
 
@@ -648,38 +652,120 @@ func TestOperationPhaseMetricsHandler_DeleteOnSiblingDoesNotBlankActiveSeries(t 
 	handler.Sync(context.Background(), op2)
 
 	// Both ops coexist (different operation_type).
-	require.Equal(t, 2, testutil.CollectAndCount(handler.phaseInfo))
+	require.Equal(t, 2, testutil.CollectAndCount(handler.phaseInfo),
+		"both operation types should coexist after Sync")
 
-	// op1 ages out of cosmos TTL: the controller framework calls
-	// handler.Delete with op1's cosmos doc id. This must NOT blank
-	// op2's series.
+	// op1 ages out of cosmos TTL: Delete clears the "create" gauge
+	// but must NOT touch op2's "update" gauge.
 	op1CosmosKey, err := resourceIDStoreKeyForObject(op1)
 	require.NoError(t, err)
 	handler.Delete(op1CosmosKey)
 
-	// Both series are still emitted (Delete is a no-op).
-	require.Equal(t, 2, testutil.CollectAndCount(handler.phaseInfo))
+	// Only the "update" series survives.
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"only the update series should survive after deleting the create operation")
 	expected := `# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_type="create",phase="succeeded",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
 backend_resource_operation_phase_info{operation_type="update",phase="provisioning",resource_id="/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/cluster-1",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
 `
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
 }
 
-// TestOperationPhaseMetricsHandler_DeleteClearsLastOperationGauges demonstrates
-// the bug described in ARO-28723: when the LAST operation for a
-// (resourceID, operationType) pair is deleted (e.g. CosmosDB TTL expiry),
-// the gauge series should be cleared. Currently Delete is a no-op, so the
-// stale gauge persists indefinitely, inflating the provisioning failure
-// rate and triggering false IcM alerts.
-func TestOperationPhaseMetricsHandler_DeleteClearsLastOperationGauges(t *testing.T) {
+// TestOperationPhaseMetricsHandler_DeleteSameTypeSiblingPreservesGauge
+// verifies that when two Cosmos docs share the same (resourceID, operationType),
+// deleting one does NOT clear the gauge — the refcount goes from 2 to 1.
+func TestOperationPhaseMetricsHandler_DeleteSameTypeSiblingPreservesGauge(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
+
+	op1 := newTestOperation(t, "op-1", coreapi.OperationRequestCreate, coreapi.ProvisioningStateSucceeded, armID, now, now)
+	op2 := newTestOperation(t, "op-2", coreapi.OperationRequestCreate, coreapi.ProvisioningStateFailed, armID, now.Add(time.Hour), now.Add(time.Hour))
+
+	handler, _ := newTestOperationHandler(t)
+	handler.Sync(context.Background(), op1)
+	handler.Sync(context.Background(), op2)
+
+	// Same type collapses to 1 series (last writer wins), but refcount is 2.
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"same-type ops collapse to 1 series")
+
+	op1Key, err := resourceIDStoreKeyForObject(op1)
+	require.NoError(t, err)
+	handler.Delete(op1Key)
+
+	// Refcount goes from 2 to 1 — gauge preserved.
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"gauge should survive when a same-type sibling still exists")
+
+	// Now delete the second — refcount reaches 0, gauge cleared.
+	op2Key, err := resourceIDStoreKeyForObject(op2)
+	require.NoError(t, err)
+	handler.Delete(op2Key)
+
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
+		"gauge should be cleared after the last same-type sibling is deleted")
+}
+
+// TestOperationPhaseMetricsHandler_RelistReEmitsSurvivorAfterSiblingExpiry
+// simulates an informer relist cycle with two same-type operations where
+// the gauge owner (last writer) TTL-expires first. After Delete clears
+// the gauge, the surviving sibling is re-synced on the next relist,
+// re-emitting the gauge with the survivor's labels.
+func TestOperationPhaseMetricsHandler_RelistReEmitsSurvivorAfterSiblingExpiry(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
+
+	op1 := newTestOperation(t, "op-1", coreapi.OperationRequestCreate, coreapi.ProvisioningStateSucceeded, armID, now, now)
+	op2 := newTestOperation(t, "op-2", coreapi.OperationRequestCreate, coreapi.ProvisioningStateFailed, armID, now.Add(time.Hour), now.Add(time.Hour))
+
+	handler, reg := newTestOperationHandler(t)
+
+	// Initial sync: both operations tracked, op2 wins the gauge (last writer).
+	handler.Sync(context.Background(), op1)
+	handler.Sync(context.Background(), op2)
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"same-type ops collapse to 1 series")
+
+	// op2 (the gauge owner) TTL-expires. Delete decrements refcount to 1,
+	// gauge preserved because op1 is still tracked.
+	op2Key, err := resourceIDStoreKeyForObject(op2)
+	require.NoError(t, err)
+	handler.Delete(op2Key)
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"gauge should survive — op1 still tracked")
+
+	// Simulate the next relist: the informer re-syncs op1 (the survivor).
+	// This re-emits the gauge with op1's labels (succeeded, not failed).
+	handler.Sync(context.Background(), op1)
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"gauge should be re-emitted with survivor's labels after relist")
+
+	resourceID := resourceIDMetricLabel(op1.ExternalID)
+	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
+# TYPE backend_resource_operation_phase_info gauge
+backend_resource_operation_phase_info{operation_type="create",phase="succeeded",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="sub-1"} 1
+`, resourceID)
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"),
+		"survivor's labels (succeeded) should replace the expired op's labels (failed)")
+
+	// Final cleanup: op1 TTL-expires, gauge fully cleared.
+	op1Key, err := resourceIDStoreKeyForObject(op1)
+	require.NoError(t, err)
+	handler.Delete(op1Key)
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
+		"gauge should be cleared after the last operation expires")
+}
+
+// TestOperationPhaseMetricsHandler_DoubleDeleteIsNoOp verifies that
+// calling Delete twice for the same key does not panic or corrupt
+// state. The second Delete finds the key already removed and returns.
+func TestOperationPhaseMetricsHandler_DoubleDeleteIsNoOp(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateFailed,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateFailed,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -688,76 +774,142 @@ func TestOperationPhaseMetricsHandler_DeleteClearsLastOperationGauges(t *testing
 	handler, _ := newTestOperationHandler(t)
 	handler.Sync(context.Background(), op)
 
-	// Gauge is set after Sync.
-	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
-		"phaseInfo should have 1 series after Sync")
-	require.Equal(t, 1, testutil.CollectAndCount(handler.startTime),
-		"startTime should have 1 series after Sync")
-	require.Equal(t, 1, testutil.CollectAndCount(handler.lastTransitionTime),
-		"lastTransitionTime should have 1 series after Sync")
-
-	// Simulate CosmosDB TTL expiry: the informer relist detects the
-	// document is gone and the controller framework calls Delete with
-	// the Cosmos doc key.
 	cosmosKey, err := resourceIDStoreKeyForObject(op)
 	require.NoError(t, err)
-	handler.Delete(cosmosKey)
 
-	// After deleting the LAST (and only) operation for this resource +
-	// operation type, all gauge series should be cleared.
+	handler.Delete(cosmosKey)
 	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
-		"ARO-28723: phaseInfo gauge persists after Delete — stale series will inflate failure rate")
-	require.Equal(t, 0, testutil.CollectAndCount(handler.startTime),
-		"ARO-28723: startTime gauge persists after Delete")
-	require.Equal(t, 0, testutil.CollectAndCount(handler.lastTransitionTime),
-		"ARO-28723: lastTransitionTime gauge persists after Delete")
+		"gauge should be cleared after first Delete")
+
+	// Second Delete on the same key — silent no-op.
+	handler.Delete(cosmosKey)
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
+		"gauge should remain cleared after double Delete")
 }
 
-// TestOperationPhaseMetricsHandler_DeleteClearsLastOperationGauges_ViaController
-// is the end-to-end variant: operation enters the indexer, gets synced by
-// the controller, is removed from the indexer (simulating TTL expiry),
-// and the controller syncs again. The gauges should be cleared.
-func TestOperationPhaseMetricsHandler_DeleteClearsLastOperationGauges_ViaController(t *testing.T) {
+// TestOperationPhaseMetricsHandler_DeleteUnknownKeyIsNoOp verifies
+// that Delete with a key not present in the bookkeeper is a silent no-op.
+func TestOperationPhaseMetricsHandler_DeleteUnknownKeyIsNoOp(t *testing.T) {
+	handler, _ := newTestOperationHandler(t)
+
+	// Delete on an empty handler — no panic, no side effects.
+	handler.Delete("/subscriptions/sub-1/providers/microsoft.redhatopenshift/hcpoperationstatuses/nonexistent")
+
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
+		"no series should exist after deleting an unknown key")
+}
+
+// TestOperationPhaseMetricsHandler_ResyncIdempotency verifies that
+// Sync called multiple times for the same operation does not inflate
+// the refcount. The counter should stay at 1, so a single Delete clears.
+func TestOperationPhaseMetricsHandler_ResyncIdempotency(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateFailed,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
 	)
 
-	indexer := cache.NewIndexer(resourceIDStoreKeyForObject, cache.Indexers{})
-	require.NoError(t, indexer.Add(op))
+	handler, _ := newTestOperationHandler(t)
+
+	// Simulate 3 relists — Sync called 3 times for the same operation.
+	handler.Sync(context.Background(), op)
+	handler.Sync(context.Background(), op)
+	handler.Sync(context.Background(), op)
+
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"3 syncs of the same op should produce 1 series")
+
+	cosmosKey, err := resourceIDStoreKeyForObject(op)
+	require.NoError(t, err)
+	handler.Delete(cosmosKey)
+
+	// A single Delete should clear the gauge (refcount was 1, not 3).
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
+		"gauge should be cleared after a single Delete despite multiple Syncs")
+}
+
+// TestOperationPhaseMetricsHandler_SyncIdentityChangeAdjustsRefcount
+// exercises the defensive branch where the same cosmosKey is synced
+// with a different (resourceID, operationType) identity. The old
+// identity's refcount is decremented and the new identity's is
+// incremented. If the old identity has no other contributors, its
+// gauge is cleared.
+func TestOperationPhaseMetricsHandler_SyncIdentityChangeAdjustsRefcount(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
+
+	op := newTestOperation(t, "op-1", coreapi.OperationRequestCreate, coreapi.ProvisioningStateAccepted, armID, now, now)
 
 	handler, _ := newTestOperationHandler(t)
-	controller := &Controller[*api.Operation]{
-		name:    "OperationPhaseMetrics",
-		indexer: indexer,
-		handler: handler,
-	}
+	handler.Sync(context.Background(), op)
 
-	key, err := resourceIDStoreKeyForObject(op)
-	require.NoError(t, err)
-
-	// First sync: gauge is set.
-	require.NoError(t, controller.syncResource(context.Background(), key))
 	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
-		"phaseInfo should have 1 series after initial sync")
+		"phaseInfo should have 1 series after initial Sync")
 
-	// Simulate TTL expiry: remove from indexer, sync again.
-	require.NoError(t, indexer.Delete(op))
-	require.NoError(t, controller.syncResource(context.Background(), key))
+	// Mutate the operation's Request to simulate an identity change
+	// on the same cosmosKey. This should not happen in production,
+	// but the defensive branch must keep the maps consistent.
+	op.Request = coreapi.OperationRequestUpdate
+	handler.Sync(context.Background(), op)
 
-	// Gauges should be cleared — no stale series.
+	// The old "create" gauge should be cleared (sole contributor),
+	// and a new "update" gauge should be emitted.
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"phaseInfo should still have 1 series after identity change")
+
+	cosmosKey, err := resourceIDStoreKeyForObject(op)
+	require.NoError(t, err)
+	handler.Delete(cosmosKey)
+
+	// The "update" gauge should be cleared (refcount was 1 for the new identity).
 	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
-		"ARO-28723: phaseInfo gauge persists after indexer removal — stale series will inflate failure rate")
-	require.Equal(t, 0, testutil.CollectAndCount(handler.startTime),
-		"ARO-28723: startTime gauge persists after indexer removal")
-	require.Equal(t, 0, testutil.CollectAndCount(handler.lastTransitionTime),
-		"ARO-28723: lastTransitionTime gauge persists after indexer removal")
+		"phaseInfo should be cleared after Delete")
+	require.Equal(t, 0, len(handler.operationsBookkeeper),
+		"operationsBookkeeper should be empty after final Delete")
+	require.Equal(t, 0, len(handler.operationsCounter),
+		"operationsCounter should be empty after final Delete")
+}
+
+// TestOperationPhaseMetricsHandler_SyncReestablishesAfterDelete
+// verifies that after an operation is deleted and its gauge cleared,
+// a new Sync for the same cosmosKey re-establishes tracking and
+// re-emits the gauge. Simulates an operation being recreated.
+func TestOperationPhaseMetricsHandler_SyncReestablishesAfterDelete(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	op := newTestOperation(
+		t,
+		"op-1",
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateFailed,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
+		now,
+		now,
+	)
+
+	handler, _ := newTestOperationHandler(t)
+
+	// First lifecycle: Sync → Delete → gauge cleared.
+	handler.Sync(context.Background(), op)
+	cosmosKey, err := resourceIDStoreKeyForObject(op)
+	require.NoError(t, err)
+	handler.Delete(cosmosKey)
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
+		"gauge should be cleared after Delete")
+
+	// Second lifecycle: Sync re-establishes tracking.
+	handler.Sync(context.Background(), op)
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo),
+		"gauge should be re-emitted after re-Sync")
+
+	// And Delete works again.
+	handler.Delete(cosmosKey)
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo),
+		"gauge should be cleared after second Delete")
 }
 
 // TestOperationPhaseMetricsHandler_NilOperationIDDoesNotBlankSibling

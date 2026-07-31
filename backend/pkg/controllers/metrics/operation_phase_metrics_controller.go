@@ -46,13 +46,22 @@ var operationMetricLabelNames = []string{"resource_id", "subscription_id", "reso
 // operation_type combination. Operations of DIFFERENT types (e.g. a
 // completed "create" and an in-flight "delete") coexist independently
 // and do not clobber each other. When the last operation for a
-// resource ages out of the Cosmos TTL, its series persists until
-// process restart (Delete is a no-op; see Delete doc-comment for the
-// rationale). Resource-level conditions are the longer-term direction.
+// resource ages out of the Cosmos TTL, Delete clears the gauge using
+// a refcount to avoid clobbering sibling operations' active series.
 type operationPhaseMetricsHandler struct {
 	phaseInfo          *prometheus.GaugeVec
 	startTime          *prometheus.GaugeVec
 	lastTransitionTime *prometheus.GaugeVec
+	// Not guarded by a mutex: threadiness=1 serializes all access.
+	// A mutex would not help at higher threadiness because Sync's
+	// gauge delete-then-set is not atomic across Prometheus calls.
+	operationsBookkeeper map[string]operationIdentity // cosmosDocKey: identity (reverse lookup for Delete)
+	operationsCounter    map[operationIdentity]int    // identity: count of cosmos docs contributing to this gauge
+}
+
+type operationIdentity struct {
+	resourceID    string
+	operationType string
 }
 
 // NewOperationPhaseMetricsHandler creates a metrics handler for operation metrics.
@@ -70,6 +79,10 @@ func NewOperationPhaseMetricsHandler(r prometheus.Registerer) Handler[*coreapi.O
 			Name: "backend_resource_operation_last_transition_time_seconds",
 			Help: "Unix timestamp when the operation last changed phase.",
 		}, operationMetricLabelNames),
+		// Pre-sized to steady-state: bounded by operations within
+		// the 7-day CosmosDB TTL per shard (~1k-2k entries, ~100 clusters).
+		operationsBookkeeper: make(map[string]operationIdentity, 2000),
+		operationsCounter:    make(map[operationIdentity]int, 2000),
 	}
 	r.MustRegister(h.phaseInfo, h.startTime, h.lastTransitionTime)
 	return h
@@ -96,10 +109,9 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *coreapi.Ope
 	if op.OperationID == nil {
 		// Implicit operation (e.g. child-resource cleanup along with
 		// parent). Don't emit a metric series for it, and don't
-		// deleteByResourceID either: a sibling operation with the
-		// same ExternalID may already own the emitted series for
-		// this resource_id and we must not blank it. Same rationale
-		// as Delete being a no-op (see Delete doc-comment).
+		// track it in operationsBookkeeper: a sibling operation with
+		// the same ExternalID may already own the emitted series for
+		// this resource_id and we must not blank it.
 		return
 	}
 
@@ -127,36 +139,58 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *coreapi.Ope
 	if !op.LastTransitionTime.IsZero() {
 		h.lastTransitionTime.With(labels).Set(float64(op.LastTransitionTime.Unix()))
 	}
+	// Track this operation so Delete can resolve the Cosmos doc key back
+	// to the metric identity and decrement the refcount. The bookkeeper
+	// maps cosmosKey → identity; the counter tracks how many Cosmos docs
+	// contribute to each identity's gauge. See Delete for the cleanup path.
+	cosmosKey := resourceIDMetricLabel(op.GetResourceID())
+	newID := operationIdentity{
+		resourceID:    resourceID,
+		operationType: opType,
+	}
+
+	if existingID, tracked := h.operationsBookkeeper[cosmosKey]; tracked {
+		// Re-sync: this cosmosKey was already seen in a previous Sync. If the identity hasn't changed, skip.
+		if existingID != newID {
+			// If ExternalID or Request changed, adjust the counts to keep the two maps consistent.
+			h.operationsCounter[existingID]--
+			if h.operationsCounter[existingID] <= 0 {
+				delete(h.operationsCounter, existingID)
+				h.deleteByResourceIDAndOperationType(existingID.resourceID, existingID.operationType)
+			}
+			h.operationsBookkeeper[cosmosKey] = newID
+			h.operationsCounter[newID]++
+		}
+	} else {
+		// First time seeing this cosmosKey
+		h.operationsBookkeeper[cosmosKey] = newID
+		h.operationsCounter[newID]++
+	}
 }
 
-// Delete is intentionally a no-op for operation phase metrics.
-//
-// The controller framework calls handler.Delete with the indexer key,
-// which for Operations is the lowercased Cosmos document id. That key
-// no longer matches the resource_id metric label after this PR
-// (resource_id is now derived from op.ExternalID, the ARM resource id).
-// Deleting by the cosmos key would not find any series; deleting by
-// resource_id would blank any sibling operation's currently-emitted
-// series for the same ARM resource (multiple operation documents can
-// share one resource_id label). Sync's pre-emit DeletePartialMatch
-// implicitly cleans up obsolete labels whenever any operation for
-// a resource is processed, so explicit Delete is unnecessary.
-//
-// The trade-off: when the LAST operation for a resource ages out of
-// the Cosmos TTL with no surviving sibling, the series persists in
-// the in-memory prom registry until process restart / pod replacement;
-// affects only resources that go fully idle. The alternative
-// (per-resource active-op counting) reintroduces handler-local
-// bookkeeping, which is disproportionate for an operation-phase
-// metric whose longer-term direction is resource-level conditions.
+// Delete clears gauge series when the last Cosmos operation document
+// for a (resourceID, operationType) pair expires. The controller
+// framework calls Delete with the lowercased Cosmos document id.
+// operationsBookkeeper resolves it to the metric identity, and
+// operationsCounter tracks how many documents still contribute.
+// When the count reaches zero, the gauge is safe to clear without
+// clobbering a sibling operation's active series.
 func (h *operationPhaseMetricsHandler) Delete(key string) {
-	// no-op; see doc-comment above
+	identity, ok := h.operationsBookkeeper[key]
+	if !ok {
+		return
+	}
+	delete(h.operationsBookkeeper, key)
+	h.operationsCounter[identity]--
+	if h.operationsCounter[identity] <= 0 {
+		delete(h.operationsCounter, identity)
+		h.deleteByResourceIDAndOperationType(identity.resourceID, identity.operationType)
+	}
 }
 
-// deleteByResourceIDAndOperationType is used by Sync to clear stale labels
-// before writing new ones. Scoped to resource_id + operation_type so that
-// operations of different types on the same resource are not affected.
-// Delete intentionally does not call this; see the Delete doc-comment.
+// deleteByResourceIDAndOperationType clears all gauge series matching the
+// given resource_id + operation_type. Called by Sync (to clear stale phase
+// labels before re-emitting) and by Delete (when the refcount reaches zero).
 func (h *operationPhaseMetricsHandler) deleteByResourceIDAndOperationType(resourceID, operationType string) {
 	if len(resourceID) == 0 {
 		return

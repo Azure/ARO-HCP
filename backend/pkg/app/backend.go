@@ -1107,7 +1107,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterClusterServiceUpdateDispatchController.Run(ctx, 20)
 				go nodePoolClusterServiceUpdateDispatchController.Run(ctx, 20)
 				go externalAuthClusterServiceUpdateDispatchController.Run(ctx, 20)
-				go operationPhaseMetricsController.Run(ctx, 1)
+				go operationPhaseMetricsController.Run(ctx, 1) // threadiness=1 required; see operation_phase_metrics_controller.operationPhaseMetricsHandler field comments
 				go clusterMetricsController.Run(ctx, 1)
 				go clusterVersionMetricsController.Run(ctx, 1)
 				go nodePoolMetricsController.Run(ctx, 1)
