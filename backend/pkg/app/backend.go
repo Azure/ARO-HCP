@@ -622,6 +622,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 		b.clock,
 	)
+	clusterRequirementsValidAggregatorController := statuscontrollers.NewClusterRequirementsValidAggregatorController(
+		b.options.ResourcesDBClient,
+		clusterLister,
+		serviceProviderClusterLister,
+		backendInformers,
+	)
 	nodePoolDegradedAggregatorController := statuscontrollers.NewNodePoolDegradedAggregatorController(
 		b.options.ResourcesDBClient,
 		nodePoolLister,
@@ -629,6 +635,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 		b.clock,
+	)
+	nodePoolRequirementsValidAggregatorController := statuscontrollers.NewNodePoolRequirementsValidAggregatorController(
+		b.options.ResourcesDBClient,
+		nodePoolLister,
+		serviceProviderNodePoolLister,
+		backendInformers,
 	)
 	externalAuthDegradedAggregatorController := statuscontrollers.NewExternalAuthDegradedAggregatorController(
 		b.options.ResourcesDBClient,
@@ -892,7 +904,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterPropertiesSyncController.Run(ctx, 20)
 				go identityMigrationController.Run(ctx, 20)
 				go clusterDegradedAggregatorController.Run(ctx, 20)
+				go clusterRequirementsValidAggregatorController.Run(ctx, 20)
 				go nodePoolDegradedAggregatorController.Run(ctx, 20)
+				go nodePoolRequirementsValidAggregatorController.Run(ctx, 20)
 				go externalAuthDegradedAggregatorController.Run(ctx, 20)
 				go desiredControlPlaneSizeController.Run(ctx, 20)
 				go serviceProviderClusterPropertiesSyncController.Run(ctx, 20)
