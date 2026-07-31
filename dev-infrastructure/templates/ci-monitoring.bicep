@@ -11,18 +11,11 @@ param ciWorkspaceName string
 @description('Name of the shared CI HCP Azure Monitor Workspace')
 param ciHcpWorkspaceName string = ''
 
-@description('Resource ID of the Grafana instance to integrate with')
-param grafanaResourceId string
-
 @description('Whether to create HCP workspace for CI')
 param createHcpWorkspace bool = false
 
 @description('Principal ID of the Prometheus workload identity that will write metrics')
 param prometheusPrincipalId string
-
-import * as res from '../modules/resource.bicep'
-
-var grafanaRef = res.grafanaRefFromId(grafanaResourceId)
 
 // Shared CI Services Metrics Workspace
 resource ciMonitor 'microsoft.monitor/accounts@2021-06-03-preview' = {
@@ -145,34 +138,8 @@ resource ciHcpDcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = if (crea
   }
 }
 
-// Grafana Integration - Services Metrics
-var dataReader = 'b0d8363b-8ddd-447d-831f-62ca05bff136' // Monitoring Data Reader role
-
-resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' existing = {
-  name: grafanaRef.name
-  scope: resourceGroup(grafanaRef.resourceGroup.subscriptionId, grafanaRef.resourceGroup.name)
-}
-
-resource ciGrafanaRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(ciMonitor.id, grafana.id, dataReader)
-  scope: ciMonitor
-  properties: {
-    principalId: grafana.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', dataReader)
-  }
-}
-
-// Grafana Integration - HCP Metrics (if enabled)
-resource ciHcpGrafanaRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (createHcpWorkspace) {
-  name: guid(ciHcpMonitor.id, grafana.id, dataReader)
-  scope: ciHcpMonitor
-  properties: {
-    principalId: grafana.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', dataReader)
-  }
-}
+// Grafana-to-AMW integration (Monitoring Data Reader role assignments) is managed
+// by grafanactl via the GrafanaDatasources pipeline action, not bicep.
 
 // Prometheus Workload Identity - Grant Monitoring Metrics Publisher role on Services DCR
 var metricsPublisher = '3913510d-42f4-4e42-8a64-420c390055eb' // Monitoring Metrics Publisher role
