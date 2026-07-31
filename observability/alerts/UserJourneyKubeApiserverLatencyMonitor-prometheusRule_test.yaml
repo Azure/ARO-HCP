@@ -1,0 +1,252 @@
+rule_files:
+- HCPkasRecord-prometheusRule-apiserver-requests.yaml
+- HCPkasRecord-prometheusRule-latency.yaml
+- UserJourneyKubeApiserverLatencyMonitor-prometheusRule.yaml
+group_eval_order:
+- hcp-kas-apiserver-request-recording-rules
+- hcp-kas-latency-recording-rules
+- rp-userjourney-kas-latency-monitor-rules
+evaluation_interval: 1m
+tests:
+# Test 1: Normal operation - all requests within latency threshold (ratio=1.0), no alerts fire.
+# SLI ratio = 1.0, (1 - 1.0) = 0 < any threshold. No alert fires at eval_time=600m.
+- interval: 1m
+  name: "Test 1: Normal operation - perfect latency, no alerts fire"
+  input_series:
+  # Latency SLI: POST/resource, all 600/min complete within 1s threshold (ratio=1.0)
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource", le="1.0"}'
+    values: "0+600x600"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource", le="+Inf"}'
+    values: "0+600x600"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource"}'
+    values: "0+600x600"
+  # Traffic guard and provisioning guard: 600/min = 10 req/s
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="200", resource="pods", verb="POST"}'
+    values: "0+600x600"
+  alert_rule_test:
+  - eval_time: 600m
+    alertname: userJourneyKubeApiserverLatency1h5m
+    exp_alerts: []
+  - eval_time: 600m
+    alertname: userJourneyKubeApiserverLatency6h30m
+    exp_alerts: []
+  - eval_time: 600m
+    alertname: userJourneyKubeApiserverLatency3d6h
+    exp_alerts: []
+# Test 2: Fast burn - all requests exceed latency threshold (ratio=0.0).
+# (1 - 0.0) = 1.0 > 0.0072 fast threshold. Traffic at 10 req/s passes guard.
+# Provisioning guard: same offset 15m logic as error rate tests; guard first passes at T=16m.
+# for:2m timer starts at T=16m, fires at T=18m.
+#
+# Setup: le="1.0" bucket stays at 0 (counter never increments = no good requests).
+# Count metric at 600/min = all requests are slow.
+- interval: 1m
+  name: "Test 2: Fast burn - all requests exceed latency threshold, alert fires at ~18m"
+  input_series:
+  # No requests within 1s threshold (counter stays at 0 = rate 0)
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource", le="1.0"}'
+    values: "0+0x100" # constant counter = rate 0 = no good requests
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource", le="+Inf"}'
+    values: "0+600x100"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource"}'
+    values: "0+600x100" # 600/min total; ratio = 0/600 = 0
+  # Traffic guard and provisioning guard: 600/min = 10 req/s
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="200", resource="pods", verb="POST"}'
+    values: "0+600x100"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyKubeApiserverLatency1h5m
+    exp_alerts: [] # Provisioning guard not yet satisfied (T < 16m)
+  - eval_time: 17m
+    alertname: userJourneyKubeApiserverLatency1h5m
+    exp_alerts: [] # for: timer = 1m at T=17m (started at T=16m), not yet 2m
+  - eval_time: 18m
+    alertname: userJourneyKubeApiserverLatency1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: kas-latency
+        long_window: 1h
+        short_window: 5m
+        cluster: mgmt-cluster
+        namespace: ocm-aro-test
+      exp_annotations:
+        summary: "[HCPKASLatencyBurn] mgmt-cluster / ocm-aro-test (1h/5m)"
+        description: "Management Cluster: mgmt-cluster\nNamespace: ocm-aro-test\nLookup: use hcpctl to map namespace to cluster resource ID.\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverLatency/mgmt-cluster/ocm-aro-test"
+# Test 3: Medium burn - 0.4% bad latency (above 0.3% medium threshold, below 0.72% fast threshold).
+# ratio = 996/1000 = 0.996, (1 - 0.996) = 0.004.
+# Fast threshold: 0.0072 (0.72%). 0.004 < 0.0072 => fast does NOT fire.
+# Medium threshold: 0.003 (0.3%). 0.004 > 0.003 => medium fires at ~31m (16m guard + 15m for:).
+- interval: 1m
+  name: "Test 3: Medium burn - 0.4% bad latency triggers medium tier only at ~31m"
+  input_series:
+  # 996/1000 requests within 1s threshold (99.6% good latency = 0.4% bad)
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource", le="1.0"}'
+    values: "0+996x100"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource", le="+Inf"}'
+    values: "0+1000x100"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource"}'
+    values: "0+1000x100" # 1000/min; ratio = 996/1000 = 0.996
+  # Traffic guard: 1000/min = 16.67 req/s >> 1; passes guard
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="200", resource="pods", verb="POST"}'
+    values: "0+1000x100"
+  alert_rule_test:
+  - eval_time: 31m
+    alertname: userJourneyKubeApiserverLatency1h5m
+    exp_alerts: [] # 0.004 < 0.0072 fast threshold; fast does not fire
+  - eval_time: 30m
+    alertname: userJourneyKubeApiserverLatency6h30m
+    exp_alerts: [] # for: timer = 14m at T=30m (started at T=16m), not yet 15m
+  - eval_time: 31m
+    alertname: userJourneyKubeApiserverLatency6h30m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: kas-latency
+        long_window: 6h
+        short_window: 30m
+        cluster: mgmt-cluster
+        namespace: ocm-aro-test
+      exp_annotations:
+        summary: "[HCPKASLatencyBurn] mgmt-cluster / ocm-aro-test (6h/30m)"
+        description: "Management Cluster: mgmt-cluster\nNamespace: ocm-aro-test\nLookup: use hcpctl to map namespace to cluster resource ID.\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverLatency/mgmt-cluster/ocm-aro-test"
+# Test 4: Low traffic guard - 0% good latency but only 0.5 req/s (below > 1 guard).
+# Traffic guard (kas:apiserver_request_total:rate_avg_5m > 1) suppresses all alerts.
+- interval: 1m
+  name: "Test 4: Low traffic guard suppresses alert at 0.5 req/s despite 100% bad latency"
+  input_series:
+  # le="1.0" stays at 0 = ratio 0 = all requests slow
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource", le="1.0"}'
+    values: "0+0x100"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource", le="+Inf"}'
+    values: "0+30x100"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource"}'
+    values: "0+30x100"
+  # Traffic guard: 30/min = 0.5 req/s < 1; guard blocks alert
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="200", resource="pods", verb="POST"}'
+    values: "0+30x100"
+  alert_rule_test:
+  - eval_time: 60m
+    alertname: userJourneyKubeApiserverLatency1h5m
+    exp_alerts: [] # Traffic guard (kas:apiserver_request_total:rate_avg_5m > 1) suppresses alert
+  - eval_time: 60m
+    alertname: userJourneyKubeApiserverLatency6h30m
+    exp_alerts: []
+# Test 5: Recovery - fast alert fires during burn then resolves after short window clears.
+# All requests exceed threshold for 30m, then perfect latency. Alert fires at ~18m.
+# After good latency resumes, 5m window fills with good requests; alert resolves.
+- interval: 1m
+  name: "Test 5: Recovery - fast alert fires during burn and resolves after short window clears"
+  input_series:
+  # le="1.0" stays 0 for 30m (all bad), then matches count (all good)
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource", le="1.0"}'
+    values: "0+0x30 0+600x200" # 0 good for 30m, then 600/min good
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource", le="+Inf"}'
+    values: "0+600x230"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource"}'
+    values: "0+600x230"
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="200", resource="pods", verb="POST"}'
+    values: "0+600x230"
+  alert_rule_test:
+  - eval_time: 18m
+    alertname: userJourneyKubeApiserverLatency1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: kas-latency
+        long_window: 1h
+        short_window: 5m
+        cluster: mgmt-cluster
+        namespace: ocm-aro-test
+      exp_annotations:
+        summary: "[HCPKASLatencyBurn] mgmt-cluster / ocm-aro-test (1h/5m)"
+        description: "Management Cluster: mgmt-cluster\nNamespace: ocm-aro-test\nLookup: use hcpctl to map namespace to cluster resource ID.\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverLatency/mgmt-cluster/ocm-aro-test"
+  - eval_time: 40m # 10m after good latency resumed; 5m short window contains only good requests
+    alertname: userJourneyKubeApiserverLatency1h5m
+    exp_alerts: [] # Short window clean; for: timer resets; alert resolves
+# Test 6: Slow burn - 0.06% bad latency (above 0.05% slow threshold).
+# ratio = 9994/10000 = 0.9994, (1 - 0.9994) = 0.0006.
+# Fast threshold: 0.0072. 0.0006 < 0.0072 => fast does NOT fire.
+# Medium threshold: 0.003. 0.0006 < 0.003 => medium does NOT fire.
+# Slow threshold: 0.0005. 0.0006 > 0.0005 => slow fires at ~76m (16m guard + 60m for:).
+- interval: 1m
+  name: "Test 6: Slow burn - 0.06% bad latency triggers slow tier at ~76m, fast/medium silent"
+  input_series:
+  # 9994/10000 requests within 1s threshold (99.94% good latency = 0.06% bad)
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource", le="1.0"}'
+    values: "0+9994x200"
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource", le="+Inf"}'
+    values: "0+10000x200"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="mgmt-cluster", namespace="ocm-aro-test", verb="POST", scope="resource"}'
+    values: "0+10000x200" # ratio = 9994/10000 = 0.9994
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="200", resource="pods", verb="POST"}'
+    values: "0+10000x200" # 10000/min = 166.7 req/s >> 1; traffic guard passes
+  alert_rule_test:
+  - eval_time: 18m
+    alertname: userJourneyKubeApiserverLatency1h5m
+    exp_alerts: [] # 0.0006 < 0.0072 fast threshold
+  - eval_time: 31m
+    alertname: userJourneyKubeApiserverLatency6h30m
+    exp_alerts: [] # 0.0006 < 0.003 medium threshold
+  - eval_time: 75m
+    alertname: userJourneyKubeApiserverLatency3d6h
+    exp_alerts: [] # for: timer = 59m at T=75m (started at T=16m), not yet 1h
+  - eval_time: 76m
+    alertname: userJourneyKubeApiserverLatency3d6h
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: kas-latency
+        long_window: 3d
+        short_window: 6h
+        cluster: mgmt-cluster
+        namespace: ocm-aro-test
+      exp_annotations:
+        summary: "[HCPKASLatencyBurn] mgmt-cluster / ocm-aro-test (3d/6h)"
+        description: "Management Cluster: mgmt-cluster\nNamespace: ocm-aro-test\nLookup: use hcpctl to map namespace to cluster resource ID.\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverLatency/mgmt-cluster/ocm-aro-test"
+# Test 7: Newly provisioned cluster - provisioning guard prevents early firing.
+# All requests exceed threshold from t=0. rate(metric[5m] offset 15m) at T examines
+# (T-20m, T-15m]. With 1m scrape interval and data from t=0, that window contains
+# 2 samples (t=0, t=1m) for the first time at T=16m.
+# Without guard, fast burn + for:2m would fire at ~7m. With guard, fires at ~18m.
+- interval: 1m
+  name: "Test 7: Newly provisioned cluster - provisioning guard delays firing from ~7m to ~18m"
+  input_series:
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-new", verb="POST", scope="resource", le="1.0"}'
+    values: "0+0x100" # no good requests (ratio = 0)
+  - series: 'apiserver_request_sli_duration_seconds_bucket{cluster="mgmt-cluster", namespace="ocm-aro-new", verb="POST", scope="resource", le="+Inf"}'
+    values: "0+600x100"
+  - series: 'apiserver_request_sli_duration_seconds_count{cluster="mgmt-cluster", namespace="ocm-aro-new", verb="POST", scope="resource"}'
+    values: "0+600x100"
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-new", code="200", resource="pods", verb="POST"}'
+    values: "0+600x100"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: userJourneyKubeApiserverLatency1h5m
+    exp_alerts: [] # Would fire without guard (burn satisfied, for:2m elapsed); guard blocks until T=16m
+  - eval_time: 15m
+    alertname: userJourneyKubeApiserverLatency1h5m
+    exp_alerts: [] # Provisioning guard not yet satisfied (T < 16m)
+  - eval_time: 18m
+    alertname: userJourneyKubeApiserverLatency1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: kas-latency
+        long_window: 1h
+        short_window: 5m
+        cluster: mgmt-cluster
+        namespace: ocm-aro-new
+      exp_annotations:
+        summary: "[HCPKASLatencyBurn] mgmt-cluster / ocm-aro-new (1h/5m)"
+        description: "Management Cluster: mgmt-cluster\nNamespace: ocm-aro-new\nLookup: use hcpctl to map namespace to cluster resource ID.\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverLatency/mgmt-cluster/ocm-aro-new"

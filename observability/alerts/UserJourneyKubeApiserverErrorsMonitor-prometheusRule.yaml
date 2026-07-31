@@ -1,0 +1,112 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: userjourney-kubeapiserver-errors-alerts
+  namespace: prometheus
+spec:
+  groups:
+  - name: rp-userjourney-kas-errors-monitor-rules
+    rules:
+    - alert: userJourneyKubeApiserverErrors1h5m
+      expr: |
+        (
+          kas:apiserver_request_5xx:rate_avg_5m / kas:apiserver_request_total:rate_avg_5m
+          > (14.4 * (1 - 0.9995))
+          and on (namespace, cluster)
+          kas:apiserver_request_total:rate_avg_5m > 1
+        )
+        and on (namespace, cluster)
+        (
+          kas:apiserver_request_5xx:rate_avg_1h / kas:apiserver_request_total:rate_avg_1h
+          > (14.4 * (1 - 0.9995))
+          and on (namespace, cluster)
+          kas:apiserver_request_total:rate_avg_1h > 1
+        )
+        and on (namespace, cluster)
+        (sum by (namespace, cluster) (rate(apiserver_request_total{namespace=~"ocm-.*"}[5m] offset 15m)) > 0)
+      # for: 2m follows the SRE workbook recommendation for rate-based SLIs.
+      # The availability alerts use for: 10m because KSM gauge metrics are
+      # noisier than rate-based whitebox metrics; the shorter duration here
+      # reflects the higher signal fidelity of apiserver_request_total.
+      for: 2m
+      labels:
+        long_window: 1h
+        short_window: 5m
+        severity: "3"
+        slo: kas-errors
+      annotations:
+        summary: "[HCPKASErrorsBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (1h/5m)"
+        description: |
+          Management Cluster: {{ $labels.cluster }}
+          Namespace: {{ $labels.namespace }}
+          Lookup: use hcpctl to map namespace to cluster resource ID.
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverErrors/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    - alert: userJourneyKubeApiserverErrors6h30m
+      expr: |
+        (
+          kas:apiserver_request_5xx:rate_avg_30m / kas:apiserver_request_total:rate_avg_30m
+          > (6 * (1 - 0.9995))
+          and on (namespace, cluster)
+          kas:apiserver_request_total:rate_avg_30m > 1
+        )
+        and on (namespace, cluster)
+        (
+          kas:apiserver_request_5xx:rate_avg_6h / kas:apiserver_request_total:rate_avg_6h
+          > (6 * (1 - 0.9995))
+          and on (namespace, cluster)
+          kas:apiserver_request_total:rate_avg_6h > 1
+        )
+        and on (namespace, cluster)
+        (sum by (namespace, cluster) (rate(apiserver_request_total{namespace=~"ocm-.*"}[5m] offset 15m)) > 0)
+      # for: 15m follows the SRE workbook recommendation for rate-based SLIs.
+      # See fast burn comment for rationale on shorter for: vs availability alerts.
+      for: 15m
+      labels:
+        long_window: 6h
+        short_window: 30m
+        severity: "3"
+        slo: kas-errors
+      annotations:
+        summary: "[HCPKASErrorsBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (6h/30m)"
+        description: |
+          Management Cluster: {{ $labels.cluster }}
+          Namespace: {{ $labels.namespace }}
+          Lookup: use hcpctl to map namespace to cluster resource ID.
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverErrors/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    - alert: userJourneyKubeApiserverErrors3d6h
+      expr: |
+        (
+          kas:apiserver_request_5xx:rate_avg_6h / kas:apiserver_request_total:rate_avg_6h
+          > (1 * (1 - 0.9995))
+          and on (namespace, cluster)
+          kas:apiserver_request_total:rate_avg_6h > 1
+        )
+        and on (namespace, cluster)
+        (
+          kas:apiserver_request_5xx:rate_avg_3d / kas:apiserver_request_total:rate_avg_3d
+          > (1 * (1 - 0.9995))
+          and on (namespace, cluster)
+          kas:apiserver_request_total:rate_avg_3d > 1
+        )
+        and on (namespace, cluster)
+        (sum by (namespace, cluster) (rate(apiserver_request_total{namespace=~"ocm-.*"}[5m] offset 15m)) > 0)
+      # ADR-001 recommends slow tier = single 3d window, severity: "4".
+      # This PR uses 3d/6h dual window and severity: "3" for consistency
+      # with the existing availability slow tier on this branch. A follow-up
+      # PR should align all KAS slow-burn alerts to ADR spec together.
+      for: 1h
+      labels:
+        long_window: 3d
+        short_window: 6h
+        severity: "3"
+        slo: kas-errors
+      annotations:
+        summary: "[HCPKASErrorsBurn] {{ $labels.cluster }} / {{ $labels.namespace }} (3d/6h)"
+        description: |
+          Management Cluster: {{ $labels.cluster }}
+          Namespace: {{ $labels.namespace }}
+          Lookup: use hcpctl to map namespace to cluster resource ID.
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverErrors/{{ $labels.cluster }}/{{ $labels.namespace }}"

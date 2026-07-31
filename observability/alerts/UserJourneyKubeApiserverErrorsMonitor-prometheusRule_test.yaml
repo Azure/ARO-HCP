@@ -1,0 +1,206 @@
+rule_files:
+- HCPkasRecord-prometheusRule-apiserver-requests.yaml
+- UserJourneyKubeApiserverErrorsMonitor-prometheusRule.yaml
+group_eval_order:
+- hcp-kas-apiserver-request-recording-rules
+- rp-userjourney-kas-errors-monitor-rules
+evaluation_interval: 1m
+tests:
+# Test 1: Normal operation - healthy traffic (all 200s), no alerts should fire.
+# At eval_time=600m all windows contain only successful requests; error rate is 0.
+- interval: 1m
+  name: "Test 1: Normal operation - zero errors, no alerts fire"
+  input_series:
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="200", resource="pods", verb="GET"}'
+    values: "0+600x600" # 600 req/min for 600m
+  alert_rule_test:
+  - eval_time: 600m
+    alertname: userJourneyKubeApiserverErrors1h5m
+    exp_alerts: []
+  - eval_time: 600m
+    alertname: userJourneyKubeApiserverErrors6h30m
+    exp_alerts: []
+  - eval_time: 600m
+    alertname: userJourneyKubeApiserverErrors3d6h
+    exp_alerts: []
+# Test 2: Fast burn - sustained 1% error rate (threshold: 0.72%).
+# Traffic: total 10 req/s (600/min), 5xx 0.1 req/s (6/min), 1% error rate.
+# Burn condition satisfies at ~5m once rate5m stabilizes.
+# Provisioning guard: rate(metric[5m] offset 15m) needs 2 samples in (T-20m, T-15m].
+# With data from t=0 and 1m interval, window (-4m, 1m] has 2 samples (t=0, t=1m) at T=16m.
+# Guard first passes at T=16m. for:2m timer starts at T=16m, fires at T=18m.
+- interval: 1m
+  name: "Test 2: Fast burn - 1% error rate triggers userJourneyKubeApiserverErrors1h5m at ~18m"
+  input_series:
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="200", resource="pods", verb="GET"}'
+    values: "0+594x100" # 594 req/min (9.9 req/s) successful
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="500", resource="pods", verb="GET"}'
+    values: "0+6x100" # 6 req/min (0.1 req/s) 5xx; error rate = 6/600 = 1%
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneyKubeApiserverErrors1h5m
+    exp_alerts: [] # Provisioning guard not yet satisfied (T < 16m)
+  - eval_time: 17m
+    alertname: userJourneyKubeApiserverErrors1h5m
+    exp_alerts: [] # for: timer = 1m at T=17m (started at T=16m), not yet 2m
+  - eval_time: 18m
+    alertname: userJourneyKubeApiserverErrors1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: kas-errors
+        long_window: 1h
+        short_window: 5m
+        cluster: mgmt-cluster
+        namespace: ocm-aro-test
+      exp_annotations:
+        summary: "[HCPKASErrorsBurn] mgmt-cluster / ocm-aro-test (1h/5m)"
+        description: "Management Cluster: mgmt-cluster\nNamespace: ocm-aro-test\nLookup: use hcpctl to map namespace to cluster resource ID.\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverErrors/mgmt-cluster/ocm-aro-test"
+# Test 3: Medium burn - sustained 0.4% error rate.
+# Threshold: fast = 0.72%, medium = 0.30%. 0.4% is above medium, below fast.
+# Traffic: total 1000 req/min (16.67 req/s), 5xx 4 req/min (0.067 req/s), 0.4% error rate.
+# Fast tier must NOT fire. Medium tier fires at ~31m (16m guard + 15m for:).
+- interval: 1m
+  name: "Test 3: Medium burn - 0.4% error rate triggers medium tier only at ~31m"
+  input_series:
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="200", resource="pods", verb="GET"}'
+    values: "0+996x100" # 996 req/min (16.6 req/s) successful
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="500", resource="pods", verb="GET"}'
+    values: "0+4x100" # 4 req/min (0.067 req/s) 5xx; error rate = 4/1000 = 0.4%
+  alert_rule_test:
+  - eval_time: 31m
+    alertname: userJourneyKubeApiserverErrors1h5m
+    exp_alerts: [] # 0.4% < 0.72% fast threshold, fast tier does not fire
+  - eval_time: 30m
+    alertname: userJourneyKubeApiserverErrors6h30m
+    exp_alerts: [] # for: timer = 14m at T=30m (started at T=16m), not yet 15m
+  - eval_time: 31m
+    alertname: userJourneyKubeApiserverErrors6h30m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: kas-errors
+        long_window: 6h
+        short_window: 30m
+        cluster: mgmt-cluster
+        namespace: ocm-aro-test
+      exp_annotations:
+        summary: "[HCPKASErrorsBurn] mgmt-cluster / ocm-aro-test (6h/30m)"
+        description: "Management Cluster: mgmt-cluster\nNamespace: ocm-aro-test\nLookup: use hcpctl to map namespace to cluster resource ID.\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverErrors/mgmt-cluster/ocm-aro-test"
+# Test 4: Low traffic guard - 100% error rate but only 0.5 req/s (below > 1 guard).
+# Counter: 30 req/min total (0.5 req/s), all 5xx. Guard suppresses all alerts.
+- interval: 1m
+  name: "Test 4: Low traffic guard suppresses alert at 0.5 req/s despite 100% error rate"
+  input_series:
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="500", resource="pods", verb="GET"}'
+    values: "0+30x100" # 30 req/min = 0.5 req/s, all 5xx; traffic guard (> 1) blocks alert
+  alert_rule_test:
+  - eval_time: 60m
+    alertname: userJourneyKubeApiserverErrors1h5m
+    exp_alerts: [] # Traffic guard (kas:apiserver_request_total:rate_avg_5m > 1) suppresses alert
+  - eval_time: 60m
+    alertname: userJourneyKubeApiserverErrors6h30m
+    exp_alerts: []
+# Test 5: Recovery - fast alert fires during burn then resolves after short window clears.
+# 1% error rate for 30m (600/min total, 6/min 5xx), then clean traffic.
+# Fast alert fires at ~18m. After errors stop, 5m short window clears; alert resolves.
+- interval: 1m
+  name: "Test 5: Recovery - fast alert fires during burn and resolves after short window clears"
+  input_series:
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="200", resource="pods", verb="GET"}'
+    values: "0+594x30 1770+600x200" # 594/min for 30m (1% err), then 600/min clean
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="500", resource="pods", verb="GET"}'
+    values: "0+6x30 180+0x200" # 6/min 5xx for 30m, then counter stays flat (no new 5xx)
+  alert_rule_test:
+  - eval_time: 18m
+    alertname: userJourneyKubeApiserverErrors1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: kas-errors
+        long_window: 1h
+        short_window: 5m
+        cluster: mgmt-cluster
+        namespace: ocm-aro-test
+      exp_annotations:
+        summary: "[HCPKASErrorsBurn] mgmt-cluster / ocm-aro-test (1h/5m)"
+        description: "Management Cluster: mgmt-cluster\nNamespace: ocm-aro-test\nLookup: use hcpctl to map namespace to cluster resource ID.\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverErrors/mgmt-cluster/ocm-aro-test"
+  - eval_time: 40m # 10m after errors stopped; 5m short window contains only clean traffic
+    alertname: userJourneyKubeApiserverErrors1h5m
+    exp_alerts: [] # Short window clean; for: timer resets; alert resolves
+# Test 6: Slow burn - sustained 0.06% error rate (above 0.05% slow threshold).
+# Total 10000 req/min (166.7 req/s), 6 req/min 5xx = 0.06% error rate.
+# Fast threshold: 0.72%, medium threshold: 0.30%, slow threshold: 0.05%.
+# 0.06% is above slow threshold only. Slow tier fires at ~76m (16m guard + 60m for:).
+- interval: 1m
+  name: "Test 6: Slow burn - 0.06% error rate triggers slow tier at ~76m, fast/medium silent"
+  input_series:
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="200", resource="pods", verb="GET"}'
+    values: "0+9994x200" # 9994 req/min (166.6 req/s) successful
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-test", code="500", resource="pods", verb="GET"}'
+    values: "0+6x200" # 6 req/min (0.1 req/s) 5xx; error rate = 6/10000 = 0.06%
+  alert_rule_test:
+  - eval_time: 18m
+    alertname: userJourneyKubeApiserverErrors1h5m
+    exp_alerts: [] # 0.06% < 0.72% fast threshold
+  - eval_time: 31m
+    alertname: userJourneyKubeApiserverErrors6h30m
+    exp_alerts: [] # 0.06% < 0.30% medium threshold
+  - eval_time: 75m
+    alertname: userJourneyKubeApiserverErrors3d6h
+    exp_alerts: [] # for: timer = 59m at T=75m (started at T=16m), not yet 1h
+  - eval_time: 76m
+    alertname: userJourneyKubeApiserverErrors3d6h
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: kas-errors
+        long_window: 3d
+        short_window: 6h
+        cluster: mgmt-cluster
+        namespace: ocm-aro-test
+      exp_annotations:
+        summary: "[HCPKASErrorsBurn] mgmt-cluster / ocm-aro-test (3d/6h)"
+        description: "Management Cluster: mgmt-cluster\nNamespace: ocm-aro-test\nLookup: use hcpctl to map namespace to cluster resource ID.\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverErrors/mgmt-cluster/ocm-aro-test"
+# Test 7: Newly provisioned cluster - provisioning guard prevents early firing.
+# 1% error rate from t=0. rate(metric[5m] offset 15m) at T examines (T-20m, T-15m].
+# With 1m scrape interval and data from t=0, that window contains 2 samples (t=0, t=1m)
+# for the first time at T=16m. Guard first passes at T=16m.
+# Without guard, fast burn + for:2m would fire at ~7m. With guard, fires at ~18m.
+- interval: 1m
+  name: "Test 7: Newly provisioned cluster - provisioning guard delays firing from ~7m to ~18m"
+  input_series:
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-new", code="200", resource="pods", verb="GET"}'
+    values: "0+594x100" # 594 req/min (9.9 req/s) successful
+  - series: 'apiserver_request_total{cluster="mgmt-cluster", namespace="ocm-aro-new", code="500", resource="pods", verb="GET"}'
+    values: "0+6x100" # 6 req/min (0.1 req/s) 5xx; 1% error rate
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: userJourneyKubeApiserverErrors1h5m
+    exp_alerts: [] # Would fire without guard (burn satisfied, for:2m elapsed); guard blocks until T=16m
+  - eval_time: 15m
+    alertname: userJourneyKubeApiserverErrors1h5m
+    exp_alerts: [] # Provisioning guard not yet satisfied (T < 16m)
+  - eval_time: 18m
+    alertname: userJourneyKubeApiserverErrors1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: kas-errors
+        long_window: 1h
+        short_window: 5m
+        cluster: mgmt-cluster
+        namespace: ocm-aro-new
+      exp_annotations:
+        summary: "[HCPKASErrorsBurn] mgmt-cluster / ocm-aro-new (1h/5m)"
+        description: "Management Cluster: mgmt-cluster\nNamespace: ocm-aro-new\nLookup: use hcpctl to map namespace to cluster resource ID.\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "userJourneyKubeApiserverErrors/mgmt-cluster/ocm-aro-new"

@@ -25,7 +25,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "# HCP KAS Golden Signals\n\n**Three-Tier Alerting Model:**\n\n- **Tier 1 — SLA (99.95% availability)**: Per the ARO SLA, KAS availability is measured via the KSM hostedClusterAPI_kubeapiserver_available signal (interim Tier 1 SLI while awaiting HyperShift blackbox probe RFE). SLI: `hostedClusterAPI_kubeapiserver_available` (KSM). Alerts: `hostedcluster-KubeAPIServer-Outage`.\n- **Tier 2 — Internal Error Rate SLO (99.9%)**: Whitebox 5xx rate on `apiserver_request_total`. Alerts: `HCPKASErrorRateBurnFast/Medium/Slow`. Fires before Tier 1 to enable proactive response.\n- **Tier 3 — Internal Latency SLO (99.9%)**: Request latency against upstream K8s thresholds. Alerts: `HCPKASLatencyBurnFast/Medium/Slow` (planned — defined in a separate alerting component, not yet deployed).\n\n**Runbook**: See [HCP Metrics SRE Guide](https://github.com/Azure/ARO-HCP/blob/main/docs/sre/hcp-metrics.md) for burn rate thresholds and response procedures.",
+        "content": "# HCP KAS Golden Signals\n\n**Three-Tier Alerting Model:**\n\n- **Tier 1 — SLA (99.95% availability)**: Per the ARO SLA, KAS availability is measured via the KSM hostedClusterAPI_kubeapiserver_available signal (interim Tier 1 SLI while awaiting HyperShift blackbox probe RFE). SLI: `hostedClusterAPI_kubeapiserver_available` (KSM). Alerts: `hostedcluster-KubeAPIServer-Outage`.\n- **Tier 2 — Internal Error Rate SLO (99.95%)**: Whitebox 5xx rate on `apiserver_request_total`. Alerts: `userJourneyKubeApiserverErrors1h5m/6h30m/3d6h`. Fires before Tier 1 to enable proactive response.\n- **Tier 3 — Internal Latency SLO (99.95%)**: Request latency against upstream K8s thresholds. Alerts: `userJourneyKubeApiserverLatency1h5m/6h30m/3d6h`.\n\n**Runbook**: See [HCP Metrics SRE Guide](https://github.com/Azure/ARO-HCP/blob/main/docs/sre/hcp-metrics.md) for burn rate thresholds and response procedures.",
         "mode": "markdown"
       },
       "pluginVersion": "10.0.0",
@@ -308,7 +308,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(\n  sum by (namespace) (\n    kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n  )\n  /\n  sum by (namespace) (\n    kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n  )\n) / (1 - 0.999)",
+          "expr": "(\n  sum by (namespace) (\n    kas:apiserver_request_5xx:rate_avg_1h{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n  )\n  /\n  sum by (namespace) (\n    kas:apiserver_request_total:rate_avg_1h{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n  )\n) / (1 - 0.9995)",
           "legendFormat": "1h: {{ namespace }}",
           "refId": "A"
         },
@@ -317,7 +317,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(\n  sum by (namespace) (\n    kas:apiserver_request_5xx:rate_avg_6h{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n  )\n  /\n  sum by (namespace) (\n    kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n  )\n) / (1 - 0.999)",
+          "expr": "(\n  sum by (namespace) (\n    kas:apiserver_request_5xx:rate_avg_6h{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n  )\n  /\n  sum by (namespace) (\n    kas:apiserver_request_total:rate_avg_6h{cluster=~\"$cluster\", namespace=~\"$namespace\"}\n  )\n) / (1 - 0.9995)",
           "legendFormat": "6h: {{ namespace }}",
           "refId": "B"
         },
@@ -348,7 +348,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Ratio of requests completing within their latency threshold (mutating: 1s, namespace-scope: 5s, cluster-scope: 30s). WATCH excluded. SLO target: 99.9%. Value below 0.999 contributes to latency error budget burn.",
+      "description": "Ratio of requests completing within their latency threshold (mutating: 1s, namespace-scope: 5s, cluster-scope: 30s). WATCH excluded. SLO target: 99.95%. Value below 0.9995 contributes to latency error budget burn.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -368,7 +368,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "SLO Target (99.9%)"
+              "options": "SLO Target (99.95%)"
             },
             "properties": [
               {
@@ -434,8 +434,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "0.999",
-          "legendFormat": "SLO Target (99.9%)",
+          "expr": "0.9995",
+          "legendFormat": "SLO Target (99.95%)",
           "refId": "B",
           "hide": false
         }
@@ -446,7 +446,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Latency error budget burn rate. Values above 14.4 trigger HCPKASLatencyBurnFast. Values above 6 trigger HCPKASLatencyBurnMedium.",
+      "description": "Latency error budget burn rate. Values above 14.4 trigger userJourneyKubeApiserverLatency1h5m. Values above 6 trigger userJourneyKubeApiserverLatency6h30m.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -530,7 +530,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(\n  1\n  -\n  sum by (namespace) (kas:apiserver_request_latency:sli_ratio:rate_avg_1h{cluster=~\"$cluster\", namespace=~\"$namespace\"})\n) / (1 - 0.999)",
+          "expr": "(\n  1\n  -\n  sum by (namespace) (kas:apiserver_request_latency:sli_ratio:rate_avg_1h{cluster=~\"$cluster\", namespace=~\"$namespace\"})\n) / (1 - 0.9995)",
           "legendFormat": "1h: {{ namespace }}",
           "refId": "A"
         },
@@ -539,7 +539,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(\n  1\n  -\n  sum by (namespace) (kas:apiserver_request_latency:sli_ratio:rate_avg_6h{cluster=~\"$cluster\", namespace=~\"$namespace\"})\n) / (1 - 0.999)",
+          "expr": "(\n  1\n  -\n  sum by (namespace) (kas:apiserver_request_latency:sli_ratio:rate_avg_6h{cluster=~\"$cluster\", namespace=~\"$namespace\"})\n) / (1 - 0.9995)",
           "legendFormat": "6h: {{ namespace }}",
           "refId": "B"
         },
@@ -590,7 +590,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "SLO Target (99.9%)"
+              "options": "SLO Target (99.95%)"
             },
             "properties": [
               {
@@ -683,8 +683,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "0.999",
-          "legendFormat": "SLO Target (99.9%)",
+          "expr": "0.9995",
+          "legendFormat": "SLO Target (99.95%)",
           "refId": "E",
           "hide": false
         }
@@ -729,7 +729,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "SLO Threshold (99.9%)"
+              "options": "SLO Threshold (99.95%)"
             },
             "properties": [
               {
@@ -795,8 +795,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "0.001",
-          "legendFormat": "SLO Threshold (99.9%)",
+          "expr": "0.0005",
+          "legendFormat": "SLO Threshold (99.95%)",
           "refId": "B",
           "hide": false
         }
