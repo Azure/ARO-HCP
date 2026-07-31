@@ -76,7 +76,7 @@ clouds:
         defaults:
           # Carry the environment in the subscription display names for stage, so the
           # stg subscriptions are distinguishable from the identically-named prod ones.
-          # The base config.yaml default omits the environment (that stays as prod);
+          # The base config.yaml default omits the environment, so prod is unchanged;
           # this only overrides stage, matching the global sub which already includes it.
           svc:
             subscription:
