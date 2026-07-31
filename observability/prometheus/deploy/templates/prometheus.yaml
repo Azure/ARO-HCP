@@ -97,6 +97,13 @@ spec:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    {{- /*
+      Spread the replicas of each individual shard across nodes so losing one
+      node cannot take down both replicas of a shard. OnShard makes the operator
+      append the per-shard label to the selector above. Soft (ScheduleAnyway) so
+      it never blocks scheduling when nodes are scarce.
+    */}}
+    additionalLabelSelectors: OnShard
   walCompression: true
   externalLabels:
     cluster: '{{ .Values.prometheusSpec.externalLabels.cluster }}'

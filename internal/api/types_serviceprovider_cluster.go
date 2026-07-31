@@ -172,6 +172,81 @@ type ServiceProviderClusterStatus struct {
 	// is no signal on Spec alone that dispatch still needs to clear the CS
 	// property.
 	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
+
+	// HostedClusterNamespace is the namespace of the actual HostedCluster.  It contains things like
+	//  - HostedCluster CR — the primary user-facing API object
+	//  - NodePool CRs — user creates these here
+	//  - User-provided secrets — pull secret, SSH key, cloud credentials, encryption secrets, etcd encryption key, audit webhook config, additional trust bundles, service account signing key
+	//  - Generated kubeconfig secrets — admin-kubeconfig (copied back from HCP namespace), kubeadmin-password
+	//  - EtcdBackup CRs (if used)
+	// Written by: ServiceProviderClusterPropertiesSync
+	HostedClusterNamespace string `json:"hostedClusterNamespace,omitempty"`
+
+	// ControlPlaneNamespace is the namespace containing the pods that manage and run the HostedCluster.  It contains things like
+	//  - etcd
+	//  - kube-apiserver
+	//  - control-plane-operator
+	//  - control-plane-pki-operator
+	// it is derived as <hostedClusterNamespace>-<hostedClusterName> with dots replaced by dashes.
+	// Hypershift uses the HostedControlPlaneNamespace function.
+	// Written by: ServiceProviderClusterPropertiesSync
+	ControlPlaneNamespace string `json:"controlPlaneNamespace,omitempty"`
+
+	// ServingCABundle is the PEM-encoded serving CA bundle for the cluster's
+	// kube-apiserver. Populated from a ReadDesire mirror of the management
+	// cluster's serving CA Secret.
+	// Written by: ServiceProviderClusterPropertiesSync
+	ServingCABundle string `json:"servingCABundle,omitempty"`
+
+	// AzureResources tracks the lifecycle of Azure resources associated with
+	// the cluster, including deny assignments and the managed resource group.
+	AzureResources AzureResources `json:"azureResources,omitempty"`
+}
+
+// AzureResources groups the Azure resource references associated with a cluster.
+type AzureResources struct {
+	// DenyAssignments tracks the deny assignments applied to the cluster's resources.
+	DenyAssignments AzureMultiReference `json:"denyAssignments,omitempty"`
+	// ManagedResourceGroup tracks the managed resource group for the cluster.
+	ManagedResourceGroup AzureReference `json:"managedResourceGroup,omitempty"`
+}
+
+// AzureMultiReference tracks a set of Azure resources through their creation lifecycle.
+// PendingAzureResources holds resource IDs that have been requested but not yet confirmed;
+// AzureResources holds resource IDs that have been confirmed to exist.
+type AzureMultiReference struct {
+	// PendingAzureResources contains resource IDs that have been requested but
+	// not yet confirmed to exist in Azure.
+	PendingAzureResources []*azcorearm.ResourceID `json:"pendingAzureResources,omitempty"`
+	// AzureResources contains resource IDs that have been confirmed to exist in Azure.
+	AzureResources []*azcorearm.ResourceID `json:"azureResources,omitempty"`
+	// EarliestRecheckTime is the earliest time at which the controller should
+	// re-check the pending resources. Nil means recheck immediately.
+	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
+	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% is considered normal
+	// so that any storms are quickly dissipated.
+	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
+	// six hours is, with durations up to 24 hours considered normal.
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+}
+
+// AzureReference tracks a single Azure resource through its creation lifecycle.
+// PendingAzureResources holds a resource ID that has been requested but not yet confirmed;
+// AzureResources holds a resource ID that has been confirmed to exist.
+type AzureReference struct {
+	// PendingAzureResource is the resource ID that has been requested but
+	// not yet confirmed to exist in Azure.
+	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
+	// AzureResource is the resource ID that has been confirmed to exist in Azure.
+	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
+	// EarliestRecheckTime is the earliest time at which the controller should
+	// re-check the pending resources. Nil means recheck immediately.
+	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
+	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% is considered normal
+	// so that any storms are quickly dissipated.
+	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
+	// six hours is, with durations up to 24 hours considered normal.
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
@@ -300,4 +375,8 @@ const (
 	// MaestroBundleInternalNameReadonlyHypershiftHostedCluster is the internal name of the Maestro Bundle that represents
 	// the Cluster's Hypershift's HostedCluster K8s resource.
 	MaestroBundleInternalNameReadonlyHypershiftHostedCluster MaestroBundleInternalName = "readonlyHypershiftHostedCluster"
+
+	// ReadonlyHypershiftControlPlaneComponentClusterAutoscaler is the internal name of the ReadDesire that mirrors
+	// the cluster-autoscaler ControlPlaneComponent on the management cluster control plane namespace.
+	ReadonlyHypershiftControlPlaneComponentClusterAutoscaler MaestroBundleInternalName = "readonlyHypershiftControlPlaneComponentClusterAutoscaler"
 )

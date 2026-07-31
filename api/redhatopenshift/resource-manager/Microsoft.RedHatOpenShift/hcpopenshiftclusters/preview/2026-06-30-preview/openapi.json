@@ -1690,6 +1690,22 @@
           "description": "The Key Management Service (KMS) encryption key details.\n\nRequired when encryptionType is \"KMS\".",
           "x-ms-mutability": [
             "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "CustomerManagedEncryptionProfileUpdate": {
+      "type": "object",
+      "description": "Customer managed encryption key profile.",
+      "properties": {
+        "kms": {
+          "$ref": "#/definitions/KmsEncryptionProfileUpdate",
+          "description": "The Key Management Service (KMS) encryption key details.\n\nRequired when encryptionType is \"KMS\".",
+          "x-ms-mutability": [
+            "read",
+            "update",
             "create"
           ]
         }
@@ -1758,34 +1774,31 @@
         ]
       }
     },
+    "EtcdDataEncryptionKeyManagementModeType": {
+      "type": "string",
+      "description": "The encryption key management mode types supported for ETCD data encryption.",
+      "enum": [
+        "CustomerManaged"
+      ],
+      "x-ms-enum": {
+        "name": "EtcdDataEncryptionKeyManagementModeType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "CustomerManaged",
+            "value": "CustomerManaged",
+            "description": "Customer managed encryption key management mode type."
+          }
+        ]
+      }
+    },
     "EtcdDataEncryptionProfile": {
       "type": "object",
       "description": "The ETCD data encryption settings.",
       "properties": {
         "keyManagementMode": {
-          "type": "string",
-          "description": "Specify the key management strategy used for the encryption key that encrypts the ETCD data.\nBy default, \"PlatformManaged\" is used.",
-          "default": "PlatformManaged",
-          "enum": [
-            "CustomerManaged",
-            "PlatformManaged"
-          ],
-          "x-ms-enum": {
-            "name": "EtcdDataEncryptionKeyManagementModeType",
-            "modelAsString": true,
-            "values": [
-              {
-                "name": "CustomerManaged",
-                "value": "CustomerManaged",
-                "description": "Customer managed encryption key management mode type."
-              },
-              {
-                "name": "PlatformManaged",
-                "value": "PlatformManaged",
-                "description": "Platform managed encryption key management mode type."
-              }
-            ]
-          },
+          "$ref": "#/definitions/EtcdDataEncryptionKeyManagementModeType",
+          "description": "Specify the key management strategy used for the encryption key that encrypts the ETCD data.",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1796,6 +1809,25 @@
           "description": "Specify customer managed encryption key details.\nRequired when keyManagementMode is \"CustomerManaged\".",
           "x-ms-mutability": [
             "read",
+            "update",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "keyManagementMode"
+      ]
+    },
+    "EtcdDataEncryptionProfileUpdate": {
+      "type": "object",
+      "description": "The ETCD data encryption settings.",
+      "properties": {
+        "customerManaged": {
+          "$ref": "#/definitions/CustomerManagedEncryptionProfileUpdate",
+          "description": "Specify customer managed encryption key details.\nRequired when keyManagementMode is \"CustomerManaged\".",
+          "x-ms-mutability": [
+            "read",
+            "update",
             "create"
           ]
         }
@@ -1810,6 +1842,22 @@
           "description": "ETCD Data Encryption settings.\nIf not specified platform managed keys are used.",
           "x-ms-mutability": [
             "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "EtcdProfileUpdate": {
+      "type": "object",
+      "description": "The ETCD settings and configuration options.",
+      "properties": {
+        "dataEncryption": {
+          "$ref": "#/definitions/EtcdDataEncryptionProfileUpdate",
+          "description": "ETCD Data Encryption settings.\nIf not specified platform managed keys are used.",
+          "x-ms-mutability": [
+            "read",
+            "update",
             "create"
           ]
         }
@@ -2293,6 +2341,7 @@
           "description": "Configure ETCD.",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -2336,6 +2385,35 @@
           "$ref": "#/definitions/ResourceStatus",
           "description": "Status of the cluster resource",
           "readOnly": true
+        },
+        "cryptoRestrictions": {
+          "type": "string",
+          "description": "Cryptographic restrictions for kernel and userspace libraries",
+          "default": "None",
+          "enum": [
+            "None",
+            "FIPS"
+          ],
+          "x-ms-enum": {
+            "name": "CryptoRestrictions",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "None",
+                "value": "None",
+                "description": "No restrictions"
+              },
+              {
+                "name": "FIPS",
+                "value": "FIPS",
+                "description": "Use only FIPS-validated algorithms and implementations"
+              }
+            ]
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       },
       "required": [
@@ -2368,6 +2446,15 @@
         "autoscaling": {
           "$ref": "#/definitions/ClusterAutoscalingProfile",
           "description": "Configure ClusterAutoscaling .",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "etcd": {
+          "$ref": "#/definitions/EtcdProfileUpdate",
+          "description": "Configure ETCD.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -2669,6 +2756,7 @@
           "description": "The details of the active key.",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         }
@@ -2679,6 +2767,21 @@
         "activeKey"
       ]
     },
+    "KmsEncryptionProfileUpdate": {
+      "type": "object",
+      "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`",
+      "properties": {
+        "activeKey": {
+          "$ref": "#/definitions/KmsKeyUpdate",
+          "description": "The details of the active key.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
     "KmsKey": {
       "type": "object",
       "description": "A representation of a KeyVault Secret.",
@@ -2687,19 +2790,45 @@
           "type": "string",
           "description": "name is the name of the keyvault key used for encryption/decryption.",
           "minLength": 1,
-          "maxLength": 255
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "version": {
           "type": "string",
           "description": "version contains the version of the key to use.",
           "minLength": 1,
-          "maxLength": 255
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
         }
       },
       "required": [
         "name",
         "version"
       ]
+    },
+    "KmsKeyUpdate": {
+      "type": "object",
+      "description": "A representation of a KeyVault Secret.",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "version contains the version of the key to use.",
+          "minLength": 1,
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
     },
     "Label": {
       "type": "object",
@@ -3252,9 +3381,10 @@
         "sizeGiB": {
           "type": "integer",
           "format": "int32",
-          "description": "The OS disk size in GiB",
+          "description": "The OS disk size in GiB. Maximum is 4095 GiB for Managed disks. For Ephemeral disks,\nthe maximum is 2040 GiB; Azure may enforce a lower effective limit based on the\nselected VM size's local cache, temp, or NVMe capacity.",
           "default": 64,
           "minimum": 64,
+          "maximum": 4095,
           "x-ms-mutability": [
             "read",
             "create"

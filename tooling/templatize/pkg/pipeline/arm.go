@@ -21,6 +21,7 @@ import (
 	"maps"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -145,6 +146,16 @@ func armOutputFromOutputs(outputs any) ArmOutput {
 	return nil
 }
 
+func portalDeploymentURI(subscriptionID, resourceGroup, deploymentName string) string {
+	var resourceID string
+	if resourceGroup == "" {
+		resourceID = fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Resources/deployments/%s", subscriptionID, deploymentName)
+	} else {
+		resourceID = fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Resources/deployments/%s", subscriptionID, resourceGroup, deploymentName)
+	}
+	return "https://ms.portal.azure.com/#view/Microsoft_Azure_Resources/DeploymentDetails.MenuView/~/overview/id/" + url.PathEscape(resourceID)
+}
+
 func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, serviceGroup string, stamp graph.Stamp, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, skipBicepparamValidation bool, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
@@ -210,7 +221,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create deployment: %w", err)
 		}
-		logger.V(1).Info("Deployment started", "deployment", deploymentName)
+		logger.V(1).Info("Deployment started", "deployment", deploymentName, "portal", portalDeploymentURI(subscriptionID, "", deploymentName))
 
 		output, pollErr = pollAndGetOutput(ctx, poller)
 	} else {
@@ -219,7 +230,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create deployment: %w", err)
 		}
-		logger.V(1).Info("Deployment started", "deployment", deploymentName)
+		logger.V(1).Info("Deployment started", "deployment", deploymentName, "portal", portalDeploymentURI(subscriptionID, rgName, deploymentName))
 
 		output, pollErr = pollAndGetOutput(ctx, poller)
 	}

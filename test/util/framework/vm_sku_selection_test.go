@@ -295,6 +295,54 @@ func TestSelectVMSize(t *testing.T) {
 			},
 			want: "Standard_D8s_v3",
 		},
+		{
+			name: "SKU with all advertised zones restricted is excluded even without RequireZones",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", testLocation,
+					withCapability(capabilityVCPUs, "8"),
+					withZones(testLocation, "1", "2", "3"),
+					withZoneRestriction(testLocation, "1", "2", "3"),
+				),
+			},
+			selector: VMSizeSelector{
+				Name:      "default-worker",
+				Preferred: []string{"Standard_D8s_v3"},
+				MinVCPUs:  8,
+			},
+			wantErr: ErrNoUsableVMSize,
+		},
+		{
+			name: "SKU with a surviving zone is usable when only some zones are restricted",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", testLocation,
+					withCapability(capabilityVCPUs, "8"),
+					withZones(testLocation, "1", "2", "3"),
+					withZoneRestriction(testLocation, "1", "2"),
+				),
+			},
+			selector: VMSizeSelector{
+				Name:      "default-worker",
+				Preferred: []string{"Standard_D8s_v3"},
+				MinVCPUs:  8,
+			},
+			want: "Standard_D8s_v3",
+		},
+		{
+			name: "restriction listing more zones than advertised still excludes the SKU",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_NV12s_v3", testLocation,
+					withCapability(capabilityVCPUs, "12"),
+					withZones(testLocation, "2", "3"),
+					withZoneRestriction(testLocation, "1", "2", "3"),
+				),
+			},
+			selector: VMSizeSelector{
+				Name:      "gpu",
+				Preferred: []string{"Standard_NV12s_v3"},
+				MinVCPUs:  8,
+			},
+			wantErr: ErrNoUsableVMSize,
+		},
 	}
 
 	for _, tt := range tests {
@@ -486,5 +534,74 @@ func TestWorkerSelectorPreferredEntriesAreAllowlisted(t *testing.T) {
 				t.Errorf("selector %q Preferred entry %q does not match its NamePattern %q; Preferred must stay within the RP allowlist", sel.Name, name, sel.NamePattern.String())
 			}
 		}
+	}
+}
+
+// TestSkuRestrictedInLocation covers the zone-aware restriction detection added
+// for zone-level SKU bans. Azure often expresses a full subscription/region ban
+// as a Zone-type restriction listing every zone rather than a Location-type
+// restriction, so a SKU whose every advertised zone is restricted must be
+// reported as restricted even though no Location-type restriction is present.
+func TestSkuRestrictedInLocation(t *testing.T) {
+	tests := []struct {
+		name string
+		sku  *armcompute.ResourceSKU
+		want bool
+	}{
+		{
+			name: "no restrictions is not restricted",
+			sku:  makeSKU("Standard_D8s_v3", testLocation, withZones(testLocation, "1", "2", "3")),
+			want: false,
+		},
+		{
+			name: "location-type restriction is restricted",
+			sku:  makeSKU("Standard_D8s_v3", testLocation, withLocationRestriction(testLocation)),
+			want: true,
+		},
+		{
+			name: "all advertised zones restricted is restricted",
+			sku: makeSKU("Standard_D8s_v3", testLocation,
+				withZones(testLocation, "1", "2", "3"),
+				withZoneRestriction(testLocation, "1", "2", "3"),
+			),
+			want: true,
+		},
+		{
+			name: "some zones restricted is not restricted",
+			sku: makeSKU("Standard_D8s_v3", testLocation,
+				withZones(testLocation, "1", "2", "3"),
+				withZoneRestriction(testLocation, "1", "2"),
+			),
+			want: false,
+		},
+		{
+			name: "restriction covering more zones than advertised is restricted",
+			sku: makeSKU("Standard_NV12s_v3", testLocation,
+				withZones(testLocation, "2", "3"),
+				withZoneRestriction(testLocation, "1", "2", "3"),
+			),
+			want: true,
+		},
+		{
+			name: "non-zonal SKU with no restrictions is not restricted",
+			sku:  makeSKU("Standard_D8s_v3", testLocation),
+			want: false,
+		},
+		{
+			name: "zone restriction for a different location is ignored",
+			sku: makeSKU("Standard_D8s_v3", testLocation,
+				withZones(testLocation, "1", "2", "3"),
+				withZoneRestriction("westeurope", "1", "2", "3"),
+			),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := skuRestrictedInLocation(tt.sku, testLocation); got != tt.want {
+				t.Fatalf("skuRestrictedInLocation = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

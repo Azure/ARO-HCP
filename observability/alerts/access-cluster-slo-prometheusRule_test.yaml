@@ -99,10 +99,11 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
-        severity: "3"
-        slo: access-cluster-errors
+        component: slo
         long_window: 1h
+        severity: "3"
         short_window: 5m
+        slo: access-cluster-errors
       exp_annotations:
         summary: "mgmt-1: Credential operation error rate critically high (>72%)"
         description: "More than 72% of credential operations (requestcredential/revokecredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
@@ -113,6 +114,7 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        component: slo
         severity: "4"
         slo: access-cluster-errors
       exp_annotations:
@@ -164,6 +166,7 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        component: slo
         severity: "4"
         slo: access-cluster-errors
       exp_annotations:
@@ -188,15 +191,16 @@ tests:
     alertname: userJourneyAccessClusterStuckOperation
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/3/cluster/stuck"
-        subscription_id: "sub-3"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: slo
         operation_type: "requestcredential"
         phase: "accepted"
-        cluster: "mgmt-1"
+        resource_id: "/sub/3/cluster/stuck"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "4"
+        subscription_id: "sub-3"
       exp_annotations:
-        summary: "mgmt-1: Credential operation stuck in accepted for over 1 hour"
+        summary: "mgmt-1: Credential operation for /sub/3/cluster/stuck stuck in accepted for over 1 hour"
         description: "Credential operation for /sub/3/cluster/stuck has been in accepted phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
 # ========================================
@@ -249,8 +253,9 @@ tests:
     alertname: userJourneyAccessClusterSaturationQueueDepth
     exp_alerts:
     - exp_labels:
-        name: "OperationRequestCredential"
         cluster: "mgmt-1"
+        component: slo
+        name: "OperationRequestCredential"
         severity: "4"
       exp_annotations:
         summary: "mgmt-1: Credential controller workqueue OperationRequestCredential depth is high"
@@ -280,8 +285,9 @@ tests:
     alertname: userJourneyAccessClusterSaturationRetryHotLoop
     exp_alerts:
     - exp_labels:
-        name: "OperationRequestCredential"
         cluster: "mgmt-1"
+        component: slo
+        name: "OperationRequestCredential"
         severity: "4"
       exp_annotations:
         summary: "mgmt-1: Credential controller workqueue OperationRequestCredential retry hot loop"
@@ -296,6 +302,21 @@ tests:
     values: "0+10x25"
   - series: 'workqueue_adds_total{namespace="aro-hcp", name="OperationRequestCredential", cluster="mgmt-1"}'
     values: "0+100x25"
+  alert_rule_test:
+  - eval_time: 22m
+    alertname: userJourneyAccessClusterSaturationRetryHotLoop
+# ========================================
+# Test 10b: Retry hot loop — high ratio but below traffic floor, no alert
+# ========================================
+# Incrementing counters at 0.08 retries/min and 0.12 adds/min.
+# ratio = 0.08/0.12 = 67% (above 50% threshold),
+# but rate(adds) = ~0.002/s which is below the 0.008/s floor.
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{namespace="aro-hcp", name="OperationRequestCredential", cluster="mgmt-1"}'
+    values: "0+0.08x25"
+  - series: 'workqueue_adds_total{namespace="aro-hcp", name="OperationRequestCredential", cluster="mgmt-1"}'
+    values: "0+0.12x25"
   alert_rule_test:
   - eval_time: 22m
     alertname: userJourneyAccessClusterSaturationRetryHotLoop
@@ -355,10 +376,11 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
-        severity: "3"
-        slo: access-cluster-errors
+        component: slo
         long_window: 6h
+        severity: "3"
         short_window: 30m
+        slo: access-cluster-errors
       exp_annotations:
         summary: "mgmt-1: Credential operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of credential operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
@@ -381,14 +403,29 @@ tests:
     alertname: userJourneyAccessClusterStuckOperation
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/7/cluster/stuck-revoke"
-        subscription_id: "sub-7"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: slo
         operation_type: "revokecredentials"
         phase: "deleting"
-        cluster: "mgmt-1"
+        resource_id: "/sub/7/cluster/stuck-revoke"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "4"
+        subscription_id: "sub-7"
       exp_annotations:
-        summary: "mgmt-1: Credential operation stuck in deleting for over 1 hour"
+        summary: "mgmt-1: Credential operation for /sub/7/cluster/stuck-revoke stuck in deleting for over 1 hour"
         description: "Credential operation for /sub/7/cluster/stuck-revoke has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+# ========================================
+# Test 13: Stuck operation does not fire for e2e subscription
+# ========================================
+# Same pattern as Test 4 but with an e2e subscription_id that should be excluded.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/stuck", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
+    values: "0+0x95"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/stuck", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
+    values: "1+0x95"
+  alert_rule_test:
+  - eval_time: 90m
+    alertname: userJourneyAccessClusterStuckOperation
+    exp_alerts: []

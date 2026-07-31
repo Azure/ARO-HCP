@@ -1,17 +1,18 @@
 acm:
   mce:
     bundle:
-      digest: sha256:ac84804ad2b4b6337af11f7b33c50829d9e2351034886bc2dd75af70ee5047fb
+      digest: sha256:c8b9aa2f3e0d3db6c11974c2ae820dab5cf3c290f7de8b5115e1839e0a8aab1d
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:eb903419cc9b4cb65a504c2d66963f64cfdf62af1d0d919000f6aafdc27c16c4
+      digest: sha256:72b7793fba6c2f320616b4c2b8542e6c93fed6793ee51e19e019ba92dd1b2334
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
   ocp:
     name: arohcpocpdev
+    regionEndpointDisabledRegions: eastus2euap
     untaggedImagesRetention:
       days: 90
       enabled: true
@@ -25,7 +26,7 @@ acr:
 acrDNSSuffix: azurecr.io
 acrPull:
   image:
-    digest: sha256:17dda36c3ba6059411e813b03a6ee9fc11f1a4f737cf42e1239bd6fef558b9c5
+    digest: sha256:b0cbba7044d5142f8545758e5a69b7b35e7f8c6af596bc972e164d2b345978a7
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
 adminApi:
@@ -71,7 +72,7 @@ armHelperTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 arobit:
   forwarder:
     image:
-      digest: sha256:1c08423483e1c4bd336c1102a6f7d2eb4cd436791956abb18b342acbfc680b52
+      digest: sha256:c81f949228a0d446aea4966d8da39cfcd63f17c69a5eae143ce8264ddddc5777
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
     resources:
@@ -87,7 +88,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:70396486115428e2f2497c37de37883009f66485990a159194382b20239d4da8
+      digest: sha256:5c0159feac3312c447b10c840558a5db6591f78c498cf9150e010be9fa860a20
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -171,7 +172,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpperf
   image:
-    digest: sha256:f22e16dbdac005abb1787e524a2dfa1571720240f33d00bfc57bd0bcdb04c59f
+    digest: sha256:981637a1e08c3a6c86f3631c6642f6f1412c2e89d306590f72958712f7a9211d
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -212,6 +213,8 @@ clustersService:
     address: ""
     exporter: ""
 customExporter:
+  clusterNameFilter: ""
+  clusterTypes: svc-cluster,mgmt-cluster
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
     digest: sha256:335a5217890f8137c8bce97c212762dcf584ffb8d5c193499880dcbb4acd4673
@@ -244,6 +247,7 @@ e2e:
   prow:
     globalKeyVaultTokenSecret: prow-token
   regionTest:
+    allowedSubscriptions: ""
     gatePromotion: true
     prowJobName: ""
 entraAppOwnerIds: d8837611-f550-4f0a-af48-575a7178adfb,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c,770ce6b0-5afe-472d-ac0d-1fae72acc4e4
@@ -447,10 +451,12 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:eaf8e2a12b74b021dbfb7e25ec7c24775d1db2cbfe7b668c1c9a572b0d41907a
+    digest: sha256:0a0397b7e1fec51b2704e5c9ca131ebc1cb607d1ee9c882fd6205f9b7ca6b724
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
+  metricsSet:
+    performanceMetrics: true
   namespace: hypershift
   sharedIngressIPTag: ""
   sharedIngressImage:
@@ -465,7 +471,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:fd622f01d72d2eb5536fabf4cf71209a4d2c2e9c11e919190c8cefd6cfdea809
+      digest: sha256:aa1a693a0d0d990392bc851153352a8d9180a1d9b1e501af22a13234af52a7d3
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -497,7 +503,7 @@ kubeApplier:
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:7d1ae25f8df0e0ea3ebe829a912e4aef05f6af265f781e8209a93c41f6c38d15
+    digest: sha256:10a020acbc382e490deecdc78ad7945cbd26852f301f7a25f06ac89a3de8d802
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
   k8s:
@@ -551,7 +557,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:70afc56e557debb6671f999af0afb01cd93c93d47121ca879b6f0894de5c17fe
+        digest: sha256:b770cd63558c97c4e19d6f0dbe22b7a636b1eb4d267efe37f1ad44cdaecfddb9
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certIssuer: Self
@@ -560,7 +566,7 @@ maestro:
     name: arohcp-perf-maestro-usw3ptest
     private: false
   image:
-    digest: sha256:31b203da421cc2ee2125a86be5168f096e236a3a9125404cb326a718a0d34727
+    digest: sha256:b18d465c3adeb15d59fb20be899c40b3693b039f0465e6cb27b5ceb930d76e63
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -603,8 +609,6 @@ maestro:
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
-    enableSwiftV2Nodepools: false
-    enableSwiftV2Vnet: false
     etcd:
       name: ah-perf-me-usw3ptest-1
       private: true
@@ -635,6 +639,7 @@ mgmt:
       vmSize: Standard_E8s_v3
       zoneRedundantMode: Auto
       zones: ""
+    tags: clusterType=mgmt-cluster,persist=true
     upgradeSettings:
       maxSurge: 10%
       maxUnavailable: "0"
@@ -669,7 +674,7 @@ mgmt:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:57fe6a6f0760133637b2329b67f753d368e1d0c8a38ae1b8ee14bde15127afc7
+        digest: sha256:bcd0475c8f223ffe01a78b35446583584a691356327da0eeeb19a2c4e7755a21
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -678,18 +683,18 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 8e259204db001c773408a4dfe5f028ef4606c55d48f9e5273b8659abb559c7ff
+        sha: e502320119de5f35c2fbc803bab5b78ba3a7ed177dd45b5493dd9130b7760da7
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: dba7abd5f2d0045614ad81d3b594784a6145e18c2ed1fbec2b9030f920b53079
+        sha: 5d7972807c5809c4dcb5ddb73782d9e1ac5933ff6d4d9b70e8baf9b97bfc98ab
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 58e9ee63813d008bfe6ea415180d3e87898fb25fc357cdfcd6aa08cb689a4975
+        sha: addf21a90b6d1af9c3e3b8bf3242209a307880ce93daa354b7c6e4cf08e4c95d
       replicas: 2
       resources:
         limits:
@@ -881,10 +886,15 @@ oidc:
     public: true
     zoneRedundantMode: Auto
 quotaizer:
+  dryRun: false
   image:
     digest: ""
     registry: empty-sentinel
     repository: empty-sentinel
+  imageArtifact:
+    adoProject: empty-sentinel
+    artifactName: empty-sentinel
+    buildId: 0
   managedIdentityName: aro-quotaizer
   quotaGroup:
     displayName: HCP - perf westus3
@@ -906,7 +916,7 @@ secretSyncController:
         memory: 100Mi
     serviceAccountName: secrets-store-sync-controller-manager
   providerImage:
-    digest: sha256:a1e019fc8a1a43e5c28335f48d9ee7e2827a4d6e9b7a25fe6738e89ee1c6ec44
+    digest: sha256:517fb8c67ca4114b8f86950306b46eb2a8ba7757970e3c8976f5bd418d81e45b
     registry: mcr.microsoft.com
     repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:
@@ -948,6 +958,7 @@ stgGlobalV2:
   globalKeyVaultName: empty-sentinel
   grafanaMajorVersion: empty-sentinel
   grafanaName: empty-sentinel
+  grafanaRoles: ""
   kustoName: empty-sentinel
   oidcStorageAccountName: empty-sentinel
   svcParentZoneName: empty-sentinel
@@ -984,6 +995,7 @@ svc:
       vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
       zones: ""
+    tags: clusterType=svc-cluster,persist=true
     upgradeSettings:
       maxSurge: 10%
       maxUnavailable: "0"
@@ -1020,7 +1032,7 @@ svc:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:57fe6a6f0760133637b2329b67f753d368e1d0c8a38ae1b8ee14bde15127afc7
+        digest: sha256:bcd0475c8f223ffe01a78b35446583584a691356327da0eeeb19a2c4e7755a21
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -1029,18 +1041,18 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 8e259204db001c773408a4dfe5f028ef4606c55d48f9e5273b8659abb559c7ff
+        sha: e502320119de5f35c2fbc803bab5b78ba3a7ed177dd45b5493dd9130b7760da7
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: dba7abd5f2d0045614ad81d3b594784a6145e18c2ed1fbec2b9030f920b53079
+        sha: 5d7972807c5809c4dcb5ddb73782d9e1ac5933ff6d4d9b70e8baf9b97bfc98ab
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 58e9ee63813d008bfe6ea415180d3e87898fb25fc357cdfcd6aa08cb689a4975
+        sha: addf21a90b6d1af9c3e3b8bf3242209a307880ce93daa354b7c6e4cf08e4c95d
       replicas: 2
       resources:
         limits:
@@ -1094,14 +1106,14 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:a14dff80dadf5608e4a340204e1af8d8100874b8a4f7398190239fcb245501c6
+    digest: sha256:c4c26fca6614917e9b2812415e8f912fc45cfe6ea1755efea443670763898e3d
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:1131a2419d8ba9ba1c4a916b7be62281452c62f13394adf9892ad82a682184de
+    digest: sha256:e072512980311316a92b5cfc9252b7d71fc9e534d8db8a9db2ff1d7004e1524b
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:438b40f9cb4c76e5d4aed644d78a10aa8c70ea4f161b94eacbed12dc9212b6e9
+    digest: sha256:a48979677ab533f849bf8c15eaab148f74857c8f48da945f52f10f029fdb569c
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9

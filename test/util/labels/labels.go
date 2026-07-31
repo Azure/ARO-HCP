@@ -15,6 +15,8 @@
 package labels
 
 import (
+	"fmt"
+
 	"github.com/onsi/ginkgo/v2"
 )
 
@@ -42,6 +44,10 @@ var (
 	CreateCluster      = ginkgo.Label("Create-Cluster")
 	SetupValidation    = ginkgo.Label("Setup-Validation")
 	TeardownValidation = ginkgo.Label("Teardown-Validation")
+	// UpgradeInPlace marks the end-to-end in-place Hypershift upgrade test. Selected
+	// exclusively by the upgrade/in-place suite — not part of any happy-path or
+	// api-compat suite.
+	UpgradeInPlace = ginkgo.Label("Upgrade-In-Place")
 )
 
 var (
@@ -54,12 +60,15 @@ var (
 	AroRpApiCompatible = ginkgo.Label("ARO-HCP-RP-API-Compatible")
 )
 
-// Managed identity container demand for resource-aware scheduling.
-// Tests without these labels default to needing 1 container.
-var (
-	MIDemandHigh   = ginkgo.Label("MIDemand:High")
-	MIDemandMedium = ginkgo.Label("MIDemand:Medium")
-)
+// MIContainers declares how many managed identity containers a test needs.
+// Every It() and DescribeTable() must include this label. The verify-mi-containers
+// CI check and the runtime scheduler enforce this — unlabeled tests are rejected.
+func MIContainers(n int) ginkgo.Labels {
+	if n < 0 {
+		panic(fmt.Sprintf("MIContainers: n must be >= 0, got %d", n))
+	}
+	return ginkgo.Label(fmt.Sprintf("MIContainers:%d", n))
+}
 
 // Environments this test can be used in.
 var (

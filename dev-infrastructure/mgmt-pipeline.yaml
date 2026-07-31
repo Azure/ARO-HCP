@@ -303,11 +303,8 @@ resourceGroups:
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   # Build the MC
-  # The swift-vnet-permissions step runs unconditionally so the EV2 step graph is
-  # stable, but the Swift VNet RBAC grant inside it is gated at the Bicep layer via
-  # the enableSwift bicepparam (mgmt.aks.enableSwiftV2Vnet). A pipeline-level Go
-  # template guard would not work here: EV2 manifest generation renders pipeline
-  # config values as placeholders, so the guard would always evaluate truthy.
+  # Swift VNet is mandatory for management clusters, so this step grants the Swift
+  # VNet RBAC unconditionally.
   - name: swift-vnet-permissions
     action: ARM
     template: templates/swift-vnet-permissions.bicep
@@ -325,8 +322,7 @@ resourceGroups:
   # Create/tag the Swift VNet. The tag stampcreatorserviceinfo=true must be written by the
   # Swift-registered globalMSI, so this step launches a container group assigned globalMSI and
   # runs the create/tag AS globalMSI from inside it (scripts/swift-vnet.sh). Create, wait, log
-  # and cleanup all happen in this single Shell step, so there is no cross-step async race. The
-  # script is a no-op when ENABLE_SWIFT is false, keeping the EV2 step graph stable.
+  # and cleanup all happen in this single Shell step, so there is no cross-step async race.
   - name: swift-vnet
     action: Shell
     command: ./swift-vnet.sh
@@ -337,8 +333,6 @@ resourceGroups:
         step: output
         name: globalMSIId
     variables:
-    - name: ENABLE_SWIFT
-      configRef: mgmt.aks.enableSwiftV2Vnet
     - name: VNET_NAME
       value: aks-net
     - name: VNET_ADDRESS_PREFIX

@@ -29,6 +29,9 @@ import (
 type RunOptions struct {
 	SubscriptionID  string
 	AzureCredential azcore.TokenCredential
+	// GraphCredential is used exclusively for Microsoft Graph directory reads.
+	// When nil it defaults to AzureCredential.
+	GraphCredential azcore.TokenCredential
 
 	DryRun      bool
 	Wait        bool
@@ -47,6 +50,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 		ctx,
 		opts.SubscriptionID,
 		opts.AzureCredential,
+		opts.GraphCredential,
 		cleanupengine.WorkflowOptions{
 			DryRun:      opts.DryRun,
 			Wait:        opts.Wait,

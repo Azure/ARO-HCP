@@ -18,6 +18,7 @@ tests:
     exp_alerts:
     - exp_labels:
         severity: critical
+        component: testing
       exp_annotations:
         summary: "All instances of the App are down"
         description: "All instances of the App are down"

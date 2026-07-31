@@ -94,6 +94,13 @@ model HcpOpenShiftClusterProperties {
 
   /** Configure ETCD. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "etcd")
+  etcdNoUpdate?: EtcdProfile;
+
+  /** Configure ETCD. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   etcd?: EtcdProfile;
 
   /** imageDigestMirrors is a set of rules to allow pulling images from a
@@ -134,6 +141,11 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read)
   @added(Versions.v2026_06_30_preview)
   status?: ResourceStatus;
+
+  /** Cryptographic restrictions for kernel and userspace libraries */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  cryptoRestrictions?: CryptoRestrictions = CryptoRestrictions.None;
 }
 
 /** The resource provisioning state. */
@@ -163,6 +175,18 @@ union ExternalAuthProvisioningState {
 
   /** Non-terminal state indicating the resource is awaiting secret */
   "AwaitingSecret",
+}
+
+/** Cryptographic restrictions for kernel and userspace libraries */
+@added(Versions.v2026_06_30_preview)
+union CryptoRestrictions {
+  string,
+
+  /** No restrictions */
+  None: "None",
+
+  /** Use only FIPS-validated algorithms and implementations */
+  FIPS: "FIPS",
 }
 
 /** Versions represents an OpenShift version. */
@@ -281,7 +305,7 @@ model IngressProfile {
   type?: IngressType = IngressType.Public;
 }
 
-/** The internet visibility of the OpenShift API server. */
+/** The internet visibility of the OpenShift API server */
 union Visibility {
   string,
 
@@ -551,11 +575,21 @@ model KmsKey {
   /** name is the name of the keyvault key used for encryption/decryption. */
   @maxLength(255)
   @minLength(1)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "name")
+  nameImplicitVisibility: string;
+
+  /** name is the name of the keyvault key used for encryption/decryption. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @maxLength(255)
+  @minLength(1)
   name: string;
 
   /** version contains the version of the key to use. */
   @maxLength(255)
   @minLength(1)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   version: string;
 }
 
@@ -576,6 +610,15 @@ model EtcdProfile {
    * If not specified platform managed keys are used.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "dataEncryption")
+  dataEncryptionNoUpdate?: EtcdDataEncryptionProfile;
+
+  /** ETCD Data Encryption settings.
+   * If not specified platform managed keys are used.
+   */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   dataEncryption?: EtcdDataEncryptionProfile;
 }
 
@@ -584,13 +627,29 @@ model EtcdDataEncryptionProfile {
   /** Specify the key management strategy used for the encryption key that encrypts the ETCD data.
    * By default, "PlatformManaged" is used.
    */
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "keyManagementMode")
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  keyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
+  optionalKeyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
+
+  /** Specify the key management strategy used for the encryption key that encrypts the ETCD data. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  keyManagementMode: EtcdDataEncryptionKeyManagementModeType;
 
   /** Specify customer managed encryption key details.
    * Required when keyManagementMode is "CustomerManaged".
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "customerManaged")
+  customerManagedNoUpdate?: CustomerManagedEncryptionProfile;
+
+  /** Specify customer managed encryption key details.
+   * Required when keyManagementMode is "CustomerManaged".
+   */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   customerManaged?: CustomerManagedEncryptionProfile;
 }
 
@@ -607,6 +666,16 @@ model CustomerManagedEncryptionProfile {
    * Required when encryptionType is "KMS".
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "kms")
+  kmsNoUpdate?: KmsEncryptionProfile;
+
+  /** The Key Management Service (KMS) encryption key details.
+   *
+   * Required when encryptionType is "KMS".
+   */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   kms?: KmsEncryptionProfile;
 }
 
@@ -629,6 +698,13 @@ model KmsEncryptionProfile {
 
   /** The details of the active key. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "activeKey")
+  activeKeyNoUpdate: KmsKey;
+
+  /** The details of the active key. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   activeKey: KmsKey;
 }
 
@@ -648,6 +724,7 @@ union EtcdDataEncryptionKeyManagementModeType {
   CustomerManaged: "CustomerManaged",
 
   /** Platform managed encryption key management mode type. */
+  @removed(Versions.v2026_06_30_preview)
   PlatformManaged: "PlatformManaged",
 }
 
@@ -832,8 +909,20 @@ model NodePoolPlatformProfile {
 /** The settings and configuration options for OSDisk */
 model OsDiskProfile {
   /** The OS disk size in GiB */
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "sizeGiB")
   @visibility(Lifecycle.Read, Lifecycle.Create)
   @minValue(64)
+  noMaxSizeGiB?: int32 = 64;
+
+  /** The OS disk size in GiB. Maximum is 4095 GiB for Managed disks. For Ephemeral disks,
+   * the maximum is 2040 GiB; Azure may enforce a lower effective limit based on the
+   * selected VM size's local cache, temp, or NVMe capacity.
+   */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @minValue(64)
+  @maxValue(4095)
   sizeGiB?: int32 = 64;
 
   /** The type of the disk storage account
@@ -937,6 +1026,13 @@ scalar DiskEncryptionSetResourceId
  *   HCP cluster credentials
  * =======================================
  */
+
+/** HCP cluster admin credential request body */
+@added(Versions.v2026_09_01_preview)
+model HcpOpenShiftClusterAdminCredentialRequest {
+  /** PEM encoded certificate request */
+  certificateSigningRequest?: string;
+}
 
 /** HCP cluster admin credential */
 model HcpOpenShiftClusterAdminCredential {

@@ -391,6 +391,10 @@
             "days"
           ],
           "additionalProperties": false
+        },
+        "regionEndpointDisabledRegions": {
+          "type": "string",
+          "description": "Space-separated list of replication regions whose regional data endpoint must be kept disabled, e.g. the eastus2euap canary replica. Optional; defaults to none."
         }
       },
       "additionalProperties": false,
@@ -573,14 +577,13 @@
         "clusterOutboundIPAddressIPTags": {
           "$ref": "#/definitions/keyColonValueCSV"
         },
-        "enableSwiftV2Vnet": {
-          "type": "boolean"
-        },
-        "enableSwiftV2Nodepools": {
-          "type": "boolean"
-        },
         "upgradeSettings": {
           "$ref": "#/definitions/aksUpgradeSettings"
+        },
+        "tags": {
+          "type": "string",
+          "description": "CSV of key=value tag pairs for the AKS cluster resource (e.g. clusterType=svc-cluster,persist=true,owningTeam=myteam)",
+          "pattern": "^[A-Za-z0-9_.-]+=[A-Za-z0-9_.-]+(,[A-Za-z0-9_.-]+=[A-Za-z0-9_.-]+)*$"
         }
       },
       "required": [
@@ -2541,6 +2544,15 @@
         },
         "sharedIngressImage": {
           "$ref": "#/definitions/containerImage"
+        },
+        "metricsSet": {
+          "type": "object",
+          "properties": {
+            "performanceMetrics": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
@@ -2676,6 +2688,14 @@
           "type": "string",
           "description": "The collectors to enable for the exporter. Comma separated list of collectors."
         },
+        "clusterTypes": {
+          "type": "string",
+          "description": "Comma-separated list of AKS clusterType tag values to discover via Resource Graph (e.g. 'svc-cluster,mgmt-cluster')"
+        },
+        "clusterNameFilter": {
+          "type": "string",
+          "description": "Substring filter for discovered cluster names. Only clusters whose name contains this value will be included. Use environment-region prefix to scope to a specific deployment (e.g. 'cspr-westus3')."
+        },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         }
@@ -2684,7 +2704,9 @@
       "required": [
         "image",
         "managedIdentityName",
-        "k8s"
+        "k8s",
+        "clusterTypes",
+        "clusterNameFilter"
       ]
     },
     "kubeEvents": {
@@ -3141,13 +3163,21 @@
         },
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "imageArtifact": {
+          "$ref": "#/definitions/imageArtifact"
+        },
+        "dryRun": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
       "required": [
         "quotaGroup",
         "managedIdentityName",
-        "image"
+        "image",
+        "imageArtifact",
+        "dryRun"
       ]
     },
     "velero": {
@@ -3522,6 +3552,11 @@
         "grafanaName": {
           "type": "string"
         },
+        "grafanaRoles": {
+          "type": "string",
+          "description": "A space-separated list of Service Principals IDs, Types and their desired grafana roles The format is: <principalId>/<principalType>/<role>, e.g. 12345678-1234-1234-1234-123456789012/Group/Admin",
+          "pattern": "^$|^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\/(Group|ServicePrincipal|User)\\/(Contributor|Admin|Viewer)\\s*)+$"
+        },
         "grafanaMajorVersion": {
           "type": "string"
         },
@@ -3545,6 +3580,7 @@
         "cxParentZoneName",
         "kustoName",
         "grafanaName",
+        "grafanaRoles",
         "grafanaMajorVersion",
         "billingKustoName",
         "billingKustoSku"
@@ -3615,6 +3651,9 @@
             },
             "gatePromotion": {
               "type": "boolean"
+            },
+            "allowedSubscriptions": {
+              "type": "string"
             }
           },
           "required": [

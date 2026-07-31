@@ -125,7 +125,12 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 		logger.Info("cluster-service ExternalAuth gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())
 		replacement := externalAuth.DeepCopy()
 		replacement.ServiceProviderProperties.ClusterServiceID = nil
-		if _, err := externalAuthCRUD.Replace(ctx, replacement, nil); err != nil {
+		_, err = externalAuthCRUD.Replace(ctx, replacement, nil)
+		if database.IsPreconditionFailedError(err) {
+			// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+			return nil
+		}
+		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
 		}
 		return nil

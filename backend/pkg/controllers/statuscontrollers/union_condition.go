@@ -125,13 +125,34 @@ func UnionCondition(
 // line, prefixed with the source controller name so the aggregated message
 // remains attributable.
 func unionMessage(sources []SourcedCondition) string {
+	named := make([]namedMessage, 0, len(sources))
+	for _, src := range sources {
+		named = append(named, namedMessage{
+			name:    src.ControllerName,
+			message: src.Condition.Message,
+		})
+	}
+	return joinNamedMessages(named)
+}
+
+// namedMessage is a source name paired with a free-form message. Used by
+// joinNamedMessages so Degraded aggregation (controller name) and
+// RequirementsValid aggregation (validation type) share one formatter.
+type namedMessage struct {
+	name    string
+	message string
+}
+
+// joinNamedMessages formats messages as "name: line" for each unique line of
+// each message, then joins with newlines. Empty messages are skipped.
+func joinNamedMessages(sources []namedMessage) string {
 	lines := []string{}
 	for _, src := range sources {
-		if len(src.Condition.Message) == 0 {
+		if len(src.message) == 0 {
 			continue
 		}
-		for _, line := range uniq(strings.Split(src.Condition.Message, "\n")) {
-			lines = append(lines, fmt.Sprintf("%s: %s", src.ControllerName, line))
+		for _, line := range uniq(strings.Split(src.message, "\n")) {
+			lines = append(lines, fmt.Sprintf("%s: %s", src.name, line))
 		}
 	}
 	return strings.Join(lines, "\n")

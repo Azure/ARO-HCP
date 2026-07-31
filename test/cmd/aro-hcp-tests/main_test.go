@@ -35,6 +35,7 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 		{suite: "dev-cd-check/parallel", suffix: "dev-cd-check-parallel"},
 		{suite: "rp-api-compat-all/parallel", suffix: "rp-api-compat-all-parallel"},
 		{suite: "rp-api-compat-all/parallel", suffix: "rp-api-compat-all-parallel-development", setDevelopmentEnv: true},
+		{suite: "upgrade/in-place", suffix: "upgrade-in-place"},
 	}
 
 	for _, test := range tests {

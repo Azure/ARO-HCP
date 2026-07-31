@@ -17,6 +17,8 @@ package database
 import (
 	"encoding/json"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
@@ -26,8 +28,9 @@ import (
 // implements the DocumentProperties interface.
 type TypedDocument struct {
 	BaseDocument
-	PartitionKey string                `json:"partitionKey"`
-	ResourceID   *azcorearm.ResourceID `json:"resourceID"`
-	ResourceType string                `json:"resourceType"`
-	Properties   json.RawMessage       `json:"properties"`
+	PartitionKey      string                `json:"partitionKey"`
+	ResourceID        *azcorearm.ResourceID `json:"resourceID"`
+	ResourceType      string                `json:"resourceType"`
+	DeletionTimestamp *metav1.Time          `json:"deletionTimestamp,omitempty"`
+	Properties        json.RawMessage       `json:"properties"`
 }

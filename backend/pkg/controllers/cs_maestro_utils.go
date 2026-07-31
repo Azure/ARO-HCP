@@ -23,3 +23,10 @@ import "fmt"
 func hostedClusterNamespace(envIdentifier, csClusterID string) string {
 	return fmt.Sprintf("ocm-%s-%s", envIdentifier, csClusterID)
 }
+
+// hostedControlPlaneNamespace returns the management-cluster namespace that hosts a
+// given HCP's control plane workloads (including ControlPlaneComponent CRs).
+// Hypershift names it "ocm-<envIdentifier>-<csClusterID>-<csClusterDomainPrefix>".
+func hostedControlPlaneNamespace(envIdentifier, csClusterID, csClusterDomainPrefix string) string {
+	return fmt.Sprintf("ocm-%s-%s-%s", envIdentifier, csClusterID, csClusterDomainPrefix)
+}

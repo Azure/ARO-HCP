@@ -16,18 +16,69 @@ clouds:
           mise:
             audit:
               connectSocket: true
+          # Prometheus mgmt-cluster survival tuning (AROSLSRE-1553/1554/1555).
+          # A single prom-agent OOM-crashloop blacked out int-uksouth-mgmt-1 for
+          # ~37h. Mitigations, all scoped to the INT mgmt clusters:
+          #  - infraAgentPool.minCount 1 -> 2: raise the guaranteed infra floor
+          #    from 2 to 4 nodes (poolCount 2 x minCount 2) so the 8 prom pods
+          #    (4 shards x 2 replicas) sit ~2/node with room to breathe; the
+          #    autoscaler ceiling (maxCount 3/pool) is unchanged.
+          #  - shards 2 -> 4: halves per-shard series/WAL so a remote-write stall
+          #    replay after a restart stays bounded.
+          #  - requests.memory 2Gi: keeps all 8 pods schedulable across 4 nodes
+          #    (2 x 2Gi + ~2Gi infra baseline = ~6Gi/node of ~11.8Gi).
+          # The memory limit is intentionally not set here: sdp-pipelines pins
+          # the mgmt prometheus limit to 6Gi (hcp/config.msft.sensitive.clouds-overlay.yaml)
+          # and that override wins, so any value set here is dead config.
+          mgmt:
+            aks:
+              infraAgentPool:
+                minCount: 2
+            prometheus:
+              prometheusSpec:
+                shards: 4
+                resources:
+                  requests:
+                    memory: 2Gi
       stg:
         # this is the MSFT STAGE environment
+        regions:
+          # westus3: second STG region, born on the dedicated hcp-stg-global sub with
+          # its "…2" global names (AROSLSRE-1657). uksouth stays on hcp-global.
+          westus3:
+            global:
+              subscription:
+                key: hcp-stg-global
+              keyVault:
+                name: "arohcp{{ .ctx.environment }}2-global"
+            acr:
+              svc:
+                name: "arohcpsvc{{ .ctx.environment }}2"
+              ocp:
+                name: "arohcpocp{{ .ctx.environment }}2"
+            geneva:
+              actions:
+                keyVault:
+                  name: "arohcp{{ .ctx.environment }}2-geneva-kv"
+            oidc:
+              storageAccount:
+                name: "arohcp{{ .ctx.environment }}2oidc{{ .ctx.regionShort }}"
+              frontdoor:
+                name: "arohcp{{ .ctx.environment }}2"
+                keyVault:
+                  name: "ah-{{ .ctx.environment }}2-afd"
+            monitoring:
+              grafanaName: "arohcp-{{ .ctx.environment }}2"
+            kusto:
+              # US-geography cluster (hcp-{env}-{geoShort} convention), separate from
+              # the uksouth hcp-stg-uk-* cluster.
+              kustoName: "hcp-{{ .ctx.environment }}-us-1"
         defaults:
           # This must be defined here, so our ci jobs can know this
           kusto:
             kustoName: "hcp-stg-uk-2"
-          # TRANSIENT — STG-global "V2" migration: real globally-unique names +
-          # dedicated DNS zones for the parallel infra deployed into the dedicated
-          # STG-global subscription during coexistence. Overrides the public.defaults
-          # empty-sentinel; only stg gets real values. "2" suffix is the only literal
-          # vs the canonical names. Live stg.defaults names (acr.svc.name etc.) are
-          # untouched until cutover. Removed at decommission.
+          # Transient STG-global "V2" names for the parallel infra in the dedicated
+          # hcp-stg-global sub during coexistence. Removed at decommission.
           stgGlobalV2:
             acrSvcName: "arohcpsvc{{ .ctx.environment }}2"
             acrOcpName: "arohcpocp{{ .ctx.environment }}2"
@@ -36,26 +87,17 @@ clouds:
             frontDoorName: "arohcp{{ .ctx.environment }}2"
             frontDoorKeyVaultName: "ah-{{ .ctx.environment }}2-afd"
             oidcStorageAccountName: "arohcp{{ .ctx.environment }}2oidc{{ .ctx.regionShort }}"
-            # DNS: dedicated stg zones (delegated from azure.com via SafeDNS),
-            # replacing the shared aro-hcp.azure.com / aroapp-hcp.io. Owned by the
-            # DNS track (AROSLSRE-1204) — confirm before deploy.
+            # Dedicated stg parent zones (replace the shared aro-hcp.azure.com / aroapp-hcp.io).
             svcParentZoneName: "aro-hcp-{{ .ctx.environment }}.azure.com"
             cxParentZoneName: "aroapp-hcp-{{ .ctx.environment }}.azure.com"
-            # New Kusto cluster (live stg is hcp-stg-uk-2; this is the next one).
+            # V2 stg Kusto cluster.
             kustoName: "hcp-{{ .ctx.environment }}-uk-3"
-            # New Grafana workspace (live stg is arohcp-stg; this is the V2 one).
-            # Globally unique — must differ from the live name to avoid NameNotUnique.
+            # V2 Grafana workspace (globally unique, differs from the live name).
             grafanaName: "arohcp-{{ .ctx.environment }}2"
-            # New workspace must be created on v13: Azure retired v11 for new
-            # creation on 2026-06-15, so only major versions 12/13 are accepted.
-            # The live grandfathered workspace stays on 11 (shared monitoring value).
+            # v13: Azure only accepts major 12/13 for new workspaces since 2026-06-15.
             grafanaMajorVersion: "13"
-            # Dedicated STG billing Kusto in the new hcp-stg-global sub. Distinct from
-            # the shared billing.kusto.* (which Billing.Global keeps managing for stg),
-            # so the shared cluster is never touched. The SKU is E8a_v4 because the
-            # shared billing.kusto.sku (E8ads_v5) is not offered in uksouth, where this
-            # dedicated cluster lives. Consumed only by the transient Billing.StgGlobal
-            # bicepparam; promoted into stg.defaults billing.kusto.* at cutover.
+            # Dedicated stg billing Kusto in hcp-stg-global (E8a_v4; E8ads_v5 is not
+            # offered in uksouth). Consumed by the transient Billing.StgGlobal bicepparam.
             billingKustoName: "arohcpHoBo{{ .ctx.environment }}"
             billingKustoSku: "Standard_E8a_v4"
           # E2E
@@ -93,6 +135,14 @@ clouds:
               connectSocket: true
         regions:
           eastus2euap:
+            e2e:
+              regionTest:
+                # Canary: eastus2euap is pinned to the Test-Tenant sub, the only
+                # PROD sub onboarded into the canary program. This currently
+                # matches the gating job's baseline ALLOWED_SUBSCRIPTIONS, so it
+                # is a no-op until the non-canary regions are switched to the RH
+                # PROD subs (ARO-28614).
+                allowedSubscriptions: "ARO HCP E2E"
             kusto:
               location: "eastus2"
           switzerlandnorth:

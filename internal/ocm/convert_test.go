@@ -171,23 +171,19 @@ func TestWithImmutableAttributes(t *testing.T) {
 				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.20").ChannelGroup("stable"))),
 		},
 		{
-			name: "with FIPS enabled",
+			name: "with CryptoRestrictions set to FIPS",
 			hcpCluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ExperimentalFeatures: api.ExperimentalFeatures{
-						FIPSEnabled: true,
-					},
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					CryptoRestrictions: api.CryptoRestrictionsFIPS,
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).FIPS(true)),
 		},
 		{
-			name: "with FIPS disabled",
+			name: "with CryptoRestrictions set to None",
 			hcpCluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ExperimentalFeatures: api.ExperimentalFeatures{
-						FIPSEnabled: false,
-					},
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					CryptoRestrictions: api.CryptoRestrictionsNone,
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).FIPS(false)),
@@ -202,7 +198,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 			hcpCluster := api.ClusterTestCase(t, tc.hcpCluster)
 			csVersionID, err := clusterCSVersionID(spcWithDesiredVersionFromHCPCluster(hcpCluster), hcpCluster)
 			require.NoError(t, err)
-			builder, err := withImmutableAttributes(
+			builder, azureBuilder, err := withImmutableAttributes(
 				ocmClusterDefaults(api.TestLocation),
 				hcpCluster,
 				api.TestSubscriptionID,
@@ -212,7 +208,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				csVersionID,
 			)
 			require.NoError(t, err)
-			result, err := builder.Build()
+			result, err := builder.Azure(azureBuilder).Build()
 			require.NoError(t, err)
 			buf.Reset()
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(result, &buf))
@@ -257,20 +253,6 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		API(arohcpv1alpha1.NewClusterAPI().
 			Listening(arohcpv1alpha1.ListeningMethodExternal)).
 		Azure(arohcpv1alpha1.NewAzure().
-			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
-				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-					KeyManagementMode(csKeyManagementModeCustomerManaged).
-					CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
-						EncryptionType("kms").
-						Kms(arohcpv1alpha1.NewAzureKmsEncryption().
-							Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
-							ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
-								KeyName("test-key").
-								KeyVaultName("test-vault").
-								KeyVersion("test-version"),
-							),
-						),
-					))).
 			ManagedResourceGroupName(api.TestManagedResourceGroupName).
 			NetworkSecurityGroupResourceID(api.TestNetworkSecurityGroupResourceID).
 			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
@@ -669,22 +651,66 @@ func TestBuildCSExternalAuth(t *testing.T) {
 	}
 }
 
+// defaultTestKMSUpdateAzureBuilder returns the Azure builder that applyToCSBuilders
+// produces for an UPDATE when the test cluster has default KMS etcd encryption
+// (from MinimumValidClusterTestCase). Only the key version is dispatch-managed on update.
+func defaultTestKMSUpdateAzureBuilder() *arohcpv1alpha1.AzureBuilder {
+	return arohcpv1alpha1.NewAzure().
+		EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+			DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+				CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+					Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+						ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+							KeyVersion("test-version"))))))
+}
+
 func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 	var builder *arohcpv1alpha1.ClusterBuilder
 	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
 
 	if updating {
-		builder = arohcpv1alpha1.NewCluster()
+		builder = arohcpv1alpha1.NewCluster().
+			Azure(defaultTestKMSUpdateAzureBuilder())
 	} else {
 		builder = ocmClusterDefaults(api.TestLocation)
 		clusterAPIBuilder = clusterAPIBuilder.Listening(arohcpv1alpha1.ListeningMethodExternal)
 		builder.Ingresses(arohcpv1alpha1.NewIngressList().Items(
 			arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
 		))
+		builder.Azure(arohcpv1alpha1.NewAzure().
+			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+					KeyManagementMode(csKeyManagementModeCustomerManaged).
+					CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+						EncryptionType("kms").
+						Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+							Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
+							ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+								KeyName("test-key").
+								KeyVaultName("test-vault").
+								KeyVersion("test-version"),
+							),
+						),
+					))).
+			ManagedResourceGroupName(api.TestManagedResourceGroupName).
+			NetworkSecurityGroupResourceID(api.TestNetworkSecurityGroupResourceID).
+			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
+				OutboundType(csOutboundType)).
+			OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
+				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
+					ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
+					DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+					ManagedIdentitiesDataPlaneIdentityUrl(api.TestManagedIdentitiesDataPlaneIdentityURL))).
+			ResourceGroupName(strings.ToLower(api.TestResourceGroupName)).
+			ResourceName(strings.ToLower(api.TestClusterName)).
+			SubnetResourceID(api.TestSubnetResourceID).
+			VnetIntegrationSubnetResourceID(api.TestVnetIntegrationSubnetResourceID).
+			SubscriptionID(strings.ToLower(api.TestSubscriptionID)).
+			TenantID(api.TestTenantID))
 	}
 
 	// Add common mutable fields that BuildCSCluster always sets
-	return builder.
+	builder = builder.
 		NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
 			Unit(csNodeDrainGracePeriodUnit).
 			Value(float64(0))).
@@ -699,6 +725,8 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 			Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
 				Mode(CSCIDRBlockAllowAccessModeAllowAll)))).
 		RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().ImageDigestMirrors())
+
+	return builder
 }
 
 func TestBuildCSCluster(t *testing.T) {
@@ -1195,6 +1223,48 @@ func TestBuildCSCluster(t *testing.T) {
 					TenantID(api.TestTenantID),
 				),
 		},
+		{
+			name: "UPDATE - sets new KMS key version",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Etcd: api.EtcdProfile{
+						DataEncryption: api.EtcdDataEncryptionProfile{
+							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+							CustomerManaged: &api.CustomerManagedEncryptionProfile{
+								EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+								Kms: &api.KmsEncryptionProfile{
+									Visibility: api.KeyVaultVisibilityPublic,
+									ActiveKey: api.KmsKey{
+										Name:      "test-key",
+										VaultName: "test-vault",
+										Version:   "v2",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Azure(arohcpv1alpha1.NewAzure().
+					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+										KeyVersion("v2"),
+									),
+								),
+							),
+						))),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1219,7 +1289,7 @@ func TestBuildCSCluster(t *testing.T) {
 			}
 
 			// Build actual CS cluster
-			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, api.TestTenantID, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster, serviceProviderCluster)
+			actualClusterBuilder, err := BuildCSCluster(resourceID, api.TestTenantID, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster, serviceProviderCluster)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)
@@ -1233,7 +1303,7 @@ func TestBuildCSCluster(t *testing.T) {
 			expected, err := tc.expectedCSCluster.Build()
 			require.NoError(t, err)
 
-			actual, err := actualClusterBuilder.Autoscaler(actualAutoscalerBuilder).Build()
+			actual, err := actualClusterBuilder.Build()
 			require.NoError(t, err)
 
 			// Compare

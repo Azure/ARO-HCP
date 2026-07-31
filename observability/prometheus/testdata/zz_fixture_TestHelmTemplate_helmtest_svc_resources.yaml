@@ -68517,6 +68517,7 @@ spec:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    additionalLabelSelectors: OnShard
   walCompression: true
   externalLabels:
     cluster: 'dev-westus3-svc-1'

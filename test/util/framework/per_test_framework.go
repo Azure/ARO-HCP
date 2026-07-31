@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -44,7 +45,10 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
@@ -53,6 +57,7 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
@@ -68,6 +73,7 @@ type perItOrDescribeTestContext struct {
 	clientFactory20240610         *hcpsdk20240610preview.ClientFactory
 	clientFactory20251223         *hcpsdk20251223preview.ClientFactory
 	clientFactory20260630         *hcpsdk20260630preview.ClientFactory
+	clientFactory20260901         *hcpsdk20260901preview.ClientFactory
 	armComputeClientFactory       *armcompute.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
@@ -237,6 +243,14 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		tc.RecordTestStep("Delete created resources", startTime, finishTime)
 	}()
 
+	// Always release identity containers — they are shared pool resources,
+	// not test-created resources subject to skipCleanup.
+	defer func() {
+		if err := tc.releaseLeasedIdentities(ctx); err != nil {
+			ginkgo.GinkgoLogr.Error(err, "failed to release leased identities")
+		}
+	}()
+
 	if tc.perBinaryInvocationTestContext.skipCleanup {
 		ginkgo.GinkgoLogr.Info("skipping resource cleanup")
 		return
@@ -269,10 +283,6 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete")
-	}
-
-	if err := tc.releaseLeasedIdentities(ctx); err != nil {
-		ginkgo.GinkgoLogr.Error(err, "failed to release leased identities")
 	}
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
@@ -421,7 +431,21 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 }
 
 func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, resourceGroupPrefix, location string) (*armresources.ResourceGroup, error) {
-	suffix := rand.String(6)
+	// Use a wide random suffix. Some resources created inside the group derive
+	// their globally-unique names deterministically from the resource group id
+	// (e.g. the customer Key Vault name in customer-infra.bicep is
+	// cust-kv-${uniqueString(resourceGroup().id, ...)}). Because Azure Key Vault
+	// soft-delete holds a not-yet-purged name for up to 90 days, a repeated
+	// resource-group suffix within that window causes a VaultAlreadyExists
+	// collision on the next run. The 12-character suffix is the always-on
+	// primary defense (a repeat is highly unlikely across the retention
+	// window); the best-effort teardown purge below additionally frees the
+	// name immediately whenever the identity is permitted to purge. Both are
+	// best-effort layers rather than hard guarantees. (SuffixName only
+	// preserves the full suffix while prefix+suffix stays within maxLen; if it
+	// ever truncates, effective entropy drops to a 32-bit hash — the short
+	// prefixes used here never trigger that path.)
+	suffix := rand.String(12)
 	resourceGroupName := SuffixName(resourceGroupPrefix, suffix, 64)
 	func() {
 		tc.contextLock.Lock()
@@ -475,18 +499,24 @@ func (tc *perItOrDescribeTestContext) findManagedResourceGroups(ctx context.Cont
 	return managedResourceGroups, nil
 }
 
-// waitForManagedResourceGroupsDeletion polls findManagedResourceGroups until no managed resource groups remain for the given parent resource group
-// This handles the case where managed RGs are still being deleted (e.g. because the HCP cluster was already in a deleting state prior to cleanup)
-// Returns the remaining managed resource groups (empty if all were deleted)
+// waitForManagedResourceGroupsDeletion polls findManagedResourceGroups until no deletable managed
+// resource groups remain for the given parent resource group. This handles the case where managed
+// RGs are still being deleted (e.g. because the HCP cluster was already in a deleting state prior
+// to cleanup). Managed groups locked by a system-protected deny assignment are re-checked on every
+// poll and never counted as pending: they can never be deleted from our side, so waiting for them
+// would only burn the timeout even after the deletable groups are gone. Returns the deletable
+// (non-locked) managed resource groups still present (empty if all deletable ones were deleted).
 func (tc *perItOrDescribeTestContext) waitForManagedResourceGroupsDeletion(ctx context.Context, resourceGroupName string, timeout time.Duration) ([]string, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded waiting for managed resource groups in %s to be deleted", timeout.Minutes(), resourceGroupName))
 	defer cancel()
 
+	var previousPending []string
 	for {
 		select {
 		case <-ctx.Done():
 			remaining, _ := tc.findManagedResourceGroups(context.Background(), resourceGroupName)
-			return remaining, fmt.Errorf("timed out waiting for managed resource groups in %q to be deleted, caused by: %w, error: %w", resourceGroupName, context.Cause(ctx), ctx.Err())
+			_, pending := tc.partitionDenyAssignmentLockedResourceGroups(context.Background(), remaining)
+			return pending, fmt.Errorf("timed out waiting for managed resource groups in %q to be deleted, caused by: %w, error: %w", resourceGroupName, context.Cause(ctx), ctx.Err())
 		case <-time.After(StandardPollInterval):
 		}
 
@@ -495,15 +525,85 @@ func (tc *perItOrDescribeTestContext) waitForManagedResourceGroupsDeletion(ctx c
 			return nil, fmt.Errorf("failed to search for managed resource groups while waiting for deletion: %w", err)
 		}
 
-		if len(managedResourceGroups) == 0 {
-			ginkgo.GinkgoLogr.Info("all managed resource groups deleted",
+		_, pendingManagedResourceGroups := tc.partitionDenyAssignmentLockedResourceGroups(ctx, managedResourceGroups)
+		if len(pendingManagedResourceGroups) == 0 {
+			ginkgo.GinkgoLogr.Info("all deletable managed resource groups deleted",
 				"resourceGroup", resourceGroupName)
 			return nil, nil
 		}
 
-		ginkgo.GinkgoLogr.Info("waiting for managed resource group deletion",
-			"resourceGroup", resourceGroupName, "remaining", managedResourceGroups)
+		// delta-only logging: only emit when the set of pending groups changes between polls
+		if !slices.Equal(pendingManagedResourceGroups, previousPending) {
+			ginkgo.GinkgoLogr.Info("waiting for managed resource group deletion",
+				"resourceGroup", resourceGroupName, "remaining", pendingManagedResourceGroups)
+			previousPending = pendingManagedResourceGroups
+		}
 	}
+}
+
+// partitionDenyAssignmentLockedResourceGroups splits managed resource groups into those blocked
+// by a system-protected deny assignment (locked: the reaper can never delete them, they need
+// RP-side remediation) and the rest. A probe failure is treated as "not locked" so the caller
+// falls back to the existing wait-and-report behaviour rather than skipping a group that might
+// still be deletable.
+func (tc *perItOrDescribeTestContext) partitionDenyAssignmentLockedResourceGroups(ctx context.Context, resourceGroupNames []string) (locked, pending []string) {
+	for _, resourceGroupName := range resourceGroupNames {
+		isLocked, err := tc.resourceGroupHasSystemProtectedDenyAssignment(ctx, resourceGroupName)
+		if err != nil {
+			ginkgo.GinkgoLogr.Error(err, "failed to check for a system-protected deny assignment, treating resource group as not locked",
+				"resourceGroup", resourceGroupName)
+			pending = append(pending, resourceGroupName)
+			continue
+		}
+		if isLocked {
+			locked = append(locked, resourceGroupName)
+		} else {
+			pending = append(pending, resourceGroupName)
+		}
+	}
+	return locked, pending
+}
+
+// resourceGroupHasSystemProtectedDenyAssignment reports whether the resource group carries a
+// system-protected deny assignment. The RP creates such a deny assignment on the managed
+// resource group holding customer infrastructure (isSystemProtected=true), which blocks
+// resourceGroups/delete for every principal except the RP first-party service principals. Once
+// the parent HCP cluster is gone, the managed resource group is orphaned and the reaper can
+// never delete it, so there is no point waiting for it to disappear.
+func (tc *perItOrDescribeTestContext) resourceGroupHasSystemProtectedDenyAssignment(ctx context.Context, resourceGroupName string) (bool, error) {
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return false, err
+	}
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		return false, err
+	}
+	denyAssignmentsClient, err := armauthorization.NewDenyAssignmentsClient(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		return false, err
+	}
+
+	pager := denyAssignmentsClient.NewListForResourceGroupPager(resourceGroupName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isResourceGroupNotFoundError(err) {
+				return false, nil
+			}
+			return false, fmt.Errorf("failed listing deny assignments for resource group %q: %w", resourceGroupName, err)
+		}
+		for _, denyAssignment := range page.Value {
+			if denyAssignment == nil || denyAssignment.Properties == nil {
+				continue
+			}
+			if denyAssignment.Properties.IsSystemProtected != nil &&
+				*denyAssignment.Properties.IsSystemProtected {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // cleanupResourceGroup is the standard resourcegroup cleanup.  It attempts to
@@ -551,14 +651,30 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	}
 
 	if len(managedResourceGroups) > 0 {
-		ginkgo.GinkgoLogr.Info("managed resource groups still present, waiting for deletion",
-			"resourceGroup", resourceGroupName, "managedResourceGroups", managedResourceGroups)
-		managedResourceGroups, err = tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
-		if err != nil {
-			if len(managedResourceGroups) > 0 {
-				return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(managedResourceGroups), resourceGroupName, managedResourceGroups, err)
+		// A managed resource group carrying a system-protected deny assignment (created by the
+		// RP to guard customer infrastructure) cannot be deleted by cleanup once its parent HCP
+		// cluster is gone: the deny assignment blocks resourceGroups/delete for every principal
+		// except the RP first-party service principals. Waiting for such an orphaned group to
+		// disappear only burns the timeout on every reaper run and then abandons the deletable
+		// parent resource group. Skip the wait for those, record them for RP-side remediation
+		// (AROSLSRE-1591), and still delete the parent below to shrink the leak surface.
+		lockedManagedResourceGroups, pendingManagedResourceGroups := tc.partitionDenyAssignmentLockedResourceGroups(ctx, managedResourceGroups)
+
+		if len(lockedManagedResourceGroups) > 0 {
+			ginkgo.GinkgoLogr.Info("leaving behind managed resource groups locked by a system-protected deny assignment; they cannot be deleted by cleanup and require RP-side remediation (AROSLSRE-1591)",
+				"resourceGroup", resourceGroupName, "lockedManagedResourceGroups", lockedManagedResourceGroups)
+		}
+
+		if len(pendingManagedResourceGroups) > 0 {
+			ginkgo.GinkgoLogr.Info("managed resource groups still present, waiting for deletion",
+				"resourceGroup", resourceGroupName, "managedResourceGroups", pendingManagedResourceGroups)
+			// waitForManagedResourceGroupsDeletion re-checks deny assignments on every poll and
+			// returns only the deletable (non-locked) groups still present, so the deny-locked
+			// ones never block the wait. A deletable group still present here is a genuine anomaly.
+			stillPendingManagedResourceGroups, waitErr := tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
+			if waitErr != nil && len(stillPendingManagedResourceGroups) > 0 {
+				return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(stillPendingManagedResourceGroups), resourceGroupName, stillPendingManagedResourceGroups, waitErr)
 			}
-			return fmt.Errorf("failed waiting for managed resource group deletion in %s: %w", resourceGroupName, err)
 		}
 	} else {
 		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
@@ -568,6 +684,11 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
+
+	// Deleting the resource group only soft-deletes any Key Vaults it contained;
+	// their globally-unique names stay reserved until purged. Purge them so a
+	// later run reusing a colliding vault name does not hit VaultAlreadyExists.
+	tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
 
 	// we want non-conformant clusters to be visible at the end, without impeding our ability to clean up the resource group
 	return nonConformantErr
@@ -624,7 +745,96 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
+	// Purge any Key Vaults left soft-deleted by the resource group deletion so
+	// their globally-unique names are immediately reusable by later runs.
+	tc.purgeDeletedKeyVaultsInResourceGroup(ctx, resourceGroupName)
+
 	return nil
+}
+
+// purgeDeletedKeyVaultsInResourceGroup purges any soft-deleted Key Vaults that
+// belonged to the given resource group. Deleting a resource group only places
+// its vaults into a recoverable (soft-deleted) state, and Azure keeps the
+// globally-unique vault name reserved for the soft-delete retention window (up
+// to 90 days). Because the e2e customer Key Vault name is derived
+// deterministically from the resource group id
+// (cust-kv-${uniqueString(resourceGroup().id, ...)}), a not-yet-purged vault
+// would cause a VaultAlreadyExists collision on a later run that reuses the
+// name. This is best-effort: failures (including a missing
+// Microsoft.KeyVault/locations/deletedVaults/purge/action permission) are
+// logged but never fail cleanup.
+func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx context.Context, resourceGroupName string) {
+	// Bound the whole best-effort purge so a stuck vault purge or Azure
+	// control-plane stall cannot hang teardown indefinitely.
+	ctx, cancel := context.WithTimeout(ctx, keyVaultPurgeTimeout)
+	defer cancel()
+
+	creds, err := tc.AzureCredential()
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted key vaults: failed to get azure credentials", "resourceGroup", resourceGroupName)
+		return
+	}
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted key vaults: failed to get subscription id", "resourceGroup", resourceGroupName)
+		return
+	}
+	vaultsClient, err := armkeyvault.NewVaultsClient(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted key vaults: failed to build key vault client", "resourceGroup", resourceGroupName)
+		return
+	}
+
+	// Soft-deleted vaults expose their original resource id via VaultID; match
+	// the resource group segment case-insensitively.
+	rgMarker := strings.ToLower("/resourcegroups/" + resourceGroupName + "/")
+
+	pager := vaultsClient.NewListDeletedPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			ginkgo.GinkgoLogr.Error(err, "unable to list soft-deleted key vaults", "resourceGroup", resourceGroupName)
+			return
+		}
+		for _, deleted := range page.Value {
+			if deleted == nil || deleted.Name == nil || deleted.Properties == nil ||
+				deleted.Properties.VaultID == nil || deleted.Properties.Location == nil {
+				continue
+			}
+			if !strings.Contains(strings.ToLower(*deleted.Properties.VaultID), rgMarker) {
+				continue
+			}
+			ginkgo.GinkgoLogr.Info("purging soft-deleted key vault",
+				"keyVault", *deleted.Name, "location", *deleted.Properties.Location, "resourceGroup", resourceGroupName)
+			poller, err := vaultsClient.BeginPurgeDeleted(ctx, *deleted.Name, *deleted.Properties.Location, nil)
+			if err != nil {
+				// A 404 means the vault was already purged or its soft-delete
+				// window expired between the list and the purge; that is the
+				// desired end state, so treat it as a no-op rather than noise.
+				if isKeyVaultNotFound(err) {
+					continue
+				}
+				ginkgo.GinkgoLogr.Error(err, "failed to start purge of soft-deleted key vault; a colliding name may block a later run until it is purged or expires",
+					"keyVault", *deleted.Name, "resourceGroup", resourceGroupName)
+				continue
+			}
+			if _, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: StandardPollInterval}); err != nil {
+				if isKeyVaultNotFound(err) {
+					continue
+				}
+				ginkgo.GinkgoLogr.Error(err, "failed to purge soft-deleted key vault; a colliding name may block a later run until it is purged or expires",
+					"keyVault", *deleted.Name, "resourceGroup", resourceGroupName)
+			}
+		}
+	}
+}
+
+// isKeyVaultNotFound reports whether err is an Azure 404 response, which for a
+// purge means the vault is already gone (already purged or soft-delete window
+// expired) and can be treated as a successful no-op.
+func isKeyVaultNotFound(err error) bool {
+	var respErr *azcore.ResponseError
+	return errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound
 }
 
 func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx context.Context, resourceGroupName string) error {
@@ -833,10 +1043,6 @@ func (tc *perItOrDescribeTestContext) GetARMComputeClientFactoryOrDie(ctx contex
 	return Must(tc.GetARMComputeClientFactory(ctx))
 }
 
-func (tc *perItOrDescribeTestContext) Get20240610ClientFactoryOrDie(ctx context.Context) *hcpsdk20240610preview.ClientFactory {
-	return Must(tc.Get20240610ClientFactory(ctx))
-}
-
 func (tc *perItOrDescribeTestContext) GetARMSubscriptionsClientFactory() (*armsubscriptions.ClientFactory, error) {
 	tc.contextLock.RLock()
 	if tc.clientFactory20240610 != nil {
@@ -978,82 +1184,6 @@ func (tc *perItOrDescribeTestContext) getARMComputeClientFactoryUnlocked(ctx con
 	return tc.armComputeClientFactory, nil
 }
 
-func (tc *perItOrDescribeTestContext) Get20240610ClientFactory(ctx context.Context) (*hcpsdk20240610preview.ClientFactory, error) {
-	tc.contextLock.RLock()
-	if tc.clientFactory20240610 != nil {
-		defer tc.contextLock.RUnlock()
-		return tc.clientFactory20240610, nil
-	}
-	tc.contextLock.RUnlock()
-
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-
-	return tc.get20240610ClientFactoryUnlocked(ctx)
-}
-
-func (tc *perItOrDescribeTestContext) get20240610ClientFactoryUnlocked(ctx context.Context) (*hcpsdk20240610preview.ClientFactory, error) {
-	if tc.clientFactory20240610 != nil {
-		return tc.clientFactory20240610, nil
-	}
-
-	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
-	if err != nil {
-		return nil, err
-	}
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
-	if err != nil {
-		return nil, err
-	}
-	clientFactory, err := hcpsdk20240610preview.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions())
-	if err != nil {
-		return nil, err
-	}
-	tc.clientFactory20240610 = clientFactory
-
-	return tc.clientFactory20240610, nil
-}
-
-func (tc *perItOrDescribeTestContext) Get20251223ClientFactory(ctx context.Context) (*hcpsdk20251223preview.ClientFactory, error) {
-	tc.contextLock.RLock()
-	if tc.clientFactory20251223 != nil {
-		defer tc.contextLock.RUnlock()
-		return tc.clientFactory20251223, nil
-	}
-	tc.contextLock.RUnlock()
-
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-
-	return tc.get20251223ClientFactoryUnlocked(ctx)
-}
-
-func (tc *perItOrDescribeTestContext) Get20251223ClientFactoryOrDie(ctx context.Context) *hcpsdk20251223preview.ClientFactory {
-	return Must(tc.Get20251223ClientFactory(ctx))
-}
-
-func (tc *perItOrDescribeTestContext) get20251223ClientFactoryUnlocked(ctx context.Context) (*hcpsdk20251223preview.ClientFactory, error) {
-	if tc.clientFactory20251223 != nil {
-		return tc.clientFactory20251223, nil
-	}
-
-	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
-	if err != nil {
-		return nil, err
-	}
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
-	if err != nil {
-		return nil, err
-	}
-	clientFactory, err := hcpsdk20251223preview.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions())
-	if err != nil {
-		return nil, err
-	}
-	tc.clientFactory20251223 = clientFactory
-
-	return tc.clientFactory20251223, nil
-}
-
 func (tc *perItOrDescribeTestContext) getSubscriptionIDUnlocked(ctx context.Context) (string, error) {
 	if len(tc.subscriptionID) > 0 {
 		return tc.subscriptionID, nil
@@ -1093,45 +1223,6 @@ func (tc *perItOrDescribeTestContext) getGraphClientUnlocked(ctx context.Context
 	return graphutil.NewClient(ctx, creds)
 }
 
-func (tc *perItOrDescribeTestContext) Get20260630ClientFactory(ctx context.Context) (*hcpsdk20260630preview.ClientFactory, error) {
-	tc.contextLock.RLock()
-	if tc.clientFactory20260630 != nil {
-		defer tc.contextLock.RUnlock()
-		return tc.clientFactory20260630, nil
-	}
-	tc.contextLock.RUnlock()
-
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-
-	return tc.get20260630ClientFactoryUnlocked(ctx)
-}
-
-func (tc *perItOrDescribeTestContext) Get20260630ClientFactoryOrDie(ctx context.Context) *hcpsdk20260630preview.ClientFactory {
-	return Must(tc.Get20260630ClientFactory(ctx))
-}
-
-func (tc *perItOrDescribeTestContext) get20260630ClientFactoryUnlocked(ctx context.Context) (*hcpsdk20260630preview.ClientFactory, error) {
-	if tc.clientFactory20260630 != nil {
-		return tc.clientFactory20260630, nil
-	}
-
-	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
-	if err != nil {
-		return nil, err
-	}
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
-	if err != nil {
-		return nil, err
-	}
-	clientFactory, err := hcpsdk20260630preview.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions())
-	if err != nil {
-		return nil, err
-	}
-	tc.clientFactory20260630 = clientFactory
-
-	return tc.clientFactory20260630, nil
-}
 func (tc *perItOrDescribeTestContext) Location() string {
 	return tc.perBinaryInvocationTestContext.Location()
 }
@@ -1161,7 +1252,8 @@ func (tc *perItOrDescribeTestContext) AvailableZones(ctx context.Context, vmSize
 		if skuRestrictedInLocation(sku, location) {
 			return nil, nil
 		}
-		return availableZones(sku, location), nil
+		_, available := zonesInLocation(sku, location)
+		return available, nil
 	}
 	return nil, fmt.Errorf("VM size %q not found in Resource SKUs for location %q", vmSize, location)
 }

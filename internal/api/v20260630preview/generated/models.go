@@ -103,6 +103,13 @@ type CustomerManagedEncryptionProfile struct {
 	Kms *KmsEncryptionProfile
 }
 
+// CustomerManagedEncryptionProfileUpdate - Customer managed encryption key profile.
+type CustomerManagedEncryptionProfileUpdate struct {
+	// The Key Management Service (KMS) encryption key details.
+	// Required when encryptionType is "KMS".
+	Kms *KmsEncryptionProfileUpdate
+}
+
 // DNSProfile - DNS contains the DNS settings of the cluster
 type DNSProfile struct {
 	// BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name. BaseDomainPrefix is the name
@@ -115,18 +122,29 @@ type DNSProfile struct {
 
 // EtcdDataEncryptionProfile - The ETCD data encryption settings.
 type EtcdDataEncryptionProfile struct {
+	// REQUIRED; Specify the key management strategy used for the encryption key that encrypts the ETCD data.
+	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
+
 	// Specify customer managed encryption key details. Required when keyManagementMode is "CustomerManaged".
 	CustomerManaged *CustomerManagedEncryptionProfile
+}
 
-	// Specify the key management strategy used for the encryption key that encrypts the ETCD data. By default, "PlatformManaged"
-	// is used.
-	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
+// EtcdDataEncryptionProfileUpdate - The ETCD data encryption settings.
+type EtcdDataEncryptionProfileUpdate struct {
+	// Specify customer managed encryption key details. Required when keyManagementMode is "CustomerManaged".
+	CustomerManaged *CustomerManagedEncryptionProfileUpdate
 }
 
 // EtcdProfile - The ETCD settings and configuration options.
 type EtcdProfile struct {
 	// ETCD Data Encryption settings. If not specified platform managed keys are used.
 	DataEncryption *EtcdDataEncryptionProfile
+}
+
+// EtcdProfileUpdate - The ETCD settings and configuration options.
+type EtcdProfileUpdate struct {
+	// ETCD Data Encryption settings. If not specified platform managed keys are used.
+	DataEncryption *EtcdDataEncryptionProfileUpdate
 }
 
 // ExternalAuth resource
@@ -339,6 +357,9 @@ type HcpOpenShiftClusterProperties struct {
 	// OpenShift internal image registry
 	ClusterImageRegistry *ClusterImageRegistryProfile
 
+	// Cryptographic restrictions for kernel and userspace libraries
+	CryptoRestrictions *CryptoRestrictions
+
 	// Cluster DNS configuration
 	DNS *DNSProfile
 
@@ -379,6 +400,9 @@ type HcpOpenShiftClusterProperties struct {
 type HcpOpenShiftClusterPropertiesUpdate struct {
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
+
+	// Configure ETCD.
+	Etcd *EtcdProfileUpdate
 
 	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
 	// WARNING: Updating this array will redeploy all node pools in the cluster.
@@ -554,12 +578,26 @@ type KmsEncryptionProfile struct {
 	Visibility *KeyVaultVisibility
 }
 
+// KmsEncryptionProfileUpdate - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application
+// used to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
+// set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)
+type KmsEncryptionProfileUpdate struct {
+	// The details of the active key.
+	ActiveKey *KmsKeyUpdate
+}
+
 // KmsKey - A representation of a KeyVault Secret.
 type KmsKey struct {
 	// REQUIRED; name is the name of the keyvault key used for encryption/decryption.
 	Name *string
 
 	// REQUIRED; version contains the version of the key to use.
+	Version *string
+}
+
+// KmsKeyUpdate - A representation of a KeyVault Secret.
+type KmsKeyUpdate struct {
+	// version contains the version of the key to use.
 	Version *string
 }
 
@@ -898,7 +936,9 @@ type OsDiskProfile struct {
 	// Details on how to create a Disk Encryption Set can be found here: https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
 	EncryptionSetID *string
 
-	// The OS disk size in GiB
+	// The OS disk size in GiB. Maximum is 4095 GiB for Managed disks. For Ephemeral disks, the maximum is 2040 GiB; Azure may
+	// enforce a lower effective limit based on the selected VM size's local cache,
+	// temp, or NVMe capacity.
 	SizeGiB *int32
 }
 

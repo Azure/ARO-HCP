@@ -14,6 +14,7 @@ tests:
     alertname: FrontendClusterServiceErrorRate
     exp_alerts:
     - exp_labels:
+        component: frontend
         severity: info
       exp_annotations:
         description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: 5.66%.'
@@ -42,6 +43,7 @@ tests:
     alertname: FrontendHighAuditLogErrorRate
     exp_alerts:
     - exp_labels:
+        component: frontend
         severity: info
       exp_annotations:
         summary: "High Frontend audit log error rate."
@@ -68,6 +70,7 @@ tests:
     alertname: FrontendAuditLogConnectionDegraded
     exp_alerts:
     - exp_labels:
+        component: frontend
         job: aro-hcp-frontend-metrics
         severity: info
       exp_annotations:
@@ -93,6 +96,7 @@ tests:
     alertname: FrontendHttpRequestPanics
     exp_alerts:
     - exp_labels:
+        component: frontend
         severity: warning
       exp_annotations:
         description: 'Frontend HTTP request handler has panicked 5 time(s) in the last 5 minutes.'

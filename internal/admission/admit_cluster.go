@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -140,7 +139,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterCPOImageOverride, api.TagClusterFIPSEnabled, api.TagClusterMaxCreationDuration)
+	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterCPOImageOverride, api.TagClusterMaxCreationDuration)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), api.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -186,16 +185,6 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 			))
 		} else {
 			experimentalFeatures.ControlPlaneOperatorImage = trimmed
-		}
-	}
-
-	fipsEnabled := lookupTag(tags, api.TagClusterFIPSEnabled)
-	if fipsEnabled != "" {
-		boolValue, err := strconv.ParseBool(fipsEnabled)
-		if err != nil {
-			errs = append(errs, field.Invalid(tagsPath.Key(api.TagClusterFIPSEnabled), fipsEnabled, "must be true or false"))
-		} else {
-			experimentalFeatures.FIPSEnabled = boolValue
 		}
 	}
 
@@ -277,6 +266,7 @@ func admitClusterCustomerProperties(ctx context.Context, admissionContext *Clust
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitClusterVersionProfile(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToClusterCustomerPropertiesVersion))...)
+	errs = append(errs, admitClusterEtcdKmsKeyVersionChange(ctx, admissionContext, op, fldPath.Child("etcd", "dataEncryption", "customerManaged", "kms", "activeKey", "version"), newObj, oldObj)...)
 	errs = append(errs, admitClusterPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform)...)
 
 	return errs
@@ -462,4 +452,43 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 	}
 
 	return errs
+}
+
+// minKmsKeyVersionRotationVersion is the minimum OCP version whose CPO
+// supports etcd KMS key version rotation.
+var minKmsKeyVersionRotationVersion = semver.Version{Major: 4, Minor: 22}
+
+// admitClusterEtcdKmsKeyVersionChange rejects KMS key version changes when the
+// cluster's active control plane version predates the CPO support (< 4.22).
+// Only runs for API versions >= v20260630Preview where version is mutable;
+// older API versions block version changes via the immutability check in validation.
+func admitClusterEtcdKmsKeyVersionChange(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
+	if op.Type != operation.Update || oldObj == nil {
+		return nil
+	}
+
+	if newObj.Etcd.DataEncryption.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged && newObj.Etcd.DataEncryption.KeyManagementMode != oldObj.Etcd.DataEncryption.KeyManagementMode {
+		return field.ErrorList{field.Forbidden(fldPath, "KMS key version rotation is only supported for customer-managed encryption")}
+	}
+
+	if newObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version == oldObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version {
+		return nil
+	}
+
+	apiVersion := api.APIVersionFromOptions(op.Options)
+	if apiVersion.LT(api.APIVersionV20260630Preview) {
+		return field.ErrorList{field.Forbidden(fldPath, "KMS key version is immutable for this API version")}
+	}
+
+	if admissionContext.ServiceProviderCluster == nil {
+		return field.ErrorList{field.InternalError(fldPath, errors.New("cannot validate KMS key version rotation"))}
+	}
+
+	lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(admissionContext.ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
+	clusterVersion := semver.Version{Major: lowest.Major, Minor: lowest.Minor}
+	if clusterVersion.LT(minKmsKeyVersionRotationVersion) {
+		return field.ErrorList{field.Invalid(fldPath, newObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version, fmt.Sprintf("KMS key version rotation requires cluster version %s or above", minKmsKeyVersionRotationVersion))}
+	}
+
+	return nil
 }

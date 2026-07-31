@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -49,8 +51,8 @@ func isResponseError(err error, statusCode int) bool {
 	if errors.As(err, &responseError) && responseError.StatusCode == statusCode {
 		return true
 	}
-	var stepError *transactionStepError
-	return errors.As(err, &stepError) && stepError.httpStatusCode == statusCode
+	var stepError *TransactionStepError
+	return errors.As(err, &stepError) && stepError.HTTPStatusCode == statusCode
 }
 
 // IsNotFoundError returns true if err represents an HTTP 404 Not Found response.
@@ -132,6 +134,11 @@ type ResourcesDBClient interface {
 
 	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster]
 
+	// ListMissingResourceID returns documents in the Resources container that lack a resourceID field.
+	// These are typically old records created before the resourceID field was introduced.
+	// The returned iterator yields raw TypedDocuments without CosmosToInternal conversion.
+	ListMissingResourceID(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error)
+
 	// ResourcesGlobalListers returns interfaces for listing ARM resource documents across all partitions
 	// (Resources container only), intended for feeding SharedInformers.
 	ResourcesGlobalListers() ResourcesGlobalListers
@@ -145,8 +152,8 @@ type ResourcesDBClient interface {
 // Any Cosmos container that exposes its change feed satisfies it — both the
 // shared "Resources" container and per-management-cluster kube-applier containers.
 type ChangeFeedClient interface {
-	GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error)
-	GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error)
+	ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error)
+	ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error)
 }
 
 var _ ResourcesDBClient = &resourcesCosmosDBClient{}
@@ -204,16 +211,38 @@ func (d *resourcesCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.Resourc
 	return NewUntypedCRUD(d.resources, parentResourceID), nil
 }
 
+func (d *resourcesCosmosDBClient) ListMissingResourceID(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error) {
+	query := "SELECT * FROM c WHERE (NOT IS_DEFINED(c.resourceID) OR IS_NULL(c.resourceID))"
+
+	queryOptions := azcosmos.QueryOptions{
+		PageSizeHint: -1,
+	}
+	if options != nil {
+		if options.PageSizeHint != nil {
+			queryOptions.PageSizeHint = max(*options.PageSizeHint, -1)
+		}
+		queryOptions.ContinuationToken = options.ContinuationToken
+	}
+
+	partitionKey := azcosmos.NewPartitionKey()
+	pager := d.resources.NewQueryItemsPager(query, partitionKey, &queryOptions)
+
+	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
+		return newQueryTypedDocumentSinglePageIterator(pager), nil
+	}
+	return newQueryTypedDocumentIterator(pager), nil
+}
+
 func (d *resourcesCosmosDBClient) ResourcesGlobalListers() ResourcesGlobalListers {
 	return NewCosmosResourcesGlobalListers(d.resources)
 }
 
-func (d *resourcesCosmosDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
-	return d.resources.GetChangeFeed(ctx, options)
+func (d *resourcesCosmosDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	return d.resources.ReadChangeFeed(ctx, options)
 }
 
-func (d *resourcesCosmosDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
-	resourcesFeedRanges, err := d.resources.GetFeedRanges(ctx)
+func (d *resourcesCosmosDBClient) ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error) {
+	resourcesFeedRanges, err := d.resources.ReadFeedRanges(ctx, options)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

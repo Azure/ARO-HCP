@@ -70,9 +70,21 @@ scale independently from the infrastructure-subscription work.
     - highest-precedence concrete runtime location
     - when set it overrides `ALLOWED_LOCATIONS` for fixed-mode pool selection
     - for runtime-selected pools it does not change pool identity, but it does become the concrete runtime location
+  - `CLUSTER_PROFILE_DIRS`
+    - optional comma/newline-separated list of cluster profile dirs to resolve the leased
+      subscription's owning tenant/service-principal across
+    - falls back to the single `CLUSTER_PROFILE_DIR` when unset (backward compatible)
+    - used by the cross-tenant prod gating job so a single job can lease slots that live
+      in more than one Azure tenant (RH-tenant subs + MSFT Test-Tenant sub); acquire matches
+      the leased `subscription_name` against the `customer-*-subscription-name` files across
+      all listed dirs and exports the single matching dir as `SELECTED_CLUSTER_PROFILE_DIR`
 - The runtime env contract is intentionally narrow and non-secret:
   - `CUSTOMER_SUBSCRIPTION`
   - `SELECTED_LOCATION`
+  - `SELECTED_CLUSTER_PROFILE_DIR`
+    - the single cluster profile dir whose `customer-*-subscription-name` matched the leased
+      subscription; downstream steps load the owning tenant/service-principal credentials from
+      it (`tenant`, `client-id`, `client-secret`) instead of a job-fixed profile
   - `LEASED_MSI_CONTAINERS`
   - `ARO_HCP_E2E_SLOT_NAME`
   - `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`

@@ -280,9 +280,12 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			mockCincinnatiClient := cincinnati.NewMockClient(ctrl)
 			tt.mockSetup(mockCincinnatiClient)
 
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 			syncer := &controlPlaneDesiredVersionSyncer{
-				resourcesDBClient: databasetesting.NewMockResourcesDBClient(),
-				graphClient:       mockGraphClient(ctrl, tt.channelExistence),
+				resourcesDBClient:             mockResourcesDBClient,
+				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			ctx := context.Background()
@@ -574,8 +577,10 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tt.cosmosResources)
 			require.NoError(t, err)
 			syncer := &controlPlaneDesiredVersionSyncer{
-				resourcesDBClient: mockResourcesDBClient,
-				graphClient:       mockGraphClient(ctrl, tt.channelExistence),
+				resourcesDBClient:             mockResourcesDBClient,
+				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, false)
@@ -587,11 +592,15 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 
 // testCosmosClusterWithWorkersNodePoolAtVersion returns a cluster and workers node pool for the subscription, resource group,
 // and cluster name shared by desiredControlPlaneZVersion tests. nodePoolVersionId is properties.version.id on the pool.
+// Also seeds an empty ServiceProviderCluster and an empty ServiceProviderNodePool the
+// way the production creator controllers would have populated them.
 func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []any {
 	clusterResourceId, cluster := testCosmosClusterResource()
+	workersNodePool := testCosmosNodePool(clusterResourceId, "workers", nodePoolVersionId, false)
 	return []any{
 		cluster,
-		testCosmosNodePool(clusterResourceId, "workers", nodePoolVersionId, false),
+		workersNodePool,
+		testCosmosServiceProviderNodePool(workersNodePool.ResourceID),
 	}
 }
 
@@ -614,6 +623,20 @@ func testCosmosClusterResource() (*azcorearm.ResourceID, *api.HCPOpenShiftCluste
 		},
 	}
 	return clusterResourceId, cluster
+}
+
+// testCosmosServiceProviderNodePool returns an empty ServiceProviderNodePool nested under
+// the given node pool, the way CreateServiceProviderNodePool would have populated it in production.
+func testCosmosServiceProviderNodePool(nodePoolResourceId *azcorearm.ResourceID) *api.ServiceProviderNodePool {
+	spnpResourceId := api.Must(azcorearm.ParseResourceID(
+		nodePoolResourceId.String() + "/serviceProviderNodePools/" + api.ServiceProviderNodePoolResourceName,
+	))
+	return &api.ServiceProviderNodePool{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   spnpResourceId,
+			PartitionKey: strings.ToLower(spnpResourceId.SubscriptionID),
+		},
+	}
 }
 
 func testCosmosNodePool(clusterResourceId *azcorearm.ResourceID, name, nodePoolVersionId string, deleting bool) *api.HCPOpenShiftClusterNodePool {
@@ -639,12 +662,18 @@ func testCosmosNodePool(clusterResourceId *azcorearm.ResourceID, name, nodePoolV
 
 // testCosmosClusterWithActiveAndDeletingNodePools returns a cluster with one active node pool and one
 // node pool marked for deletion. Skew validation should consider only the active pool.
+// The active pool is also seeded with an empty ServiceProviderNodePool so that
+// listClusterAdmissionNodePools (which Gets the SPNP for every non-deleting pool)
+// returns a complete result.
 func testCosmosClusterWithActiveAndDeletingNodePools(activeNodePoolName, activeVersion, deletingNodePoolName, deletingVersion string) []any {
 	clusterResourceId, cluster := testCosmosClusterResource()
+	activeNodePool := testCosmosNodePool(clusterResourceId, activeNodePoolName, activeVersion, false)
+	deletingNodePool := testCosmosNodePool(clusterResourceId, deletingNodePoolName, deletingVersion, true)
 	return []any{
 		cluster,
-		testCosmosNodePool(clusterResourceId, activeNodePoolName, activeVersion, false),
-		testCosmosNodePool(clusterResourceId, deletingNodePoolName, deletingVersion, true),
+		activeNodePool,
+		deletingNodePool,
+		testCosmosServiceProviderNodePool(activeNodePool.ResourceID),
 	}
 }
 
@@ -736,7 +765,11 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 			ctx := context.Background()
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tt.cosmosResources)
 			require.NoError(t, err)
-			syncer := &controlPlaneDesiredVersionSyncer{resourcesDBClient: mockResourcesDBClient}
+			syncer := &controlPlaneDesiredVersionSyncer{
+				resourcesDBClient:             mockResourcesDBClient,
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+			}
 
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, tt.experimentalReleaseFeatures)
 
@@ -871,8 +904,10 @@ func TestDesiredControlPlaneZVersion_CrossMajorUpgrade(t *testing.T) {
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tt.cosmosResources)
 			require.NoError(t, err)
 			syncer := &controlPlaneDesiredVersionSyncer{
-				resourcesDBClient: mockResourcesDBClient,
-				graphClient:       mockGraphClient(ctrl, tt.channelExistence),
+				resourcesDBClient:             mockResourcesDBClient,
+				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, tt.experimentalReleaseFeatures)
@@ -1007,9 +1042,12 @@ func TestDesiredControlPlaneZVersion_InitialVersionSelection(t *testing.T) {
 			mockCincinnatiClient := cincinnati.NewMockClient(ctrl)
 			tt.mockSetup(mockCincinnatiClient)
 
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 			syncer := &controlPlaneDesiredVersionSyncer{
-				resourcesDBClient: databasetesting.NewMockResourcesDBClient(),
-				graphClient:       mockGraphClient(ctrl, tt.channelExistence),
+				resourcesDBClient:             mockResourcesDBClient,
+				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			// Empty active versions - simulating a new cluster
@@ -1212,12 +1250,14 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 			syncer := &controlPlaneDesiredVersionSyncer{
-				readDesireLister:      newValidHostedClusterReadDesireLister(t),
-				resourcesDBClient:     mockResourcesDBClient,
-				clusterServiceClient:  mockCS,
-				subscriptionLister:    subscriptionLister,
-				cincinnatiClientCache: mockClientCache,
-				graphClient:           mockGraphClient(ctrl, tt.channelExistence),
+				readDesireLister:              newValidHostedClusterReadDesireLister(t),
+				resourcesDBClient:             mockResourcesDBClient,
+				clusterServiceClient:          mockCS,
+				subscriptionLister:            subscriptionLister,
+				cincinnatiClientCache:         mockClientCache,
+				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			err := syncer.SyncOnce(ctx, clusterKey)
@@ -1505,10 +1545,11 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceSkipsWhenGated(t *testing.T) {
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Times(0)
 
 	syncer := &controlPlaneDesiredVersionSyncer{
-		clock:                clocktesting.NewFakePassiveClock(now),
-		readDesireLister:     newValidHostedClusterReadDesireLister(t),
-		resourcesDBClient:    mockDB,
-		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(ctrl),
+		clock:                        clocktesting.NewFakePassiveClock(now),
+		readDesireLister:             newValidHostedClusterReadDesireLister(t),
+		resourcesDBClient:            mockDB,
+		serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
+		clusterServiceClient:         ocm.NewMockClusterServiceClientSpec(ctrl),
 		subscriptionLister: &listertesting.SliceSubscriptionLister{Subscriptions: []*arm.Subscription{{
 			ResourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID)),
 			Properties: &arm.SubscriptionProperties{},

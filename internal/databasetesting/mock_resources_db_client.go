@@ -97,6 +97,27 @@ func (m *MockResourcesDBClient) Subscriptions() database.ResourceCRUD[arm.Subscr
 	return newMockSubscriptionCRUD(m)
 }
 
+// ListMissingResourceID returns documents that lack a resourceID field.
+func (m *MockResourcesDBClient) ListMissingResourceID(ctx context.Context, options *database.DBClientListResourceDocsOptions) (database.DBClientIterator[database.TypedDocument], error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var ids []string
+	var items []*database.TypedDocument
+	for _, data := range m.documents {
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			continue
+		}
+		if typedDoc.ResourceID != nil {
+			continue
+		}
+		ids = append(ids, typedDoc.ID)
+		items = append(items, &typedDoc)
+	}
+	return newMockIterator(ids, items), nil
+}
+
 // ResourcesGlobalListers returns interfaces for listing all resources of a particular
 // type across all partitions. If a custom ResourcesGlobalListers was set via SetResourcesGlobalListers,
 // that is returned instead.
@@ -119,25 +140,26 @@ func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourc
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }
 
-// GetChangeFeed reads the in-memory change-feed log. Each
+// ReadChangeFeed reads the in-memory change-feed log. Each
 // successful StoreDocument call records a snapshot of the document;
 // reads return everything past the position encoded in
-// options.Continuation. Deletes are not recorded, which mirrors
-// "latest version" mode in real Cosmos DB.
-func (m *MockResourcesDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+// options.Continuation. Hard deletes are not recorded, which mirrors
+// "latest version" mode in real Cosmos DB. Soft deletes go through
+// StoreDocument and are therefore recorded.
+func (m *MockResourcesDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
 	var continuation string
 	if options != nil && options.Continuation != nil {
 		continuation = *options.Continuation
 	}
-	docs, nextToken, hasNew := m.changeFeed.read(continuation)
-	return buildMockChangeFeedResponse(docs, nextToken, hasNew), nil
+	items, nextToken, hasNew := m.changeFeed.read(continuation)
+	return buildMockChangeFeedResponse(items, nextToken, hasNew), nil
 }
 
-// GetFeedRanges returns the single feed range the mock
+// ReadFeedRanges returns the single feed range the mock
 // advertises. Real Cosmos may report many ranges; one is enough for
 // the in-memory mock because there is no partition-level parallelism
 // to model.
-func (m *MockResourcesDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+func (m *MockResourcesDBClient) ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error) {
 	return []azcosmos.FeedRange{mockChangeFeedFeedRange}, nil
 }
 
@@ -221,7 +243,7 @@ func (m *MockResourcesDBClient) ListAllDocuments(ctx context.Context) ([]*databa
 
 // StoreDocument stores a raw JSON document in the mock database and
 // appends it to the in-memory change-feed log so that consumers of
-// GetChangeFeed see the mutation.
+// ReadChangeFeed see the mutation.
 func (m *MockResourcesDBClient) StoreDocument(cosmosID string, data json.RawMessage) {
 	m.mu.Lock()
 	m.documents[strings.ToLower(cosmosID)] = data
@@ -245,6 +267,7 @@ func (m *MockResourcesDBClient) DeleteDocument(cosmosID string) {
 }
 
 // ListDocuments returns all documents matching the given resource type and prefix.
+// Soft-deleted documents (those with a DeletionTimestamp set) are excluded.
 func (m *MockResourcesDBClient) ListDocuments(resourceType *azcorearm.ResourceType, prefix string) []json.RawMessage {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -259,6 +282,10 @@ func (m *MockResourcesDBClient) ListDocuments(resourceType *azcorearm.ResourceTy
 		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
 		// documents without a resourceID are never returned by list.
 		if typedDoc.ResourceID == nil {
+			continue
+		}
+
+		if typedDoc.DeletionTimestamp != nil {
 			continue
 		}
 
@@ -356,7 +383,7 @@ func (t *mockTransaction) Execute(ctx context.Context, o *azcosmos.Transactional
 		if err != nil {
 			var responseErr *azcore.ResponseError
 			if errors.As(err, &responseErr) {
-				return nil, database.NewTransactionStepError(step+1, len(t.steps), responseErr.StatusCode)
+				return nil, database.NewTransactionStepError(step+1, len(t.steps), responseErr.StatusCode, s.details)
 			}
 			return nil, err
 		}

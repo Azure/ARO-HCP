@@ -98,7 +98,7 @@ verify-kql:
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-schema
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-mi-containers verify-schema
 .PHONY: verify
 
 verify-schema:
@@ -108,6 +108,10 @@ verify-schema:
 verify-gomega-assertions:
 	go run ./hack/verify-gomega-assertions ./test/e2e/ ./test/util/
 .PHONY: verify-gomega-assertions
+
+verify-mi-containers:
+	go run ./hack/verify-mi-containers ./test/e2e/
+.PHONY: verify-mi-containers
 
 verify-yamlfmt: yamlfmt
 	./hack/verify.sh yamlfmt
@@ -394,7 +398,7 @@ generate-kiota:
 PERS_OVERRIDE_FILE ?= /tmp/personal-dev-override.yaml
 
 build-services:
-	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier build-fleet
+	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier build-fleet build-aro-hcp-exporter
 .PHONY: build-services
 
 build-frontend:
@@ -425,6 +429,10 @@ build-fleet:
 	$(MAKE) -C fleet build-and-push
 .PHONY: build-fleet
 
+build-aro-hcp-exporter:
+	$(MAKE) -C tooling/aro-hcp-exporter build-and-push
+.PHONY: build-aro-hcp-exporter
+
 record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C frontend record-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml
 	$(MAKE) -C backend record-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml
@@ -433,6 +441,7 @@ record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C mgmt-agent record-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml
 	$(MAKE) -C kube-applier record-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml
 	$(MAKE) -C fleet record-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml
+	$(MAKE) -C tooling/aro-hcp-exporter record-override OVERRIDE_CONFIG_FILE=/tmp/_aro-hcp-exporter-override.yaml
 	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
 	  /tmp/_frontend-override.yaml \
 	  /tmp/_backend-override.yaml \
@@ -441,6 +450,7 @@ record-services-override: $(YQ) $(ORAS)
 	  /tmp/_mgmt-agent-override.yaml \
 	  /tmp/_kube-applier-override.yaml \
 	  /tmp/_fleet-override.yaml \
+	  /tmp/_aro-hcp-exporter-override.yaml \
 	  > $(PERS_OVERRIDE_FILE)
 .PHONY: record-services-override
 
@@ -455,6 +465,7 @@ latest-services-override: $(YQ)
 	$(MAKE) -C mgmt-agent record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml &
 	$(MAKE) -C kube-applier record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml &
 	$(MAKE) -C fleet record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml &
+	$(MAKE) -C tooling/aro-hcp-exporter record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_aro-hcp-exporter-override.yaml &
 	wait
 	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
 	  /tmp/_frontend-override.yaml \
@@ -464,6 +475,7 @@ latest-services-override: $(YQ)
 	  /tmp/_mgmt-agent-override.yaml \
 	  /tmp/_kube-applier-override.yaml \
 	  /tmp/_fleet-override.yaml \
+	  /tmp/_aro-hcp-exporter-override.yaml \
 	  > $(PERS_OVERRIDE_FILE)
 .PHONY: latest-services-override
 
@@ -473,11 +485,18 @@ latest-services-override: $(YQ)
 ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
 ifdef USE_LATEST_IMAGES
 personal-dev-env: latest-services-override install-tools
-else
-personal-dev-env: build-services record-services-override install-tools
-endif
 	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
 	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
+else
+personal-dev-env: install-tools
+	$(eval IMAGE_TAG := $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ./generate-tag.sh))
+	$(eval ARO_HCP_REVISION := $(shell git rev-parse HEAD))
+	$(eval export IMAGE_TAG ARO_HCP_REVISION)
+	$(MAKE) build-services
+	$(MAKE) record-services-override
+	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
+	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
+endif
 else
 personal-dev-env:
 	$(error personal-dev-env: DEPLOY_ENV must be set to "pers" or "swft", not "$(DEPLOY_ENV)")

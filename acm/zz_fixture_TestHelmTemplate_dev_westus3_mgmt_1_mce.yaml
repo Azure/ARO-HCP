@@ -3461,6 +3461,15 @@ spec:
         ocm-antiaffinity-selector: backplane-operator
     spec:
       affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - infra
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
           - podAffinityTerm:
@@ -3572,7 +3581,7 @@ spec:
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
         - name: OPERATOR_VERSION
-          value: 2.11.4-562
+          value: 2.11.4
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
         image: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
@@ -3607,8 +3616,6 @@ spec:
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: cert
           readOnly: true
-      nodeSelector:
-        aro-hcp.azure.com/role: infra
       securityContext:
         runAsNonRoot: true
         seccompProfile:

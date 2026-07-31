@@ -94,6 +94,60 @@ func TestIsResourceGroupNotFoundError(t *testing.T) {
 	}
 }
 
+func TestIsKeyVaultNotFound(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "non-ResponseError",
+			err:  fmt.Errorf("something went wrong"),
+			want: false,
+		},
+		{
+			name: "HTTP 404 status",
+			err:  &azcore.ResponseError{StatusCode: http.StatusNotFound},
+			want: true,
+		},
+		{
+			name: "HTTP 409 Conflict",
+			err:  &azcore.ResponseError{StatusCode: http.StatusConflict, ErrorCode: "VaultAlreadyExists"},
+			want: false,
+		},
+		{
+			name: "HTTP 403 Forbidden",
+			err:  &azcore.ResponseError{StatusCode: http.StatusForbidden},
+			want: false,
+		},
+		{
+			name: "wrapped ResponseError with 404",
+			err:  fmt.Errorf("outer: %w", &azcore.ResponseError{StatusCode: http.StatusNotFound}),
+			want: true,
+		},
+		{
+			name: "wrapped non-ResponseError",
+			err:  fmt.Errorf("outer: %w", fmt.Errorf("inner")),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := isKeyVaultNotFound(tt.err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestIsIgnorableResourceGroupCleanupError(t *testing.T) {
 	t.Parallel()
 

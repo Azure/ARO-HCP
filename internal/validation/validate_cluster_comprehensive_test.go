@@ -400,18 +400,6 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "platform managed etcd encryption is not supported - create",
-			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
-				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "Unsupported value", FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
-			},
-		},
-		{
 			name: "customer managed without customer managed profile - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -1753,8 +1741,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable etcd profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
-				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = "Invalid"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
@@ -1762,10 +1749,9 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd"},
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption"},
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
-				{Message: "must be specified when `keyManagementMode` is \"CustomerManaged\"", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
+				{Message: "\"Invalid\": supported values: \"CustomerManaged\"", FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
+				{Message: "may only be specified when `keyManagementMode` is \"CustomerManaged\"", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
 			},
 		},
 		{
@@ -1803,11 +1789,83 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd"},
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption"},
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms"},
 				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility"},
+			},
+		},
+		{
+			name: "mutable kms key version with v20260630preview - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
+					EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+					Kms: &api.KmsEncryptionProfile{
+						Visibility: api.KeyVaultVisibilityPublic,
+						ActiveKey: api.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "new-version",
+						},
+					},
+				}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
+					EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+					Kms: &api.KmsEncryptionProfile{
+						Visibility: api.KeyVaultVisibilityPublic,
+						ActiveKey: api.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "old-version",
+						},
+					},
+				}
+				return c
+			}(),
+			opOptions:    []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "immutable kms key version without v20260630preview - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
+					EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+					Kms: &api.KmsEncryptionProfile{
+						Visibility: api.KeyVaultVisibilityPublic,
+						ActiveKey: api.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "new-version",
+						},
+					},
+				}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
+					EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+					Kms: &api.KmsEncryptionProfile{
+						Visibility: api.KeyVaultVisibilityPublic,
+						ActiveKey: api.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "old-version",
+						},
+					},
+				}
+				return c
+			}(),
+			opOptions: []string{api.APIVersionOption(api.APIVersionV20251223Preview)},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
 			},
 		},
 		{
@@ -1826,6 +1884,66 @@ func TestValidateClusterUpdate(t *testing.T) {
 				{Message: "field is immutable", FieldPath: "customerProperties.clusterImageRegistry"},
 				{Message: "field is immutable", FieldPath: "customerProperties.clusterImageRegistry.state"},
 			},
+		},
+		{
+			name: "immutable CryptoRestrictions - update (None to FIPS)",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsFIPS
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsNone
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.cryptoRestrictions"},
+			},
+		},
+		{
+			name: "immutable CryptoRestrictions - update (FIPS to None)",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsNone
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsFIPS
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.cryptoRestrictions"},
+			},
+		},
+		{
+			name: "CryptoRestrictions unchanged - update (both None)",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsNone
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsNone
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "CryptoRestrictions unchanged - update (both FIPS)",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsFIPS
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsFIPS
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "invalid new field value on update - update",
@@ -2126,83 +2244,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				{Message: "field is immutable", FieldPath: "customerProperties.api.visibility"},
 				{Message: "field is immutable", FieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL"},
 			},
-		},
-		// Test cases for FIPS tag immutability
-		{
-			name: "update FIPS from true to false - rejected",
-			newCluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = false
-				return c
-			}(),
-			oldCluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = true
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "serviceProviderProperties.tags[aro-hcp.experimental.cluster.fips-enabled]"},
-			},
-		},
-		{
-			name: "update FIPS from false to true - rejected",
-			newCluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = true
-				return c
-			}(),
-			oldCluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = false
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "serviceProviderProperties.tags[aro-hcp.experimental.cluster.fips-enabled]"},
-			},
-		},
-		{
-			name: "update with FIPS unchanged at true - allowed",
-			newCluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = true
-				return c
-			}(),
-			oldCluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = true
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{},
-		},
-		{
-			name: "update with FIPS unchanged at false - allowed",
-			newCluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = false
-				return c
-			}(),
-			oldCluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = false
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{},
-		},
-		{
-			name: "update with other fields changed but FIPS unchanged - allowed",
-			newCluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = true
-				c.CustomerProperties.NodeDrainTimeoutMinutes = 60
-				return c
-			}(),
-			oldCluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = true
-				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{},
 		},
 		// Test cases for version.id requirement validation on update
 		// The new validation rules for version.id are:
@@ -2512,6 +2553,18 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 	cluster.Location = "eastus"                    // Required for TrackedResource validation
 	cluster.CustomerProperties.Version.ID = "4.20" // Use MAJOR.MINOR format, must be at least 4.20
 	cluster.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
+	cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
+		EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+		Kms: &api.KmsEncryptionProfile{
+			Visibility: api.KeyVaultVisibilityPublic,
+			ActiveKey: api.KmsKey{
+				Name:      api.TestKMSKeyName,
+				VaultName: api.TestKMSKeyVaultName,
+				Version:   api.TestKMSKeyVersion,
+			},
+		},
+	}
 	// Use different resource group for subnet to ensure same subscription validation
 	cluster.CustomerProperties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 	cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-vnet-integration-subnet"))

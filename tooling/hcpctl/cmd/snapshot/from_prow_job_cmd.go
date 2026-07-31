@@ -25,10 +25,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
-	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	snapshotpkg "github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
 )
 
@@ -64,7 +62,7 @@ func bindFromProwJobOptions(opts *RawFromProwJobOptions, cmd *cobra.Command) err
 }
 
 type validatedFromProwJobOptions struct {
-	prowInfo        *snapshotpkg.ProwJobInfo
+	prowURL         string
 	testSelector    string
 	outputDir       string
 	sdpPipelinesDir string
@@ -73,8 +71,8 @@ type validatedFromProwJobOptions struct {
 }
 
 func (o *RawFromProwJobOptions) validate() (*validatedFromProwJobOptions, error) {
-	info, err := snapshotpkg.ParseProwURL(o.URL)
-	if err != nil {
+	// Validate the URL eagerly so we fail fast before doing any real work.
+	if _, err := snapshotpkg.ParseProwURL(o.URL); err != nil {
 		return nil, fmt.Errorf("invalid --url: %w", err)
 	}
 	if o.SDPPipelinesDir != "" {
@@ -87,7 +85,7 @@ func (o *RawFromProwJobOptions) validate() (*validatedFromProwJobOptions, error)
 		}
 	}
 	return &validatedFromProwJobOptions{
-		prowInfo:        info,
+		prowURL:         o.URL,
 		testSelector:    o.TestSelector,
 		outputDir:       o.OutputDir,
 		sdpPipelinesDir: o.SDPPipelinesDir,
@@ -99,38 +97,45 @@ func (o *RawFromProwJobOptions) validate() (*validatedFromProwJobOptions, error)
 func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		AdditionallyAllowedTenants:   []string{"*"},
+		RequireAzureTokenCredentials: true,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create Azure credential: %w", err)
+	}
+
+	pjCtx, err := snapshotpkg.NewProwJobContext(ctx, o.prowURL, cred, o.sdpPipelinesDir)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Prow job context: %w", err)
+	}
+	defer func() {
+		if err := pjCtx.Close(); err != nil {
+			logger.Error(err, "Failed to close Prow job context")
+		}
+	}()
+
 	logger.Info("Fetching Prow job data",
-		"job", o.prowInfo.JobName,
-		"prowID", o.prowInfo.ProwID,
-		"isPR", o.prowInfo.IsPullRequest(),
+		"job", pjCtx.ProwInfo.JobName,
+		"prowID", pjCtx.ProwInfo.ProwID,
+		"isPR", pjCtx.ProwInfo.IsPullRequest(),
 	)
-
-	// Phase 1 (per-job): Resolve Kusto config and download test results.
-	jobConfig, err := snapshotpkg.FetchProwJobConfig(ctx, o.prowInfo, o.sdpPipelinesDir)
-	if err != nil {
-		return fmt.Errorf("failed to fetch Prow job config: %w", err)
-	}
-
-	allTests, err := snapshotpkg.FetchProwJobTestResults(ctx, o.prowInfo)
-	if err != nil {
-		return fmt.Errorf("failed to fetch Prow job test results: %w", err)
-	}
 
 	// When --test is provided, match against all tests regardless of pass/fail.
 	// Otherwise, only gather data for failed tests.
 	var tests []snapshotpkg.TestResult
 	if o.testSelector != "" {
-		for _, t := range allTests {
+		for _, t := range pjCtx.AllTests {
 			if strings.Contains(t.Name, o.testSelector) {
 				tests = append(tests, t)
 			}
 		}
 		if len(tests) == 0 {
-			return fmt.Errorf("no tests match selector %q (found %d tests total)", o.testSelector, len(allTests))
+			return fmt.Errorf("no tests match selector %q (found %d tests total)", o.testSelector, len(pjCtx.AllTests))
 		}
-		logger.Info("Filtered tests by selector", "selector", o.testSelector, "matched", len(tests), "total", len(allTests))
+		logger.Info("Filtered tests by selector", "selector", o.testSelector, "matched", len(tests), "total", len(pjCtx.AllTests))
 	} else {
-		for _, t := range allTests {
+		for _, t := range pjCtx.AllTests {
 			if t.Failed {
 				tests = append(tests, t)
 			}
@@ -143,43 +148,12 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 
 	logger.Info("Processing tests", "count", len(tests))
 
-	// Compute sibling test summaries once for all tests.
-	siblingTests := snapshotpkg.ConvertTestResults(allTests)
-
-	// Phase 1 (per-job): Create Kusto client from the job's config.
-	kustoEndpoint, err := kusto.KustoEndpoint(jobConfig.KustoName, jobConfig.Region)
-	if err != nil {
-		return fmt.Errorf("failed to create Kusto endpoint: %w", err)
-	}
-
-	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
-		AdditionallyAllowedTenants:   []string{"*"},
-		RequireAzureTokenCredentials: true,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create Azure credential: %w", err)
-	}
-
-	kcsb := azkustodata.NewConnectionStringBuilder(kustoEndpoint.String())
-	kcsb = kcsb.WithTokenCredential(cred)
-	kustoClient, err := azkustodata.New(kcsb)
-	if err != nil {
-		return fmt.Errorf("failed to create Kusto client: %w", err)
-	}
-	defer func() {
-		if err := kustoClient.Close(); err != nil {
-			logger.Error(err, "Failed to close Kusto client")
-		}
-	}()
-
-	gatherer := snapshotpkg.NewGatherer(kustoClient)
-
 	// Phase 2 (per-test): Gather an enriched snapshot for each test.
 	var gatherErrors []error
 	for i := range tests {
 		test := &tests[i]
 		testName := snapshotpkg.SanitizeTestName(test.Name)
-		testOutputDir := filepath.Join(o.outputDir, o.prowInfo.JobName, o.prowInfo.ProwID, testName)
+		testOutputDir := filepath.Join(o.outputDir, pjCtx.ProwInfo.JobName, pjCtx.ProwInfo.ProwID, testName)
 
 		logger.Info("Gathering snapshot for test",
 			"test", test.Name,
@@ -187,29 +161,12 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 			"outputDir", testOutputDir,
 		)
 
-		// Download node console logs from GCS (optional — not every test creates VMs).
-		nodeConsoleLogs, err := snapshotpkg.FetchNodeConsoleLogs(ctx, o.prowInfo, test.Name)
-		if err != nil {
-			logger.Error(err, "Failed to fetch node console logs, continuing without them", "test", test.Name)
-			nodeConsoleLogs = nil
-		}
+		opts := pjCtx.GatherOptionsForTest(ctx, test)
+		opts.OutputDir = testOutputDir
+		opts.QueryTimeout = o.queryTimeout
+		opts.Concurrency = o.concurrency
 
-		result, err := snapshotpkg.GatherForTest(ctx, snapshotpkg.GatherForTestOptions{
-			Gatherer:                 gatherer,
-			Test:                     test,
-			ProwJobURL:               o.prowInfo.URL,
-			KustoEndpoint:            kustoEndpoint.String(),
-			ServiceDatabase:          jobConfig.ServiceDatabase,
-			HCPDatabase:              jobConfig.HCPDatabase,
-			MonitoringEventsDatabase: jobConfig.MonitoringEventsDatabase,
-			ServiceClusterName:       jobConfig.ServiceClusterName,
-			ManagementClusterName:    jobConfig.ManagementClusterName,
-			SiblingTests:             siblingTests,
-			OutputDir:                testOutputDir,
-			QueryTimeout:             o.queryTimeout,
-			Concurrency:              o.concurrency,
-			NodeConsoleLogs:          nodeConsoleLogs,
-		})
+		result, err := snapshotpkg.GatherForTest(ctx, opts)
 		if err != nil {
 			logger.Error(err, "Failed to gather snapshot for test", "test", test.Name)
 			gatherErrors = append(gatherErrors, fmt.Errorf("test %q: %w", test.Name, err))

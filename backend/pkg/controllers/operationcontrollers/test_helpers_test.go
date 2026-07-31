@@ -104,6 +104,24 @@ func (f *clusterTestFixture) newCluster(createdAt *time.Time) *api.HCPOpenShiftC
 				},
 			},
 		},
+		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			Etcd: api.EtcdProfile{
+				DataEncryption: api.EtcdDataEncryptionProfile{
+					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+					CustomerManaged: &api.CustomerManagedEncryptionProfile{
+						EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+						Kms: &api.KmsEncryptionProfile{
+							Visibility: api.KeyVaultVisibilityPublic,
+							ActiveKey: api.KmsKey{
+								Name:      "test-key",
+								VaultName: "test-vault",
+								Version:   "v1",
+							},
+						},
+					},
+				},
+			},
+		},
 		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID:  &f.clusterInternalID,
 			ActiveOperationID: testOperationName,
@@ -377,6 +395,16 @@ func testClusterUpdateMatchingHostedClusterSpec() v1beta1.HostedClusterSpec {
 		},
 		ControllerAvailabilityPolicy:     v1beta1.HighlyAvailable,
 		InfrastructureAvailabilityPolicy: v1beta1.HighlyAvailable,
+		SecretEncryption: &v1beta1.SecretEncryptionSpec{
+			Type: v1beta1.KMS,
+			KMS: &v1beta1.KMSSpec{
+				Azure: &v1beta1.AzureKMSSpec{
+					ActiveKey: v1beta1.AzureKMSKey{
+						KeyVersion: "v1",
+					},
+				},
+			},
+		},
 	}
 }
 
