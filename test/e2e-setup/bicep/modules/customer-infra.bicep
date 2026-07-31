@@ -10,6 +10,9 @@ param customerVnetName string = 'customer-vnet'
 @description('Subnet Name')
 param customerVnetSubnetName string = 'customer-subnet-1'
 
+@description('Integration Subnet Name')
+param customerVnetIntegrationSubnetName string = 'integration-subnet-1'
+
 @description('The name of the encryption key for etcd')
 param customerEtcdEncryptionKeyName string = 'etcd-data-kms-encryption-key'
 
@@ -73,7 +76,7 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
         }
       }
       {
-        name: 'customer-vnet-integration-subnet'
+        name: customerVnetIntegrationSubnetName
         properties: {
           addressPrefix: vnetIntegrationSubnetPrefix
           delegations: [
@@ -207,6 +210,9 @@ output vnetName string = customerVnetName
 @description('Subnet Name')
 output vnetSubnetName string = customerVnetSubnetName
 
+@description('Integration Subnet Name')
+output integrationSubnetName string = customerVnetIntegrationSubnetName
+
 @description('Key Vault Name')
 output keyVaultName string = customerKeyVaultName
 
@@ -220,7 +226,7 @@ output nsgID string = customerNsg.id
 output vnetSubnetID string = '${customerVnet.id}/subnets/${customerVnetSubnetName}'
 
 @description('Customer VNet Integration Subnet Resource ID')
-output vnetIntegrationSubnetID string = '${customerVnet.id}/subnets/customer-vnet-integration-subnet'
+output vnetIntegrationSubnetID string = '${customerVnet.id}/subnets/${customerVnetIntegrationSubnetName}'
 
 @description('The version of the etcd encryption key')
 output etcdEncryptionKeyVersion string = last(split(etcdEncryptionKey.properties.keyUriWithVersion, '/'))

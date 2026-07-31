@@ -15,11 +15,11 @@ param osDiskSizeGiB int = 64
 @description('VM size for the nodepool VMs')
 param vmSize string = 'Standard_D8s_v3'
 
-resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview' existing = {
+resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2025-12-23-preview' existing = {
   name: clusterName
 }
 
-resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2024-06-10-preview' = {
+resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2025-12-23-preview' = {
   parent: hcp
   name: nodePoolName
   location: resourceGroup().location
