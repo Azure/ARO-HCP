@@ -1,4 +1,4 @@
 using '../templates/opstool-alerting.bicep'
 
-param alertEmail = '{{ .opstool.alerting.email }}'
+param workloadKVName = '{{ .opstool.keyVault.name }}'
 param alertingEnabled = {{ .opstool.alerting.enabled }}

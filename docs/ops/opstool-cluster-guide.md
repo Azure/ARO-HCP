@@ -103,7 +103,7 @@ Observability in `opstool` is intentionally simple:
 - In-cluster Prometheus is deployed by the infra pipeline.
 - Prometheus remote writes metrics into the standalone `opstool` Azure Monitor Workspace.
 - Alerting is defined in Azure Monitor Prometheus rule groups, not in-cluster `PrometheusRule` objects.
-- All workloads share the `opstool-email-alerts` Action Group for notifications.
+- The tenant-quota alert deployment uses the shared `opstool-pagerduty` Action Group for low-urgency incident management and Slack notifications.
 
 When adding workload monitoring:
 
