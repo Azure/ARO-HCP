@@ -151,7 +151,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: 878706b0364a1ad5f4baea54aaf81e19e2222e4c44c97f853f1cac09fad6ac70
+        checksum/config: 0cc979c46f65793e2ffdc32ecd1192e3fa712824783f529385e348c1807bd678
       labels:
         app: mise
     spec:

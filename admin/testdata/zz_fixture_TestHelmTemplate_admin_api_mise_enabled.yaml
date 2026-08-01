@@ -95,7 +95,7 @@ spec:
         app: admin-api
         azure.workload.identity/use: "true"
       annotations:
-        checksum/fpa-spc: '3a8a42649d4184782a080188d109778f9fc6d3991745b5ce9858c9c0eb78e68a'
+        checksum/fpa-spc: '7ae1b912af36c08aa0a6845025491f332e160e5a482a3eedbf9aca04e2ba7d61'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1

@@ -294,8 +294,8 @@ spec:
       labels:
         app: maestro-agent
       annotations:
-        checksum/credsstore: 'fce571090494f556451e1c1151e4f011c8a654bdf3c74d0e18f96a45d42c3609'
-        checksum/config: '95d5834e582ee0af647b83396df40b977535fd9050ba7d580fc505d709c96086'
+        checksum/credsstore: '03a793bf84821e485a02fb5f3235115c88108b1beebe4a0cadd01e2c09da6cab'
+        checksum/config: '46a70b42fdc6009614599270150e06d9a1ca8737cca6ee9385e782cd98878214'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1

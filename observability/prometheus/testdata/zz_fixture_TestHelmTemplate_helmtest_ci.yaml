@@ -1,5 +1,5 @@
 ---
-# Source: hcp-prometheus/charts/kube-prometheus-stack/charts/crds/crds/crd-alertmanagerconfigs.yaml
+# Source: hcp-prometheus\charts\kube-prometheus-stack\charts\crds\crds\crd-alertmanagerconfigs.yaml
 # https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_alertmanagerconfigs.yaml
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -10040,7 +10040,7 @@ spec:
     storage: true
 
 ---
-# Source: hcp-prometheus/charts/kube-prometheus-stack/charts/crds/crds/crd-alertmanagers.yaml
+# Source: hcp-prometheus\charts\kube-prometheus-stack\charts\crds\crds\crd-alertmanagers.yaml
 # https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_alertmanagers.yaml
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -19176,7 +19176,7 @@ spec:
       status: {}
 
 ---
-# Source: hcp-prometheus/charts/kube-prometheus-stack/charts/crds/crds/crd-podmonitors.yaml
+# Source: hcp-prometheus\charts\kube-prometheus-stack\charts\crds\crds\crd-podmonitors.yaml
 # https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_podmonitors.yaml
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -20387,7 +20387,7 @@ spec:
     storage: true
 
 ---
-# Source: hcp-prometheus/charts/kube-prometheus-stack/charts/crds/crds/crd-probes.yaml
+# Source: hcp-prometheus\charts\kube-prometheus-stack\charts\crds\crds\crd-probes.yaml
 # https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_probes.yaml
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -21565,7 +21565,7 @@ spec:
     storage: true
 
 ---
-# Source: hcp-prometheus/charts/kube-prometheus-stack/charts/crds/crds/crd-prometheusagents.yaml
+# Source: hcp-prometheus\charts\kube-prometheus-stack\charts\crds\crds\crd-prometheusagents.yaml
 # https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_prometheusagents.yaml
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -32406,7 +32406,7 @@ spec:
       status: {}
 
 ---
-# Source: hcp-prometheus/charts/kube-prometheus-stack/charts/crds/crds/crd-prometheuses.yaml
+# Source: hcp-prometheus\charts\kube-prometheus-stack\charts\crds\crds\crd-prometheuses.yaml
 # https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_prometheuses.yaml
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -45498,7 +45498,7 @@ spec:
       status: {}
 
 ---
-# Source: hcp-prometheus/charts/kube-prometheus-stack/charts/crds/crds/crd-prometheusrules.yaml
+# Source: hcp-prometheus\charts\kube-prometheus-stack\charts\crds\crds\crd-prometheusrules.yaml
 # https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_prometheusrules.yaml
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -45661,7 +45661,7 @@ spec:
     storage: true
 
 ---
-# Source: hcp-prometheus/charts/kube-prometheus-stack/charts/crds/crds/crd-scrapeconfigs.yaml
+# Source: hcp-prometheus\charts\kube-prometheus-stack\charts\crds\crds\crd-scrapeconfigs.yaml
 # https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_scrapeconfigs.yaml
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -58179,7 +58179,7 @@ spec:
     storage: true
 
 ---
-# Source: hcp-prometheus/charts/kube-prometheus-stack/charts/crds/crds/crd-servicemonitors.yaml
+# Source: hcp-prometheus\charts\kube-prometheus-stack\charts\crds\crds\crd-servicemonitors.yaml
 # https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -59412,7 +59412,7 @@ spec:
     storage: true
 
 ---
-# Source: hcp-prometheus/charts/kube-prometheus-stack/charts/crds/crds/crd-thanosrulers.yaml
+# Source: hcp-prometheus\charts\kube-prometheus-stack\charts\crds\crds\crd-thanosrulers.yaml
 # https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_thanosrulers.yaml
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -68627,6 +68627,7 @@ spec:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    additionalLabelSelectors: OnShard
   walCompression: true
   externalLabels:
     cluster: "dev-westus3-mgmt-1"
@@ -68650,9 +68651,17 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
+    # Both drop rules are needed: the namespace rule catches HCP metrics where
+    # namespace is still ocm-* (cluster-scoped like nodes, plus non-KSM HCP metrics),
+    # while the hostedcontrolplane rule catches per-HCP KSM metrics for namespaced
+    # resources where namespace has been promoted to the actual resource namespace
+    # (e.g. openshift-ingress-operator) and no longer matches ocm-*.
     writeRelabelConfigs:
       - sourceLabels: [namespace]
-        regex: '^ocm-ci.*'
+        regex: '^ocm-arohcpdev.*'
+        action: drop
+      - sourceLabels: [hostedcontrolplane]
+        regex: '^ocm-arohcpdev.*'
         action: drop
   - url: '__ciHcpDcrRemoteWriteUrl__'
     azureAd:
@@ -68668,9 +68677,14 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
+    # Combined into a single rule because sequential keep rules are AND
+    # (a metric must match all rules to survive), but we need OR — keep if
+    # either namespace or hostedcontrolplane matches ocm-*.
+    # See https://github.com/prometheus/prometheus/issues/3996
     writeRelabelConfigs:
-      - sourceLabels: [namespace]
-        regex: '^ocm-ci.*'
+      - sourceLabels: [namespace, hostedcontrolplane]
+        separator: ;
+        regex: '(ocm-arohcpdev[^;]*;.*|.*;ocm-arohcpdev.*)'
         action: keep
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus/rules-1.14/alertmanager.rules.yaml
