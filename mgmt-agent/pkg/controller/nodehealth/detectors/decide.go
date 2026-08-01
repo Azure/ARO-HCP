@@ -101,6 +101,22 @@ type Detector interface {
 // Detector added here, reusing the shared primitives, shipped and tested as code.
 var registry = []Detector{swiftVFTeardown}
 
+// AnyApplies reports whether any detector owns this node. It reads only the
+// node, so a caller can answer the ownership question before doing the work of
+// gathering the node's Pods and Events. Decide applies the same gate, so a node
+// this rejects can only ever produce DecisionNotApplicable.
+func AnyApplies(node *corev1.Node) bool {
+	if node == nil {
+		return false
+	}
+	for _, d := range registry {
+		if d.Applies(node) {
+			return true
+		}
+	}
+	return false
+}
+
 // MaxWindow returns the longest evaluation window across all detectors. The
 // controller uses it to bound its recorded per-node success history: a success
 // older than the widest window can never affect any detector, so it can be
@@ -173,14 +189,7 @@ func Decide(node *corev1.Node, events []*corev1.Event, pods []*corev1.Pod, now, 
 	// must be retired. This is deliberately evaluated ahead of the Ready gate,
 	// because a node that is not a detector's concern is not ours to hold a label
 	// on whether it is Ready or not.
-	applicable := false
-	for _, d := range registry {
-		if d.Applies(node) {
-			applicable = true
-			break
-		}
-	}
-	if !applicable {
+	if !AnyApplies(node) {
 		return DecisionNotApplicable, Snapshot{}
 	}
 	// Node-Ready precondition: a NotReady node is left to node lifecycle.

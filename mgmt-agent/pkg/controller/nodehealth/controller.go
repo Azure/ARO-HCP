@@ -433,6 +433,14 @@ func (c *Controller) syncHandler(ctx context.Context, name string) error {
 		return fmt.Errorf("get node: %w", err)
 	}
 
+	// Answer the ownership question before paying for the node's Pods and Events.
+	// Every Pod and kubelet Event enqueues the node it belongs to, so on a
+	// management cluster most reconciles are for nodes no detector owns. Decide
+	// applies the same gate, so this reaches the same verdict without the scan.
+	if !detectors.AnyApplies(node) {
+		return c.retireStaleLabel(ctx, node, logger)
+	}
+
 	events, pods, err := c.gather(name)
 	if err != nil {
 		return err
@@ -460,19 +468,27 @@ func (c *Controller) syncHandler(ctx context.Context, name string) error {
 			return err
 		}
 	case detectors.DecisionNotApplicable:
-		// No detector owns this node, so a label on it can only be one we left
-		// behind (for example the node stopped being a SWIFT-v2 node while
-		// labeled). Retire it. unlabel is a no-op when the label is absent or
-		// carries a foreign value.
-		changed, err := c.labeler.unlabel(ctx, node)
-		if err != nil {
-			return err
-		}
-		if changed {
-			logger.Info("retired stale wedged label; no detector applies to this node")
-		}
+		// Reached only if Decide's ownership gate disagrees with the AnyApplies
+		// short-circuit above, which it cannot for the same node. Kept so the
+		// switch covers Decide's full contract rather than relying on the caller.
+		return c.retireStaleLabel(ctx, node, logger)
 	case detectors.DecisionUnknown:
 		logger.V(5).Info("insufficient evidence; leaving label unchanged")
+	}
+	return nil
+}
+
+// retireStaleLabel drops the wedged label from a node no detector owns. Such a
+// label can only be one this controller left behind, for example when the node
+// stopped being a SWIFT-v2 node while labeled. unlabel is a no-op when the label
+// is absent or carries a foreign value.
+func (c *Controller) retireStaleLabel(ctx context.Context, node *corev1.Node, logger klog.Logger) error {
+	changed, err := c.labeler.unlabel(ctx, node)
+	if err != nil {
+		return err
+	}
+	if changed {
+		logger.Info("retired stale wedged label; no detector applies to this node")
 	}
 	return nil
 }

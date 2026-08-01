@@ -343,6 +343,33 @@ func TestDecide(t *testing.T) {
 	}
 }
 
+func TestAnyApplies(t *testing.T) {
+	// AnyApplies is the gate the controller uses to skip gathering a node's Pods
+	// and Events, so it must agree with Decide's own ownership gate.
+	tests := []struct {
+		name string
+		node *corev1.Node
+		want bool
+	}{
+		{name: "nil node", node: nil, want: false},
+		{name: "swift node", node: testNode(true, true), want: true},
+		{name: "swift node that is not ready", node: testNode(true, false), want: true},
+		{name: "non-swift node", node: testNode(false, true), want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := AnyApplies(tc.node); got != tc.want {
+				t.Errorf("AnyApplies() = %v, want %v", got, tc.want)
+			}
+			if !tc.want && tc.node != nil {
+				if got, _ := Decide(tc.node, nil, nil, testNow, warm, time.Time{}); got != DecisionNotApplicable {
+					t.Errorf("Decide() = %v, want NotApplicable to match AnyApplies", got)
+				}
+			}
+		})
+	}
+}
+
 func TestDecideNilNode(t *testing.T) {
 	if got, _ := Decide(nil, nil, nil, testNow, warm, time.Time{}); got != DecisionUnknown {
 		t.Errorf("Decide(nil) = %v, want Unknown", got)
