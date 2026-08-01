@@ -9,6 +9,11 @@ backend kept reporting *"hosted cluster has no installed version"* through the t
 New kube-apiserver ReplicaSet `54b7f655f6` pods logged `etcd-client` dial failures while etcd quorum stayed healthy
 (`EtcdAvailable=True`).
 
+## Classification
+
+- **Category:** Product Failures
+- **Component:** Backend
+
 ## Summary
 
 [Prow job `pull-ci-Azure-ARO-HCP-main-e2e-parallel` #2069828891979026432](https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/Azure_ARO-HCP/5771/pull-ci-Azure-ARO-HCP-main-e2e-parallel/2069828891979026432).

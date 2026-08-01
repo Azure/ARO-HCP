@@ -4,6 +4,11 @@
 
 A race condition between two independent Clusters Service workers caused the HyperShift NodePool `spec.replicas` to be reverted from `3` back to `2`, even though the CS database correctly stored `replicas=3`. The node pool worker and the upgrade policy worker both performed concurrent read-modify-write operations on the same ManifestWork, and the last writer (upgrade policy worker) overwrote the replica change applied by the first writer (node pool worker).
 
+## Classification
+
+- **Category:** Product Failures
+- **Component:** Cluster Service
+
 ## Summary
 
 The test triggered a single node-pool PATCH at **2026-07-20T21:32:57Z** to both upgrade `npupgrade-4-20` to `4.21.25` and scale replicas to `3`. Clusters Service correctly persisted both changes in its database and dispatched them to two independent workers:

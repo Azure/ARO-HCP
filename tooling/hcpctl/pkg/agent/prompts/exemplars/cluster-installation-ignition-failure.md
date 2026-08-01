@@ -4,6 +4,11 @@
 
 The test failed because a router Deployment rollout (triggered by the control-plane-operator adding the ignition-server backend to the `router` ConfigMap) could not complete: the new ReplicaSet's pod was stuck in `FailedCreatePodSandBox` due to Azure CNS errors (`network is not ready - mtpnc is not ready`). The old router pods remained running but served the old haproxy config without the ignition backend, so ignition requests fell through to the kube-apiserver via `default_backend kube_api`, causing a TLS certificate mismatch that left worker VMs stuck in an ignition fetch retry loop until Azure reported `OSProvisioningTimedOut`.
 
+## Classification
+
+- **Category:** Product Failures
+- **Component:** HyperShift
+
 ## Summary
 
 The test created a no-CNI private cluster, installed Cilium, then created node pool `cilium-np` and waited for nodes
