@@ -160,7 +160,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Procedure for manually cleaning up clusters stuck on deletion
 - [Fix Maestro Stale Resource Bundle](ops/fix-maestro-stale-resource-bundle.md)
   - How to resolve Maestro resource bundle staleness issues
-- [Node health](controllers/node-health.md)
+- [Node Health](controllers/node-health.md)
   - Design for detecting "Ready but broken" management-cluster nodes from kubelet Events
   - Detection and labeling only, hard-coded detectors, and safety guards
 - [Node Rollout Pre-Merge Check](node-rollout-premerge-check.md)

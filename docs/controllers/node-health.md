@@ -1,4 +1,4 @@
-# Node health
+# Node Health
 
 This document describes the design of the **node-health controller**, a management-cluster
 controller that detects "Ready but broken" nodes from kubelet Events and
