@@ -33,6 +33,17 @@ func RenderMarkdown(chain *HydratedChain, testName string) string {
 	sb.WriteString(chain.RootCause)
 	sb.WriteString("\n\n")
 
+	// Classification.
+	if chain.Classification != nil {
+		sb.WriteString("## Classification\n\n")
+		sb.WriteString(fmt.Sprintf("- **Category:** %s\n", chain.Classification.L1Category))
+		if chain.Classification.L2Subcategory != "" {
+			sb.WriteString(fmt.Sprintf("- **Component:** %s\n", chain.Classification.L2Subcategory))
+		}
+		sb.WriteString(fmt.Sprintf("- **Confidence:** %.0f%%\n", chain.Classification.Confidence*100))
+		sb.WriteString("\n")
+	}
+
 	// Summary.
 	sb.WriteString("## Summary\n\n")
 	sb.WriteString(chain.Summary)
