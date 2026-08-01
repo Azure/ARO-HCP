@@ -42,6 +42,10 @@ func registerInformer[T comparable](informer cache.SharedIndexInformer, keyFunc 
 			if err != nil {
 				return
 			}
+			// UpdateFunc fires on every resync regardless of change; skip a key that's already backing off after a sync error.
+			if workQueue.NumRequeues(key) > 0 {
+				return
+			}
 			workQueue.Add(key)
 		},
 		DeleteFunc: func(obj interface{}) {

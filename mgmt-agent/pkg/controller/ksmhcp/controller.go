@@ -111,6 +111,10 @@ func NewKSMHCPController(
 		UpdateFunc: func(old, new interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(new)
 			if err == nil {
+				// UpdateFunc fires on every resync regardless of change; skip a key that's already backing off after a sync error.
+				if c.workqueue.NumRequeues(key) > 0 {
+					return
+				}
 				c.workqueue.Add(key)
 			}
 		},
@@ -131,7 +135,7 @@ func NewKSMHCPController(
 			c.enqueueForOwner(obj)
 		},
 		UpdateFunc: func(old, new interface{}) {
-			c.enqueueForOwner(new)
+			c.enqueueForOwnerResync(new)
 		},
 		DeleteFunc: func(obj interface{}) {
 			tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -159,16 +163,38 @@ func NewKSMHCPController(
 }
 
 func (c *KSMHCPController) enqueueForOwner(obj interface{}) {
+	key, ok := c.ownerKey(obj)
+	if !ok {
+		return
+	}
+	c.workqueue.Add(key)
+}
+
+// enqueueForOwnerResync is used for UpdateFunc on owned Deployment/Service/ConfigMap/ServiceMonitor informers, which fire on every resync regardless of change; it skips a key that's already backing off.
+func (c *KSMHCPController) enqueueForOwnerResync(obj interface{}) {
+	key, ok := c.ownerKey(obj)
+	if !ok {
+		return
+	}
+	if c.workqueue.NumRequeues(key) > 0 {
+		return
+	}
+	c.workqueue.Add(key)
+}
+
+// ownerKey returns the namespace/name workqueue key for the owning
+// HostedControlPlane, and false if obj has no such owner reference.
+func (c *KSMHCPController) ownerKey(obj interface{}) (string, bool) {
 	accessor, err := meta.Accessor(obj)
 	if err != nil {
-		return
+		return "", false
 	}
 	for _, ref := range accessor.GetOwnerReferences() {
 		if ref.Kind == "HostedControlPlane" && ref.APIVersion == "hypershift.openshift.io/v1beta1" {
-			c.workqueue.Add(accessor.GetNamespace() + "/" + ref.Name)
-			return
+			return accessor.GetNamespace() + "/" + ref.Name, true
 		}
 	}
+	return "", false
 }
 
 // Run starts the controller workers and blocks until the context is cancelled.

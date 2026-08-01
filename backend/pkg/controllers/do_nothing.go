@@ -147,11 +147,16 @@ func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
 		}
 
 		for _, hcpCluster := range allHCPClusters.Items(ctx) {
-			c.queue.Add(controllerutils.HCPClusterKey{
+			key := controllerutils.HCPClusterKey{
 				SubscriptionID:    hcpCluster.ID.SubscriptionID,
 				ResourceGroupName: hcpCluster.ID.ResourceGroupName,
 				HCPClusterName:    hcpCluster.ID.Name,
-			})
+			}
+			// queue.Add ignores any AddRateLimited backoff already scheduled for this key; skip it here so this periodic rescan doesn't hotloop a key that's waiting. Copy this guard into any other periodic or informer-resync enqueue path you write.
+			if c.queue.NumRequeues(key) > 0 {
+				continue
+			}
+			c.queue.Add(key)
 		}
 		if err := allHCPClusters.GetError(); err != nil {
 			logger.Error(err, "unable to iterate over HCP clusters", "subscription_id", subscription.ResourceID.SubscriptionID)

@@ -233,6 +233,12 @@ func (c *genericWatchingController[T]) EnqueueResourceIDAddWithMaxDepth(resource
 		return
 	}
 
+	// Skip: key is already backing off after a sync error, so a routine notification (informer resync/relist replay) must not preempt AddRateLimited's scheduled retry.
+	if c.queue.NumRequeues(key) > 0 {
+		logger.Info("Skipping notification; key is backing off after a sync error")
+		return
+	}
+
 	c.queue.Add(key)
 }
 

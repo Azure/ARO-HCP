@@ -298,7 +298,12 @@ func (c *deleteOrphanedCosmosResources) queueAllSubscriptions(ctx context.Contex
 		logger.Error(err, "unable to list subscriptions")
 	}
 	for _, subscription := range allSubscriptions {
-		c.queue.Add(subscription.ResourceID.SubscriptionID)
+		key := subscription.ResourceID.SubscriptionID
+		// Skip a subscription that's already backing off, so this doesn't preempt AddRateLimited's scheduled retry.
+		if c.queue.NumRequeues(key) > 0 {
+			continue
+		}
+		c.queue.Add(key)
 	}
 }
 
