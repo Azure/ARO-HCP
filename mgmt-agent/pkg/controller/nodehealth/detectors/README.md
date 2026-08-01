@@ -44,7 +44,7 @@ A **detector** is one fault family. Detection is modular so that adding a family
 is adding code in its own file, never editing the engine:
 
 - **`decide.go`**: the engine. It defines the `Detector` interface
-  (`Applies`, `Evaluate`, `Fires`, plus `Name`/`Reason`), the `Snapshot` of
+  (`Applies`, `Evaluate`, `MeetsThreshold`, plus `Name`/`Reason`), the `Snapshot` of
   evaluated evidence, the `Decision` type, the `registry` of detectors, and
   `Decide`, which iterates the registry without knowing any concrete type.
 - **`signature_detector.go`**: the shared base. `signatureDetector` implements
@@ -57,7 +57,7 @@ is adding code in its own file, never editing the engine:
 
 `Decide` walks `registry`. For each detector it calls `Applies(node)` (skip if the
 node can't exhibit the fault), then `Evaluate(...)` to gather the evidence
-`Snapshot`, then `Fires(snap, now, observedSince)`. The first detector that fires
+`Snapshot`, then `MeetsThreshold(snap, now, observedSince)`. The first detector that fires
 wins and the node is `Wedged`; if none fires but some success was seen, the node is
 `Healthy`; otherwise `Unknown`.
 
@@ -78,7 +78,7 @@ constants, never config):
 | `dwell`              | how long each pod must have been stuck before it counts toward the floor, filtering transient bursts |
 | `requireZeroSuccess` | when true, firing requires zero fresh sandbox successes in the window |
 
-`Fires` is: `SustainedCount >= failuresFloor` (stuck pods that have each been stuck
+`MeetsThreshold` is: `SustainedCount >= failuresFloor` (stuck pods that have each been stuck
 at least `dwell`) **and** (`RecentSuccess == false` when `requireZeroSuccess`, and
 only once a full `window` has elapsed since `observedSince`).
 

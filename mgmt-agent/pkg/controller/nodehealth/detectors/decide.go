@@ -87,12 +87,14 @@ type Detector interface {
 	// a recorded per-node history the controller passes into Decide, since a
 	// point-in-time scan cannot see a success whose Pod was already deleted.
 	Evaluate(events []*corev1.Event, pods []*corev1.Pod, now time.Time) Snapshot
-	// Fires reports whether the evaluated evidence meets the firing threshold.
-	// observedSince is when the controller began observing (caches synced, or the
-	// last disabled->enabled transition); a detector does not fire until it has
-	// watched at least a full window, so a cold view is never misread as zero
-	// successes.
-	Fires(snap Snapshot, now, observedSince time.Time) bool
+	// MeetsThreshold reports whether the evidence already gathered from the
+	// informers meets this detector's threshold. It is a pure predicate over that
+	// evidence, not an edge trigger: the reconcile is level-driven, so this is
+	// asked again on every pass from the current state. observedSince is when the
+	// controller began observing (caches synced, or the last disabled->enabled
+	// transition); the threshold is not met until a full window has been watched,
+	// so a cold view is never misread as zero successes.
+	MeetsThreshold(snap Snapshot, now, observedSince time.Time) bool
 }
 
 // registry is the hard-coded set of detectors. A new fault family is a new
@@ -203,7 +205,7 @@ func Decide(node *corev1.Node, events []*corev1.Event, pods []*corev1.Pod, now, 
 			snap.RecentSuccess = true
 			sawSuccess = true
 		}
-		if d.Fires(snap, now, observedSince) {
+		if d.MeetsThreshold(snap, now, observedSince) {
 			snap.Reason = d.Reason()
 			return DecisionWedged, snap
 		}

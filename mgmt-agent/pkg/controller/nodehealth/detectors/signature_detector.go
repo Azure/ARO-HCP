@@ -129,12 +129,12 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 	return snap
 }
 
-// Fires reports whether the detector's threshold is met: the floor of pods that
+// MeetsThreshold reports whether the threshold is met: the floor of pods that
 // have each individually been stuck for at least the dwell, with no recorded
 // success in the window (when required and observable). A cold view that has not
-// yet watched a full window cannot fire, so an unobserved success signal is
-// treated as indeterminate, never as zero.
-func (d signatureDetector) Fires(snap Snapshot, now, observedSince time.Time) bool {
+// yet watched a full window can never meet the threshold, so an unobserved
+// success signal is treated as indeterminate, never as zero.
+func (d signatureDetector) MeetsThreshold(snap Snapshot, now, observedSince time.Time) bool {
 	// The floor counts pods each sustained past the dwell (computed in Evaluate),
 	// so meeting it already proves the storm held continuously; there is no
 	// separate oldest-pod dwell check.
