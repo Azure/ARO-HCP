@@ -1,0 +1,286 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package nodehealth
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/record"
+
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
+)
+
+// testNow is a fixed clock for labeler tests.
+var testNow = time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
+
+func newTestLabeler(objs ...*corev1.Node) (*labeler, *fake.Clientset) {
+	rt := make([]runtime.Object, 0, len(objs))
+	for _, o := range objs {
+		rt = append(rt, o)
+	}
+	client := fake.NewSimpleClientset(rt...)
+	l := newLabeler(client, record.NewFakeRecorder(16), func() time.Time { return testNow })
+	return l, client
+}
+
+func getNode(t *testing.T, client *fake.Clientset, name string) *corev1.Node {
+	t.Helper()
+	n, err := client.CoreV1().Nodes().Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get node: %v", err)
+	}
+	return n
+}
+
+func snap() detectors.Snapshot {
+	return detectors.Snapshot{DetectorName: "swift-vf-teardown", Window: 10 * time.Minute, FailureCount: 30}
+}
+
+func TestLabelAppliesLabelAndAnnotations(t *testing.T) {
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "n1"}}
+	l, client := newTestLabeler(node)
+
+	changed, err := l.label(context.Background(), node, "swift-vf-teardown", snap())
+	if err != nil {
+		t.Fatalf("label: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected changed=true")
+	}
+
+	got := getNode(t, client, "n1")
+	if got.Labels[labelKey] != labelValue {
+		t.Errorf("label = %q, want %q", got.Labels[labelKey], labelValue)
+	}
+	if got.Annotations[annotationDetector] != "swift-vf-teardown" {
+		t.Errorf("detector annotation = %q", got.Annotations[annotationDetector])
+	}
+	if got.Annotations[annotationReason] == "" {
+		t.Error("reason annotation should be set")
+	}
+	if got.Annotations[annotationObservedAt] == "" {
+		t.Error("observed-at annotation should be set")
+	}
+}
+
+func TestLabelIsIdempotent(t *testing.T) {
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "n1",
+			Labels:      map[string]string{labelKey: labelValue},
+			Annotations: map[string]string{annotationDetector: "swift-vf-teardown"},
+		},
+	}
+	l, _ := newTestLabeler(node)
+
+	changed, err := l.label(context.Background(), node, "swift-vf-teardown", snap())
+	if err != nil {
+		t.Fatalf("label: %v", err)
+	}
+	if changed {
+		t.Error("re-labeling an already-labeled node should be a no-op")
+	}
+}
+
+func TestUnlabelRemovesLabelPreservingOthers(t *testing.T) {
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name: "n1",
+		Labels: map[string]string{
+			labelKey:                  labelValue,
+			"kubernetes.io/os":        "linux",
+			detectors.SwiftV2LabelKey: detectors.SwiftV2LabelValue,
+		},
+		Annotations: map[string]string{
+			annotationDetector:   "swift-vf-teardown",
+			annotationReason:     "x",
+			annotationObservedAt: "t",
+			"unrelated":          "keep",
+		},
+	}}
+	l, client := newTestLabeler(node)
+
+	changed, err := l.unlabel(context.Background(), node)
+	if err != nil {
+		t.Fatalf("unlabel: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected changed=true")
+	}
+
+	got := getNode(t, client, "n1")
+	if _, ok := got.Labels[labelKey]; ok {
+		t.Error("wedged label should be removed")
+	}
+	if got.Labels["kubernetes.io/os"] != "linux" {
+		t.Error("unrelated label should be preserved")
+	}
+	if got.Labels[detectors.SwiftV2LabelKey] != detectors.SwiftV2LabelValue {
+		t.Error("SWIFT label should be preserved")
+	}
+	if _, ok := got.Annotations[annotationDetector]; ok {
+		t.Error("detector annotation should be removed")
+	}
+	if got.Annotations["unrelated"] != "keep" {
+		t.Error("unrelated annotation should be preserved")
+	}
+}
+
+func TestUnlabelNoopWhenAbsent(t *testing.T) {
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "n1"}}
+	l, _ := newTestLabeler(node)
+
+	changed, err := l.unlabel(context.Background(), node)
+	if err != nil {
+		t.Fatalf("unlabel: %v", err)
+	}
+	if changed {
+		t.Error("unlabeling a node without the label should be a no-op")
+	}
+}
+
+func TestUnlabelNoopOnForeignValue(t *testing.T) {
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:   "n1",
+		Labels: map[string]string{labelKey: "somethingelse"},
+	}}
+	l, client := newTestLabeler(node)
+
+	changed, err := l.unlabel(context.Background(), node)
+	if err != nil {
+		t.Fatalf("unlabel: %v", err)
+	}
+	if changed {
+		t.Error("a same-key label with a foreign value must not be clobbered")
+	}
+	if getNode(t, client, "n1").Labels[labelKey] != "somethingelse" {
+		t.Error("foreign label value should be untouched")
+	}
+}
+
+func TestLabelSkipsDuplicateOnStaleCache(t *testing.T) {
+	// The server already has the node labeled wedged, but the informer cache the
+	// caller reconciles off is stale and still shows it unlabeled. The live
+	// re-check must catch this so no duplicate counter or Event fires for what is
+	// not a real transition.
+	served := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:        "n1",
+		Labels:      map[string]string{labelKey: labelValue},
+		Annotations: map[string]string{annotationDetector: "swift-vf-teardown"},
+	}}
+	client := fake.NewSimpleClientset(served)
+	rec := record.NewFakeRecorder(16)
+	l := newLabeler(client, rec, func() time.Time { return testNow })
+
+	stale := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "n1"}}
+	changed, err := l.label(context.Background(), stale, "swift-vf-teardown", snap())
+	if err != nil {
+		t.Fatalf("label: %v", err)
+	}
+	if changed {
+		t.Error("stale-cache label of an already-labeled node must report changed=false")
+	}
+	select {
+	case ev := <-rec.Events:
+		t.Errorf("no Event expected on a duplicate transition, got %q", ev)
+	default:
+	}
+}
+
+func TestUnlabelSkipsDuplicateOnStaleCache(t *testing.T) {
+	// The server has already cleared the label, but the informer cache the caller
+	// reconciles off is stale and still shows it present. The live re-check must
+	// catch this so no duplicate counter or Event fires.
+	served := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "n1"}}
+	client := fake.NewSimpleClientset(served)
+	rec := record.NewFakeRecorder(16)
+	l := newLabeler(client, rec, func() time.Time { return testNow })
+
+	stale := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:   "n1",
+		Labels: map[string]string{labelKey: labelValue},
+	}}
+	changed, err := l.unlabel(context.Background(), stale)
+	if err != nil {
+		t.Fatalf("unlabel: %v", err)
+	}
+	if changed {
+		t.Error("stale-cache unlabel of an already-cleared node must report changed=false")
+	}
+	select {
+	case ev := <-rec.Events:
+		t.Errorf("no Event expected on a duplicate transition, got %q", ev)
+	default:
+	}
+}
+
+func TestLabelRefreshesStrippedDetectionRecord(t *testing.T) {
+	// The node carries our label but its detection record is gone (stripped, or
+	// written by an older version). The record must self-heal rather than stay
+	// blank forever behind the already-labeled short-circuit.
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:   "n1",
+		Labels: map[string]string{labelKey: labelValue},
+	}}
+	l, client := newTestLabeler(node)
+
+	changed, err := l.label(context.Background(), node, "swift-vf-teardown", snap())
+	if err != nil {
+		t.Fatalf("label: %v", err)
+	}
+	if !changed {
+		t.Fatal("a missing detection record should be refreshed")
+	}
+
+	got := getNode(t, client, "n1")
+	if got.Annotations[annotationDetector] != "swift-vf-teardown" {
+		t.Errorf("detector annotation = %q, want it restored", got.Annotations[annotationDetector])
+	}
+	if got.Annotations[annotationReason] == "" {
+		t.Error("reason annotation should be restored")
+	}
+	if got.Labels[labelKey] != labelValue {
+		t.Error("label should still be present")
+	}
+}
+
+func TestLabelSteadyStateMakesNoAPICall(t *testing.T) {
+	// A node already labeled by the same detector is the steady state: it must
+	// cost neither a write nor a read, so a wedged node does not generate an
+	// apiserver GET on every resync tick.
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:        "n1",
+		Labels:      map[string]string{labelKey: labelValue},
+		Annotations: map[string]string{annotationDetector: "swift-vf-teardown"},
+	}}
+	l, client := newTestLabeler(node)
+	client.ClearActions()
+
+	changed, err := l.label(context.Background(), node, "swift-vf-teardown", snap())
+	if err != nil {
+		t.Fatalf("label: %v", err)
+	}
+	if changed {
+		t.Error("steady state must report changed=false")
+	}
+	if acts := client.Actions(); len(acts) != 0 {
+		t.Errorf("steady state must not call the apiserver, got %d actions: %v", len(acts), acts)
+	}
+}
