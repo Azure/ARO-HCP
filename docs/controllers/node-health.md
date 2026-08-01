@@ -334,8 +334,11 @@ ConfigMap, plus a `Ready` precondition on the reconcile. The detection threshold
 the SWIFT-v2 node scoping, and the dwell are deliberately *not* here: they are part
 of the detection logic, not operational guards.
 
-- **`enabled`**: a hard off switch. When false the controller still runs its
-  informers but records no state, enqueues nothing, and takes no action.
+- **`enabled`**: a hard off switch. When false the controller enqueues nothing,
+  reconciles nothing, and takes no action on any node. The pod informer handlers
+  still write to the in-memory success map, but nothing reads it while disabled
+  and it is discarded on the disabled to enabled transition, so a disabled
+  controller carries no state forward.
 - **Node-Ready precondition**: a `NotReady` node is skipped and left to node
   lifecycle. The controller exists for the nodes that stay `Ready` while broken.
 
@@ -477,7 +480,7 @@ The controller adds no CRD, webhook, or finalizer, so there is no admission
 latency to account for. Operationally:
 
 - **Fail-safe.** If the controller is down, no node is labeled and
-  nothing is un-done; the pre-existing manual SRE procedure still applies. A
+  nothing is undone; the pre-existing manual SRE procedure still applies. A
   misfire is bounded by the SWIFT-v2 detection scope, and is fully reversible.
 - **Alerting.** Suggested alert: `nodehealth_wedged_nodes > 0` for longer than a
   chosen window, per enabled environment.
