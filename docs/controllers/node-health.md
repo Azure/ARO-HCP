@@ -522,8 +522,11 @@ latency to account for. Operationally:
 
 ### RBAC
 
-The controller's ServiceAccount needs only: `get`/`list`/`watch` on Nodes, Pods,
-and Events, `patch` on Nodes (to set/remove the label and annotations), and
+The controller's ServiceAccount needs only: `get`/`list`/`watch`/`patch` on Nodes
+(the `get` re-checks live state before a write, the `patch` sets and removes the
+label and annotations), `list`/`watch` on Pods, `list`/`watch`/`create`/`patch`
+on Events (it emits `NodeHealthLabeled` and `NodeHealthUnlabeled`, and the
+recorder patches an existing Event when it aggregates repeats), and
 `get`/`list`/`watch` on its own ConfigMap. Pods are
 read-only, used to read each failing pod's `PodReadyToStartContainers` condition
 (its status and `lastTransitionTime`, which supply the dwell and the success
