@@ -36,8 +36,11 @@ import (
 // logic, thresholds, and the SWIFT-v2 node scoping are hard-coded, not
 // configured.
 type Config struct {
-	// Enabled is a hard off switch. When false the controller still runs its
-	// informers but records no state, enqueues nothing, and takes no action.
+	// Enabled is a hard off switch. When false the controller enqueues
+	// nothing, reconciles nothing, and takes no action on any node. The pod
+	// informer handlers still write to the in-memory success map, but nothing
+	// reads it while disabled and it is discarded on the disabled->enabled
+	// transition, so a disabled controller carries no state forward.
 	Enabled bool `json:"enabled"`
 }
 

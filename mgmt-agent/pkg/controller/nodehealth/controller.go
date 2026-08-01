@@ -179,10 +179,10 @@ func (c *Controller) OnConfigMap(cm *corev1.ConfigMap, key string) {
 	klog.InfoS("node-health config reloaded", "configmap", cm.Name, "enabled", cfg.Enabled)
 	wasEnabled := c.config.Load().Enabled
 	c.SetConfig(cfg)
-	// A disabled->enabled transition restarts observation: while disabled the
-	// pod handlers still record successes, but the observedSince warm-up must
-	// begin now so the success signal is treated as indeterminate until a full
-	// window has been watched under the enabled controller.
+	// A disabled->enabled transition restarts observation: the success map
+	// recorded while disabled is discarded and the observedSince warm-up begins
+	// now, so the success signal is treated as indeterminate until a full window
+	// has been watched under the enabled controller.
 	if cfg.Enabled && !wasEnabled {
 		c.beginObserving(c.clock())
 	}
