@@ -358,7 +358,20 @@ field manager `mgmt-agent-node-health`:
 - label `node-health.aro-hcp.azure.com/status=wedged`
 - annotation `.../detector`: which detector fired
 - annotation `.../reason`: a short human-readable summary (failure/success counts)
+- annotation `.../signature`: the detector signature that classified most of the
+  failing pods, naming which failure mode within the detector's family the node
+  is showing
 - annotation `.../observed-at`: RFC3339 timestamp of the first label in this episode
+
+The single label is the whole selectable surface. Everything descriptive stays an
+annotation on purpose: anything selectable becomes a contract, and the contract
+here is deliberately one bit, "this node is wedged". The signature is triage
+detail so an operator does not have to go read Events that may already have been
+collected, and it is deliberately not a decision input. Mitigation keys on the
+detector, since one detector is one fault with one remedy; branching on the
+signature would require the mitigator to know detector internals. The same
+signature is reported as a label on the detection counter, where the set is
+bounded by the hard-coded signature list.
 
 The label and annotations are removed in two cases: when recovery is confirmed
 (the detector no longer fires and pods are starting again), and when no detector
@@ -434,8 +447,10 @@ rolled out with the detector.
 The controller registers Prometheus metrics on the `mgmt-agent` `/metrics`
 endpoint (subsystem `nodehealth`):
 
-- `nodehealth_detections_total{detector}`: counts wedged detections (label
-  transitions).
+- `nodehealth_detections_total{detector,signature}`: counts wedged detections
+  (label transitions), broken down by the failure mode within the detector's
+  family. Both label sets are bounded by the hard-coded detector and signature
+  lists.
 - `nodehealth_label_actions_total{action,result}`: label/unlabel actions by
   result.
 - `nodehealth_wedged_nodes`: gauge of nodes currently carrying the wedged label
@@ -489,8 +504,9 @@ latency to account for. Operationally:
 - **Alerting.** Suggested alert: `nodehealth_wedged_nodes > 0` for longer than a
   chosen window, per enabled environment.
 - **Inspect a flagged node.** `kubectl describe node <node>` shows the
-  `node-health.aro-hcp.azure.com/status=wedged` label, the `detector`/`reason`/
-  `observed-at` annotations, and the `NodeHealth*` Events.
+  `node-health.aro-hcp.azure.com/status=wedged` label, the
+  `detector`/`reason`/`signature`/`observed-at` annotations, and the
+  `NodeHealth*` Events.
 - **Disable quickly.** Set `enabled: false` in the ConfigMap to stop all action;
   the change is hot-reloaded and takes effect within one resync. A live edit is
   break-glass, not a durable setting: the Helm values in git own the ConfigMap's
