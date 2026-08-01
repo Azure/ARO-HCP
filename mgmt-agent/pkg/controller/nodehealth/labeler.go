@@ -53,21 +53,25 @@ func newLabeler(client kubernetes.Interface, recorder record.EventRecorder, cloc
 // annotations recording which detector fired, why, and when.
 //
 // It returns changed=true when it mutated the node's health record, which is
-// either a fresh label transition or a refresh of a detection record that no
-// longer matches the firing detector (including one whose annotations were
-// stripped). A node already labeled by the same detector is left completely
-// untouched, so the steady state costs no writes and no API reads.
+// either a fresh label transition or a refresh of a detection record that is
+// incomplete or no longer matches the firing detector (including one whose
+// annotations were stripped, and one written by an earlier build that did not
+// record every annotation yet). A node already carrying a complete record from
+// the same detector is left completely untouched, so the steady state costs no
+// writes and no API reads.
 //
 // The reason annotation is deliberately not reconciled on every pass. It embeds
 // live evidence counts that change constantly, so continuously reconciling it
 // would rewrite every wedged node on every resync tick for no operator benefit.
-// The record is a snapshot of the detection, not a live readout.
+// The record is a snapshot of the detection, not a live readout. Completeness is
+// therefore judged on the presence of the record's keys, never on their values,
+// which is what keeps the self-heal from becoming steady-state churn.
 func (l *labeler) label(ctx context.Context, node *corev1.Node, detector string, snap detectors.Snapshot) (bool, error) {
 	logger := klog.FromContext(ctx).WithValues("node", node.Name)
 
-	// Steady state, off the informer cache: correct label and a matching
-	// detection record. Nothing to do, and no need to hit the apiserver.
-	if node.Labels[labelKey] == labelValue && node.Annotations[annotationDetector] == detector {
+	// Steady state, off the informer cache: correct label and a complete,
+	// matching detection record. Nothing to do, and no need to hit the apiserver.
+	if hasCompleteRecord(node, detector, snap) {
 		logger.V(4).Info("node already labeled wedged by this detector (cache)")
 		return false, nil
 	}
@@ -83,7 +87,7 @@ func (l *labeler) label(ctx context.Context, node *corev1.Node, detector string,
 		}
 		return false, fmt.Errorf("get node %s: %w", node.Name, err)
 	}
-	if live.Labels[labelKey] == labelValue && live.Annotations[annotationDetector] == detector {
+	if hasCompleteRecord(live, detector, snap) {
 		logger.V(4).Info("node already labeled wedged by this detector (live)")
 		return false, nil
 	}
@@ -117,6 +121,37 @@ func (l *labeler) label(ctx context.Context, node *corev1.Node, detector string,
 	l.eventf(node, corev1.EventTypeWarning, "NodeHealthLabeled",
 		"node-health marked node wedged (detector %q; %s)", detector, reason)
 	return true, nil
+}
+
+// hasCompleteRecord reports whether the node already carries the wedged label and
+// a full detection record written by this detector, which is the steady state
+// worth skipping.
+//
+// Only the detector annotation is compared by value, because it identifies the
+// record's author. The rest are checked for presence alone: their values move
+// with the evidence, so comparing them would rewrite every wedged node on every
+// sweep. Presence is enough to catch the cases that matter, a record that was
+// partially stripped by hand and one written by an earlier build that did not
+// record the full set of annotations yet, both of which would otherwise stay
+// incomplete for the rest of the wedge episode.
+func hasCompleteRecord(node *corev1.Node, detector string, snap detectors.Snapshot) bool {
+	if node.Labels[labelKey] != labelValue {
+		return false
+	}
+	if node.Annotations[annotationDetector] != detector {
+		return false
+	}
+	required := []string{annotationReason, annotationObservedAt}
+	// The signature is only part of the record when the detection produced one.
+	if snap.MatchedSignature != "" {
+		required = append(required, annotationSignature)
+	}
+	for _, k := range required {
+		if _, ok := node.Annotations[k]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // unlabel removes the node-health wedged label and its annotations from a node.

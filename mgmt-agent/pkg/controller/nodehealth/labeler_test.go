@@ -59,6 +59,17 @@ func snap() detectors.Snapshot {
 	}
 }
 
+// completeRecord is the annotation set a fully written detection record carries.
+// The values are irrelevant to the steady-state check, only their presence is.
+func completeRecord() map[string]string {
+	return map[string]string{
+		annotationDetector:   "swift-vf-teardown",
+		annotationReason:     "recorded earlier in this episode",
+		annotationSignature:  "no such network interface",
+		annotationObservedAt: "t",
+	}
+}
+
 func TestLabelAppliesLabelAndAnnotations(t *testing.T) {
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "n1"}}
 	l, client := newTestLabeler(node)
@@ -115,7 +126,7 @@ func TestLabelIsIdempotent(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "n1",
 			Labels:      map[string]string{labelKey: labelValue},
-			Annotations: map[string]string{annotationDetector: "swift-vf-teardown"},
+			Annotations: completeRecord(),
 		},
 	}
 	l, _ := newTestLabeler(node)
@@ -126,6 +137,77 @@ func TestLabelIsIdempotent(t *testing.T) {
 	}
 	if changed {
 		t.Error("re-labeling an already-labeled node should be a no-op")
+	}
+}
+
+func TestLabelDoesNotChurnOnChangedEvidence(t *testing.T) {
+	// The reason and signature values move with the evidence. A complete record
+	// must stay untouched when they change, or every wedged node is rewritten on
+	// every sweep.
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "n1",
+			Labels: map[string]string{labelKey: labelValue},
+			Annotations: map[string]string{
+				annotationDetector:   "swift-vf-teardown",
+				annotationReason:     "2 pods stuck past dwell (2 stuck total), no recent success in 10m0s",
+				annotationSignature:  "mtpnc is not ready",
+				annotationObservedAt: "t",
+			},
+		},
+	}
+	l, _ := newTestLabeler(node)
+
+	// snap() reports different counts and a different signature.
+	changed, err := l.label(context.Background(), node, "swift-vf-teardown", snap())
+	if err != nil {
+		t.Fatalf("label: %v", err)
+	}
+	if changed {
+		t.Error("changed evidence must not rewrite a complete record")
+	}
+}
+
+func TestLabelSelfHealsIncompleteRecord(t *testing.T) {
+	// A record can be incomplete because it was stripped by hand, or because it
+	// was written by an earlier build that did not record every annotation. Both
+	// look the same here: the detector annotation still matches, so only a
+	// completeness check catches them.
+	for _, tc := range []struct {
+		name    string
+		missing string
+	}{
+		{"stripped reason", annotationReason},
+		{"stripped observed-at", annotationObservedAt},
+		{"record predates the signature annotation", annotationSignature},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			anns := map[string]string{
+				annotationDetector:   "swift-vf-teardown",
+				annotationReason:     "x",
+				annotationSignature:  "mtpnc is not ready",
+				annotationObservedAt: "t",
+			}
+			delete(anns, tc.missing)
+			node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+				Name:        "n1",
+				Labels:      map[string]string{labelKey: labelValue},
+				Annotations: anns,
+			}}
+			l, client := newTestLabeler(node)
+
+			changed, err := l.label(context.Background(), node, "swift-vf-teardown", snap())
+			if err != nil {
+				t.Fatalf("label: %v", err)
+			}
+			if !changed {
+				t.Fatalf("an incomplete record missing %q should be restored", tc.missing)
+			}
+			got := getNode(t, client, "n1")
+			if _, ok := got.Annotations[tc.missing]; !ok {
+				t.Errorf("annotation %q should have been restored", tc.missing)
+			}
+		})
 	}
 }
 
@@ -216,7 +298,7 @@ func TestLabelSkipsDuplicateOnStaleCache(t *testing.T) {
 	served := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
 		Name:        "n1",
 		Labels:      map[string]string{labelKey: labelValue},
-		Annotations: map[string]string{annotationDetector: "swift-vf-teardown"},
+		Annotations: completeRecord(),
 	}}
 	client := fake.NewSimpleClientset(served)
 	rec := record.NewFakeRecorder(16)
@@ -301,7 +383,7 @@ func TestLabelSteadyStateMakesNoAPICall(t *testing.T) {
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
 		Name:        "n1",
 		Labels:      map[string]string{labelKey: labelValue},
-		Annotations: map[string]string{annotationDetector: "swift-vf-teardown"},
+		Annotations: completeRecord(),
 	}}
 	l, client := newTestLabeler(node)
 	client.ClearActions()
