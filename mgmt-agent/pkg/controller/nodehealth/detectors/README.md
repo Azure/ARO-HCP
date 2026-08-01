@@ -72,7 +72,7 @@ constants, never config):
 |----------------------|---------|
 | `appliesTo`          | predicate limiting the detector to nodes that can physically exhibit the fault (nil = all nodes) |
 | `eventReason`        | the kubelet Event `reason` that marks a pod as failing sandbox creation |
-| `signatures`         | regexes matched against the failure Event message; any match is a hit |
+| `signatures`         | regexes matched against the failure Event message; any match is a hit. The first one that matches classifies the pod, and the signature classifying most of the counted pods is reported in the `Snapshot` for triage (ties broken by declaration order, so it is stable) |
 | `failuresFloor`      | minimum number of stuck pods that have each individually been stuck past `dwell` (a floor so the storm is sustained, not the trigger) |
 | `window`             | rolling window over which failures and successes are counted |
 | `dwell`              | how long each pod must have been stuck before it counts toward the floor, filtering transient bursts |

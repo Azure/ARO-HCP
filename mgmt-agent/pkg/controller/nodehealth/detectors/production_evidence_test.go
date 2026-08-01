@@ -33,33 +33,45 @@ import (
 
 // productionSandboxMessages are verbatim kubelet FailedCreatePodSandBox messages
 // from the captured incident, one per signature family the detector matches.
+// wantSignature pins which signature classifies each message, so the failure mode
+// reported for triage stays discriminating: a signature broadened until it
+// swallows a neighbouring family fails here.
 var productionSandboxMessages = []struct {
-	family  string
-	message string
+	family        string
+	message       string
+	wantSignature string
 }{
 	{
-		family:  "route/no-such-network-interface",
-		message: `Failed to create pod sandbox: rpc error: code = Unknown desc = failed to setup network for sandbox "0000000000000000000000000000000000000000000000000000000000000001": plugin type="azure-vnet" failed (add): failed to create endpoint: SecondaryEndpointClient Error: route ip+net: no such network interface`,
+		family:        "route/no-such-network-interface",
+		wantSignature: `no such network interface`,
+		message:       `Failed to create pod sandbox: rpc error: code = Unknown desc = failed to setup network for sandbox "0000000000000000000000000000000000000000000000000000000000000001": plugin type="azure-vnet" failed (add): failed to create endpoint: SecondaryEndpointClient Error: route ip+net: no such network interface`,
 	},
 	{
-		family:  "network-unreachable",
-		message: `Failed to create pod sandbox: rpc error: code = Unknown desc = failed to setup network for sandbox "0000000000000000000000000000000000000000000000000000000000000002": plugin type="azure-vnet" failed (add): failed to create endpoint: network is unreachable`,
+		family:        "network-unreachable",
+		wantSignature: `network is unreachable`,
+		message:       `Failed to create pod sandbox: rpc error: code = Unknown desc = failed to setup network for sandbox "0000000000000000000000000000000000000000000000000000000000000002": plugin type="azure-vnet" failed (add): failed to create endpoint: network is unreachable`,
 	},
 	{
-		family:  "mtpnc-not-ready",
-		message: `Failed to create pod sandbox: rpc error: code = Unknown desc = failed to setup network for sandbox "0000000000000000000000000000000000000000000000000000000000000004": plugin type="azure-vnet" failed (add): failed to add ipam invoker: Failed to get IP address from CNS: network is not ready - mtpnc is not ready`,
+		family:        "mtpnc-not-ready",
+		wantSignature: `mtpnc is not ready`,
+		message:       `Failed to create pod sandbox: rpc error: code = Unknown desc = failed to setup network for sandbox "0000000000000000000000000000000000000000000000000000000000000004": plugin type="azure-vnet" failed (add): failed to add ipam invoker: Failed to get IP address from CNS: network is not ready - mtpnc is not ready`,
 	},
 	{
-		family:  "dhcp-discover-timeout",
-		message: `Failed to create pod sandbox: rpc error: code = Unknown desc = failed to setup network for sandbox "0000000000000000000000000000000000000000000000000000000000000003": plugin type="azure-vnet" failed (add): failed to create endpoint: network is not ready - failed to issue dhcp discover packet to create mapping in host: timed out waiting for replies`,
+		family:        "dhcp-discover-timeout",
+		wantSignature: `dhcp discover.*timed out`,
+		message:       `Failed to create pod sandbox: rpc error: code = Unknown desc = failed to setup network for sandbox "0000000000000000000000000000000000000000000000000000000000000003": plugin type="azure-vnet" failed (add): failed to create endpoint: network is not ready - failed to issue dhcp discover packet to create mapping in host: timed out waiting for replies`,
 	},
 }
 
 func TestProductionSandboxMessagesMatchSignatures(t *testing.T) {
 	for _, tc := range productionSandboxMessages {
 		t.Run(tc.family, func(t *testing.T) {
-			if !swiftVFTeardown.matches(tc.message) {
-				t.Errorf("captured production message was not matched by any signature:\n%s", tc.message)
+			idx, ok := swiftVFTeardown.matchSignature(tc.message)
+			if !ok {
+				t.Fatalf("captured production message was not matched by any signature:\n%s", tc.message)
+			}
+			if got := swiftVFTeardown.signatures[idx].String(); got != tc.wantSignature {
+				t.Errorf("classified as %q, want %q:\n%s", got, tc.wantSignature, tc.message)
 			}
 		})
 	}

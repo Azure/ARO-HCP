@@ -51,7 +51,12 @@ func getNode(t *testing.T, client *fake.Clientset, name string) *corev1.Node {
 }
 
 func snap() detectors.Snapshot {
-	return detectors.Snapshot{DetectorName: "swift-vf-teardown", Window: 10 * time.Minute, FailureCount: 30}
+	return detectors.Snapshot{
+		DetectorName:     "swift-vf-teardown",
+		Window:           10 * time.Minute,
+		FailureCount:     30,
+		MatchedSignature: `no such network interface`,
+	}
 }
 
 func TestLabelAppliesLabelAndAnnotations(t *testing.T) {
@@ -76,8 +81,32 @@ func TestLabelAppliesLabelAndAnnotations(t *testing.T) {
 	if got.Annotations[annotationReason] == "" {
 		t.Error("reason annotation should be set")
 	}
+	if got.Annotations[annotationSignature] != `no such network interface` {
+		t.Errorf("signature annotation = %q, want %q", got.Annotations[annotationSignature], `no such network interface`)
+	}
 	if got.Annotations[annotationObservedAt] == "" {
 		t.Error("observed-at annotation should be set")
+	}
+}
+
+func TestLabelWithoutSignatureClearsStaleSignatureAnnotation(t *testing.T) {
+	// A detection that classified no failure mode must not leave the previous
+	// episode's signature sitting next to a fresh detection record.
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:        "n1",
+		Annotations: map[string]string{annotationSignature: "stale"},
+	}}
+	l, client := newTestLabeler(node)
+
+	s := snap()
+	s.MatchedSignature = ""
+	if _, err := l.label(context.Background(), node, "swift-vf-teardown", s); err != nil {
+		t.Fatalf("label: %v", err)
+	}
+
+	got := getNode(t, client, "n1")
+	if v, ok := got.Annotations[annotationSignature]; ok {
+		t.Errorf("signature annotation = %q, want it removed", v)
 	}
 }
 
@@ -111,6 +140,7 @@ func TestUnlabelRemovesLabelPreservingOthers(t *testing.T) {
 		Annotations: map[string]string{
 			annotationDetector:   "swift-vf-teardown",
 			annotationReason:     "x",
+			annotationSignature:  "no such network interface",
 			annotationObservedAt: "t",
 			"unrelated":          "keep",
 		},
@@ -137,6 +167,9 @@ func TestUnlabelRemovesLabelPreservingOthers(t *testing.T) {
 	}
 	if _, ok := got.Annotations[annotationDetector]; ok {
 		t.Error("detector annotation should be removed")
+	}
+	if _, ok := got.Annotations[annotationSignature]; ok {
+		t.Error("signature annotation should be removed")
 	}
 	if got.Annotations["unrelated"] != "keep" {
 		t.Error("unrelated annotation should be preserved")

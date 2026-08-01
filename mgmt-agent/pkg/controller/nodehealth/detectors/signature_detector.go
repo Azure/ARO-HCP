@@ -88,19 +88,34 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 	// inherit the old Pod's failure Events. Events whose involved object carries
 	// no UID are skipped rather than matched loosely. The Events are used only to
 	// identify failing pods; they are never counted.
-	failing := make(map[types.UID]bool)
+	//
+	// The value is the index of the signature that classified the pod. When a pod
+	// has Events matching several signatures, the lowest index wins, so the
+	// classification does not depend on the order the informer hands back Events.
+	failing := make(map[types.UID]int)
 	for _, ev := range events {
 		if ev == nil || ev.InvolvedObject.Kind != "Pod" || ev.InvolvedObject.UID == "" {
 			continue
 		}
-		if ev.Reason != d.eventReason || !d.matches(ev.Message) {
+		if ev.Reason != d.eventReason {
+			continue
+		}
+		idx, ok := d.matchSignature(ev.Message)
+		if !ok {
 			continue
 		}
 		if eventLastTime(ev).Before(windowStart) {
 			continue
 		}
-		failing[ev.InvolvedObject.UID] = true
+		if prev, seen := failing[ev.InvolvedObject.UID]; !seen || idx < prev {
+			failing[ev.InvolvedObject.UID] = idx
+		}
 	}
+
+	// Tally the classifications of exactly the pods counted in FailureCount, so
+	// the reported signature describes this snapshot and not Events for pods that
+	// are no longer stuck.
+	sigCounts := make([]int, len(d.signatures))
 
 	for _, p := range pods {
 		if p == nil || p.DeletionTimestamp != nil {
@@ -113,9 +128,10 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 		// stuck right now with only the oldest one aged. This is what stops a
 		// single old failure alongside brand-new ones from firing, and what stops
 		// one long-stuck pod from firing alone.
-		if failing[p.UID] {
+		if idx, ok := failing[p.UID]; ok {
 			if since, stuck := stuckSince(p); stuck {
 				snap.FailureCount++
+				sigCounts[idx]++
 				if snap.StuckSince.IsZero() || since.Before(snap.StuckSince) {
 					snap.StuckSince = since
 				}
@@ -124,6 +140,18 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 				}
 			}
 		}
+	}
+
+	// Dominant signature: the one classifying the most counted pods, ties broken
+	// by declaration order so the result is stable across evaluations.
+	best := -1
+	for i, n := range sigCounts {
+		if n > 0 && (best < 0 || n > sigCounts[best]) {
+			best = i
+		}
+	}
+	if best >= 0 {
+		snap.MatchedSignature = d.signatures[best].String()
 	}
 
 	return snap
@@ -155,15 +183,15 @@ func (d signatureDetector) MeetsThreshold(snap Snapshot, now, observedSince time
 	return true
 }
 
-// matches reports whether the Event message matches any of the detector's
-// signature regexes.
-func (d signatureDetector) matches(message string) bool {
-	for _, re := range d.signatures {
+// matchSignature returns the index of the first of the detector's signature
+// regexes that matches the Event message.
+func (d signatureDetector) matchSignature(message string) (int, bool) {
+	for i, re := range d.signatures {
 		if re.MatchString(message) {
-			return true
+			return i, true
 		}
 	}
-	return false
+	return 0, false
 }
 
 func isNodeReady(node *corev1.Node) bool {

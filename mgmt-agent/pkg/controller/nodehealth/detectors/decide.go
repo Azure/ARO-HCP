@@ -164,6 +164,14 @@ type Snapshot struct {
 	// among the node's currently-stuck failing pods, a GC-independent dwell signal
 	// read from durable Pod state, reported for observability.
 	StuckSince time.Time
+	// MatchedSignature is the detector signature that classified the most of the
+	// pods counted in FailureCount, as its raw pattern. It is triage detail only:
+	// it names which failure mode inside the detector's family the node is
+	// showing, so an operator does not have to go read Events that may already
+	// have been collected. It is never a decision input, and mitigation must key
+	// on DetectorName, not on this: one detector is one fault with one remedy,
+	// and branching on the signature would require knowing detector internals.
+	MatchedSignature string
 }
 
 // ReasonString renders a short human-readable summary for the reason annotation.

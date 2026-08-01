@@ -455,9 +455,10 @@ func (c *Controller) syncHandler(ctx context.Context, name string) error {
 			return err
 		}
 		if changed {
-			detectionsTotal.WithLabelValues(snap.DetectorName).Inc()
+			detectionsTotal.WithLabelValues(snap.DetectorName, snap.MatchedSignature).Inc()
 			logger.Info("detector fired; node labeled wedged",
 				"detector", snap.DetectorName,
+				"signature", snap.MatchedSignature,
 				"failures", snap.FailureCount,
 				"recentSuccess", snap.RecentSuccess)
 		}

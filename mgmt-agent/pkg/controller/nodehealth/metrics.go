@@ -28,10 +28,10 @@ var (
 		&metrics.CounterOpts{
 			Subsystem:      metricsSubsystem,
 			Name:           "detections_total",
-			Help:           "Number of times a detector caused a node to be marked wedged, counted when the node's detection record changes rather than on every re-evaluation.",
+			Help:           "Number of times a detector caused a node to be marked wedged, counted when the node's detection record changes rather than on every re-evaluation. The signature label names the failure mode within the detector's family and is triage detail only.",
 			StabilityLevel: metrics.ALPHA,
 		},
-		[]string{"detector"},
+		[]string{"detector", "signature"},
 	)
 
 	labelActionsTotal = metrics.NewCounterVec(

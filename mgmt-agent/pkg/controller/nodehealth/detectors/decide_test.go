@@ -432,20 +432,122 @@ func TestEventsCorrelateByUIDNotName(t *testing.T) {
 }
 
 func TestSignatureVariantsMatch(t *testing.T) {
-	msgs := []string{
+	// Each message must match, and must map to the signature it belongs to, so
+	// the index recorded for a pod is the one reported as MatchedSignature.
+	for wantIdx, m := range []string{
 		"failed to setup network for sandbox: route ip+net: no such network interface",
 		"plugin failed: network is unreachable",
 		"mtpnc is not ready for pod",
 		"dhcp discover for eth0 timed out after 15s",
-	}
-	for _, m := range msgs {
-		if !swiftVFTeardown.matches(m) {
+	} {
+		gotIdx, ok := swiftVFTeardown.matchSignature(m)
+		if !ok {
 			t.Errorf("expected signature match for %q", m)
+			continue
+		}
+		if gotIdx != wantIdx {
+			t.Errorf("matchSignature(%q) index = %d, want %d", m, gotIdx, wantIdx)
 		}
 	}
-	if swiftVFTeardown.matches("image pull backoff") {
+	if _, ok := swiftVFTeardown.matchSignature("image pull backoff"); ok {
 		t.Error("unrelated message should not match")
 	}
+}
+
+func TestMatchedSignatureReportsDominantFailureMode(t *testing.T) {
+	const (
+		sigNoSuchIface = `no such network interface`
+		sigMtpnc       = `mtpnc is not ready`
+	)
+	msgNoSuchIface := "failed to setup network for sandbox: route ip+net: no such network interface"
+	msgMtpnc := "mtpnc is not ready for pod"
+
+	t.Run("majority wins, end to end through Decide", func(t *testing.T) {
+		// Three pods so the detector actually fires: this is the path that reaches
+		// the annotation and the metric, so assert the signature survives it.
+		stuckAt := ago(20 * time.Minute)
+		pods := []*corev1.Pod{stuckPod("p0", stuckAt), stuckPod("p1", stuckAt), stuckPod("p2", stuckAt)}
+		events := []*corev1.Event{
+			failEventFor("p0", ago(20*time.Second), msgNoSuchIface),
+			failEventFor("p1", ago(20*time.Second), msgMtpnc),
+			failEventFor("p2", ago(20*time.Second), msgMtpnc),
+		}
+		got, snap := Decide(testNode(true, true), events, pods, testNow, warm, time.Time{})
+		if got != DecisionWedged {
+			t.Fatalf("Decide() = %v, want Wedged", got)
+		}
+		if snap.MatchedSignature != sigMtpnc {
+			t.Errorf("MatchedSignature = %q, want %q", snap.MatchedSignature, sigMtpnc)
+		}
+	})
+
+	// The remaining cases exercise the classification itself, which is Evaluate's
+	// job. They go through Evaluate directly rather than inflating the fixtures to
+	// clear the floor, since Decide only returns a populated Snapshot on a wedge.
+	t.Run("tie broken by declaration order", func(t *testing.T) {
+		// One pod each. Both signatures are equally represented, so the earlier
+		// declared signature wins and the annotation does not flap between
+		// evaluations.
+		stuckAt := ago(20 * time.Minute)
+		pods := []*corev1.Pod{stuckPod("p0", stuckAt), stuckPod("p1", stuckAt)}
+		events := []*corev1.Event{
+			failEventFor("p1", ago(20*time.Second), msgMtpnc),
+			failEventFor("p0", ago(20*time.Second), msgNoSuchIface),
+		}
+		snap := swiftVFTeardown.Evaluate(events, pods, testNow)
+		if snap.MatchedSignature != sigNoSuchIface {
+			t.Errorf("MatchedSignature = %q, want %q (earliest declared signature)", snap.MatchedSignature, sigNoSuchIface)
+		}
+	})
+
+	t.Run("one pod matching several signatures is classified once", func(t *testing.T) {
+		// A single pod with Events for two signatures must not be double counted,
+		// and must classify to the earlier declared signature whatever order the
+		// informer returns its Events in.
+		stuckAt := ago(20 * time.Minute)
+		pods := []*corev1.Pod{stuckPod("p0", stuckAt)}
+		events := []*corev1.Event{
+			failEventFor("p0", ago(20*time.Second), msgMtpnc),
+			failEventFor("p0", ago(10*time.Second), msgNoSuchIface),
+		}
+		snap := swiftVFTeardown.Evaluate(events, pods, testNow)
+		if snap.FailureCount != 1 {
+			t.Errorf("FailureCount = %d, want 1 (one pod, two Events)", snap.FailureCount)
+		}
+		if snap.MatchedSignature != sigNoSuchIface {
+			t.Errorf("MatchedSignature = %q, want %q", snap.MatchedSignature, sigNoSuchIface)
+		}
+	})
+
+	t.Run("only counted pods are tallied", func(t *testing.T) {
+		// A pod with a matching Event that is not stuck contributes nothing, so a
+		// stale failure mode cannot outvote the one the node is actually showing.
+		stuckAt := ago(20 * time.Minute)
+		// startedPod carries no UID, so set it explicitly: without correlation the
+		// subtest would pass for the wrong reason.
+		p1, p2 := startedPod("p1", ago(1*time.Minute), false), startedPod("p2", ago(1*time.Minute), false)
+		p1.UID, p2.UID = podUID("p1"), podUID("p2")
+		pods := []*corev1.Pod{stuckPod("p0", stuckAt), p1, p2}
+		events := []*corev1.Event{
+			failEventFor("p0", ago(20*time.Second), msgMtpnc),
+			failEventFor("p1", ago(20*time.Second), msgNoSuchIface),
+			failEventFor("p2", ago(20*time.Second), msgNoSuchIface),
+		}
+		snap := swiftVFTeardown.Evaluate(events, pods, testNow)
+		if snap.FailureCount != 1 {
+			t.Errorf("FailureCount = %d, want 1", snap.FailureCount)
+		}
+		if snap.MatchedSignature != sigMtpnc {
+			t.Errorf("MatchedSignature = %q, want %q", snap.MatchedSignature, sigMtpnc)
+		}
+	})
+
+	t.Run("no failing pods reports no signature", func(t *testing.T) {
+		snap := swiftVFTeardown.Evaluate(nil, nil, testNow)
+		if snap.MatchedSignature != "" {
+			t.Errorf("MatchedSignature = %q, want empty", snap.MatchedSignature)
+		}
+	})
 }
 
 func TestSuccessAt(t *testing.T) {

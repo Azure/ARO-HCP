@@ -89,11 +89,18 @@ func (l *labeler) label(ctx context.Context, node *corev1.Node, detector string,
 	}
 
 	reason := snap.ReasonString()
+	// An empty signature clears any annotation left by an earlier episode rather
+	// than leaving a stale one next to a fresh detection record.
+	var signature *string
+	if snap.MatchedSignature != "" {
+		signature = ptr(snap.MatchedSignature)
+	}
 	patch, err := metadataPatch(
 		map[string]*string{labelKey: ptr(labelValue)},
 		map[string]*string{
 			annotationDetector:   ptr(detector),
 			annotationReason:     ptr(reason),
+			annotationSignature:  signature,
 			annotationObservedAt: ptr(l.clock().UTC().Format(time.RFC3339)),
 		},
 	)
@@ -106,7 +113,7 @@ func (l *labeler) label(ctx context.Context, node *corev1.Node, detector string,
 		return false, err
 	}
 	labelActionsTotal.WithLabelValues("label", "success").Inc()
-	logger.Info("labeled node wedged", "label", labelKey+"="+labelValue, "detector", detector, "reason", reason)
+	logger.Info("labeled node wedged", "label", labelKey+"="+labelValue, "detector", detector, "reason", reason, "signature", snap.MatchedSignature)
 	l.eventf(node, corev1.EventTypeWarning, "NodeHealthLabeled",
 		"node-health marked node wedged (detector %q; %s)", detector, reason)
 	return true, nil
@@ -142,6 +149,7 @@ func (l *labeler) unlabel(ctx context.Context, node *corev1.Node) (bool, error) 
 		map[string]*string{
 			annotationDetector:   nil,
 			annotationReason:     nil,
+			annotationSignature:  nil,
 			annotationObservedAt: nil,
 		},
 	)

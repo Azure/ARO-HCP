@@ -33,6 +33,11 @@ const (
 	annotationDetector = "node-health.aro-hcp.azure.com/detector"
 	// annotationReason records a short human-readable explanation for the label.
 	annotationReason = "node-health.aro-hcp.azure.com/reason"
+	// annotationSignature records the detector signature that classified most of
+	// the failing pods, as triage detail. It names the failure mode within the
+	// detector's family; it is not part of the mitigation contract, which keys on
+	// annotationDetector.
+	annotationSignature = "node-health.aro-hcp.azure.com/signature"
 	// annotationObservedAt records the RFC3339 timestamp the node was first
 	// labeled in the current wedge episode.
 	annotationObservedAt = "node-health.aro-hcp.azure.com/observed-at"
