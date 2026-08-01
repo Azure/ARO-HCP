@@ -16,8 +16,8 @@ package nodehealth
 
 const (
 	// ControllerName is the single source of truth for this controller's name.
-	// It feeds the workqueue name (which surfaces as a Prometheus label), the
-	// event recorder component, and log fields, so those never drift.
+	// It feeds the workqueue name, which surfaces as a Prometheus label on the
+	// workqueue metrics, so that label never drifts from the controller.
 	ControllerName = "node-health"
 
 	// fieldManager identifies this controller in server-side patch operations.
