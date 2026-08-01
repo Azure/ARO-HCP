@@ -172,11 +172,17 @@ condition, not the error count.
 
 A detector is a small, hard-coded Go unit that decides, for one fault family,
 whether a node is wedged. Every detector implements a common `Detector` interface
-(`Applies`, `Evaluate`, `Fires`, plus `Name`/`Reason` for surfacing), and the pure
+(`Applies`, `Evaluate`, `MeetsThreshold`, plus `Name`/`Reason` for surfacing), and the pure
 `decide` core iterates a code registry of detectors without depending on any
 concrete type. This keeps detection modular: the engine, the shared evaluation
 primitives, and each fault family live in separate files, so adding a family means
 adding a `Detector`, not editing `decide`.
+
+The `Ready` precondition is part of this logic, not an operational guard: a
+`NotReady` node is skipped and left to node lifecycle, because the fault this
+controller detects is precisely the one that leaves a node `Ready` while it cannot
+start pods. A `NotReady` node is already visible to every other mechanism, so
+labeling it would add nothing.
 
 Detectors share a common base rather than duplicating logic. The
 `signatureDetector` base implements the interface for the common shape: a
@@ -329,18 +335,16 @@ zero-success rule remains the primary trigger.
 
 ## Safety guards
 
-The operational guards are the off switch, live via the
-ConfigMap, plus a `Ready` precondition on the reconcile. The detection thresholds,
-the SWIFT-v2 node scoping, and the dwell are deliberately *not* here: they are part
-of the detection logic, not operational guards.
+The only operational guard is the off switch, live via the ConfigMap. The
+detection thresholds, the SWIFT-v2 node scoping, the dwell, and the `Ready`
+precondition are deliberately *not* here: they are part of the detection logic,
+not operational guards.
 
 - **`enabled`**: a hard off switch. When false the controller keeps its informers
   running but records no state, enqueues nothing, reconciles nothing, and takes no
   action on any node. The config is parsed strictly, so an unknown key in the
   ConfigMap is a logged error that retains the previous config rather than a
   silent no-op.
-- **Node-Ready precondition**: a `NotReady` node is skipped and left to node
-  lifecycle. The controller exists for the nodes that stay `Ready` while broken.
 
 ## Actions
 
