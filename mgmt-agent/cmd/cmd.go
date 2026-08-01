@@ -49,8 +49,8 @@ mgmt-agent runs three controllers under a single leader election:
    signatures (e.g. SWIFT delegated-NIC teardown that leaves a node Ready but
    unable to start pods) and, when a SWIFT-v2 node crosses a detector threshold,
    sets a health label on the node (and clears it when the node recovers) so an
-   out-of-band consumer can act on it. It watches only SWIFT-v2 nodes and ships
-   disabled by default.
+   out-of-band consumer can act on it. It labels only SWIFT-v2 nodes, scoped by
+   the AKS node label, and ships disabled by default.
 
 It also runs log-only watchers for Pod (when KSM is enabled) and selected CRD
 and core resources to aid operational troubleshooting.`,
