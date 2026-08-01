@@ -93,6 +93,72 @@ func ValidateDraft(ctx context.Context, client KustoClient, draft *DraftChain, v
 			Detail:   "- The summary is empty. Every analysis must include a non-empty summary.",
 		})
 	}
+	// Classification checks.
+	if draft.Classification == nil {
+		problems = append(problems, ValidationProblem{
+			Category: "missing_classification",
+			Chain:    -1,
+			Proof:    -1,
+			Detail:   "- The classification is missing. Every analysis must include a classification object with l1_category and confidence.",
+		})
+	} else {
+		if !ValidL1Categories[draft.Classification.L1Category] {
+			var allowed []string
+			for cat := range ValidL1Categories {
+				allowed = append(allowed, fmt.Sprintf("%q", cat))
+			}
+			sort.Strings(allowed)
+			problems = append(problems, ValidationProblem{
+				Category: "invalid_l1_category",
+				Chain:    -1,
+				Proof:    -1,
+				Detail: fmt.Sprintf(
+					"- The classification l1_category %q is not valid. Must be one of: %s.",
+					draft.Classification.L1Category, strings.Join(allowed, ", "),
+				),
+			})
+		}
+		if draft.Classification.L1Category == L1ProductFailures {
+			if !ValidL2Subcategories[draft.Classification.L2Subcategory] {
+				var allowed []string
+				for sub := range ValidL2Subcategories {
+					allowed = append(allowed, fmt.Sprintf("%q", sub))
+				}
+				sort.Strings(allowed)
+				problems = append(problems, ValidationProblem{
+					Category: "invalid_l2_subcategory",
+					Chain:    -1,
+					Proof:    -1,
+					Detail: fmt.Sprintf(
+						"- When l1_category is %q, l2_subcategory must be one of: %s. Got %q.",
+						L1ProductFailures, strings.Join(allowed, ", "), draft.Classification.L2Subcategory,
+					),
+				})
+			}
+		} else if draft.Classification.L2Subcategory != "" {
+			problems = append(problems, ValidationProblem{
+				Category: "unexpected_l2_subcategory",
+				Chain:    -1,
+				Proof:    -1,
+				Detail: fmt.Sprintf(
+					"- l2_subcategory should be omitted when l1_category is %q (l2 is only for %q).",
+					draft.Classification.L1Category, L1ProductFailures,
+				),
+			})
+		}
+		if draft.Classification.Confidence < 0 || draft.Classification.Confidence > 1 {
+			problems = append(problems, ValidationProblem{
+				Category: "invalid_confidence",
+				Chain:    -1,
+				Proof:    -1,
+				Detail: fmt.Sprintf(
+					"- The classification confidence must be between 0 and 1, got %g.",
+					draft.Classification.Confidence,
+				),
+			})
+		}
+	}
+
 	if len(draft.Chain) == 0 {
 		problems = append(problems, ValidationProblem{
 			Category: "empty_chain",
