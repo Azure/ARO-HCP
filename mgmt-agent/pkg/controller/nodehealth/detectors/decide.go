@@ -21,6 +21,7 @@ package detectors
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -77,6 +78,10 @@ type Detector interface {
 	// Applies reports whether the detector is a candidate for the node. A node it
 	// does not apply to is never evaluated.
 	Applies(node *corev1.Node) bool
+	// Window is the detector's evaluation window. It is a fixed property of the
+	// detector, independent of any node, so callers that only need the window do
+	// not have to evaluate the detector to learn it.
+	Window() time.Duration
 	// Evaluate reads the detector's failure signals for the node from the Events
 	// and Pods currently held for it. The success signal is not read here: it is
 	// a recorded per-node history the controller passes into Decide, since a
@@ -97,16 +102,18 @@ var registry = []Detector{swiftVFTeardown}
 // MaxWindow returns the longest evaluation window across all detectors. The
 // controller uses it to bound its recorded per-node success history: a success
 // older than the widest window can never affect any detector, so it can be
-// pruned.
-func MaxWindow() time.Duration {
+// pruned. The registry is hard-coded and the windows are fixed, so the result is
+// computed once: the controller calls this on every reconcile while holding the
+// observation lock.
+var MaxWindow = sync.OnceValue(func() time.Duration {
 	var max time.Duration
 	for _, d := range registry {
-		if snap := d.Evaluate(nil, nil, time.Time{}); snap.Window > max {
-			max = snap.Window
+		if w := d.Window(); w > max {
+			max = w
 		}
 	}
 	return max
-}
+})
 
 // Snapshot is the read-only evidence a detector evaluated for a node, retained
 // for logging, the reason annotation, and the firing decision. Its fields are

@@ -64,6 +64,9 @@ func (d signatureDetector) Name() string { return d.name }
 // Reason returns the detector's human-readable explanation.
 func (d signatureDetector) Reason() string { return d.reason }
 
+// Window is the detector's fixed evaluation window.
+func (d signatureDetector) Window() time.Duration { return d.window }
+
 // Applies reports whether the detector is a candidate for the node. A nil
 // predicate applies everywhere.
 func (d signatureDetector) Applies(node *corev1.Node) bool {
