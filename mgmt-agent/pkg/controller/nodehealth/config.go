@@ -36,11 +36,9 @@ import (
 // logic, thresholds, and the SWIFT-v2 node scoping are hard-coded, not
 // configured.
 type Config struct {
-	// Enabled is a hard off switch. When false the controller enqueues
-	// nothing, reconciles nothing, and takes no action on any node. The pod
-	// informer handlers still write to the in-memory success map, but nothing
-	// reads it while disabled and it is discarded on the disabled->enabled
-	// transition, so a disabled controller carries no state forward.
+	// Enabled is a hard off switch. When false the controller keeps its
+	// informers running but records no state, enqueues nothing, reconciles
+	// nothing, and takes no action on any node.
 	Enabled bool `json:"enabled"`
 }
 
@@ -53,10 +51,13 @@ func Default() Config {
 }
 
 // Parse unmarshals a YAML config document over the defaults and validates it.
+// Parsing is strict: an unknown key is an error rather than a silent no-op, so a
+// typo in the live-edited ConfigMap (for example "enabeld: true") surfaces as a
+// logged parse failure instead of leaving the controller quietly disabled.
 func Parse(data []byte) (Config, error) {
 	cfg := Default()
 	if len(data) > 0 {
-		if err := yaml.Unmarshal(data, &cfg); err != nil {
+		if err := yaml.UnmarshalStrict(data, &cfg); err != nil {
 			return Config{}, fmt.Errorf("failed to unmarshal node-health config: %w", err)
 		}
 	}

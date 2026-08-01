@@ -33,6 +33,8 @@ func TestParse(t *testing.T) {
 		{name: "empty falls back to default", data: "", wantEnabled: false},
 		{name: "enable", data: "enabled: true\n", wantEnabled: true},
 		{name: "invalid yaml", data: "enabled: [oops", wantErr: true},
+		{name: "unknown key is rejected", data: "enabeld: true\n", wantErr: true},
+		{name: "unknown key alongside a known one is rejected", data: "enabled: true\nextra: 1\n", wantErr: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

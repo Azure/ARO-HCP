@@ -179,10 +179,10 @@ func (c *Controller) OnConfigMap(cm *corev1.ConfigMap, key string) {
 	klog.InfoS("node-health config reloaded", "configmap", cm.Name, "enabled", cfg.Enabled)
 	wasEnabled := c.config.Load().Enabled
 	c.SetConfig(cfg)
-	// A disabled->enabled transition restarts observation: the success map
-	// recorded while disabled is discarded and the observedSince warm-up begins
-	// now, so the success signal is treated as indeterminate until a full window
-	// has been watched under the enabled controller.
+	// A disabled->enabled transition restarts observation: the success map is
+	// discarded and the observedSince warm-up begins now, so the success signal
+	// is treated as indeterminate until a full window has been watched under the
+	// enabled controller.
 	if cfg.Enabled && !wasEnabled {
 		c.beginObserving(c.clock())
 	}
@@ -254,8 +254,14 @@ func (c *Controller) beginObserving(now time.Time) {
 // recordPodSuccess advances the per-node success timestamp when a pod shows a
 // fresh sandbox (non-host-network PodReadyToStartContainers=True). It is called
 // from the pod add/update/delete handlers, so a success is captured from the
-// pod's last-seen state even as the short-lived pod is being deleted.
+// pod's last-seen state even as the short-lived pod is being deleted. A disabled
+// controller records nothing: beginObserving discards the map on startup and on
+// every disabled->enabled transition, so anything recorded while off could never
+// be read, and keeping it would grow the map for every node name ever seen.
 func (c *Controller) recordPodSuccess(obj interface{}) {
+	if !c.config.Load().Enabled {
+		return
+	}
 	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		obj = tombstone.Obj
 	}

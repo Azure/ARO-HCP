@@ -234,10 +234,11 @@ func TestHotEnableResetsObservation(t *testing.T) {
 	node := swiftReadyNode(testHost)
 	c, _, _ := newTestController(t, false, node)
 
-	// While disabled the pod handlers still record successes.
+	// A disabled controller records nothing, so there is no state to carry into
+	// the enabled controller.
 	c.recordPodSuccess(startedPodOn(testHost, "ok", testNow.Add(-2*time.Minute), false))
-	if _, at := c.observation(testHost); at.IsZero() {
-		t.Fatal("success should be recorded even while disabled")
+	if _, at := c.observation(testHost); !at.IsZero() {
+		t.Fatalf("a disabled controller must not record successes, got %v", at)
 	}
 
 	// A disabled->enabled transition must reset observedSince to now and clear the
