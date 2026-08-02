@@ -10,7 +10,7 @@ require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/kube-applier v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/sessiongate v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260802080030-141a4c58b5ae
 	github.com/google/go-cmp v0.7.0
 	github.com/microsoft/go-otel-audit v0.2.2
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.453
