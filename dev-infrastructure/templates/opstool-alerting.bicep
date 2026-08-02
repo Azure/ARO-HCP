@@ -1,28 +1,22 @@
 // Shared alerting infrastructure for the opstool environment
-// This creates a shared email action group that can be used by all apps in the cluster
 
-@description('Email address for alert notifications')
-param alertEmail string
+@description('Name of the opstool workload Key Vault')
+param workloadKVName string
 
 @description('Enable or disable alerting')
 param alertingEnabled bool = true
 
-// Shared Email Action Group for all opstool alerts
-resource emailActionGroup 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
-  name: 'opstool-email-alerts'
-  location: 'global'
-  properties: {
-    enabled: alertingEnabled
-    groupShortName: 'opstool-ag'
-    emailReceivers: [
-      {
-        name: 'primary-contact'
-        emailAddress: alertEmail
-        useCommonAlertSchema: true
-      }
-    ]
+resource workloadKV 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+  name: workloadKVName
+}
+
+module pagerDutyActionGroup '../modules/metrics/pagerduty-actiongroup.bicep' = {
+  name: 'opstool-pagerduty-action-group'
+  params: {
+    alertingEnabled: alertingEnabled
+    integrationUrl: workloadKV.getSecret('pagerduty-azure-integration-url')
   }
 }
 
-output actionGroupId string = emailActionGroup.id
-output actionGroupName string = emailActionGroup.name
+output actionGroupId string = pagerDutyActionGroup.outputs.actionGroupId
+output actionGroupName string = pagerDutyActionGroup.outputs.actionGroupName
