@@ -20,10 +20,13 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
 )
@@ -478,5 +481,92 @@ func TestLabelStampsObservedAtOnAFreshTransition(t *testing.T) {
 	want := testNow.UTC().Format(time.RFC3339)
 	if got := getNode(t, client, "n1").Annotations[annotationObservedAt]; got != want {
 		t.Errorf("observed-at = %q, want %q stamped for the new episode", got, want)
+	}
+}
+
+// countLabelActions returns the current value of the label-actions counter for
+// one action/result pair, so a test can assert nothing was counted.
+func countLabelActions(t *testing.T, action, result string) float64 {
+	t.Helper()
+	families, err := legacyregistry.DefaultGatherer.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	for _, f := range families {
+		if f.GetName() != "nodehealth_label_actions_total" {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			got := map[string]string{}
+			for _, l := range m.GetLabel() {
+				got[l.GetName()] = l.GetValue()
+			}
+			if got["action"] == action && got["result"] == result {
+				return m.GetCounter().GetValue()
+			}
+		}
+	}
+	return 0
+}
+
+// A node can be deleted between the live read and the patch. That is not an
+// error, but it is not a mutation either, so it must not be counted as a
+// successful action or announced with an Event against an object that is gone.
+func TestPatchOnDeletedNodeIsNotCountedAsAnAction(t *testing.T) {
+	RegisterMetrics()
+
+	for _, tc := range []struct {
+		name   string
+		action string
+		node   *corev1.Node
+		run    func(l *labeler, node *corev1.Node) (bool, error)
+	}{
+		{
+			name:   "label",
+			action: "label",
+			node:   &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "gone"}},
+			run: func(l *labeler, node *corev1.Node) (bool, error) {
+				return l.label(context.Background(), node, "swift-vf-teardown", snap())
+			},
+		},
+		{
+			name:   "unlabel",
+			action: "unlabel",
+			node: &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+				Name:        "gone",
+				Labels:      map[string]string{labelKey: labelValue},
+				Annotations: completeRecord(),
+			}},
+			run: func(l *labeler, node *corev1.Node) (bool, error) {
+				return l.unlabel(context.Background(), node)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			l, client := newTestLabeler(tc.node)
+			// The live read still sees the node; the write finds it gone.
+			client.PrependReactor("patch", "nodes", func(action k8stesting.Action) (bool, runtime.Object, error) {
+				return true, nil, apierrors.NewNotFound(corev1.Resource("nodes"), "gone")
+			})
+			recorder := record.NewFakeRecorder(4)
+			l.recorder = recorder
+
+			before := countLabelActions(t, tc.action, "success")
+			changed, err := tc.run(l, tc.node)
+			if err != nil {
+				t.Fatalf("%s: %v", tc.action, err)
+			}
+			if changed {
+				t.Error("a node that vanished before the patch is not a change")
+			}
+			if after := countLabelActions(t, tc.action, "success"); after != before {
+				t.Errorf("%s success counter moved from %v to %v", tc.action, before, after)
+			}
+			select {
+			case ev := <-recorder.Events:
+				t.Errorf("unexpected Event for a deleted node: %s", ev)
+			default:
+			}
+		})
 	}
 }

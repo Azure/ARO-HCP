@@ -124,9 +124,11 @@ func (l *labeler) label(ctx context.Context, node *corev1.Node, detector string,
 		labelActionsTotal.WithLabelValues("label", "error").Inc()
 		return false, err
 	}
-	if err := l.patch(ctx, node.Name, patch); err != nil {
+	if applied, err := l.patch(ctx, node.Name, patch); err != nil {
 		labelActionsTotal.WithLabelValues("label", "error").Inc()
 		return false, err
+	} else if !applied {
+		return false, nil
 	}
 	labelActionsTotal.WithLabelValues("label", "success").Inc()
 	logger.Info("labeled node wedged", "label", labelKey+"="+labelValue, "detector", detector, "reason", reason, "signature", snap.MatchedSignature)
@@ -208,9 +210,11 @@ func (l *labeler) unlabel(ctx context.Context, node *corev1.Node) (bool, error) 
 		labelActionsTotal.WithLabelValues("unlabel", "error").Inc()
 		return false, err
 	}
-	if err := l.patch(ctx, node.Name, patch); err != nil {
+	if applied, err := l.patch(ctx, node.Name, patch); err != nil {
 		labelActionsTotal.WithLabelValues("unlabel", "error").Inc()
 		return false, err
+	} else if !applied {
+		return false, nil
 	}
 	labelActionsTotal.WithLabelValues("unlabel", "success").Inc()
 	logger.Info("removed wedged label from node", "label", labelKey)
@@ -219,14 +223,18 @@ func (l *labeler) unlabel(ctx context.Context, node *corev1.Node) (bool, error) 
 	return true, nil
 }
 
-func (l *labeler) patch(ctx context.Context, name string, patch []byte) error {
+// patch applies the metadata patch and reports whether it landed. A node that
+// vanished between the live read and the patch is not an error, but it is not a
+// mutation either: reporting it as applied would count a success action, log a
+// label change, and emit an Event against an object that no longer exists.
+func (l *labeler) patch(ctx context.Context, name string, patch []byte) (bool, error) {
 	if _, err := l.client.CoreV1().Nodes().Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{FieldManager: fieldManager}); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil
+			return false, nil
 		}
-		return fmt.Errorf("patch node %s: %w", name, err)
+		return false, fmt.Errorf("patch node %s: %w", name, err)
 	}
-	return nil
+	return true, nil
 }
 
 func (l *labeler) eventf(node *corev1.Node, eventType, reason, format string, args ...interface{}) {
