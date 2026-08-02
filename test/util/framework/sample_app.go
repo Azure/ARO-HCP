@@ -18,6 +18,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v2"
@@ -153,6 +154,44 @@ func DeploySampleApp(ctx context.Context, adminRESTConfig *rest.Config, nodeSele
 		Namespace: nsName,
 		RouteHost: host,
 	}, nil
+}
+
+// SampleAppManifests returns the serving app's Deployment, Service, and Route
+// as a multi-document YAML string with each resource's namespace set to the
+// given value. This is the same set of resources created by DeploySampleApp,
+// but in a form suitable for `kubectl apply -f -` (e.g. from a VM when KAS
+// is not directly reachable from the test runner).
+func SampleAppManifests(namespace string) (string, error) {
+	deploymentYAML, err := servingAppFiles.ReadFile("artifacts/serving_app/deployment.yaml")
+	if err != nil {
+		return "", fmt.Errorf("failed to read deployment.yaml: %w", err)
+	}
+	serviceYAML, err := servingAppFiles.ReadFile("artifacts/serving_app/service.yaml")
+	if err != nil {
+		return "", fmt.Errorf("failed to read service.yaml: %w", err)
+	}
+	routeYAML, err := servingAppFiles.ReadFile("artifacts/serving_app/route.yaml")
+	if err != nil {
+		return "", fmt.Errorf("failed to read route.yaml: %w", err)
+	}
+
+	// Inject namespace into each document by unmarshalling, setting namespace,
+	// and remarshalling.
+	var docs []string
+	for _, raw := range [][]byte{deploymentYAML, serviceYAML, routeYAML} {
+		obj := &unstructured.Unstructured{}
+		if err := sigyaml.Unmarshal(raw, obj); err != nil {
+			return "", fmt.Errorf("failed to unmarshal manifest: %w", err)
+		}
+		obj.SetNamespace(namespace)
+		patched, err := sigyaml.Marshal(obj.Object)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal manifest: %w", err)
+		}
+		docs = append(docs, string(patched))
+	}
+
+	return strings.Join(docs, "---\n"), nil
 }
 
 // createResource unmarshals YAML into an unstructured object and creates it
