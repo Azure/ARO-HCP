@@ -115,10 +115,10 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 		if err != nil {
 			return "", fmt.Errorf("error creating hook accessor, %v", err)
 		}
-		allHooks = fmt.Sprintf("%s---\n# Source: %s\n%s\n", allHooks, ha.Path(), ha.Manifest())
+		allHooks = fmt.Sprintf("%s---\n# Source: %s\n%s\n", allHooks, filepath.ToSlash(ha.Path()), ha.Manifest())
 	}
 
-	manifest := accessor.Manifest()
+	manifest := normalizeSourcePaths(accessor.Manifest())
 
 	for _, replace := range settings.Replace {
 		re, err := regexp.Compile(replace.Regex)
@@ -129,6 +129,15 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 	}
 
 	return fmt.Sprintf("%s\n%s", manifest, allHooks), nil
+}
+
+var sourceCommentRegex = regexp.MustCompile(`(?m)^(# Source: )(.+)$`)
+
+func normalizeSourcePaths(manifest string) string {
+	return sourceCommentRegex.ReplaceAllStringFunc(manifest, func(line string) string {
+		m := sourceCommentRegex.FindStringSubmatch(line)
+		return m[1] + filepath.ToSlash(m[2])
+	})
 }
 
 func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {

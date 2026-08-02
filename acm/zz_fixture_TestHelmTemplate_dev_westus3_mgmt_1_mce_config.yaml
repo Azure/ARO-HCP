@@ -1,5 +1,5 @@
 ---
-# Source: multicluster-engine-local-cluster\charts\policy\crds\agent.open-cluster-management.io_klusterletaddonconfigs_crd.yaml
+# Source: multicluster-engine-local-cluster/charts/policy/crds/agent.open-cluster-management.io_klusterletaddonconfigs_crd.yaml
 # Copyright (c) 2020 Red Hat, Inc.
 # Copyright Contributors to the Open Cluster Management project
 apiVersion: apiextensions.k8s.io/v1
@@ -217,7 +217,7 @@ status:
   storedVersions: []
 
 ---
-# Source: multicluster-engine-local-cluster\charts\policy\crds\apps.open-cluster-management.io_placementrules_crd_v1.yaml
+# Source: multicluster-engine-local-cluster/charts/policy/crds/apps.open-cluster-management.io_placementrules_crd_v1.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -374,7 +374,7 @@ spec:
       status: {}
 
 ---
-# Source: multicluster-engine-local-cluster\charts\policy\crds\policy.open-cluster-management.io_placementbindings.yaml
+# Source: multicluster-engine-local-cluster/charts/policy/crds/policy.open-cluster-management.io_placementbindings.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -497,7 +497,7 @@ spec:
       status: {}
 
 ---
-# Source: multicluster-engine-local-cluster\charts\policy\crds\policy.open-cluster-management.io_policies.yaml
+# Source: multicluster-engine-local-cluster/charts/policy/crds/policy.open-cluster-management.io_policies.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -797,7 +797,7 @@ spec:
       status: {}
 
 ---
-# Source: multicluster-engine-local-cluster\charts\policy\crds\policy.open-cluster-management.io_policyautomations.yaml
+# Source: multicluster-engine-local-cluster/charts/policy/crds/policy.open-cluster-management.io_policyautomations.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -925,7 +925,7 @@ spec:
       status: {}
 
 ---
-# Source: multicluster-engine-local-cluster\charts\policy\crds\policy.open-cluster-management.io_policysets.yaml
+# Source: multicluster-engine-local-cluster/charts/policy/crds/policy.open-cluster-management.io_policysets.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:

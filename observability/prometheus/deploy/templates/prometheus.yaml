@@ -106,9 +106,7 @@ spec:
     additionalLabelSelectors: OnShard
   walCompression: true
   externalLabels:
-{{- range $key := .Values.prometheusSpec.externalLabels | keys | sortAlpha }}
-    {{ $key }}: {{ index $.Values.prometheusSpec.externalLabels $key | quote }}
-{{- end }}
+    {{- toYaml .Values.prometheusSpec.externalLabels | nindent 4 }}
   remoteWrite:
   - url: '{{ .Values.prometheusSpec.remoteWriteUrl }}'
     azureAd:
