@@ -99,13 +99,25 @@ func (l *labeler) label(ctx context.Context, node *corev1.Node, detector string,
 	if snap.MatchedSignature != "" {
 		signature = ptr(snap.MatchedSignature)
 	}
+	// observed-at marks when the node was first labeled in the current wedge
+	// episode, so it only moves on a real transition. Repairing an incomplete
+	// record is not a new episode: as long as the node is still labeled by this
+	// same detector, the original stamp is carried over rather than reset, which
+	// would otherwise make every self-heal look like a fresh wedge to anyone
+	// reading the node.
+	observedAt := l.clock().UTC().Format(time.RFC3339)
+	if live.Labels[labelKey] == labelValue && live.Annotations[annotationDetector] == detector {
+		if prev := live.Annotations[annotationObservedAt]; prev != "" {
+			observedAt = prev
+		}
+	}
 	patch, err := metadataPatch(
 		map[string]*string{labelKey: ptr(labelValue)},
 		map[string]*string{
 			annotationDetector:   ptr(detector),
 			annotationReason:     ptr(reason),
 			annotationSignature:  signature,
-			annotationObservedAt: ptr(l.clock().UTC().Format(time.RFC3339)),
+			annotationObservedAt: ptr(observedAt),
 		},
 	)
 	if err != nil {
@@ -143,8 +155,12 @@ func hasCompleteRecord(node *corev1.Node, detector string, snap detectors.Snapsh
 	}
 	required := []string{annotationReason, annotationObservedAt}
 	// The signature is only part of the record when the detection produced one.
+	// When it did not, a signature annotation left by an earlier detection is
+	// stale, and the record is not complete until it has been cleared.
 	if snap.MatchedSignature != "" {
 		required = append(required, annotationSignature)
+	} else if _, ok := node.Annotations[annotationSignature]; ok {
+		return false
 	}
 	for _, k := range required {
 		if _, ok := node.Annotations[k]; !ok {

@@ -399,3 +399,84 @@ func TestLabelSteadyStateMakesNoAPICall(t *testing.T) {
 		t.Errorf("steady state must not call the apiserver, got %d actions: %v", len(acts), acts)
 	}
 }
+
+func TestLabelClearsStaleSignatureOnAnAlreadyLabeledNode(t *testing.T) {
+	// The steady-state short-circuit must not hide a stale signature. A record
+	// that is otherwise complete but still carries a signature from an earlier
+	// detection is not complete, because this detection classified no failure
+	// mode and the annotation now describes nothing.
+	anns := completeRecord()
+	anns[annotationSignature] = "mtpnc is not ready"
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:        "n1",
+		Labels:      map[string]string{labelKey: labelValue},
+		Annotations: anns,
+	}}
+	l, client := newTestLabeler(node)
+
+	s := snap()
+	s.MatchedSignature = ""
+	changed, err := l.label(context.Background(), node, "swift-vf-teardown", s)
+	if err != nil {
+		t.Fatalf("label: %v", err)
+	}
+	if !changed {
+		t.Fatal("a record carrying a stale signature must be rewritten")
+	}
+	if v, ok := getNode(t, client, "n1").Annotations[annotationSignature]; ok {
+		t.Errorf("signature annotation = %q, want it removed", v)
+	}
+}
+
+func TestLabelPreservesObservedAtWhenRepairingARecord(t *testing.T) {
+	// observed-at marks the start of the wedge episode. Repairing an incomplete
+	// record is not a new episode, so the original stamp has to survive.
+	const episodeStart = "2020-01-01T00:00:00Z"
+	anns := completeRecord()
+	anns[annotationObservedAt] = episodeStart
+	delete(anns, annotationReason)
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:        "n1",
+		Labels:      map[string]string{labelKey: labelValue},
+		Annotations: anns,
+	}}
+	l, client := newTestLabeler(node)
+
+	changed, err := l.label(context.Background(), node, "swift-vf-teardown", snap())
+	if err != nil {
+		t.Fatalf("label: %v", err)
+	}
+	if !changed {
+		t.Fatal("an incomplete record should be repaired")
+	}
+	got := getNode(t, client, "n1")
+	if got.Annotations[annotationObservedAt] != episodeStart {
+		t.Errorf("observed-at = %q, want the episode start %q preserved",
+			got.Annotations[annotationObservedAt], episodeStart)
+	}
+	if got.Annotations[annotationReason] == "" {
+		t.Error("reason should have been restored")
+	}
+}
+
+func TestLabelStampsObservedAtOnAFreshTransition(t *testing.T) {
+	// A node that was not labeled by this detector is a new episode, so
+	// observed-at is stamped now even if a previous episode left one behind.
+	anns := completeRecord()
+	anns[annotationDetector] = "some-other-detector"
+	anns[annotationObservedAt] = "2020-01-01T00:00:00Z"
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:        "n1",
+		Labels:      map[string]string{labelKey: labelValue},
+		Annotations: anns,
+	}}
+	l, client := newTestLabeler(node)
+
+	if _, err := l.label(context.Background(), node, "swift-vf-teardown", snap()); err != nil {
+		t.Fatalf("label: %v", err)
+	}
+	want := testNow.UTC().Format(time.RFC3339)
+	if got := getNode(t, client, "n1").Annotations[annotationObservedAt]; got != want {
+		t.Errorf("observed-at = %q, want %q stamped for the new episode", got, want)
+	}
+}
