@@ -467,8 +467,8 @@ endpoint (subsystem `nodehealth`):
   now, and the vector is empty while disabled.
 
 It also emits a Kubernetes Event on the affected node (`NodeHealthLabeled` when it
-labels), so the decision is visible in `kubectl describe node` as well as in
-metrics.
+labels, `NodeHealthUnlabeled` when it clears the label on recovery), so both ends
+of a wedge episode are visible in `kubectl describe node` as well as in metrics.
 
 ## Test plan
 
