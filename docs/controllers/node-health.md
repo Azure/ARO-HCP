@@ -455,6 +455,16 @@ endpoint (subsystem `nodehealth`):
   result.
 - `nodehealth_wedged_nodes`: gauge of nodes currently carrying the wedged label
   (0 while disabled).
+- `nodehealth_node_wedged{node,detector,signature}`: set to 1 for each node
+  currently carrying the wedged label, so an alert can name the node and the
+  failure mode instead of only a count. The vector is rebuilt from the live list
+  of labeled nodes on every resync, so a node that recovers, loses the label out
+  of band, or is deleted drops out on the next sweep. That is why the node
+  identity lives here and not on `nodehealth_detections_total`: a counter series
+  is born on first detection and never retires, so a per-node counter would
+  accumulate one series for every node name that ever wedged, including the
+  churned and deleted ones. Cardinality here is bounded by the nodes wedged right
+  now, and the vector is empty while disabled.
 
 It also emits a Kubernetes Event on the affected node (`NodeHealthLabeled` when it
 labels), so the decision is visible in `kubectl describe node` as well as in
@@ -502,7 +512,10 @@ latency to account for. Operationally:
   nothing is undone; the pre-existing manual SRE procedure still applies. A
   misfire is bounded by the SWIFT-v2 detection scope, and is fully reversible.
 - **Alerting.** Suggested alert: `nodehealth_wedged_nodes > 0` for longer than a
-  chosen window, per enabled environment.
+  chosen window, per enabled environment. Join on
+  `nodehealth_node_wedged{node,detector,signature}` to carry the node and the
+  failure mode in the alert payload, so the responder knows which node to look at
+  and what wedged it without going to the cluster first.
 - **Inspect a flagged node.** `kubectl describe node <node>` shows the
   `node-health.aro-hcp.azure.com/status=wedged` label, the
   `detector`/`reason`/`signature`/`observed-at` annotations, and the
