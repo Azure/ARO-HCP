@@ -28,6 +28,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth/detectors"
 )
@@ -586,5 +587,105 @@ func TestObservationPrunesFutureDatedSuccess(t *testing.T) {
 	c.recordPodSuccess(startedPodOn(testHost, "near", near, false))
 	if _, at := c.observation(testHost); at.IsZero() {
 		t.Error("a success within the window must be retained despite small skew")
+	}
+}
+
+// nodeWedgedSeries returns the per-node wedged gauge as a map keyed by the
+// "node|detector|signature" label tuple, so a test can assert on the exact
+// series set the vector currently exposes.
+func nodeWedgedSeries(t *testing.T) map[string]float64 {
+	t.Helper()
+	families, err := legacyregistry.DefaultGatherer.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	out := map[string]float64{}
+	for _, f := range families {
+		if f.GetName() != "nodehealth_node_wedged" {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			labels := map[string]string{}
+			for _, l := range m.GetLabel() {
+				labels[l.GetName()] = l.GetValue()
+			}
+			key := labels["node"] + "|" + labels["detector"] + "|" + labels["signature"]
+			out[key] = m.GetGauge().GetValue()
+		}
+	}
+	return out
+}
+
+// The per-node gauge is rebuilt from the live list of labeled nodes on every
+// resync rather than mutated per transition, so a node that recovers, loses the
+// label out of band, or is deleted drops out of the series set on the next sweep
+// instead of leaking a series for the process lifetime. That property is the
+// whole reason the node identity lives on this gauge and not on
+// nodehealth_detections_total, where the series could never retire.
+func TestResyncAllPublishesAndRetiresPerNodeWedgedSeries(t *testing.T) {
+	RegisterMetrics()
+	nodeWedged.Reset()
+	t.Cleanup(nodeWedged.Reset)
+
+	wedged := swiftReadyNode("swift-wedged")
+	wedged.Labels[labelKey] = labelValue
+	wedged.Annotations = map[string]string{
+		annotationDetector:  "swift-vf",
+		annotationSignature: sig,
+	}
+	healthy := swiftReadyNode("swift-healthy")
+
+	c, _, factory := newTestController(t, true, wedged, healthy)
+	c.beginObserving(warmObserved)
+
+	c.resyncAll(context.Background())
+	got := nodeWedgedSeries(t)
+	want := map[string]float64{"swift-wedged|swift-vf|" + sig: 1}
+	if len(got) != len(want) {
+		t.Fatalf("series set = %v, want %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("series %q = %v, want %v", k, got[k], v)
+		}
+	}
+
+	// The node recovers: the label goes away, and so must its series.
+	recovered := wedged.DeepCopy()
+	delete(recovered.Labels, labelKey)
+	if err := factory.Core().V1().Nodes().Informer().GetStore().Update(recovered); err != nil {
+		t.Fatalf("update node: %v", err)
+	}
+	c.resyncAll(context.Background())
+	if got := nodeWedgedSeries(t); len(got) != 0 {
+		t.Errorf("series set after recovery = %v, want empty", got)
+	}
+}
+
+// A disabled controller stops reconciling, so leaving the per-node series
+// published would pin an alert on a node nothing is evaluating any more.
+func TestResyncAllDisabledClearsPerNodeWedgedSeries(t *testing.T) {
+	RegisterMetrics()
+	nodeWedged.Reset()
+	t.Cleanup(nodeWedged.Reset)
+
+	wedged := swiftReadyNode("swift-wedged")
+	wedged.Labels[labelKey] = labelValue
+	wedged.Annotations = map[string]string{
+		annotationDetector:  "swift-vf",
+		annotationSignature: sig,
+	}
+
+	c, _, _ := newTestController(t, true, wedged)
+	c.beginObserving(warmObserved)
+	c.resyncAll(context.Background())
+	if got := nodeWedgedSeries(t); len(got) != 1 {
+		t.Fatalf("series set while enabled = %v, want one entry", got)
+	}
+
+	c.SetConfig(Config{Enabled: false})
+	c.resyncAll(context.Background())
+	if got := nodeWedgedSeries(t); len(got) != 0 {
+		t.Errorf("series set while disabled = %v, want empty", got)
 	}
 }

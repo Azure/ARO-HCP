@@ -52,6 +52,24 @@ var (
 			StabilityLevel: metrics.ALPHA,
 		},
 	)
+
+	// nodeWedged names the individual wedged nodes so an alert can carry the node
+	// and the failure mode it fired on instead of only a count. The node label is
+	// deliberately on a gauge and not on detections_total: a counter series is
+	// born on first detection and never retires, so a per-node counter would
+	// accumulate a series for every node name that ever wedged, including the
+	// churned and deleted ones. This vector is rebuilt from the live list of
+	// labeled nodes on every resync, so its cardinality is bounded by the nodes
+	// wedged right now and a node that recovers or disappears drops out.
+	nodeWedged = metrics.NewGaugeVec(
+		&metrics.GaugeOpts{
+			Subsystem:      metricsSubsystem,
+			Name:           "node_wedged",
+			Help:           "Set to 1 for each node currently carrying the wedged health label, labeled with the detector that fired and the signature that classified the failure. The series is removed once the node recovers, stops being a detection candidate, or is deleted. Empty while the controller is disabled.",
+			StabilityLevel: metrics.ALPHA,
+		},
+		[]string{"node", "detector", "signature"},
+	)
 )
 
 var registerOnce sync.Once
@@ -63,5 +81,6 @@ func RegisterMetrics() {
 		legacyregistry.MustRegister(detectionsTotal)
 		legacyregistry.MustRegister(labelActionsTotal)
 		legacyregistry.MustRegister(wedgedNodes)
+		legacyregistry.MustRegister(nodeWedged)
 	})
 }

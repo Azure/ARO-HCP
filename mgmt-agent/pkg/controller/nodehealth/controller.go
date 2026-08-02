@@ -191,6 +191,7 @@ func (c *Controller) OnConfigMap(cm *corev1.ConfigMap, key string) {
 	// controller reads zero wedged nodes rather than a stale count.
 	if !cfg.Enabled && wasEnabled {
 		wedgedNodes.Set(0)
+		nodeWedged.Reset()
 	}
 }
 
@@ -203,6 +204,7 @@ func (c *Controller) OnConfigMapDeleted() {
 	// Reverting to the disabled default stops all reconciles, so zero the gauge
 	// rather than leave it frozen at its last count.
 	wedgedNodes.Set(0)
+	nodeWedged.Reset()
 }
 
 func (c *Controller) enqueue(node string) {
@@ -343,6 +345,7 @@ func (c *Controller) Run(ctx context.Context, workers int) error {
 func (c *Controller) resyncAll(ctx context.Context) {
 	if !c.config.Load().Enabled {
 		wedgedNodes.Set(0)
+		nodeWedged.Reset()
 		return
 	}
 	logger := klog.FromContext(ctx)
@@ -360,6 +363,18 @@ func (c *Controller) resyncAll(ctx context.Context) {
 		return
 	}
 	wedgedNodes.Set(float64(len(wedgedNodeList)))
+	// Rebuilt from the authoritative list rather than mutated per transition, so
+	// every way a node can stop being wedged converges within one resync: it
+	// recovered, its label was removed out of band, it stopped being a detection
+	// candidate, it was deleted, or the controller restarted and lost its memory.
+	nodeWedged.Reset()
+	for _, n := range wedgedNodeList {
+		nodeWedged.WithLabelValues(
+			n.Name,
+			n.Annotations[annotationDetector],
+			n.Annotations[annotationSignature],
+		).Set(1)
+	}
 
 	// The two selectors overlap on the common case (a wedged SWIFT node), so
 	// dedupe before enqueuing. The workqueue would coalesce anyway; deduping here
