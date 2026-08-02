@@ -452,7 +452,6 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		}
 		azureBuilder.EtcdEncryption(etcdEncryption)
 		clusterBuilder.Azure(azureBuilder)
-
 	}
 
 	// Property layering for CS Properties(): preserve existing values (on update),
@@ -529,6 +528,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	}
 
 	clusterBuilder.
+		ID(hcpCluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()).
 		Name(strings.ToLower(hcpCluster.Name)).
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(hcpCluster.Location)).

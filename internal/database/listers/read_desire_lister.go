@@ -30,6 +30,8 @@ type ReadDesireLister interface {
 	List(ctx context.Context) ([]*kubeapplier.ReadDesire, error)
 	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*kubeapplier.ReadDesire, error)
 	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplier.ReadDesire, error)
+	GetForSystemAdminCredentialRequest(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string) (*kubeapplier.ReadDesire, error)
+	GetForSystemAdminCredentialRevocation(ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string) (*kubeapplier.ReadDesire, error)
 	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*kubeapplier.ReadDesire, error)
 	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplier.ReadDesire, error)
 	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*kubeapplier.ReadDesire, error)
@@ -39,13 +41,13 @@ type readDesireLister struct {
 	indexer cache.Indexer
 }
 
+func (l *readDesireLister) List(ctx context.Context) ([]*kubeapplier.ReadDesire, error) {
+	return listAll[kubeapplier.ReadDesire](l.indexer)
+}
+
 // NewReadDesireLister creates a ReadDesireLister from a SharedIndexInformer's indexer.
 func NewReadDesireLister(indexer cache.Indexer) ReadDesireLister {
 	return &readDesireLister{indexer: indexer}
-}
-
-func (l *readDesireLister) List(ctx context.Context) ([]*kubeapplier.ReadDesire, error) {
-	return listAll[kubeapplier.ReadDesire](l.indexer)
 }
 
 func (l *readDesireLister) GetForCluster(
@@ -60,6 +62,24 @@ func (l *readDesireLister) GetForNodePool(
 ) (*kubeapplier.ReadDesire, error) {
 	key := kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
+	)
+	return getByKey[kubeapplier.ReadDesire](l.indexer, key)
+}
+
+func (l *readDesireLister) GetForSystemAdminCredentialRequest(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
+) (*kubeapplier.ReadDesire, error) {
+	key := kubeapplier.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
+	)
+	return getByKey[kubeapplier.ReadDesire](l.indexer, key)
+}
+
+func (l *readDesireLister) GetForSystemAdminCredentialRevocation(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
+) (*kubeapplier.ReadDesire, error) {
+	key := kubeapplier.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
 	return getByKey[kubeapplier.ReadDesire](l.indexer, key)
 }

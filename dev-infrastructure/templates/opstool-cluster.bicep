@@ -341,6 +341,7 @@ module workloadKV '../modules/keyvault/keyvault.bicep' = {
     keyVaultName: workloadKVName
     enableSoftDelete: false
     private: false
+    enabledForTemplateDeployment: true
     tagKey: 'aroHCPPurpose'
     tagValue: 'opstool-workload-secrets'
   }

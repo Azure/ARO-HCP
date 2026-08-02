@@ -86,7 +86,7 @@ In short, a Key Vault secret update can be picked up without restarting the pod,
 
 ## Alerts
 
-Alert rules are defined in `alerting.bicep` and deployed into the `opstool` Azure Monitor Workspace. Notifications use the shared `opstool-email-alerts` Action Group provided by the `DevCI.Unprivileged` rollout.
+Alert rules are defined in `alerting.bicep` and deployed into the `opstool` Azure Monitor Workspace. Notifications use the shared `opstool-pagerduty` Action Group provided by the `DevCI.Unprivileged` rollout.
 
 ## Local Development
 

@@ -260,6 +260,7 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
+	github.com/segmentio/ksuid v1.0.4 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/shurcooL/githubv4 v0.0.0-20210725200734-83ba7b4c9228 // indirect
 	github.com/shurcooL/graphql v0.0.0-20181231061246-d48a9a75455f // indirect
@@ -364,6 +365,8 @@ require (
 replace github.com/Azure/ARO-HCP/tooling/cleanup-sweeper => ../tooling/cleanup-sweeper
 
 replace github.com/Azure/ARO-HCP/admin/server => ../admin/server
+
+replace github.com/Azure/ARO-HCP/backend => ../backend
 
 replace github.com/Azure/ARO-HCP/internal => ../internal
 

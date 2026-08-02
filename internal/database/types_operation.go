@@ -35,8 +35,8 @@ const (
 	OperationRequestDelete OperationRequest = "Delete"
 
 	// These are for POST actions on resources.
-	OperationRequestRequestCredential OperationRequest = "RequestCredential"
-	OperationRequestRevokeCredentials OperationRequest = "RevokeCredentials"
+	OperationRequestSystemAdminCredentialRequest    OperationRequest = "RequestCredential"
+	OperationRequestSystemAdminCredentialRevocation OperationRequest = "RevokeCredentials"
 )
 
 func NewOperation(

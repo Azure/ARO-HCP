@@ -75,7 +75,7 @@ import (
 //   - Populate it in externalAuthUpdateDispatchConfigFromCS. This ensures CS projection works correctly
 //   - Apply it in applyToCSBuilder. This ensures the CS builders work correctly.
 //
-// 2. Operation state wiring (backend/pkg/controllers/operationcontrollers/operation_external_auth_update.go)
+// 2. Operation state wiring (backend/pkg/controllers/externalauth/operations/operation_external_auth_update.go)
 //
 //	determineOperationState aggregates several sources and picks the worst state. Your new
 //	check must succeed along with CS spec and Hypershift checks.

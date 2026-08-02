@@ -47,7 +47,7 @@ The quickest way to check current quota usage is the [Azure Quota Dashboard](htt
 
 ## Alerts
 
-Alert rules are defined in `tooling/tenant-quota/alerting.bicep` and deployed into the `opstool` Azure Monitor Workspace. Notifications go through the shared `opstool-email-alerts` Action Group. The primary alert fires when no metrics have been received for an extended period, which typically indicates a collector pod issue or an expired service principal credential.
+Alert rules are defined in `tooling/tenant-quota/alerting.bicep` and deployed into the `opstool` Azure Monitor Workspace. Notifications go through the shared `opstool-pagerduty` Action Group, whose sole receiver is the low-urgency ARO HCP DEV CI PagerDuty service. PagerDuty posts incident updates to the team Slack channel without paging an engineer. The webhook URL is read from the `pagerduty-azure-integration-url` secret in the opstool Key Vault. The primary alert fires when no metrics have been received for an extended period, which typically indicates a collector pod issue or an expired service principal credential.
 
 ## When Quota Is Tight
 

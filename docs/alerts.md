@@ -168,6 +168,7 @@ Add your rule file to the appropriate configuration in `observability/`:
 | `observability/alerts-sl-services.yaml` | Service and platform alerts (SL queue) | Most alerts go here |
 | `observability/alerts-sre-hcps.yaml` | HCP namespace alerts (SRE queue) | Alerts specific to hosted control planes |
 | `observability/alerts-rp-services.yaml` | Resource provider alerts (RP queue) | RP-specific alerts |
+| `observability/alerts-rp-hcps.yaml` | HCP namespace alerts (RP queue) | RP-specific alerts using HCP metrics |
 | `observability/alerts-msft-services.yaml` | MSFT-filtered alerts (MSFT queue) | Subset of alerts for MSFT environments (uses `includedAlertsByGroup`) |
 
 Edit the relevant YAML file and add your rule file path to `rulesFolders`:

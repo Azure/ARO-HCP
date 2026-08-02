@@ -35,3 +35,6 @@ grafana-dashboards:
     path: ./grafana-dashboards/sre/cluster-health
   - name: CI Monitoring
     path: ./grafana-dashboards/ci/
+  scratchFolders:
+  - name: Scratchpad (all dashboards get deleted regularly)
+    maxAge: 168h

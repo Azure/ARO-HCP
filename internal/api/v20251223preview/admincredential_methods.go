@@ -30,3 +30,7 @@ func newHCPOpenShiftClusterAdminCredential(from *api.HCPOpenShiftClusterAdminCre
 func (v version) MarshalHCPOpenShiftClusterAdminCredential(from *api.HCPOpenShiftClusterAdminCredential) ([]byte, error) {
 	return arm.MarshalJSON(newHCPOpenShiftClusterAdminCredential(from))
 }
+
+func (v version) UnmarshalHCPOpenShiftClusterAdminCredentialRequest(_ []byte) (*api.HCPOpenShiftClusterAdminCredentialRequest, error) {
+	return &api.HCPOpenShiftClusterAdminCredentialRequest{}, nil
+}

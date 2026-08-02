@@ -19,7 +19,7 @@ import (
 	"io/fs"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	cosmosmigration "github.com/Azure/ARO-HCP/backend/pkg/controllers/cosmosmigration"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
@@ -46,5 +46,5 @@ func (l *migrateCosmosStep) RunTest(ctx context.Context, t *testing.T, stepInput
 	// Frontend integration tests do not run kube-applier, so an empty
 	// MockKubeApplierDBClients is enough: its For() returns nil and the
 	// migration code already treats that as "skip kube-applier desires."
-	controllers.MigrateAllSubscriptionsOrDie(ctx, stepInput.ResourcesDBClient, databasetesting.NewMockKubeApplierDBClients())
+	cosmosmigration.MigrateAllSubscriptionsOrDie(ctx, stepInput.ResourcesDBClient, databasetesting.NewMockKubeApplierDBClients())
 }
