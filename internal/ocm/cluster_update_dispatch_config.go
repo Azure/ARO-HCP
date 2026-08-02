@@ -77,7 +77,7 @@ import (
 //   - Populate it in clusterUpdateDispatchConfigFromCS. This ensures CS projection works correctly
 //   - Apply it in applyToCSBuilders. This ensures the CS builders work correctly.
 //
-// 2. Operation state wiring (backend/pkg/controllers/operationcontrollers/operation_cluster_update.go)
+// 2. Operation state wiring (backend/pkg/controllers/cluster/operations/operation_cluster_update.go)
 //
 //	determineOperationState aggregates several sources and picks the worst state. Your new
 //	check must succeed along with version resolution, CS status, CS spec, and Hypershift checks.
