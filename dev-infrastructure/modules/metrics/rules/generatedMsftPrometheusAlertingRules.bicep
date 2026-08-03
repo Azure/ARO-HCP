@@ -756,7 +756,7 @@ Check the PrometheusAgent pod status and remote write configuration on the affec
           summary: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
           title: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
         }
-        expression: 'count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))'
+        expression: '(count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }

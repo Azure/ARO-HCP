@@ -4,6 +4,9 @@ param azureMonitoringWorkspaceId string
 @description('Name of the underlay (service or management) cluster this series represents. Must match the `cluster` external label that this cluster\'s Prometheus stamps onto its metrics.')
 param clusterName string
 
+@description('Type of underlay cluster: "svc" for service clusters, "mgmt" for management clusters. Used by alerts to scope rules to the correct cluster type.')
+param clusterType string
+
 // Emits a static `underlay_clusters{cluster="<name>", source="bicep"} = 1` series for the
 // service or management cluster this deployment owns. Together, across every cluster deployment,
 // these series form the authoritative list -- declared at deploy time -- of which underlay
@@ -35,6 +38,7 @@ resource underlayClusterInventory 'Microsoft.AlertsManagement/prometheusRuleGrou
         expression: 'vector(1)'
         labels: {
           cluster: clusterName
+          cluster_type: clusterType
           source: 'bicep'
         }
       }
