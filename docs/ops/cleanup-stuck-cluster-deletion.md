@@ -232,8 +232,8 @@ kubectl exec -n clusters-service deployment/clusters-service -- \
 ```bash
 # Search for resource bundles by cluster ID (search in manifest content)
 #
-# TIP: Use port-forward instead of oc exec for more reliable Maestro API
-# inspection -- oc exec can truncate responses or drop fields:
+# TIP: Use port-forward instead of kubectl exec for more reliable Maestro API
+# inspection -- kubectl exec can truncate responses or drop fields:
 #   kubectl port-forward -n maestro svc/maestro 8002:8000
 #   curl -s 'http://localhost:8002/api/maestro/v1/resource-bundles?size=2900' | ...
 #
@@ -319,14 +319,14 @@ kubectl scale deployment -n maestro maestro-agent --replicas=0
 kubectl wait --for=delete pod -l app=maestro-agent -n maestro --timeout=60s
 
 # 3. Patch finalizers and delete all ManifestWorks for the stuck clusters
-for mw in $(kubectl get manifestwork -n local-cluster -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep "${CLUSTER_ID}"); do
+for mw in $(kubectl get manifestwork -n local-cluster -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep -F "${CLUSTER_ID}"); do
   kubectl patch manifestwork $mw -n local-cluster \
     --type=merge -p='{"metadata":{"finalizers":null}}'
   kubectl delete manifestwork $mw -n local-cluster
 done
 
 # 4. Also clean up AppliedManifestWorks (cluster-scoped)
-for amw in $(kubectl get appliedmanifestwork -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep "${CLUSTER_ID}"); do
+for amw in $(kubectl get appliedmanifestwork -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep -F "${CLUSTER_ID}"); do
   kubectl patch appliedmanifestwork $amw \
     --type=merge -p='{"metadata":{"finalizers":null}}'
   kubectl delete appliedmanifestwork $amw
@@ -337,7 +337,7 @@ kubectl scale deployment -n maestro maestro-agent --replicas=1
 
 # 6. Verify the agent does NOT recreate the ManifestWorks
 #    (it won't, because the bundles are soft-deleted)
-kubectl get manifestwork -n local-cluster | grep "${CLUSTER_ID}"
+kubectl get manifestwork -n local-cluster | grep -F "${CLUSTER_ID}"
 ```
 
 > **Why scale down instead of restart?** Restarting the agent creates a race condition: you delete ManifestWorks while the agent is still running, and it recreates them before you finish. Scaling to 0 guarantees no recreation during cleanup.
@@ -512,7 +512,7 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 
 ## Quick Reference: Maestro API Inspection via Port-Forward
 
-Port-forward is more reliable than `oc exec` for Maestro API inspection. It avoids response truncation and ensures all JSON fields (including root-level `deleted_at`) are visible.
+Port-forward is more reliable than `kubectl exec` for Maestro API inspection. It avoids response truncation and ensures all JSON fields (including root-level `deleted_at`) are visible.
 
 ```bash
 # On the Service Cluster

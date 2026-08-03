@@ -108,7 +108,7 @@ curl -s 'http://localhost:8002/api/maestro/v1/resource-bundles' | \
   jq '[.items[] | {id, name, deleted_at}]'
 ```
 
-Use port-forward (`kubectl port-forward -n maestro svc/maestro 8002:8000`) instead of `oc exec` for more reliable API inspection — `oc exec` can truncate responses or drop fields.
+Use port-forward (`kubectl port-forward -n maestro svc/maestro 8002:8000`) instead of `kubectl exec` for more reliable API inspection — `kubectl exec` can truncate responses or drop fields.
 
 ### Related Runbook: Stuck Cluster Deletion
 
