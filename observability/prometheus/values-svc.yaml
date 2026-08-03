@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
   crds:

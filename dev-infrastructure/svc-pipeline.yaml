@@ -761,7 +761,7 @@ resourceGroups:
     releaseName: acrpull
     releaseNamespace: acrpull
     chartDir: ./../acrpull/deploy
-    valuesFile: ./../acrpull/deploy/values.yaml
+    valuesFile: ./../acrpull/deploy/values-svc.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output

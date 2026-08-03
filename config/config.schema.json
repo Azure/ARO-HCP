@@ -3126,6 +3126,10 @@
         "prometheus": {
           "description": "Prometheus deployment configuration",
           "$ref": "#/definitions/prometheus"
+        },
+        "monitoringApiGroup": {
+          "description": "The API group for ServiceMonitor and PodMonitor CRDs",
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -3699,6 +3703,10 @@
         "prometheus": {
           "description": "Prometheus deployment configuration",
           "$ref": "#/definitions/prometheus"
+        },
+        "monitoringApiGroup": {
+          "description": "The API group for ServiceMonitor and PodMonitor CRDs",
+          "type": "string"
         }
       },
       "x-cel-validations": [

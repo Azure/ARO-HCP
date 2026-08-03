@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 image:
   registry: "{{ .acr.svc.name }}.azurecr.io"
   repository: "{{ .customExporter.image.repository }}"

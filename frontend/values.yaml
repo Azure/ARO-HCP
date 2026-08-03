@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 azure:
   clientId: "__csiSecretStoreClientId__"
   tenantId: "__tenantId__"

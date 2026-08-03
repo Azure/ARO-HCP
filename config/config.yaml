@@ -677,7 +677,8 @@ defaults:
           registry: arohcpsvcdev.azurecr.io
           repository: thanos/thanos
           tag: v0.41.0
-          sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8 # v0.42.4 (2026-07-30 13:37)
+          sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6 # v0.42.2 (2026-07-16 20:22)
+    monitoringApiGroup: "azmonitoring.coreos.com"
   # MGMT cluster specifics
   mgmt:
     stamps:
@@ -808,7 +809,8 @@ defaults:
           registry: arohcpsvcdev.azurecr.io
           repository: thanos/thanos
           tag: v0.41.0
-          sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8 # v0.42.4 (2026-07-30 13:37)
+          sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6 # v0.42.2 (2026-07-16 20:22)
+    monitoringApiGroup: "monitoring.coreos.com"
   # Backend
   backend:
     image:
