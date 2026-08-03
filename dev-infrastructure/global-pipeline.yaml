@@ -282,9 +282,9 @@ resourceGroups:
       step: housekeeping
     - resourceGroup: singleton
       step: output
-    # TODO: re-add ci-grafana-datasources dependency after ci-monitoring is enabled
-    # - resourceGroup: singleton
-    #   step: ci-grafana-datasources
+      # TODO: re-add ci-grafana-datasources dependency after ci-monitoring is enabled
+      # - resourceGroup: singleton
+      #   step: ci-grafana-datasources
   # creates DNS delegation for the ARO HCP global SVC zone
   - name: svcChildZone
     action: DelegateChildZone
