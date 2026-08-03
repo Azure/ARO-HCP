@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package listers provides cache.Indexer-backed listers for the backend's
+// Package corelisters provides cache.Indexer-backed listers for the backend's
 // cross-partition views of the ARO-HCP resource documents.
 //
 // The generic store/indexer helpers (ListAll, GetByKey, ListFromIndex) live in

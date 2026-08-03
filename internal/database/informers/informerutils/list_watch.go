@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package informers provides Cosmos-backed SharedIndexInformers for the
-// kube-applier *Desire resource types. The factory accepts a
-// database.KubeApplierListers obtained from KubeApplierDBClient.Listers(),
-// scoped to one management cluster's container.
+// Package informerutils holds the shared list/watch primitives used by the
+// split informer factory packages (core/fleet/kubeapplier): the Cosmos
+// change-feed backed ListerWatcher, an expiring watch.Interface, and the
+// ListWatch semantics opt-out.
 package informerutils
 
 import (
