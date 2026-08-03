@@ -20,11 +20,11 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/assert"
 
+	"k8s.io/utils/ptr"
+
 	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-
-	"k8s.io/utils/ptr"
 )
 
 func TestApplyMinimumVersionOverride(t *testing.T) {
@@ -158,11 +158,11 @@ func TestApplyMinimumVersionOverride(t *testing.T) {
 			expected:        ptr.To(semver.MustParse("4.20.10")),
 		},
 		{
-			name:     "no active versions (install case) with higher minor minimum forces upgrade",
-			selected: ptr.To(semver.MustParse("4.19.10")),
-			activeVersions: nil,
+			name:            "no active versions (install case) with higher minor minimum forces upgrade",
+			selected:        ptr.To(semver.MustParse("4.19.10")),
+			activeVersions:  nil,
 			minimumVersions: []semver.Version{semver.MustParse("4.20.12")},
-			expected: ptr.To(semver.MustParse("4.20.12")),
+			expected:        ptr.To(semver.MustParse("4.20.12")),
 		},
 	}
 
