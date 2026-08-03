@@ -21,8 +21,8 @@ import (
 	"path"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/example"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"

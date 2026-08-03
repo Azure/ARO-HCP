@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/serverutils"

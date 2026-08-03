@@ -18,9 +18,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"

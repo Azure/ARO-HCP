@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The controllers in the operationcontrollers package provide the glue between
+// The operationutils package provides helpers that glue together
 // Clusters Service and asynchronous operations initiated by RP frontend pods in
 // response to client requests.
 //
@@ -54,4 +54,4 @@
 //     will automatically delete the operation document.
 //
 // [Resource Provider Contract]: https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/async-api-reference.md
-package operation
+package operationutils
