@@ -33,6 +33,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 	go.uber.org/mock v0.6.0
+	gonum.org/v1/gonum v0.17.0
 	gotest.tools v2.2.0+incompatible
 	k8s.io/apimachinery v0.35.3
 	k8s.io/client-go v0.35.3
