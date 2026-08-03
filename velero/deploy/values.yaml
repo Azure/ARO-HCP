@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 azureCloud: AzurePublicCloud
 tenantId: "__tenantId__"
 subscriptionId: "__subscriptionId__"

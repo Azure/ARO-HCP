@@ -346,7 +346,7 @@ spec:
       key: tls.key
 ---
 # Source: ARO HCP Admin API/templates/admin.servicemonitor.yaml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: aro-hcp-admin-api
