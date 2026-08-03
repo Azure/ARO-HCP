@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 location: "{{ .region }}"
 audit:
   connectSocket: {{ .adminApi.audit.connectSocket }}
