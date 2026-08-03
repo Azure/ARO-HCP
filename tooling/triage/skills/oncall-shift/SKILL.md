@@ -272,7 +272,13 @@ every tracked item.
 
 #### Step 2: Generate Handover
 
-Use this exact template:
+Generate **two versions** of the handover notes: a JIRA version (full
+markdown with tables) and a Slack version (emoji-formatted, no tables,
+copy-paste friendly). Always produce both.
+
+##### JIRA Version
+
+Use this template for the JIRA comment:
 
 ```markdown
 ## ARO HCP SL Handover <FROM_SHIFT> to <TO_SHIFT> — <DATE>
@@ -316,9 +322,42 @@ shift has spare time. Monitoring items, nice-to-have PRs, cleanup tasks.>
 - **Shift**: <shift_name> (<start_time> — <end_time>)
 ```
 
+##### Slack Version
+
+Present the Slack version inside a code fence so the user can copy-paste
+it directly into the Slack handover thread. Keep it *condensed* — max 5
+bullet lines per category, one line per item (status + link only, no
+elaboration). Link to the JIRA handover comment for full context. Use
+Slack mrkdwn formatting (not markdown): `*bold*` for bold, no `#`
+headings, no tables.
+
+Use this template:
+
+```
+:wave: *Handover <FROM_SHIFT> → <TO_SHIFT> — <DATE>*
+
+:star: *Highlights*
+• <one-liner or "None">
+:memo: Full details: <link to JIRA handover comment>
+
+:red_circle: *High Priority*
+• <item — status — link>
+
+:rotating_light: *IcM Incidents*
+• <item or "None active">
+
+:large_green_circle: *Low Priority*
+• <item or "None">
+```
+
+Each category must appear but keep entries to one-line bullets. All
+detail, context, and chat excerpts belong in the JIRA comment only.
+
 #### Step 3: Post to JIRA
 
-Add the handover notes as a final comment on the tracking JIRA.
+Add the **JIRA version** of the handover notes as a final comment on the
+tracking JIRA. Present the **Slack version** to the user in a code fence
+for copy-paste.
 
 If the shift is fully complete (all items resolved or handed over):
 - Transition to **Review** (transition ID: 61)
