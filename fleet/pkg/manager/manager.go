@@ -44,7 +44,7 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/lifecycle"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -162,7 +162,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 ) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	fleetInformers := informers.NewFleetInformers(ctx, m.FleetDBClient.GlobalListers(), m.FleetDBClient)
+	fleetInformers := fleetinformers.NewFleetInformers(ctx, m.FleetDBClient.GlobalListers(), m.FleetDBClient)
 
 	stampInformer, stampLister := fleetInformers.Stamps()
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()

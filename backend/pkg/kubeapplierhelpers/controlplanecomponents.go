@@ -25,7 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -37,7 +37,7 @@ var ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler = str
 // ControlPlaneComponent mirror from the per-cluster ReadDesire.
 func GetCachedControlPlaneClusterAutoscalerForCluster(
 	ctx context.Context,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	subscriptionName, resourceGroupName, clusterName string,
 ) (*v1beta1.ControlPlaneComponent, error) {
 	readDesire, err := readDesireLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)

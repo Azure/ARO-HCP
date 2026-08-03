@@ -24,11 +24,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
-	"github.com/Azure/ARO-HCP/internal/database/listertesting"
+	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -41,7 +41,7 @@ type ControllerInitializationInput struct {
 	BillingDBClient         database.BillingDBClient
 	KubeApplierDBClients    database.KubeApplierDBClients
 	SubscriptionLister      listers.SubscriptionLister
-	ManagementClusterLister dblisters.ManagementClusterLister
+	ManagementClusterLister fleetlisters.ManagementClusterLister
 	ClusterServiceClient    ocm.ClusterServiceClientSpec
 }
 
@@ -124,7 +124,7 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 		KubeApplierDBClients: databasetesting.NewMockKubeApplierDBClients(),
 		// Empty lister by default — tests that need actual management clusters
 		// in the sweep should overlay a populated SliceManagementClusterLister.
-		ManagementClusterLister: &listertesting.SliceManagementClusterLister{},
+		ManagementClusterLister: &fleetlistertesting.SliceManagementClusterLister{},
 		ClusterServiceClient:    clusterServiceMockInfo.MockClusterServiceClient,
 	}
 

@@ -19,12 +19,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -35,7 +35,7 @@ import (
 type managementClusterPlacementSyncer struct {
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 	clusterLister                listers.ClusterLister
-	managementClusterLister      dblisters.ManagementClusterLister
+	managementClusterLister      fleetlisters.ManagementClusterLister
 	cosmosClient                 database.ResourcesDBClient
 	clusterServiceClient         ocm.ClusterServiceClientSpec
 }
@@ -47,7 +47,7 @@ var _ controllerutils.ClusterSyncer = (*managementClusterPlacementSyncer)(nil)
 func NewManagementClusterPlacementSyncController(
 	cosmosClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	managementClusterLister dblisters.ManagementClusterLister,
+	managementClusterLister fleetlisters.ManagementClusterLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {

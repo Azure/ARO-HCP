@@ -29,12 +29,12 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -42,7 +42,7 @@ type deleteOrphanedCosmosResources struct {
 	name string
 
 	subscriptionLister      listers.SubscriptionLister
-	managementClusterLister dblisters.ManagementClusterLister
+	managementClusterLister fleetlisters.ManagementClusterLister
 	resourcesDBClient       database.ResourcesDBClient
 	kubeApplierDBClients    database.KubeApplierDBClients
 
@@ -64,7 +64,7 @@ func NewDeleteOrphanedCosmosResourcesController(
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
 	subscriptionLister listers.SubscriptionLister,
-	managementClusterLister dblisters.ManagementClusterLister,
+	managementClusterLister fleetlisters.ManagementClusterLister,
 ) controllerutils.Controller {
 	c := &deleteOrphanedCosmosResources{
 		name:                    "DeleteOrphanedCosmosResources",

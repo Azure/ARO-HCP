@@ -27,7 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -56,7 +56,7 @@ var ReadDesireNameReadonlyHostedCluster = strings.ToLower(string(api.MaestroBund
 // error, or unmarshal failure.
 func GetCachedHostedClusterForCluster(
 	ctx context.Context,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	subscriptionName, resourceGroupName, clusterName string,
 ) (*v1beta1.HostedCluster, error) {
 	readDesire, err := readDesireLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, ReadDesireNameReadonlyHostedCluster)
@@ -90,7 +90,7 @@ func GetCachedHostedClusterForCluster(
 // or an unparseable UUID.
 func GetCachedHostedClusterUUIDForCluster(
 	ctx context.Context,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	subscriptionName, resourceGroupName, clusterName string,
 ) (uuid.UUID, bool, error) {
 	logger := utils.LoggerFromContext(ctx)

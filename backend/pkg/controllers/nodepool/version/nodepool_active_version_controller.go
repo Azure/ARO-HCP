@@ -24,14 +24,14 @@ import (
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -46,7 +46,7 @@ const NodePoolActiveVersionsControllerName = "NodePoolActiveVersions"
 type nodePoolActiveVersionSyncer struct {
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 	resourcesDBClient             database.ResourcesDBClient
-	readDesireLister              dblisters.ReadDesireLister
+	readDesireLister              kubeapplierlisters.ReadDesireLister
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolActiveVersionSyncer)(nil)
@@ -58,7 +58,7 @@ func NewNodePoolActiveVersionController(
 	resourcesDBClient database.ResourcesDBClient,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {
 	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
 	syncer := &nodePoolActiveVersionSyncer{

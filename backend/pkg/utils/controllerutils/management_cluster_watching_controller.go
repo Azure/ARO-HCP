@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dbinformers "github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -78,7 +78,7 @@ type managementClusterWatchingController struct {
 func NewManagementClusterWatchingController(
 	name string,
 	fleetDBClient database.FleetDBClient,
-	fleetInformers dbinformers.FleetInformers,
+	fleetInformers fleetinformers.FleetInformers,
 	resyncDuration time.Duration,
 	syncer ManagementClusterSyncer,
 ) Controller {

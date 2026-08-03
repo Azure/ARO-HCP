@@ -24,14 +24,14 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -41,7 +41,7 @@ import (
 // ReadDesire kubeContent (the kube-applier's mirror of the management cluster's HostedCluster).
 type controlPlaneActiveVersionSyncer struct {
 	resourcesDBClient            database.ResourcesDBClient
-	readDesireLister             dblisters.ReadDesireLister
+	readDesireLister             kubeapplierlisters.ReadDesireLister
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 }
 
@@ -55,7 +55,7 @@ func NewControlPlaneActiveVersionController(
 	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {
 	syncer := &controlPlaneActiveVersionSyncer{
 		resourcesDBClient:            resourcesDBClient,

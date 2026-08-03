@@ -33,13 +33,13 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
+	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -298,7 +298,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 
 			syncer := &controlPlaneActiveVersionSyncer{
 				resourcesDBClient:            mockResourcesDBClient,
-				readDesireLister:             &internallistertesting.SliceReadDesireLister{Desires: desires},
+				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
 				serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
@@ -338,7 +338,7 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 
 	syncer := &controlPlaneActiveVersionSyncer{
 		resourcesDBClient:            mockResourcesDBClient,
-		readDesireLister:             &internallistertesting.SliceReadDesireLister{Desires: desires},
+		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
 		serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 	}
 	require.NoError(t, syncer.SyncOnce(runCtx, controllerutils.HCPClusterKey{

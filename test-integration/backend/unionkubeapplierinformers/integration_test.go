@@ -34,7 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dbinformers "github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -134,7 +135,7 @@ func TestUnionKubeApplierInformersController_E2E(t *testing.T) {
 		fleetClient := databasetesting.NewMockFleetDBClient()
 		require.NoError(t, createStamp(ctx, fleetClient, stampIdentifier))
 
-		fleetInformers := dbinformers.NewFleetInformers(ctx, fleetClient.GlobalListers(), fleetClient)
+		fleetInformers := fleetinformers.NewFleetInformers(ctx, fleetClient.GlobalListers(), fleetClient)
 		managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 
 		// Factory bridges the controller to the kube-applier registry.
@@ -217,12 +218,12 @@ type cosmosKubeApplierFactory struct {
 
 func (factory *cosmosKubeApplierFactory) NewKubeApplierInformers(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
-) dbinformers.KubeApplierInformers {
+) kubeapplierinformers.KubeApplierInformers {
 	client := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
 	if client == nil {
 		return nil
 	}
-	return dbinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, &factory.relistDuration)
+	return kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, &factory.relistDuration)
 }
 
 // applyDesireRecorder records the ApplyDesires that arrive through the

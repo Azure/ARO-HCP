@@ -18,12 +18,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -32,7 +32,7 @@ import (
 type clusterRecursiveDataDump struct {
 	resourcesDBClient       database.ResourcesDBClient
 	kubeApplierDBClients    database.KubeApplierDBClients
-	managementClusterLister dblisters.ManagementClusterLister
+	managementClusterLister fleetlisters.ManagementClusterLister
 
 	// nextDataDumpChecker ensures we don't hotloop from any source.
 	nextDataDumpChecker controllerutil.CooldownChecker
@@ -42,7 +42,7 @@ type clusterRecursiveDataDump struct {
 func NewClusterRecursiveDataDumpController(
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
-	managementClusterLister dblisters.ManagementClusterLister,
+	managementClusterLister fleetlisters.ManagementClusterLister,
 	activeOperationLister listers.ActiveOperationLister,
 	backendInformers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,

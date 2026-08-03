@@ -33,12 +33,12 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	backendinformers "github.com/Azure/ARO-HCP/backend/pkg/informers"
-	backendlisters "github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dbinformers "github.com/Azure/ARO-HCP/internal/database/informers"
+	backendinformers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
+	backendlisters "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -60,13 +60,13 @@ const (
 	silenceDeadline = eventDeadline
 )
 
-type clusterChangeFeedWatcher = dbinformers.ChangeFeedWatcher[
+type clusterChangeFeedWatcher = informerutils.ChangeFeedWatcher[
 	api.HCPOpenShiftCluster,
 	*api.HCPOpenShiftCluster,
 	database.GenericDocument[api.HCPOpenShiftCluster],
 ]
 
-type clusterChangeFeedListWatcher = dbinformers.ChangeFeedListWatcher[
+type clusterChangeFeedListWatcher = informerutils.ChangeFeedListWatcher[
 	api.HCPOpenShiftCluster,
 	*api.HCPOpenShiftCluster,
 	database.GenericDocument[api.HCPOpenShiftCluster],
@@ -366,7 +366,7 @@ func newChangeFeedTestEnv(t *testing.T, withMock bool) *changefeedTestEnv {
 
 	resourcesDBClient := storage.ResourcesDBClient()
 
-	listWatcher := dbinformers.NewChangeFeedListWatcher[
+	listWatcher := informerutils.NewChangeFeedListWatcher[
 		api.HCPOpenShiftCluster,
 		*api.HCPOpenShiftCluster,
 		database.GenericDocument[api.HCPOpenShiftCluster],

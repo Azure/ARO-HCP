@@ -30,12 +30,12 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	dblistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
+	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -281,7 +281,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			}
 
 			// Setup management cluster lister
-			mgmtClusterLister := &dblistertesting.SliceManagementClusterLister{
+			mgmtClusterLister := &fleetlistertesting.SliceManagementClusterLister{
 				ManagementClusters: tc.managementClusters,
 			}
 

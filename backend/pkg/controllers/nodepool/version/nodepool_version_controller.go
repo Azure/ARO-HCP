@@ -29,14 +29,14 @@ import (
 
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
@@ -55,7 +55,7 @@ type nodePoolVersionSyncer struct {
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 	serviceProviderClusterLister  listers.ServiceProviderClusterLister
 	subscriptionLister            listers.SubscriptionLister
-	readDesireLister              dblisters.ReadDesireLister
+	readDesireLister              kubeapplierlisters.ReadDesireLister
 	resourcesDBClient             database.ResourcesDBClient
 
 	cincinnatiClientCache cincinnati.ClientCache
@@ -70,7 +70,7 @@ func NewNodePoolVersionController(
 	subscriptionLister listers.SubscriptionLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()

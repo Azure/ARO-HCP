@@ -32,14 +32,14 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
+	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -285,9 +285,9 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			var readDesireLister internallistertesting.SliceReadDesireLister
+			var readDesireLister kubeapplierlistertesting.SliceReadDesireLister
 			if tc.cachedHostedClusterReadDesire != nil {
-				readDesireLister = internallistertesting.SliceReadDesireLister{
+				readDesireLister = kubeapplierlistertesting.SliceReadDesireLister{
 					Desires: []*kubeapplier.ReadDesire{tc.cachedHostedClusterReadDesire},
 				}
 			}

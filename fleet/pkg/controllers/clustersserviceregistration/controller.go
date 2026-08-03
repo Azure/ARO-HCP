@@ -32,7 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -47,7 +47,7 @@ type ProvisionShardClient interface {
 type clustersServiceRegistrationSyncer struct {
 	fleetDBClient         database.FleetDBClient
 	clustersServiceClient ProvisionShardClient
-	stampLister           listers.StampLister
+	stampLister           fleetlisters.StampLister
 	region                string
 }
 
@@ -58,7 +58,7 @@ func NewClustersServiceRegistrationController(
 	stampInformer cache.SharedIndexInformer,
 	fleetDBClient database.FleetDBClient,
 	clustersServiceClient ProvisionShardClient,
-	stampLister listers.StampLister,
+	stampLister fleetlisters.StampLister,
 	region string,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
 ) *fleetcontrollers.StampWatchingController {

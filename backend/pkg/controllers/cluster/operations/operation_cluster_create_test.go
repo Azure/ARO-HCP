@@ -35,15 +35,15 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
+	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -77,7 +77,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		clock             utilsclock.PassiveClock
 		existingCluster   *api.HCPOpenShiftCluster
 		existingOperation *api.Operation
-		readDesireLister  dblisters.ReadDesireLister
+		readDesireLister  kubeapplierlisters.ReadDesireLister
 		setupCSMock       func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
 		wantErr           bool
 		verifyDB          func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
@@ -222,7 +222,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				return cluster
 			}(),
 			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
-			readDesireLister:  &internallistertesting.SliceReadDesireLister{},
+			readDesireLister:  &kubeapplierlistertesting.SliceReadDesireLister{},
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
@@ -315,11 +315,11 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 						},
 					},
 				},
-				readDesireLister: func() dblisters.ReadDesireLister {
+				readDesireLister: func() kubeapplierlisters.ReadDesireLister {
 					if tc.readDesireLister != nil {
 						return tc.readDesireLister
 					}
-					return &internallistertesting.SliceReadDesireLister{
+					return &kubeapplierlistertesting.SliceReadDesireLister{
 						Desires: []*kubeapplier.ReadDesire{succeededDesire(t)},
 					}
 				}(),
@@ -412,7 +412,7 @@ func TestDetermineOperationState(t *testing.T) {
 	tests := []struct {
 		name              string
 		clusterLister     listers.ClusterLister
-		readDesireLister  dblisters.ReadDesireLister
+		readDesireLister  kubeapplierlisters.ReadDesireLister
 		setupCSMock       func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
 		expectedState     arm.ProvisioningState
 		wantMessageSubstr string
@@ -425,7 +425,7 @@ func TestDetermineOperationState(t *testing.T) {
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -454,7 +454,7 @@ func TestDetermineOperationState(t *testing.T) {
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -483,14 +483,14 @@ func TestDetermineOperationState(t *testing.T) {
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock:      readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{},
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{},
 			expectedState:    arm.ProvisioningStateProvisioning,
 		},
 		{
 			name:          "cluster lister error → error propagated",
 			clusterLister: &errorClusterLister{err: fmt.Errorf("cosmos error")},
 			setupCSMock:   readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -537,7 +537,7 @@ func TestDetermineOperationState(t *testing.T) {
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{},
 						metav1.Condition{Type: kubeapplier.ConditionTypeSuccessful, Status: metav1.ConditionFalse, Reason: kubeapplier.ConditionReasonKubeAPIError, Message: "boom"}),
@@ -552,7 +552,7 @@ func TestDetermineOperationState(t *testing.T) {
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -577,7 +577,7 @@ func TestDetermineOperationState(t *testing.T) {
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -602,7 +602,7 @@ func TestDetermineOperationState(t *testing.T) {
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -630,7 +630,7 @@ func TestDetermineOperationState(t *testing.T) {
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -659,7 +659,7 @@ func TestDetermineOperationState(t *testing.T) {
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -698,7 +698,7 @@ func TestDetermineOperationState(t *testing.T) {
 					Return(clusterStatus, nil)
 				return mockCSClient
 			},
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{

@@ -37,14 +37,14 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
+	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -660,7 +660,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				clusterLister:                   clusterLister,
 				activeOperationsLister:          activeOperationsLister,
 				serviceProviderClusterLister:    serviceProviderClusterLister,
-				readDesireLister:                &internallistertesting.SliceReadDesireLister{Desires: readDesires},
+				readDesireLister:                &kubeapplierlistertesting.SliceReadDesireLister{Desires: readDesires},
 				notificationClient:              nil,
 				clock:                           fakeClock,
 				desiredVersionMismatchFirstSeen: lru.New(100000),

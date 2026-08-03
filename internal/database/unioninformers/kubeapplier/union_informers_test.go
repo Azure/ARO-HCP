@@ -30,7 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
@@ -370,11 +370,11 @@ func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kub
 	}
 }
 
-// buildPerMCInformers constructs a started informers.KubeApplierInformers
+// buildPerMCInformers constructs a started kubeapplierinformers.KubeApplierInformers
 // against a mock DB containing the supplied seed ApplyDesires for the given
 // management cluster. The mock isolates each MC into its own container, so
 // listing-by-MC and per-MC informer wiring both work correctly.
-func buildPerMCInformers(t *testing.T, ctx context.Context, seed ...*kubeapplier.ApplyDesire) informers.KubeApplierInformers {
+func buildPerMCInformers(t *testing.T, ctx context.Context, seed ...*kubeapplier.ApplyDesire) kubeapplierinformers.KubeApplierInformers {
 	t.Helper()
 	resources := make([]any, 0, len(seed))
 	for _, d := range seed {
@@ -385,7 +385,7 @@ func buildPerMCInformers(t *testing.T, ctx context.Context, seed ...*kubeapplier
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
 	}
 	relist := 250 * time.Millisecond
-	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &relist)
+	info := kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &relist)
 	go info.RunWithContext(ctx)
 	apply, _ := info.ApplyDesires()
 	read, _ := info.ReadDesires()
