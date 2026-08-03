@@ -71,6 +71,7 @@ spec:
         volumeMounts: []
       volumes: []
       serviceAccountName: {{ .Values.serviceAccount.name }}
+      priorityClassName: service-lifecycle-critical
       terminationGracePeriodSeconds: 10
       nodeSelector:
       {{- with .Values.nodeSelector }}

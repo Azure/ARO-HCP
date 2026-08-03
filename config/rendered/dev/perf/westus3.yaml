@@ -120,7 +120,7 @@ backend:
         memory: unlimited
       requests:
         cpu: 100m
-        memory: 500Mi
+        memory: 1Gi
     serviceAccountName: backend
   logVerbosity: 4
   maestro:
@@ -752,6 +752,10 @@ mgmtAgent:
   k8s:
     namespace: mgmt-agent
     replicas: 2
+    resources:
+      requests:
+        cpu: 50m
+        memory: 768Mi
     serviceAccountName: mgmt-agent
   managedIdentityName: mgmt-agent
 mgmtKeyVault:
