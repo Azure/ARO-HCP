@@ -865,6 +865,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+
+	fetchMSIIdentitiesInfoController := controllers.NewFetchMSIIdentitiesInfoController(
+		b.options.CosmosDBClient,
+		backendInformers,
+		b.options.FPAMIDataplaneClientBuilder,
+	}
+
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
@@ -958,6 +965,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
 				go cosmosMigrationController.Run(ctx, 5)
+				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.
