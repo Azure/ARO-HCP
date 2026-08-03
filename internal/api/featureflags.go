@@ -61,6 +61,13 @@ const (
 	// The value must be a valid Go time.Duration string (e.g. "19m", "30m").
 	TagClusterMaxCreationDuration = ExperimentalClusterTagPrefix + "max-creation-duration"
 
+	// TagClusterMaxDeletionDuration is the ARM resource tag that overrides
+	// the default cluster deletion deadline (60 minutes) when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	// The value must be a valid Go time.Duration string (e.g. "24m", "30m").
+	// The tag is set at cluster creation time but consumed at deletion time.
+	TagClusterMaxDeletionDuration = ExperimentalClusterTagPrefix + "max-deletion-duration"
+
 	// ExperimentalNodePoolTagPrefix is the prefix for all experimental node pool
 	// tags. Tags with this prefix are only honored when the
 	// ExperimentalReleaseFeatures AFEC is registered. Unrecognized tags

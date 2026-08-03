@@ -97,6 +97,7 @@ func mutateClusterServiceProviderProperties(ctx context.Context, admissionContex
 	errs = append(errs, mutateClusterUID(ctx, admissionContext, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, validation.ToClusterServiceProviderPropertiesClusterUID))...)
 	errs = append(errs, mutateClusterExperimentalFeatures(ctx, admissionContext, op, fldPath.Child("experimentalFeatures"), &newObj.ExperimentalFeatures, safe.Field(oldObj, toSPExperimentalFeatures))...)
 	errs = append(errs, mutateCreateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("createOperationCompletionDeadline"), &newObj.CreateOperationCompletionDeadline)...)
+	errs = append(errs, mutateDeleteOperationCompletionTimeout(ctx, admissionContext, op, fldPath.Child("deleteOperationCompletionTimeout"), &newObj.DeleteOperationCompletionTimeout)...)
 
 	return errs
 }
@@ -139,7 +140,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterCPOImageOverride, api.TagClusterMaxCreationDuration)
+	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterCPOImageOverride, api.TagClusterMaxCreationDuration, api.TagClusterMaxDeletionDuration)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), api.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -210,6 +211,15 @@ func lookupTag(tags map[string]string, key string) string {
 const defaultCreateOperationCompletionDeadlineDuration = 60 * time.Minute
 const minCreateOperationCompletionDeadlineDuration = time.Minute
 
+// DefaultDeleteOperationCompletionDeadlineDuration is the fallback duration
+// used by the frontend DELETE handler when DeleteOperationCompletionTimeout
+// is nil (no tag / no AFEC).
+const DefaultDeleteOperationCompletionDeadlineDuration = 12 * time.Hour
+
+// MinDeleteOperationCompletionDeadlineDuration is the minimum value accepted
+// for the TagClusterMaxDeletionDuration tag.
+const MinDeleteOperationCompletionDeadlineDuration = time.Minute
+
 // mutateCreateOperationCompletionDeadline sets the deadline by which a cluster
 // creation operation must complete. On CREATE it defaults to 60 minutes from
 // now; when the subscription has the ExperimentalReleaseFeatures AFEC
@@ -247,11 +257,50 @@ func mutateCreateOperationCompletionDeadline(_ context.Context, admissionContext
 	return nil
 }
 
+// mutateDeleteOperationCompletionTimeout sets or clears
+// DeleteOperationCompletionTimeout based on the TagClusterMaxDeletionDuration
+// tag. Runs on both CREATE and UPDATE so that tag changes are reflected.
+// When the AFEC is not registered or the tag is absent, the field is set to nil
+// and the frontend DELETE handler falls back to DefaultDeleteOperationCompletionDeadlineDuration.
+func mutateDeleteOperationCompletionTimeout(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, _ *field.Path, newObj **time.Duration) field.ErrorList {
+	subscription := admissionContext.Subscription
+	if subscription == nil || !subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
+		*newObj = nil
+		return nil
+	}
+
+	var tags map[string]string
+	if admissionContext.OriginalCluster != nil {
+		tags = admissionContext.OriginalCluster.Tags
+	}
+	tagValue := lookupTag(tags, api.TagClusterMaxDeletionDuration)
+	if len(tagValue) == 0 {
+		*newObj = nil
+		return nil
+	}
+
+	parsed, err := time.ParseDuration(tagValue)
+	if err != nil {
+		tagsPath := field.NewPath("tags")
+		return field.ErrorList{field.Invalid(tagsPath.Key(api.TagClusterMaxDeletionDuration), tagValue, "must be a valid Go duration string (e.g. \"24m\", \"30m\")")}
+	}
+	if parsed < MinDeleteOperationCompletionDeadlineDuration {
+		tagsPath := field.NewPath("tags")
+		return field.ErrorList{field.Invalid(tagsPath.Key(api.TagClusterMaxDeletionDuration), tagValue, fmt.Sprintf("must be at least %s", MinDeleteOperationCompletionDeadlineDuration))}
+	}
+	*newObj = &parsed
+	return nil
+}
+
 // AdmitCluster performs non-static checks of cluster. Checks that require more
 // information than is contained inside of the cluster instance itself. For
 // UPDATE operations that may change the cluster version, the admissionContext
 // must carry the prefetched ServiceProviderCluster and ClusterNodePools.
 func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *api.HCPOpenShiftCluster) field.ErrorList {
+	if op.Type == operation.Update && oldObj != nil && oldObj.ServiceProviderProperties.DeletionTimestamp != nil {
+		return field.ErrorList{field.Forbidden(field.NewPath(""), "cluster is being deleted and cannot be updated")}
+	}
+
 	errs := field.ErrorList{}
 
 	// CustomerProperties HCPOpenShiftClusterCustomerProperties `json:"customerProperties,omitempty"`

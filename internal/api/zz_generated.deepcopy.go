@@ -20,6 +20,8 @@
 package api
 
 import (
+	time "time"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	v4 "github.com/blang/semver/v4"
 	v1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -984,6 +986,15 @@ func (in *HCPOpenShiftClusterServiceProviderProperties) DeepCopyInto(out *HCPOpe
 	}
 	if in.CreateOperationCompletionDeadline != nil {
 		in, out := &in.CreateOperationCompletionDeadline, &out.CreateOperationCompletionDeadline
+		*out = (*in).DeepCopy()
+	}
+	if in.DeleteOperationCompletionTimeout != nil {
+		in, out := &in.DeleteOperationCompletionTimeout, &out.DeleteOperationCompletionTimeout
+		*out = new(time.Duration)
+		**out = **in
+	}
+	if in.DeleteOperationCompletionDeadline != nil {
+		in, out := &in.DeleteOperationCompletionDeadline, &out.DeleteOperationCompletionDeadline
 		*out = (*in).DeepCopy()
 	}
 	return
