@@ -78,7 +78,7 @@ clouds:
             zones: "1"
             zoneRedundantMode: "Disabled"
         istio:
-          versions: "asm-1-28"
+          versions: "asm-1-29"
         monitoring:
           workspaceName: "opstool-monitor-{{ .ctx.regionShort }}"
         prometheus:
