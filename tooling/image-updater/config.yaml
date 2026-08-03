@@ -18,20 +18,20 @@ images:
     targets:
     - jsonPath: defaults.maestro.agent.sidecar.image.digest
       filePath: ../../config/config.yaml
-  # Hypershift image
-  hypershift:
-    group: hypershift-stack
-    source:
-      image: quay.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      tag: "latest"
-      multiArch: true # Use multi-arch manifest
-      useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
-    targets:
-    - jsonPath: defaults.hypershift.image.digest
-      filePath: ../../config/config.yaml
+  # Hypershift image - commented out per AROSLSRE-1685: pinned to sha256:0a0397b7e1fe in config.yaml
+  # hypershift:
+  #   group: hypershift-stack
+  #   source:
+  #     image: quay.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+  #     tag: "latest"
+  #     multiArch: true # Use multi-arch manifest
+  #     useAuth: true
+  #     keyVault:
+  #       url: "https://arohcpdev-global.vault.azure.net/"
+  #       secretName: "component-sync-pull-secret"
+  #   targets:
+  #   - jsonPath: defaults.hypershift.image.digest
+  #     filePath: ../../config/config.yaml
   # HyperShift shared ingress HAProxy image
   hypershift-shared-ingress:
     group: hypershift-stack
