@@ -118,7 +118,7 @@ lookup. Success is read from Pod state rather than Events (see Reading the signa
 flowchart TD
     E[Kubelet Events<br/>FailedCreatePodSandBox] --> IDX[Event informer<br/>Indexer keyed by node]
     N[Node informer] --> R[reconcile Node<br/>level-driven]
-    P[Pod informer<br/>PodReadyToStartContainers status + transition] --> R
+    P[Pod informer<br/>PodReadyToStartContainers status + transition<br/>container start times] --> R
     IDX --> R
     CM[ConfigMap informer<br/>operational switches] --> C[Config<br/>atomic pointer]
     C --> R
@@ -330,7 +330,8 @@ labels a node; only a continuous zero-success span does.
 ### Corroborating signals (optional)
 
 Version 1 needs only the central signal: `FailedCreatePodSandBox` Events for
-failures and the `PodReadyToStartContainers` Pod condition for successes.
+failures and the `PodReadyToStartContainers` Pod condition (plus container start
+times on finished pods) for successes.
 If a later revision gains node or CNS access, two signals strongly confirm a
 hard-wedge before any disruptive action: CNS reporting
 `SecondaryInterfacesExist: false` across the window, and the delegated MAC being
@@ -548,7 +549,8 @@ recorder patches an existing Event when it aggregates repeats), and
 `get`/`list`/`watch` on its own ConfigMap. Pods are
 read-only, used to read each failing pod's `PodReadyToStartContainers` condition
 (its status and `lastTransitionTime`, which supply the dwell and the success
-signal); the controller never mutates a Pod. It needs no access to Secrets or any
+signal) and, on finished pods, the container start times that carry the same
+success signal; the controller never mutates a Pod. It needs no access to Secrets or any
 guest-cluster resource, which bounds the blast radius of the ServiceAccount to
 node scheduling metadata.
 
