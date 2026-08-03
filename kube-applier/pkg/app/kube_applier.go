@@ -24,6 +24,7 @@ import (
 
 	_ "k8s.io/component-base/metrics/prometheus/clientgo"
 
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -33,6 +34,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/component-base/metrics/legacyregistry"
 
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,6 +42,10 @@ import (
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/apply_desire"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/read_desire_manager"
 )
+
+// cosmosProbeTimeout bounds the Cosmos query behind /readyz so a hung query
+// cannot hold the handler open after the kubelet has given up on the probe.
+const cosmosProbeTimeout = 5 * time.Second
 
 // Run is the binary's main loop. It serves /healthz and /metrics, then runs
 // the controllers under a leader-election lease. Run returns when ctx is
@@ -63,21 +69,7 @@ func (o *Options) Run(ctx context.Context) error {
 	)
 
 	if o.HealthzServerListenAddress != "" {
-		healthGauge := promauto.With(o.metricsRegisterer()).NewGauge(prometheus.GaugeOpts{
-			Name: "kube_applier_health", Help: "kube_applier_health is 1 when healthy",
-		})
-		mux := http.NewServeMux()
-		mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-			if err := electionChecker.Check(r); err != nil {
-				logger.Error(err, "readiness probe failed")
-				http.Error(w, "lease not renewed", http.StatusServiceUnavailable)
-				healthGauge.Set(0)
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-			healthGauge.Set(1)
-		})
-		server := &http.Server{Addr: o.HealthzServerListenAddress, Handler: mux}
+		server := &http.Server{Addr: o.HealthzServerListenAddress, Handler: o.newHealthzMux(logger, electionChecker)}
 		wg.Add(1)
 		go func() {
 			defer cancel(fmt.Errorf("healthz server exited"))
@@ -126,6 +118,50 @@ func (o *Options) Run(ctx context.Context) error {
 	wg.Wait()
 	logger.Info(fmt.Sprintf("%s (%s) stopped", AppShortDescriptionName, version.CommitSHA))
 	return errors.Join(errs...)
+}
+
+func (o *Options) newHealthzMux(logger logr.Logger, electionChecker *leaderelection.HealthzAdaptor) *http.ServeMux {
+	healthGauge := promauto.With(o.metricsRegisterer()).NewGauge(prometheus.GaugeOpts{
+		Name: "kube_applier_health", Help: "kube_applier_health is 1 when healthy",
+	})
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		if err := electionChecker.Check(r); err != nil {
+			logger.Error(err, "health probe failed: lease not renewed")
+			http.Error(w, "lease not renewed", http.StatusServiceUnavailable)
+			healthGauge.Set(0)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		healthGauge.Set(1)
+	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), cosmosProbeTimeout)
+		defer cancel()
+		if err := o.checkCosmos(ctx); err != nil {
+			logger.Error(err, "cosmos startup probe failed")
+			http.Error(w, "cosmos container not queryable", http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	return mux
+}
+
+// checkCosmos issues one real data-plane query against cosmos.
+func (o *Options) checkCosmos(ctx context.Context) error {
+	pageSizeHint := int32(1)
+	iter, err := o.KubeApplierDBClient.Listers().ApplyDesires().List(ctx,
+		&cosmosstorageutils.DBClientListResourceDocsOptions{PageSizeHint: &pageSizeHint})
+	if err != nil {
+		return err
+	}
+	// The query is only issued once the iterator is pulled. An empty container
+	// yields no items and no error, which is a healthy result.
+	for range iter.Items(ctx) {
+		break
+	}
+	return iter.GetError()
 }
 
 // runControllersUnderLeaderElection wires the two controllers and runs them
