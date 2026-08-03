@@ -1,8 +1,10 @@
-# Opstool Cluster Guide
+# Opstool CI Platform
 
 The `opstool` cluster is a standalone dev-only AKS cluster used for operational tooling workloads that do not fit into the main service or management cluster deployment paths.
 
 It uses the same `templatize` + `pipeline.yaml` rollout system as the rest of the repository, but it is intentionally configured and deployed separately from the normal `Global` and `Region` topologies.
+
+For DEV CI alert response and monitoring maintenance, start with [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md).
 
 ## At A Glance
 
@@ -35,7 +37,7 @@ This means `opstool` gets all the benefits of the shared tooling, but none of th
 
 - `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged`
 
-That infra service group owns the cluster and shared cluster-level dependencies. Workloads are added beneath it as children. Today, `tenant-quota` is the concrete example of this pattern.
+That infra service group owns the cluster and shared cluster-level dependencies. Workloads are added beneath it as children. `tenant-quota` is the canonical monitoring example, while [`topology-dev-ci.yaml`](../../topology-dev-ci.yaml) is the authoritative complete workload graph.
 
 In practice the rollout shape is:
 
