@@ -698,6 +698,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	virtualMachineResourceSKUsCachedReaderController := cachedreader.NewFPAVirtualMachineResourceSKUsCachedReaderController(
+		b.options.FPAClientBuilder,
+		b.options.AzureLocation,
+	)
+
 	azureRPRegistrationValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
 		b.options.ResourcesDBClient,
@@ -958,6 +963,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
 				go cosmosMigrationController.Run(ctx, 5)
+				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.
