@@ -84,21 +84,22 @@ The basic `atest` tool usage is already very helpful. But if you want to check m
 
 ## Accessing PROD data with Grafana
 
-### Ad Hoc Explorer
+### Explore Tab
 
-If you want to see your query results in PROD Grafana, you can use the Ad Hoc Explorer (on a machine from which you can log in to your b- account):
+To check your alert queries against prod data, use the Explore tab in the PROD Grafana instance (on a machine from which you can log in to your b- account). Find the Grafana URL via the [aro-hcp-env-info skill](#available-grafana-instances-and-data-sources), then navigate to the Explore tab. Once you've selected a datasource, you will be able to enter a PromQL query.
 
-* [Ad Hoc Explorer][grafana-prod-adhoc-explorer]
+### Dashboard Development with Scratchpad
 
-Once you've selected a datasource, you will be able to enter a PromQL query.
+To develop and test dashboards against prod data, use the Scratchpad folder in the PROD Grafana instance:
 
-### Grafana Datasource
+* You can add and edit dashboards freely
+* Dashboards auto-delete after 7 days, so save your JSONs often and always make a PR at the end
 
-[grafana-datasource][grafana-datasource-repo] is a tool that automates Grafana datasource configuration. You can set it up on a machine from which you can log in to your b- account:
+Find the Grafana URL via the [aro-hcp-env-info skill](#available-grafana-instances-and-data-sources) and look for the Scratchpad folder under Dashboards.
 
-1. [Make sure you have Copilot properly set up][copilot-setup]
-2. Clone [grafana-datasource][grafana-datasource-repo]
-3. Run Copilot from within the `grafana-datasource` directory and ask it to set up Grafana
+> [!NOTE]
+>
+> The Explore tab and Scratchpad folder replace the [grafana-datasource][grafana-datasource-repo] tool, which is no longer needed.
 
 ## Available Grafana Instances and Data Sources
 
@@ -121,7 +122,6 @@ List all Grafana URLs for our different stages - including a list of available d
 * [Copilot setup guide][copilot-setup]
 * [Demo video][demo-video]
 * [Demo notes][demo-notes]
-* [Grafana PROD Ad Hoc Explorer][grafana-prod-adhoc-explorer]
 * [grafana-datasource repo][grafana-datasource-repo]
 
 [alert-tester-repo]: https://github.com/mmazur/alert-tester
@@ -131,5 +131,4 @@ List all Grafana URLs for our different stages - including a list of available d
 [copilot-setup]: https://docs.google.com/document/d/1KUZSLknIkSd6usFPe_OcEYWJyW6mFeotc2lIsLgE3JA/edit?tab=t.ft6ndj5uukpn
 [demo-video]: https://drive.google.com/file/d/1jkyx4_w8yzaybqhtukHuHizh2jFCTJf7/view
 [demo-notes]: https://docs.google.com/document/d/1yvmf4MvOGpRf9VjA3Rnt30oNyfEFmE60oJeLxs0ek6w/edit?tab=t.0#heading=h.xr6j3y1ibl6b
-[grafana-prod-adhoc-explorer]: https://arohcp-prod-g5d9a9akashnb5gd.suk.grafana.azure.com/d/adhoc-explorer/ad-hoc-explorer
 [grafana-datasource-repo]: https://github.com/mmazur/grafana-datasource
