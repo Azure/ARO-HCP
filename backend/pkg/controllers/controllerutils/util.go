@@ -356,3 +356,13 @@ func WriteController(ctx context.Context, controllerCRUD database.ResourceCRUD[a
 	}
 	return nil
 }
+
+func ClusterServiceIDForCluster(cluster *api.HCPOpenShiftCluster) string {
+	if cluster.ServiceProviderProperties.PendingClusterServiceID != nil {
+		return cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()
+	}
+	if cluster.ServiceProviderProperties.ClusterServiceID != nil {
+		return cluster.ServiceProviderProperties.ClusterServiceID.ClusterID()
+	}
+	return ""
+}
