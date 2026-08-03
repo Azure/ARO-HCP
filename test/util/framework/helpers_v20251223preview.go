@@ -64,6 +64,7 @@ type ClusterParams20251223 struct {
 	EncryptionKeyManagementMode   string
 	EncryptionType                string
 	VnetIntegrationSubnetID       string
+	IntegrationSubnetName         string
 	KeyVaultVisibility            string
 	Network                       NetworkConfig
 	APIVisibility                 string
@@ -286,12 +287,17 @@ func PopulateClusterParamsFromCustomerInfraDeployment20251223(
 	if err != nil {
 		return params, fmt.Errorf("failed to get vnetSubnetName from customer infra deployment: %w", err)
 	}
+	integrationSubnetName, err := GetOutputValueString(customerInfraDeploymentResult, "integrationSubnetName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get integrationSubnetName from customer infra deployment: %w", err)
+	}
 	params.KeyVaultName = keyVaultName
 	params.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
 	params.EtcdEncryptionKeyName = etcdEncryptionKeyName
 	params.NsgResourceID = nsgResourceID
 	params.SubnetResourceID = subnetResourceID
 	params.VnetIntegrationSubnetID = vnetIntegrationSubnetID
+	params.IntegrationSubnetName = integrationSubnetName
 	params.VnetName = vnetName
 	params.NsgName = nsgName
 	params.SubnetName = subnetName
@@ -1016,10 +1022,11 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20251223(ctx
 		WithDeploymentName(managedIdentitiesDeploymentName),
 		WithClusterResourceGroup(*resourceGroup.Name),
 		WithParameters(map[string]interface{}{
-			"nsgName":      clusterParams.NsgName,
-			"vnetName":     clusterParams.VnetName,
-			"subnetName":   clusterParams.SubnetName,
-			"keyVaultName": clusterParams.KeyVaultName,
+			"nsgName":               clusterParams.NsgName,
+			"vnetName":              clusterParams.VnetName,
+			"subnetName":            clusterParams.SubnetName,
+			"integrationSubnetName": clusterParams.IntegrationSubnetName,
+			"keyVaultName":          clusterParams.KeyVaultName,
 		}),
 	)
 
