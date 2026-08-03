@@ -85,6 +85,8 @@ directory (defaults to the data directory, overridable with `--output`):
   pricing dimensions. Token counts distinguish uncached input, cache reads,
   cache writes, and output. Cache writes include a TTL breakdown when the
   provider reports one (for example, Anthropic's `5m` and `1h` tiers).
+  Copilot usage is captured from the live SDK event stream and includes
+  automatic conversation-compaction requests.
 
 Once an LLM session has been created, `usage.json` is also written on a
 best-effort basis when analysis fails or is cancelled. This preserves usage
