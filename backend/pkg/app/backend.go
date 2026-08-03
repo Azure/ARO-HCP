@@ -722,11 +722,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 	nodePoolVersionController := nodepoolversion.NewNodePoolVersionController(
+		b.clock,
 		b.options.ResourcesDBClient,
 		subscriptionLister,
 		backendInformers,
 		unionKubeApplierInformers,
-		unionReadDesireLister,
 	)
 	nodePoolActiveVersionController := nodepoolversion.NewNodePoolActiveVersionController(
 		b.options.ResourcesDBClient,
