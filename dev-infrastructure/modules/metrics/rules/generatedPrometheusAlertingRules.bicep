@@ -46,7 +46,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
           summary: 'Prometheus is unreachable for 10 minutes.'
           title: 'Prometheus is unreachable for 10 minutes.'
         }
-        expression: 'group by (cluster) (up{job="kubelet"}) unless on (cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
+        expression: '(group by (cluster) (up{job="kubelet"}) unless on (cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -82,7 +82,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
           summary: 'Prometheus uptime below 95% over 24 hours.'
           title: 'Prometheus uptime below 95% over 24 hours.'
         }
-        expression: '(sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95'
+        expression: '((sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -118,7 +118,7 @@ Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor conf
           summary: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
           title: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
         }
-        expression: '(sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0'
+        expression: '((sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -152,7 +152,7 @@ Check the PrometheusAgent pod status and remote write configuration on the affec
           summary: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
           title: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
         }
-        expression: 'count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))'
+        expression: '(count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -190,7 +190,7 @@ Investigate the health and performance of the remote storage endpoint, network l
           summary: 'Prometheus pending sample rate is above 40%.'
           title: 'Prometheus pending sample rate is above 40%.'
         }
-        expression: '(prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight) > 0.4'
+        expression: '((prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight) > 0.4) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -228,7 +228,7 @@ Please check the health and performance of the remote storage endpoint, network 
           summary: 'Prometheus failed sample rate to remote storage is above 10%.'
           title: 'Prometheus failed sample rate to remote storage is above 10%.'
         }
-        expression: '(rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) / clamp_min(rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]), 0.000000001)) > 0.1'
+        expression: '((rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) / clamp_min(rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]), 0.000000001)) > 0.1) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -269,7 +269,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           summary: 'Prometheus {{ $labels.namespace }}/{{ $labels.pod }} failing to send to {{ $labels.remote_name }}:{{ $labels.url }}'
           title: 'Prometheus {{ $labels.namespace }}/{{ $labels.pod }} failing to send to {{ $labels.remote_name }}:{{ $labels.url }}'
         }
-        expression: '((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])))) * 100 > 1'
+        expression: '(((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])))) * 100 > 1) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -297,7 +297,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           summary: 'Prometheus {{ $labels.namespace }}/{{ $labels.pod }} is not ingesting samples'
           title: 'Prometheus {{ $labels.namespace }}/{{ $labels.pod }} is not ingesting samples'
         }
-        expression: '(sum without (type) (rate(prometheus_tsdb_head_samples_appended_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) <= 0 and sum without (scrape_job) (prometheus_target_metadata_cache_entries{job="prometheus/prometheus",namespace="prometheus"}) > 0)'
+        expression: '(sum without (type) (rate(prometheus_tsdb_head_samples_appended_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) <= 0 and sum without (scrape_job) (prometheus_target_metadata_cache_entries{job="prometheus/prometheus",namespace="prometheus"}) > 0) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -325,7 +325,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           summary: 'Prometheus {{ $labels.namespace }}/{{ $labels.pod }} configuration reload failed'
           title: 'Prometheus {{ $labels.namespace }}/{{ $labels.pod }} configuration reload failed'
         }
-        expression: 'max_over_time(prometheus_config_last_reload_successful{job="prometheus/prometheus",namespace="prometheus"}[5m]) == 0'
+        expression: '(max_over_time(prometheus_config_last_reload_successful{job="prometheus/prometheus",namespace="prometheus"}[5m]) == 0) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -353,7 +353,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           summary: 'Prometheus {{ $labels.namespace }}/{{ $labels.pod }} scrapes exceeding sample limit'
           title: 'Prometheus {{ $labels.namespace }}/{{ $labels.pod }} scrapes exceeding sample limit'
         }
-        expression: 'increase(prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) > 0'
+        expression: '(increase(prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) > 0) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -394,7 +394,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Prometheus operator {{ $labels.namespace }}/{{ $labels.controller }} not ready'
           title: 'Prometheus operator {{ $labels.namespace }}/{{ $labels.controller }} not ready'
         }
-        expression: 'min by (cluster, controller, namespace) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0'
+        expression: '(min by (cluster, controller, namespace) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -422,7 +422,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Prometheus operator {{ $labels.namespace }}/{{ $labels.controller }} rejecting {{ $labels.resource }} resources'
           title: 'Prometheus operator {{ $labels.namespace }}/{{ $labels.controller }} rejecting {{ $labels.resource }} resources'
         }
-        expression: 'min_over_time(prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected"}[5m]) > 0'
+        expression: '(min_over_time(prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected"}[5m]) > 0) unless on (cluster) underlay_clusters{cluster_type="svc"}'
         for: 'PT20M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
