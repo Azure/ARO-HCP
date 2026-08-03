@@ -82,6 +82,9 @@ services:
       - serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
         pipelinePath: dev-infrastructure/monitoring-pipeline.yaml
         purpose: Deploy the Monitoring resources
+      - serviceGroup: Microsoft.Azure.ARO.HCP.GenevaHealthFunction
+        pipelinePath: dev-infrastructure/geneva-health-function-pipeline.yaml
+        purpose: Deploy the Geneva Health Function App.
       - serviceGroup: Microsoft.Azure.ARO.HCP.E2E
         pipelinePath: test/e2e-pipeline.yaml
         purpose: Run the E2E tests towards a region and gate SDP progression.

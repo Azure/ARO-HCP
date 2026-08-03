@@ -429,6 +429,10 @@ build-fleet:
 	$(MAKE) -C fleet build-and-push
 .PHONY: build-fleet
 
+build-geneva-health-function:
+	$(MAKE) -C geneva-health-function build-and-push
+.PHONY: build-geneva-health-function
+
 record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C frontend record-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml
 	$(MAKE) -C backend record-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml

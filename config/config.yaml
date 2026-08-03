@@ -447,6 +447,21 @@ defaults:
         actionGroupShortName: ""
         routingId: ""
         automitigationEnabled: ""
+  genevaHealthFunction:
+    certificateName: geneva-health-publisher
+    certificateIssuer: Self
+    certificateSAN: 'geneva-health-publisher-{{ .ctx.environment }}.geneva.keyvault.aro-hcp.azure.com'
+    certificateCN: 'geneva-health-publisher-{{ .ctx.environment }}.geneva.keyvault.aro-hcp.azure.com'
+    monitoringAccount: testGenevaMetric
+    healthEnvironment: Int
+    functionAppName: 'arohcp-{{ .ctx.environment }}-geneva-health'
+    storageAccountName: 'arohcp{{ .ctx.environment }}genhlt'
+    appServicePlanName: 'arohcp-{{ .ctx.environment }}-geneva-health-plan'
+    managedIdentityName: 'arohcp-{{ .ctx.environment }}-geneva-health-mi'
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: geneva-health-function
+      digest: ""
   quotaizer:
     quotaGroup:
       id: "aro-{{ .ctx.environment }}-{{ .ctx.region }}"
