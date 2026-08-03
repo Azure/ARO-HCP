@@ -42,6 +42,7 @@ var (
 	ErrNoParseableNightlyTags       = errors.New("no parseable nightly tags found")
 	ErrVersionNotFound              = errors.New("no graph nodes found")
 	ErrNoEdgePairFound              = errors.New("no version pair without upgrade edge found")
+	ErrNoUpgradePath                = errors.New("no upgrade path found")
 )
 
 const (
@@ -92,7 +93,8 @@ func isRetryableVersionError(err error) bool {
 		errors.Is(err, ErrNightlyReleaseStreamNotFound) ||
 		errors.Is(err, ErrNoAcceptedNightlyTags) ||
 		errors.Is(err, ErrNoParseableNightlyTags) ||
-		errors.Is(err, ErrNoEdgePairFound) {
+		errors.Is(err, ErrNoEdgePairFound) ||
+		errors.Is(err, ErrNoUpgradePath) {
 		return false
 	}
 	if cincinnati.IsCincinnatiVersionNotFoundError(err) {
@@ -101,35 +103,85 @@ func isRetryableVersionError(err error) bool {
 	return true
 }
 
-// HasZStreamUpgradePath checks if a newer z-stream version is available
-func HasZStreamUpgradePath(ctx context.Context, channelGroup string, version string) (hasUpgradePath bool, err error) {
-	candidates, err := GetAllVersionsInMinorStartingWith(ctx, channelGroup, version)
+// GetInstallVersionForZStreamUpgrade returns the initial cluster installVersion, and the targetVersion we
+// should expect the cluster to upgrade to during a z-stream upgrade.
+// It uses the input parameters channelGroup (e.g. "candidate", "stable") and configuredVersionID (x.y or x.y.z)
+// to query Cincinnati for valid upgrade paths.
+// When an upgrade path cannot be found, it returns the target version as the installVersion and
+// leaves the targetVersion as "" so that the caller can choose how to handle this scenario.
+func GetInstallVersionForZStreamUpgrade(
+	ctx context.Context,
+	channelGroup string,
+	configuredVersionID string,
+) (
+	installVersion string,
+	targetVersion string,
+	err error,
+) {
+	candidates, err := GetAllVersionsInMinorStartingWith(ctx, channelGroup, configuredVersionID)
 	if err != nil {
-		return false, err
+		return "", "", err
+	}
+	if len(candidates) == 0 {
+		return "", "", &cvocincinnati.Error{Reason: "VersionNotFound", Message: fmt.Sprintf("no versions found for %s", configuredVersionID)}
+	}
+	if len(candidates) == 1 {
+		return candidates[0].String(), "", nil
 	}
 
-	// nextMinorVersion := api.NextMinorReleaseLine(candidates[0])
-	// nextMinorStr := fmt.Sprintf("%d.%d", nextMinorVersion.Major, nextMinorVersion.Minor)
-	// maxVersion, err := GetLatestVersionInMinor(ctx, channelGroup, nextMinorStr)
-	// if err != nil {
-	// 	if !cincinnati.IsCincinnatiVersionNotFoundError(err) {
-	// 		return "", false, err
+	// Phase 1: If x.y+1 exists, set targetVersion to the latest z candidate in x.y with an upgrade path to x.y+1.zLatest
+	//          Else set targetVersion to candidates[0] (the latest candidate in the current minor)
+	targetIdx := 0
+	isNextMinorVersionAvailable := true
 
-	var numVersions int
-	for _, c := range candidates {
-		if len(c.Pre) == 0 { // skip pre-release versions
-			numVersions++
+	nextMinorVersion := api.NextMinorReleaseLine(candidates[0])
+	nextMinorStr := fmt.Sprintf("%d.%d", nextMinorVersion.Major, nextMinorVersion.Minor)
+	latestInNextMinor, err := GetLatestVersionInMinor(ctx, channelGroup, nextMinorStr)
+	if err != nil {
+		if cincinnati.IsCincinnatiVersionNotFoundError(err) {
+			isNextMinorVersionAvailable = false
+		} else {
+			return "", "", err
 		}
 	}
 
-	switch numVersions {
-	case 0:
-		return false, &cvocincinnati.Error{Reason: "VersionNotFound", Message: fmt.Sprintf("no versions found for %s", version)}
-	case 1: // only the current version was returned
-		return false, nil
-	default:
-		return true, nil
+	if isNextMinorVersionAvailable {
+		for i, candidate := range candidates {
+			_, err := GetShortestUpgradePath(ctx, channelGroup, candidate.String(), latestInNextMinor)
+			if err != nil {
+				if errors.Is(err, ErrNoUpgradePath) {
+					if i == len(candidates)-1 {
+						return "", "", fmt.Errorf("no candidates in %s contain an upgrade path to %s", configuredVersionID, latestInNextMinor)
+					}
+					continue
+				}
+				return "", "", err
+			}
+
+			targetIdx = i
+			break
+		}
 	}
+
+	targetVersion = candidates[targetIdx].String()
+
+	// Phase 2: find the latest z candidate in x.y with an upgrade path to targetVersion (if one exists)
+	for i := targetIdx + 1; i < len(candidates); i++ {
+		path, err := GetShortestUpgradePath(ctx, channelGroup, candidates[i].String(), targetVersion)
+		if err != nil {
+			if errors.Is(err, ErrNoUpgradePath) {
+				continue
+			}
+			return "", "", err
+		}
+		if len(path) > 1 {
+			return candidates[i].String(), targetVersion, nil
+		}
+	}
+
+	// No z candidate in x.y contains an upgrade path to targetVersion.
+	// Set the installVersion to targetVersion and set the target to "", implying no upgrade path exists.
+	return targetVersion, "", nil
 }
 
 // GetAllVersionsInMinorStartingWith returns all OpenShift versions in the same major.minor as the given version,
@@ -293,6 +345,148 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 		return out[i].LT(out[j])
 	})
 	return out, nil
+}
+
+// GetShortestUpgradePath returns the shortest upgrade path from fromVersion to toVersion as a
+// slice of versions in reverse order [toVersion, ..., fromVersion].
+//
+// Important: this function can only span at most one minor boundary at a time (e.g. 4.20 to 4.21).
+// This is because when the Cincinnati API is supplied a channel such as "candidate-4.21",
+// it only returns the upgrade graphs for the current and previous minor versions.
+//
+// Returns ErrNoUpgradePath if no path exists.
+func GetShortestUpgradePath(ctx context.Context, channelGroup string, fromVersion string, toVersion string) ([]string, error) {
+	return retryOnTransientError(ctx, func() ([]string, error) {
+		fromVer, err := semver.ParseTolerant(fromVersion)
+		if err != nil {
+			return nil, fmt.Errorf("parse fromVersion %q: %w", fromVersion, err)
+		}
+		toVer, err := semver.ParseTolerant(toVersion)
+		if err != nil {
+			return nil, fmt.Errorf("parse toVersion %q: %w", toVersion, err)
+		}
+		if fromVer.EQ(toVer) {
+			return []string{fromVersion}, nil
+		}
+
+		channel := fmt.Sprintf("%s-%d.%d", channelGroup, toVer.Major, toVer.Minor)
+		graphURL := fmt.Sprintf("https://api.openshift.com/api/upgrades_info/v1/graph?channel=%s", url.QueryEscape(channel))
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, graphURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("create graph request for %s: %w", channel, err)
+		}
+
+		client := &http.Client{Timeout: graphAPIRequestTimeout}
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("query graph for %s: %w", channel, err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			return nil, fmt.Errorf("query graph for %s returned %s: %s", channel, resp.Status, strings.TrimSpace(string(body)))
+		}
+
+		var payload struct {
+			Nodes []struct {
+				Version string `json:"version"`
+			} `json:"nodes"`
+			Edges [][]int `json:"edges"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			return nil, fmt.Errorf("decode graph response for %s: %w", channel, err)
+		}
+
+		// example payload:
+		// {
+		//   "nodes": [
+		//     { "version": "4.19.25" },   // index 0
+		//     { "version": "4.20.0" },    // index 1
+		//     { "version": "4.20.1" },    // index 2
+		//     { "version": "4.20.2" },    // index 3
+		//     { "version": "4.20.3" }     // index 4
+		//   ],
+		//   "edges": [[0,3],[0,4],[1,2],[1,3],[1,4],[2,3],[2,4],[3,4]]
+		// }
+		//
+		// "nodes" is a positional array. The index dictates the node's identity (nodes[0] is 4.19.25, nodes[3] is 4.20.2, etc.)
+		// "edges" are [from_index, to_index] pairs. [0, 3] means "you can upgrade from nodes[0] (4.19.25) to nodes[3] (4.20.2)."
+
+		// copy the nodes to a local array and keep track of the fromVersion and toVersion indices, e.g.:
+		// nodeArr = [4.19.25, 4.20.0, 4.20.1, 4.20.2, 4.20.3]
+		// fromIdx = 1 (4.20.0)
+		// toIdx = 4 (4.20.3)
+		nodeArr := make([]semver.Version, len(payload.Nodes))
+		fromIdx, toIdx := -1, -1
+		for i, node := range payload.Nodes {
+			version, parseErr := semver.ParseTolerant(node.Version)
+			if parseErr != nil {
+				return nil, fmt.Errorf("unparseable version %q at index %d: %w", node.Version, i, parseErr)
+			}
+			nodeArr[i] = version // 1-to-1 mapping
+			if version.EQ(fromVer) {
+				fromIdx = i
+			}
+			if version.EQ(toVer) {
+				toIdx = i
+			}
+		}
+		if fromIdx < 0 {
+			return nil, fmt.Errorf("%w: %s not found in channel %s", ErrNoUpgradePath, fromVersion, channel)
+		}
+		if toIdx < 0 {
+			return nil, fmt.Errorf("%w: %s not found in channel %s", ErrNoUpgradePath, toVersion, channel)
+		}
+
+		// convert the flat edge pairs into a map where the node index is the key and the target indices are the value, e.g.:
+		// edgesMap[0] = [3, 4]       // 4.19.25 -> 4.20.2, 4.20.3
+		// edgesMap[1] = [2, 3, 4]    // 4.20.0  -> 4.20.1, 4.20.2, 4.20.3
+		// edgesMap[2] = [3, 4]       // 4.20.1  -> 4.20.2, 4.20.3
+		// edgesMap[3] = [4]          // 4.20.2  -> 4.20.3
+		edgesMap := make(map[int][]int, len(payload.Edges))
+		for _, edge := range payload.Edges {
+			if len(edge) == 2 {
+				edgesMap[edge[0]] = append(edgesMap[edge[0]], edge[1])
+			}
+		}
+
+		// Breadth-First Search to find path from fromIdx to toIdx
+		found := false
+		queue := []int{fromIdx}
+		prev := make(map[int]int, len(nodeArr))
+		visited := make(map[int]bool, len(nodeArr))
+		visited[fromIdx] = true
+
+		for len(queue) > 0 {
+			curr := queue[0]
+			queue = queue[1:]
+			if curr == toIdx {
+				found = true
+				break
+			}
+			for _, next := range edgesMap[curr] {
+				if !visited[next] {
+					visited[next] = true
+					prev[next] = curr
+					queue = append(queue, next)
+				}
+			}
+		}
+
+		if !found {
+			return nil, fmt.Errorf("%w: no path from %s to %s in channel %s", ErrNoUpgradePath, fromVersion, toVersion, channel)
+		}
+
+		var path []string // toVersion is first, fromVersion is last
+		for idx := toIdx; idx != fromIdx; idx = prev[idx] {
+			path = append(path, nodeArr[idx].String())
+		}
+		path = append(path, nodeArr[fromIdx].String())
+
+		return path, nil
+	})
 }
 
 // GetVersionPairWithoutUpgradeEdge finds two versions A < B in the given minor where Cincinnati

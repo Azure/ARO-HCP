@@ -59,14 +59,15 @@ var _ = Describe("Customer", func() {
 			)
 			if nodePoolMinorVersion.EQ(targetMinorVersion) {
 				// z-stream: same y.z line — older patch on node pool, cluster on latest patch.
-				nodePoolInitialVersion = targetMinor + ".0"
-				hasUpgradePath, err = framework.HasZStreamUpgradePath(ctx, channelGroup, nodePoolInitialVersion)
+				installVersion, targetVersion, err := framework.GetInstallVersionForZStreamUpgrade(ctx, channelGroup, targetMinor)
 				if err != nil {
 					if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 						Skip(fmt.Sprintf("Cincinnati returned version not found for target minor %s on channel %s", targetMinor, channelGroup))
 					}
 					Expect(err).NotTo(HaveOccurred(), "failed to determine z-stream install version for minor %s", targetMinor)
 				}
+				nodePoolInitialVersion = installVersion
+				hasUpgradePath = targetVersion != ""
 
 				if !hasUpgradePath {
 					Skip(fmt.Sprintf("no z-stream upgrade path for minor %s on channel %s", targetMinor, channelGroup))

@@ -34,8 +34,7 @@ import (
 var _ = Describe("Service Provider", func() {
 	DescribeTable("should upgrade the control plane z-stream automatically on behalf of the customer",
 		labels.MIContainers(1),
-		func(ctx context.Context, minorVersion string, installVersion string) {
-
+		func(ctx context.Context, minorVersion string) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-zstream-"
 				customerVnetName                 = "customer-vnet-zstream-"
@@ -48,15 +47,15 @@ var _ = Describe("Service Provider", func() {
 			tc := framework.NewTestContext()
 
 			By("checking if z-stream upgrade path exists")
-			hasUpgradePath, err := framework.HasZStreamUpgradePath(ctx, "candidate", installVersion)
+			installVersion, targetVersion, err := framework.GetInstallVersionForZStreamUpgrade(ctx, "candidate", minorVersion)
 			if err != nil {
 				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("Cincinnati returned version not found for configured id %s (minor %s)", installVersion, minorVersion))
+					Skip(fmt.Sprintf("Cincinnati returned version not found for configured id %s", minorVersion))
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to get install version for z-stream upgrade of %s", minorVersion)
 			}
 
-			if !hasUpgradePath {
+			if targetVersion == "" {
 				Skip(fmt.Sprintf("the z-stream version %s is latest and has no z-stream upgrade path available on the candidate channel", installVersion))
 			}
 
@@ -131,16 +130,15 @@ var _ = Describe("Service Provider", func() {
 
 			By("verifying that only a z-stream upgrade was performed")
 			Eventually(func() error {
-				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion))
+				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion, targetVersion))
 			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 			GinkgoLogr.Info("z-stream upgrade verification passed", "installVersion", installVersion)
 		},
 
-		// starting from 4.19.0 triggers a KMS authentication issue during z-stream upgrade to 4.19.3, so start from 4.19.4 instead.
-		Entry("for 4.19", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.19", "4.19.4"),
-		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.20", "4.20.0"),
-		Entry("for 4.21", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21", "4.21.0"),
-		Entry("for 4.22", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22", "4.22.0"),
-		Entry("for 4.23", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.23", "4.23.0"),
+		Entry("for 4.19", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.19"),
+		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.20"),
+		Entry("for 4.21", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),
+		Entry("for 4.22", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22"),
+		Entry("for 4.23", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.23"),
 	)
 })
