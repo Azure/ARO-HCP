@@ -36,7 +36,7 @@ type HCPOpenShiftCluster struct {
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	// Written by: Frontend PUT/PATCH Cluster (Create/Update), IdentityMigration
 	Identity *arm.ManagedServiceIdentity `json:"identity,omitempty"`
-	// Written by: ClusterDegradedAggregator
+	// Written by: ClusterDegradedAggregator, ClusterRequirementsValidAggregator
 	Status HCPOpenShiftClusterStatus `json:"status"`
 }
 
@@ -60,6 +60,7 @@ type HCPOpenShiftClusterStatus struct {
 	// Addition of new conditions here should be done only when strictly necessary, sparingly and only done
 	// when there is a clear benefit to doing so. We expect the number of conditions at this
 	// level to be kept to a minimum.
+	// Written by: ClusterRequirementsValidAggregator
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
@@ -102,13 +103,13 @@ type HCPOpenShiftClusterCustomerProperties struct {
 type HCPOpenShiftClusterServiceProviderProperties struct {
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty"`
-	// PendingClusterServiceID will be written for our future transition.
+	// Written by: ClusterPendingClusterServiceIDAssign
 	PendingClusterServiceID *InternalID `json:"pendingClusterServiceID,omitempty"`
 	// Written by: Frontend PUT Cluster (Create), ClusterClusterServiceCreate, ClusterDeletionClusterServiceIDClearer
 	ClusterServiceID *InternalID `json:"clusterServiceID,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
 	ActiveOperationID string `json:"activeOperationId,omitempty"`
-	// Written by: Frontend POST RevokeCredentials, OperationRevokeCredentials
+	// Written by: Frontend POST RevokeCredentials, SystemAdminCredentialOperationRevokeCredentialsPoll
 	RevokeCredentialsOperationID string `json:"revokeCredentialsOperationId,omitempty"`
 	// Written by: ClusterPropertiesSync
 	DNS ServiceProviderDNSProfile `json:"dns,omitempty"`

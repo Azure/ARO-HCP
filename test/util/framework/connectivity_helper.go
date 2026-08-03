@@ -23,9 +23,10 @@ import (
 
 // TestHTTPSConnectivity attempts an HTTPS connection to the given URL.
 // Returns nil if the connection succeeds, or an error if it fails (DNS, timeout,
-// connection refused, etc.). TLS validation is skipped — this tests network
-// reachability, not certificate validity. Redirects are not followed.
-func TestHTTPSConnectivity(ctx context.Context, url string, timeout time.Duration) error {
+// connection refused, etc.). When insecureSkipVerify is true, TLS certificate
+// validation is skipped — useful for testing network reachability without
+// requiring valid certificates. Redirects are not followed.
+func TestHTTPSConnectivity(ctx context.Context, url string, timeout time.Duration, insecureSkipVerify bool) error {
 	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -34,11 +35,14 @@ func TestHTTPSConnectivity(ctx context.Context, url string, timeout time.Duratio
 		return err
 	}
 
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if insecureSkipVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // caller explicitly opted in
+	}
+
 	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
+		Timeout:   timeout,
+		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},

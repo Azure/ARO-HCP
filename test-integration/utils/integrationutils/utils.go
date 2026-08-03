@@ -35,7 +35,7 @@ import (
 	"k8s.io/utils/set"
 
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
+	operationcontrollers "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"

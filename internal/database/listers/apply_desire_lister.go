@@ -38,6 +38,14 @@ type ApplyDesireLister interface {
 	// containing NodePool identity and the desire's name.
 	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplier.ApplyDesire, error)
 
+	// GetForSystemAdminCredentialRequest fetches a single ApplyDesire nested under a
+	// SystemAdminCredentialRequest by the request's identity and the desire's name.
+	GetForSystemAdminCredentialRequest(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string) (*kubeapplier.ApplyDesire, error)
+
+	// GetForSystemAdminCredentialRevocation fetches a single ApplyDesire nested under a
+	// SystemAdminCredentialRevocation by the revocation's identity and the desire's name.
+	GetForSystemAdminCredentialRevocation(ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string) (*kubeapplier.ApplyDesire, error)
+
 	// ListForManagementCluster returns every ApplyDesire whose
 	// spec.managementCluster matches (case-insensitively). A nil
 	// managementClusterResourceID returns no results.
@@ -77,6 +85,24 @@ func (l *applyDesireLister) GetForNodePool(
 ) (*kubeapplier.ApplyDesire, error) {
 	key := kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
+	)
+	return getByKey[kubeapplier.ApplyDesire](l.indexer, key)
+}
+
+func (l *applyDesireLister) GetForSystemAdminCredentialRequest(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
+) (*kubeapplier.ApplyDesire, error) {
+	key := kubeapplier.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
+	)
+	return getByKey[kubeapplier.ApplyDesire](l.indexer, key)
+}
+
+func (l *applyDesireLister) GetForSystemAdminCredentialRevocation(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
+) (*kubeapplier.ApplyDesire, error) {
+	key := kubeapplier.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
 	return getByKey[kubeapplier.ApplyDesire](l.indexer, key)
 }

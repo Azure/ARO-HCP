@@ -195,6 +195,8 @@ defaults:
   customExporter:
     managedIdentityName: "aro-hcp-exporter"
     enabledCollectors: "service-tag-usage,kusto-logs-current"
+    clusterTypes: "svc-cluster,mgmt-cluster"
+    clusterNameFilter: ""
     k8s:
       namespace: aro-hcp-exporter
       serviceAccountName: aro-hcp-exporter
@@ -522,6 +524,7 @@ defaults:
         ipAddressTags: ""
     aks:
       name: "{{ .ctx.environment }}-{{ .ctx.region }}-svc-1" # [env-unique]
+      tags: "clusterType=svc-cluster,persist=true"
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
@@ -655,6 +658,7 @@ defaults:
       name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     aks:
       name: "{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
+      tags: "clusterType=mgmt-cluster,persist=true"
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
@@ -1664,6 +1668,8 @@ clouds:
                 secondaryNicCount: 7
       ci00:
         defaults:
+          customExporter:
+            clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1759,6 +1765,8 @@ clouds:
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
+          customExporter:
+            clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           auditLogsEventHub:
             enabled: true
           kusto:

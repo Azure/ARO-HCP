@@ -23,6 +23,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/internal/cluster"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
 	"github.com/Azure/ARO-HCP/tooling/metricscache"
@@ -45,18 +46,18 @@ var (
 
 // KustoLogsCurrentCollector is a Prometheus collector that gathers metrics from Kusto
 type KustoLogsCurrentCollector struct {
-	kustoClient  *kusto.Client
-	clusterNames []string
-	kustoCluster string
-	cache        *metricscache.Cache
-	lastRun      time.Time
-	errorCounter prometheus.Counter
+	kustoClient   *kusto.Client
+	clusterClient *cluster.ClusterDiscoveryPoller
+	kustoCluster  string
+	cache         *metricscache.Cache
+	lastRun       time.Time
+	errorCounter  prometheus.Counter
 }
 
 var _ CachingCollector = &KustoLogsCurrentCollector{}
 
 // NewKustoLogsCurrentCollector creates a new KustoLogsCurrentCollector
-func NewKustoLogsCurrentCollector(kustoCluster, kustoRegion string, clusterNames []string, cacheTTL time.Duration, errorCounter prometheus.Counter) (*KustoLogsCurrentCollector, error) {
+func NewKustoLogsCurrentCollector(kustoCluster, kustoRegion string, clusterClient *cluster.ClusterDiscoveryPoller, cacheTTL time.Duration, errorCounter prometheus.Counter) (*KustoLogsCurrentCollector, error) {
 
 	endpoint, err := kusto.KustoEndpoint(kustoCluster, kustoRegion)
 	if err != nil {
@@ -69,11 +70,11 @@ func NewKustoLogsCurrentCollector(kustoCluster, kustoRegion string, clusterNames
 	}
 
 	return &KustoLogsCurrentCollector{
-		kustoCluster: kustoCluster,
-		kustoClient:  kustoClient,
-		clusterNames: clusterNames,
-		cache:        metricscache.NewCache(cacheTTL),
-		errorCounter: errorCounter,
+		kustoCluster:  kustoCluster,
+		kustoClient:   kustoClient,
+		clusterClient: clusterClient,
+		cache:         metricscache.NewCache(cacheTTL),
+		errorCounter:  errorCounter,
 	}, nil
 }
 
@@ -98,7 +99,8 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 		logger.V(1).Info("Skipping Kusto logs collection", "lastRun", c.lastRun, "startTime", startTime)
 		return
 	}
-	for _, clusterName := range c.clusterNames {
+	clusterNames := c.clusterClient.GetDiscoverResult(ctx)
+	for _, clusterName := range clusterNames.ClusterNames {
 		logger.V(1).Info("Collecting Kusto logs age in seconds", "cluster", clusterName)
 
 		queryClient := mustgather.NewQueryClientWithFileWriter(c.kustoClient, KustoLogsCurrentQueryTimeout, "", nil)

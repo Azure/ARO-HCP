@@ -79,12 +79,12 @@ func NewFleetDBClientFromContainer(container *azcosmos.ContainerClient) FleetDBC
 	return &cosmosFleetDBClient{container: container}
 }
 
-func (c *cosmosFleetDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
-	return c.container.GetChangeFeed(ctx, options)
+func (c *cosmosFleetDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	return c.container.ReadChangeFeed(ctx, options)
 }
 
-func (c *cosmosFleetDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
-	return c.container.GetFeedRanges(ctx)
+func (c *cosmosFleetDBClient) ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error) {
+	return c.container.ReadFeedRanges(ctx, options)
 }
 
 func (c *cosmosFleetDBClient) Stamps() StampsCRUD {

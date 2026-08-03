@@ -172,7 +172,7 @@ var _ = Describe("Customer", func() {
 			}, 10*time.Minute, 15*time.Second).Should(Succeed())
 
 			By("verifying ingress is NOT reachable from outside the VNet")
-			err = framework.TestHTTPSConnectivity(ctx, appURL, 10*time.Second)
+			err = framework.TestHTTPSConnectivity(ctx, appURL, 10*time.Second, true)
 			Expect(err).To(HaveOccurred(),
 				"private ingress should not be reachable from outside the VNet, but connection succeeded")
 			GinkgoLogr.Info("Confirmed ingress is not reachable from outside the VNet")

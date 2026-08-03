@@ -67,7 +67,7 @@ The infra template provisions:
 - A workload Key Vault for app secrets.
 - A dedicated Azure Monitor Workspace for the cluster.
 - Data collection resources for Prometheus remote write into Azure Monitor.
-- A shared email Action Group for alert notifications.
+- A shared PagerDuty Action Group for alert notifications.
 - Shared user-assigned managed identities already used by the cluster, such as `opstool`, `prometheus`, and `tenant-quota`.
 
 The output template `dev-infrastructure/templates/output-opstool-cluster.bicep` exposes the shared values that child workload pipelines consume, including:
@@ -103,7 +103,7 @@ Observability in `opstool` is intentionally simple:
 - In-cluster Prometheus is deployed by the infra pipeline.
 - Prometheus remote writes metrics into the standalone `opstool` Azure Monitor Workspace.
 - Alerting is defined in Azure Monitor Prometheus rule groups, not in-cluster `PrometheusRule` objects.
-- All workloads share the `opstool-email-alerts` Action Group for notifications.
+- The tenant-quota alert deployment uses the shared `opstool-pagerduty` Action Group for low-urgency incident management and Slack notifications.
 
 When adding workload monitoring:
 

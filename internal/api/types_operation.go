@@ -32,8 +32,8 @@ const (
 	OperationRequestDelete OperationRequest = "Delete"
 
 	// These are for POST actions on resources.
-	OperationRequestRequestCredential OperationRequest = "RequestCredential"
-	OperationRequestRevokeCredentials OperationRequest = "RevokeCredentials"
+	OperationRequestSystemAdminCredentialRequest    OperationRequest = "RequestCredential"
+	OperationRequestSystemAdminCredentialRevocation OperationRequest = "RevokeCredentials"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -92,6 +92,24 @@ type Operation struct {
 	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
 	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
+
+	// Written by: Frontend POST requestAdminCredential, backend systemadmincredentialcontrollers
+	SystemAdminCredentialRequest *OperationSystemAdminCredentialRequest `json:"systemAdminCredentialRequest,omitempty"`
+	// Written by: Frontend POST revokeCredentials, backend systemadmincredentialcontrollers
+	SystemAdminCredentialRevocation *OperationSystemAdminCredentialRevocation `json:"systemAdminCredentialRevocation,omitempty"`
+}
+
+// OperationSystemAdminCredentialRequest groups state for the admin credential
+// request lifecycle on an Operation document.
+type OperationSystemAdminCredentialRequest struct {
+	CertificateSigningRequest              string                `json:"certificateSigningRequest,omitempty"`
+	SystemAdminCredentialRequestResourceID *azcorearm.ResourceID `json:"systemAdminCredentialRequestResourceID,omitempty"`
+}
+
+// OperationSystemAdminCredentialRevocation groups state for the admin credential
+// revocation lifecycle on an Operation document.
+type OperationSystemAdminCredentialRevocation struct {
+	SystemAdminCredentialRevocationResourceID *azcorearm.ResourceID `json:"systemAdminCredentialRevocationResourceID,omitempty"`
 }
 
 func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {

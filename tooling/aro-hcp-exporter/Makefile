@@ -1,5 +1,6 @@
 -include ../../setup-env.mk
 -include ../../setup-templatize-env.mk
+-include ../../.bingo/Variables.mk
 
 SHELL = /bin/bash
 
@@ -41,12 +42,43 @@ clean:
 .PHONY: clean
 
 image: Dockerfile Makefile
-	$(CONTAINER_ENGINE) build .. --file Dockerfile \
+	$(CONTAINER_ENGINE) build ../ --file Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--tag ${ARO_HCP_EXPORTER_TAGGED_IMAGE}
 .PHONY: image
 
-build-and-push: image
+build-and-push: image $(ORAS) $(YQ)
 	$(acr-login)
-	$(CONTAINER_ENGINE) push ${ARO_HCP_EXPORTER_TAGGED_IMAGE}
+	@LOCAL_DIGEST=$$($(CONTAINER_ENGINE) image inspect --format '{{.Id}}' ${ARO_HCP_EXPORTER_TAGGED_IMAGE} | sed 's/sha256://'); \
+	REMOTE_DIGEST=$$($(ORAS) manifest fetch ${ARO_HCP_EXPORTER_TAGGED_IMAGE} 2>/dev/null | $(YQ) .config.digest | sed 's/sha256://'); \
+	if [ "$$LOCAL_DIGEST" = "$$REMOTE_DIGEST" ]; then \
+		echo "Image ${ARO_HCP_EXPORTER_TAGGED_IMAGE} already up to date in registry, skipping push"; \
+	else \
+	    echo "pushing image to registry"; \
+		$(CONTAINER_ENGINE) push ${ARO_HCP_EXPORTER_TAGGED_IMAGE}; \
+	fi
 .PHONY: build-and-push
+
+MAKE_RUN_TS := $(shell date +%s)
+OVERRIDE_CONFIG_FILE ?= /tmp/aro-hcp-exporter-override-config-$(MAKE_RUN_TS).yaml
+
+record-override: $(YQ) $(ORAS)
+	@az acr login --name ${ARO_HCP_IMAGE_ACR} --expose-token --output tsv --query accessToken | \
+	$(ORAS) login ${ARO_HCP_IMAGE_REGISTRY} \
+		--username 00000000-0000-0000-0000-000000000000 \
+		--password-stdin
+
+	@DIGEST=$$($(ORAS) manifest fetch --descriptor ${ARO_HCP_EXPORTER_TAGGED_IMAGE} | $(YQ) .digest); \
+	$(YQ) eval -n "\
+		.clouds.dev.environments.$(DEPLOY_ENV).defaults.customExporter.image.registry = \"$(ARO_HCP_IMAGE_REGISTRY)\" | \
+		.clouds.dev.environments.$(DEPLOY_ENV).defaults.customExporter.image.repository = \"$(ARO_HCP_EXPORTER_GENERATED_IMAGE_REPOSITORY)\" | \
+		.clouds.dev.environments.$(DEPLOY_ENV).defaults.customExporter.image.digest = \"$$DIGEST\" \
+	" > $(OVERRIDE_CONFIG_FILE)
+.PHONY: record-override
+
+record-latest-override: $(YQ)
+	@../../hack/record-latest-image-override.sh \
+		"$(ARO_HCP_IMAGE_ACR)" "$(ARO_HCP_IMAGE_REGISTRY)" \
+		"$(ARO_HCP_EXPORTER_GENERATED_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
+		"customExporter" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
+.PHONY: record-latest-override

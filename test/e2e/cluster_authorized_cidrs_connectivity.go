@@ -146,7 +146,7 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("testing connectivity from current machine (should be blocked)")
 				// Try to connect from the test runner (which is not in authorized CIDRs)
-				err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 5*time.Second)
+				err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 5*time.Second, true)
 				Expect(err).To(HaveOccurred(), "Connection from unauthorized IP should be blocked")
 				GinkgoWriter.Printf("Connection from unauthorized IP address failed as expected on error: %v\n", err)
 

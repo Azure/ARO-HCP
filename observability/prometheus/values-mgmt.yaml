@@ -128,6 +128,14 @@ kube-prometheus-stack:
                   path: [status, conditions, "[type=Progressing]", status]
                   labelName: status
                   list: ["True", "False", "Unknown"]
+            - name: "valid_azure_kms_config"
+              help: "Azure KMS configuration validity condition"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, conditions, "[type=ValidAzureKMSConfig]", status]
+                  labelName: status
+                  list: ["True", "False", "Unknown"]
 # this is our own config for the files in templates/
 prometheusSpec:
   image:

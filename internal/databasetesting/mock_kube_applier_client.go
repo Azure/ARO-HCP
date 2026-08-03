@@ -156,6 +156,30 @@ func (m *MockKubeApplierDBClient) ApplyDesiresForNodePool(
 	), nil
 }
 
+func (m *MockKubeApplierDBClient) ApplyDesiresForSystemAdminCredentialRequest(
+	subscriptionID, resourceGroupName, clusterName, credentialRequestName string,
+) (database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+	parentID, err := api.ToSystemAdminCredentialRequestResourceID(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+	if err != nil {
+		return nil, err
+	}
+	return newMockResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, database.GenericDocument[kubeapplier.ApplyDesire]](
+		m, parentID, kubeapplier.SystemAdminCredentialRequestScopedApplyDesireResourceType,
+	), nil
+}
+
+func (m *MockKubeApplierDBClient) ApplyDesiresForSystemAdminCredentialRevocation(
+	subscriptionID, resourceGroupName, clusterName, revocationName string,
+) (database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+	parentID, err := api.ToSystemAdminCredentialRevocationResourceID(subscriptionID, resourceGroupName, clusterName, revocationName)
+	if err != nil {
+		return nil, err
+	}
+	return newMockResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, database.GenericDocument[kubeapplier.ApplyDesire]](
+		m, parentID, kubeapplier.SystemAdminCredentialRevocationScopedApplyDesireResourceType,
+	), nil
+}
+
 func (m *MockKubeApplierDBClient) ReadDesiresForCluster(
 	subscriptionID, resourceGroupName, clusterName string,
 ) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
@@ -180,6 +204,30 @@ func (m *MockKubeApplierDBClient) ReadDesiresForNodePool(
 	), nil
 }
 
+func (m *MockKubeApplierDBClient) ReadDesiresForSystemAdminCredentialRequest(
+	subscriptionID, resourceGroupName, clusterName, credentialRequestName string,
+) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+	parentID, err := api.ToSystemAdminCredentialRequestResourceID(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+	if err != nil {
+		return nil, err
+	}
+	return newMockResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, database.GenericDocument[kubeapplier.ReadDesire]](
+		m, parentID, kubeapplier.SystemAdminCredentialRequestScopedReadDesireResourceType,
+	), nil
+}
+
+func (m *MockKubeApplierDBClient) ReadDesiresForSystemAdminCredentialRevocation(
+	subscriptionID, resourceGroupName, clusterName, revocationName string,
+) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+	parentID, err := api.ToSystemAdminCredentialRevocationResourceID(subscriptionID, resourceGroupName, clusterName, revocationName)
+	if err != nil {
+		return nil, err
+	}
+	return newMockResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, database.GenericDocument[kubeapplier.ReadDesire]](
+		m, parentID, kubeapplier.SystemAdminCredentialRevocationScopedReadDesireResourceType,
+	), nil
+}
+
 func (m *MockKubeApplierDBClient) Listers() database.KubeApplierListers {
 	return &mockKubeApplierListers{store: m}
 }
@@ -188,16 +236,16 @@ func (m *MockKubeApplierDBClient) UntypedCRUD(parentResourceID azcorearm.Resourc
 	return &mockKubeApplierUntypedCRUD{store: m, parentResourceID: parentResourceID}, nil
 }
 
-func (m *MockKubeApplierDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+func (m *MockKubeApplierDBClient) ReadChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
 	var continuation string
 	if options != nil && options.Continuation != nil {
 		continuation = *options.Continuation
 	}
-	docs, nextToken, hasNew := m.changeFeed.read(continuation)
-	return buildMockChangeFeedResponse(docs, nextToken, hasNew), nil
+	items, nextToken, hasNew := m.changeFeed.read(continuation)
+	return buildMockChangeFeedResponse(items, nextToken, hasNew), nil
 }
 
-func (m *MockKubeApplierDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+func (m *MockKubeApplierDBClient) ReadFeedRanges(ctx context.Context, options *azcosmos.FeedRangesOptions) ([]azcosmos.FeedRange, error) {
 	return []azcosmos.FeedRange{mockChangeFeedFeedRange}, nil
 }
 
@@ -215,6 +263,8 @@ func (g *mockKubeApplierListers) ApplyDesires() database.GlobalLister[kubeapplie
 		resourceTypes: []azcorearm.ResourceType{
 			kubeapplier.ClusterScopedApplyDesireResourceType,
 			kubeapplier.NodePoolScopedApplyDesireResourceType,
+			kubeapplier.SystemAdminCredentialRequestScopedApplyDesireResourceType,
+			kubeapplier.SystemAdminCredentialRevocationScopedApplyDesireResourceType,
 		},
 	}
 }
@@ -225,6 +275,8 @@ func (g *mockKubeApplierListers) ReadDesires() database.GlobalLister[kubeapplier
 		resourceTypes: []azcorearm.ResourceType{
 			kubeapplier.ClusterScopedReadDesireResourceType,
 			kubeapplier.NodePoolScopedReadDesireResourceType,
+			kubeapplier.SystemAdminCredentialRequestScopedReadDesireResourceType,
+			kubeapplier.SystemAdminCredentialRevocationScopedReadDesireResourceType,
 		},
 	}
 }
@@ -334,15 +386,20 @@ func (m *MockKubeApplierDBClient) addResource(ctx context.Context, resource any)
 }
 
 func (m *MockKubeApplierDBClient) addApplyDesire(ctx context.Context, d *kubeapplier.ApplyDesire) error {
-	subscriptionID, resourceGroupName, clusterName, nodePoolName, err := parentForKubeApplierDesire(d.GetResourceID())
+	scope, err := parentForKubeApplierDesire(d.GetResourceID())
 	if err != nil {
 		return err
 	}
 	var crud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire]
-	if len(nodePoolName) != 0 {
-		crud, err = m.ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
-	} else {
-		crud, err = m.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
+	switch {
+	case len(scope.nodePoolName) != 0:
+		crud, err = m.ApplyDesiresForNodePool(scope.subscriptionID, scope.resourceGroupName, scope.clusterName, scope.nodePoolName)
+	case len(scope.credentialRequestName) != 0:
+		crud, err = m.ApplyDesiresForSystemAdminCredentialRequest(scope.subscriptionID, scope.resourceGroupName, scope.clusterName, scope.credentialRequestName)
+	case len(scope.revocationName) != 0:
+		crud, err = m.ApplyDesiresForSystemAdminCredentialRevocation(scope.subscriptionID, scope.resourceGroupName, scope.clusterName, scope.revocationName)
+	default:
+		crud, err = m.ApplyDesiresForCluster(scope.subscriptionID, scope.resourceGroupName, scope.clusterName)
 	}
 	if err != nil {
 		return err
@@ -352,15 +409,20 @@ func (m *MockKubeApplierDBClient) addApplyDesire(ctx context.Context, d *kubeapp
 }
 
 func (m *MockKubeApplierDBClient) addReadDesire(ctx context.Context, d *kubeapplier.ReadDesire) error {
-	subscriptionID, resourceGroupName, clusterName, nodePoolName, err := parentForKubeApplierDesire(d.GetResourceID())
+	scope, err := parentForKubeApplierDesire(d.GetResourceID())
 	if err != nil {
 		return err
 	}
 	var crud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire]
-	if len(nodePoolName) != 0 {
-		crud, err = m.ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
-	} else {
-		crud, err = m.ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
+	switch {
+	case len(scope.nodePoolName) != 0:
+		crud, err = m.ReadDesiresForNodePool(scope.subscriptionID, scope.resourceGroupName, scope.clusterName, scope.nodePoolName)
+	case len(scope.credentialRequestName) != 0:
+		crud, err = m.ReadDesiresForSystemAdminCredentialRequest(scope.subscriptionID, scope.resourceGroupName, scope.clusterName, scope.credentialRequestName)
+	case len(scope.revocationName) != 0:
+		crud, err = m.ReadDesiresForSystemAdminCredentialRevocation(scope.subscriptionID, scope.resourceGroupName, scope.clusterName, scope.revocationName)
+	default:
+		crud, err = m.ReadDesiresForCluster(scope.subscriptionID, scope.resourceGroupName, scope.clusterName)
 	}
 	if err != nil {
 		return err
@@ -369,29 +431,74 @@ func (m *MockKubeApplierDBClient) addReadDesire(ctx context.Context, d *kubeappl
 	return err
 }
 
+// kubeApplierDesireScope holds the parent field names parsed out of a *Desire's
+// resource ID. Exactly one of nodePoolName / credentialRequestName /
+// revocationName is set for a nested desire; all three are empty for a
+// cluster-scoped desire.
+type kubeApplierDesireScope struct {
+	subscriptionID        string
+	resourceGroupName     string
+	clusterName           string
+	nodePoolName          string
+	credentialRequestName string
+	revocationName        string
+}
+
 // parentForKubeApplierDesire splits a *Desire's resource ID into the parent
-// field names (subscriptionID, resourceGroupName, clusterName, nodePoolName).
-// nodePoolName is empty for cluster-scoped desires.
-func parentForKubeApplierDesire(resourceID *azcorearm.ResourceID) (subscriptionID, resourceGroupName, clusterName, nodePoolName string, err error) {
+// field names that identify which CRUD scope owns it.
+func parentForKubeApplierDesire(resourceID *azcorearm.ResourceID) (kubeApplierDesireScope, error) {
 	if resourceID == nil {
-		return "", "", "", "", fmt.Errorf("resource ID is nil")
+		return kubeApplierDesireScope{}, fmt.Errorf("resource ID is nil")
 	}
 	if resourceID.Parent == nil {
-		return "", "", "", "", fmt.Errorf("desire %q has no parent in its resource ID", resourceID.String())
+		return kubeApplierDesireScope{}, fmt.Errorf("desire %q has no parent in its resource ID", resourceID.String())
 	}
 	parentType := resourceID.Parent.ResourceType
 	switch {
 	case armhelpers.ResourceTypeEqual(parentType, api.ClusterResourceType):
-		return resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Parent.Name, "", nil
+		return kubeApplierDesireScope{
+			subscriptionID:    resourceID.SubscriptionID,
+			resourceGroupName: resourceID.ResourceGroupName,
+			clusterName:       resourceID.Parent.Name,
+		}, nil
 	case armhelpers.ResourceTypeEqual(parentType, api.NodePoolResourceType):
 		if resourceID.Parent.Parent == nil {
-			return "", "", "", "", fmt.Errorf(
+			return kubeApplierDesireScope{}, fmt.Errorf(
 				"nodepool-scoped desire %q has no grandparent cluster", resourceID.String(),
 			)
 		}
-		return resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Parent.Parent.Name, resourceID.Parent.Name, nil
+		return kubeApplierDesireScope{
+			subscriptionID:    resourceID.SubscriptionID,
+			resourceGroupName: resourceID.ResourceGroupName,
+			clusterName:       resourceID.Parent.Parent.Name,
+			nodePoolName:      resourceID.Parent.Name,
+		}, nil
+	case armhelpers.ResourceTypeEqual(parentType, api.SystemAdminCredentialRequestResourceType):
+		if resourceID.Parent.Parent == nil {
+			return kubeApplierDesireScope{}, fmt.Errorf(
+				"credential-request-scoped desire %q has no grandparent cluster", resourceID.String(),
+			)
+		}
+		return kubeApplierDesireScope{
+			subscriptionID:        resourceID.SubscriptionID,
+			resourceGroupName:     resourceID.ResourceGroupName,
+			clusterName:           resourceID.Parent.Parent.Name,
+			credentialRequestName: resourceID.Parent.Name,
+		}, nil
+	case armhelpers.ResourceTypeEqual(parentType, api.SystemAdminCredentialRevocationResourceType):
+		if resourceID.Parent.Parent == nil {
+			return kubeApplierDesireScope{}, fmt.Errorf(
+				"revocation-scoped desire %q has no grandparent cluster", resourceID.String(),
+			)
+		}
+		return kubeApplierDesireScope{
+			subscriptionID:    resourceID.SubscriptionID,
+			resourceGroupName: resourceID.ResourceGroupName,
+			clusterName:       resourceID.Parent.Parent.Name,
+			revocationName:    resourceID.Parent.Name,
+		}, nil
 	}
-	return "", "", "", "", fmt.Errorf(
+	return kubeApplierDesireScope{}, fmt.Errorf(
 		"unsupported parent resource type for kube-applier desire: %s", parentType,
 	)
 }

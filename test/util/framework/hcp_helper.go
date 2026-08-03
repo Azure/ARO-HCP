@@ -20,13 +20,15 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -162,36 +164,6 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 	return nil
 }
 
-// CreateTestDockerConfigSecret creates a Docker config secret for testing pull secret functionality
-func CreateTestDockerConfigSecret(host, username, password, email, secretName, namespace string) (*corev1.Secret, error) {
-	auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
-
-	dockerConfig := DockerConfigJSON{
-		Auths: map[string]RegistryAuth{
-			host: {
-				Email: email,
-				Auth:  auth,
-			},
-		},
-	}
-
-	dockerConfigJSON, err := json.Marshal(dockerConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal docker config: %w", err)
-	}
-
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: namespace,
-		},
-		Type: corev1.SecretTypeDockerConfigJson,
-		Data: map[string][]byte{
-			corev1.DockerConfigJsonKey: dockerConfigJSON,
-		},
-	}, nil
-}
-
 // Helper to generate SSH key pair
 func GenerateSSHKeyPair() (publicKey string, privateKey string, err error) {
 	// Generate RSA key pair
@@ -315,4 +287,29 @@ func HasNodeTaint(nodes []corev1.Node, key, value string, effect corev1.TaintEff
 	}
 
 	return count == expectedCount[0]
+}
+
+// GetTestRunnerPublicIP returns the public IP address of the test runner by
+// querying a public IP echo service. The IP can be used to add the test
+// runner to an HCP cluster's authorized CIDR list so that framework helpers
+// can reach the Kubernetes API server directly.
+func GetTestRunnerPublicIP(ctx context.Context) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://checkip.amazonaws.com", nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to build public IP echo request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to query public IP echo service: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read public IP echo response: %w", err)
+	}
+	ip := strings.TrimSpace(string(body))
+	if net.ParseIP(ip) == nil {
+		return "", fmt.Errorf("public IP echo service returned invalid IP %q", ip)
+	}
+	return ip, nil
 }

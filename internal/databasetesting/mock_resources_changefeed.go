@@ -33,16 +33,16 @@ import (
 // as Replace operations) ARE recorded via StoreDocument.
 type mockChangeFeed struct {
 	mu     sync.Mutex
-	events []json.RawMessage
+	events [][]byte
 }
 
 // record appends a copy of data to the log. The copy isolates the
 // feed's history from any caller-side mutation of the underlying
 // byte slice.
-func (m *mockChangeFeed) record(data json.RawMessage) {
+func (m *mockChangeFeed) record(data []byte) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	cp := make(json.RawMessage, len(data))
+	cp := make([]byte, len(data))
 	copy(cp, data)
 	m.events = append(m.events, cp)
 }
@@ -51,7 +51,7 @@ func (m *mockChangeFeed) record(data json.RawMessage) {
 // (0 if blank/unparseable) and the next position token to hand back
 // to the consumer. hasNew tells the caller whether to report 200 OK
 // or 304 Not Modified upstream.
-func (m *mockChangeFeed) read(continuation string) (docs []json.RawMessage, nextToken string, hasNew bool) {
+func (m *mockChangeFeed) read(continuation string) (items [][]byte, nextToken string, hasNew bool) {
 	start := decodeMockChangeFeedPosition(continuation)
 
 	m.mu.Lock()
@@ -61,7 +61,7 @@ func (m *mockChangeFeed) read(continuation string) (docs []json.RawMessage, next
 		return nil, strconv.Itoa(start), false
 	}
 
-	out := make([]json.RawMessage, len(m.events)-start)
+	out := make([][]byte, len(m.events)-start)
 	copy(out, m.events[start:])
 	return out, strconv.Itoa(len(m.events)), true
 }
@@ -111,7 +111,7 @@ func decodeMockChangeFeedPosition(s string) int {
 // call to GetCompositeContinuationToken — by populating ResourceID,
 // FeedRange, and the response ETag (which the SDK threads into the
 // composite token).
-func buildMockChangeFeedResponse(docs []json.RawMessage, nextToken string, hasNew bool) azcosmos.ChangeFeedResponse {
+func buildMockChangeFeedResponse(items [][]byte, nextToken string, hasNew bool) azcosmos.ChangeFeedResponse {
 	status := http.StatusNotModified
 	if hasNew {
 		status = http.StatusOK
@@ -119,7 +119,7 @@ func buildMockChangeFeedResponse(docs []json.RawMessage, nextToken string, hasNe
 	fr := mockChangeFeedFeedRange
 	return azcosmos.ChangeFeedResponse{
 		ResourceID: "mock-resources-container",
-		Documents:  docs,
+		Items:      items,
 		FeedRange:  &fr,
 		Response: azcosmos.Response{
 			RawResponse: &http.Response{StatusCode: status},

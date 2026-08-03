@@ -83,7 +83,7 @@ import (
 //     handle normalization in nodePoolUpdateDispatchConfigsForDiff and wire effective desired
 //     comparison helpers for operation state if needed.
 //
-// 2. Operation state wiring (backend/pkg/controllers/operationcontrollers/operation_node_pool_update.go)
+// 2. Operation state wiring (backend/pkg/controllers/nodepool/operations/operation_node_pool_update.go)
 //
 //	determineOperationState aggregates several sources and picks the worst state. Your new
 //	check must succeed along with version resolution, CS checks and Hypershift checks.

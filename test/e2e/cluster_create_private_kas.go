@@ -23,13 +23,13 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
-// This test creates a cluster with private KAS (api.visibility: Private) using
-// the v2026-06-30-preview API and verifies that:
+// This test creates a cluster with private KAS (api.visibility: Private) and
+// verifies that:
 //   - The Kubernetes API server is only reachable from within the VNet
 //   - The default ingress remains public (independence of KAS and ingress visibility)
 var _ = Describe("Customer", func() {
@@ -58,7 +58,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for private KAS test")
 
 			By("creating cluster parameters with private API visibility")
-			clusterParams := framework.NewDefaultClusterParams20260630()
+			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.APIVisibility = "Private"
@@ -66,7 +66,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.OpenshiftVersionId = "4.22"
 
 			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources20260630(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -79,8 +79,8 @@ var _ = Describe("Customer", func() {
 			vmName, _, err := tc.DeployTestVM(ctx, TestArtifactsFS, *resourceGroup.Name, customerClusterName, clusterParams.VnetName, clusterParams.SubnetName)
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM for private KAS verification")
 
-			By("creating the HCP cluster with private KAS via v20260630preview")
-			err = tc.CreateHCPClusterFromParam20260630(ctx,
+			By("creating the HCP cluster with private KAS")
+			err = tc.CreateHCPClusterFromParam20251223(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -89,9 +89,9 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with private KAS", customerClusterName)
 
-			By("verifying cluster API visibility is Private and ingress is Public via ARM GET")
-			clientFactory := tc.Get20260630ClientFactoryOrDie(ctx)
-			cluster, err := clientFactory.NewHcpOpenShiftClustersClient().Get(
+			By("verifying cluster API visibility is Private via ARM GET")
+			hcpClient := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			cluster, err := hcpClient.Get(
 				ctx,
 				*resourceGroup.Name,
 				customerClusterName,
@@ -99,27 +99,21 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get cluster %q to verify private KAS", customerClusterName)
 			Expect(cluster.Properties).ToNot(BeNil(), "cluster %q Properties was nil", customerClusterName)
-
 			Expect(cluster.Properties.API).ToNot(BeNil(), "cluster %q Properties.API was nil", customerClusterName)
 			Expect(cluster.Properties.API.Visibility).ToNot(BeNil(), "cluster %q Properties.API.Visibility was nil", customerClusterName)
-			Expect(*cluster.Properties.API.Visibility).To(Equal(hcpsdk20260630preview.VisibilityPrivate),
+			Expect(*cluster.Properties.API.Visibility).To(Equal(hcpsdk20251223preview.VisibilityPrivate),
 				"cluster %q API visibility should be Private", customerClusterName)
 			Expect(cluster.Properties.API.URL).ToNot(BeNil(), "cluster %q Properties.API.URL was nil", customerClusterName)
 			apiURL := *cluster.Properties.API.URL
 			GinkgoLogr.Info("Cluster created with private KAS", "clusterName", customerClusterName, "apiURL", apiURL)
 
-			Expect(cluster.Properties.Ingress).ToNot(BeNil(), "cluster %q Properties.Ingress was nil", customerClusterName)
-			Expect(cluster.Properties.Ingress.Type).ToNot(BeNil(), "cluster %q Properties.Ingress.Type was nil", customerClusterName)
-			Expect(*cluster.Properties.Ingress.Type).To(Equal(hcpsdk20260630preview.IngressTypePublic),
-				"cluster %q ingress type should be Public (private KAS must not affect ingress)", customerClusterName)
-
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20260630()
+			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(1)
 
-			err = tc.CreateNodePoolFromParam20260630(ctx,
+			err = tc.CreateNodePoolFromParam20251223(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams.ManagedResourceGroupName,
@@ -168,7 +162,7 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("KAS is reachable from VM inside VNet", "output", versionOutput)
 
 			By("verifying KAS is NOT reachable from outside the VNet")
-			err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second)
+			err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second, true)
 			Expect(err).To(HaveOccurred(),
 				"private KAS should not be reachable from outside the VNet, but connection to %s succeeded", apiURL)
 			GinkgoLogr.Info("Confirmed KAS is not reachable from outside the VNet", "error", err)
@@ -178,7 +172,6 @@ var _ = Describe("Customer", func() {
 			// and served through the default ingress router. If the console
 			// URL is reachable from outside the VNet, it proves the default
 			// ingress is public — independent of private KAS.
-			hcpClient := clientFactory.NewHcpOpenShiftClustersClient()
 			var consoleURL string
 			Eventually(func(g Gomega) {
 				resp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
@@ -191,7 +184,7 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("Console URL available", "url", consoleURL)
 
 			Eventually(func(g Gomega) {
-				err := framework.TestHTTPSConnectivity(ctx, consoleURL, 10*time.Second)
+				err := framework.TestHTTPSConnectivity(ctx, consoleURL, 10*time.Second, true)
 				g.Expect(err).NotTo(HaveOccurred(),
 					"public ingress (console) should be reachable from outside the VNet for private KAS cluster, but got error: %v", err)
 			}, 10*time.Minute, 15*time.Second).Should(Succeed(),

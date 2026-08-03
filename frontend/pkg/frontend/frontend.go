@@ -318,7 +318,7 @@ func (f *Frontend) GetOpenshiftVersions(writer http.ResponseWriter, request *htt
 }
 
 func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseWriter, request *http.Request) error {
-	const operationRequest = database.OperationRequestRequestCredential
+	const operationRequest = database.OperationRequestSystemAdminCredentialRequest
 
 	ctx := request.Context()
 
@@ -381,7 +381,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 }
 
 func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter, request *http.Request) error {
-	const operationRequest = database.OperationRequestRevokeCredentials
+	const operationRequest = database.OperationRequestSystemAdminCredentialRevocation
 
 	ctx := request.Context()
 	logger := utils.LoggerFromContext(ctx)
@@ -442,7 +442,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	// Just as deleting an ARM resource cancels any other operations on the resource,
 	// revoking credentials cancels any credential requests in progress.
 	operationsToCancel, err := database.CancelActiveOperations(ctx, f.resourcesDBClient, transaction, &database.ResourcesDBClientListActiveOperationDocsOptions{
-		Request:    api.Ptr(database.OperationRequestRequestCredential),
+		Request:    api.Ptr(database.OperationRequestSystemAdminCredentialRequest),
 		ExternalID: clusterResourceID,
 	})
 	if err != nil {
@@ -1011,9 +1011,9 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	case database.OperationRequestDelete:
 		writer.WriteHeader(http.StatusNoContent)
 		return nil
-	case database.OperationRequestRequestCredential:
+	case database.OperationRequestSystemAdminCredentialRequest:
 		successStatusCode = http.StatusOK
-	case database.OperationRequestRevokeCredentials:
+	case database.OperationRequestSystemAdminCredentialRevocation:
 		writer.WriteHeader(http.StatusNoContent)
 		return nil
 	default:

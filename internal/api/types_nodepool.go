@@ -39,7 +39,7 @@ type HCPOpenShiftClusterNodePool struct {
 	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePool* controllers, NodePoolClusterServiceCreate, NodePoolDeletion* controllers
 	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
-	// Written by: NodePoolDegradedAggregator
+	// Written by: NodePoolDegradedAggregator, NodePoolRequirementsValidAggregator
 	Status HCPOpenShiftClusterNodePoolStatus `json:"status"`
 }
 
@@ -63,6 +63,7 @@ type HCPOpenShiftClusterNodePoolStatus struct {
 	// Addition of new conditions here should be done only when strictly necessary, sparingly and only done
 	// when there is a clear benefit to doing so. We expect the number of conditions at this
 	// level to be kept to a minimum.
+	// Written by: NodePoolRequirementsValidAggregator
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
