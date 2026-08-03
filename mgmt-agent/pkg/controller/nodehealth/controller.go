@@ -161,11 +161,11 @@ func (c *Controller) OnConfigMap(cm *corev1.ConfigMap, key string) {
 	klog.InfoS("node-health config reloaded", "configmap", cm.Name, "enabled", cfg.Enabled)
 	wasEnabled := c.config.Load().Enabled
 	c.SetConfig(cfg)
-	// A disabled->enabled transition needs no warm-up: detection reads both its
-	// failure and its success signal out of the informer caches, so the first
+	// A disabled->enabled transition needs no handling here: detection reads both
+	// its failure and its success signal out of the informer caches, so the first
 	// reconcile after the flip sees the same evidence a controller that had been
 	// enabled all along would.
-	//
+
 	// A hot enabled->disabled flip stops all reconciles, so the gauge would
 	// otherwise freeze at its last value. Zero it immediately so a disabled
 	// controller reads zero wedged nodes rather than a stale count.

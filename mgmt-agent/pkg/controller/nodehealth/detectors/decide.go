@@ -33,8 +33,9 @@ type Decision int
 const (
 	// DecisionUnknown means the evidence is insufficient to make a call: leave
 	// the node's label exactly as it is. This covers a NotReady node (deferred to
-	// node lifecycle) and the cold view just after a controller restart, so an
-	// existing wedged label is retained until recovery is positively observed.
+	// node lifecycle) and a quiet node showing neither a sustained failure storm
+	// nor a success in the window, so an existing wedged label is retained until
+	// recovery is positively observed.
 	DecisionUnknown Decision = iota
 	// DecisionHealthy means recovery is confirmed (pods starting again): ensure
 	// the node is not labeled.
