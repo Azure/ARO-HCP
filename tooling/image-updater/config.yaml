@@ -42,20 +42,20 @@ images:
     targets:
     - jsonPath: defaults.hypershift.sharedIngressImage.digest
       filePath: ../../config/config.yaml
-  # Clusters Service image
-  clusters-service:
-    group: cs
-    source:
-      image: quay.io/app-sre/aro-hcp-clusters-service
-      tag: "latest"
-      versionLabel: "vcs-ref"
-      useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
-    targets:
-    - jsonPath: defaults.clustersService.image.digest
-      filePath: ../../config/config.yaml
+  # Clusters Service image - commented out per AROSLSRE-1685: pinned to sha256:981637a1e08c in config.yaml
+  # clusters-service:
+  #   group: cs
+  #   source:
+  #     image: quay.io/app-sre/aro-hcp-clusters-service
+  #     tag: "latest"
+  #     versionLabel: "vcs-ref"
+  #     useAuth: true
+  #     keyVault:
+  #       url: "https://arohcpdev-global.vault.azure.net/"
+  #       secretName: "component-sync-pull-secret"
+  #   targets:
+  #   - jsonPath: defaults.clustersService.image.digest
+  #     filePath: ../../config/config.yaml
   # Kube Events image
   kubeEvents:
     group: obs-agents
