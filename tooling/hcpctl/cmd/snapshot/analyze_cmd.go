@@ -429,10 +429,25 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) error {
 		return analysisErr
 	}
 
+	usageJSON, err := json.MarshalIndent(result.Usage, "", "  ")
+	if err != nil {
+		analysisErr = fmt.Errorf("failed to marshal usage: %w", err)
+		return analysisErr
+	}
+	if err := os.WriteFile(filepath.Join(o.outputDir, "usage.json"), usageJSON, 0o644); err != nil {
+		analysisErr = fmt.Errorf("failed to write usage.json: %w", err)
+		return analysisErr
+	}
+
 	logger.Info("Analysis complete.",
 		"outputDir", o.outputDir,
 		"analysisJSON", filepath.Join(o.outputDir, "analysis.json"),
 		"analysisMarkdown", filepath.Join(o.outputDir, "analysis.md"),
+		"usageJSON", filepath.Join(o.outputDir, "usage.json"),
+		"inputTokens", result.Usage.InputTokens,
+		"outputTokens", result.Usage.OutputTokens,
+		"totalTokens", result.Usage.TotalTokens,
+		"llmRequests", result.Usage.Requests,
 	)
 
 	return nil

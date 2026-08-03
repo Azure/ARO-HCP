@@ -74,13 +74,18 @@ The agent runs through several phases:
 
 ### Analyze output
 
-The command writes three files to the output directory (defaults to the data
+The command writes four files to the output directory (defaults to the data
 directory, overridable with `--output`):
 
 - `analysis.json` — the fully hydrated causal chain as structured JSON.
 - `analysis.md` — the chain rendered as a readable markdown document.
 - `conversation.json` — the full conversation history with the agent,
   including all prompts, responses, and tool calls.
+- `usage.json` — aggregate LLM input, output, and total token counts, plus the
+  number of completed LLM requests.
+
+The same token usage fields are logged in the `Analysis complete` message at
+the default verbosity level.
 
 ## Debugging with conversation.json
 

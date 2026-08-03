@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -156,6 +157,8 @@ type Session struct {
 	client       *CopilotClient
 	logger       logr.Logger
 	lastMessages json.RawMessage
+	usageMu      sync.RWMutex
+	usage        TokenUsage
 }
 
 // CreateSession creates a new Copilot session for an analysis run.
@@ -300,6 +303,14 @@ func (s *Session) SessionID() string {
 	return s.inner.SessionID
 }
 
+// Usage returns the aggregate token usage observed in the most recent
+// conversation snapshot.
+func (s *Session) Usage() TokenUsage {
+	s.usageMu.RLock()
+	defer s.usageMu.RUnlock()
+	return s.usage
+}
+
 // SendAndWait sends a prompt to the session and blocks until the agent is idle.
 // If ctx is cancelled, the in-flight work is aborted.
 // Returns the final assistant message content.
@@ -379,12 +390,40 @@ func (s *Session) snapshotMessages() {
 		s.logger.Error(err, "Failed to snapshot session messages.")
 		return
 	}
+	usage := tokenUsageFromCopilotEvents(events)
+	s.usageMu.Lock()
+	s.usage = usage
+	s.usageMu.Unlock()
 	data, err := json.MarshalIndent(events, "", "  ")
 	if err != nil {
 		s.logger.Error(err, "Failed to marshal session messages for snapshot.")
 		return
 	}
 	s.lastMessages = data
+}
+
+// tokenUsageFromCopilotEvents extracts all completed assistant LLM requests
+// from a Copilot conversation history. Recomputing from the full history keeps
+// the aggregate correct across multiple SendAndWait calls and avoids counting
+// the same event more than once.
+func tokenUsageFromCopilotEvents(events []copilot.SessionEvent) TokenUsage {
+	var usage TokenUsage
+	for _, event := range events {
+		data, ok := event.Data.(*copilot.AssistantUsageData)
+		if !ok {
+			continue
+		}
+
+		var inputTokens, outputTokens int64
+		if data.InputTokens != nil {
+			inputTokens = *data.InputTokens
+		}
+		if data.OutputTokens != nil {
+			outputTokens = *data.OutputTokens
+		}
+		usage.Add(inputTokens, outputTokens)
+	}
+	return usage
 }
 
 // SaveConversation writes the most recent conversation snapshot to a JSON

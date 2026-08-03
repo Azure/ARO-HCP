@@ -74,6 +74,10 @@ type AnalyzeResult struct {
 
 	// DraftChain is the last validated draft before the final hydration.
 	DraftChain *DraftChain
+
+	// Usage is the aggregate token usage from all LLM requests made during
+	// the analysis.
+	Usage TokenUsage
 }
 
 // Analyze runs the full agentic analysis loop: initial prompt, validate-draft,
@@ -171,6 +175,7 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 	return &AnalyzeResult{
 		HydratedChain: hydratedChain,
 		DraftChain:    draftChain,
+		Usage:         session.Usage(),
 	}, nil
 }
 

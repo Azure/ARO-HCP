@@ -46,6 +46,11 @@ type LLMSession interface {
 	// assistant text content.
 	SendAndWait(ctx context.Context, prompt string) (string, error)
 
+	// Usage returns the aggregate token usage observed by this session.
+	// Implementations include every completed LLM request made while handling
+	// SendAndWait calls, including requests made during tool-use loops.
+	Usage() TokenUsage
+
 	// SaveConversation writes the conversation history to a JSON file at
 	// the given path. This is best-effort: implementations should log
 	// errors rather than return them.
@@ -102,6 +107,27 @@ type ProviderSessionConfig struct {
 	// Model overrides the provider's default model for this session.
 	// When empty, the provider uses its configured default.
 	Model string
+}
+
+// TokenUsage contains aggregate token usage for an LLM session.
+//
+// TotalTokens is the sum of InputTokens and OutputTokens. Requests is the
+// number of completed LLM requests, so a single SendAndWait call may
+// contribute more than one request when the provider performs tool-use turns
+// internally.
+type TokenUsage struct {
+	InputTokens  int64 `json:"inputTokens"`
+	OutputTokens int64 `json:"outputTokens"`
+	TotalTokens  int64 `json:"totalTokens"`
+	Requests     int64 `json:"requests"`
+}
+
+// Add records one completed LLM request in the aggregate.
+func (u *TokenUsage) Add(inputTokens, outputTokens int64) {
+	u.InputTokens += inputTokens
+	u.OutputTokens += outputTokens
+	u.TotalTokens += inputTokens + outputTokens
+	u.Requests++
 }
 
 // ToolDefinition is a provider-neutral description of a tool that can be

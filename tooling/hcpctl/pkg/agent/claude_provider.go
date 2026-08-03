@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -173,11 +174,20 @@ type ClaudeSession struct {
 	messages     []anthropic.MessageParam
 	sessionID    string
 	logger       logr.Logger
+	usageMu      sync.RWMutex
+	usage        TokenUsage
 }
 
 // SessionID returns the unique identifier for this session.
 func (s *ClaudeSession) SessionID() string {
 	return s.sessionID
+}
+
+// Usage returns the aggregate token usage observed by this session.
+func (s *ClaudeSession) Usage() TokenUsage {
+	s.usageMu.RLock()
+	defer s.usageMu.RUnlock()
+	return s.usage
 }
 
 // SendAndWait sends a user prompt and blocks until Claude finishes responding,
@@ -218,6 +228,9 @@ func (s *ClaudeSession) SendAndWait(ctx context.Context, prompt string) (string,
 			"inputTokens", resp.Usage.InputTokens,
 			"outputTokens", resp.Usage.OutputTokens,
 		)
+		s.usageMu.Lock()
+		s.usage.Add(resp.Usage.InputTokens, resp.Usage.OutputTokens)
+		s.usageMu.Unlock()
 
 		// Add assistant response to conversation history.
 		s.messages = append(s.messages, resp.ToParam())
