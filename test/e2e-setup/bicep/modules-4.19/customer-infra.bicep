@@ -10,6 +10,9 @@ param customerVnetName string = 'customer-vnet'
 @description('Subnet Name')
 param customerVnetSubnetName string = 'customer-subnet-1'
 
+@description('Integration Subnet Name')
+param customerVnetIntegrationSubnetName string = 'integration-subnet-1'
+
 @description('The name of the encryption key for etcd')
 param customerEtcdEncryptionKeyName string = 'etcd-data-kms-encryption-key'
 
@@ -31,6 +34,7 @@ var customerKeyVaultName string = 'cust-kv-${randomSuffix}'
 
 var addressPrefix = '10.0.0.0/16'
 var subnetPrefix = '10.0.0.0/24'
+var vnetIntegrationSubnetPrefix = '10.0.1.0/24'
 
 resource customerNsg 'Microsoft.Network/networkSecurityGroups@2023-05-01' = {
   name: customerNsgName
@@ -60,6 +64,20 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
           networkSecurityGroup: {
             id: customerNsg.id
           }
+        }
+      }
+      {
+        name: customerVnetIntegrationSubnetName
+        properties: {
+          addressPrefix: vnetIntegrationSubnetPrefix
+          delegations: [
+            {
+              name: 'aro-hcp-delegation'
+              properties: {
+                serviceName: 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters'
+              }
+            }
+          ]
         }
       }
     ]
@@ -117,6 +135,12 @@ output nsgID string = customerNsg.id
 
 @description('Customer VNet Subnet Resource ID')
 output vnetSubnetID string = '${customerVnet.id}/subnets/${customerVnetSubnetName}'
+
+@description('Integration Subnet Name')
+output integrationSubnetName string = customerVnetIntegrationSubnetName
+
+@description('Customer VNet Integration Subnet Resource ID')
+output vnetIntegrationSubnetID string = '${customerVnet.id}/subnets/${customerVnetIntegrationSubnetName}'
 
 @description('The version of the etcd encryption key')
 output etcdEncryptionKeyVersion string = last(split(etcdEncryptionKey.properties.keyUriWithVersion, '/'))

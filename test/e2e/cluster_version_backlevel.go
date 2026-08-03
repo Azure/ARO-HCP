@@ -109,6 +109,7 @@ var _ = Describe("Customer", func() {
 						"nsgName":                  customerInfraOutputs.nsgName,
 						"vnetName":                 customerInfraOutputs.vnetName,
 						"subnetName":               customerInfraOutputs.subnetName,
+						"integrationSubnetName":    customerInfraOutputs.integrationSubnetName,
 						"keyVaultName":             customerInfraOutputs.keyVaultName,
 						"useMsiPool":               usePooledIdentities,
 						"clusterResourceGroupName": *resourceGroup.Name,
@@ -237,9 +238,11 @@ type customerInfraOutputs struct {
 	etcdEncryptionKeyVersion string
 	nsgID                    string
 	subnetID                 string
+	vnetIntegrationSubnetID  string
 	vnetName                 string
 	nsgName                  string
 	subnetName               string
+	integrationSubnetName    string
 }
 
 func buildHCPClusterRequest(
@@ -281,9 +284,10 @@ func buildHCPClusterRequest_4_19(
 				ChannelGroup: to.Ptr(channelGroup),
 			},
 			Platform: &hcpsdk20251223preview.PlatformProfile{
-				ManagedResourceGroup:   to.Ptr(managedResourceGroupName),
-				NetworkSecurityGroupID: to.Ptr(customerInfra.nsgID),
-				SubnetID:               to.Ptr(customerInfra.subnetID),
+				ManagedResourceGroup:    to.Ptr(managedResourceGroupName),
+				NetworkSecurityGroupID:  to.Ptr(customerInfra.nsgID),
+				SubnetID:                to.Ptr(customerInfra.subnetID),
+				VnetIntegrationSubnetID: to.Ptr(customerInfra.vnetIntegrationSubnetID),
 				OperatorsAuthentication: &hcpsdk20251223preview.OperatorsAuthenticationProfile{
 					UserAssignedIdentities: userAssignedIdentitiesProfile,
 				},
@@ -307,7 +311,8 @@ func buildHCPClusterRequest_4_19(
 					CustomerManaged: &hcpsdk20251223preview.CustomerManagedEncryptionProfile{
 						EncryptionType: to.Ptr(hcpsdk20251223preview.CustomerManagedEncryptionType("KMS")),
 						Kms: &hcpsdk20251223preview.KmsEncryptionProfile{
-							VaultName: to.Ptr(customerInfra.keyVaultName),
+							VaultName:  to.Ptr(customerInfra.keyVaultName),
+							Visibility: to.Ptr(hcpsdk20251223preview.KeyVaultVisibilityPublic),
 							ActiveKey: &hcpsdk20251223preview.KmsKey{
 								Name:    to.Ptr(customerInfra.etcdEncryptionKeyName),
 								Version: to.Ptr(customerInfra.etcdEncryptionKeyVersion),
@@ -378,6 +383,10 @@ func readCustomerInfraOutputs(deployment *armresources.DeploymentExtended) (cust
 	if err != nil {
 		return customerInfraOutputs{}, fmt.Errorf("failed to get vnetSubnetID: %w", err)
 	}
+	vnetIntegrationSubnetID, err := framework.GetOutputValueString(deployment, "vnetIntegrationSubnetID")
+	if err != nil {
+		return customerInfraOutputs{}, fmt.Errorf("failed to get vnetIntegrationSubnetID: %w", err)
+	}
 	vnetName, err := framework.GetOutputValueString(deployment, "vnetName")
 	if err != nil {
 		return customerInfraOutputs{}, fmt.Errorf("failed to get vnetName: %w", err)
@@ -390,6 +399,10 @@ func readCustomerInfraOutputs(deployment *armresources.DeploymentExtended) (cust
 	if err != nil {
 		return customerInfraOutputs{}, fmt.Errorf("failed to get vnetSubnetName: %w", err)
 	}
+	integrationSubnetName, err := framework.GetOutputValueString(deployment, "integrationSubnetName")
+	if err != nil {
+		return customerInfraOutputs{}, fmt.Errorf("failed to get integrationSubnetName: %w", err)
+	}
 
 	return customerInfraOutputs{
 		keyVaultName:             keyVaultName,
@@ -397,8 +410,10 @@ func readCustomerInfraOutputs(deployment *armresources.DeploymentExtended) (cust
 		etcdEncryptionKeyVersion: etcdEncryptionKeyVersion,
 		nsgID:                    nsgID,
 		subnetID:                 subnetID,
+		vnetIntegrationSubnetID:  vnetIntegrationSubnetID,
 		vnetName:                 vnetName,
 		nsgName:                  nsgName,
 		subnetName:               subnetName,
+		integrationSubnetName:    integrationSubnetName,
 	}, nil
 }

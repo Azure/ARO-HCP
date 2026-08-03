@@ -102,6 +102,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2025-12-23-preview'
           encryptionType: 'KMS'
           kms: {
             vaultName: keyVaultName
+            visibility: 'Public'
             activeKey: {
               name: etcdEncryptionKeyName
               version: last(split(etcdEncryptionKey.properties.keyUriWithVersion, '/'))
