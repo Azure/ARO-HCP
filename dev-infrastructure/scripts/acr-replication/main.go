@@ -36,6 +36,9 @@
 //	                            (e.g. a co-located canary replica). Defaults to
 //	                            none, i.e. the endpoint is enabled everywhere.
 //	LOG_VERBOSITY             - optional slog verbosity (default 0)
+//	DRY_RUN                   - if set to any non-empty value, mutating calls
+//	                            (create/delete/update) are logged instead of
+//	                            executed
 package main
 
 import (
@@ -82,6 +85,7 @@ type config struct {
 	acrName         string
 	region          string
 	disabledRegions map[string]bool
+	dryRun          bool
 }
 
 // parseEnvConfig builds a config from environment variables only. It does not
@@ -113,6 +117,12 @@ func parseEnvConfig(env func(string) string) (*config, error) {
 	for _, r := range strings.Fields(env("ENDPOINT_DISABLED_REGIONS")) {
 		c.disabledRegions[r] = true
 	}
+
+	// Mirrors the replaced shell script: any non-empty DRY_RUN enables
+	// dry-run mode, in which mutating calls (create/delete/update) are
+	// logged instead of executed. This keeps `make region.what-if`
+	// non-mutating.
+	c.dryRun = env("DRY_RUN") != ""
 	return c, nil
 }
 
@@ -247,6 +257,10 @@ func findReplicationByLocation(ctx context.Context, client *armcontainerregistry
 // createReplication creates a new replica named after cfg.region with the
 // requested regional endpoint state.
 func createReplication(ctx context.Context, client *armcontainerregistry.ReplicationsClient, cfg *config, desiredEnabled bool) error {
+	if cfg.dryRun {
+		slog.Info("[DRY_RUN] would create replication", "region", cfg.region, "endpointEnabled", desiredEnabled)
+		return nil
+	}
 	slog.Info("creating replication", "region", cfg.region, "endpointEnabled", desiredEnabled)
 	poller, err := client.BeginCreate(ctx, cfg.resourceGroup, cfg.acrName, cfg.region, armcontainerregistry.Replication{
 		Location: to.Ptr(cfg.region),
@@ -266,6 +280,10 @@ func createReplication(ctx context.Context, client *armcontainerregistry.Replica
 
 // deleteReplication deletes the replica by its actual resource name.
 func deleteReplication(ctx context.Context, client *armcontainerregistry.ReplicationsClient, cfg *config, name string) error {
+	if cfg.dryRun {
+		slog.Info("[DRY_RUN] would delete replication", "region", cfg.region, "name", name)
+		return nil
+	}
 	poller, err := client.BeginDelete(ctx, cfg.resourceGroup, cfg.acrName, name, nil)
 	if err != nil {
 		return fmt.Errorf("delete replication %q: %w", name, err)
@@ -280,6 +298,10 @@ func deleteReplication(ctx context.Context, client *armcontainerregistry.Replica
 // reconcileEndpoint updates an existing replica's regional endpoint to the
 // desired state.
 func reconcileEndpoint(ctx context.Context, client *armcontainerregistry.ReplicationsClient, cfg *config, name string, desiredEnabled bool) error {
+	if cfg.dryRun {
+		slog.Info("[DRY_RUN] would reconcile replication regional endpoint", "region", cfg.region, "name", name, "desiredEnabled", desiredEnabled)
+		return nil
+	}
 	slog.Info("reconciling replication regional endpoint", "region", cfg.region, "name", name, "desiredEnabled", desiredEnabled)
 	poller, err := client.BeginUpdate(ctx, cfg.resourceGroup, cfg.acrName, name, armcontainerregistry.ReplicationUpdateParameters{
 		Properties: &armcontainerregistry.ReplicationUpdateParametersProperties{
