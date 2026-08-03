@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // BillingLister lists and gets billing documents from an informer's indexer.
@@ -42,16 +43,16 @@ func NewBillingLister(indexer cache.Indexer) BillingLister {
 }
 
 func (l *billingDocumentLister) List(ctx context.Context) ([]*database.BillingDocument, error) {
-	return listAll[database.BillingDocument](l.indexer)
+	return listerutils.ListAll[database.BillingDocument](l.indexer)
 }
 
 // GetByID retrieves a single billing document by its ID.
 // The store key is the billingDocID.
 func (l *billingDocumentLister) GetByID(ctx context.Context, billingDocID string) (*database.BillingDocument, error) {
-	return getByKey[database.BillingDocument](l.indexer, billingDocID)
+	return listerutils.GetByKey[database.BillingDocument](l.indexer, billingDocID)
 }
 
 // ListForSubscription retrieves all billing documents for a given subscription.
 func (l *billingDocumentLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*database.BillingDocument, error) {
-	return listFromIndex[database.BillingDocument](l.indexer, BySubscription, subscriptionID)
+	return listerutils.ListFromIndex[database.BillingDocument](l.indexer, BySubscription, subscriptionID)
 }

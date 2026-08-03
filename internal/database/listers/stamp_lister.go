@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // StampLister lists and gets stamps from an informer's indexer.
@@ -40,10 +41,10 @@ func NewStampLister(indexer cache.Indexer) StampLister {
 }
 
 func (l *informerBasedStampLister) List(ctx context.Context) ([]*fleet.Stamp, error) {
-	return listAll[fleet.Stamp](l.indexer)
+	return listerutils.ListAll[fleet.Stamp](l.indexer)
 }
 
 func (l *informerBasedStampLister) Get(ctx context.Context, stampIdentifier string) (*fleet.Stamp, error) {
 	key := fleet.ToStampResourceIDString(stampIdentifier)
-	return getByKey[fleet.Stamp](l.indexer, key)
+	return listerutils.GetByKey[fleet.Stamp](l.indexer, key)
 }

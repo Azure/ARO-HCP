@@ -23,6 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // ApplyDesireLister lists and gets ApplyDesires from an informer's indexer.
@@ -70,14 +71,14 @@ func NewApplyDesireLister(indexer cache.Indexer) ApplyDesireLister {
 }
 
 func (l *applyDesireLister) List(ctx context.Context) ([]*kubeapplier.ApplyDesire, error) {
-	return listAll[kubeapplier.ApplyDesire](l.indexer)
+	return listerutils.ListAll[kubeapplier.ApplyDesire](l.indexer)
 }
 
 func (l *applyDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
 ) (*kubeapplier.ApplyDesire, error) {
 	key := kubeapplier.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
-	return getByKey[kubeapplier.ApplyDesire](l.indexer, key)
+	return listerutils.GetByKey[kubeapplier.ApplyDesire](l.indexer, key)
 }
 
 func (l *applyDesireLister) GetForNodePool(
@@ -86,7 +87,7 @@ func (l *applyDesireLister) GetForNodePool(
 	key := kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
 	)
-	return getByKey[kubeapplier.ApplyDesire](l.indexer, key)
+	return listerutils.GetByKey[kubeapplier.ApplyDesire](l.indexer, key)
 }
 
 func (l *applyDesireLister) GetForSystemAdminCredentialRequest(
@@ -95,7 +96,7 @@ func (l *applyDesireLister) GetForSystemAdminCredentialRequest(
 	key := kubeapplier.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
 	)
-	return getByKey[kubeapplier.ApplyDesire](l.indexer, key)
+	return listerutils.GetByKey[kubeapplier.ApplyDesire](l.indexer, key)
 }
 
 func (l *applyDesireLister) GetForSystemAdminCredentialRevocation(
@@ -104,7 +105,7 @@ func (l *applyDesireLister) GetForSystemAdminCredentialRevocation(
 	key := kubeapplier.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
-	return getByKey[kubeapplier.ApplyDesire](l.indexer, key)
+	return listerutils.GetByKey[kubeapplier.ApplyDesire](l.indexer, key)
 }
 
 func (l *applyDesireLister) ListForManagementCluster(
@@ -113,21 +114,21 @@ func (l *applyDesireLister) ListForManagementCluster(
 	if managementClusterResourceID == nil {
 		return nil, nil
 	}
-	return listFromIndex[kubeapplier.ApplyDesire](l.indexer, ByManagementCluster, strings.ToLower(managementClusterResourceID.String()))
+	return listerutils.ListFromIndex[kubeapplier.ApplyDesire](l.indexer, ByManagementCluster, strings.ToLower(managementClusterResourceID.String()))
 }
 
 func (l *applyDesireLister) ListForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName string,
 ) ([]*kubeapplier.ApplyDesire, error) {
-	return listFromIndex[kubeapplier.ApplyDesire](
-		l.indexer, ByCluster, clusterIndexKey(subscriptionID, resourceGroupName, clusterName),
+	return listerutils.ListFromIndex[kubeapplier.ApplyDesire](
+		l.indexer, ByCluster, listerutils.ClusterIndexKey(subscriptionID, resourceGroupName, clusterName),
 	)
 }
 
 func (l *applyDesireLister) ListForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
 ) ([]*kubeapplier.ApplyDesire, error) {
-	return listFromIndex[kubeapplier.ApplyDesire](
-		l.indexer, ByNodePool, nodePoolIndexKey(subscriptionID, resourceGroupName, clusterName, nodePoolName),
+	return listerutils.ListFromIndex[kubeapplier.ApplyDesire](
+		l.indexer, ByNodePool, listerutils.NodePoolIndexKey(subscriptionID, resourceGroupName, clusterName, nodePoolName),
 	)
 }

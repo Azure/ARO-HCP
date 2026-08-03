@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // ActiveOperationLister lists and gets active (non-terminal) operations from an informer's indexer.
@@ -53,7 +54,7 @@ func NewActiveOperationLister(indexer cache.Indexer) ActiveOperationLister {
 }
 
 func (l *activeOperationLister) List(ctx context.Context) ([]*api.Operation, error) {
-	return listAll[api.Operation](l.indexer)
+	return listerutils.ListAll[api.Operation](l.indexer)
 }
 
 // Get retrieves a single active operation by subscription ID and name.
@@ -62,20 +63,20 @@ func (l *activeOperationLister) List(ctx context.Context) ([]*api.Operation, err
 //	/subscriptions/<sub>/providers/microsoft.redhatopenshift/hcpoperationstatuses/<name>
 func (l *activeOperationLister) Get(ctx context.Context, subscriptionID, name string) (*api.Operation, error) {
 	key := api.ToOperationResourceIDString(subscriptionID, name)
-	return getByKey[api.Operation](l.indexer, key)
+	return listerutils.GetByKey[api.Operation](l.indexer, key)
 }
 
 func (l *activeOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Operation, error) {
 	key := api.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
-	return listFromIndex[api.Operation](l.indexer, ByCluster, key)
+	return listerutils.ListFromIndex[api.Operation](l.indexer, ByCluster, key)
 }
 
 func (l *activeOperationLister) ListActiveOperationsForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.Operation, error) {
 	key := api.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
-	return listFromIndex[api.Operation](l.indexer, ByNodePool, key)
+	return listerutils.ListFromIndex[api.Operation](l.indexer, ByNodePool, key)
 }
 
 func (l *activeOperationLister) ListActiveOperationsForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*api.Operation, error) {
 	key := api.ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName)
-	return listFromIndex[api.Operation](l.indexer, ByExternalAuth, key)
+	return listerutils.ListFromIndex[api.Operation](l.indexer, ByExternalAuth, key)
 }

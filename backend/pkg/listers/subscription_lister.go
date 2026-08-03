@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // InformerBasedSubscriptionLister lists and gets subscriptions from an informer's indexer.
@@ -41,7 +42,7 @@ func NewSubscriptionLister(indexer cache.Indexer) SubscriptionLister {
 }
 
 func (l *informerBasedSubscriptionLister) List(ctx context.Context) ([]*arm.Subscription, error) {
-	return listAll[arm.Subscription](l.indexer)
+	return listerutils.ListAll[arm.Subscription](l.indexer)
 }
 
 // Get retrieves a single subscription by subscription ID.
@@ -50,5 +51,5 @@ func (l *informerBasedSubscriptionLister) List(ctx context.Context) ([]*arm.Subs
 //	/subscriptions/<subscriptionID>
 func (l *informerBasedSubscriptionLister) Get(ctx context.Context, subscriptionID string) (*arm.Subscription, error) {
 	key := arm.ToSubscriptionResourceIDString(subscriptionID)
-	return getByKey[arm.Subscription](l.indexer, key)
+	return listerutils.GetByKey[arm.Subscription](l.indexer, key)
 }

@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // SystemAdminCredentialRequestLister lists and gets SystemAdminCredentialRequests from an informer's indexer.
@@ -42,18 +43,18 @@ func NewSystemAdminCredentialRequestLister(indexer cache.Indexer) SystemAdminCre
 }
 
 func (l *systemAdminCredentialRequestLister) List(ctx context.Context) ([]*api.SystemAdminCredentialRequest, error) {
-	return listAll[api.SystemAdminCredentialRequest](l.indexer)
+	return listerutils.ListAll[api.SystemAdminCredentialRequest](l.indexer)
 }
 
 // Get retrieves a single SystemAdminCredentialRequest by subscription ID, resource group name, cluster name,
 // and credential name. The store key is the lowercased ResourceID string.
 func (l *systemAdminCredentialRequestLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialName string) (*api.SystemAdminCredentialRequest, error) {
 	key := api.ToSystemAdminCredentialRequestResourceIDString(subscriptionID, resourceGroupName, clusterName, credentialName)
-	return getByKey[api.SystemAdminCredentialRequest](l.indexer, key)
+	return listerutils.GetByKey[api.SystemAdminCredentialRequest](l.indexer, key)
 }
 
 // ListForCluster retrieves all SystemAdminCredentialRequests for a given cluster.
 func (l *systemAdminCredentialRequestLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.SystemAdminCredentialRequest, error) {
 	key := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
-	return listFromIndex[api.SystemAdminCredentialRequest](l.indexer, ByCluster, key)
+	return listerutils.ListFromIndex[api.SystemAdminCredentialRequest](l.indexer, ByCluster, key)
 }

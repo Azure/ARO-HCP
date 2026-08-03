@@ -22,6 +22,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // ManagementClusterLister lists and gets management clusters from an informer's indexer.
@@ -44,18 +45,18 @@ func NewManagementClusterLister(indexer cache.Indexer) ManagementClusterLister {
 }
 
 func (l *informerBasedManagementClusterLister) List(ctx context.Context) ([]*fleet.ManagementCluster, error) {
-	return listAll[fleet.ManagementCluster](l.indexer)
+	return listerutils.ListAll[fleet.ManagementCluster](l.indexer)
 }
 
 // Get retrieves a single management cluster by stamp identifier.
 func (l *informerBasedManagementClusterLister) Get(ctx context.Context, stampIdentifier string) (*fleet.ManagementCluster, error) {
 	key := fleet.ToManagementClusterResourceIDString(stampIdentifier)
-	return getByKey[fleet.ManagementCluster](l.indexer, key)
+	return listerutils.GetByKey[fleet.ManagementCluster](l.indexer, key)
 }
 
 // GetByCSProvisionShardID retrieves a single management cluster by its CS provision shard ID.
 func (l *informerBasedManagementClusterLister) GetByCSProvisionShardID(ctx context.Context, shardID string) (*fleet.ManagementCluster, error) {
-	results, err := listFromIndex[fleet.ManagementCluster](l.indexer, ByCSProvisionShard, shardID)
+	results, err := listerutils.ListFromIndex[fleet.ManagementCluster](l.indexer, ByCSProvisionShard, shardID)
 	if err != nil {
 		return nil, err
 	}

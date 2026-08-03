@@ -12,17 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package listers provides cache.Indexer-backed listers for the backend's
+// cross-partition views of the ARO-HCP resource documents.
+//
+// The generic store/indexer helpers (ListAll, GetByKey, ListFromIndex) live in
+// the shared internal/database/listers/listerutils package and are used
+// directly by the listers in this package.
 package listers
-
-import (
-	"fmt"
-
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/tools/cache"
-
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/utils"
-)
 
 type BackendListers struct {
 	SubscriptionLister                    SubscriptionLister
@@ -43,53 +39,3 @@ const (
 	ByExternalAuth  = "byExternalAuth"
 	BySubscription  = "bySubscription"
 )
-
-// listAll retrieves all items from a store, casting each to *T.
-func listAll[T any](store cache.Store) ([]*T, error) {
-	items := store.List()
-	result := make([]*T, 0, len(items))
-	for _, item := range items {
-		typed, ok := item.(*T)
-		if !ok {
-			return nil, utils.TrackError(fmt.Errorf("expected *%T, got %T", *new(T), item))
-		}
-		result = append(result, typed)
-	}
-	return result, nil
-}
-
-// getByKey retrieves a single item from an indexer by key, casting it to *T.
-func getByKey[T any](indexer cache.Indexer, key string) (*T, error) {
-	item, exists, err := indexer.GetByKey(key)
-	if apierrors.IsNotFound(err) {
-		return nil, database.NewNotFoundError()
-	}
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	if !exists {
-		return nil, database.NewNotFoundError()
-	}
-	typed, ok := item.(*T)
-	if !ok {
-		return nil, utils.TrackError(fmt.Errorf("expected *%T, got %T", *new(T), item))
-	}
-	return typed, nil
-}
-
-// listFromIndex retrieves items from an indexer by index name and key, casting each to *T.
-func listFromIndex[T any](indexer cache.Indexer, indexName, key string) ([]*T, error) {
-	items, err := indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	result := make([]*T, 0, len(items))
-	for _, item := range items {
-		typed, ok := item.(*T)
-		if !ok {
-			return nil, utils.TrackError(fmt.Errorf("expected *%T, got %T", *new(T), item))
-		}
-		result = append(result, typed)
-	}
-	return result, nil
-}

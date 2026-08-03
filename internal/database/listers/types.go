@@ -20,19 +20,11 @@
 // Both the kube-applier binary (single-partition view) and the backend
 // (cross-partition view) use the same lister implementations. The difference
 // is in which database.KubeApplierGlobalListers feeds the informer.
+//
+// The generic store/indexer helpers (ListAll, GetByKey, ListFromIndex) and the
+// index-key builders (ClusterIndexKey, NodePoolIndexKey) live in the shared
+// listerutils package and are used directly by the listers in this package.
 package listers
-
-import (
-	"fmt"
-	"strings"
-
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/tools/cache"
-
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/utils"
-)
 
 // Index names registered on the *Desire informers as well as on the
 // pre-existing cluster-service-shard index used by backend listers.
@@ -53,65 +45,3 @@ const (
 	// index.
 	ByNodePool = "byNodePool"
 )
-
-// listAll retrieves all items from a store, casting each to *T.
-func listAll[T any](store cache.Store) ([]*T, error) {
-	items := store.List()
-	result := make([]*T, 0, len(items))
-	for _, item := range items {
-		typed, ok := item.(*T)
-		if !ok {
-			return nil, utils.TrackError(fmt.Errorf("expected *%T, got %T", *new(T), item))
-		}
-		result = append(result, typed)
-	}
-	return result, nil
-}
-
-// getByKey retrieves a single item from an indexer by key, casting it to *T.
-func getByKey[T any](indexer cache.Indexer, key string) (*T, error) {
-	item, exists, err := indexer.GetByKey(key)
-	if apierrors.IsNotFound(err) {
-		return nil, database.NewNotFoundError()
-	}
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	if !exists {
-		return nil, database.NewNotFoundError()
-	}
-	typed, ok := item.(*T)
-	if !ok {
-		return nil, utils.TrackError(fmt.Errorf("expected *%T, got %T", *new(T), item))
-	}
-	return typed, nil
-}
-
-// clusterIndexKey returns the canonical (lower-cased) ByCluster index key for an
-// HCPOpenShiftCluster identified by subscription, resource group, and name.
-func clusterIndexKey(subscriptionID, resourceGroupName, clusterName string) string {
-	return strings.ToLower(api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
-}
-
-// nodePoolIndexKey returns the canonical (lower-cased) ByNodePool index key for a
-// NodePool identified by its containing cluster plus its own name.
-func nodePoolIndexKey(subscriptionID, resourceGroupName, clusterName, nodePoolName string) string {
-	return strings.ToLower(api.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName))
-}
-
-// listFromIndex retrieves items from an indexer by index name and key, casting each to *T.
-func listFromIndex[T any](indexer cache.Indexer, indexName, key string) ([]*T, error) {
-	items, err := indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	result := make([]*T, 0, len(items))
-	for _, item := range items {
-		typed, ok := item.(*T)
-		if !ok {
-			return nil, utils.TrackError(fmt.Errorf("expected *%T, got %T", *new(T), item))
-		}
-		result = append(result, typed)
-	}
-	return result, nil
-}

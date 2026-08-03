@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // ControllerLister lists and gets Controllers from an informer's indexer.
@@ -44,25 +45,25 @@ func NewControllerLister(indexer cache.Indexer) ControllerLister {
 }
 
 func (l *controllerLister) List(ctx context.Context) ([]*api.Controller, error) {
-	return listAll[api.Controller](l.indexer)
+	return listerutils.ListAll[api.Controller](l.indexer)
 }
 
 func (l *controllerLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*api.Controller, error) {
 	key := api.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
-	return listFromIndex[api.Controller](l.indexer, ByResourceGroup, key)
+	return listerutils.ListFromIndex[api.Controller](l.indexer, ByResourceGroup, key)
 }
 
 func (l *controllerLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Controller, error) {
 	key := api.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
-	return listFromIndex[api.Controller](l.indexer, ByCluster, key)
+	return listerutils.ListFromIndex[api.Controller](l.indexer, ByCluster, key)
 }
 
 func (l *controllerLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.Controller, error) {
 	key := api.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
-	return listFromIndex[api.Controller](l.indexer, ByNodePool, key)
+	return listerutils.ListFromIndex[api.Controller](l.indexer, ByNodePool, key)
 }
 
 func (l *controllerLister) ListForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*api.Controller, error) {
 	key := api.ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName)
-	return listFromIndex[api.Controller](l.indexer, ByExternalAuth, key)
+	return listerutils.ListFromIndex[api.Controller](l.indexer, ByExternalAuth, key)
 }

@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // ExternalAuthLister lists and gets ExternalAuths from an informer's indexer.
@@ -43,7 +44,7 @@ func NewExternalAuthLister(indexer cache.Indexer) ExternalAuthLister {
 }
 
 func (l *hcpOpenShiftClusterExternalAuthLister) List(ctx context.Context) ([]*api.HCPOpenShiftClusterExternalAuth, error) {
-	return listAll[api.HCPOpenShiftClusterExternalAuth](l.indexer)
+	return listerutils.ListAll[api.HCPOpenShiftClusterExternalAuth](l.indexer)
 }
 
 // Get retrieves a single HCPOpenShiftClusterExternalAuth by subscription ID, resource group name, cluster name, and external auth name.
@@ -52,15 +53,15 @@ func (l *hcpOpenShiftClusterExternalAuthLister) List(ctx context.Context) ([]*ap
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster>/externalauths/<name>
 func (l *hcpOpenShiftClusterExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*api.HCPOpenShiftClusterExternalAuth, error) {
 	key := api.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
-	return getByKey[api.HCPOpenShiftClusterExternalAuth](l.indexer, key)
+	return listerutils.GetByKey[api.HCPOpenShiftClusterExternalAuth](l.indexer, key)
 }
 
 func (l *hcpOpenShiftClusterExternalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*api.HCPOpenShiftClusterExternalAuth, error) {
 	key := api.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
-	return listFromIndex[api.HCPOpenShiftClusterExternalAuth](l.indexer, ByResourceGroup, key)
+	return listerutils.ListFromIndex[api.HCPOpenShiftClusterExternalAuth](l.indexer, ByResourceGroup, key)
 }
 
 func (l *hcpOpenShiftClusterExternalAuthLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.HCPOpenShiftClusterExternalAuth, error) {
 	key := api.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
-	return listFromIndex[api.HCPOpenShiftClusterExternalAuth](l.indexer, ByCluster, key)
+	return listerutils.ListFromIndex[api.HCPOpenShiftClusterExternalAuth](l.indexer, ByCluster, key)
 }

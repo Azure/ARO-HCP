@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // SystemAdminCredentialRevocationLister lists and gets SystemAdminCredentialRevocations from an informer's indexer.
@@ -42,18 +43,18 @@ func NewSystemAdminCredentialRevocationLister(indexer cache.Indexer) SystemAdmin
 }
 
 func (l *systemAdminCredentialRevocationLister) List(ctx context.Context) ([]*api.SystemAdminCredentialRevocation, error) {
-	return listAll[api.SystemAdminCredentialRevocation](l.indexer)
+	return listerutils.ListAll[api.SystemAdminCredentialRevocation](l.indexer)
 }
 
 // Get retrieves a single SystemAdminCredentialRevocation by subscription ID, resource group name, cluster name,
 // and revocation name. The store key is the lowercased ResourceID string.
 func (l *systemAdminCredentialRevocationLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName string) (*api.SystemAdminCredentialRevocation, error) {
 	key := api.ToSystemAdminCredentialRevocationResourceIDString(subscriptionID, resourceGroupName, clusterName, revocationName)
-	return getByKey[api.SystemAdminCredentialRevocation](l.indexer, key)
+	return listerutils.GetByKey[api.SystemAdminCredentialRevocation](l.indexer, key)
 }
 
 // ListForCluster retrieves all SystemAdminCredentialRevocations for a given cluster.
 func (l *systemAdminCredentialRevocationLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.SystemAdminCredentialRevocation, error) {
 	key := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
-	return listFromIndex[api.SystemAdminCredentialRevocation](l.indexer, ByCluster, key)
+	return listerutils.ListFromIndex[api.SystemAdminCredentialRevocation](l.indexer, ByCluster, key)
 }

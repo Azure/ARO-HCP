@@ -23,6 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // ReadDesireLister lists and gets ReadDesires from an informer's indexer.
@@ -42,7 +43,7 @@ type readDesireLister struct {
 }
 
 func (l *readDesireLister) List(ctx context.Context) ([]*kubeapplier.ReadDesire, error) {
-	return listAll[kubeapplier.ReadDesire](l.indexer)
+	return listerutils.ListAll[kubeapplier.ReadDesire](l.indexer)
 }
 
 // NewReadDesireLister creates a ReadDesireLister from a SharedIndexInformer's indexer.
@@ -54,7 +55,7 @@ func (l *readDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
 ) (*kubeapplier.ReadDesire, error) {
 	key := kubeapplier.ToClusterScopedReadDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
-	return getByKey[kubeapplier.ReadDesire](l.indexer, key)
+	return listerutils.GetByKey[kubeapplier.ReadDesire](l.indexer, key)
 }
 
 func (l *readDesireLister) GetForNodePool(
@@ -63,7 +64,7 @@ func (l *readDesireLister) GetForNodePool(
 	key := kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
 	)
-	return getByKey[kubeapplier.ReadDesire](l.indexer, key)
+	return listerutils.GetByKey[kubeapplier.ReadDesire](l.indexer, key)
 }
 
 func (l *readDesireLister) GetForSystemAdminCredentialRequest(
@@ -72,7 +73,7 @@ func (l *readDesireLister) GetForSystemAdminCredentialRequest(
 	key := kubeapplier.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
 	)
-	return getByKey[kubeapplier.ReadDesire](l.indexer, key)
+	return listerutils.GetByKey[kubeapplier.ReadDesire](l.indexer, key)
 }
 
 func (l *readDesireLister) GetForSystemAdminCredentialRevocation(
@@ -81,7 +82,7 @@ func (l *readDesireLister) GetForSystemAdminCredentialRevocation(
 	key := kubeapplier.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
-	return getByKey[kubeapplier.ReadDesire](l.indexer, key)
+	return listerutils.GetByKey[kubeapplier.ReadDesire](l.indexer, key)
 }
 
 func (l *readDesireLister) ListForManagementCluster(
@@ -90,21 +91,21 @@ func (l *readDesireLister) ListForManagementCluster(
 	if managementClusterResourceID == nil {
 		return nil, nil
 	}
-	return listFromIndex[kubeapplier.ReadDesire](l.indexer, ByManagementCluster, strings.ToLower(managementClusterResourceID.String()))
+	return listerutils.ListFromIndex[kubeapplier.ReadDesire](l.indexer, ByManagementCluster, strings.ToLower(managementClusterResourceID.String()))
 }
 
 func (l *readDesireLister) ListForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName string,
 ) ([]*kubeapplier.ReadDesire, error) {
-	return listFromIndex[kubeapplier.ReadDesire](
-		l.indexer, ByCluster, clusterIndexKey(subscriptionID, resourceGroupName, clusterName),
+	return listerutils.ListFromIndex[kubeapplier.ReadDesire](
+		l.indexer, ByCluster, listerutils.ClusterIndexKey(subscriptionID, resourceGroupName, clusterName),
 	)
 }
 
 func (l *readDesireLister) ListForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
 ) ([]*kubeapplier.ReadDesire, error) {
-	return listFromIndex[kubeapplier.ReadDesire](
-		l.indexer, ByNodePool, nodePoolIndexKey(subscriptionID, resourceGroupName, clusterName, nodePoolName),
+	return listerutils.ListFromIndex[kubeapplier.ReadDesire](
+		l.indexer, ByNodePool, listerutils.NodePoolIndexKey(subscriptionID, resourceGroupName, clusterName, nodePoolName),
 	)
 }
