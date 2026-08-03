@@ -168,19 +168,23 @@ func run(ctx context.Context) error {
 	return reconcile(ctx, replicationsClient, cfg, desiredEnabled)
 }
 
-// reconcile creates, recreates, or updates the replica named after
+// reconcile creates, recreates, or updates the replica located in
 // cfg.region so it ends up in a Succeeded state with the desired regional
 // endpoint setting.
 func reconcile(ctx context.Context, client *armcontainerregistry.ReplicationsClient, cfg *config, desiredEnabled bool) error {
-	existing, err := client.Get(ctx, cfg.resourceGroup, cfg.acrName, cfg.region, nil)
-	if isNotFound(err) {
+	existing, err := findReplicationByLocation(ctx, client, cfg)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
 		slog.Info("no replication exists in region; creating", "region", cfg.region)
 		return createReplication(ctx, client, cfg, desiredEnabled)
 	}
-	if err != nil {
-		return fmt.Errorf("get replication %q: %w", cfg.region, err)
-	}
 
+	name := ""
+	if existing.Name != nil {
+		name = *existing.Name
+	}
 	state := armcontainerregistry.ProvisioningState("")
 	if existing.Properties != nil && existing.Properties.ProvisioningState != nil {
 		state = *existing.Properties.ProvisioningState
@@ -189,26 +193,55 @@ func reconcile(ctx context.Context, client *armcontainerregistry.ReplicationsCli
 	if existing.Properties != nil && existing.Properties.RegionEndpointEnabled != nil {
 		currentEnabled = *existing.Properties.RegionEndpointEnabled
 	}
-	slog.Info("found existing replication", "region", cfg.region, "state", state, "endpointEnabled", currentEnabled)
+	slog.Info("found existing replication", "region", cfg.region, "name", name, "state", state, "endpointEnabled", currentEnabled)
 
 	switch state {
 	case armcontainerregistry.ProvisioningStateFailed:
-		slog.Info("replication is in failed state; deleting and recreating", "region", cfg.region)
-		if err := deleteReplication(ctx, client, cfg); err != nil {
+		slog.Info("replication is in failed state; deleting and recreating", "region", cfg.region, "name", name)
+		if err := deleteReplication(ctx, client, cfg, name); err != nil {
 			return err
 		}
 		return createReplication(ctx, client, cfg, desiredEnabled)
 	case armcontainerregistry.ProvisioningStateSucceeded:
-		if currentEnabled == desiredEnabled {
-			slog.Info("replication already at desired state", "region", cfg.region, "endpointEnabled", desiredEnabled)
-			return nil
+		// Mirrors the replaced shell script: reconciliation is only ever
+		// forced when the desired state is disabled (i.e. a canary region
+		// must be forced back to disabled on drift). When the desired state
+		// is enabled, an existing disabled replica is left untouched rather
+		// than re-enabled, since disabling it may have been an intentional,
+		// separately-managed mitigation.
+		if !desiredEnabled && currentEnabled != desiredEnabled {
+			return reconcileEndpoint(ctx, client, cfg, name, desiredEnabled)
 		}
-		return reconcileEndpoint(ctx, client, cfg, desiredEnabled)
+		slog.Info("endpoint reconciliation not requested or already satisfied; leaving existing state unchanged",
+			"region", cfg.region, "name", name, "endpointEnabled", currentEnabled)
+		return nil
 	default:
 		slog.Info("replication exists but is not ready for endpoint reconciliation; leaving it unchanged",
-			"region", cfg.region, "state", state)
+			"region", cfg.region, "name", name, "state", state)
 		return nil
 	}
+}
+
+// findReplicationByLocation returns the replica whose Location matches
+// cfg.region, or nil if none exists. Matching by location (rather than
+// assuming the replica is named after the region) mirrors the replaced shell
+// script, which discovered the replica via `az resource list --query
+// "[?location=='$REPLICATION_REGION']"` instead of relying on naming
+// convention.
+func findReplicationByLocation(ctx context.Context, client *armcontainerregistry.ReplicationsClient, cfg *config) (*armcontainerregistry.Replication, error) {
+	pager := client.NewListPager(cfg.resourceGroup, cfg.acrName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list replications: %w", err)
+		}
+		for _, r := range page.Value {
+			if r != nil && r.Location != nil && strings.EqualFold(*r.Location, cfg.region) {
+				return r, nil
+			}
+		}
+	}
+	return nil, nil
 }
 
 // createReplication creates a new replica named after cfg.region with the
@@ -231,33 +264,33 @@ func createReplication(ctx context.Context, client *armcontainerregistry.Replica
 	return nil
 }
 
-// deleteReplication deletes the replica named after cfg.region.
-func deleteReplication(ctx context.Context, client *armcontainerregistry.ReplicationsClient, cfg *config) error {
-	poller, err := client.BeginDelete(ctx, cfg.resourceGroup, cfg.acrName, cfg.region, nil)
+// deleteReplication deletes the replica by its actual resource name.
+func deleteReplication(ctx context.Context, client *armcontainerregistry.ReplicationsClient, cfg *config, name string) error {
+	poller, err := client.BeginDelete(ctx, cfg.resourceGroup, cfg.acrName, name, nil)
 	if err != nil {
-		return fmt.Errorf("delete replication %q: %w", cfg.region, err)
+		return fmt.Errorf("delete replication %q: %w", name, err)
 	}
 	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
-		return fmt.Errorf("delete replication %q: %w", cfg.region, err)
+		return fmt.Errorf("delete replication %q: %w", name, err)
 	}
-	slog.Info("successfully deleted replication", "region", cfg.region)
+	slog.Info("successfully deleted replication", "region", cfg.region, "name", name)
 	return nil
 }
 
 // reconcileEndpoint updates an existing replica's regional endpoint to the
 // desired state.
-func reconcileEndpoint(ctx context.Context, client *armcontainerregistry.ReplicationsClient, cfg *config, desiredEnabled bool) error {
-	slog.Info("reconciling replication regional endpoint", "region", cfg.region, "desiredEnabled", desiredEnabled)
-	poller, err := client.BeginUpdate(ctx, cfg.resourceGroup, cfg.acrName, cfg.region, armcontainerregistry.ReplicationUpdateParameters{
+func reconcileEndpoint(ctx context.Context, client *armcontainerregistry.ReplicationsClient, cfg *config, name string, desiredEnabled bool) error {
+	slog.Info("reconciling replication regional endpoint", "region", cfg.region, "name", name, "desiredEnabled", desiredEnabled)
+	poller, err := client.BeginUpdate(ctx, cfg.resourceGroup, cfg.acrName, name, armcontainerregistry.ReplicationUpdateParameters{
 		Properties: &armcontainerregistry.ReplicationUpdateParametersProperties{
 			RegionEndpointEnabled: to.Ptr(desiredEnabled),
 		},
 	}, nil)
 	if err != nil {
-		return fmt.Errorf("update replication %q: %w", cfg.region, err)
+		return fmt.Errorf("update replication %q: %w", name, err)
 	}
 	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
-		return fmt.Errorf("update replication %q: %w", cfg.region, err)
+		return fmt.Errorf("update replication %q: %w", name, err)
 	}
 	slog.Info("successfully reconciled replication regional endpoint", "region", cfg.region, "enabled", desiredEnabled)
 	return nil
