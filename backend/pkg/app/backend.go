@@ -64,6 +64,7 @@ import (
 	nodepoolreaddesires "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/readdesires"
 	nodepoolstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/status"
 	nodepoolupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/update"
+	nodepoolvalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/validation"
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -723,6 +724,22 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		serviceProviderClusterLister,
 		backendInformers,
 	)
+	azureVMSizeSupportsEphemeralOSDiskValidationController := nodepoolvalidation.NewNodePoolValidationController(
+		validationutils.NewAzureVMSizeSupportsEphemeralOSDiskValidation(virtualMachineResourceSKUsCachedReaderController),
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	azureNodePoolVMQuotaValidationController := nodepoolvalidation.NewNodePoolValidationController(
+		validationutils.NewAzureNodePoolVMQuotaValidation(virtualMachineResourceSKUsCachedReaderController, b.options.FPAClientBuilder),
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
 	nodePoolVersionController := nodepoolversion.NewNodePoolVersionController(
 		b.options.ResourcesDBClient,
 		subscriptionLister,
@@ -935,6 +952,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
+				go azureVMSizeSupportsEphemeralOSDiskValidationController.Run(ctx, 20)
+				go azureNodePoolVMQuotaValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
