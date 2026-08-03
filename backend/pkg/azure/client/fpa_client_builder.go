@@ -18,6 +18,7 @@ package client
 
 import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
@@ -47,6 +48,8 @@ type FirstPartyApplicationClientBuilder interface {
 	ResourceProvidersClient(tenantID string, subscriptionID string) (ResourceProvidersClient, error)
 	ResourceSKUsClient(tenantID string, subscriptionID string) (ResourceSKUsClient, error)
 	UsageClient(tenantID string, subscriptionID string) (UsageClient, error)
+	GenericResourcesClient(tenantID string, subscriptionID string) (GenericResourcesClient, error)
+	DenyAssignmentsClient(tenantID string, subscriptionID string) (DenyAssignmentsClient, error)
 }
 
 type firstPartyApplicationClientBuilder struct {
@@ -101,6 +104,24 @@ func (b *firstPartyApplicationClientBuilder) UsageClient(tenantID string, subscr
 	}
 
 	return armcompute.NewUsageClient(subscriptionID, creds, b.options)
+}
+
+func (b *firstPartyApplicationClientBuilder) GenericResourcesClient(tenantID string, subscriptionID string) (GenericResourcesClient, error) {
+	creds, err := b.fpaTokenCredRetriever.RetrieveCredential(tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return armresources.NewClient(subscriptionID, creds, b.options)
+}
+
+func (b *firstPartyApplicationClientBuilder) DenyAssignmentsClient(tenantID string, subscriptionID string) (DenyAssignmentsClient, error) {
+	creds, err := b.fpaTokenCredRetriever.RetrieveCredential(tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return armauthorization.NewDenyAssignmentsClient(subscriptionID, creds, b.options)
 }
 
 func (b *firstPartyApplicationClientBuilder) BuilderType() FirstPartyApplicationClientBuilderType {

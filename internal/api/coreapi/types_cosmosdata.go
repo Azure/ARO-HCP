@@ -116,6 +116,17 @@ func ToSystemAdminCredentialRevocationResourceID(subscriptionName, resourceGroup
 	return azcorearm.ParseResourceID(ToSystemAdminCredentialRevocationResourceIDString(subscriptionName, resourceGroupName, clusterName, revocationName))
 }
 
+func ToDenyAssignmentResourceID(subscriptionID, resourceGroupName, denyAssignmentName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToDenyAssignmentResourceIDString(subscriptionID, resourceGroupName, denyAssignmentName))
+}
+
+func ToDenyAssignmentResourceIDString(subscriptionID, resourceGroupName, denyAssignmentName string) string {
+	return strings.ToLower(path.Join(
+		ToResourceGroupResourceIDString(subscriptionID, resourceGroupName),
+		"providers", "Microsoft.Authorization", "denyAssignments", denyAssignmentName,
+	))
+}
+
 func ToServiceProviderNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {
 	return strings.ToLower(path.Join(
 		ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName),
