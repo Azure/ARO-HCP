@@ -249,19 +249,19 @@ func stuckSince(p *corev1.Pod) (time.Time, bool) {
 //     transition. Keying on the transition, not pod age, means a container
 //     restart inside an existing sandbox is not counted: the sandbox is what
 //     needs the network, and restarting a container in one proves nothing.
-//   - A pod that has reached a terminal phase with a container that actually ran,
-//     timed by that container's start. A finished pod drops
+//   - A pod that has reached a terminal phase with a container that ran exactly
+//     once, timed by that container's start. A finished pod drops
 //     PodReadyToStartContainers back to False as a matter of course, so without
 //     this a node whose recent traffic was short-lived Job and CronJob pods would
-//     read as having had no success at all. A container can only terminate if it
-//     started, and it can only start inside a sandbox, so this cannot be reached
-//     by a pod that failed to get a network.
+//     read as having had no success at all. A container can only start inside a
+//     sandbox, so a first start is proof the sandbox was built, and this cannot be
+//     reached by a pod that failed to get a network.
 func SuccessAt(p *corev1.Pod) (time.Time, bool) {
 	if p == nil || p.Spec.HostNetwork {
 		return time.Time{}, false
 	}
 	if p.Status.Phase == corev1.PodSucceeded || p.Status.Phase == corev1.PodFailed {
-		return lastContainerStart(p)
+		return firstRunStart(p)
 	}
 	cond := podReadyToStartCondition(p)
 	if cond == nil || cond.Status != corev1.ConditionTrue {
@@ -270,15 +270,29 @@ func SuccessAt(p *corev1.Pod) (time.Time, bool) {
 	return cond.LastTransitionTime.Time, true
 }
 
-// lastContainerStart returns the most recent start time among a terminal pod's
-// containers that ran to termination. Only the terminated state is read: a
-// waiting container never got as far as needing a sandbox, and taking the latest
-// start keeps the timestamp as close as possible to when the node last
-// demonstrably had working networking.
-func lastContainerStart(p *corev1.Pod) (time.Time, bool) {
+// firstRunStart returns the most recent start among a terminal pod's containers
+// that ran exactly once and terminated.
+//
+// The restart count is the load-bearing part. A container's terminated state
+// describes its latest run, so on a container that restarted, StartedAt is the
+// start of a run inside the sandbox the pod already had. An established sandbox
+// survives the VF teardown, so that run needs no working network and proves
+// nothing: counting it would let a wedged node suppress its own detection, the
+// same reason kubelet Started events are unusable here. A restart count of zero
+// means the terminated state is the container's one and only run, which can only
+// have followed a sandbox the node built. Containers that did restart are simply
+// not evidence, in either direction.
+//
+// Only the terminated state is read: a waiting container never got as far as
+// needing a sandbox. Taking the latest qualifying start keeps the timestamp as
+// close as possible to when the node last demonstrably had working networking.
+func firstRunStart(p *corev1.Pod) (time.Time, bool) {
 	var latest time.Time
 	for _, css := range [][]corev1.ContainerStatus{p.Status.InitContainerStatuses, p.Status.ContainerStatuses} {
 		for _, cs := range css {
+			if cs.RestartCount != 0 {
+				continue
+			}
 			t := cs.State.Terminated
 			if t == nil || t.StartedAt.IsZero() {
 				continue

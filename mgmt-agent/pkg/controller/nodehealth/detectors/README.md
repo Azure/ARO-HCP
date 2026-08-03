@@ -105,10 +105,14 @@ Pods that the apiserver garbage-collects:
     timed by that transition. Keying on the transition rather than pod age means a
     container restarting inside an existing sandbox is not mistaken for success:
     the sandbox is what needs the network.
-  - a pod that reached a terminal phase with a container that actually ran, timed
-    by that container's start. A finished pod drops the condition back to `False`
-    as a matter of course, so without this a node whose recent traffic was
+  - a pod that reached a terminal phase with a container that ran exactly once,
+    timed by that container's start. A finished pod drops the condition back to
+    `False` as a matter of course, so without this a node whose recent traffic was
     short-lived Job and CronJob pods would read as having had no success at all.
+    The restart count matters: a terminated state describes the container's latest
+    run, so on a restarted container the start time belongs to a run inside the
+    sandbox the pod already had, which proves nothing. Those containers are not
+    evidence in either direction.
   The window comparison is absolute, so a timestamp dated ahead by kubelet clock
   skew is measured by its distance from now rather than its sign. Skew inside the
   window still counts as a success, which is harmless, and anything further out is

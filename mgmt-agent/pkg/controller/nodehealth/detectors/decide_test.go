@@ -628,6 +628,61 @@ func TestSuccessAtCountsFinishedPods(t *testing.T) {
 	}
 }
 
+// TestSuccessAtIgnoresRestartedContainers is the false-negative guard on the
+// finished-pod path. A container's terminated state describes its latest run, so
+// on a restarted container StartedAt is the start of a run inside the sandbox the
+// pod already had. An established sandbox survives the VF teardown, so that run
+// needed no working network: counting it would let a wedged node fabricate a
+// fresh success out of a container looping in an old sandbox and suppress its own
+// detection. Only a container that ran exactly once is evidence.
+func TestSuccessAtIgnoresRestartedContainers(t *testing.T) {
+	started := ago(3 * time.Minute)
+
+	restarted := completedPod("restarted", started, false)
+	restarted.Status.ContainerStatuses[0].RestartCount = 2
+	if at, ok := SuccessAt(restarted); ok {
+		t.Errorf("SuccessAt(restarted container) = (%v, true), want false", at)
+	}
+
+	// A sidecar that never restarted still carries proof, even when another
+	// container in the same pod did.
+	mixed := completedPod("mixed", started, false)
+	mixed.Status.ContainerStatuses[0].RestartCount = 5
+	mixed.Status.ContainerStatuses = append(mixed.Status.ContainerStatuses, corev1.ContainerStatus{
+		Name: "sidecar",
+		State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{
+			StartedAt:  metav1.NewTime(started),
+			FinishedAt: metav1.NewTime(started.Add(1 * time.Minute)),
+		}},
+	})
+	if at, ok := SuccessAt(mixed); !ok || !at.Equal(started) {
+		t.Errorf("SuccessAt(mixed) = (%v, %v), want (%v, true)", at, ok, started)
+	}
+}
+
+// TestRestartedContainerDoesNotSuppressAWedge is the same guard at the decision
+// level: a pod looping in a sandbox built before the node wedged must not read as
+// recovery, however recent its container's latest start is.
+func TestRestartedContainerDoesNotSuppressAWedge(t *testing.T) {
+	events, pods := stuckFailing(3, ago(15*time.Minute))
+
+	looping := completedPod("looping", ago(1*time.Minute), false)
+	looping.Status.ContainerStatuses[0].RestartCount = 7
+
+	got, snap := Decide(testNode(true, true), events, pods, testNow)
+	if got != DecisionWedged {
+		t.Fatalf("precondition: Decide() = %v, want Wedged", got)
+	}
+
+	got, snap = Decide(testNode(true, true), events, append(pods, looping), testNow)
+	if got != DecisionWedged {
+		t.Errorf("Decide(with a restarting container) = %v, want Wedged", got)
+	}
+	if snap.RecentSuccess {
+		t.Error("RecentSuccess = true for a container restarting in an existing sandbox, want false")
+	}
+}
+
 // TestFinishedPodInWindowPreventsAFalseWedge is the reason the finished-pod path
 // exists: on a low-churn node the only thing that started recently may be a
 // CronJob pod that has already completed. It is still real proof the node can
