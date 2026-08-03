@@ -122,6 +122,11 @@ func ResolveSubscription(ctx context.Context) (string, error) {
 // the full catalogue and the subset with a non-empty Upgrades list. Extracted
 // for unit testing without an ARM mock.
 //
+// ARM does not expose an explicit "default" flag on mesh revisions. AKS
+// currently treats the highest revision whose Upgrades list is non-empty as the
+// default installed on new clusters. This heuristic is based on observed ARM
+// responses and should be revisited if the API changes.
+//
 // Rule: pick the highest revision that still has upgrades available. Fall back
 // to the highest revision overall when only the bleeding-edge is listed
 // (single-revision catalogue during a fresh mesh rollout).
