@@ -182,19 +182,30 @@ func run(ctx context.Context) error {
 // cfg.region so it ends up in a Succeeded state with the desired regional
 // endpoint setting.
 func reconcile(ctx context.Context, client *armcontainerregistry.ReplicationsClient, cfg *config, desiredEnabled bool) error {
-	existing, err := findReplicationByLocation(ctx, client, cfg)
+	name, err := findReplicationNameByLocation(ctx, client, cfg)
 	if err != nil {
 		return err
 	}
-	if existing == nil {
+	if name == "" {
 		slog.Info("no replication exists in region; creating", "region", cfg.region)
 		return createReplication(ctx, client, cfg, desiredEnabled)
 	}
 
-	name := ""
-	if existing.Name != nil {
-		name = *existing.Name
+	// Fetch authoritative state via Get on the discovered name rather than
+	// trusting the List response's Properties: the replaced shell script
+	// explicitly avoided reading state off the list/resource-list output
+	// because of known bugs where it reports the wrong provisioning/endpoint
+	// state, and instead did a separate `az resource show` on the replica ID.
+	existing, err := client.Get(ctx, cfg.resourceGroup, cfg.acrName, name, nil)
+	if isNotFound(err) {
+		// Replica disappeared between the list and the get; treat as missing.
+		slog.Info("no replication exists in region; creating", "region", cfg.region)
+		return createReplication(ctx, client, cfg, desiredEnabled)
 	}
+	if err != nil {
+		return fmt.Errorf("get replication %q: %w", name, err)
+	}
+
 	state := armcontainerregistry.ProvisioningState("")
 	if existing.Properties != nil && existing.Properties.ProvisioningState != nil {
 		state = *existing.Properties.ProvisioningState
@@ -232,26 +243,27 @@ func reconcile(ctx context.Context, client *armcontainerregistry.ReplicationsCli
 	}
 }
 
-// findReplicationByLocation returns the replica whose Location matches
-// cfg.region, or nil if none exists. Matching by location (rather than
-// assuming the replica is named after the region) mirrors the replaced shell
-// script, which discovered the replica via `az resource list --query
-// "[?location=='$REPLICATION_REGION']"` instead of relying on naming
-// convention.
-func findReplicationByLocation(ctx context.Context, client *armcontainerregistry.ReplicationsClient, cfg *config) (*armcontainerregistry.Replication, error) {
+// findReplicationNameByLocation returns the name of the replica whose
+// Location matches cfg.region, or "" if none exists. Matching by location
+// (rather than assuming the replica is named after the region) mirrors the
+// replaced shell script, which discovered the replica via `az resource list
+// --query "[?location=='$REPLICATION_REGION']"` instead of relying on naming
+// convention; only the name is taken from the list response, matching the
+// original's use of the list purely for discovery.
+func findReplicationNameByLocation(ctx context.Context, client *armcontainerregistry.ReplicationsClient, cfg *config) (string, error) {
 	pager := client.NewListPager(cfg.resourceGroup, cfg.acrName, nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("list replications: %w", err)
+			return "", fmt.Errorf("list replications: %w", err)
 		}
 		for _, r := range page.Value {
-			if r != nil && r.Location != nil && strings.EqualFold(*r.Location, cfg.region) {
-				return r, nil
+			if r != nil && r.Location != nil && r.Name != nil && strings.EqualFold(*r.Location, cfg.region) {
+				return *r.Name, nil
 			}
 		}
 	}
-	return nil, nil
+	return "", nil
 }
 
 // createReplication creates a new replica named after cfg.region with the
