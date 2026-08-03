@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 istioVersions:
 - "{{ .svc.istio.versions }}"
 opsIngress:
