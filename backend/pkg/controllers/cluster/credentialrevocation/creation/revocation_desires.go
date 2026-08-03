@@ -21,21 +21,23 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type revocationDesires struct {
-	resourcesDBClient            database.ResourcesDBClient
-	kubeApplierDBClients         database.KubeApplierDBClients
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	applyDesireLister            dblisters.ApplyDesireLister
 	readDesireLister             dblisters.ReadDesireLister
 }
@@ -49,10 +51,10 @@ var _ controllerutils.SystemAdminCredentialRevocationSyncer = (*revocationDesire
 // the CRR for confirmation and marking the revocation complete is handled by the
 // separate revocation-completion controller.
 func NewRevocationDesiresController(
-	activeOperationLister listers.ActiveOperationLister,
-	resourcesDBClient database.ResourcesDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
-	backendInformers informers.BackendInformers,
+	activeOperationLister corelisters.ActiveOperationLister,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	backendInformers coreinformers.BackendInformers,
 	applyDesireLister dblisters.ApplyDesireLister,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
@@ -80,7 +82,7 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 
 	revocationCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRevocations(key.HCPClusterName)
 	revocation, err := revocationCRUD.Get(ctx, key.RevocationName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -93,7 +95,7 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 	}
 
 	cluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -104,7 +106,7 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 	}
 
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -146,7 +148,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 	key controllerutils.SystemAdminCredentialRevocationKey,
 	suffix, controlPlaneNamespace string,
 	owner, mcResourceID *azcorearm.ResourceID,
-	kubeApplierClient database.KubeApplierDBClient,
+	kubeApplierClient kubeappliercosmosstorage.KubeApplierDBClient,
 ) error {
 	// Revocation desires are nested under the SystemAdminCredentialRevocation so
 	// the hierarchy mirrors the resource that owns them.
@@ -169,7 +171,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 		Namespace: controlPlaneNamespace,
 		Name:      crrObj.Name,
 	}
-	crrDesireName := fmt.Sprintf("systemAdminCredentialRevocation-%s", suffix)
+	crrDesireName := "systemadmincredentialrevocation"
 	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		crrDesireName, mcResourceID, crrTarget, crrObj); err != nil {
@@ -177,7 +179,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 	}
 
 	// 2. CRR ReadDesire so the CRR status is mirrored back for the completion controller.
-	crrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestRevocation(suffix)
+	crrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestRevocation()
 	if err := kubeapplierhelpers.EnsureReadDesire(ctx, readCRUD, c.readDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		crrReadDesireName, mcResourceID, crrTarget); err != nil {

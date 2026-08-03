@@ -35,10 +35,10 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	"github.com/Azure/ARO-HCP/internal/database/listertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -55,14 +55,14 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		setupDB          func(db *databasetesting.MockResourcesDBClient)
-		readDesireLister *listertesting.SliceReadDesireLister
+		setupDB          func(db *corecosmosstoragetesting.MockResourcesDBClient)
+		readDesireLister *kubeapplierlistertesting.SliceReadDesireLister
 		expectError      bool
-		verify           func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verify           func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name: "transitions credential to Issued when CSR has certificate",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createTestCredentialRequest(t, db, testCredentialName)
 			},
 			readDesireLister: makeReadDesireListerWithCSR(t,
@@ -74,7 +74,7 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 				},
 			),
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				cred, err := credCRUD.Get(ctx, testCredentialName)
 				require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "transitions credential to Failed when CSR is denied",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createTestCredentialRequest(t, db, testCredentialName)
 			},
 			readDesireLister: makeReadDesireListerWithCSR(t,
@@ -103,7 +103,7 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 				},
 			),
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				cred, err := credCRUD.Get(ctx, testCredentialName)
 				require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no-op when CSR has no certificate and no denial",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createTestCredentialRequest(t, db, testCredentialName)
 			},
 			readDesireLister: makeReadDesireListerWithCSR(t,
@@ -122,7 +122,7 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 				},
 			),
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				cred, err := credCRUD.Get(ctx, testCredentialName)
 				require.NoError(t, err)
@@ -131,13 +131,13 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "skips non-Pending credentials",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createTestCredentialRequest(t, db, testCredentialName,
 					withCondition(coreapi.SystemAdminCredentialRequestConditionIssued))
 			},
-			readDesireLister: &listertesting.SliceReadDesireLister{},
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{},
 			expectError:      false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				cred, err := credCRUD.Get(ctx, testCredentialName)
 				require.NoError(t, err)
@@ -146,12 +146,12 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no-op when ReadDesire not yet created",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+			setupDB: func(db *corecosmosstoragetesting.MockResourcesDBClient) {
 				createTestCredentialRequest(t, db, testCredentialName)
 			},
-			readDesireLister: &listertesting.SliceReadDesireLister{},
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{},
 			expectError:      false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				credCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).SystemAdminCredentialRequests(testClusterName)
 				cred, err := credCRUD.Get(ctx, testCredentialName)
 				require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			db := databasetesting.NewMockResourcesDBClient()
+			db := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tc.setupDB(db)
 
 			syncer := &issuanceObserver{
@@ -186,19 +186,19 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 	}
 }
 
-func makeReadDesireListerWithCSR(t *testing.T, credName string, csr *certificatesv1.CertificateSigningRequest) *listertesting.SliceReadDesireLister {
+func makeReadDesireListerWithCSR(t *testing.T, credName string, csr *certificatesv1.CertificateSigningRequest) *kubeapplierlistertesting.SliceReadDesireLister {
 	t.Helper()
 
 	csrBytes, err := json.Marshal(csr)
 	require.NoError(t, err)
 
-	desireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
+	desireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestCSR()
 	resourceIDStr := kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
 		testSubscriptionID, testResourceGroupName, testClusterName, credName, desireName,
 	)
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
 
-	return &listertesting.SliceReadDesireLister{
+	return &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplierapi.ReadDesire{
 			{
 				CosmosMetadata: coreapi.CosmosMetadata{

@@ -24,23 +24,25 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type desiresCreator struct {
-	resourcesDBClient            database.ResourcesDBClient
-	kubeApplierDBClients         database.KubeApplierDBClients
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	applyDesireLister            dblisters.ApplyDesireLister
 	readDesireLister             dblisters.ReadDesireLister
 }
@@ -56,10 +58,10 @@ var _ controllerutils.SystemAdminCredentialRequestSyncer = (*desiresCreator)(nil
 // ReadDesire listers before writing so it skips the create entirely when a desire
 // already exists with the desired content.
 func NewDesiresCreatorController(
-	activeOperationLister listers.ActiveOperationLister,
-	resourcesDBClient database.ResourcesDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
-	backendInformers informers.BackendInformers,
+	activeOperationLister corelisters.ActiveOperationLister,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	backendInformers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
@@ -102,7 +104,7 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 	logger := utils.LoggerFromContext(ctx)
 
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -112,7 +114,7 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 	// Get the specific credential request.
 	credCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRequests(key.HCPClusterName)
 	cred, err := credCRUD.Get(ctx, key.CredentialName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -127,7 +129,7 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 	// client. These are readiness checks: if the mapping is not available yet we
 	// return and wait to be retriggered.
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -166,7 +168,7 @@ func (c *desiresCreator) ensureDesires(
 	cred *coreapi.SystemAdminCredentialRequest,
 	credName, controlPlaneNamespace string,
 	owner, mcResourceID *azcorearm.ResourceID,
-	kubeApplierClient database.KubeApplierDBClient,
+	kubeApplierClient kubeappliercosmosstorage.KubeApplierDBClient,
 ) error {
 	// Desires for a credential are nested under the SystemAdminCredentialRequest
 	// so the hierarchy mirrors the resource that owns them.
@@ -181,7 +183,7 @@ func (c *desiresCreator) ensureDesires(
 	}
 
 	// 1. CSR ApplyDesire
-	csrDesireName := fmt.Sprintf("systemAdminCredentialCSR-%s", credName)
+	csrDesireName := "systemadmincredentialcsr"
 	csrObj := systemadmincredential.BuildCSR(owner, credName, controlPlaneNamespace, []byte(cred.Spec.CertificateSigningRequestPEM))
 	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
@@ -190,7 +192,7 @@ func (c *desiresCreator) ensureDesires(
 	}
 
 	// 2. CSRApproval ApplyDesire
-	csrApprovalDesireName := fmt.Sprintf("systemAdminCredentialCSRApproval-%s", credName)
+	csrApprovalDesireName := "systemadmincredentialcsrapproval"
 	csrApprovalObj := systemadmincredential.BuildCSRApproval(owner, credName, controlPlaneNamespace)
 	csrApprovalTarget := kubeapplierapi.ResourceReference{
 		Group:     "certificates.hypershift.openshift.io",
@@ -206,7 +208,7 @@ func (c *desiresCreator) ensureDesires(
 	}
 
 	// 3. CSR ReadDesire
-	csrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
+	csrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestCSR()
 	csrReadTarget := kubeapplierapi.ResourceReference{
 		Group:    "certificates.k8s.io",
 		Version:  "v1",
