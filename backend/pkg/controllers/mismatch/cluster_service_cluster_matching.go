@@ -29,7 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -37,7 +37,7 @@ import (
 type clusterServiceClusterMatching struct {
 	name string
 
-	subscriptionLister   listers.SubscriptionLister
+	subscriptionLister   corelisters.SubscriptionLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
@@ -47,7 +47,7 @@ type clusterServiceClusterMatching struct {
 }
 
 // NewClusterServiceClusterMatchingController periodically looks for mismatched cluster-service and cosmos clusters
-func NewClusterServiceClusterMatchingController(resourcesDBClient database.ResourcesDBClient, subscriptionLister listers.SubscriptionLister, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.Controller {
+func NewClusterServiceClusterMatchingController(resourcesDBClient database.ResourcesDBClient, subscriptionLister corelisters.SubscriptionLister, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.Controller {
 	c := &clusterServiceClusterMatching{
 		name:                 "ClusterServiceMatchingClusters",
 		subscriptionLister:   subscriptionLister,

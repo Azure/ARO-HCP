@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -205,10 +205,10 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 				azureLocation:     testAzureLocation,
 				resourcesDBClient: mockResourcesDBClient,
 				billingDBClient:   mockBillingDBClient,
-				clusterLister: &listertesting.SliceClusterLister{
+				clusterLister: &corelistertesting.SliceClusterLister{
 					Clusters: []*api.HCPOpenShiftCluster{tt.cluster},
 				},
-				billingLister: &listertesting.SliceBillingLister{
+				billingLister: &corelistertesting.SliceBillingLister{
 					BillingDocuments: []*database.BillingDocument{},
 				},
 			}
@@ -243,7 +243,7 @@ func TestCreateBillingDoc_Idempotent(t *testing.T) {
 	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
 
 	// Setup slice cluster lister (cache)
-	clusterLister := &listertesting.SliceClusterLister{
+	clusterLister := &corelistertesting.SliceClusterLister{
 		Clusters: []*api.HCPOpenShiftCluster{cluster},
 	}
 
@@ -253,7 +253,7 @@ func TestCreateBillingDoc_Idempotent(t *testing.T) {
 		resourcesDBClient: mockResourcesDBClient,
 		billingDBClient:   mockBillingDBClient,
 		clusterLister:     clusterLister,
-		billingLister: &listertesting.SliceBillingLister{
+		billingLister: &corelistertesting.SliceBillingLister{
 			BillingDocuments: []*database.BillingDocument{},
 		},
 	}
@@ -328,10 +328,10 @@ func TestCreateBillingDoc_ExistingBillingDocButMissingClusterRef(t *testing.T) {
 				azureLocation:     testAzureLocation,
 				resourcesDBClient: mockResourcesDBClient,
 				billingDBClient:   mockBillingDBClient,
-				clusterLister: &listertesting.SliceClusterLister{
+				clusterLister: &corelistertesting.SliceClusterLister{
 					Clusters: []*api.HCPOpenShiftCluster{cluster},
 				},
-				billingLister: &listertesting.SliceBillingLister{
+				billingLister: &corelistertesting.SliceBillingLister{
 					BillingDocuments: tt.cachedBillingDoc,
 				},
 			}

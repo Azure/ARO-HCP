@@ -26,7 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -81,7 +81,7 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 			if cachedCluster == nil {
 				cachedCluster = tc.existingCluster
 			}
-			clusterLister := &listertesting.SliceClusterLister{
+			clusterLister := &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{cachedCluster},
 			}
 

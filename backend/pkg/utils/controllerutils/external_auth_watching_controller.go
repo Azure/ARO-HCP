@@ -26,8 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -39,7 +39,7 @@ type externalAuthWatchingController struct {
 	name   string
 	syncer ExternalAuthSyncer
 
-	externalAuthLister listers.ExternalAuthLister
+	externalAuthLister corelisters.ExternalAuthLister
 	resourcesDBClient  database.ResourcesDBClient
 }
 
@@ -51,7 +51,7 @@ type externalAuthWatchingController struct {
 func NewExternalAuthWatchingController(
 	name string,
 	resourcesDBClient database.ResourcesDBClient,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	resyncDuration time.Duration,
 	syncer ExternalAuthSyncer,
 ) Controller {

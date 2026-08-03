@@ -36,7 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -275,8 +275,8 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 
 			syncer := &externalAuthClusterServiceCreateSyncer{
 				cooldownChecker:       &alwaysSyncCooldownChecker{},
-				externalAuthLister:    &listertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
-				clusterLister:         &listertesting.SliceClusterLister{Clusters: clustersForLister},
+				externalAuthLister:    &corelistertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
+				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:     mockResourcesDBClient,
 				clustersServiceClient: mockCSClient,
 			}

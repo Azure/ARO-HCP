@@ -36,9 +36,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	backendinformers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
-	backendlisters "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -784,12 +784,12 @@ func TestActiveOperationInformer(t *testing.T) {
 		// Build the active operation informer using the same constructor
 		// the backend uses — it wires WithShouldDeliverItemFn to filter
 		// out terminal operations.
-		activeOpInformer := backendinformers.NewActiveOperationInformerWithRelistDuration(
+		activeOpInformer := coreinformers.NewActiveOperationInformerWithRelistDuration(
 			resourcesDBClient.ResourcesGlobalListers().ActiveOperations(),
 			resourcesDBClient,
 			30*time.Minute,
 		)
-		activeOpLister := backendlisters.NewActiveOperationLister(activeOpInformer.GetIndexer())
+		activeOpLister := corelisters.NewActiveOperationLister(activeOpInformer.GetIndexer())
 
 		// Track events delivered by the informer.
 		events := make(chan watch.Event, 10)

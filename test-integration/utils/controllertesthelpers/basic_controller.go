@@ -26,7 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
@@ -40,7 +40,7 @@ type ControllerInitializationInput struct {
 	ResourcesDBClient       database.ResourcesDBClient
 	BillingDBClient         database.BillingDBClient
 	KubeApplierDBClients    database.KubeApplierDBClients
-	SubscriptionLister      listers.SubscriptionLister
+	SubscriptionLister      corelisters.SubscriptionLister
 	ManagementClusterLister fleetlisters.ManagementClusterLister
 	ClusterServiceClient    ocm.ClusterServiceClientSpec
 }

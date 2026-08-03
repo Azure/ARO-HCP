@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -258,7 +258,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &externalAuthChildResourcesCleanupController{
-				externalAuthLister: &listertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
+				externalAuthLister: &corelistertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
 				resourcesDBClient:  mockResourcesDBClient,
 			}
 

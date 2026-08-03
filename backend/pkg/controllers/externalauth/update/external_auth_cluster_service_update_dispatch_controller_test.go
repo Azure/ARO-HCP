@@ -36,7 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -244,7 +244,7 @@ func TestExternalAuthClusterServiceUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			syncer := &externalAuthClusterServiceUpdateDispatchSyncer{
 				cooldownChecker:                     &alwaysSyncCooldownChecker{},
 				minimumReconcileTimeCooldownChecker: tc.minimumReconcileTimeCooldownChecker,
-				externalAuthLister:                  &listertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
+				externalAuthLister:                  &corelistertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
 				resourcesDBClient:                   mockResourcesDBClient,
 				clusterServiceClient:                mockCSClient,
 			}

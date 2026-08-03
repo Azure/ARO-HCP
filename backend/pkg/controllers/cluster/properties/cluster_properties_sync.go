@@ -27,8 +27,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -41,7 +41,7 @@ import (
 //   - ServiceProviderProperties.API.URL
 //   - ServiceProviderProperties.Platform.IssuerURL
 type clusterPropertiesSyncer struct {
-	clusterLister     listers.ClusterLister
+	clusterLister     corelisters.ClusterLister
 	resourcesDBClient database.ResourcesDBClient
 	readDesireLister  kubeapplierlisters.ReadDesireLister
 }
@@ -52,7 +52,7 @@ var _ controllerutils.ClusterSyncer = (*clusterPropertiesSyncer)(nil)
 // cluster properties from the HostedCluster ReadDesire mirror to Cosmos DB.
 func NewClusterPropertiesSyncController(
 	resourcesDBClient database.ResourcesDBClient,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {

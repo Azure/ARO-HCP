@@ -21,16 +21,16 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/listertestingutils"
 )
 
-// DBClusterLister implements listers.ClusterLister backed by a database.ResourcesDBClient.
+// DBClusterLister implements corelisters.ClusterLister backed by a database.ResourcesDBClient.
 type DBClusterLister struct {
 	ResourcesDBClient database.ResourcesDBClient
 }
 
-var _ listers.ClusterLister = &DBClusterLister{}
+var _ corelisters.ClusterLister = &DBClusterLister{}
 
 func (l *DBClusterLister) List(ctx context.Context) ([]*api.HCPOpenShiftCluster, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().Clusters().List(ctx, nil)
@@ -52,12 +52,12 @@ func (l *DBClusterLister) ListForResourceGroup(ctx context.Context, subscription
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
-// DBNodePoolLister implements listers.NodePoolLister backed by a database.ResourcesDBClient.
+// DBNodePoolLister implements corelisters.NodePoolLister backed by a database.ResourcesDBClient.
 type DBNodePoolLister struct {
 	ResourcesDBClient database.ResourcesDBClient
 }
 
-var _ listers.NodePoolLister = &DBNodePoolLister{}
+var _ corelisters.NodePoolLister = &DBNodePoolLister{}
 
 func (l *DBNodePoolLister) List(ctx context.Context) ([]*api.HCPOpenShiftClusterNodePool, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().NodePools().List(ctx, nil)
@@ -96,12 +96,12 @@ func (l *DBNodePoolLister) ListForCluster(ctx context.Context, subscriptionID, r
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
-// DBServiceProviderNodePoolLister implements listers.ServiceProviderNodePoolLister backed by a database.ResourcesDBClient.
+// DBServiceProviderNodePoolLister implements corelisters.ServiceProviderNodePoolLister backed by a database.ResourcesDBClient.
 type DBServiceProviderNodePoolLister struct {
 	ResourcesDBClient database.ResourcesDBClient
 }
 
-var _ listers.ServiceProviderNodePoolLister = &DBServiceProviderNodePoolLister{}
+var _ corelisters.ServiceProviderNodePoolLister = &DBServiceProviderNodePoolLister{}
 
 func (l *DBServiceProviderNodePoolLister) List(ctx context.Context) ([]*api.ServiceProviderNodePool, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ServiceProviderNodePools().List(ctx, nil)
@@ -124,12 +124,12 @@ func (l *DBServiceProviderNodePoolLister) ListForNodePool(ctx context.Context, s
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
-// DBActiveOperationLister implements listers.ActiveOperationLister backed by a database.ResourcesDBClient.
+// DBActiveOperationLister implements corelisters.ActiveOperationLister backed by a database.ResourcesDBClient.
 type DBActiveOperationLister struct {
 	ResourcesDBClient database.ResourcesDBClient
 }
 
-var _ listers.ActiveOperationLister = &DBActiveOperationLister{}
+var _ corelisters.ActiveOperationLister = &DBActiveOperationLister{}
 
 func (l *DBActiveOperationLister) List(ctx context.Context) ([]*api.Operation, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ActiveOperations().List(ctx, nil)
@@ -174,12 +174,12 @@ func (l *DBActiveOperationLister) listByPrefix(ctx context.Context, prefix strin
 	return result, nil
 }
 
-// DBExternalAuthLister implements listers.ExternalAuthLister backed by a database.ResourcesDBClient.
+// DBExternalAuthLister implements corelisters.ExternalAuthLister backed by a database.ResourcesDBClient.
 type DBExternalAuthLister struct {
 	ResourcesDBClient database.ResourcesDBClient
 }
 
-var _ listers.ExternalAuthLister = &DBExternalAuthLister{}
+var _ corelisters.ExternalAuthLister = &DBExternalAuthLister{}
 
 func (l *DBExternalAuthLister) List(ctx context.Context) ([]*api.HCPOpenShiftClusterExternalAuth, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ExternalAuths().List(ctx, nil)
@@ -217,12 +217,12 @@ func (l *DBExternalAuthLister) ListForCluster(ctx context.Context, subscriptionI
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
-// DBServiceProviderClusterLister implements listers.ServiceProviderClusterLister backed by a database.ResourcesDBClient.
+// DBServiceProviderClusterLister implements corelisters.ServiceProviderClusterLister backed by a database.ResourcesDBClient.
 type DBServiceProviderClusterLister struct {
 	ResourcesDBClient database.ResourcesDBClient
 }
 
-var _ listers.ServiceProviderClusterLister = &DBServiceProviderClusterLister{}
+var _ corelisters.ServiceProviderClusterLister = &DBServiceProviderClusterLister{}
 
 func (l *DBServiceProviderClusterLister) List(ctx context.Context) ([]*api.ServiceProviderCluster, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ServiceProviderClusters().List(ctx, nil)
@@ -244,12 +244,12 @@ func (l *DBServiceProviderClusterLister) ListForCluster(ctx context.Context, sub
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
-// DBControllerLister implements listers.ControllerLister backed by a database.ResourcesDBClient.
+// DBControllerLister implements corelisters.ControllerLister backed by a database.ResourcesDBClient.
 type DBControllerLister struct {
 	ResourcesDBClient database.ResourcesDBClient
 }
 
-var _ listers.ControllerLister = &DBControllerLister{}
+var _ corelisters.ControllerLister = &DBControllerLister{}
 
 func (l *DBControllerLister) List(ctx context.Context) ([]*api.Controller, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().Controllers().List(ctx, nil)
@@ -293,12 +293,12 @@ func (l *DBControllerLister) listWithPrefix(ctx context.Context, prefix string) 
 	return result, nil
 }
 
-// DBManagementClusterContentLister implements listers.ManagementClusterContentLister backed by a database.ResourcesDBClient.
+// DBManagementClusterContentLister implements corelisters.ManagementClusterContentLister backed by a database.ResourcesDBClient.
 type DBManagementClusterContentLister struct {
 	ResourcesDBClient database.ResourcesDBClient
 }
 
-var _ listers.ManagementClusterContentLister = &DBManagementClusterContentLister{}
+var _ corelisters.ManagementClusterContentLister = &DBManagementClusterContentLister{}
 
 func (l *DBManagementClusterContentLister) List(ctx context.Context) ([]*api.ManagementClusterContent, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ManagementClusterContents().List(ctx, nil)
@@ -337,12 +337,12 @@ func (l *DBManagementClusterContentLister) listMCCWithPrefix(ctx context.Context
 	return result, nil
 }
 
-// DBSubscriptionLister implements listers.SubscriptionLister backed by a database.ResourcesDBClient.
+// DBSubscriptionLister implements corelisters.SubscriptionLister backed by a database.ResourcesDBClient.
 type DBSubscriptionLister struct {
 	ResourcesDBClient database.ResourcesDBClient
 }
 
-var _ listers.SubscriptionLister = &DBSubscriptionLister{}
+var _ corelisters.SubscriptionLister = &DBSubscriptionLister{}
 
 func (l *DBSubscriptionLister) List(ctx context.Context) ([]*arm.Subscription, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().Subscriptions().List(ctx, nil)

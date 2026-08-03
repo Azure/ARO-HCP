@@ -29,8 +29,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -42,7 +42,7 @@ import (
 type controlPlaneActiveVersionSyncer struct {
 	resourcesDBClient            database.ResourcesDBClient
 	readDesireLister             kubeapplierlisters.ReadDesireLister
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 }
 
 var _ controllerutils.ClusterSyncer = (*controlPlaneActiveVersionSyncer)(nil)
@@ -52,8 +52,8 @@ var _ controllerutils.ClusterSyncer = (*controlPlaneActiveVersionSyncer)(nil)
 // observed HostedCluster.
 func NewControlPlaneActiveVersionController(
 	resourcesDBClient database.ResourcesDBClient,
-	serviceProviderClusterLister listers.ServiceProviderClusterLister,
-	informers informers.BackendInformers,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {

@@ -22,8 +22,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -33,8 +33,8 @@ import (
 // managementClusterPlacementSyncer resolves the management cluster an HCP runs on
 // and updates the ServiceProviderCluster document with the ManagementClusterResourceID.
 type managementClusterPlacementSyncer struct {
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
-	clusterLister                listers.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	clusterLister                corelisters.ClusterLister
 	managementClusterLister      fleetlisters.ManagementClusterLister
 	cosmosClient                 database.ResourcesDBClient
 	clusterServiceClient         ocm.ClusterServiceClientSpec
@@ -48,7 +48,7 @@ func NewManagementClusterPlacementSyncController(
 	cosmosClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	managementClusterLister fleetlisters.ManagementClusterLister,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()

@@ -69,7 +69,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
@@ -383,7 +383,7 @@ func shutdownHTTPServer(ctx context.Context, server *http.Server, name string) e
 func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	backendInformers := informers.NewBackendInformers(ctx,
+	backendInformers := coreinformers.NewBackendInformers(ctx,
 		b.options.ResourcesDBClient.ResourcesGlobalListers(),
 		b.options.ResourcesDBClient,
 		b.options.BillingDBClient.BillingGlobalListers(),
@@ -400,7 +400,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 
 	// Union kube-applier informers: one aggregator surface that fans out
-	// across every management cluster's per-MC kube-applier informers.
+	// across every management cluster's per-MC kube-applier coreinformers.
 	// The controller watches the fleet management-cluster informer/lister
 	// and adds/removes per-MC sub-informers as MCs come and go. Pass nil
 	// for the relist duration to use the package defaults.

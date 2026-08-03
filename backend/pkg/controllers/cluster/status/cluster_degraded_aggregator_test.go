@@ -34,7 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
@@ -264,8 +264,8 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 
 			clock := clocktesting.NewFakePassiveClock(statusutils.FixedNow)
 			syncer := &clusterDegradedAggregator{
-				clusterLister:     &listertesting.DBClusterLister{ResourcesDBClient: mockDB},
-				controllerLister:  &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
+				clusterLister:     &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
+				controllerLister:  &corelistertesting.DBControllerLister{ResourcesDBClient: mockDB},
 				resourcesDBClient: mockDB,
 				inertia:           tc.inertia,
 				clock:             clock,
@@ -325,8 +325,8 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 
 	clock := clocktesting.NewFakePassiveClock(statusutils.FixedNow)
 	syncer := &clusterDegradedAggregator{
-		clusterLister:     &listertesting.DBClusterLister{ResourcesDBClient: mockDB},
-		controllerLister:  &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
+		clusterLister:     &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
+		controllerLister:  &corelistertesting.DBControllerLister{ResourcesDBClient: mockDB},
 		resourcesDBClient: mockDB,
 		inertia:           statusutils.MustNewInertia(statusutils.DefaultInertia).Inertia,
 		clock:             clock,

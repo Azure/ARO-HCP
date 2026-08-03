@@ -29,7 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -55,7 +55,7 @@ type cosmosMigrationController struct {
 func NewCosmosMigrationController(
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
-	backendInformers informers.BackendInformers,
+	backendInformers coreinformers.BackendInformers,
 	resyncDuration time.Duration,
 ) controllerutils.Controller {
 	syncer := &cosmosMigrationController{

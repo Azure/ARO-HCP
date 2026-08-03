@@ -41,8 +41,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -75,10 +75,10 @@ type cleanOrphanedClusterManagedResourceGroup struct {
 // that are not referenced by any HCPOpenShiftCluster in the database and cleans them up.
 func NewCleanOrphanedClusterManagedResourceGroupController(
 	location string,
-	activeOperationLister listers.ActiveOperationLister,
+	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
-	backendInformers informers.BackendInformers,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &cleanOrphanedClusterManagedResourceGroup{
 		location:              location,

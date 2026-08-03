@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -497,7 +497,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolChildResourcesCleanupController{
-				nodePoolLister:       &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
+				nodePoolLister:       &corelistertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
 				resourcesDBClient:    mockResourcesDBClient,
 				kubeApplierDBClients: mockKubeApplierDBClients,
 			}

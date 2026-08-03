@@ -22,7 +22,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -37,7 +37,7 @@ type subscriptionNonClusterDataDump struct {
 // NewSubscriptionNonClusterDataDumpController periodically dumps data for a subscription that is NOT related to a cluster.
 func NewSubscriptionNonClusterDataDumpController(
 	resourcesDBClient database.ResourcesDBClient,
-	backendInformers informers.BackendInformers,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &subscriptionNonClusterDataDump{
 		resourcesDBClient:   resourcesDBClient,

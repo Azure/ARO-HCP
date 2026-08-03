@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,7 +40,7 @@ type mockClusterSyncer struct {
 	cooldown     controllerutil.CooldownChecker
 }
 
-func newFakeClusterLister(subscriptionID, resourceGroup, clusterName string) listers.ClusterLister {
+func newFakeClusterLister(subscriptionID, resourceGroup, clusterName string) corelisters.ClusterLister {
 	resourceID := api.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroup +
@@ -58,7 +58,7 @@ func newFakeClusterLister(subscriptionID, resourceGroup, clusterName string) lis
 	if err != nil {
 		panic(err)
 	}
-	return listers.NewClusterLister(indexer)
+	return corelisters.NewClusterLister(indexer)
 }
 
 func (m *mockClusterSyncer) SyncOnce(ctx context.Context, key HCPClusterKey) error {

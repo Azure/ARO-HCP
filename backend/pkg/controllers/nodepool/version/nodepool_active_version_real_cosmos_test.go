@@ -34,7 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -143,7 +143,7 @@ func TestNodePoolActiveVersionSyncer_RealCosmosFixture(t *testing.T) {
 	require.NoError(t, err, "create ServiceProviderNodePool from captured cosmos doc")
 
 	syncer := &nodePoolActiveVersionSyncer{
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 		resourcesDBClient:             mockDB,
 		readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 			Desires: []*kubeapplier.ReadDesire{readDesire},

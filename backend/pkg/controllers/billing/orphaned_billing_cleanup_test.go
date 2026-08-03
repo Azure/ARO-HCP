@@ -32,7 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -199,10 +199,10 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			controller := &orphanedBillingCleanup{
 				name:  "OrphanedBillingCleanup",
 				clock: clocktesting.NewFakePassiveClock(fixedTime),
-				clusterLister: &listertesting.SliceClusterLister{
+				clusterLister: &corelistertesting.SliceClusterLister{
 					Clusters: tt.clusters,
 				},
-				billingLister: &listertesting.SliceBillingLister{
+				billingLister: &corelistertesting.SliceBillingLister{
 					BillingDocuments: tt.billingDocuments,
 				},
 				billingDBClient: mockBillingDBClient,

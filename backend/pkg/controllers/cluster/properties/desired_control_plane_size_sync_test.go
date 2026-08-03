@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -246,11 +246,11 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 				seededServiceProviderCluster = created
 			}
 
-			serviceProviderClusterListerStub := &listertesting.SliceServiceProviderClusterLister{}
+			serviceProviderClusterListerStub := &corelistertesting.SliceServiceProviderClusterLister{}
 			if seededServiceProviderCluster != nil {
 				serviceProviderClusterListerStub.ServiceProviderClusters = []*api.ServiceProviderCluster{seededServiceProviderCluster}
 			}
-			clusterLister := &listertesting.SliceClusterLister{}
+			clusterLister := &corelistertesting.SliceClusterLister{}
 			if tc.cluster != nil {
 				clusterLister.Clusters = []*api.HCPOpenShiftCluster{tc.cluster}
 			}

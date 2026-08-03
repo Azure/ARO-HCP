@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -41,7 +41,7 @@ import (
 type deleteOrphanedCosmosResources struct {
 	name string
 
-	subscriptionLister      listers.SubscriptionLister
+	subscriptionLister      corelisters.SubscriptionLister
 	managementClusterLister fleetlisters.ManagementClusterLister
 	resourcesDBClient       database.ResourcesDBClient
 	kubeApplierDBClients    database.KubeApplierDBClients
@@ -63,7 +63,7 @@ type deleteOrphanedCosmosResources struct {
 func NewDeleteOrphanedCosmosResourcesController(
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
-	subscriptionLister listers.SubscriptionLister,
+	subscriptionLister corelisters.SubscriptionLister,
 	managementClusterLister fleetlisters.ManagementClusterLister,
 ) controllerutils.Controller {
 	c := &deleteOrphanedCosmosResources{

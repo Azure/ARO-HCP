@@ -26,8 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -37,7 +37,7 @@ import (
 type triggerNodePoolUpgradeSyncer struct {
 	resourcesDBClient             database.ResourcesDBClient
 	clusterServiceClient          ocm.ClusterServiceClientSpec
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 }
 
 var _ controllerutils.NodePoolSyncer = (*triggerNodePoolUpgradeSyncer)(nil)
@@ -48,8 +48,8 @@ var _ controllerutils.NodePoolSyncer = (*triggerNodePoolUpgradeSyncer)(nil)
 func NewTriggerNodePoolUpgradeController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
-	informers informers.BackendInformers,
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &triggerNodePoolUpgradeSyncer{

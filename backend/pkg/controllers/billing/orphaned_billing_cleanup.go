@@ -26,7 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -34,8 +34,8 @@ type orphanedBillingCleanup struct {
 	name string
 
 	clock           utilsclock.PassiveClock
-	clusterLister   listers.ClusterLister
-	billingLister   listers.BillingLister
+	clusterLister   corelisters.ClusterLister
+	billingLister   corelisters.BillingLister
 	billingDBClient database.BillingDBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
@@ -45,7 +45,7 @@ type orphanedBillingCleanup struct {
 
 // NewOrphanedBillingCleanupController creates a controller that marks billing documents
 // as deleted when their corresponding cluster no longer exists in Cosmos DB.
-func NewOrphanedBillingCleanupController(clock utilsclock.PassiveClock, billingDBClient database.BillingDBClient, clusterLister listers.ClusterLister, billingLister listers.BillingLister) controllerutils.Controller {
+func NewOrphanedBillingCleanupController(clock utilsclock.PassiveClock, billingDBClient database.BillingDBClient, clusterLister corelisters.ClusterLister, billingLister corelisters.BillingLister) controllerutils.Controller {
 	c := &orphanedBillingCleanup{
 		name:            "OrphanedBillingCleanup",
 		clock:           clock,

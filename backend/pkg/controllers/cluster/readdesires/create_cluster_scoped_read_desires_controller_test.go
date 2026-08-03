@@ -32,7 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -286,7 +286,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 			mockKubeApplierDBClients.Register(readDesireTestManagementClusterResourceID, mockKubeApplierClient)
 
-			serviceProviderClusterListerStub := &listertesting.SliceServiceProviderClusterLister{}
+			serviceProviderClusterListerStub := &corelistertesting.SliceServiceProviderClusterLister{}
 			if tt.cachedServiceProviderCluster != nil {
 				serviceProviderClusterListerStub.ServiceProviderClusters = []*api.ServiceProviderCluster{tt.cachedServiceProviderCluster}
 			}

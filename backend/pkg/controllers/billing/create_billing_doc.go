@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,15 +36,15 @@ type createBillingDoc struct {
 	clock             utilsclock.PassiveClock
 	cooldownChecker   controllerutil.CooldownChecker
 	azureLocation     string
-	clusterLister     listers.ClusterLister
-	billingLister     listers.BillingLister
+	clusterLister     corelisters.ClusterLister
+	billingLister     corelisters.BillingLister
 	resourcesDBClient database.ResourcesDBClient
 	billingDBClient   database.BillingDBClient
 }
 
 // NewCreateBillingDocController creates a controller that ensures a billing document
 // exists for clusters that have a ClusterUID and are in the Succeeded provisioning state.
-func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation string, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterLister listers.ClusterLister, billingLister listers.BillingLister) controllerutils.ClusterSyncer {
+func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation string, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterLister corelisters.ClusterLister, billingLister corelisters.BillingLister) controllerutils.ClusterSyncer {
 	return &createBillingDoc{
 		clock:             clock,
 		cooldownChecker:   controllerutil.NewTimeBasedCooldownChecker(60 * time.Second),

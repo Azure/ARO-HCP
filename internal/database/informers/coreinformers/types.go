@@ -27,74 +27,74 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type BackendInformers interface {
-	Subscriptions() (cache.SharedIndexInformer, listers.SubscriptionLister)
-	ActiveOperations() (cache.SharedIndexInformer, listers.ActiveOperationLister)
+	Subscriptions() (cache.SharedIndexInformer, corelisters.SubscriptionLister)
+	ActiveOperations() (cache.SharedIndexInformer, corelisters.ActiveOperationLister)
 	AllOperations() cache.SharedIndexInformer
-	Clusters() (cache.SharedIndexInformer, listers.ClusterLister)
-	NodePools() (cache.SharedIndexInformer, listers.NodePoolLister)
-	ExternalAuths() (cache.SharedIndexInformer, listers.ExternalAuthLister)
-	ServiceProviderClusters() (cache.SharedIndexInformer, listers.ServiceProviderClusterLister)
-	ServiceProviderNodePools() (cache.SharedIndexInformer, listers.ServiceProviderNodePoolLister)
-	Controllers() (cache.SharedIndexInformer, listers.ControllerLister)
+	Clusters() (cache.SharedIndexInformer, corelisters.ClusterLister)
+	NodePools() (cache.SharedIndexInformer, corelisters.NodePoolLister)
+	ExternalAuths() (cache.SharedIndexInformer, corelisters.ExternalAuthLister)
+	ServiceProviderClusters() (cache.SharedIndexInformer, corelisters.ServiceProviderClusterLister)
+	ServiceProviderNodePools() (cache.SharedIndexInformer, corelisters.ServiceProviderNodePoolLister)
+	Controllers() (cache.SharedIndexInformer, corelisters.ControllerLister)
 	// ManagementClusterContents is the single shared informer for all managementClusterContents documents belonging
 	// to different resource types.
-	ManagementClusterContents() (cache.SharedIndexInformer, listers.ManagementClusterContentLister)
-	SystemAdminCredentialRequests() (cache.SharedIndexInformer, listers.SystemAdminCredentialRequestLister)
-	SystemAdminCredentialRevocations() (cache.SharedIndexInformer, listers.SystemAdminCredentialRevocationLister)
-	BillingDocs() (cache.SharedIndexInformer, listers.BillingLister)
+	ManagementClusterContents() (cache.SharedIndexInformer, corelisters.ManagementClusterContentLister)
+	SystemAdminCredentialRequests() (cache.SharedIndexInformer, corelisters.SystemAdminCredentialRequestLister)
+	SystemAdminCredentialRevocations() (cache.SharedIndexInformer, corelisters.SystemAdminCredentialRevocationLister)
+	BillingDocs() (cache.SharedIndexInformer, corelisters.BillingLister)
 
 	RunWithContext(ctx context.Context)
 }
 
 type backendInformers struct {
 	subscriptionInformer cache.SharedIndexInformer
-	subscriptionLister   listers.SubscriptionLister
+	subscriptionLister   corelisters.SubscriptionLister
 
 	activeOperationInformer cache.SharedIndexInformer
-	activeOperationLister   listers.ActiveOperationLister
+	activeOperationLister   corelisters.ActiveOperationLister
 
 	allOperationInformer cache.SharedIndexInformer
 
 	clusterInformer cache.SharedIndexInformer
-	clusterLister   listers.ClusterLister
+	clusterLister   corelisters.ClusterLister
 
 	nodePoolInformer cache.SharedIndexInformer
-	nodePoolLister   listers.NodePoolLister
+	nodePoolLister   corelisters.NodePoolLister
 
 	externalAuthInformer cache.SharedIndexInformer
-	externalAuthLister   listers.ExternalAuthLister
+	externalAuthLister   corelisters.ExternalAuthLister
 
 	serviceProviderClusterInformer cache.SharedIndexInformer
-	serviceProviderClusterLister   listers.ServiceProviderClusterLister
+	serviceProviderClusterLister   corelisters.ServiceProviderClusterLister
 
 	serviceProviderNodePoolInformer cache.SharedIndexInformer
-	serviceProviderNodePoolLister   listers.ServiceProviderNodePoolLister
+	serviceProviderNodePoolLister   corelisters.ServiceProviderNodePoolLister
 
 	controllerInformer               cache.SharedIndexInformer
-	controllerLister                 listers.ControllerLister
+	controllerLister                 corelisters.ControllerLister
 	managementClusterContentInformer cache.SharedIndexInformer
-	managementClusterContentLister   listers.ManagementClusterContentLister
+	managementClusterContentLister   corelisters.ManagementClusterContentLister
 
 	systemAdminCredentialRequestInformer cache.SharedIndexInformer
-	systemAdminCredentialRequestLister   listers.SystemAdminCredentialRequestLister
+	systemAdminCredentialRequestLister   corelisters.SystemAdminCredentialRequestLister
 
 	systemAdminCredentialRevocationInformer cache.SharedIndexInformer
-	systemAdminCredentialRevocationLister   listers.SystemAdminCredentialRevocationLister
+	systemAdminCredentialRevocationLister   corelisters.SystemAdminCredentialRevocationLister
 
 	billingInformer cache.SharedIndexInformer
-	billingLister   listers.BillingLister
+	billingLister   corelisters.BillingLister
 }
 
-func (b *backendInformers) Subscriptions() (cache.SharedIndexInformer, listers.SubscriptionLister) {
+func (b *backendInformers) Subscriptions() (cache.SharedIndexInformer, corelisters.SubscriptionLister) {
 	return b.subscriptionInformer, b.subscriptionLister
 }
 
-func (b *backendInformers) ActiveOperations() (cache.SharedIndexInformer, listers.ActiveOperationLister) {
+func (b *backendInformers) ActiveOperations() (cache.SharedIndexInformer, corelisters.ActiveOperationLister) {
 	return b.activeOperationInformer, b.activeOperationLister
 }
 
@@ -102,43 +102,43 @@ func (b *backendInformers) AllOperations() cache.SharedIndexInformer {
 	return b.allOperationInformer
 }
 
-func (b *backendInformers) Clusters() (cache.SharedIndexInformer, listers.ClusterLister) {
+func (b *backendInformers) Clusters() (cache.SharedIndexInformer, corelisters.ClusterLister) {
 	return b.clusterInformer, b.clusterLister
 }
 
-func (b *backendInformers) NodePools() (cache.SharedIndexInformer, listers.NodePoolLister) {
+func (b *backendInformers) NodePools() (cache.SharedIndexInformer, corelisters.NodePoolLister) {
 	return b.nodePoolInformer, b.nodePoolLister
 }
 
-func (b *backendInformers) ExternalAuths() (cache.SharedIndexInformer, listers.ExternalAuthLister) {
+func (b *backendInformers) ExternalAuths() (cache.SharedIndexInformer, corelisters.ExternalAuthLister) {
 	return b.externalAuthInformer, b.externalAuthLister
 }
 
-func (b *backendInformers) ServiceProviderClusters() (cache.SharedIndexInformer, listers.ServiceProviderClusterLister) {
+func (b *backendInformers) ServiceProviderClusters() (cache.SharedIndexInformer, corelisters.ServiceProviderClusterLister) {
 	return b.serviceProviderClusterInformer, b.serviceProviderClusterLister
 }
 
-func (b *backendInformers) ServiceProviderNodePools() (cache.SharedIndexInformer, listers.ServiceProviderNodePoolLister) {
+func (b *backendInformers) ServiceProviderNodePools() (cache.SharedIndexInformer, corelisters.ServiceProviderNodePoolLister) {
 	return b.serviceProviderNodePoolInformer, b.serviceProviderNodePoolLister
 }
 
-func (b *backendInformers) Controllers() (cache.SharedIndexInformer, listers.ControllerLister) {
+func (b *backendInformers) Controllers() (cache.SharedIndexInformer, corelisters.ControllerLister) {
 	return b.controllerInformer, b.controllerLister
 }
 
-func (b *backendInformers) ManagementClusterContents() (cache.SharedIndexInformer, listers.ManagementClusterContentLister) {
+func (b *backendInformers) ManagementClusterContents() (cache.SharedIndexInformer, corelisters.ManagementClusterContentLister) {
 	return b.managementClusterContentInformer, b.managementClusterContentLister
 }
 
-func (b *backendInformers) SystemAdminCredentialRequests() (cache.SharedIndexInformer, listers.SystemAdminCredentialRequestLister) {
+func (b *backendInformers) SystemAdminCredentialRequests() (cache.SharedIndexInformer, corelisters.SystemAdminCredentialRequestLister) {
 	return b.systemAdminCredentialRequestInformer, b.systemAdminCredentialRequestLister
 }
 
-func (b *backendInformers) SystemAdminCredentialRevocations() (cache.SharedIndexInformer, listers.SystemAdminCredentialRevocationLister) {
+func (b *backendInformers) SystemAdminCredentialRevocations() (cache.SharedIndexInformer, corelisters.SystemAdminCredentialRevocationLister) {
 	return b.systemAdminCredentialRevocationInformer, b.systemAdminCredentialRevocationLister
 }
 
-func (b *backendInformers) BillingDocs() (cache.SharedIndexInformer, listers.BillingLister) {
+func (b *backendInformers) BillingDocs() (cache.SharedIndexInformer, corelisters.BillingLister) {
 	return b.billingInformer, b.billingLister
 }
 
@@ -191,18 +191,18 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	ret.systemAdminCredentialRevocationInformer = NewSystemAdminCredentialRevocationInformerWithRelistDuration(resourcesGlobalListers.SystemAdminCredentialRevocations(), resourcesDBClient, systemAdminCredentialRevocationRelistDuration)
 	ret.billingInformer = NewBillingInformerWithRelistDuration(billingGlobalListers.BillingDocs(), billingRelistDuration)
 
-	ret.subscriptionLister = listers.NewSubscriptionLister(ret.subscriptionInformer.GetIndexer())
-	ret.activeOperationLister = listers.NewActiveOperationLister(ret.activeOperationInformer.GetIndexer())
-	ret.clusterLister = listers.NewClusterLister(ret.clusterInformer.GetIndexer())
-	ret.nodePoolLister = listers.NewNodePoolLister(ret.nodePoolInformer.GetIndexer())
-	ret.externalAuthLister = listers.NewExternalAuthLister(ret.externalAuthInformer.GetIndexer())
-	ret.serviceProviderClusterLister = listers.NewServiceProviderClusterLister(ret.serviceProviderClusterInformer.GetIndexer())
-	ret.serviceProviderNodePoolLister = listers.NewServiceProviderNodePoolLister(ret.serviceProviderNodePoolInformer.GetIndexer())
-	ret.controllerLister = listers.NewControllerLister(ret.controllerInformer.GetIndexer())
-	ret.managementClusterContentLister = listers.NewManagementClusterContentLister(ret.managementClusterContentInformer.GetIndexer())
-	ret.systemAdminCredentialRequestLister = listers.NewSystemAdminCredentialRequestLister(ret.systemAdminCredentialRequestInformer.GetIndexer())
-	ret.systemAdminCredentialRevocationLister = listers.NewSystemAdminCredentialRevocationLister(ret.systemAdminCredentialRevocationInformer.GetIndexer())
-	ret.billingLister = listers.NewBillingLister(ret.billingInformer.GetIndexer())
+	ret.subscriptionLister = corelisters.NewSubscriptionLister(ret.subscriptionInformer.GetIndexer())
+	ret.activeOperationLister = corelisters.NewActiveOperationLister(ret.activeOperationInformer.GetIndexer())
+	ret.clusterLister = corelisters.NewClusterLister(ret.clusterInformer.GetIndexer())
+	ret.nodePoolLister = corelisters.NewNodePoolLister(ret.nodePoolInformer.GetIndexer())
+	ret.externalAuthLister = corelisters.NewExternalAuthLister(ret.externalAuthInformer.GetIndexer())
+	ret.serviceProviderClusterLister = corelisters.NewServiceProviderClusterLister(ret.serviceProviderClusterInformer.GetIndexer())
+	ret.serviceProviderNodePoolLister = corelisters.NewServiceProviderNodePoolLister(ret.serviceProviderNodePoolInformer.GetIndexer())
+	ret.controllerLister = corelisters.NewControllerLister(ret.controllerInformer.GetIndexer())
+	ret.managementClusterContentLister = corelisters.NewManagementClusterContentLister(ret.managementClusterContentInformer.GetIndexer())
+	ret.systemAdminCredentialRequestLister = corelisters.NewSystemAdminCredentialRequestLister(ret.systemAdminCredentialRequestInformer.GetIndexer())
+	ret.systemAdminCredentialRevocationLister = corelisters.NewSystemAdminCredentialRevocationLister(ret.systemAdminCredentialRevocationInformer.GetIndexer())
+	ret.billingLister = corelisters.NewBillingLister(ret.billingInformer.GetIndexer())
 
 	return ret
 }

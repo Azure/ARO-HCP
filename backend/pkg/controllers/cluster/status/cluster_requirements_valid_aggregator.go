@@ -26,8 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -45,8 +45,8 @@ const (
 // messages aggregated in the same "Source: message" form used by the Degraded
 // aggregator. When every validation is True (or none exist) the condition is True/Valid.
 type clusterRequirementsValidAggregator struct {
-	clusterLister                listers.ClusterLister
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	resourcesDBClient            database.ResourcesDBClient
 }
 
@@ -57,9 +57,9 @@ var _ controllerutils.ClusterSyncer = (*clusterRequirementsValidAggregator)(nil)
 // Status.UserFacingConditions as RequirementsValid.
 func NewClusterRequirementsValidAggregatorController(
 	resourcesDBClient database.ResourcesDBClient,
-	clusterLister listers.ClusterLister,
-	serviceProviderClusterLister listers.ServiceProviderClusterLister,
-	informers informers.BackendInformers,
+	clusterLister corelisters.ClusterLister,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &clusterRequirementsValidAggregator{
 		clusterLister:                clusterLister,

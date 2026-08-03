@@ -31,8 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,8 +40,8 @@ import (
 type operationExternalAuthCreate struct {
 	clock                  utilsclock.PassiveClock
 	resourcesDBClient      database.ResourcesDBClient
-	activeOperationsLister listers.ActiveOperationLister
-	externalAuthLister     listers.ExternalAuthLister
+	activeOperationsLister corelisters.ActiveOperationLister
+	externalAuthLister     corelisters.ExternalAuthLister
 	clusterServiceClient   ocm.ClusterServiceClientSpec
 	notificationClient     *http.Client
 }
@@ -66,7 +66,7 @@ func NewOperationExternalAuthCreateController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
-	backendInformers informers.BackendInformers,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := backendInformers.ExternalAuths()
 	_, activeOperationsLister := backendInformers.ActiveOperations()

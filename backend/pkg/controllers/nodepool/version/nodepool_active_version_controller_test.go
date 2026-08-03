@@ -35,7 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -306,7 +306,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolActiveVersionSyncer{
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 				resourcesDBClient:             mockDB,
 				readDesireLister:              &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
 			}
@@ -337,7 +337,7 @@ func TestNodePoolActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testing.T
 	beforeETag := before.CosmosETag
 
 	syncer := &nodePoolActiveVersionSyncer{
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 		resourcesDBClient:             mockDB,
 		readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 			Desires: []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.7")},

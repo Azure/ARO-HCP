@@ -26,8 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -35,7 +35,7 @@ import (
 // validation.
 type clusterValidationSyncer struct {
 	resourcesDBClient            database.ResourcesDBClient
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 
 	// validation is the validation to perform on the cluster.
 	validation validationutils.ClusterValidation
@@ -48,8 +48,8 @@ var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
 func NewClusterValidationController(
 	validation validationutils.ClusterValidation,
 	resourcesDBClient database.ResourcesDBClient,
-	serviceProviderClusterLister listers.ServiceProviderClusterLister,
-	informers informers.BackendInformers,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 
 	syncer := &clusterValidationSyncer{

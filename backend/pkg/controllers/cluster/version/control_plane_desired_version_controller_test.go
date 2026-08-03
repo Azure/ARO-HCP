@@ -42,8 +42,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -284,8 +284,8 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			syncer := &controlPlaneDesiredVersionSyncer{
 				resourcesDBClient:             mockResourcesDBClient,
 				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
-				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			ctx := context.Background()
@@ -579,8 +579,8 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			syncer := &controlPlaneDesiredVersionSyncer{
 				resourcesDBClient:             mockResourcesDBClient,
 				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
-				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, false)
@@ -767,8 +767,8 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 			require.NoError(t, err)
 			syncer := &controlPlaneDesiredVersionSyncer{
 				resourcesDBClient:             mockResourcesDBClient,
-				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, tt.experimentalReleaseFeatures)
@@ -906,8 +906,8 @@ func TestDesiredControlPlaneZVersion_CrossMajorUpgrade(t *testing.T) {
 			syncer := &controlPlaneDesiredVersionSyncer{
 				resourcesDBClient:             mockResourcesDBClient,
 				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
-				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, tt.experimentalReleaseFeatures)
@@ -1046,8 +1046,8 @@ func TestDesiredControlPlaneZVersion_InitialVersionSelection(t *testing.T) {
 			syncer := &controlPlaneDesiredVersionSyncer{
 				resourcesDBClient:             mockResourcesDBClient,
 				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
-				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			// Empty active versions - simulating a new cluster
@@ -1121,7 +1121,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 		HCPClusterName:    testClusterName,
 	}
 	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
-	subscriptionLister := &listertesting.SliceSubscriptionLister{
+	subscriptionLister := &corelistertesting.SliceSubscriptionLister{
 		Subscriptions: []*arm.Subscription{{
 			CosmosMetadata: arm.CosmosMetadata{ResourceID: subResourceID, PartitionKey: strings.ToLower(subResourceID.SubscriptionID)},
 			ResourceID:     subResourceID,
@@ -1256,8 +1256,8 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 				subscriptionLister:            subscriptionLister,
 				cincinnatiClientCache:         mockClientCache,
 				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
-				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			err := syncer.SyncOnce(ctx, clusterKey)
@@ -1333,7 +1333,7 @@ func createServiceProviderClusterWithActiveAndDesiredVersion(t *testing.T, ctx c
 // error from ListActiveOperationsForCluster. It exists so the gating helper
 // can exercise its error-propagation branch without a misbehaving mock DB.
 type boomActiveOperationLister struct {
-	listers.ActiveOperationLister
+	corelisters.ActiveOperationLister
 	err error
 }
 
@@ -1408,7 +1408,7 @@ func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testi
 		cluster        *api.HCPOpenShiftCluster
 		spc            *api.ServiceProviderCluster
 		seedOperation  bool
-		opLister       func(mockDB *databasetesting.MockResourcesDBClient) listers.ActiveOperationLister
+		opLister       func(mockDB *databasetesting.MockResourcesDBClient) corelisters.ActiveOperationLister
 		wantShouldRun  bool
 		wantErrContain string
 	}{
@@ -1465,7 +1465,7 @@ func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testi
 			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), "op-broken"),
 			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
 			seedOperation: false,
-			opLister: func(_ *databasetesting.MockResourcesDBClient) listers.ActiveOperationLister {
+			opLister: func(_ *databasetesting.MockResourcesDBClient) corelisters.ActiveOperationLister {
 				return &boomActiveOperationLister{err: listerBoom}
 			},
 			wantShouldRun:  true,
@@ -1481,11 +1481,11 @@ func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testi
 			if tt.seedOperation {
 				seedClusterCreateOperation(t, ctx, mockDB, clusterResourceID, "op-create-1")
 			}
-			var opLister listers.ActiveOperationLister
+			var opLister corelisters.ActiveOperationLister
 			if tt.opLister != nil {
 				opLister = tt.opLister(mockDB)
 			} else {
-				opLister = &listertesting.DBActiveOperationLister{ResourcesDBClient: mockDB}
+				opLister = &corelistertesting.DBActiveOperationLister{ResourcesDBClient: mockDB}
 			}
 			syncer := &controlPlaneDesiredVersionSyncer{
 				clock:                 clocktesting.NewFakePassiveClock(now),
@@ -1548,13 +1548,13 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceSkipsWhenGated(t *testing.T) {
 		clock:                        clocktesting.NewFakePassiveClock(now),
 		readDesireLister:             newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:            mockDB,
-		serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
 		clusterServiceClient:         ocm.NewMockClusterServiceClientSpec(ctrl),
-		subscriptionLister: &listertesting.SliceSubscriptionLister{Subscriptions: []*arm.Subscription{{
+		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*arm.Subscription{{
 			ResourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID)),
 			Properties: &arm.SubscriptionProperties{},
 		}}},
-		activeOperationLister: &listertesting.DBActiveOperationLister{ResourcesDBClient: mockDB},
+		activeOperationLister: &corelistertesting.DBActiveOperationLister{ResourcesDBClient: mockDB},
 		cincinnatiClientCache: mockClientCache,
 	}
 

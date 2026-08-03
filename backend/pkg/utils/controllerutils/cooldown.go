@@ -22,23 +22,23 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type ActiveOperationBasedChecker struct {
 	clock                 utilsclock.PassiveClock
-	activeOperationLister listers.ActiveOperationLister
+	activeOperationLister corelisters.ActiveOperationLister
 
 	activeOperationTimer   controllerutil.CooldownChecker
 	inactiveOperationTimer controllerutil.CooldownChecker
 }
 
-func DefaultActiveOperationPrioritizingCooldown(activeOperationLister listers.ActiveOperationLister) *ActiveOperationBasedChecker {
+func DefaultActiveOperationPrioritizingCooldown(activeOperationLister corelisters.ActiveOperationLister) *ActiveOperationBasedChecker {
 	return NewActiveOperationPrioritizingCooldown(activeOperationLister, 10*time.Second, 5*time.Minute)
 }
 
-func NewActiveOperationPrioritizingCooldown(activeOperationLister listers.ActiveOperationLister, activeOperationCooldown, inactiveOperationCooldown time.Duration) *ActiveOperationBasedChecker {
+func NewActiveOperationPrioritizingCooldown(activeOperationLister corelisters.ActiveOperationLister, activeOperationCooldown, inactiveOperationCooldown time.Duration) *ActiveOperationBasedChecker {
 	return &ActiveOperationBasedChecker{
 		clock:                  utilsclock.RealClock{},
 		activeOperationLister:  activeOperationLister,

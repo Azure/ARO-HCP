@@ -26,8 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,7 +40,7 @@ type clusterWatchingController struct {
 	name   string
 	syncer ClusterSyncer
 
-	clusterLister     listers.ClusterLister
+	clusterLister     corelisters.ClusterLister
 	resourcesDBClient database.ResourcesDBClient
 }
 
@@ -59,7 +59,7 @@ type clusterWatchingController struct {
 func NewClusterWatchingController(
 	name string,
 	resourcesDBClient database.ResourcesDBClient,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer ClusterSyncer,

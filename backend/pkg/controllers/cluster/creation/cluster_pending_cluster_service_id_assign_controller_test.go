@@ -27,7 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -130,7 +130,7 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			}
 			syncer := &clusterPendingClusterServiceIDAssignSyncer{
 				resourcesDBClient: mockDB,
-				clusterLister:     &listertesting.SliceClusterLister{Clusters: listerClusters},
+				clusterLister:     &corelistertesting.SliceClusterLister{Clusters: listerClusters},
 			}
 
 			key := controllerutils.HCPClusterKey{

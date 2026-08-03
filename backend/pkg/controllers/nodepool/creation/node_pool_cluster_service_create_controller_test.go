@@ -37,7 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -253,8 +253,8 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolClusterServiceCreateSyncer{
-				nodePoolLister:        &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
-				clusterLister:         &listertesting.SliceClusterLister{Clusters: clustersForLister},
+				nodePoolLister:        &corelistertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
+				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:     mockResourcesDBClient,
 				clustersServiceClient: mockCSClient,
 			}

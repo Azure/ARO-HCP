@@ -27,8 +27,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -44,8 +44,8 @@ import (
 // Replace carries its own etag so optimistic concurrency still applies,
 // and a stale-etag failure just retries on the next reconcile.
 type clusterDegradedAggregator struct {
-	clusterLister     listers.ClusterLister
-	controllerLister  listers.ControllerLister
+	clusterLister     corelisters.ClusterLister
+	controllerLister  corelisters.ControllerLister
 	resourcesDBClient database.ResourcesDBClient
 	inertia           statusutils.Inertia
 	clock             utilsclock.PassiveClock
@@ -75,9 +75,9 @@ func clusterDegradedAggregatorInertia() statusutils.Inertia {
 // utilsclock.RealClock{}.
 func NewClusterDegradedAggregatorController(
 	resourcesDBClient database.ResourcesDBClient,
-	clusterLister listers.ClusterLister,
-	controllerLister listers.ControllerLister,
-	informers informers.BackendInformers,
+	clusterLister corelisters.ClusterLister,
+	controllerLister corelisters.ControllerLister,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	clock utilsclock.PassiveClock,
 ) controllerutils.Controller {

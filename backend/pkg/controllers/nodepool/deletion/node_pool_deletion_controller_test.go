@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -148,8 +148,8 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolDeletionController{
-				nodePoolLister:                &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
-				serviceProviderNodePoolLister: &listertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: spnpForLister},
+				nodePoolLister:                &corelistertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
+				serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: spnpForLister},
 				resourcesDBClient:             mockResourcesDBClient,
 			}
 

@@ -32,7 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
@@ -125,7 +125,7 @@ func NewBillingInformerWithRelistDuration(lister database.GlobalLister[database.
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				listers.BySubscription: billingDocSubscriptionIndexFunc,
+				corelisters.BySubscription: billingDocSubscriptionIndexFunc,
 			},
 			ObjectDescription: "BillingDocument",
 		},
@@ -155,7 +155,7 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				listers.ByResourceGroup: resourceGroupIndexFunc,
+				corelisters.ByResourceGroup: resourceGroupIndexFunc,
 			},
 			ObjectDescription: "HCPOpenShiftCluster",
 		},
@@ -185,8 +185,8 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				listers.ByResourceGroup: resourceGroupIndexFunc,
-				listers.ByCluster:       clusterResourceIDIndexFunc,
+				corelisters.ByResourceGroup: resourceGroupIndexFunc,
+				corelisters.ByCluster:       clusterResourceIDIndexFunc,
 			},
 			ObjectDescription: "HCPOpenShiftClusterNodePool",
 		},
@@ -216,8 +216,8 @@ func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				listers.ByResourceGroup: resourceGroupIndexFunc,
-				listers.ByCluster:       clusterResourceIDIndexFunc,
+				corelisters.ByResourceGroup: resourceGroupIndexFunc,
+				corelisters.ByCluster:       clusterResourceIDIndexFunc,
 			},
 			ObjectDescription: "HCPOpenShiftClusterExternalAuth",
 		},
@@ -247,7 +247,7 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalL
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				listers.ByCluster: clusterResourceIDIndexFunc,
+				corelisters.ByCluster: clusterResourceIDIndexFunc,
 			},
 			ObjectDescription: "ServiceProviderCluster",
 		},
@@ -296,8 +296,8 @@ func NewManagementClusterContentInformerWithRelistDuration(lister database.Globa
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				listers.ByCluster:  clusterResourceIDIndexFunc,
-				listers.ByNodePool: nodePoolResourceIDIndexFunc,
+				corelisters.ByCluster:  clusterResourceIDIndexFunc,
+				corelisters.ByNodePool: nodePoolResourceIDIndexFunc,
 			},
 			ObjectDescription: "ManagementClusterContent",
 		},
@@ -327,7 +327,7 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.Global
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				listers.ByNodePool: nodePoolResourceIDIndexFunc,
+				corelisters.ByNodePool: nodePoolResourceIDIndexFunc,
 			},
 			ObjectDescription: "ServiceProviderNodePool",
 		},
@@ -357,7 +357,7 @@ func NewSystemAdminCredentialRequestInformerWithRelistDuration(lister database.G
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				listers.ByCluster: clusterResourceIDIndexFunc,
+				corelisters.ByCluster: clusterResourceIDIndexFunc,
 			},
 			ObjectDescription: "SystemAdminCredentialRequest",
 		},
@@ -387,7 +387,7 @@ func NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister databas
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				listers.ByCluster: clusterResourceIDIndexFunc,
+				corelisters.ByCluster: clusterResourceIDIndexFunc,
 			},
 			ObjectDescription: "SystemAdminCredentialRevocation",
 		},
@@ -425,10 +425,10 @@ func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Co
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
 			Indexers: cache.Indexers{
-				listers.ByResourceGroup: resourceGroupIndexFunc,
-				listers.ByCluster:       clusterResourceIDIndexFunc,
-				listers.ByNodePool:      nodePoolResourceIDIndexFunc,
-				listers.ByExternalAuth:  externalAuthResourceIDIndexFunc,
+				corelisters.ByResourceGroup: resourceGroupIndexFunc,
+				corelisters.ByCluster:       clusterResourceIDIndexFunc,
+				corelisters.ByNodePool:      nodePoolResourceIDIndexFunc,
+				corelisters.ByExternalAuth:  externalAuthResourceIDIndexFunc,
 			},
 			ObjectDescription: "Controller",
 		},
@@ -491,10 +491,10 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				listers.ByResourceGroup: activeOperationResourceGroupIndexFunc,
-				listers.ByCluster:       activeOperationClusterIndexFunc,
-				listers.ByNodePool:      activeOperationNodePoolIndexFunc,
-				listers.ByExternalAuth:  activeOperationExternalAuthIndexFunc,
+				corelisters.ByResourceGroup: activeOperationResourceGroupIndexFunc,
+				corelisters.ByCluster:       activeOperationClusterIndexFunc,
+				corelisters.ByNodePool:      activeOperationNodePoolIndexFunc,
+				corelisters.ByExternalAuth:  activeOperationExternalAuthIndexFunc,
 			},
 			ObjectDescription: "ActiveOperation",
 		},

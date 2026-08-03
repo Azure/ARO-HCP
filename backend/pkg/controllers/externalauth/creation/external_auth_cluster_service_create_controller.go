@@ -29,8 +29,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,16 +40,16 @@ const ExternalAuthClusterServiceCreateControllerName = "ExternalAuthClusterServi
 type externalAuthClusterServiceCreateSyncer struct {
 	cooldownChecker       controllerutil.CooldownChecker
 	resourcesDBClient     database.ResourcesDBClient
-	externalAuthLister    listers.ExternalAuthLister
-	clusterLister         listers.ClusterLister
+	externalAuthLister    corelisters.ExternalAuthLister
+	clusterLister         corelisters.ClusterLister
 	clustersServiceClient ocm.ClusterServiceClientSpec
 }
 
 func NewExternalAuthClusterServiceCreateController(
 	resourcesDBClient database.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	informers informers.BackendInformers,
+	activeOperationLister corelisters.ActiveOperationLister,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := informers.ExternalAuths()
 	_, clusterLister := informers.Clusters()

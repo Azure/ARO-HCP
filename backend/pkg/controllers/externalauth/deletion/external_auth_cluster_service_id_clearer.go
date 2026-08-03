@@ -26,8 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -39,7 +39,7 @@ import (
 // cluster-service for the ExternalAuth and, on 404, zero out the stored
 // ClusterServiceID so downstream code knows the CS resource is fully gone.
 type externalAuthClusterServiceIDClearer struct {
-	externalAuthLister   listers.ExternalAuthLister
+	externalAuthLister   corelisters.ExternalAuthLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -49,7 +49,7 @@ var _ controllerutils.ExternalAuthSyncer = (*externalAuthClusterServiceIDClearer
 func NewExternalAuthClusterServiceIDClearerController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := informers.ExternalAuths()
 	syncer := &externalAuthClusterServiceIDClearer{

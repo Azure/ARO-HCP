@@ -32,7 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
@@ -178,8 +178,8 @@ func TestNodePoolRequirementsValidAggregator_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			syncer := &nodePoolRequirementsValidAggregator{
-				nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 				resourcesDBClient:             mockDB,
 			}
 

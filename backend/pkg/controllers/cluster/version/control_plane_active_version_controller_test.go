@@ -38,7 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -299,7 +299,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			syncer := &controlPlaneActiveVersionSyncer{
 				resourcesDBClient:            mockResourcesDBClient,
 				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
-				serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			err := syncer.SyncOnce(runCtx, testKey)
@@ -339,7 +339,7 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 	syncer := &controlPlaneActiveVersionSyncer{
 		resourcesDBClient:            mockResourcesDBClient,
 		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
-		serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 	}
 	require.NoError(t, syncer.SyncOnce(runCtx, controllerutils.HCPClusterKey{
 		SubscriptionID:    testSubscriptionID,

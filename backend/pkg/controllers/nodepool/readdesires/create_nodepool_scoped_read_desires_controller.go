@@ -26,8 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -39,11 +39,11 @@ import (
 //
 // Replaces createNodePoolScopedMaestroReadonlyBundlesSyncer.
 type createNodePoolScopedReadDesiresSyncer struct {
-	activeOperationLister listers.ActiveOperationLister
+	activeOperationLister corelisters.ActiveOperationLister
 
 	resourcesDBClient            database.ResourcesDBClient
 	kubeApplierDBClients         database.KubeApplierDBClients
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 
 	hostedClusterNamespaceEnvIdentifier string
 }
@@ -51,11 +51,11 @@ type createNodePoolScopedReadDesiresSyncer struct {
 var _ controllerutils.NodePoolSyncer = (*createNodePoolScopedReadDesiresSyncer)(nil)
 
 func NewCreateNodePoolScopedReadDesiresController(
-	activeOperationLister listers.ActiveOperationLister,
+	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
-	serviceProviderClusterLister listers.ServiceProviderClusterLister,
-	informers informers.BackendInformers,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	syncer := &createNodePoolScopedReadDesiresSyncer{

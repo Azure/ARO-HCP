@@ -41,8 +41,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -50,10 +50,10 @@ import (
 
 type operationClusterCreate struct {
 	clock                                 utilsclock.PassiveClock
-	activeOperationLister                 listers.ActiveOperationLister
-	clusterLister                         listers.ClusterLister
-	serviceProviderClusterLister          listers.ServiceProviderClusterLister
-	clusterManagementClusterContentLister listers.ManagementClusterContentLister
+	activeOperationLister                 corelisters.ActiveOperationLister
+	clusterLister                         corelisters.ClusterLister
+	serviceProviderClusterLister          corelisters.ServiceProviderClusterLister
+	clusterManagementClusterContentLister corelisters.ManagementClusterContentLister
 	readDesireLister                      kubeapplierlisters.ReadDesireLister
 	resourcesDBClient                     database.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
@@ -80,7 +80,7 @@ func NewOperationClusterCreateController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {
 	_, activeOperationLister := informers.ActiveOperations()

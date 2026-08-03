@@ -47,9 +47,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -136,13 +136,13 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		name             string
 		existingNodePool *api.HCPOpenShiftClusterNodePool
 		// When not set, the controller uses a node pool lister that contains the existingNodePool.
-		nodePoolLister    listers.NodePoolLister
+		nodePoolLister    corelisters.NodePoolLister
 		existingOperation *api.Operation
 		// When not set, the controller uses an active operations lister that contains the existingOperation.
-		activeOperationsLister          listers.ActiveOperationLister
+		activeOperationsLister          corelisters.ActiveOperationLister
 		existingServiceProviderNodePool *api.ServiceProviderNodePool
 		// When not set, the controller uses a service provider node pool lister that contains the existingServiceProviderNodePool.
-		serviceProviderNodePoolLister     listers.ServiceProviderNodePoolLister
+		serviceProviderNodePoolLister     corelisters.ServiceProviderNodePoolLister
 		existingNodePoolVersionController *api.Controller
 		// When set, wires a ReadDesireLister containing this cached Hypershift NodePool mirror.
 		cachedNodePoolReadDesire *kubeapplier.ReadDesire
@@ -421,7 +421,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			name:              "node pool not in lister cache leaves operation unchanged",
 			existingNodePool:  newNodePoolWithVersion("4.19.0"),
 			existingOperation: newOperationAccepted(),
-			nodePoolLister:    &listertesting.SliceNodePoolLister{},
+			nodePoolLister:    &corelistertesting.SliceNodePoolLister{},
 			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
@@ -466,15 +466,15 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 
 			nodePoolLister := tc.nodePoolLister
 			if nodePoolLister == nil {
-				nodePoolLister = &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient}
+				nodePoolLister = &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient}
 			}
 			activeOperationsLister := tc.activeOperationsLister
 			if activeOperationsLister == nil {
-				activeOperationsLister = &listertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
+				activeOperationsLister = &corelistertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
 			}
 			serviceProviderNodePoolLister := tc.serviceProviderNodePoolLister
 			if serviceProviderNodePoolLister == nil {
-				serviceProviderNodePoolLister = &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient}
+				serviceProviderNodePoolLister = &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient}
 			}
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)

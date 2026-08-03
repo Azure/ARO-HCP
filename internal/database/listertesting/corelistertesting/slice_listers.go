@@ -21,15 +21,15 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 )
 
-// SliceClusterLister implements listers.ClusterLister backed by a slice.
+// SliceClusterLister implements corelisters.ClusterLister backed by a slice.
 type SliceClusterLister struct {
 	Clusters []*api.HCPOpenShiftCluster
 }
 
-var _ listers.ClusterLister = &SliceClusterLister{}
+var _ corelisters.ClusterLister = &SliceClusterLister{}
 
 func (l *SliceClusterLister) List(ctx context.Context) ([]*api.HCPOpenShiftCluster, error) {
 	return l.Clusters, nil
@@ -63,12 +63,12 @@ func (l *SliceClusterLister) ListForResourceGroup(ctx context.Context, subscript
 	return result, nil
 }
 
-// SliceNodePoolLister implements listers.NodePoolLister backed by a slice.
+// SliceNodePoolLister implements corelisters.NodePoolLister backed by a slice.
 type SliceNodePoolLister struct {
 	NodePools []*api.HCPOpenShiftClusterNodePool
 }
 
-var _ listers.NodePoolLister = &SliceNodePoolLister{}
+var _ corelisters.NodePoolLister = &SliceNodePoolLister{}
 
 func (l *SliceNodePoolLister) List(ctx context.Context) ([]*api.HCPOpenShiftClusterNodePool, error) {
 	return l.NodePools, nil
@@ -118,12 +118,12 @@ func (l *SliceNodePoolLister) ListForCluster(ctx context.Context, subscriptionID
 	return result, nil
 }
 
-// SliceActiveOperationLister implements listers.ActiveOperationLister backed by a slice.
+// SliceActiveOperationLister implements corelisters.ActiveOperationLister backed by a slice.
 type SliceActiveOperationLister struct {
 	Operations []*api.Operation
 }
 
-var _ listers.ActiveOperationLister = &SliceActiveOperationLister{}
+var _ corelisters.ActiveOperationLister = &SliceActiveOperationLister{}
 
 func (l *SliceActiveOperationLister) List(ctx context.Context) ([]*api.Operation, error) {
 	return l.Operations, nil
@@ -172,12 +172,12 @@ func (l *SliceActiveOperationLister) listByPrefix(prefix string) []*api.Operatio
 	return result
 }
 
-// SliceExternalAuthLister implements listers.ExternalAuthLister backed by a slice.
+// SliceExternalAuthLister implements corelisters.ExternalAuthLister backed by a slice.
 type SliceExternalAuthLister struct {
 	ExternalAuths []*api.HCPOpenShiftClusterExternalAuth
 }
 
-var _ listers.ExternalAuthLister = &SliceExternalAuthLister{}
+var _ corelisters.ExternalAuthLister = &SliceExternalAuthLister{}
 
 func (l *SliceExternalAuthLister) List(ctx context.Context) ([]*api.HCPOpenShiftClusterExternalAuth, error) {
 	return l.ExternalAuths, nil
@@ -227,12 +227,12 @@ func (l *SliceExternalAuthLister) ListForCluster(ctx context.Context, subscripti
 	return result, nil
 }
 
-// SliceServiceProviderClusterLister implements listers.ServiceProviderClusterLister backed by a slice.
+// SliceServiceProviderClusterLister implements corelisters.ServiceProviderClusterLister backed by a slice.
 type SliceServiceProviderClusterLister struct {
 	ServiceProviderClusters []*api.ServiceProviderCluster
 }
 
-var _ listers.ServiceProviderClusterLister = &SliceServiceProviderClusterLister{}
+var _ corelisters.ServiceProviderClusterLister = &SliceServiceProviderClusterLister{}
 
 func (l *SliceServiceProviderClusterLister) List(ctx context.Context) ([]*api.ServiceProviderCluster, error) {
 	return l.ServiceProviderClusters, nil
@@ -269,12 +269,12 @@ func (l *SliceServiceProviderClusterLister) ListForCluster(ctx context.Context, 
 	return result, nil
 }
 
-// SliceServiceProviderNodePoolLister implements listers.ServiceProviderNodePoolLister backed by a slice.
+// SliceServiceProviderNodePoolLister implements corelisters.ServiceProviderNodePoolLister backed by a slice.
 type SliceServiceProviderNodePoolLister struct {
 	ServiceProviderNodePools []*api.ServiceProviderNodePool
 }
 
-var _ listers.ServiceProviderNodePoolLister = &SliceServiceProviderNodePoolLister{}
+var _ corelisters.ServiceProviderNodePoolLister = &SliceServiceProviderNodePoolLister{}
 
 func (l *SliceServiceProviderNodePoolLister) List(ctx context.Context) ([]*api.ServiceProviderNodePool, error) {
 	return l.ServiceProviderNodePools, nil
@@ -313,12 +313,12 @@ func (l *SliceServiceProviderNodePoolLister) ListForNodePool(ctx context.Context
 	return result, nil
 }
 
-// SliceManagementClusterContentLister implements listers.ManagementClusterContentLister backed by a slice.
+// SliceManagementClusterContentLister implements corelisters.ManagementClusterContentLister backed by a slice.
 type SliceManagementClusterContentLister struct {
 	Contents []*api.ManagementClusterContent
 }
 
-var _ listers.ManagementClusterContentLister = &SliceManagementClusterContentLister{}
+var _ corelisters.ManagementClusterContentLister = &SliceManagementClusterContentLister{}
 
 func (l *SliceManagementClusterContentLister) List(ctx context.Context) ([]*api.ManagementClusterContent, error) {
 	return l.Contents, nil
@@ -371,12 +371,12 @@ func (l *SliceManagementClusterContentLister) ListForNodePool(ctx context.Contex
 	return result, nil
 }
 
-// SliceSubscriptionLister implements listers.SubscriptionLister backed by a slice.
+// SliceSubscriptionLister implements corelisters.SubscriptionLister backed by a slice.
 type SliceSubscriptionLister struct {
 	Subscriptions []*arm.Subscription
 }
 
-var _ listers.SubscriptionLister = &SliceSubscriptionLister{}
+var _ corelisters.SubscriptionLister = &SliceSubscriptionLister{}
 
 func (l *SliceSubscriptionLister) List(ctx context.Context) ([]*arm.Subscription, error) {
 	return l.Subscriptions, nil
@@ -395,12 +395,12 @@ func (l *SliceSubscriptionLister) Get(ctx context.Context, subscriptionID string
 	return nil, database.NewNotFoundError()
 }
 
-// SliceBillingLister implements listers.BillingLister backed by a slice.
+// SliceBillingLister implements corelisters.BillingLister backed by a slice.
 type SliceBillingLister struct {
 	BillingDocuments []*database.BillingDocument
 }
 
-var _ listers.BillingLister = &SliceBillingLister{}
+var _ corelisters.BillingLister = &SliceBillingLister{}
 
 func (l *SliceBillingLister) List(ctx context.Context) ([]*database.BillingDocument, error) {
 	return l.BillingDocuments, nil
@@ -425,7 +425,7 @@ func (l *SliceBillingLister) ListForSubscription(ctx context.Context, subscripti
 	return result, nil
 }
 
-// SliceControllerLister implements listers.ControllerLister backed by a
+// SliceControllerLister implements corelisters.ControllerLister backed by a
 // slice. The List-for-parent methods filter to controllers whose resource
 // ID hangs DIRECTLY off the requested parent — i.e. they have exactly one
 // path segment beyond the parent's resource ID. That excludes
@@ -435,7 +435,7 @@ type SliceControllerLister struct {
 	Controllers []*api.Controller
 }
 
-var _ listers.ControllerLister = &SliceControllerLister{}
+var _ corelisters.ControllerLister = &SliceControllerLister{}
 
 func (l *SliceControllerLister) List(_ context.Context) ([]*api.Controller, error) {
 	return l.Controllers, nil

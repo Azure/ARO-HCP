@@ -34,8 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -51,10 +51,10 @@ const NodepoolVersionControllerName = "NodePoolVersion"
 // nodePoolActiveVersionSyncer (sourced from the ReadDesire NodePool mirror) and
 // is no longer this controller's responsibility.
 type nodePoolVersionSyncer struct {
-	nodePoolLister                listers.NodePoolLister
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
-	serviceProviderClusterLister  listers.ServiceProviderClusterLister
-	subscriptionLister            listers.SubscriptionLister
+	nodePoolLister                corelisters.NodePoolLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
+	subscriptionLister            corelisters.SubscriptionLister
 	readDesireLister              kubeapplierlisters.ReadDesireLister
 	resourcesDBClient             database.ResourcesDBClient
 
@@ -67,8 +67,8 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolVersionSyncer)(nil)
 // the customer's desired NodePool version on the ServiceProviderNodePool.
 func NewNodePoolVersionController(
 	resourcesDBClient database.ResourcesDBClient,
-	subscriptionLister listers.SubscriptionLister,
-	informers informers.BackendInformers,
+	subscriptionLister corelisters.SubscriptionLister,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {

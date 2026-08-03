@@ -34,7 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
@@ -217,8 +217,8 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 
 			clock := clocktesting.NewFakePassiveClock(statusutils.FixedNow)
 			syncer := &nodePoolDegradedAggregator{
-				nodePoolLister:    &listertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
-				controllerLister:  &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
+				nodePoolLister:    &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
+				controllerLister:  &corelistertesting.DBControllerLister{ResourcesDBClient: mockDB},
 				resourcesDBClient: mockDB,
 				inertia:           tc.inertia,
 				clock:             clock,

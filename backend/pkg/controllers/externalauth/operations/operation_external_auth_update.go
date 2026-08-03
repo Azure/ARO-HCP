@@ -31,8 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -42,9 +42,9 @@ type operationExternalAuthUpdate struct {
 	clock                  utilsclock.PassiveClock
 	resourcesDBClient      database.ResourcesDBClient
 	clusterServiceClient   ocm.ClusterServiceClientSpec
-	externalAuthLister     listers.ExternalAuthLister
+	externalAuthLister     corelisters.ExternalAuthLister
 	readDesireLister       kubeapplierlisters.ReadDesireLister
-	activeOperationsLister listers.ActiveOperationLister
+	activeOperationsLister corelisters.ActiveOperationLister
 	notificationClient     *http.Client
 }
 
@@ -69,7 +69,7 @@ func NewOperationExternalAuthUpdateController(
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
-	backendInformers informers.BackendInformers,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := backendInformers.ExternalAuths()
 	_, activeOperationsLister := backendInformers.ActiveOperations()

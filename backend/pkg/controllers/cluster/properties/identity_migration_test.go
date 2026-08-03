@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -218,7 +218,7 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 			if cachedCluster == nil {
 				cachedCluster = tc.existingCluster
 			}
-			sliceClusterLister := &listertesting.SliceClusterLister{
+			sliceClusterLister := &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{cachedCluster},
 			}
 

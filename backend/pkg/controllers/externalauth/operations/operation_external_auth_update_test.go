@@ -37,8 +37,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
-	listertesting "github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -106,8 +106,8 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 		name                          string
 		existingExternalAuth          *api.HCPOpenShiftClusterExternalAuth
 		existingOperation             *api.Operation
-		externalAuthLister            listers.ExternalAuthLister
-		activeOperationsLister        listers.ActiveOperationLister
+		externalAuthLister            corelisters.ExternalAuthLister
+		activeOperationsLister        corelisters.ActiveOperationLister
 		cachedHostedClusterReadDesire *kubeapplier.ReadDesire
 		setupMockCSClient             func(*ocm.MockClusterServiceClientSpec)
 		wantErr                       bool
@@ -199,7 +199,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 			name:                 "external auth not in lister cache leaves operation unchanged",
 			existingExternalAuth: newExternalAuth(),
 			existingOperation:    newOperationAccepted(),
-			externalAuthLister:   &listertesting.SliceExternalAuthLister{},
+			externalAuthLister:   &corelistertesting.SliceExternalAuthLister{},
 			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
@@ -252,7 +252,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 			existingExternalAuth:          newPassingExternalAuth(),
 			existingOperation:             preconditionExistingOperation,
 			cachedHostedClusterReadDesire: newPassingCachedHostedClusterReadDesire(),
-			activeOperationsLister: &listertesting.SliceActiveOperationLister{
+			activeOperationsLister: &corelistertesting.SliceActiveOperationLister{
 				Operations: []*api.Operation{preconditionListerOperation},
 			},
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -294,11 +294,11 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 
 			externalAuthLister := tc.externalAuthLister
 			if externalAuthLister == nil {
-				externalAuthLister = &listertesting.DBExternalAuthLister{ResourcesDBClient: mockResourcesDBClient}
+				externalAuthLister = &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockResourcesDBClient}
 			}
 			activeOperationsLister := tc.activeOperationsLister
 			if activeOperationsLister == nil {
-				activeOperationsLister = &listertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
+				activeOperationsLister = &corelistertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
 			}
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)

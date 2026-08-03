@@ -29,8 +29,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -44,7 +44,7 @@ const NodePoolActiveVersionsControllerName = "NodePoolActiveVersions"
 // management cluster's Hypershift NodePool object). Reading from the cached
 // NodePool CR replaces the previous round-trip through Cluster Service.
 type nodePoolActiveVersionSyncer struct {
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 	resourcesDBClient             database.ResourcesDBClient
 	readDesireLister              kubeapplierlisters.ReadDesireLister
 }
@@ -56,7 +56,7 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolActiveVersionSyncer)(nil)
 // per-node-pool ReadDesire's observed Hypershift NodePool.
 func NewNodePoolActiveVersionController(
 	resourcesDBClient database.ResourcesDBClient,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {

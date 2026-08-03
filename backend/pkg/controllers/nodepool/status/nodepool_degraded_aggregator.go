@@ -27,8 +27,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	informers "github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	listers "github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -37,8 +37,8 @@ import (
 // onto HCPOpenShiftClusterNodePool.Status.Conditions. See the package and
 // clusterDegradedAggregator docs for the overall design.
 type nodePoolDegradedAggregator struct {
-	nodePoolLister    listers.NodePoolLister
-	controllerLister  listers.ControllerLister
+	nodePoolLister    corelisters.NodePoolLister
+	controllerLister  corelisters.ControllerLister
 	resourcesDBClient database.ResourcesDBClient
 	inertia           statusutils.Inertia
 	clock             utilsclock.PassiveClock
@@ -64,9 +64,9 @@ func nodePoolDegradedAggregatorInertia() statusutils.Inertia {
 // they are identical across the three aggregators.
 func NewNodePoolDegradedAggregatorController(
 	resourcesDBClient database.ResourcesDBClient,
-	nodePoolLister listers.NodePoolLister,
-	controllerLister listers.ControllerLister,
-	informers informers.BackendInformers,
+	nodePoolLister corelisters.NodePoolLister,
+	controllerLister corelisters.ControllerLister,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	clock utilsclock.PassiveClock,
 ) controllerutils.Controller {
