@@ -30,7 +30,7 @@ export ATEST_GRAFANA_BEARER_TOKEN=$(az account get-access-token \
       --query accessToken -o tsv)
 
 ./atest grafana \
-      --grafana-url https://arohcp-prod-g5d9a9akashnb5gd.suk.grafana.azure.com/ \
+      --grafana-url GRAFANA_URL \
       --datasource services-australiaeast \
       -q 'time() - max without(prometheus_replica) (kube_lease_renew_time{namespace=~"^(kube-applier)$"})' \
       --gt 45,60,90,120,180 \
@@ -65,7 +65,7 @@ The basic `atest` tool usage is already very helpful. But if you want to check m
 3. Have Copilot (or Claude with Copilot access) run from within the `alert-tester` dir
 4. Ask Copilot something like
    ```text
-   /aro-hcp-test-alerts review PR https://github.com/Azure/ARO-HCP/pull/5896
+   Run alert testing for PR https://github.com/Azure/ARO-HCP/pull/5896
    ```
    That will create a nicely formatted report in `./reports` according to [./reports/TEMPLATE.md][report-template]. Just FYI: [aro-hcp-test-alerts][aro-hcp-test-alerts-skill] does not need to be installed explicitly, because it's located in the `alert-tester` repo's `.claude/skills` dir.
 
@@ -73,14 +73,14 @@ The basic `atest` tool usage is already very helpful. But if you want to check m
 >
 > [aro-hcp-test-alerts][aro-hcp-test-alerts-skill] will use defaults (e.g. previous Mon–Sun week, across uksouth/eastus2/australiaeast), which you might have to adapt to your concrete scenario, e.g.
 > ```text
-> /aro-hcp-test-alerts review PR https://github.com/Azure/ARO-HCP/pull/5896 querying the last two weeks
+> Run alert testing for PR https://github.com/Azure/ARO-HCP/pull/5896, past two whole weeks, uksouth only
 > ```
 
 
 ### See also
 
 * [alert-tester][alert-tester-repo] GitHub Repo
-* [video][demo-video] and [notes][demo-notes] from alert-tester and grafana-datasource demo session
+* [video][demo-video] and [notes][demo-notes] from alert-tester demo session
 
 ## Accessing PROD data with Grafana
 
@@ -97,11 +97,8 @@ To develop and test dashboards against prod data, use the Scratchpad folder in t
 
 Look for the Scratchpad folder under Dashboards in the PROD Grafana instance.
 
-> [!NOTE]
->
-> The Explore tab and Scratchpad folder replace the [grafana-datasource][grafana-datasource-repo] tool, which is no longer needed.
 
-## Available Grafana Instances and Data Sources
+## AI access
 
 To get an overview of available Grafana URLs and data sources, make sure the [aro-hcp-env-info](https://github.com/openshift-online/aro-ai-tools/blob/main/skills/aro-hcp-env-info) from [aro-ai-tools](https://github.com/openshift-online/aro-ai-tools) is installed - and ask Copilot/Claude something like
 
@@ -109,9 +106,11 @@ To get an overview of available Grafana URLs and data sources, make sure the [ar
 List all Grafana URLs for our different stages - including a list of available datasources
 ```
 
-> [!NOTE]
->
->  The resource ID for `az account get-access-token` is identical across all stages: `ce34e7e5-485f-4d76-964f-b3d2b16d1e4f` (Azure Managed Grafana first-party app).
+You can ask things directly, but results will depend on whether AI can figure out the correct metrics to check. If you know what you want to look at, best make it explicit
+
+```text
+What's the current cluster count across all prod regions using acm_managed_cluster_count
+```
 
 ## Links
 
@@ -122,7 +121,6 @@ List all Grafana URLs for our different stages - including a list of available d
 * [Copilot setup guide][copilot-setup]
 * [Demo video][demo-video]
 * [Demo notes][demo-notes]
-* [grafana-datasource repo][grafana-datasource-repo]
 
 [alert-tester-repo]: https://github.com/mmazur/alert-tester
 [alert-tester-readme]: https://github.com/mmazur/alert-tester/blob/main/README.md
@@ -131,4 +129,3 @@ List all Grafana URLs for our different stages - including a list of available d
 [copilot-setup]: https://docs.google.com/document/d/1KUZSLknIkSd6usFPe_OcEYWJyW6mFeotc2lIsLgE3JA/edit?tab=t.ft6ndj5uukpn
 [demo-video]: https://drive.google.com/file/d/1jkyx4_w8yzaybqhtukHuHizh2jFCTJf7/view
 [demo-notes]: https://docs.google.com/document/d/1yvmf4MvOGpRf9VjA3Rnt30oNyfEFmE60oJeLxs0ek6w/edit?tab=t.0#heading=h.xr6j3y1ibl6b
-[grafana-datasource-repo]: https://github.com/mmazur/grafana-datasource
