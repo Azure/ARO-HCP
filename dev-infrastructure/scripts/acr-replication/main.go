@@ -259,7 +259,17 @@ func findReplicationNameByLocation(ctx context.Context, client *armcontainerregi
 		}
 		for _, r := range page.Value {
 			if r != nil && r.Location != nil && r.Name != nil && strings.EqualFold(*r.Location, cfg.region) {
-				return *r.Name, nil
+				// Defensive: some ARM list responses return nested-resource
+				// names as "<registry>/<replication>" (the reason the
+				// replaced shell script did `cut -f 2 -d "/"` on its
+				// `az resource list` output). Take only the last path
+				// segment so Get/Update/Delete, which expect the bare
+				// replication name, always receive it correctly.
+				name := *r.Name
+				if idx := strings.LastIndex(name, "/"); idx != -1 {
+					name = name[idx+1:]
+				}
+				return name, nil
 			}
 		}
 	}
