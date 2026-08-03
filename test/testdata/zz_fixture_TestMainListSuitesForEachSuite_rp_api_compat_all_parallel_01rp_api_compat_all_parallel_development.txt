@@ -7,6 +7,7 @@ Customer should be able to test admin credentials before cluster ready, then ful
 Customer should be able to create node pools with ARM64-based VMs
 Authorized CIDRs Connectivity should allow API access only from authorized VM IP
 Customer should be able to create an HCP cluster with custom autoscaling and update the autoscaling configuration
+Container Registry Pull Credentials with v2026-06-30 API should create a cluster with containerRegistry.managedIdentity and pull an image from a private ACR
 Customer should be able to create a HCP cluster and use cilium CNI plugin
 Customer should be able to create a no-CNI private cluster with a private key vault, a nodepool and install cilium CNI successfully
 Customer should be able to create an HCP cluster and custom node pool osDisk size

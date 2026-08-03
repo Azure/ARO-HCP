@@ -503,6 +503,15 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	}
 
 	clusterUpdateDispatchConfig := clusterUpdateDispatchConfigFromRP(hcpCluster, serviceProviderCluster)
+
+	// Signal applyToCSBuilders to send the empty-string clearing value to CS.
+	if oldClusterServiceCluster != nil &&
+		clusterUpdateDispatchConfig.ContainerRegistryPullManagedIdentityResourceID == "" &&
+		oldClusterServiceCluster.Azure() != nil &&
+		oldClusterServiceCluster.Azure().ContainerRegistry() != nil {
+		clusterUpdateDispatchConfig.ContainerRegistryPullManagedIdentityResourceID = containerRegistryPullMIClearingSignal
+	}
+
 	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, azureBuilder, clusterKMSActiveKeyBuilder, properties)
 	if err != nil {
 		return nil, err
@@ -627,6 +636,10 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	}
 
 	azureBuilder.OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
+
+	if containerRegistryBuilder := convertContainerRegistryPullCredentialsToCS(hcpCluster.CustomerProperties.Platform.ContainerRegistryPullManagedIdentity); containerRegistryBuilder != nil {
+		azureBuilder.ContainerRegistry(containerRegistryBuilder)
+	}
 
 	// Cluster Service rejects an empty DomainPrefix string.
 	if hcpCluster.CustomerProperties.DNS.BaseDomainPrefix != "" {

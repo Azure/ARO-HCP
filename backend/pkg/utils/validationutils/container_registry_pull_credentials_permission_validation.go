@@ -65,17 +65,22 @@ func (v *ContainerRegistryPullCredentialsPermissionValidation) Validate(ctx cont
 	smiResourceID := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 	clusterIdentityURL := cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL
 
-	uaisClient, err := v.smiClientBuilder.UserAssignedIdentitiesClient(ctx, clusterIdentityURL, smiResourceID, cluster.ID.SubscriptionID)
+	acrPullMIClient, err := v.smiClientBuilder.UserAssignedIdentitiesClient(ctx, clusterIdentityURL, smiResourceID, containerRegistryPullMI.SubscriptionID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get user assigned identities client: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get user assigned identities client for container registry pull MI subscription: %w", err))
 	}
 
-	_, err = uaisClient.Get(ctx, containerRegistryPullMI.ResourceGroupName, containerRegistryPullMI.Name, nil)
+	_, err = acrPullMIClient.Get(ctx, containerRegistryPullMI.ResourceGroupName, containerRegistryPullMI.Name, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("container registry pull managed identity %s not found or not accessible: %w", containerRegistryPullMI, err))
 	}
 
-	capzMI, err := uaisClient.Get(ctx, capzResourceID.ResourceGroupName, capzResourceID.Name, nil)
+	capzClient, err := v.smiClientBuilder.UserAssignedIdentitiesClient(ctx, clusterIdentityURL, smiResourceID, capzResourceID.SubscriptionID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get user assigned identities client for CAPZ MI subscription: %w", err))
+	}
+
+	capzMI, err := capzClient.Get(ctx, capzResourceID.ResourceGroupName, capzResourceID.Name, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get CAPZ managed identity %s: %w", capzResourceID, err))
 	}

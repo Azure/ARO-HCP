@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -25,6 +26,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -887,5 +889,84 @@ func TestURL(t *testing.T) {
 			errs := URL(ctx, op, fldPath, tt.value, nil)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
+	}
+}
+
+func TestValidateContainerRegistryPullCredentials(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+	fldPath := field.NewPath("platform", "containerRegistry", "managedIdentity")
+
+	validResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acrPullMI",
+	))
+
+	tests := []struct {
+		name         string
+		newObj       *azcorearm.ResourceID
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "nil resource ID - valid",
+			newObj:       nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "valid MI resource ID - valid",
+			newObj:       validResourceID,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "wrong resource type - invalid",
+			newObj: metadataapi.Must(azcorearm.ParseResourceID(
+				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Storage/storageAccounts/wrongType",
+			)),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "platform.containerRegistry.managedIdentity", Message: "Microsoft.ManagedIdentity/userAssignedIdentities"},
+			},
+		},
+		{
+			name: "MI in managed resource group - invalid",
+			newObj: metadataapi.Must(azcorearm.ParseResourceID(
+				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managedRg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acrPullMI",
+			)),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "platform.containerRegistry.managedIdentity", Message: "must not be the same resource group name"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := validateContainerRegistryPullCredentials(ctx, op, fldPath, tt.newObj, nil, "managedRg")
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+func TestCustomerPlatformProfileImmutabilityCoverage(t *testing.T) {
+	immutableFields := map[string]bool{
+		"ManagedResourceGroup":    true,
+		"SubnetID":                true,
+		"VnetIntegrationSubnetID": true,
+		"OutboundType":            true,
+		"NetworkSecurityGroupID":  true,
+		"OperatorsAuthentication": true,
+	}
+	mutableFields := map[string]bool{
+		"ContainerRegistryPullManagedIdentity": true,
+	}
+
+	typ := reflect.TypeOf(coreapi.CustomerPlatformProfile{})
+	for i := range typ.NumField() {
+		name := typ.Field(i).Name
+		inImmutable := immutableFields[name]
+		inMutable := mutableFields[name]
+		if !inImmutable && !inMutable {
+			t.Errorf("CustomerPlatformProfile field %q is not listed in immutableFields or mutableFields", name)
+		}
+		if inImmutable && inMutable {
+			t.Errorf("CustomerPlatformProfile field %q is listed in both immutableFields and mutableFields", name)
+		}
 	}
 }
