@@ -1,0 +1,108 @@
+rule_files:
+- HCPetcd-grpc-latency-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Recording rules — P99 latency above 200ms
+# Histogram buckets simulate P99 = 0.3s (300ms):
+#   le=0.1 has 90 requests, le=0.5 has 100, le=+Inf has 100
+#   P99 = 0.1 + (0.5-0.1) * ((100*0.99 - 90) / (100 - 90)) = 0.1 + 0.4 * 0.9 = 0.46
+- interval: 1m
+  name: "Test 1: Recording rules produce expected P99/P95 values"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-123", cluster="mgmt-1", le="0.005"}'
+    values: "0+50x20"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-123", cluster="mgmt-1", le="0.01"}'
+    values: "0+60x20"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-123", cluster="mgmt-1", le="0.025"}'
+    values: "0+70x20"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-123", cluster="mgmt-1", le="0.05"}'
+    values: "0+80x20"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-123", cluster="mgmt-1", le="0.1"}'
+    values: "0+90x20"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-123", cluster="mgmt-1", le="0.5"}'
+    values: "0+100x20"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-123", cluster="mgmt-1", le="+Inf"}'
+    values: "0+100x20"
+  promql_expr_test:
+  - expr: etcd:grpc_server_handling:latency_p99:rate5m{namespace="ocm-test-123"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="etcd:grpc_server_handling:latency_p99:rate5m", namespace="ocm-test-123", cluster="mgmt-1"}'
+      value: 4.5999999999999996e-01
+  - expr: etcd:grpc_server_handling:latency_p95:rate5m{namespace="ocm-test-123"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="etcd:grpc_server_handling:latency_p95:rate5m", namespace="ocm-test-123", cluster="mgmt-1"}'
+      value: 2.9999999999999993e-01
+
+# Test 2: Fast burn alert fires when P99 > 200ms in both 1h and 5m windows
+- interval: 1m
+  name: "Test 2: Fast burn alert fires on high latency"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-456", cluster="mgmt-2", le="0.1"}'
+    values: "0+90x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-456", cluster="mgmt-2", le="0.5"}'
+    values: "0+100x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-456", cluster="mgmt-2", le="+Inf"}'
+    values: "0+100x70"
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: userJourneyEtcdLatencyP991h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: etcd-grpc-latency
+        long_window: 1h
+        short_window: 5m
+        component: hcp
+        namespace: ocm-test-456
+        cluster: mgmt-2
+      exp_annotations:
+        summary: "etcd gRPC P99 latency exceeds 200ms in ocm-test-456 on mgmt-2 (fast burn 1h/5m)"
+        description: >-
+          etcd gRPC P99 latency in namespace ocm-test-456 on cluster
+          mgmt-2 has exceeded 200ms in both the 1h and 5m windows,
+          indicating a fast burn-rate degradation affecting hosted cluster operations.
+        correlationId: "userJourneyEtcdLatencyP991h5m/mgmt-2/ocm-test-456"
+        runbook_url: "https://aka.ms/arohcp-runbook-etcd"
+
+# Test 3: No alert fires when P99 < 200ms (healthy latency)
+- interval: 1m
+  name: "Test 3: No alerts fire when latency is healthy"
+  input_series:
+  # All requests complete within 0.1s bucket — P99 well below 200ms
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-789", cluster="mgmt-3", le="0.005"}'
+    values: "0+95x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-789", cluster="mgmt-3", le="0.01"}'
+    values: "0+100x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-789", cluster="mgmt-3", le="0.1"}'
+    values: "0+100x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-789", cluster="mgmt-3", le="0.5"}'
+    values: "0+100x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="etcdserverpb.KV", namespace="ocm-test-789", cluster="mgmt-3", le="+Inf"}'
+    values: "0+100x70"
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: userJourneyEtcdLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 65m
+    alertname: userJourneyEtcdLatencyP996h30m
+    exp_alerts: []
+  - eval_time: 65m
+    alertname: userJourneyEtcdLatencyP993d
+    exp_alerts: []
+
+# Test 4: Non-etcd gRPC service is excluded from alerts
+- interval: 1m
+  name: "Test 4: Non-etcdserverpb traffic is excluded"
+  input_series:
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", namespace="ocm-test-exclude", cluster="mgmt-4", le="0.1"}'
+    values: "0+90x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", namespace="ocm-test-exclude", cluster="mgmt-4", le="0.5"}'
+    values: "0+100x70"
+  - series: 'grpc_server_handling_seconds_bucket{grpc_service="other.Service", namespace="ocm-test-exclude", cluster="mgmt-4", le="+Inf"}'
+    values: "0+100x70"
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: userJourneyEtcdLatencyP991h5m
+    exp_alerts: []

@@ -241,3 +241,25 @@ resource userjourneyKubeapiserverAvailabilityRecordingRules 'Microsoft.AlertsMan
     ]
   }
 }
+
+resource hcpEtcdGrpcLatencyRecording 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-etcd-grpc-latency-recording'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'etcd:grpc_server_handling:latency_p99:rate5m'
+        expression: 'histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[5m])))'
+      }
+      {
+        record: 'etcd:grpc_server_handling:latency_p95:rate5m'
+        expression: 'histogram_quantile(0.95, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[5m])))'
+      }
+    ]
+  }
+}
