@@ -222,7 +222,7 @@ var _ = Describe("Customer", func() {
 			// from the test runner to the cluster's public API endpoint should be rejected.
 			// Note: VNet-internal traffic (e.g. from the VM) bypasses this restriction, so
 			// the test runner is the only reliable "external" caller we can use here.
-			err = testAPIConnectivity(apiURL, 10*time.Second)
+			err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second, true)
 			Expect(err).To(HaveOccurred(), "connection from test runner (IP %s, not in authorized CIDRs) should be blocked by cluster %q API server", testRunnerPublicIP, customerClusterName)
 			GinkgoWriter.Printf("Connection from test runner was correctly blocked: %v\n", err)
 
