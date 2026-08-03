@@ -55,8 +55,8 @@ sequenceDiagram
   Events, with no per-node agent.
 - Detection is **hard-coded and modular**: detectors are Go units that share
   common primitives (event-signature match, sustained-storm floor, and the
-  load-bearing zero-success-continuity check), each a pure function of the node's
-  observed state and the controller's recorded per-node success history, and
+  load-bearing zero-success-continuity check), each a pure function of the Pods and
+  Events currently held for the node, so nothing is carried between reconciles, and
   exhaustively unit-tested. Adding a failure mode is a new tested detector in
   code, not a ConfigMap edit.
 - **Label** a detected node (and annotate why), and unlabel it when it recovers.
@@ -275,6 +275,15 @@ re-transition the condition, while a pod that was pending a while but whose sand
 finally comes up in the window is correctly counted as recovery. Host-network pods
 are excluded, since they reach `PodReadyToStartContainers` without a delegated NIC.
 
+A pod that has already finished counts too, timed by its container's start rather
+than the condition. A completed pod drops `PodReadyToStartContainers` back to
+`False` as a matter of course, so reading only the condition would leave a node
+whose recent traffic was short-lived `Job` and `CronJob` pods looking like it had
+never started anything. A container can only terminate if it started, and it can
+only start inside a sandbox, so its start time is proof the node could attach a NIC.
+A pod that failed *before* any container ran carries no such timestamp, which is
+exactly the sandbox-failure shape we are detecting.
+
 The window bound is load-bearing, not a tidiness detail. An established sandbox
 survives the VF teardown, so pods that started before the wedge keep reporting
 `PodReadyToStartContainers=True` indefinitely while the node is wedged. A wedged
@@ -283,39 +292,36 @@ node ever started a pod" as success would suppress detection permanently on any
 long-lived node. Only a transition inside the window is evidence the node can
 attach a NIC now.
 
-**Success is a recorded history, not a point-in-time scan.** The success signal
-cannot be reconstructed from a `LIST` of the pods that exist right now. A pod that
-got its sandbox and was then deleted, exactly what a short-lived or evicted pod
-does, leaves nothing behind, so "no successful pod visible now" is indistinguishable
-from "no sandbox succeeded anywhere in the window". Reading the absence as zero would
-wedge a healthy but low-churn node. The controller therefore **records success as it
-happens**: it keeps a small, bounded, per-node `lastSuccessAt` timestamp that it
-advances every time it watches a non-host-network pod's `PodReadyToStartContainers`
-condition transition to `True`, whether that arrives as an informer add, an update,
-or the last-seen state of a pod being deleted. Entries older than the window are
-expired. A node counts as having had a recent success when its recorded
-`lastSuccessAt` falls inside the window, and the load-bearing zero-successful-sandbox
-rule tests that recorded history, not a live scan, so a success that has since been
-garbage-collected still counts.
+**The controller keeps no state between reconciles.** Both signals, failures and
+successes, are read from the informer caches on every pass, so the only cache the
+controller holds is one a `LIST` rebuilds. That is a deliberate constraint rather
+than an implementation detail: any success history kept in memory is lost on restart,
+and an empty history is the absence of evidence rather than evidence of zero
+successes, so a controller that relied on one would need a warm-up window before it
+could trust the signal. During that warm-up a genuinely wedged node goes unreported.
+Deriving success from the same Pods the failure signal comes from removes the
+history, and with it the warm-up: a process that has just started decides exactly
+what one running for hours would.
 
-**A cold history is `Unknown`, never a false zero.** The recorded history lives in
-memory, so it starts empty on a controller restart and on every disabled→enabled
-transition. An empty history is the absence of evidence, not evidence of zero
-successes, so the controller refuses to newly label a node wedged until it has run
-enabled for a full window since it began observing (tracked as `observedSince`, reset
-on enable), rebuilding the history from live transitions in the meantime. Before that
-it returns `Unknown` for a new wedge decision rather than inventing a zero. The same
-indeterminate rule covers a pod whose `PodReadyToStartContainers` condition is absent
-entirely (`PodReadyToStartContainers` is beta and on by default from Kubernetes 1.29
-and GA in 1.37, so on the 1.35 management clusters it is beta-but-default-on, verified
-present before enablement), so a node is never labeled wedged purely because the
-condition is missing.
+The trade-off is that a success is only visible while its Pod is still in the cache.
+Counting finished pods by their container start time covers the case that matters,
+a node whose recent successes were short-lived pods, and a pod deleted outright
+inside the window is not evidence either way. This is also why the failure side is
+counted from live Pod state rather than from Event tallies: neither signal may
+depend on objects the apiserver has garbage-collected.
+
+**A missing condition is `Unknown`, never a false zero.** A pod whose
+`PodReadyToStartContainers` condition is absent entirely is not counted as stuck
+(`PodReadyToStartContainers` is beta and on by default from Kubernetes 1.29 and GA in
+1.37, so on the 1.35 management clusters it is beta-but-default-on, verified present
+before enablement), so a node is never labeled wedged purely because the condition is
+missing.
 
 When an Event arrives, the controller enqueues the `Node` named in the Event's
 `Source.Host` and reconciles that node level-driven: it counts the pods on the node
 currently stuck without a sandbox, checks the dwell from each stuck pod's
 `PodReadyToStartContainers=False` transition, and applies the load-bearing
-zero-successful-sandbox rule against the recorded `lastSuccessAt`, which is what
+zero-successful-sandbox rule against the successes visible on the node, which is what
 separates a genuinely wedged node (zero fresh sandboxes created, VF gone) from a node
 that is merely flapping but still creating some pod sandboxes between failures (VF
 present, a race). A single failure burst inside an otherwise-productive window never
@@ -391,16 +397,15 @@ constantly, so reconciling it on every pass would rewrite every wedged node on
 every sweep for no operator benefit.
 
 On restart the controller rebuilds its view from the `LIST` of Nodes, Pods, and
-retained Events, and starts its per-node success history empty, recomputing each
-node's decision from live observation. The restart view is asymmetric on purpose: a
-node that still carries the wedged label is only unlabeled on positive evidence of
-recovery (a fresh `PodReadyToStartContainers=True` transition recorded on it), never
-because the Event view or the success history is briefly empty just after startup;
-and a node is not newly labeled until the controller has observed a full window
-enabled, so a cold or partial view yields `Unknown`, not a fresh wedge. A
-disabled→enabled transition is treated the same as a restart for this purpose: the
-success history and `observedSince` reset, so the controller re-earns a full window
-of observation before it can wedge.
+retained Events, and that view is all it needs: it carries nothing across the
+restart, so it reaches the same verdict a process that had been running for hours
+would, with no warm-up. The restart view is still asymmetric on purpose: a node that
+still carries the wedged label is only unlabeled on positive evidence of recovery (a
+success visible on the node inside the window), never because the view is briefly
+empty just after startup. A quiet node with neither a storm nor a success yields
+`Unknown`, which leaves any existing label exactly as it was. A disabled→enabled
+transition needs no special handling for the same reason: the first reconcile after
+the flip acts on the evidence already in cache.
 
 ```mermaid
 stateDiagram-v2
@@ -611,7 +616,7 @@ the scheduling lever while accounting for tolerating pods per the guardrail abov
 rather than assuming the taint alone keeps every pod off the node; act only on a
 continuous zero-success span sustained well past the 10-minute detection window (the
 mitigation controller applies its own, longer confirmation window and never acts on
-a single burst); never disrupt a node whose success history is non-empty in the
+a single burst); never disrupt a node showing any success in the
 window (that is a flap); bound the blast radius with a **disruption budget** (one
 node at a time, and cap the fraction of nodes tainted/evicted concurrently); and
 re-verify the signal immediately before the reserved delete. The mitigation
