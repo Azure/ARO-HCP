@@ -240,6 +240,20 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
+	if len(spc.Status.AzureResources.DenyAssignments.AzureResources) > 0 || len(spc.Status.AzureResources.DenyAssignments.PendingAzureResources) > 0 {
+		remainingTypes := make([]string, 0, len(spc.Status.AzureResources.DenyAssignments.AzureResources)+len(spc.Status.AzureResources.DenyAssignments.PendingAzureResources))
+		for _, denyAssignmentReference := range spc.Status.AzureResources.DenyAssignments.AzureResources {
+			remainingTypes = append(remainingTypes, denyAssignmentReference.DenyAssignmentType)
+		}
+		for _, denyAssignmentReference := range spc.Status.AzureResources.DenyAssignments.PendingAzureResources {
+			remainingTypes = append(remainingTypes, denyAssignmentReference.DenyAssignmentType)
+		}
+		logger.Info("waiting for deny assignments to be deleted before removing ServiceProviderCluster",
+			"serviceProviderClusterResourceID", spc.ResourceID.String(),
+			"remainingDenyAssignmentTypes", remainingTypes)
+		return false, nil
+	}
+
 	// Check if there are any Maestro readonly bundles remaining.
 	if len(spc.Status.MaestroReadonlyBundles) > 0 {
 		logger.Info("waiting for cluster-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",

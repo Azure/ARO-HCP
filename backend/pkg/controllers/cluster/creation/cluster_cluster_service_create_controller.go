@@ -117,6 +117,14 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		return nil
 	}
 
+	ready, err = c.createPreconditionDenyAssignmentsCreated(ctx, existingServiceProviderCluster)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if !ready {
+		return nil
+	}
+
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
@@ -168,6 +176,24 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDesiredVersionReso
 		return true, nil
 	}
 	logger.Info("DesiredVersion not yet set, waiting for ControlPlaneDesiredVersion controller")
+	return false, nil
+}
+
+// createPreconditionDenyAssignmentsCreated reports whether the ClusterDenyAssignment
+// controller has finished creating all deny assignments.
+// Returns (false, nil) when this controller should wait and retry.
+func (c *clusterClusterServiceCreateSyncer) createPreconditionDenyAssignmentsCreated(ctx context.Context, serviceProviderCluster *api.ServiceProviderCluster) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	if len(serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources) == 0 && len(serviceProviderCluster.Status.AzureResources.DenyAssignments.AzureResources) > 0 {
+		return true, nil
+	}
+	pendingTypes := make([]string, 0, len(serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources))
+	for _, denyAssignmentReference := range serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources {
+		pendingTypes = append(pendingTypes, denyAssignmentReference.DenyAssignmentType)
+	}
+	logger.Info("Deny assignments not yet created, waiting for ClusterDenyAssignment controller",
+		"pendingDenyAssignmentTypes", pendingTypes)
 	return false, nil
 }
 
