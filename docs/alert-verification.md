@@ -86,7 +86,7 @@ The basic `atest` tool usage is already very helpful. But if you want to check m
 
 ### Explore Tab
 
-To check your alert queries against prod data, use the Explore tab in the PROD Grafana instance (on a machine from which you can log in to your b- account). Find the Grafana URL via the [aro-hcp-env-info skill](#available-grafana-instances-and-data-sources), then navigate to the Explore tab. Once you've selected a datasource, you will be able to enter a PromQL query.
+To check your alert queries against prod data, use the Explore tab in the PROD Grafana instance (on a machine from which you can log in to your b- account). Once you've selected a datasource, you will be able to enter a PromQL query.
 
 ### Dashboard Development with Scratchpad
 
@@ -95,7 +95,7 @@ To develop and test dashboards against prod data, use the Scratchpad folder in t
 * You can add and edit dashboards freely
 * Dashboards auto-delete after 7 days, so save your JSONs often and always make a PR at the end
 
-Find the Grafana URL via the [aro-hcp-env-info skill](#available-grafana-instances-and-data-sources) and look for the Scratchpad folder under Dashboards.
+Look for the Scratchpad folder under Dashboards in the PROD Grafana instance.
 
 > [!NOTE]
 >
