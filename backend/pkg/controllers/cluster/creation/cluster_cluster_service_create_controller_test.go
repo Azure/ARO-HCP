@@ -128,6 +128,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		listCluster                    *coreapi.HCPOpenShiftCluster    // cluster seeded into the lister (nil = not found)
 		dbCluster                      *coreapi.HCPOpenShiftCluster    // cluster stored in the DB
 		existingServiceProviderCluster *coreapi.ServiceProviderCluster // nil = not pre-seeded; controller get-or-creates
+		denyAssignmentsDisabled        bool                            // simulates an environment without a real FPA
 		setupMockCS                    func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
 		expectError                    bool
 		verifyDB                       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
@@ -142,6 +143,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Status.AzureResources.DenyAssignments.AzureResources = []coreapi.DenyAssignmentReference{{DenyAssignmentType: "resources-deny-assignment", DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))}}
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -223,6 +225,70 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			},
 		},
 		{
+			name: "deny assignments still pending waits without dispatching",
+			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				// The desired version is resolved (that precondition passes)...
+				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				// ...but deny assignments are still pending, so cluster creation must not dispatch yet.
+				spc.Status.AzureResources.DenyAssignments.PendingAzureResources = []coreapi.DenyAssignmentReference{{DenyAssignmentType: "resources-deny-assignment", DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))}}
+			}),
+			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				// No CS calls are expected: gomock fails the test if the controller dispatches.
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
+			},
+			expectError: false,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID, "cluster creation must not dispatch while deny assignments are pending")
+			},
+		},
+		{
+			name: "deny assignments disabled (no real FPA) dispatches without waiting on them",
+			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+			}),
+			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				// Desired version is resolved, and NO deny assignments are tracked because the
+				// ClusterDenyAssignment controller is disabled in this environment.
+				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+			}),
+			denyAssignmentsDisabled: true,
+			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mockCS.EXPECT().
+					ListClusters(gomock.Any()).
+					Return(ocm.NewSimpleClusterListIterator(nil, nil))
+				mockCS.EXPECT().
+					PostCluster(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
+						csCluster, err := arohcpv1alpha1.NewCluster().
+							ID(pendingClusterServiceID.ID()).
+							HREF(testClusterServiceIDStr).
+							Build()
+						require.NoError(t, err)
+						return csCluster, nil
+					})
+				return mockCS
+			},
+			expectError: false,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID, "creation should proceed when deny assignments are disabled")
+				assert.Equal(t, testClusterServiceIDStr, cluster.ServiceProviderProperties.ClusterServiceID.String())
+			},
+		},
+		{
 			name: "adopts existing Cluster Service cluster for Azure resource",
 			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
@@ -232,6 +298,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Status.AzureResources.DenyAssignments.AzureResources = []coreapi.DenyAssignmentReference{{DenyAssignmentType: "resources-deny-assignment", DenyAssignmentResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))}}
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -284,10 +351,11 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				listerClusters = []*coreapi.HCPOpenShiftCluster{tt.listCluster}
 			}
 			syncer := &clusterClusterServiceCreateSyncer{
-				resourcesDBClient:     mockDB,
-				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: listerClusters},
-				subscriptionLister:    &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
-				clustersServiceClient: mockCS,
+				resourcesDBClient:      mockDB,
+				clusterLister:          &corelistertesting.SliceClusterLister{Clusters: listerClusters},
+				subscriptionLister:     &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
+				clustersServiceClient:  mockCS,
+				denyAssignmentsEnabled: !tt.denyAssignmentsDisabled,
 			}
 
 			key := controllerutils.HCPClusterKey{

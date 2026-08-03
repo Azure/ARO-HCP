@@ -264,6 +264,13 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
+	// We intentionally do not gate ServiceProviderCluster cleanup on the tracked deny assignments.
+	// Deny assignments are scoped to the managed resource group, so Azure deletes them in cascade
+	// when that resource group is removed during cluster teardown; the ClusterDenyAssignment
+	// controller therefore does nothing on delete and never clears these references. Gating here
+	// would block cleanup forever. (Per Manyanda Karombi's note on
+	// https://github.com/Azure/ARO-HCP/pull/6269#discussion_r3656341978.)
+
 	// Check if there are any Maestro readonly bundles remaining.
 	if len(spc.Status.MaestroReadonlyBundles) > 0 {
 		logger.Info("waiting for cluster-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
