@@ -160,21 +160,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
 
-	// 1. RBAC granting the klusterlet permission to manage CRRs.
-	rbacObjects := systemadmincredential.BuildRBACRevocation(owner, suffix, controlPlaneNamespace)
-	for i, obj := range rbacObjects {
-		dName := fmt.Sprintf("systemAdminCredentialRevocationRBAC-%s", suffix)
-		if i > 0 {
-			dName = fmt.Sprintf("%s-%d", dName, i)
-		}
-		if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
-			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-			dName, mcResourceID, kubeapplierhelpers.TargetRefForKubeObject(obj), obj); err != nil {
-			return err
-		}
-	}
-
-	// 2. CRR ApplyDesire.
+	// 1. CRR ApplyDesire.
 	crrObj := systemadmincredential.BuildRevocationRequest(owner, suffix, controlPlaneNamespace)
 	crrTarget := kubeapplierapi.ResourceReference{
 		Group:     "certificates.hypershift.openshift.io",
@@ -190,7 +176,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 		return err
 	}
 
-	// 3. CRR ReadDesire so the CRR status is mirrored back for the completion controller.
+	// 2. CRR ReadDesire so the CRR status is mirrored back for the completion controller.
 	crrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestRevocation(suffix)
 	if err := kubeapplierhelpers.EnsureReadDesire(ctx, readCRUD, c.readDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,

@@ -180,43 +180,7 @@ func (c *desiresCreator) ensureDesires(
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
 
-	// 1-2. RBAC bundles (created before CSR/CSRApproval so permissions are in place).
-	rbacSpecs := []struct {
-		desireName string
-		builder    func() []systemadmincredential.KubeObject
-	}{
-		{
-			desireName: fmt.Sprintf("systemAdminCredentialRBACGiveCSRPerm-%s", credName),
-			builder: func() []systemadmincredential.KubeObject {
-				return systemadmincredential.BuildRBACGiveCSRPerm(owner, credName)
-			},
-		},
-		{
-			desireName: fmt.Sprintf("systemAdminCredentialRBACCSRApproval-%s", credName),
-			builder: func() []systemadmincredential.KubeObject {
-				return systemadmincredential.BuildRBACCSRApproval(owner, credName, controlPlaneNamespace)
-			},
-		},
-	}
-
-	for _, rbacSpec := range rbacSpecs {
-		objects := rbacSpec.builder()
-		for i, obj := range objects {
-			suffix := ""
-			if i > 0 {
-				suffix = fmt.Sprintf("-%d", i)
-			}
-			dName := rbacSpec.desireName + suffix
-			ref := kubeapplierhelpers.TargetRefForKubeObject(obj)
-			if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
-				key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-				dName, mcResourceID, ref, obj); err != nil {
-				return err
-			}
-		}
-	}
-
-	// 3. CSR ApplyDesire
+	// 1. CSR ApplyDesire
 	csrDesireName := fmt.Sprintf("systemAdminCredentialCSR-%s", credName)
 	csrObj := systemadmincredential.BuildCSR(owner, credName, controlPlaneNamespace, []byte(cred.Spec.CertificateSigningRequestPEM))
 	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
@@ -225,7 +189,7 @@ func (c *desiresCreator) ensureDesires(
 		return err
 	}
 
-	// 4. CSRApproval ApplyDesire
+	// 2. CSRApproval ApplyDesire
 	csrApprovalDesireName := fmt.Sprintf("systemAdminCredentialCSRApproval-%s", credName)
 	csrApprovalObj := systemadmincredential.BuildCSRApproval(owner, credName, controlPlaneNamespace)
 	csrApprovalTarget := kubeapplierapi.ResourceReference{
@@ -241,7 +205,7 @@ func (c *desiresCreator) ensureDesires(
 		return err
 	}
 
-	// 5. CSR ReadDesire
+	// 3. CSR ReadDesire
 	csrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
 	csrReadTarget := kubeapplierapi.ResourceReference{
 		Group:    "certificates.k8s.io",
