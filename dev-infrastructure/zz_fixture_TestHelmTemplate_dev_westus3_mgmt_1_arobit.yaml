@@ -620,7 +620,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: a93d585b58e5777283224c975afcbb5ba9b50b4c57531e08379263e7c7ece4aa
+        checksum/configmap: 20bf883546c17dd4266cd7d93d1f0aa75caf1067da8295f2c661dee07a3bc3ad
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

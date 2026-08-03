@@ -137,8 +137,8 @@ spec:
         app: aro-hcp-backend
         azure.workload.identity/use: "true"
       annotations:
-        checksum/backendservicekeyvault: '5f5b57510e58c7d38d00ccbf2cfaecd380f715b35743df55ffe70457ab98e57a'
-        checksum/azureruntimeconfig: 'b960fee0d0c5053371105ade6bfaa430f86161e78b58711f8047b9c38e02f125'
+        checksum/backendservicekeyvault: '67b31416c594e3f1f3e7754fc18a9da8bf47bfa45d09f9ed568db2d0d14a2544'
+        checksum/azureruntimeconfig: '40e0cf247edb3f1d1eb59cd97663f8ab2cf029da7a96716ee8916d38ac9fb0e5'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1

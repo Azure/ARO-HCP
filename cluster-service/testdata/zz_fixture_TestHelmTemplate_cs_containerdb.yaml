@@ -7988,15 +7988,15 @@ spec:
         app: clusters-service
         azure.workload.identity/use: "true"
       annotations:
-        checksum/db: 'a71dfb075ff2e169deaf2728fa75e9efd5e28be0b6075ba24f6bde6f792b3525'
-        checksum/operatorcfg: '0fce270300042ec9a92272322d79ac2445d3776c017b28912164383fc398e5fa'
-        checksum/ocpversionscfg: 'a6407af6bb370d2bec5436e87d4a3ef6324c403dee8bc8b0c17dc5e139779d92'
-        checksum/cskv: '4a169eaca1678b5209e77f44a78feea8703a03e898689814993427a06647b417'
-        checksum/provisionshard: 'a265571230c5ceb557208095416c452cbb716d01fc7540eae0c37d3c742e5eac'
-        checksum/cs: 'b8e4871ea7aa3da25074ed34f9c468b49af8487f4e306239af33495d552f8acf'
-        checksum/runtime: '6b998338bd3313823816b59545793349dee45d5a54274318287023196570521d'
-        checksum/cloudres: '595b5872a876e0c26f49ff64d9cacead5e7ce29d885e25283760124ae8caab38'
-        checksum/sa: '4cf3bf3a09e42b0c881b3f819fa6c95f83a16620192a49ca19857b702a56ba29'
+        checksum/db: '7d748725a08edbe974bbd237e5dd517833a82eaa0f0b211fc2881961bf4515a8'
+        checksum/operatorcfg: '110eacb1e465d620a2c26da89d5b6246433bb53a2dd3f9853e2daaa035e53df5'
+        checksum/ocpversionscfg: '9e5cff6bf43f7b8d712e0b54656c6b1ec66693e7fe17ba6801070134b28b2900'
+        checksum/cskv: 'b448b17a3f3a42fa47e65b12fb753113bfcab908cb783b6f26566b7b7eaaeaa4'
+        checksum/provisionshard: 'd2d4582f46da482e7a0c56f8a4372d95839bf6ced1d48a964d7030dc7e1b5b4b'
+        checksum/cs: '7f91f7a8dc3a8b51073043defb13df2c3864a9c93f5a5588a2431f012bc2ae28'
+        checksum/runtime: 'a59b6e4224066ebe7cb35d89a9e9c179f9e90942d3b4173c91c0609299a983ef'
+        checksum/cloudres: '6db050cd35a77e565d80d2ba2c028450a8758e3ab0a4e524ede12cf207c3a73a'
+        checksum/sa: '0187a6f1019114e284fb5565a82e4e954460ac079f952f07b9602117c0d81e3f'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1

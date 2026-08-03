@@ -146,9 +146,9 @@ spec:
         app: maestro
         azure.workload.identity/use: "true"
       annotations:
-        checksum/credsstore: '377249722e820951db2353c27a6ed157c588d8dec983c42022441831b87fba1d'
-        checksum/config: 'db453f136b7af692262ff8cfa4eff4494db6af8cdb7b9e4bca195f5b10d9e04a'
-        checksum/db: 'a768f5258a8e3ddccfea2dac81398793cec3fc079cccb7b90233c110325d2e06'
+        checksum/credsstore: '28e1b3e109dfc763964313710316150b662d9db8e0315589c489cfaab14c8492'
+        checksum/config: '2caa0dc45400ef83051372cb10d7521f9b9bd3b144ab9230a184b8fad2c6d985'
+        checksum/db: '19eed6c919eed7698f915ae25586f280f44d8eb7eeb3208ba31812b2b1dfcd00'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
