@@ -110,7 +110,9 @@ Pods that the apiserver garbage-collects:
     as a matter of course, so without this a node whose recent traffic was
     short-lived Job and CronJob pods would read as having had no success at all.
   The window comparison is absolute, so a timestamp dated ahead by kubelet clock
-  skew is discarded rather than read as an arbitrarily fresh success.
+  skew is measured by its distance from now rather than its sign. Skew inside the
+  window still counts as a success, which is harmless, and anything further out is
+  discarded rather than read as an arbitrarily fresh success.
 - **Nothing is remembered between reconciles.** Both signals come out of the
   informer caches, which is the whole point: the only state the controller keeps is
   state a `LIST` can rebuild. There is no success map to lose on restart and so no
