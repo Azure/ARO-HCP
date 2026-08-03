@@ -24,7 +24,7 @@ The result is a split model:
 - the test framework reuses pre-created **identity-container resource groups**
 - DEV provisioning reuses a pool of **mock service principals**
 
-Both pools are backed by Boskos resource types, but they are consumed by different parts of the workflow. Both the directory quota and the role-assignment quota are actively monitored — see [CI Quota Monitoring](quota-monitoring.md).
+Both pools are backed by Boskos resource types, but they are consumed by different parts of the workflow. Both the directory quota and the role-assignment quota are actively monitored — see [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md).
 
 ## Managed Identity Container Pool
 
@@ -154,7 +154,7 @@ In the test framework:
 
 ### Pool Sizing And Subscription Constraints
 
-The key limiting factor for identity pool sizing is **Azure role assignments per subscription**. To check current quota usage before resizing pools, see [CI Quota Monitoring](quota-monitoring.md).
+The key limiting factor for identity pool sizing is **Azure role assignments per subscription**. To check current quota usage before resizing pools, see [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md).
 
 Each HCP cluster created during E2E consumes role assignments in its identity container. The cost depends on the RBAC scope mode:
 
@@ -343,6 +343,6 @@ When you need to change or debug identity leasing, start here:
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
 - [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
-- [CI Quota Monitoring](quota-monitoring.md)
+- [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
 - [CI Operations](operations.md)
 - [CI EV2 Integration](ev2-integration.md)
