@@ -181,7 +181,7 @@ func (c *desiresCreator) ensureDesires(
 	}
 
 	// 1. CSR ApplyDesire
-	csrDesireName := fmt.Sprintf("systemAdminCredentialCSR-%s", credName)
+	csrDesireName := "systemadmincredentialcsr"
 	csrObj := systemadmincredential.BuildCSR(owner, credName, controlPlaneNamespace, []byte(cred.Spec.CertificateSigningRequestPEM))
 	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
@@ -190,7 +190,7 @@ func (c *desiresCreator) ensureDesires(
 	}
 
 	// 2. CSRApproval ApplyDesire
-	csrApprovalDesireName := fmt.Sprintf("systemAdminCredentialCSRApproval-%s", credName)
+	csrApprovalDesireName := "systemadmincredentialcsrapproval"
 	csrApprovalObj := systemadmincredential.BuildCSRApproval(owner, credName, controlPlaneNamespace)
 	csrApprovalTarget := kubeapplier.ResourceReference{
 		Group:     "certificates.hypershift.openshift.io",
@@ -206,7 +206,7 @@ func (c *desiresCreator) ensureDesires(
 	}
 
 	// 3. CSR ReadDesire
-	csrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
+	csrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestCSR()
 	csrReadTarget := kubeapplier.ResourceReference{
 		Group:    "certificates.k8s.io",
 		Version:  "v1",

@@ -17,7 +17,6 @@ package kubeapplierhelpers
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	certificatesv1 "k8s.io/api/certificates/v1"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -35,16 +34,16 @@ func ReadDesireNameForSystemAdminCredentialRequestServingCA() string {
 	return "systemadmincredential-serving-ca"
 }
 
-// ReadDesireNameForSystemAdminCredentialRequestCSR returns the ReadDesire name for a
-// per-credential CSR mirror, keyed by the credential's short name.
-func ReadDesireNameForSystemAdminCredentialRequestCSR(credName string) string {
-	return strings.ToLower(fmt.Sprintf("systemAdminCredentialCSR-%s", credName))
+// ReadDesireNameForSystemAdminCredentialRequestCSR returns the ReadDesire name
+// for the per-credential CSR mirror.
+func ReadDesireNameForSystemAdminCredentialRequestCSR() string {
+	return "systemadmincredentialcsr"
 }
 
-// ReadDesireNameForSystemAdminCredentialRequestRevocation returns the ReadDesire name
-// for a per-operation CRR mirror, keyed by the revoke operation's suffix.
-func ReadDesireNameForSystemAdminCredentialRequestRevocation(revokeOpSuffix string) string {
-	return strings.ToLower(fmt.Sprintf("systemAdminCredentialRevocation-%s", revokeOpSuffix))
+// ReadDesireNameForSystemAdminCredentialRequestRevocation returns the ReadDesire
+// name for the per-revocation CRR mirror.
+func ReadDesireNameForSystemAdminCredentialRequestRevocation() string {
+	return "systemadmincredentialrevocation"
 }
 
 // GetCachedCSRForSystemAdminCredentialRequest reads the CSR mirror from the
@@ -64,7 +63,7 @@ func GetCachedCSRForSystemAdminCredentialRequest(
 	readDesireLister dblisters.ReadDesireLister,
 	subscriptionName, resourceGroupName, clusterName, credName string,
 ) (*certificatesv1.CertificateSigningRequest, error) {
-	desireName := ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
+	desireName := ReadDesireNameForSystemAdminCredentialRequestCSR()
 	readDesire, err := readDesireLister.GetForSystemAdminCredentialRequest(ctx, subscriptionName, resourceGroupName, clusterName, credName, desireName)
 	if database.IsNotFoundError(err) {
 		return nil, nil
@@ -99,7 +98,7 @@ func GetCachedCertificateRevocationRequestForSystemAdminCredentialRevocation(
 	readDesireLister dblisters.ReadDesireLister,
 	subscriptionName, resourceGroupName, clusterName, revocationName, revokeOpSuffix string,
 ) (*certificatesv1alpha1.CertificateRevocationRequest, error) {
-	desireName := ReadDesireNameForSystemAdminCredentialRequestRevocation(revokeOpSuffix)
+	desireName := ReadDesireNameForSystemAdminCredentialRequestRevocation()
 	readDesire, err := readDesireLister.GetForSystemAdminCredentialRevocation(ctx, subscriptionName, resourceGroupName, clusterName, revocationName, desireName)
 	if database.IsNotFoundError(err) {
 		return nil, nil

@@ -191,7 +191,7 @@ func makeReadDesireListerWithCSR(t *testing.T, credName string, csr *certificate
 	csrBytes, err := json.Marshal(csr)
 	require.NoError(t, err)
 
-	desireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
+	desireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestCSR()
 	resourceIDStr := kubeapplier.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
 		testSubscriptionID, testResourceGroupName, testClusterName, credName, desireName,
 	)

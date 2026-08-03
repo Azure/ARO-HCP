@@ -169,7 +169,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 		Namespace: controlPlaneNamespace,
 		Name:      crrObj.Name,
 	}
-	crrDesireName := fmt.Sprintf("systemAdminCredentialRevocation-%s", suffix)
+	crrDesireName := "systemadmincredentialrevocation"
 	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		crrDesireName, mcResourceID, crrTarget, crrObj); err != nil {
@@ -177,7 +177,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 	}
 
 	// 2. CRR ReadDesire so the CRR status is mirrored back for the completion controller.
-	crrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestRevocation(suffix)
+	crrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestRevocation()
 	if err := kubeapplierhelpers.EnsureReadDesire(ctx, readCRUD, c.readDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		crrReadDesireName, mcResourceID, crrTarget); err != nil {
