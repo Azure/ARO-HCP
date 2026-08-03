@@ -24,8 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/agent"
 	"github.com/go-logr/logr"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/agent"
 )
 
 type fakeAnalysisSession struct {
