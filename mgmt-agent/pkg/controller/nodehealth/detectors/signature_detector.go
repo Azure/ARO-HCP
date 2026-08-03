@@ -283,7 +283,7 @@ func lastContainerStart(p *corev1.Pod) (time.Time, bool) {
 			if t == nil || t.StartedAt.IsZero() {
 				continue
 			}
-			if latest.IsZero() || t.StartedAt.Time.After(latest) {
+			if latest.IsZero() || t.StartedAt.After(latest) {
 				latest = t.StartedAt.Time
 			}
 		}
