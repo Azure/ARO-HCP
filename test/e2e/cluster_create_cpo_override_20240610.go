@@ -29,7 +29,7 @@ import (
 )
 
 var _ = FDescribe("Create HCPOpenShiftCluster with CPO override (v20240610preview)", func() {
-	It("should create a 5.0 cluster with CPO image override using v20240610preview API",
+	It("should create a 4.22 cluster with CPO image override using v20240610preview API",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
@@ -52,9 +52,9 @@ var _ = FDescribe("Create HCPOpenShiftCluster with CPO override (v20240610previe
 
 			const channelGroup = "candidate"
 
-			By("resolving 5.0 install version")
-			cpVersion, err := framework.GetLatestInstallVersion(ctx, channelGroup, "5.0")
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve 5.0 install version")
+			By("resolving 4.22 install version")
+			cpVersion, err := framework.GetLatestInstallVersion(ctx, channelGroup, "4.22")
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve 4.22 install version")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams20240610()
