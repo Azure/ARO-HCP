@@ -771,7 +771,7 @@ resourceGroups:
     releaseName: service-lifecycle
     releaseNamespace: kube-system
     chartDir: ../service-lifecycle/deploy
-    valuesFile: ../service-lifecycle/deploy/values.yaml
+    valuesFile: ../service-lifecycle/deploy/values-mgmt.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
