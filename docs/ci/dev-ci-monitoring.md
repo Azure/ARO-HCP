@@ -48,14 +48,12 @@ The exporter runs on the standalone `opstool` AKS platform. See [Opstool CI Plat
 
 Use the incident payload to identify the affected signal, but use [`tooling/tenant-quota/alerting.bicep`](../../tooling/tenant-quota/alerting.bicep) as the source of truth for current alert names, expressions, thresholds, durations, annotations, and routing.
 
-1. Open the PagerDuty incident from [`#aro-hcp-alerts-rh-tenant`](https://redhat.enterprise.slack.com/archives/C0BMEC7UWQZ) and acknowledge it before starting the investigation.
-2. Separately inspect the alert name, description, labels, current value, and trigger and update timestamps.
-3. Check the [Azure dashboard](https://portal.azure.com/#@redhat0.onmicrosoft.com/dashboard/arm/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/dashboards/providers/microsoft.portal/dashboards/901b128a-124f-43e6-a797-5fcf3d1e83fe) when the signal concerns capacity or quota.
-4. Determine which layer in the architecture stopped or reported an unhealthy condition: source API, exporter, Prometheus scrape, Azure Monitor ingestion, alert rule, Action Group, PagerDuty, or Slack.
-5. Run the exporter health checks below when data is missing or stale.
-6. Follow the durable troubleshooting guide for the affected CI domain rather than relying on copied alert-specific instructions.
-7. Add investigation findings, actions taken, and relevant dashboard, log, runbook, or change links to the incident for handoff.
-8. After remediation, verify that metrics resume and the condition clears. Let Azure Monitor resolve the incident through the normal alert lifecycle; manually resolve only a known stale or duplicate incident.
+1. Acknowledge the PagerDuty incident from [`#aro-hcp-alerts-rh-tenant`](https://redhat.enterprise.slack.com/archives/C0BMEC7UWQZ).
+2. Create an on-call Jira bug if one does not already exist for the issue, and link it from the PagerDuty incident.
+3. Investigate the issue and record all findings, evidence, and relevant links in the Jira bug.
+4. Assess the issue's priority and impact. If it warrants continued attention, include the Jira bug in the handover for the next shift.
+
+This runbook intentionally does not prescribe remediation. Operational knowledge should be recorded in the Jira bug during the investigation and promoted into a dedicated operational knowledge base once the response is understood and repeatable.
 
 ## Exporter Health Checks
 
@@ -107,11 +105,7 @@ Use authoritative files instead of copying evolving inventories:
 - [`tooling/tenant-quota/README.md`](../../tooling/tenant-quota/README.md) documents exporter operation and credentials.
 - [Opstool CI Platform](opstool.md) documents the hosting platform and rollout.
 
-Deploy the standalone DEV CI topology from the repository root:
-
-```bash
-make dev-ci-local-run
-```
+Changes to DEV CI configuration, topology, infrastructure, or tooling are deployed automatically after merge by the [`branch-ci-Azure-ARO-HCP-main-dev-ci-pipeline-postsubmit`](https://prow.ci.openshift.org/?job=branch-ci-Azure-ARO-HCP-main-dev-ci-pipeline-postsubmit) Prow job. Monitor that job to confirm the deployment completed.
 
 The intended PagerDuty configuration is:
 
@@ -121,15 +115,13 @@ The intended PagerDuty configuration is:
 | Service | `ARO HCP Dev CI Alerts` |
 | Integration | `opstool Azure Monitor` |
 | Escalation policy | `ARO HCP Dev CI - Slack Only` |
-| Schedule | `ARO HCP Dev CI - 24x7 Ownership` |
+| Schedule | `ARO HCP Dev CI - 24x7 Ownership`, currently containing the single responder |
 | Urgency | Constant low urgency |
 | Slack channel | `#aro-hcp-alerts-rh-tenant` |
 | Slack workspace ID | `E030G10V24F` |
 | Slack channel ID | `C0BMEC7UWQZ` |
 
 The Red Hat Slack workspace must remain authorized under **Integrations > Extensions > Slack**. The PagerDuty service connection must target workspace `E030G10V24F` and channel `C0BMEC7UWQZ`, with notifications enabled for triggered, acknowledged, annotated, reassigned, reopened, unacknowledged, and resolved events.
-
-PagerDuty personal low-urgency notification rules are user-wide, not service-specific. Each user must disable those personal low-urgency notification rules for Slack-only behavior; because the rules are user-wide, this affects low-urgency notifications from every PagerDuty service.
 
 ### Azure Integration Secret
 
@@ -148,11 +140,7 @@ az keyvault secret set \
 unset PAGERDUTY_AZURE_INTEGRATION_URL
 ```
 
-Redeploy after changing the secret so the Action Group is reconciled:
-
-```bash
-make dev-ci-local-run
-```
+After changing the secret, reconcile the Action Group through the `branch-ci-Azure-ARO-HCP-main-dev-ci-pipeline-postsubmit` job so its webhook receiver reads the new value.
 
 ## Validation
 
