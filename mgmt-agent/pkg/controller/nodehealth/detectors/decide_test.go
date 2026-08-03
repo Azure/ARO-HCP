@@ -32,14 +32,6 @@ func ago(d time.Duration) time.Time { return testNow.Add(-d) }
 // Pod correlate by UID the way they do in a live cluster.
 func podUID(name string) types.UID { return types.UID("uid-" + name) }
 
-// warm is an observedSince far enough in the past that a full detector window has
-// elapsed, so the success column is trusted. cold is recent, so the controller
-// has not yet watched a full window and a would-be wedge stays indeterminate.
-var (
-	warm = ago(30 * time.Minute)
-	cold = ago(1 * time.Minute)
-)
-
 const sig = "route ip+net: no such network interface"
 
 const nodeName = "aks-userswft2-0"
@@ -127,13 +119,11 @@ func stuckFailing(n int, since time.Time) ([]*corev1.Event, []*corev1.Pod) {
 
 func TestDecide(t *testing.T) {
 	tests := []struct {
-		name          string
-		node          *corev1.Node
-		events        []*corev1.Event
-		pods          []*corev1.Pod
-		observedSince time.Time
-		lastSuccessAt time.Time
-		want          Decision
+		name   string
+		node   *corev1.Node
+		events []*corev1.Event
+		pods   []*corev1.Pod
+		want   Decision
 	}{
 		{
 			name: "wedged: floor of stuck failing pods, zero success, dwell met",
@@ -149,7 +139,7 @@ func TestDecide(t *testing.T) {
 			want: DecisionWedged,
 		},
 		{
-			name: "flap: a recorded success in the window is not a wedge",
+			name: "flap: a started pod in the window is not a wedge",
 			node: testNode(true, true),
 			events: func() []*corev1.Event {
 				e, _ := stuckFailing(3, ago(15*time.Minute))
@@ -157,10 +147,9 @@ func TestDecide(t *testing.T) {
 			}(),
 			pods: func() []*corev1.Pod {
 				_, p := stuckFailing(3, ago(15*time.Minute))
-				return p
+				return append(p, startedPod("ok", ago(2*time.Minute), false))
 			}(),
-			lastSuccessAt: ago(2 * time.Minute),
-			want:          DecisionHealthy,
+			want: DecisionHealthy,
 		},
 		{
 			name: "below the stuck-pod floor is not wedged",
@@ -235,10 +224,10 @@ func TestDecide(t *testing.T) {
 			want: DecisionUnknown,
 		},
 		{
-			name:          "recovery: a recorded success, no stuck pods",
-			node:          testNode(true, true),
-			lastSuccessAt: ago(1 * time.Minute),
-			want:          DecisionHealthy,
+			name: "recovery: a started pod, no stuck pods",
+			node: testNode(true, true),
+			pods: []*corev1.Pod{startedPod("ok", ago(1*time.Minute), false)},
+			want: DecisionHealthy,
 		},
 		{
 			name: "cold view: no signals leaves the label unchanged",
@@ -286,7 +275,7 @@ func TestDecide(t *testing.T) {
 			want: DecisionUnknown,
 		},
 		{
-			name: "cold controller: full window not yet observed does not wedge",
+			name: "a started pod outside the window does not suppress the wedge",
 			node: testNode(true, true),
 			events: func() []*corev1.Event {
 				e, _ := stuckFailing(3, ago(15*time.Minute))
@@ -294,13 +283,12 @@ func TestDecide(t *testing.T) {
 			}(),
 			pods: func() []*corev1.Pod {
 				_, p := stuckFailing(3, ago(15*time.Minute))
-				return p
+				return append(p, startedPod("stale", ago(30*time.Minute), false))
 			}(),
-			observedSince: cold,
-			want:          DecisionUnknown,
+			want: DecisionWedged,
 		},
 		{
-			name: "recorded success not set: a host-network pod in the slice is ignored, node stays wedged",
+			name: "success not set: a host-network pod in the slice is ignored, node stays wedged",
 			node: testNode(true, true),
 			events: func() []*corev1.Event {
 				e, _ := stuckFailing(3, ago(15*time.Minute))
@@ -331,11 +319,7 @@ func TestDecide(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			obs := tc.observedSince
-			if obs.IsZero() {
-				obs = warm
-			}
-			got, _ := Decide(tc.node, tc.events, tc.pods, testNow, obs, tc.lastSuccessAt)
+			got, _ := Decide(tc.node, tc.events, tc.pods, testNow)
 			if got != tc.want {
 				t.Errorf("Decide() = %v, want %v", got, tc.want)
 			}
@@ -362,7 +346,7 @@ func TestAnyApplies(t *testing.T) {
 				t.Errorf("AnyApplies() = %v, want %v", got, tc.want)
 			}
 			if !tc.want && tc.node != nil {
-				if got, _ := Decide(tc.node, nil, nil, testNow, warm, time.Time{}); got != DecisionNotApplicable {
+				if got, _ := Decide(tc.node, nil, nil, testNow); got != DecisionNotApplicable {
 					t.Errorf("Decide() = %v, want NotApplicable to match AnyApplies", got)
 				}
 			}
@@ -371,7 +355,7 @@ func TestAnyApplies(t *testing.T) {
 }
 
 func TestDecideNilNode(t *testing.T) {
-	if got, _ := Decide(nil, nil, nil, testNow, warm, time.Time{}); got != DecisionUnknown {
+	if got, _ := Decide(nil, nil, nil, testNow); got != DecisionUnknown {
 		t.Errorf("Decide(nil) = %v, want Unknown", got)
 	}
 }
@@ -380,7 +364,7 @@ func TestDecideSnapshotOnWedge(t *testing.T) {
 	node := testNode(true, true)
 	events, pods := stuckFailing(3, ago(15*time.Minute))
 
-	got, snap := Decide(node, events, pods, testNow, warm, time.Time{})
+	got, snap := Decide(node, events, pods, testNow)
 	if got != DecisionWedged {
 		t.Fatalf("Decide() = %v, want Wedged", got)
 	}
@@ -409,7 +393,7 @@ func TestDwellReadFromOldestStuckPod(t *testing.T) {
 	// dwell, so the wedge fires on the durable Pod timestamp, not the Event age.
 	node := testNode(true, true)
 	events, pods := stuckFailing(3, ago(20*time.Minute))
-	got, _ := Decide(node, events, pods, testNow, warm, time.Time{})
+	got, _ := Decide(node, events, pods, testNow)
 	if got != DecisionWedged {
 		t.Errorf("Decide() = %v, want Wedged", got)
 	}
@@ -425,7 +409,7 @@ func TestEventsCorrelateByUIDNotName(t *testing.T) {
 	for _, p := range pods {
 		p.UID = types.UID(string(p.UID) + "-reused")
 	}
-	got, _ := Decide(node, events, pods, testNow, warm, time.Time{})
+	got, _ := Decide(node, events, pods, testNow)
 	if got != DecisionUnknown {
 		t.Errorf("Decide() = %v, want Unknown (name reuse must not inherit old Events)", got)
 	}
@@ -472,7 +456,7 @@ func TestMatchedSignatureReportsDominantFailureMode(t *testing.T) {
 			failEventFor("p1", ago(20*time.Second), msgMtpnc),
 			failEventFor("p2", ago(20*time.Second), msgMtpnc),
 		}
-		got, snap := Decide(testNode(true, true), events, pods, testNow, warm, time.Time{})
+		got, snap := Decide(testNode(true, true), events, pods, testNow)
 		if got != DecisionWedged {
 			t.Fatalf("Decide() = %v, want Wedged", got)
 		}
@@ -580,5 +564,89 @@ func TestSuccessAt(t *testing.T) {
 	// A nil pod is safe.
 	if _, ok := SuccessAt(nil); ok {
 		t.Error("SuccessAt(nil) = true, want false")
+	}
+}
+
+// completedPod is a pod that ran and finished. Its containers terminated, so a
+// sandbox existed, but PodReadyToStartContainers has dropped back to False the
+// way it does for every finished pod.
+func completedPod(name string, startedAt time.Time, hostNet bool) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: name},
+		Spec:       corev1.PodSpec{NodeName: nodeName, HostNetwork: hostNet},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodSucceeded,
+			Conditions: []corev1.PodCondition{{
+				Type:               corev1.PodReadyToStartContainers,
+				Status:             corev1.ConditionFalse,
+				LastTransitionTime: metav1.NewTime(startedAt.Add(1 * time.Minute)),
+			}},
+			ContainerStatuses: []corev1.ContainerStatus{{
+				Name: "main",
+				State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{
+					StartedAt:  metav1.NewTime(startedAt),
+					FinishedAt: metav1.NewTime(startedAt.Add(1 * time.Minute)),
+				}},
+			}},
+		},
+	}
+}
+
+// TestSuccessAtCountsFinishedPods pins the Job and CronJob case. A finished pod
+// drops PodReadyToStartContainers back to False, so reading only the condition
+// would leave a node whose recent traffic was short-lived pods looking like it
+// had never started anything. A container can only terminate if it started, and
+// it can only start inside a sandbox, so the container's own start time is
+// usable proof the node could still attach a NIC.
+func TestSuccessAtCountsFinishedPods(t *testing.T) {
+	started := ago(3 * time.Minute)
+
+	if at, ok := SuccessAt(completedPod("job", started, false)); !ok || !at.Equal(started) {
+		t.Errorf("SuccessAt(completed) = (%v, %v), want (%v, true)", at, ok, started)
+	}
+
+	// Host-network is excluded here too: it never needed a delegated NIC.
+	if _, ok := SuccessAt(completedPod("hostnet-job", started, true)); ok {
+		t.Error("SuccessAt(completed host-network) = true, want false")
+	}
+
+	// A pod that failed before any container ran proves nothing: no container
+	// reached a terminated state, which is exactly the sandbox-failure shape.
+	neverRan := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "never-ran"},
+		Spec:       corev1.PodSpec{NodeName: nodeName},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodFailed,
+			ContainerStatuses: []corev1.ContainerStatus{{
+				Name:  "main",
+				State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "ContainerCreating"}},
+			}},
+		},
+	}
+	if _, ok := SuccessAt(neverRan); ok {
+		t.Error("SuccessAt(terminal pod whose containers never ran) = true, want false")
+	}
+}
+
+// TestFinishedPodInWindowPreventsAFalseWedge is the reason the finished-pod path
+// exists: on a low-churn node the only thing that started recently may be a
+// CronJob pod that has already completed. It is still real proof the node can
+// build a sandbox, so it must suppress the wedge exactly as a running pod does.
+func TestFinishedPodInWindowPreventsAFalseWedge(t *testing.T) {
+	events, pods := stuckFailing(3, ago(15*time.Minute))
+
+	if got, _ := Decide(testNode(true, true), events, pods, testNow); got != DecisionWedged {
+		t.Fatalf("precondition: Decide() = %v, want Wedged", got)
+	}
+
+	withJob := append(pods, completedPod("cronjob", ago(3*time.Minute), false))
+	if got, _ := Decide(testNode(true, true), events, withJob, testNow); got != DecisionHealthy {
+		t.Errorf("a finished pod inside the window must rule out a wedge: Decide() = %v, want Healthy", got)
+	}
+
+	// The same pod outside the window is not current evidence.
+	withOldJob := append(pods, completedPod("old-cronjob", ago(45*time.Minute), false))
+	if got, _ := Decide(testNode(true, true), events, withOldJob, testNow); got != DecisionWedged {
+		t.Errorf("a finished pod outside the window must not rule out a wedge: Decide() = %v, want Wedged", got)
 	}
 }

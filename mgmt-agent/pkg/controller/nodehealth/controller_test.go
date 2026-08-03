@@ -26,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/component-base/metrics/legacyregistry"
 
@@ -145,13 +144,18 @@ func isWedged(t *testing.T, client *fake.Clientset, name string) bool {
 	return getNode(t, client, name).Labels[labelKey] == labelValue
 }
 
-// warmObserved is far enough in the past that a full detector window has elapsed.
-var warmObserved = testNow.Add(-30 * time.Minute)
+// seedSuccess puts a pod that got a sandbox into the pod cache, which is the
+// only place the success signal is read from.
+func seedSuccess(t *testing.T, c *Controller, host, name string, ts time.Time) {
+	t.Helper()
+	if err := c.podIndexer.Add(startedPodOn(host, name, ts, false)); err != nil {
+		t.Fatalf("add pod: %v", err)
+	}
+}
 
 func TestSyncHandlerWedgesOnSustainedStorm(t *testing.T) {
 	node := swiftReadyNode(testHost)
 	c, client, _ := newTestController(t, true, node)
-	c.beginObserving(warmObserved)
 	seedStuckStorm(t, c, testHost, 3, testNow.Add(-15*time.Minute))
 
 	if err := c.syncHandler(context.Background(), testHost); err != nil {
@@ -165,7 +169,6 @@ func TestSyncHandlerWedgesOnSustainedStorm(t *testing.T) {
 func TestSyncHandlerDisabledIsNoop(t *testing.T) {
 	node := swiftReadyNode(testHost)
 	c, client, _ := newTestController(t, false, node)
-	c.beginObserving(warmObserved)
 	seedStuckStorm(t, c, testHost, 3, testNow.Add(-15*time.Minute))
 
 	if err := c.syncHandler(context.Background(), testHost); err != nil {
@@ -176,129 +179,182 @@ func TestSyncHandlerDisabledIsNoop(t *testing.T) {
 	}
 }
 
-func TestSyncHandlerColdWarmupDoesNotWedge(t *testing.T) {
+// TestFreshControllerWedgesWithoutWarmup is the regression test for the cache
+// contract: the controller keeps nothing between reconciles, so a process that
+// has just started decides from the LIST alone. There is no warm-up window in
+// which a genuinely wedged node goes unreported.
+func TestFreshControllerWedgesWithoutWarmup(t *testing.T) {
 	node := swiftReadyNode(testHost)
 	c, client, _ := newTestController(t, true, node)
-	// Observation began just now: a full window has not been watched yet.
-	c.beginObserving(testNow.Add(-1 * time.Minute))
 	seedStuckStorm(t, c, testHost, 3, testNow.Add(-15*time.Minute))
 
 	if err := c.syncHandler(context.Background(), testHost); err != nil {
 		t.Fatalf("syncHandler: %v", err)
 	}
-	if isWedged(t, client, testHost) {
-		t.Fatal("a cold controller must not invent a fresh wedge before a full window")
+	if !isWedged(t, client, testHost) {
+		t.Fatal("a freshly started controller must wedge straight off the LIST, with no warm-up")
 	}
 }
 
 func TestSyncHandlerRecoveryUnlabels(t *testing.T) {
-	// Node already carries the wedged label; a recorded success and no stuck pods
-	// must clear it.
+	// Node already carries the wedged label; a pod that got a sandbox and no
+	// stuck pods must clear it.
 	node := swiftReadyNode(testHost)
 	node.Labels[labelKey] = labelValue
 	c, client, _ := newTestController(t, true, node)
-	c.beginObserving(warmObserved)
-	c.recordPodSuccess(startedPodOn(testHost, "ok", testNow.Add(-1*time.Minute), false))
+	seedSuccess(t, c, testHost, "ok", testNow.Add(-1*time.Minute))
 
 	if err := c.syncHandler(context.Background(), testHost); err != nil {
 		t.Fatalf("syncHandler: %v", err)
 	}
 	if isWedged(t, client, testHost) {
-		t.Fatal("a recorded success with no stuck pods should unlabel the node")
+		t.Fatal("a success with no stuck pods should unlabel the node")
 	}
 }
 
-func TestShortLivedSuccessSurvivesPodDeletion(t *testing.T) {
-	// The key regression: a pod's sandbox came up (success) and the pod was then
-	// deleted, so it is no longer in the informer store, while a storm of stuck
-	// pods remains. The recorded success must still block a false wedge.
+// TestSuccessInListPreventsFalseWedge is the AROSLSRE-1643 shape: a node under a
+// real sandbox-failure storm that is nevertheless still starting pods. The
+// successes sit in the pod cache alongside the stuck pods, so the storm alone is
+// not enough to call it wedged.
+func TestSuccessInListPreventsFalseWedge(t *testing.T) {
 	node := swiftReadyNode(testHost)
 	c, client, _ := newTestController(t, true, node)
-	c.beginObserving(warmObserved)
 
-	// A short-lived success, observed via the delete handler (the pod is never
-	// added to the store, mirroring a pod already gone by reconcile time).
-	success := startedPodOn(testHost, "shortlived", testNow.Add(-2*time.Minute), false)
-	c.recordPodSuccess(cache.DeletedFinalStateUnknown{Key: "ns/shortlived", Obj: success})
+	seedStuckStorm(t, c, testHost, 3, testNow.Add(-15*time.Minute))
+	seedSuccess(t, c, testHost, "started", testNow.Add(-2*time.Minute))
 
+	if err := c.syncHandler(context.Background(), testHost); err != nil {
+		t.Fatalf("syncHandler: %v", err)
+	}
+	if isWedged(t, client, testHost) {
+		t.Fatal("a node still starting pods must not be labeled wedged")
+	}
+}
+
+// TestRestartReachesTheSameVerdict pins the property the in-memory success map
+// could not give: two controllers looking at the same LIST agree, whatever
+// either of them watched happen. A replacement process is handed the caches a
+// long-running one had and must land on the same answer with no history and no
+// warm-up.
+func TestRestartReachesTheSameVerdict(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		success    bool
+		wantWedged bool
+	}{
+		{name: "storm with no success is wedged", success: false, wantWedged: true},
+		{name: "storm with a success is not", success: true, wantWedged: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			node := swiftReadyNode(testHost)
+			before, beforeClient, _ := newTestController(t, true, node)
+			seedStuckStorm(t, before, testHost, 3, testNow.Add(-15*time.Minute))
+			if tc.success {
+				seedSuccess(t, before, testHost, "started", testNow.Add(-2*time.Minute))
+			}
+			if err := before.syncHandler(context.Background(), testHost); err != nil {
+				t.Fatalf("syncHandler before restart: %v", err)
+			}
+			if got := isWedged(t, beforeClient, testHost); got != tc.wantWedged {
+				t.Fatalf("wedged before restart = %v, want %v", got, tc.wantWedged)
+			}
+
+			// The replacement process: brand new controller, nothing remembered,
+			// same evidence.
+			after, afterClient, _ := newTestController(t, true, node)
+			seedStuckStorm(t, after, testHost, 3, testNow.Add(-15*time.Minute))
+			if tc.success {
+				seedSuccess(t, after, testHost, "started", testNow.Add(-2*time.Minute))
+			}
+			if err := after.syncHandler(context.Background(), testHost); err != nil {
+				t.Fatalf("syncHandler after restart: %v", err)
+			}
+			if got := isWedged(t, afterClient, testHost); got != tc.wantWedged {
+				t.Errorf("wedged after restart = %v, want %v (must match the pre-restart verdict)", got, tc.wantWedged)
+			}
+		})
+	}
+}
+
+// TestHotEnableDecidesImmediately covers the disabled->enabled flip. It used to
+// restart a warm-up; now there is nothing to warm up, so the first reconcile
+// after the flip acts on the evidence already in cache.
+func TestHotEnableDecidesImmediately(t *testing.T) {
+	node := swiftReadyNode(testHost)
+	c, client, _ := newTestController(t, false, node)
 	seedStuckStorm(t, c, testHost, 3, testNow.Add(-15*time.Minute))
 
 	if err := c.syncHandler(context.Background(), testHost); err != nil {
-		t.Fatalf("syncHandler: %v", err)
+		t.Fatalf("syncHandler while disabled: %v", err)
 	}
 	if isWedged(t, client, testHost) {
-		t.Fatal("a recorded success from a since-deleted pod must prevent a false wedge")
-	}
-}
-
-func TestHotEnableResetsObservation(t *testing.T) {
-	node := swiftReadyNode(testHost)
-	c, _, _ := newTestController(t, false, node)
-
-	// A disabled controller records nothing, so there is no state to carry into
-	// the enabled controller.
-	c.recordPodSuccess(startedPodOn(testHost, "ok", testNow.Add(-2*time.Minute), false))
-	if _, at := c.observation(testHost); !at.IsZero() {
-		t.Fatalf("a disabled controller must not record successes, got %v", at)
+		t.Fatal("precondition: a disabled controller must not label")
 	}
 
-	// A disabled->enabled transition must reset observedSince to now and clear the
-	// success history, so the controller re-earns a full window before it can wedge.
-	cm := &corev1.ConfigMap{
+	c.OnConfigMap(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "node-health-config"},
 		Data:       map[string]string{"config.yaml": "enabled: true"},
-	}
-	c.OnConfigMap(cm, "config.yaml")
+	}, "config.yaml")
 
-	obs, at := c.observation(testHost)
-	if !obs.Equal(testNow) {
-		t.Errorf("observedSince = %v, want %v (reset on enable)", obs, testNow)
+	if err := c.syncHandler(context.Background(), testHost); err != nil {
+		t.Fatalf("syncHandler after enable: %v", err)
 	}
-	if !at.IsZero() {
-		t.Error("success history should be cleared on a disabled->enabled transition")
+	if !isWedged(t, client, testHost) {
+		t.Error("the first reconcile after a hot enable must act on the evidence already in cache")
 	}
 }
 
-func TestObservationPrunesSuccessOlderThanMaxWindow(t *testing.T) {
+// TestNonSuccessPodsDoNotSuppressAWedge pins the two pod shapes that look like a
+// success but are not. Host-network pods reach the condition without a delegated
+// NIC, which is exactly what a SWIFT wedge cannot provide, and a stuck pod is the
+// symptom rather than the cure. Counting either would mask a real wedge, and the
+// host-network case matters most: SWIFT mitigation restarts host-network pods.
+func TestNonSuccessPodsDoNotSuppressAWedge(t *testing.T) {
 	node := swiftReadyNode(testHost)
-	c, _, _ := newTestController(t, true, node)
-	c.beginObserving(warmObserved)
+	c, client, _ := newTestController(t, true, node)
+	seedStuckStorm(t, c, testHost, 3, testNow.Add(-15*time.Minute))
 
-	// A success older than the widest detector window can never matter, so it is
-	// pruned on read.
-	old := testNow.Add(-detectors.MaxWindow() - time.Minute)
-	c.recordPodSuccess(startedPodOn(testHost, "stale", old, false))
-	if _, at := c.observation(testHost); !at.IsZero() {
-		t.Errorf("stale success should be pruned, got %v", at)
+	if err := c.podIndexer.Add(startedPodOn(testHost, "hostnet", testNow.Add(-1*time.Minute), true)); err != nil {
+		t.Fatalf("add pod: %v", err)
+	}
+	if err := c.podIndexer.Add(stuckPodOn(testHost, "another-stuck", testNow.Add(-1*time.Minute))); err != nil {
+		t.Fatalf("add pod: %v", err)
+	}
+
+	if err := c.syncHandler(context.Background(), testHost); err != nil {
+		t.Fatalf("syncHandler: %v", err)
+	}
+	if !isWedged(t, client, testHost) {
+		t.Error("neither a host-network pod nor a stuck pod is a success; the wedge must still fire")
 	}
 }
 
-func TestRecordPodSuccessExcludesHostNetworkAndFailures(t *testing.T) {
-	node := swiftReadyNode(testHost)
-	c, _, _ := newTestController(t, true, node)
-	c.beginObserving(warmObserved)
+// TestOutOfWindowSuccessDoesNotSuppressAWedge covers both ends of the window.
+// The captured production node was still running 46 started pods whose freshest
+// transition was over 8 hours old, so "has ever started a pod" is always true on
+// a long-lived node. Future-dated timestamps come from kubelet clock skew and are
+// not evidence the node can attach a NIC now either.
+func TestOutOfWindowSuccessDoesNotSuppressAWedge(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		at   time.Time
+	}{
+		{name: "long stale", at: testNow.Add(-8 * time.Hour)},
+		{name: "future dated by kubelet skew", at: testNow.Add(1 * time.Hour)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			node := swiftReadyNode(testHost)
+			c, client, _ := newTestController(t, true, node)
+			seedStuckStorm(t, c, testHost, 3, testNow.Add(-15*time.Minute))
+			seedSuccess(t, c, testHost, "out-of-window", tc.at)
 
-	// Host-network pods reach the condition without a delegated NIC.
-	c.recordPodSuccess(startedPodOn(testHost, "hostnet", testNow.Add(-1*time.Minute), true))
-	// A stuck (False) pod is not a success.
-	c.recordPodSuccess(stuckPodOn(testHost, "stuck", testNow.Add(-1*time.Minute)))
-	if _, at := c.observation(testHost); !at.IsZero() {
-		t.Errorf("neither host-network nor stuck pods should record a success, got %v", at)
-	}
-}
-
-func TestRecordPodSuccessKeepsMostRecent(t *testing.T) {
-	node := swiftReadyNode(testHost)
-	c, _, _ := newTestController(t, true, node)
-	c.beginObserving(warmObserved)
-
-	c.recordPodSuccess(startedPodOn(testHost, "a", testNow.Add(-5*time.Minute), false))
-	c.recordPodSuccess(startedPodOn(testHost, "b", testNow.Add(-1*time.Minute), false))
-	// An older success arriving later must not move the timestamp backwards.
-	c.recordPodSuccess(startedPodOn(testHost, "c", testNow.Add(-8*time.Minute), false))
-
-	if _, at := c.observation(testHost); !at.Equal(testNow.Add(-1 * time.Minute)) {
-		t.Errorf("lastSuccessAt = %v, want the most recent (%v)", at, testNow.Add(-1*time.Minute))
+			if err := c.syncHandler(context.Background(), testHost); err != nil {
+				t.Fatalf("syncHandler: %v", err)
+			}
+			if !isWedged(t, client, testHost) {
+				t.Error("an out-of-window success must not suppress detection")
+			}
+		})
 	}
 }
 
@@ -496,9 +552,7 @@ func TestRestartRetainsExistingWedgedLabel(t *testing.T) {
 	node.Annotations = map[string]string{annotationDetector: "swift-vf-teardown"}
 
 	c, client, _ := newTestController(t, true, node)
-	// A freshly started controller: observation begins now, no success history,
-	// and no Events or Pods in cache.
-	c.beginObserving(testNow)
+	// A freshly started controller with no Events or Pods in cache.
 
 	if err := c.syncHandler(context.Background(), "n1"); err != nil {
 		t.Fatalf("syncHandler: %v", err)
@@ -564,32 +618,6 @@ func TestOnConfigMapHotDisableTakesEffect(t *testing.T) {
 	}
 }
 
-// TestObservationPrunesFutureDatedSuccess covers kubelet clock skew. The success
-// timestamp is a Pod condition stamped by the kubelet's own clock, so it can
-// arrive dated ahead of the controller's clock. recordPodSuccess keeps the
-// latest timestamp, so a far-future one would otherwise win permanently and
-// discard every genuine success that followed it, silently suppressing
-// detection until the wall clock caught up. It is not usable evidence, so it is
-// pruned on read like any other out-of-window entry.
-func TestObservationPrunesFutureDatedSuccess(t *testing.T) {
-	node := swiftReadyNode(testHost)
-	c, _, _ := newTestController(t, true, node)
-	c.beginObserving(warmObserved)
-
-	future := testNow.Add(detectors.MaxWindow() + time.Hour)
-	c.recordPodSuccess(startedPodOn(testHost, "skewed", future, false))
-	if _, at := c.observation(testHost); !at.IsZero() {
-		t.Errorf("future-dated success should be pruned, got %v", at)
-	}
-
-	// Skew inside the window is ordinary and stays usable.
-	near := testNow.Add(1 * time.Second)
-	c.recordPodSuccess(startedPodOn(testHost, "near", near, false))
-	if _, at := c.observation(testHost); at.IsZero() {
-		t.Error("a success within the window must be retained despite small skew")
-	}
-}
-
 // nodeWedgedSeries returns the per-node wedged gauge as a map keyed by the
 // "node|detector|signature" label tuple, so a test can assert on the exact
 // series set the vector currently exposes.
@@ -636,7 +664,6 @@ func TestResyncAllPublishesAndRetiresPerNodeWedgedSeries(t *testing.T) {
 	healthy := swiftReadyNode("swift-healthy")
 
 	c, _, factory := newTestController(t, true, wedged, healthy)
-	c.beginObserving(warmObserved)
 
 	c.resyncAll(context.Background())
 	got := nodeWedgedSeries(t)
@@ -677,7 +704,6 @@ func TestResyncAllDisabledClearsPerNodeWedgedSeries(t *testing.T) {
 	}
 
 	c, _, _ := newTestController(t, true, wedged)
-	c.beginObserving(warmObserved)
 	c.resyncAll(context.Background())
 	if got := nodeWedgedSeries(t); len(got) != 1 {
 		t.Fatalf("series set while enabled = %v, want one entry", got)
