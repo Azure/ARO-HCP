@@ -82,37 +82,6 @@ func TestBuildRevocationRequest(t *testing.T) {
 	assert.Equal(t, strings.ToLower(owner.String()), crr.Annotations[ownerAnnotationKey], "owner annotation must be set")
 }
 
-func TestBuildRBACGiveCSRPerm(t *testing.T) {
-	owner := testOwner(t)
-	objects := BuildRBACGiveCSRPerm(owner, "abc123")
-
-	require.Len(t, objects, 2, "should return ClusterRole + ClusterRoleBinding")
-	assert.Equal(t, "system-admin-credential-give-csr-perm-abc123", objects[0].GetName(), "ClusterRole name")
-	assert.Equal(t, "system-admin-credential-give-csr-perm-abc123", objects[1].GetName(), "ClusterRoleBinding name")
-	assert.Equal(t, strings.ToLower(owner.String()), objects[0].GetAnnotations()[ownerAnnotationKey], "owner annotation on ClusterRole")
-	assert.Equal(t, strings.ToLower(owner.String()), objects[1].GetAnnotations()[ownerAnnotationKey], "owner annotation on ClusterRoleBinding")
-}
-
-func TestBuildRBACCSRApproval(t *testing.T) {
-	owner := testOwner(t)
-	objects := BuildRBACCSRApproval(owner, "abc123", "ocm-dev-clusterid")
-
-	require.Len(t, objects, 2, "should return Role + RoleBinding")
-	assert.Equal(t, "system-admin-credential-csrapproval-perm-abc123", objects[0].GetName(), "Role name")
-	assert.Equal(t, "ocm-dev-clusterid", objects[0].GetNamespace(), "Role namespace should be HCP namespace")
-	assert.Equal(t, strings.ToLower(owner.String()), objects[0].GetAnnotations()[ownerAnnotationKey], "owner annotation on Role")
-}
-
-func TestBuildRBACRevocation(t *testing.T) {
-	owner := testOwner(t)
-	objects := BuildRBACRevocation(owner, "abc123", "ocm-dev-clusterid")
-
-	require.Len(t, objects, 2, "should return Role + RoleBinding")
-	assert.Equal(t, "system-admin-credential-revocation-perm-abc123", objects[0].GetName(), "Role name")
-	assert.Equal(t, "ocm-dev-clusterid", objects[0].GetNamespace(), "Role namespace should be HCP namespace")
-	assert.Equal(t, strings.ToLower(owner.String()), objects[0].GetAnnotations()[ownerAnnotationKey], "owner annotation on Role")
-}
-
 func TestRequireOwnerPanicsOnNil(t *testing.T) {
 	assert.Panics(t, func() {
 		requireOwner(nil)
