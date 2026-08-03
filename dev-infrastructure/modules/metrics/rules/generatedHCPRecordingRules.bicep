@@ -196,8 +196,8 @@ resource hcpKasLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
   }
 }
 
-resource hcpEtcdGrpcLatencyRecording 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'hcp-etcd-grpc-latency-recording'
+resource rpUserjourneyEtcdLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'rp-userjourney-etcd-latency-recording-rules'
   location: location
   properties: {
     scopes: [
