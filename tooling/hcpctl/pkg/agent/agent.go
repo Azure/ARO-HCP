@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -152,10 +153,14 @@ type SessionConfig struct {
 // the conversation can be saved even if the CLI process is no longer
 // available (e.g. after ctrl-C kills the subprocess).
 type Session struct {
-	inner        *copilot.Session
-	client       *CopilotClient
-	logger       logr.Logger
-	lastMessages json.RawMessage
+	inner           *copilot.Session
+	client          *CopilotClient
+	logger          logr.Logger
+	lastMessages    json.RawMessage
+	usageMu         sync.RWMutex
+	usage           UsageReport
+	usageProvider   string
+	usageDimensions map[string]string
 }
 
 // CreateSession creates a new Copilot session for an analysis run.
@@ -201,11 +206,19 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 
 	logger = logger.WithValues("sessionID", session.SessionID)
 	logger.Info("Created Copilot session.")
+	usageProvider := "github-copilot"
+	usageDimensions := map[string]string{"backend": "github"}
+	if c.cfg.AuthMode == CopilotAuthModeBYOK {
+		usageProvider = "azure-ai-foundry"
+		usageDimensions["backend"] = "byok"
+	}
 
 	s := &Session{
-		inner:  session,
-		client: c,
-		logger: logger,
+		inner:           session,
+		client:          c,
+		logger:          logger,
+		usageProvider:   usageProvider,
+		usageDimensions: usageDimensions,
 	}
 
 	// When verbosity is high enough, trace every session event for debugging.
@@ -300,6 +313,14 @@ func (s *Session) SessionID() string {
 	return s.inner.SessionID
 }
 
+// Usage returns the aggregate token usage observed in the most recent
+// conversation snapshot.
+func (s *Session) Usage() UsageReport {
+	s.usageMu.RLock()
+	defer s.usageMu.RUnlock()
+	return s.usage.Clone()
+}
+
 // SendAndWait sends a prompt to the session and blocks until the agent is idle.
 // If ctx is cancelled, the in-flight work is aborted.
 // Returns the final assistant message content.
@@ -379,12 +400,95 @@ func (s *Session) snapshotMessages() {
 		s.logger.Error(err, "Failed to snapshot session messages.")
 		return
 	}
+	usage := usageReportFromCopilotEvents(events, s.usageProvider, s.usageDimensions)
+	s.usageMu.Lock()
+	s.usage = usage
+	s.usageMu.Unlock()
 	data, err := json.MarshalIndent(events, "", "  ")
 	if err != nil {
 		s.logger.Error(err, "Failed to marshal session messages for snapshot.")
 		return
 	}
 	s.lastMessages = data
+}
+
+// usageReportFromCopilotEvents extracts all completed assistant LLM requests
+// from a Copilot conversation history. Recomputing from the full history keeps
+// the aggregate correct across multiple SendAndWait calls and avoids counting
+// the same event more than once.
+func usageReportFromCopilotEvents(events []copilot.SessionEvent, provider string, baseDimensions map[string]string) UsageReport {
+	var usage UsageReport
+	for _, event := range events {
+		data, ok := event.Data.(*copilot.AssistantUsageData)
+		if !ok {
+			continue
+		}
+
+		var inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64
+		if data.InputTokens != nil {
+			inputTokens = *data.InputTokens
+		}
+		if data.OutputTokens != nil {
+			outputTokens = *data.OutputTokens
+		}
+		if data.CacheReadTokens != nil {
+			cacheReadTokens = *data.CacheReadTokens
+		}
+		if data.CacheWriteTokens != nil {
+			cacheWriteTokens = *data.CacheWriteTokens
+		}
+
+		// Copilot reports cache reads as part of inputTokens. Normalize the
+		// common schema into mutually exclusive input categories so consumers
+		// can apply different input and cache-read rates without double billing.
+		uncachedInputTokens := inputTokens - cacheReadTokens
+		if uncachedInputTokens < 0 {
+			uncachedInputTokens = 0
+		}
+
+		dimensions := cloneStringMap(baseDimensions)
+		if dimensions == nil {
+			dimensions = make(map[string]string)
+		}
+		if data.APIEndpoint != nil {
+			dimensions["apiEndpoint"] = string(*data.APIEndpoint)
+		}
+
+		outputDetails := make(map[string]int64)
+		if data.ReasoningTokens != nil && *data.ReasoningTokens > 0 {
+			outputDetails["reasoning"] = *data.ReasoningTokens
+		}
+		if len(outputDetails) == 0 {
+			outputDetails = nil
+		}
+
+		providerReportedCosts := make(map[string]float64)
+		if data.Cost != nil {
+			providerReportedCosts["modelMultiplier"] = *data.Cost
+		}
+		if data.CopilotUsage != nil {
+			providerReportedCosts["nanoAIU"] = data.CopilotUsage.TotalNanoAiu
+		}
+		if len(providerReportedCosts) == 0 {
+			providerReportedCosts = nil
+		}
+
+		usage.Add(UsageBreakdown{
+			Provider:   provider,
+			Model:      data.Model,
+			Dimensions: dimensions,
+			Requests:   1,
+			Tokens: TokenUsage{
+				UncachedInputTokens:   uncachedInputTokens,
+				CacheReadInputTokens:  cacheReadTokens,
+				CacheWriteInputTokens: cacheWriteTokens,
+				OutputTokens:          outputTokens,
+				OutputTokenDetails:    outputDetails,
+			},
+			ProviderReportedCosts: providerReportedCosts,
+		})
+	}
+	return usage
 }
 
 // SaveConversation writes the most recent conversation snapshot to a JSON

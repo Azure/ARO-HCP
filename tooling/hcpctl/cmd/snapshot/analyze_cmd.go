@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -255,7 +256,7 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 	return validated, nil
 }
 
-func (o *validatedAnalyzeOptions) run(ctx context.Context) error {
+func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// Read manifest.
@@ -371,18 +372,9 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create LLM session: %w", err)
 	}
-	var analysisErr error
+	usageStartedAt := time.Now().UTC()
 	defer func() {
-		session.SaveConversation(filepath.Join(o.outputDir, "conversation.json"))
-		if analysisErr == nil {
-			if err := session.Delete(ctx); err != nil {
-				logger.Error(err, "Failed to delete LLM session.")
-			}
-		} else {
-			if err := session.Disconnect(); err != nil {
-				logger.Error(err, "Failed to disconnect LLM session.")
-			}
-		}
+		finalizeAnalysisSession(ctx, logger, session, o.outputDir, usageStartedAt, time.Now().UTC(), &runErr)
 	}()
 
 	result, err := agent.Analyze(ctx, logger, session, cachedKustoClient, agent.AnalyzeOptions{
@@ -401,39 +393,94 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) error {
 		NodeConsoleLogURLs:  nodeConsoleLogURLs,
 	})
 	if err != nil {
-		analysisErr = err
-		return analysisErr
+		return err
 	}
 	hydratedChain := result.HydratedChain
 
 	// Write output.
 	logger.Info("Writing analysis output.")
 	if err := os.MkdirAll(o.outputDir, 0o755); err != nil {
-		analysisErr = fmt.Errorf("failed to create output directory: %w", err)
-		return analysisErr
+		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	analysisJSON, err := json.MarshalIndent(hydratedChain, "", "  ")
 	if err != nil {
-		analysisErr = fmt.Errorf("failed to marshal analysis: %w", err)
-		return analysisErr
+		return fmt.Errorf("failed to marshal analysis: %w", err)
 	}
 	if err := os.WriteFile(filepath.Join(o.outputDir, "analysis.json"), analysisJSON, 0o644); err != nil {
-		analysisErr = fmt.Errorf("failed to write analysis.json: %w", err)
-		return analysisErr
+		return fmt.Errorf("failed to write analysis.json: %w", err)
 	}
 
 	rendered := agent.RenderMarkdown(hydratedChain, manifest.TestName)
 	if err := os.WriteFile(filepath.Join(o.outputDir, "analysis.md"), []byte(rendered), 0o644); err != nil {
-		analysisErr = fmt.Errorf("failed to write analysis.md: %w", err)
-		return analysisErr
+		return fmt.Errorf("failed to write analysis.md: %w", err)
 	}
 
-	logger.Info("Analysis complete.",
-		"outputDir", o.outputDir,
-		"analysisJSON", filepath.Join(o.outputDir, "analysis.json"),
-		"analysisMarkdown", filepath.Join(o.outputDir, "analysis.md"),
-	)
+	return nil
+}
+
+func finalizeAnalysisSession(ctx context.Context, logger logr.Logger, session agent.LLMSession, outputDir string, startedAt, endedAt time.Time, runErr *error) {
+	usage := session.Usage()
+	usage.StartedAt = startedAt
+	usage.EndedAt = endedAt
+	usagePath := filepath.Join(outputDir, "usage.json")
+	if err := writeUsageReport(usagePath, usage); err != nil {
+		if *runErr == nil {
+			*runErr = err
+		} else {
+			logger.Error(err, "Failed to preserve LLM usage after unsuccessful analysis.", "path", usagePath)
+		}
+	} else if *runErr == nil {
+		logger.Info("Analysis complete.",
+			"outputDir", outputDir,
+			"analysisJSON", filepath.Join(outputDir, "analysis.json"),
+			"analysisMarkdown", filepath.Join(outputDir, "analysis.md"),
+			"usageJSON", usagePath,
+			"usageStartedAt", usage.StartedAt,
+			"usageEndedAt", usage.EndedAt,
+			"uncachedInputTokens", usage.Tokens.UncachedInputTokens,
+			"cacheReadInputTokens", usage.Tokens.CacheReadInputTokens,
+			"cacheWriteInputTokens", usage.Tokens.CacheWriteInputTokens,
+			"outputTokens", usage.Tokens.OutputTokens,
+			"totalTokens", usage.Tokens.TotalTokens,
+			"llmRequests", usage.Requests,
+			"additionalUnits", usage.AdditionalUnits,
+			"providerReportedCosts", usage.ProviderReportedCosts,
+		)
+	} else {
+		logger.Info("Preserved LLM usage after unsuccessful analysis.",
+			"usageJSON", usagePath,
+			"usageStartedAt", usage.StartedAt,
+			"usageEndedAt", usage.EndedAt,
+			"llmRequests", usage.Requests,
+			"totalTokens", usage.Tokens.TotalTokens,
+		)
+	}
+
+	session.SaveConversation(filepath.Join(outputDir, "conversation.json"))
+	if *runErr == nil {
+		if err := session.Delete(ctx); err != nil {
+			logger.Error(err, "Failed to delete LLM session.")
+		}
+	} else {
+		if err := session.Disconnect(); err != nil {
+			logger.Error(err, "Failed to disconnect LLM session.")
+		}
+	}
+}
+
+func writeUsageReport(path string, usage agent.UsageReport) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("failed to create usage output directory: %w", err)
+	}
+
+	usageJSON, err := json.MarshalIndent(usage, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal usage: %w", err)
+	}
+	if err := os.WriteFile(path, usageJSON, 0o644); err != nil {
+		return fmt.Errorf("failed to write usage.json: %w", err)
+	}
 
 	return nil
 }
