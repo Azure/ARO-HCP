@@ -279,10 +279,19 @@ A pod that has already finished counts too, timed by its container's start rathe
 than the condition. A completed pod drops `PodReadyToStartContainers` back to
 `False` as a matter of course, so reading only the condition would leave a node
 whose recent traffic was short-lived `Job` and `CronJob` pods looking like it had
-never started anything. A container can only terminate if it started, and it can
-only start inside a sandbox, so its start time is proof the node could attach a NIC.
-A pod that failed *before* any container ran carries no such timestamp, which is
-exactly the sandbox-failure shape we are detecting.
+never started anything. A container can only start inside a sandbox, so its first
+start is proof the node could attach a NIC. A pod that failed *before* any
+container ran carries no such timestamp, which is exactly the sandbox-failure
+shape we are detecting.
+
+Only a container that ran **exactly once** counts. A terminated state describes
+the container's latest run, so on a container that restarted, the start time
+belongs to a run inside the sandbox the pod already had. An established sandbox
+survives the VF teardown, so that run needed no working network and is not
+evidence of anything. Counting it would let a wedged node fabricate a fresh
+success out of a container looping in an old sandbox and suppress its own
+detection, which is the same reason kubelet `Started` Events are unusable as a
+success signal.
 
 The window bound is load-bearing, not a tidiness detail. An established sandbox
 survives the VF teardown, so pods that started before the wedge keep reporting
