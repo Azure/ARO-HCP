@@ -1,0 +1,19 @@
+# Build and output
+bin/
+obj/
+publish/
+.vs/
+.vscode/
+
+# Local config
+local.settings.json
+
+# User/IDE
+*.user
+*.suo
+*.sln.docstates
+.DS_Store
+
+# NuGet
+*.nupkg
+*.snupkg

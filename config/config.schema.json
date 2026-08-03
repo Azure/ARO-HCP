@@ -3157,6 +3157,58 @@
         "alertRuleOwningTeamTag"
       ]
     },
+    "genevaHealthFunction": {
+      "type": "object",
+      "properties": {
+        "certificateName": {
+          "type": "string"
+        },
+        "certificateIssuer": {
+          "type": "string"
+        },
+        "certificateSAN": {
+          "type": "string"
+        },
+        "certificateCN": {
+          "type": "string"
+        },
+        "monitoringAccount": {
+          "type": "string"
+        },
+        "healthEnvironment": {
+          "type": "string"
+        },
+        "functionAppName": {
+          "type": "string"
+        },
+        "storageAccountName": {
+          "type": "string"
+        },
+        "appServicePlanName": {
+          "type": "string"
+        },
+        "managedIdentityName": {
+          "type": "string"
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "certificateName",
+        "certificateIssuer",
+        "certificateSAN",
+        "certificateCN",
+        "monitoringAccount",
+        "healthEnvironment",
+        "functionAppName",
+        "storageAccountName",
+        "appServicePlanName",
+        "managedIdentityName",
+        "image"
+      ]
+    },
     "quotaizer": {
       "type": "object",
       "properties": {
