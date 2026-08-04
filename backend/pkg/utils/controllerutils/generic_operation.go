@@ -29,7 +29,6 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -43,7 +42,6 @@ type OperationSynchronizer interface {
 type genericOperation struct {
 	name string
 
-	cooldownChecker   controllerutil.CooldownChecker
 	synchronizer      OperationSynchronizer
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
 
@@ -65,7 +63,6 @@ func NewGenericOperationController(
 ) Controller {
 	c := &genericOperation{
 		name:              name,
-		cooldownChecker:   controllerutil.NewTimeBasedCooldownChecker(10 * time.Second),
 		synchronizer:      synchronizer,
 		resourcesDBClient: resourcesDBClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
@@ -213,9 +210,6 @@ func (c *genericOperation) enqueueAdd(newObj interface{}) {
 	logger = key.AddLoggerValues(logger)
 	ctx = logr.NewContext(ctx, logger)
 
-	if !c.cooldownChecker.CanSync(ctx, key) {
-		return
-	}
 	// we check here whether we should queue or not. If our view is stale and another update is coming, then we are guaranteed to be
 	// informed of an update again.  At this point we can check if it meets our preconditions again.
 	if !c.synchronizer.ShouldProcess(ctx, castObj) {

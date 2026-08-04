@@ -51,7 +51,6 @@ import (
 // (operation_external_auth_update_state_calculation.go): dispatch sends updates, operation state
 // verifies propagation before the ARM external auth update operation succeeds.
 type externalAuthClusterServiceUpdateDispatchSyncer struct {
-	cooldownChecker      controllerutil.CooldownChecker
 	externalAuthLister   corelisters.ExternalAuthLister
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -73,7 +72,6 @@ func NewExternalAuthClusterServiceUpdateDispatchController(
 	syncer := NewExternalAuthClusterServiceUpdateDispatchSyncer(
 		resourcesDBClient,
 		clusterServiceClient,
-		activeOperationLister,
 		externalAuthLister,
 	)
 
@@ -89,11 +87,9 @@ func NewExternalAuthClusterServiceUpdateDispatchController(
 func NewExternalAuthClusterServiceUpdateDispatchSyncer(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister corelisters.ActiveOperationLister,
 	externalAuthLister corelisters.ExternalAuthLister,
 ) controllerutils.ExternalAuthSyncer {
 	return &externalAuthClusterServiceUpdateDispatchSyncer{
-		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		// We set minimumReconcileTimeCooldownChecker so that SyncOnce is not executed
 		// more than once per minute.
 		minimumReconcileTimeCooldownChecker: controllerutil.NewTimeBasedCooldownChecker(1 * time.Minute),
@@ -114,10 +110,6 @@ func needsWork(ea *api.HCPOpenShiftClusterExternalAuth) bool {
 	}
 
 	return true
-}
-
-func (c *externalAuthClusterServiceUpdateDispatchSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {

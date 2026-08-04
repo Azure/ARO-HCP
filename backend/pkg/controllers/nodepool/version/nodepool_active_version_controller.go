@@ -78,10 +78,6 @@ func NewNodePoolActiveVersionController(
 	)
 }
 
-func (c *nodePoolActiveVersionSyncer) CooldownChecker() internalcontrollerutils.CooldownChecker {
-	return nil
-}
-
 // NeedsWork reports whether the controller has a ServiceProviderNodePool to
 // update. The actual decision of whether the active versions need rewriting
 // depends on the ReadDesire NodePool's Status.Version (compared to the SPNP's

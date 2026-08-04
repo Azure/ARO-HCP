@@ -24,7 +24,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -34,7 +33,6 @@ import (
 )
 
 type clusterClusterServiceCreateSyncer struct {
-	cooldownChecker       controllerutil.CooldownChecker
 	resourcesDBClient     corecosmosstorage.ResourcesDBClient
 	clusterLister         corelisters.ClusterLister
 	subscriptionLister    corelisters.SubscriptionLister
@@ -46,13 +44,11 @@ var _ controllerutils.ClusterSyncer = (*clusterClusterServiceCreateSyncer)(nil)
 func NewClusterClusterServiceCreateController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister corelisters.ActiveOperationLister,
 	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, subscriptionLister := backendInformers.Subscriptions()
 	syncer := &clusterClusterServiceCreateSyncer{
-		cooldownChecker:       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:     resourcesDBClient,
 		clusterLister:         clusterLister,
 		subscriptionLister:    subscriptionLister,
@@ -255,8 +251,4 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 	}
 
 	return result, nil
-}
-
-func (c *clusterClusterServiceCreateSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }

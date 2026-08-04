@@ -242,7 +242,6 @@ func TestExternalAuthClusterServiceUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &externalAuthClusterServiceUpdateDispatchSyncer{
-				cooldownChecker:                     &alwaysSyncCooldownChecker{},
 				minimumReconcileTimeCooldownChecker: tc.minimumReconcileTimeCooldownChecker,
 				externalAuthLister:                  &corelistertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
 				resourcesDBClient:                   mockResourcesDBClient,

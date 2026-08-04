@@ -781,7 +781,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	externalAuthClusterServiceCreateController := externalauthcreation.NewExternalAuthClusterServiceCreateController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
-		activeOperationLister,
 		backendInformers,
 	)
 
@@ -842,7 +841,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	clusterClusterServiceCreateController := clustercreation.NewClusterClusterServiceCreateController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
-		activeOperationLister,
 		backendInformers,
 	)
 
@@ -875,14 +873,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	clusterClusterServiceUpdateDispatchController := clusterupdate.NewClusterClusterServiceUpdateDispatchController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
-		activeOperationLister,
 		backendInformers,
 	)
 
 	nodePoolClusterServiceUpdateDispatchController := nodepoolupdate.NewNodePoolClusterServiceUpdateDispatchController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
-		activeOperationLister,
 		backendInformers,
 	)
 	externalAuthClusterServiceUpdateDispatchController := externalauthupdate.NewExternalAuthClusterServiceUpdateDispatchController(

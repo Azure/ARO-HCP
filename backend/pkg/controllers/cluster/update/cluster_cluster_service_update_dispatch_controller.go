@@ -51,7 +51,6 @@ import (
 // (operation_cluster_update_state_calculation.go): dispatch sends updates, operation state
 // verifies propagation before the ARM cluster update operation succeeds.
 type clusterClusterServiceUpdateDispatchSyncer struct {
-	cooldownChecker      controllerutil.CooldownChecker
 	clusterLister        corelisters.ClusterLister
 	subscriptionLister   corelisters.SubscriptionLister
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
@@ -67,7 +66,6 @@ var _ controllerutils.ClusterSyncer = (*clusterClusterServiceUpdateDispatchSynce
 func NewClusterClusterServiceUpdateDispatchController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister corelisters.ActiveOperationLister,
 	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
@@ -75,7 +73,6 @@ func NewClusterClusterServiceUpdateDispatchController(
 	syncer := NewClusterClusterServiceUpdateDispatchSyncer(
 		resourcesDBClient,
 		clusterServiceClient,
-		activeOperationLister,
 		clusterLister,
 		subscriptionLister,
 	)
@@ -93,12 +90,10 @@ func NewClusterClusterServiceUpdateDispatchController(
 func NewClusterClusterServiceUpdateDispatchSyncer(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister corelisters.ActiveOperationLister,
 	clusterLister corelisters.ClusterLister,
 	subscriptionLister corelisters.SubscriptionLister,
 ) controllerutils.ClusterSyncer {
 	return &clusterClusterServiceUpdateDispatchSyncer{
-		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		// We set minimumReconcileTimeCooldownChecker so that SyncOnce is not executed
 		// more than once per minute.
 		minimumReconcileTimeCooldownChecker: controllerutil.NewTimeBasedCooldownChecker(1 * time.Minute),
@@ -120,10 +115,6 @@ func needsWork(cluster *api.HCPOpenShiftCluster) bool {
 	}
 
 	return true
-}
-
-func (c *clusterClusterServiceUpdateDispatchSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
