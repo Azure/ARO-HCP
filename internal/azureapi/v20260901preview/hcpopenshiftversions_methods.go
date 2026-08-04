@@ -16,7 +16,7 @@ package v20260901preview
 
 import (
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview/generated"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview/generated"
 )
 
 type HcpOpenShiftVersion struct {

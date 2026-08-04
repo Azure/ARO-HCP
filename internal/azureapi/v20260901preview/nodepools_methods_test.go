@@ -29,7 +29,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview/generated"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview/generated"
 )
 
 func TestSizeGiBRoundTrip(t *testing.T) {
