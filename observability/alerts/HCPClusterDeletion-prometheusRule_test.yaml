@@ -56,6 +56,7 @@ tests:
         slo: cluster-deletion-errors
         short_window: 5m
         long_window: 1h
+        component: slo
       exp_annotations:
         title: "Cluster deletion operation error rate high (>72%)"
         summary: "svc-1: Cluster deletion operation error rate high (>72%)"
@@ -141,6 +142,7 @@ tests:
         slo: cluster-deletion-errors
         short_window: 30m
         long_window: 6h
+        component: slo
       exp_annotations:
         title: "Cluster deletion operation error rate elevated (>30%) for 30+ minutes"
         summary: "svc-1: Cluster deletion operation error rate elevated (>30%) for 30+ minutes"
@@ -246,6 +248,7 @@ tests:
         severity: "3"
         slo: cluster-deletion-errors
         long_window: 3d
+        component: slo
       exp_annotations:
         title: "Cluster deletion operation error rate exceeds SLO target (>5%) for 6+ hours"
         summary: "svc-1: Cluster deletion operation error rate exceeds SLO target (>5%) for 6+ hours"
@@ -343,6 +346,7 @@ tests:
         cluster: svc-1
         severity: "3"
         slo: cluster-deletion-errors
+        component: slo
       exp_annotations:
         title: "Cluster deletion operation failure rate exceeds 15% for 30 minutes"
         summary: "svc-1: Cluster deletion operation failure rate exceeds 15% for 30 minutes"
@@ -442,6 +446,7 @@ tests:
         slo: cluster-deletion-timeliness
         short_window: 5m
         long_window: 1h
+        component: slo
       exp_annotations:
         title: "Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)"
         summary: "svc-1: Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)"
@@ -492,6 +497,7 @@ tests:
         slo: cluster-deletion-timeliness
         short_window: 30m
         long_window: 6h
+        component: slo
       exp_annotations:
         title: "Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)"
         summary: "svc-1: Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)"
@@ -548,6 +554,7 @@ tests:
         cluster: svc-1
         severity: "3"
         slo: cluster-deletion-stuck
+        component: slo
         operation_type: delete
         phase: deleting
         resource_id: stuck1
@@ -555,7 +562,7 @@ tests:
         subscription_id: sub1
       exp_annotations:
         title: "Cluster deletion operation stuck in non-terminal phase for over 1 hour"
-        summary: "svc-1: Cluster deletion operation stuck in deleting for over 1 hour"
+        summary: "svc-1: Cluster deletion operation stuck1 stuck in deleting for over 1 hour"
         correlationId: "userJourneyClusterDeletionStuckOperation/svc-1/stuck1"
         description: "Cluster delete operation for stuck1 has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
@@ -589,6 +596,7 @@ tests:
         cluster: svc-1
         name: OperationClusterDelete
         severity: "4"
+        component: slo
       exp_annotations:
         title: "Cluster deletion controller workqueue depth is high"
         summary: "svc-1: Cluster deletion controller workqueue OperationClusterDelete depth is high"
@@ -626,6 +634,7 @@ tests:
         cluster: svc-1
         name: OperationClusterDelete
         severity: "4"
+        component: slo
       exp_annotations:
         title: "Cluster deletion controller workqueue in retry hot loop"
         summary: "svc-1: Cluster deletion controller workqueue OperationClusterDelete retry hot loop"
