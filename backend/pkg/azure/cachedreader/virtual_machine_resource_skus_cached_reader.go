@@ -14,6 +14,8 @@
 
 package cachedreader
 
+//go:generate $MOCKGEN -typed -source=virtual_machine_resource_skus_cached_reader.go -destination=mock_virtual_machine_resource_skus_cached_reader.go -package cachedreader VirtualMachineResourceSKUsCachedReader
+
 import (
 	"context"
 	"fmt"
