@@ -16,6 +16,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/Azure/ARO-HCP/test/util/testutil"
@@ -65,6 +66,71 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 			}
 			testutil.CompareFileWithFixture(t, mktempfile.Name(), testutil.WithSuffix(test.suffix))
 
+		})
+	}
+}
+
+func TestEV2RetryMarker(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		failedNames []string
+		nonRetried  int
+		wantOK      bool
+	}{
+		{
+			name:   "clean run emits nothing",
+			wantOK: false,
+		},
+		{
+			name:        "single labeled failure qualifies",
+			failedNames: []string{"spec A"},
+			wantOK:      true,
+		},
+		{
+			name:        "failures at the cap still qualify",
+			failedNames: []string{"spec A", "spec B"},
+			wantOK:      true,
+		},
+		{
+			name:        "one failure over the cap disqualifies",
+			failedNames: []string{"spec A", "spec B", "spec C"},
+			wantOK:      false,
+		},
+		{
+			name:        "an unlabeled failure disqualifies the whole run",
+			failedNames: []string{"spec A", "spec B"},
+			nonRetried:  1,
+			wantOK:      false,
+		},
+		{
+			name:        "a lone unlabeled failure disqualifies",
+			failedNames: []string{"spec A"},
+			nonRetried:  1,
+			wantOK:      false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			marker, ok := ev2RetryMarker(tc.failedNames, tc.nonRetried)
+			if ok != tc.wantOK {
+				t.Fatalf("ev2RetryMarker(%v, %d) ok = %v, want %v", tc.failedNames, tc.nonRetried, ok, tc.wantOK)
+			}
+			if !ok {
+				if marker != "" {
+					t.Fatalf("expected no marker when not qualifying, got %q", marker)
+				}
+				return
+			}
+			if !strings.HasPrefix(marker, "EV2_RETRY_ALLOWED:") {
+				t.Fatalf("marker must start with the grep token the EV2 step looks for, got %q", marker)
+			}
+			if strings.Contains(marker, "\n") {
+				t.Fatalf("marker must be a single line so the EV2 step can grep it, got %q", marker)
+			}
+			for _, name := range tc.failedNames {
+				if !strings.Contains(marker, name) {
+					t.Fatalf("marker must name every failed spec so a human can triage it, %q missing from %q", name, marker)
+				}
+			}
 		})
 	}
 }

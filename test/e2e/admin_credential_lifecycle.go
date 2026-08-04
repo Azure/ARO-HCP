@@ -57,7 +57,7 @@ var _ = Describe("Customer", func() {
 		labels.High,
 		labels.Positive,
 		labels.AroRpApiCompatible,
-		labels.AllowRetry, // AROSLSRE-1721: known-issue test, retriable during EV2 gating
+		labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1721. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 		labels.MIContainers(1),
 		func(ctx context.Context) {
 			clusterName := "admin-cred-lifecycle-" + rand.String(6)

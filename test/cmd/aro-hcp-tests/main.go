@@ -162,12 +162,27 @@ func registerEV2RetryCatcher(specs et.ExtensionTestSpecs) {
 	specs.AddAfterAll(func() {
 		mu.Lock()
 		defer mu.Unlock()
-		if len(failedNames) == 0 || len(failedNames) > maxAutoRetryFailures || nonRetriableFailures > 0 {
+		marker, ok := ev2RetryMarker(failedNames, nonRetriableFailures)
+		if !ok {
 			return
 		}
-		fmt.Fprintf(os.Stderr, "EV2_RETRY_ALLOWED: %d known-issue test(s) failed (max %d allowed), all labeled %q: %v\n",
-			len(failedNames), maxAutoRetryFailures, labels.AllowRetry[0], failedNames)
+		fmt.Fprintln(os.Stderr, marker)
 	})
+}
+
+// ev2RetryMarker decides whether a finished run qualifies for an automatic EV2 gating
+// retry and, if so, returns the marker line to emit. It is the whole decision, kept
+// separate from registerEV2RetryCatcher's hook wiring so it can be tested directly.
+//
+// A run qualifies only when it failed at all, no more than maxAutoRetryFailures tests
+// failed, and every failure carried labels.AllowRetry. Any other shape stays silent so
+// the gate fails normally and a human triages it.
+func ev2RetryMarker(failedNames []string, nonRetriableFailures int) (string, bool) {
+	if len(failedNames) == 0 || len(failedNames) > maxAutoRetryFailures || nonRetriableFailures > 0 {
+		return "", false
+	}
+	return fmt.Sprintf("EV2_RETRY_ALLOWED: %d known-issue test(s) failed (max %d allowed), all labeled %q: %v",
+		len(failedNames), maxAutoRetryFailures, labels.AllowRetry[0], failedNames), true
 }
 
 func miDemandPriority(spec *et.ExtensionTestSpec) int {
