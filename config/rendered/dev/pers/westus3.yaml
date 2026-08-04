@@ -760,6 +760,8 @@ mgmtAgent:
         memory: 768Mi
     serviceAccountName: mgmt-agent
   managedIdentityName: mgmt-agent
+  nodeHealth:
+    enabled: true
 mgmtKeyVault:
   name: ah-pers-mg-usw3test-1
   private: false

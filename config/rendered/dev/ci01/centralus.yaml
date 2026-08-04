@@ -760,6 +760,8 @@ mgmtAgent:
         memory: 768Mi
     serviceAccountName: mgmt-agent
   managedIdentityName: mgmt-agent
+  nodeHealth:
+    enabled: true
 mgmtKeyVault:
   name: ah-ci01-mg-j7654321-1
   private: false

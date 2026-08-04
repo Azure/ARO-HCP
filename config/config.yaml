@@ -213,6 +213,12 @@ defaults:
   # Mgmt Agent Controller
   mgmtAgent:
     managedIdentityName: mgmt-agent
+    # Node-health detection controller. On by default. It only labels and
+    # annotates a node it believes is wedged and emits a metric; it never
+    # cordons, drains, deletes, or reboots anything. Set this to false per
+    # environment to opt out.
+    nodeHealth:
+      enabled: true
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: mgmt-agent

@@ -34,7 +34,7 @@ metadata:
     app.kubernetes.io/name: mgmt-agent
 data:
   config.yaml: |
-    enabled: false
+    enabled: true
 ---
 # Source: mgmt-agent/templates/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
