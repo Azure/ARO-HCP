@@ -1872,6 +1872,11 @@ func (in *ServiceProviderNodePoolSpecVersion) DeepCopyInto(out *ServiceProviderN
 		*out = new(v4.Version)
 		**out = **in
 	}
+	if in.MinimumVersion != nil {
+		in, out := &in.MinimumVersion, &out.MinimumVersion
+		*out = new(v4.Version)
+		**out = **in
+	}
 	return
 }
 

@@ -58,6 +58,12 @@ type ServiceProviderNodePoolSpec struct {
 type ServiceProviderNodePoolSpecVersion struct {
 	// DesiredVersion is the full version the controller wants to upgrade to (format: x.y.z)
 	DesiredVersion *semver.Version `json:"desiredVersion,omitempty"`
+
+	// MinimumVersion is the SRE-selected full version minimum limit for a nodepool.
+	// Stored as a pointer so unset is distinguishable from any explicit choice;
+	// nil means no SRE override has been requested. Valid value is in semver format.
+	// Written by: Admin POST MinimumNodePoolVersion
+	MinimumVersion *semver.Version `json:"minimumVersion,omitempty"`
 }
 
 // ServiceProviderNodePoolStatus contains the observed state of the node pool.

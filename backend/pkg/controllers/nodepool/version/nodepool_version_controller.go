@@ -107,10 +107,13 @@ func NewNodePoolVersionController(
 
 // NeedsWork reports whether this controller has anything to do for the given
 // NodePool. The work this controller does is persist the customer's desired
-// version onto the ServiceProviderNodePool, which is needed when:
+// version or SRE desired version onto the ServiceProviderNodePool, which is
+// needed when:
 //   - the NodePool's customer-visible Properties.Version.ID is set, and
 //   - the ServiceProviderNodePool's Spec.NodePoolVersion.DesiredVersion does
-//     not already equal that value (otherwise nothing would change).
+//     not already equal that value (otherwise nothing would change). Or
+//   - the ServiceProviderNodePool's Spec.NodePoolVersion.MinimumVersion
+//     is set, and it is greater than the Spec.NodePoolVersion.DesiredVersion
 //
 // Both arguments must be non-nil; SyncOnce gates the cache miss before calling
 // NeedsWork.
@@ -135,6 +138,10 @@ func (c *nodePoolVersionSyncer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodeP
 		return true
 	}
 
+	if serviceProviderNodePool.Spec.NodePoolVersion.MinimumVersion != nil && serviceProviderNodePool.Spec.NodePoolVersion.MinimumVersion.GT(*serviceProviderNodePool.Spec.NodePoolVersion.DesiredVersion) {
+		return true
+	}
+
 	return false
 }
 
@@ -142,6 +149,8 @@ func (c *nodePoolVersionSyncer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodeP
 // the ServiceProviderNodePool in Cosmos DB.
 //
 //   - Reads the customer's desired version from HCPNodePool.Properties.Version.ID.
+//   - Reads the SRE's desired version from ServiceProviderNodePool.Spec.NodePoolVersion.MinimumVersion.
+//   - Selects whether to use customer or SRE version
 //   - Validates it against version change constraints (see validateDesiredNodePoolVersion):
 //   - Exists as a known version in Cincinnati.
 //   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version.
@@ -196,6 +205,14 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return utils.TrackError(err)
 	}
 
+	targetVersion := customerDesiredVersion
+
+	sreDesiredVersion := cachedServiceProviderNodePool.Spec.NodePoolVersion.MinimumVersion
+
+	if sreDesiredVersion != nil && sreDesiredVersion.GT(customerDesiredVersion) {
+		targetVersion = *sreDesiredVersion
+	}
+
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	if database.IsNotFoundError(err) {
 		return nil
@@ -219,7 +236,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 
 	// Validate the customer's desired version before setting it
-	err = c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, cachedServiceProviderNodePool, cachedServiceProviderCluster, cachedNodePool.Properties.Version.ChannelGroup, clusterUUID,
+	err = c.validateDesiredNodePoolVersion(ctx, &targetVersion, cachedServiceProviderNodePool, cachedServiceProviderCluster, cachedNodePool.Properties.Version.ChannelGroup, clusterUUID,
 		op.HasOption(api.FeatureExperimentalReleaseFeatures))
 	if err != nil {
 		// Persist IntentFailed on the controller document for Cincinnati VersionNotFound or any non-Cincinnati resolution error.
@@ -248,7 +265,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 
 	// Update the serviceProviderNodePool DesiredVersion
 	replacement := cachedServiceProviderNodePool.DeepCopy()
-	replacement.Spec.NodePoolVersion.DesiredVersion = &customerDesiredVersion
+	replacement.Spec.NodePoolVersion.DesiredVersion = &targetVersion
 	_, err = c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName).Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
 		// the cache will update eventually since we're out of date and we'll enter this controller again. No need to fail.
@@ -257,7 +274,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}
-	logger.Info("Updated ServiceProviderNodePool with new desired version", "desiredVersion", customerDesiredVersion.String())
+	logger.Info("Updated ServiceProviderNodePool with new desired version", "desiredVersion", targetVersion.String())
 
 	// Clear IntentFailed condition on successful validation
 	controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
@@ -293,7 +310,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(ctx context.Context, desiredVersion *semver.Version, spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster,
 	channelGroup string, clusterUUID uuid.UUID, allowExperimentalReleaseFeatures bool) error {
 	if desiredVersion == nil {
-		return fmt.Errorf("customerDesiredVersion is nil, cannot evaluate upgrade")
+		return fmt.Errorf("desiredVersion is nil, cannot evaluate upgrade")
 	}
 
 	logger := utils.LoggerFromContext(ctx)
