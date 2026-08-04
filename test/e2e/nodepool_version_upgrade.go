@@ -799,8 +799,8 @@ var _ = Describe("Customer", func() {
 			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "nodepool %s Properties.Version.ID was nil", customerNodePoolName)
 			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDowngradeTarget), "nodepool %s version should be %s but got %s", customerNodePoolName, nodePoolDowngradeTarget, *npGetResponse.Properties.Version.ID)
 		},
-		Entry("from 4.21.zLatest to 4.19.zLatest",
+		Entry("from 4.22.zLatest to 4.20.zLatest",
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
-			"4.21", "4.19"),
+			"4.22", "4.20"),
 	)
 })

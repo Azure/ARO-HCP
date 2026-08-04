@@ -11,17 +11,17 @@ data:
     channelGroups:
       - url: https://api.openshift.com/api/upgrades_info/graph
         channelGroupName: stable
-        minVersion: 4.19.0
+        minVersion: 4.20.0
         maxVersion: ""
       - url: https://api.openshift.com/api/upgrades_info/graph
         channelGroupName: fast
-        minVersion: 4.19.0
+        minVersion: 4.20.0
         maxVersion: ""
       - url: https://api.openshift.com/api/upgrades_info/graph
         channelGroupName: candidate
-        minVersion: 4.19.7
+        minVersion: 4.20.0
         maxVersion: ""
       - url: https://multi.ocp.releases.ci.openshift.org/graph
         channelGroupName: nightly
-        minVersion: 4.19.0-0.nightly-20200101
+        minVersion: 4.20.0-0.nightly-20200101
         maxVersion: ""
