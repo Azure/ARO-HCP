@@ -270,20 +270,33 @@ Personal development environments continue using the existing single `miMockClie
 
 ### Infrastructure Setup
 
-The pooled `aro-dev-msi-mock-pool-<i>` identities are now fully declarative. Their Entra apps and service principals are created by `dev-infrastructure/templates/mock-identity-apps.bicep` (which loops `poolSize` times) and their subscription RBAC is reconciled by `dev-infrastructure/templates/mock-identity-rbac.bicep` (which resolves each principal's object ID via Microsoft Graph — the IDs are no longer stored in config). Both are deployed by the standalone, **Owner-only** `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (run on demand by an OWNERS-group member with `make dev-ci-privileged-local-run`; it is not part of the `dev-ci` postsubmit). The declarative pool size lives in `config/config-dev-ci.yaml` under `.ci.dev.mockIdentities.pool.size` (consumed by the Bicep templates). Separately, `MSI_MOCK_POOL_SIZE ?= 20` in `dev-infrastructure/Makefile` drives the pool loops in the local `create-mock-identity-certs` and `populate-msi-mock-pool` targets. These are two independent sources of truth: **when you change the pool size, update both** (`.ci.dev.mockIdentities.pool.size` and `MSI_MOCK_POOL_SIZE`), or the certificate/Boskos set can diverge from the declarative app/RBAC count.
+The pooled `aro-dev-msi-mock-pool-<i>` identities are fully declarative on the
+Azure side. Their certificates, Entra apps/service principals, pinning, and
+subscription RBAC are reconciled by the standalone, **Owner-only**
+`Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint. The pool size has one
+source of truth: `.ci.dev.mockIdentities.pool.size` in
+`config/config-dev-ci.yaml`.
 
 Typical maintainer flow:
 
-1. If the pool size is changing, update **both** `.ci.dev.mockIdentities.pool.size` in `config/config-dev-ci.yaml` (and re-materialize) **and** `MSI_MOCK_POOL_SIZE` in `dev-infrastructure/Makefile` — keep them equal (see the two-sources note above).
-2. From `dev-infrastructure/`, run `make create-mock-identity-certs` to create any new pool members' Key Vault certificates in `aro-hcp-dev-svc-kv` (idempotent; `mock-identity-apps.bicep` creates the apps but does not create or pin certificates — see [DEV Mock Identities → Certificates](dev-mock-identities.md#certificates)).
-3. Ask an OWNERS-group member to run `make dev-ci-privileged-local-run` (requires subscription Owner, Key Vault certificate-read, and owner/Application.ReadWrite on the apps). This creates/updates the pool apps + service principals, pins each cert's public key onto its app as a `keyCredential`, and applies the home- and E2E-subscription grants.
-4. From `dev-infrastructure/`, run `make populate-msi-mock-pool` to regenerate the static Boskos catalog.
-5. If the pool size or Boskos key set changed, update the release-side Boskos inventory and step-registry lease wiring as well.
+1. Change `.ci.dev.mockIdentities.pool.size` in `config/config-dev-ci.yaml`.
+2. Ask an OWNERS-group member to run `make dev-ci-privileged-local-run`
+   (requires subscription Owner, Key Vault certificate create/read, and
+   owner/Application.ReadWrite on the apps). It creates every missing indexed
+   certificate and app/SP, pins the current certificate, and applies RBAC.
+3. Run `make -C dev-infrastructure populate-msi-mock-pool` to regenerate the
+   static Boskos catalog. The target reads the desired size directly from
+   `config/config-dev-ci.yaml`.
+4. Update the release-side Boskos inventory and step-registry lease wiring.
 
 In the current model:
 
-- `make create-mock-identity-certs` creates the pooled members' Key Vault certificates via `dev-infrastructure/scripts/create-kv-cert.sh` (`az keyvault certificate create`); it is idempotent and separate from the templates because Bicep cannot create Key Vault certificates.
-- `make dev-ci-privileged-local-run` creates the pooled Entra objects (`mock-identity-apps.bicep`), pins their Key Vault certificates via the `pin-mock-certs` Shell step, and reconciles their access on the DEV home and E2E customer subscriptions (`mock-identity-rbac.bicep`), using principal IDs resolved via Graph lookup rather than recorded in config. Auth is by pinned leaf thumbprint, not SNI.
+- `make dev-ci-privileged-local-run` creates the pooled Entra objects
+  (`mock-identity-apps.bicep`), creates missing Key Vault certificates and pins
+  them via the `pin-mock-certs` Shell step, and reconciles access on the DEV home
+  and E2E customer subscriptions (`mock-identity-rbac.bicep`). Decreasing the
+  configured size does not delete higher-index resources; they are simply no
+  longer reconciled.
 - `make populate-msi-mock-pool` performs live Entra lookups and rewrites `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`, which remains the static catalog consumed by release-side jobs.
 
 ### Naming Bridge

@@ -141,8 +141,8 @@ unattended `dev-ci` postsubmit because it needs subscription Owner):
   Entra authenticates by matching the
   presented leaf's thumbprint. The template deliberately does not manage
   `keyCredentials`, so redeploying it does not wipe the pinned certs. It also does
-  **not** create the Key Vault certificates themselves — those are created by a
-  separate `make create-mock-identity-certs` step (see [Certificates](#certificates)).
+  **not** create the Key Vault certificates itself; the following privileged
+  Shell step owns certificate creation and pinning.
 - `templates/mock-identity-rbac.bicep` looks up each service principal's object
   ID via Microsoft Graph (by `uniqueName`, the normalized application name), then
   fans out over the target subscriptions and deploys
@@ -175,25 +175,59 @@ Application definitions, role names, and the subscription lists are supplied by
 
 The mock identity apps authenticate with a **pinned certificate**
 (`keyCredentials`), not SNI. Bicep can neither create Key Vault certificates nor
-read their material, so creation remains a separate step and pinning is a Shell
-step in the privileged pipeline:
+read their material, so the privileged pipeline invokes
+`tooling/entra-app-credentials` immediately after deploying the apps:
 
-1. **`make create-mock-identity-certs`** (DEV) / **`make
-   create-int-mock-identity-certs`** (INT) create the self-signed certificates via
-   `scripts/create-kv-cert.sh` (`az keyvault certificate create`) in the
-   environment Key Vault (`aro-hcp-dev-svc-kv` for DEV, `aro-hcp-int-kv` for INT).
-2. **`make dev-ci-privileged-local-run`** deploys the apps and then its
-   `pin-mock-certs` / `pin-mock-certs-int` Shell steps read each certificate's
-   public key from Key Vault and register it as a pinned `keyCredential` on the
-   corresponding Entra app via Microsoft Graph
-   (`tooling/entra-app-credentials`). Templatize executes the Shell steps
-   with the invoking OWNERS member's Azure CLI credentials.
+1. Read the current certificate from the environment Key Vault
+   (`aro-hcp-dev-svc-kv` for DEV, `aro-hcp-int-kv` for INT).
+2. If it does not exist, create it with the established self-signed certificate
+   policy. Existing certificates and policies are left untouched.
+3. Register the current public certificate as the app's sole pinned
+   `keyCredential` and verify the resulting thumbprint through Microsoft Graph.
+4. Apply RBAC only after every requested certificate has been reconciled.
 
-Bootstrap / rotation order: create the certs, then run the privileged entrypoint;
-it creates the apps/SPs and pins the certs before applying RBAC. Because
-authentication is by pinned leaf **thumbprint**, rotating a certificate requires
-re-running the privileged entrypoint (or the targeted `make pin-*-mock-identity-certs`
-helper) so the new thumbprint is registered. Pinning is idempotent and safe to re-run.
+This makes `make dev-ci-privileged-local-run` the only routine write entrypoint
+for mock applications, certificates, pinning, and RBAC. Increasing a configured
+pool size creates and wires the missing indexed resources automatically.
+Decreasing a size does not delete higher-index resources.
+
+Templatize executes the Shell steps with the invoking OWNERS member's Azure CLI
+credentials. The caller needs Key Vault certificate create/read, Graph
+application ownership/write, and the subscription permissions documented above.
+
+### Disruptive Certificate Rotation
+
+Rotation is intentionally excluded from the pipeline. It is rare, disruptive,
+and must be requested directly through the certificate CLI. **Expect mock
+identity authentication to fail temporarily between Key Vault replacement and
+successful Graph pinning. Do not rotate certificates while DEV or INT E2E work
+needs uninterrupted authentication.**
+
+From the repository root, rotate only the intended application:
+
+```bash
+AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/entra-app-credentials pin \
+  --vault-url https://<vault-name>.vault.azure.net \
+  --mapping <application-name>=<certificate-name> \
+  --certificate-dns <certificate-name>=<certificate-dns-name> \
+  --rotate \
+  --confirm-disruptive-rotation=replace-key-vault-certificates \
+  --replace-all
+```
+
+Use the application, certificate, DNS, and vault values from
+`config/config-dev-ci.yaml` and the pipeline mappings. The command replaces the
+Key Vault certificate, waits until the new version is current, pins its
+thumbprint, and verifies the Graph update.
+
+If rotation creates the certificate but pinning fails, **do not immediately run
+another rotation**. Run `make dev-ci-privileged-local-run`; its normal
+create-if-missing reconciliation reads the current certificate and repairs the
+application without creating another version.
+
+Key Vault lifetime policies remain unchanged and may auto-renew certificates.
+An auto-renewed certificate can likewise drift from the pinned thumbprint until
+the privileged pipeline is run.
 
 > Historical note: an earlier iteration configured SNI
 > (`trustedSubjectNameAndIssuers`) on the apps instead of pinning. That does not

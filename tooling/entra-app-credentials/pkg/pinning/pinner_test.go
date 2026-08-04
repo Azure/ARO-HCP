@@ -26,8 +26,9 @@ import (
 )
 
 type fakeCertificates struct {
-	values map[string][]byte
-	errs   map[string]error
+	values      map[string][]byte
+	errs        map[string]error
+	createCalls []string
 }
 
 func (f *fakeCertificates) GetCertificate(_ context.Context, name string) ([]byte, error) {
@@ -35,6 +36,14 @@ func (f *fakeCertificates) GetCertificate(_ context.Context, name string) ([]byt
 		return nil, err
 	}
 	return f.values[name], nil
+}
+
+func (f *fakeCertificates) CreateCertificate(_ context.Context, name, dnsName string, _ []byte) ([]byte, error) {
+	f.createCalls = append(f.createCalls, name+"="+dnsName)
+	certificate := []byte("created-" + name)
+	f.values[name] = certificate
+	delete(f.errs, name)
+	return certificate, nil
 }
 
 type fakeApplications struct {
@@ -115,6 +124,82 @@ func TestPinReplacesAndVerifiesCredential(t *testing.T) {
 	err := pinner.Pin(context.Background(), []Binding{{ApplicationDisplayName: "app", CertificateName: "cert"}}, Options{ReplaceAll: true, Timeout: time.Second})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"object-id=cert"}, apps.replaceCalls)
+}
+
+func TestPinCreatesMissingCertificate(t *testing.T) {
+	certificates := &fakeCertificates{
+		values: map[string][]byte{},
+		errs:   map[string]error{"cert": ErrCertificateNotFound},
+	}
+	apps := &fakeApplications{
+		applications: map[string]*Application{"app": {ID: "object-id", AppID: "client-id"}},
+		getResults:   map[string][]*Application{},
+	}
+	pinner := NewPinner(certificates, apps)
+
+	err := pinner.Pin(context.Background(), []Binding{{
+		ApplicationDisplayName: "app",
+		CertificateName:        "cert",
+		CertificateDNSName:     "cert.example.com",
+	}}, Options{ReplaceAll: true, CreateMissing: true, Timeout: time.Second})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"cert=cert.example.com"}, certificates.createCalls)
+	assert.Equal(t, []string{"object-id=cert"}, apps.replaceCalls)
+}
+
+func TestPinRotatesExistingCertificate(t *testing.T) {
+	certificates := &fakeCertificates{values: map[string][]byte{"cert": []byte("old")}}
+	apps := &fakeApplications{
+		applications: map[string]*Application{"app": {ID: "object-id", AppID: "client-id"}},
+		getResults:   map[string][]*Application{},
+	}
+	pinner := NewPinner(certificates, apps)
+
+	err := pinner.Pin(context.Background(), []Binding{{
+		ApplicationDisplayName: "app",
+		CertificateName:        "cert",
+		CertificateDNSName:     "cert.example.com",
+	}}, Options{ReplaceAll: true, Rotate: true, Timeout: time.Second})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"cert=cert.example.com"}, certificates.createCalls)
+	assert.Equal(t, []string{"object-id=cert"}, apps.replaceCalls)
+}
+
+func TestPinRotationRequiresExistingCertificate(t *testing.T) {
+	certificates := &fakeCertificates{
+		values: map[string][]byte{},
+		errs:   map[string]error{"cert": ErrCertificateNotFound},
+	}
+	pinner := NewPinner(certificates, &fakeApplications{
+		applications: map[string]*Application{"app": {ID: "object-id"}},
+		getResults:   map[string][]*Application{},
+	})
+
+	err := pinner.Pin(context.Background(), []Binding{{
+		ApplicationDisplayName: "app",
+		CertificateName:        "cert",
+		CertificateDNSName:     "cert.example.com",
+	}}, Options{ReplaceAll: true, Rotate: true, Timeout: time.Second})
+	require.ErrorContains(t, err, "not found")
+	assert.Empty(t, certificates.createCalls)
+}
+
+func TestPinDoesNotCreateMissingCertificateByDefault(t *testing.T) {
+	certificates := &fakeCertificates{
+		values: map[string][]byte{},
+		errs:   map[string]error{"cert": ErrCertificateNotFound},
+	}
+	pinner := NewPinner(certificates, &fakeApplications{
+		applications: map[string]*Application{"app": {ID: "object-id"}},
+		getResults:   map[string][]*Application{},
+	})
+
+	err := pinner.Pin(context.Background(), []Binding{{
+		ApplicationDisplayName: "app",
+		CertificateName:        "cert",
+	}}, Options{ReplaceAll: true, Timeout: time.Second})
+	require.ErrorContains(t, err, "Key Vault certificate")
+	assert.Empty(t, certificates.createCalls)
 }
 
 func TestPinDryRunDoesNotReplace(t *testing.T) {

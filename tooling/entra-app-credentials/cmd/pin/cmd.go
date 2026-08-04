@@ -21,7 +21,7 @@ func NewCommand() (*cobra.Command, error) {
 	opts := DefaultOptions()
 	cmd := &cobra.Command{
 		Use:   "pin",
-		Short: "Pin Key Vault certificates onto Microsoft Entra applications.",
+		Short: "Create or rotate Key Vault certificates and pin them onto Microsoft Entra applications.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			validated, err := opts.Validate()

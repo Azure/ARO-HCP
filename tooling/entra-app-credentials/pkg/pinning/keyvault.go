@@ -15,14 +15,23 @@
 package pinning
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 )
 
 type azureCertificateClient interface {
 	GetCertificate(ctx context.Context, name, version string, options *azcertificates.GetCertificateOptions) (azcertificates.GetCertificateResponse, error)
+	GetCertificateOperation(ctx context.Context, name string, options *azcertificates.GetCertificateOperationOptions) (azcertificates.GetCertificateOperationResponse, error)
+	GetCertificatePolicy(ctx context.Context, name string, options *azcertificates.GetCertificatePolicyOptions) (azcertificates.GetCertificatePolicyResponse, error)
+	CreateCertificate(ctx context.Context, name string, parameters azcertificates.CreateCertificateParameters, options *azcertificates.CreateCertificateOptions) (azcertificates.CreateCertificateResponse, error)
 }
 
 type certificateClient struct {
@@ -34,10 +43,138 @@ func NewCertificateClient(client azureCertificateClient) CertificateClient {
 	return &certificateClient{client: client}
 }
 
+// ErrCertificateNotFound identifies a missing Key Vault certificate.
+var ErrCertificateNotFound = errors.New("Key Vault certificate not found")
+
+var certificatePollInterval = 2 * time.Second
+
 func (c *certificateClient) GetCertificate(ctx context.Context, name string) ([]byte, error) {
 	response, err := c.client.GetCertificate(ctx, name, "", nil)
 	if err != nil {
+		var responseErr *azcore.ResponseError
+		if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("%w: %s", ErrCertificateNotFound, name)
+		}
 		return nil, fmt.Errorf("get certificate: %w", err)
 	}
 	return response.CER, nil
+}
+
+func (c *certificateClient) CreateCertificate(ctx context.Context, name, dnsName string, previousCertificate []byte) ([]byte, error) {
+	policy, err := c.certificatePolicy(ctx, name, dnsName, previousCertificate)
+	if err != nil {
+		return nil, err
+	}
+	parameters := azcertificates.CreateCertificateParameters{
+		CertificatePolicy: policy,
+	}
+	if _, err := c.client.CreateCertificate(ctx, name, parameters, nil); err != nil {
+		return nil, fmt.Errorf("create certificate: %w", err)
+	}
+
+operationPoll:
+	for {
+		operation, err := c.client.GetCertificateOperation(ctx, name, nil)
+		if err != nil {
+			return nil, fmt.Errorf("get certificate operation: %w", err)
+		}
+		if operation.Status == nil {
+			return nil, fmt.Errorf("get certificate operation: Key Vault returned no status")
+		}
+		switch *operation.Status {
+		case "completed":
+			break operationPoll
+		case "inProgress":
+			if err := waitForCertificatePoll(ctx); err != nil {
+				return nil, err
+			}
+			continue
+		case "cancelled":
+			return nil, fmt.Errorf("certificate operation was cancelled")
+		default:
+			if operation.Error != nil {
+				return nil, fmt.Errorf("certificate operation failed with status %q and code %q", *operation.Status, operation.Error.Code)
+			}
+			return nil, fmt.Errorf("certificate operation failed with status %q", *operation.Status)
+		}
+	}
+
+	for {
+		certificate, err := c.GetCertificate(ctx, name)
+		if err == nil && len(certificate) > 0 && !bytes.Equal(certificate, previousCertificate) {
+			return certificate, nil
+		}
+		if err != nil && !errors.Is(err, ErrCertificateNotFound) {
+			return nil, fmt.Errorf("wait for created certificate: %w", err)
+		}
+		if err := waitForCertificatePoll(ctx); err != nil {
+			return nil, err
+		}
+	}
+}
+
+func (c *certificateClient) certificatePolicy(ctx context.Context, name, dnsName string, previousCertificate []byte) (*azcertificates.CertificatePolicy, error) {
+	if len(previousCertificate) > 0 {
+		response, err := c.client.GetCertificatePolicy(ctx, name, nil)
+		if err != nil {
+			return nil, fmt.Errorf("get existing certificate policy: %w", err)
+		}
+		policy := response.CertificatePolicy
+		policy.ID = nil
+		if policy.Attributes != nil {
+			policy.Attributes = &azcertificates.CertificateAttributes{
+				Enabled: policy.Attributes.Enabled,
+			}
+		}
+		return &policy, nil
+	}
+
+	autoRenew := azcertificates.CertificatePolicyActionAutoRenew
+	keyType := azcertificates.KeyTypeRSA
+	digitalSignature := azcertificates.KeyUsageTypeDigitalSignature
+	keyEncipherment := azcertificates.KeyUsageTypeKeyEncipherment
+	return &azcertificates.CertificatePolicy{
+		IssuerParameters: &azcertificates.IssuerParameters{
+			Name: to.Ptr("Self"),
+		},
+		KeyProperties: &azcertificates.KeyProperties{
+			Exportable: to.Ptr(true),
+			KeySize:    to.Ptr(int32(2048)),
+			KeyType:    &keyType,
+			ReuseKey:   to.Ptr(false),
+		},
+		LifetimeActions: []*azcertificates.LifetimeAction{{
+			Action: &azcertificates.LifetimeActionType{
+				ActionType: &autoRenew,
+			},
+			Trigger: &azcertificates.LifetimeActionTrigger{
+				LifetimePercentage: to.Ptr(int32(24)),
+			},
+		}},
+		SecretProperties: &azcertificates.SecretProperties{
+			ContentType: to.Ptr("application/x-pkcs12"),
+		},
+		X509CertificateProperties: &azcertificates.X509CertificateProperties{
+			KeyUsage: []*azcertificates.KeyUsageType{
+				&digitalSignature,
+				&keyEncipherment,
+			},
+			Subject: to.Ptr("CN=" + dnsName),
+			SubjectAlternativeNames: &azcertificates.SubjectAlternativeNames{
+				DNSNames: []*string{to.Ptr(dnsName)},
+			},
+			ValidityInMonths: to.Ptr(int32(120)),
+		},
+	}, nil
+}
+
+func waitForCertificatePoll(ctx context.Context) error {
+	timer := time.NewTimer(certificatePollInterval)
+	select {
+	case <-ctx.Done():
+		timer.Stop()
+		return fmt.Errorf("wait for created certificate: %w", ctx.Err())
+	case <-timer.C:
+		return nil
+	}
 }

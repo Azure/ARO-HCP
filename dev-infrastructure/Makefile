@@ -32,9 +32,6 @@ E2E_TESTING_SUBSCRIPTION_ID = 974ebd46-8ad3-41e3-afef-7ef25fd5c371
 
 # Environments where automation accounts are deployed
 
-# MSI mock pool size for boskos leasing in the E2E testing subscription
-MSI_MOCK_POOL_SIZE ?= 20
-
 list:
 	@grep '^[^#[:space:]].*:' Makefile
 .PHONY: list
@@ -82,93 +79,9 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
-deploy-mock-identity-apps: configurations/mock-identity-apps.bicepparam
-	az deployment group create \
-		--name "mock-identity-apps" \
-		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/mock-identity-apps.bicep $(PROMPT_TO_CONFIRM) \
-		--parameters configurations/mock-identity-apps.bicepparam
-
-.PHONY: deploy-mock-identity-apps
-
-# Create the self-signed Key Vault certificates for the mock identity apps.
-# mock-identity-apps.bicep creates the apps but does not create or pin certs
-# (Bicep cannot create Key Vault certificates); the privileged dev-ci pipeline
-# pins the public key onto each app after deploying it. Idempotent:
-# create-kv-cert.sh leaves an existing cert untouched unless FORCE=true, so this
-# is safe to re-run during bootstrap. Run once before the mock identities are
-# used. The cert subject DNS names mirror config/config-dev-ci.yaml
-# .ci.dev.mockIdentities.*.certDns; the cert (object) names are the Key Vault
-# certificate names the services load and are fixed here (not in config).
-create-mock-identity-certs:
-	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=firstPartyCert2 \
-		SUBJECT=CN=firstparty.hcp.osadev.cloud DNS_NAMES=firstparty.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh
-	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=armHelperCert2 \
-		SUBJECT=CN=armhelper.hcp.osadev.cloud DNS_NAMES=armhelper.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh
-	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=msiMockCert2 \
-		SUBJECT=CN=msimock.hcp.osadev.cloud DNS_NAMES=msimock.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh
-	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
-		echo "Creating/updating MSI mock pool cert $$i ..."; \
-		VAULT_NAME=$(SVC_KV_NAME) \
-		CERT_NAME=msiMockPoolCert-$$i \
-		SUBJECT=CN=$$i.msimockpool.hcp.osadev.cloud \
-		DNS_NAMES=$$i.msimockpool.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh; \
-	done
-.PHONY: create-mock-identity-certs
-
-# INT variant: certificates live in the INT global Key Vault. See
-# docs/sops/msit-int-credential-setup.md for the surrounding manual lift/shift.
-create-int-mock-identity-certs:
-	VAULT_NAME=aro-hcp-int-kv CERT_NAME=intFirstPartyCert \
-		SUBJECT=CN=intfirstparty.hcp.osadev.cloud DNS_NAMES=intfirstparty.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh
-	VAULT_NAME=aro-hcp-int-kv CERT_NAME=intArmHelperCert \
-		SUBJECT=CN=intarmhelper.hcp.osadev.cloud DNS_NAMES=intarmhelper.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh
-	VAULT_NAME=aro-hcp-int-kv CERT_NAME=intMsiMockCert \
-		SUBJECT=CN=intmsimock.hcp.osadev.cloud DNS_NAMES=intmsimock.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh
-.PHONY: create-int-mock-identity-certs
-
-# Pin each mock identity's Key Vault certificate onto its Entra application as a
-# keyCredential. Run after deploying templates/mock-identity-apps.bicep (which
-# creates the apps/SPs but configures no auth) and after the certificates exist
-# (create-mock-identity-certs). The mock certs are self-signed and Clusters
-# Service sends the cert chain, so SNI trust does not validate (AADSTS7000213);
-# pinning the public key and matching on leaf thumbprint is the working
-# mechanism. Idempotent: re-run after a certificate rotation to re-pin the
-# current cert without running the full privileged pipeline. Requires Key Vault
-# data-plane read on $(SVC_KV_NAME) and owner/Application.ReadWrite on the apps.
-pin-mock-identity-certs:
-	AZURE_TOKEN_CREDENTIALS=dev go run ../tooling/entra-app-credentials pin \
-		--vault-url https://$(SVC_KV_NAME).vault.azure.net \
-		--mapping aro-dev-first-party2=firstPartyCert2 \
-		--mapping aro-dev-arm-helper2=armHelperCert2 \
-		--mapping aro-dev-msi-mock2=msiMockCert2 \
-		--indexed-application-base aro-dev-msi-mock-pool \
-		--indexed-certificate-base msiMockPoolCert \
-		--indexed-count $(MSI_MOCK_POOL_SIZE) \
-		--replace-all
-.PHONY: pin-mock-identity-certs
-
-# INT variant: certificates live in the INT global Key Vault; there is no pool in
-# INT (POOL_SIZE defaults to 0). See docs/sops/msit-int-credential-setup.md.
-pin-int-mock-identity-certs:
-	AZURE_TOKEN_CREDENTIALS=dev go run ../tooling/entra-app-credentials pin \
-		--vault-url https://aro-hcp-int-kv.vault.azure.net \
-		--mapping aro-hcp-int-fp=intFirstPartyCert \
-		--mapping aro-hcp-int-arm-helper=intArmHelperCert \
-		--mapping aro-hcp-int-msi-mock=intMsiMockCert \
-		--replace-all
-.PHONY: pin-int-mock-identity-certs
-
 populate-msi-mock-pool:
 	cd openshift-ci && \
-	MSI_MOCK_POOL_SIZE=$(MSI_MOCK_POOL_SIZE) \
+	MSI_MOCK_POOL_SIZE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.pool.size' ../../config/config-dev-ci.yaml) \
 	./populate-msi-mock-pool.sh
 
 .PHONY: populate-msi-mock-pool

@@ -56,8 +56,8 @@ resourceGroups:
 # The pipeline schema requires shellIdentity, but this DEV-only entrypoint runs
 # locally through templatize, which ignores it and executes Shell steps with the
 # invoking OWNERS member's Azure CLI credentials. The placeholder values below
-# are therefore not identities. The caller must be able to read the Key Vault
-# certificates and write credentials on the Entra apps.
+# are therefore not identities. The caller must be able to create/read Key
+# Vault certificates and write credentials on the Entra apps.
 - name: mock-idents
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -78,11 +78,16 @@ resourceGroups:
       ./tooling/entra-app-credentials/entra-app-credentials pin \
         --vault-url "${VAULT_URL}" \
         --mapping "${FIRST_PARTY_APP_NAME}=firstPartyCert2" \
+        --certificate-dns "firstPartyCert2=${FIRST_PARTY_CERT_DNS}" \
         --mapping "${ARM_HELPER_APP_NAME}=armHelperCert2" \
+        --certificate-dns "armHelperCert2=${ARM_HELPER_CERT_DNS}" \
         --mapping "${MSI_MOCK_APP_NAME}=msiMockCert2" \
+        --certificate-dns "msiMockCert2=${MSI_MOCK_CERT_DNS}" \
         --indexed-application-base "${POOL_APP_BASE}" \
         --indexed-certificate-base msiMockPoolCert \
+        --indexed-certificate-dns-suffix "${POOL_CERT_DNS}" \
         --indexed-count "${POOL_SIZE}" \
+        --create-missing \
         --replace-all
     workingDir: ../../..
     shellIdentity:
@@ -94,12 +99,20 @@ resourceGroups:
       value: https://aro-hcp-dev-svc-kv.vault.azure.net
     - name: FIRST_PARTY_APP_NAME
       configRef: ci.dev.mockIdentities.firstParty.applicationName
+    - name: FIRST_PARTY_CERT_DNS
+      configRef: ci.dev.mockIdentities.firstParty.certDns
     - name: ARM_HELPER_APP_NAME
       configRef: ci.dev.mockIdentities.armHelper.applicationName
+    - name: ARM_HELPER_CERT_DNS
+      configRef: ci.dev.mockIdentities.armHelper.certDns
     - name: MSI_MOCK_APP_NAME
       configRef: ci.dev.mockIdentities.msiMock.applicationName
+    - name: MSI_MOCK_CERT_DNS
+      configRef: ci.dev.mockIdentities.msiMock.certDns
     - name: POOL_APP_BASE
       configRef: ci.dev.mockIdentities.pool.appBaseName
+    - name: POOL_CERT_DNS
+      configRef: ci.dev.mockIdentities.pool.certBaseDns
     - name: POOL_SIZE
       configRef: ci.dev.mockIdentities.pool.size
     dependsOn:
@@ -134,8 +147,12 @@ resourceGroups:
       ./tooling/entra-app-credentials/entra-app-credentials pin \
         --vault-url "${VAULT_URL}" \
         --mapping "${FIRST_PARTY_APP_NAME}=intFirstPartyCert" \
+        --certificate-dns "intFirstPartyCert=${FIRST_PARTY_CERT_DNS}" \
         --mapping "${ARM_HELPER_APP_NAME}=intArmHelperCert" \
+        --certificate-dns "intArmHelperCert=${ARM_HELPER_CERT_DNS}" \
         --mapping "${MSI_MOCK_APP_NAME}=intMsiMockCert" \
+        --certificate-dns "intMsiMockCert=${MSI_MOCK_CERT_DNS}" \
+        --create-missing \
         --replace-all
     workingDir: ../../..
     shellIdentity:
@@ -147,10 +164,16 @@ resourceGroups:
       value: https://aro-hcp-int-kv.vault.azure.net
     - name: FIRST_PARTY_APP_NAME
       configRef: ci.int.mockIdentities.firstParty.applicationName
+    - name: FIRST_PARTY_CERT_DNS
+      configRef: ci.int.mockIdentities.firstParty.certDns
     - name: ARM_HELPER_APP_NAME
       configRef: ci.int.mockIdentities.armHelper.applicationName
+    - name: ARM_HELPER_CERT_DNS
+      configRef: ci.int.mockIdentities.armHelper.certDns
     - name: MSI_MOCK_APP_NAME
       configRef: ci.int.mockIdentities.msiMock.applicationName
+    - name: MSI_MOCK_CERT_DNS
+      configRef: ci.int.mockIdentities.msiMock.certDns
     dependsOn:
     - resourceGroup: mock-idents
       step: mock-identity-apps-int

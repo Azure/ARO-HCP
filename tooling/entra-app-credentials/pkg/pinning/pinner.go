@@ -36,13 +36,16 @@ var verificationInterval = 2 * time.Second
 type Binding struct {
 	ApplicationDisplayName string
 	CertificateName        string
+	CertificateDNSName     string
 }
 
 // Options controls credential reconciliation.
 type Options struct {
-	ReplaceAll bool
-	DryRun     bool
-	Timeout    time.Duration
+	ReplaceAll    bool
+	CreateMissing bool
+	Rotate        bool
+	DryRun        bool
+	Timeout       time.Duration
 }
 
 // Application contains the Graph fields used during reconciliation.
@@ -63,6 +66,7 @@ type KeyCredential struct {
 // CertificateClient reads public certificates.
 type CertificateClient interface {
 	GetCertificate(ctx context.Context, name string) ([]byte, error)
+	CreateCertificate(ctx context.Context, name, dnsName string, previousCertificate []byte) ([]byte, error)
 }
 
 // ApplicationClient reads and updates Entra applications.
@@ -100,7 +104,7 @@ func (p *Pinner) Pin(ctx context.Context, bindings []Binding, options Options) e
 	unchanged := 0
 	for _, binding := range bindings {
 		bindingCtx, cancel := context.WithTimeout(ctx, options.Timeout)
-		result, err := p.pinOne(bindingCtx, binding, options.DryRun)
+		result, err := p.pinOne(bindingCtx, binding, options)
 		cancel()
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", binding.ApplicationDisplayName, err))
@@ -125,12 +129,19 @@ const (
 	resultPinned
 )
 
-func (p *Pinner) pinOne(ctx context.Context, binding Binding, dryRun bool) (pinResult, error) {
+func (p *Pinner) pinOne(ctx context.Context, binding Binding, options Options) (pinResult, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	certificate, err := p.certificates.GetCertificate(ctx, binding.CertificateName)
+	if errors.Is(err, ErrCertificateNotFound) && options.CreateMissing {
+		logger.Info("creating missing Key Vault certificate", "certificate", binding.CertificateName, "dnsName", binding.CertificateDNSName)
+		certificate, err = p.certificates.CreateCertificate(ctx, binding.CertificateName, binding.CertificateDNSName, nil)
+	} else if err == nil && options.Rotate {
+		logger.Info("disruptively rotating Key Vault certificate", "certificate", binding.CertificateName, "dnsName", binding.CertificateDNSName)
+		certificate, err = p.certificates.CreateCertificate(ctx, binding.CertificateName, binding.CertificateDNSName, certificate)
+	}
 	if err != nil {
-		return resultUnchanged, fmt.Errorf("get Key Vault certificate %q: %w", binding.CertificateName, err)
+		return resultUnchanged, fmt.Errorf("reconcile Key Vault certificate %q: %w", binding.CertificateName, err)
 	}
 	if len(certificate) == 0 {
 		return resultUnchanged, fmt.Errorf("Key Vault certificate %q has no public certificate data", binding.CertificateName)
@@ -145,7 +156,7 @@ func (p *Pinner) pinOne(ctx context.Context, binding Binding, dryRun bool) (pinR
 		logger.Info("certificate already pinned", "application", binding.ApplicationDisplayName, "appId", application.AppID, "certificate", binding.CertificateName)
 		return resultUnchanged, nil
 	}
-	if dryRun {
+	if options.DryRun {
 		logger.Info("would replace key credentials", "application", binding.ApplicationDisplayName, "appId", application.AppID, "certificate", binding.CertificateName)
 		return resultPinned, nil
 	}

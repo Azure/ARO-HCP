@@ -35,21 +35,28 @@ const defaultTimeout = 5 * time.Minute
 type RawOptions struct {
 	VaultURL               string
 	Mappings               []string
+	CertificateDNSMappings []string
 	IndexedApplicationBase string
 	IndexedCertificateBase string
+	IndexedCertificateDNS  string
 	IndexedCount           int
 	ReplaceAll             bool
+	CreateMissing          bool
+	Rotate                 bool
+	RotationConfirmation   string
 	DryRun                 bool
 	Timeout                time.Duration
 }
 
 // ValidatedOptions contains normalized pinning inputs.
 type ValidatedOptions struct {
-	vaultURL   string
-	bindings   []pinning.Binding
-	replaceAll bool
-	dryRun     bool
-	timeout    time.Duration
+	vaultURL      string
+	bindings      []pinning.Binding
+	replaceAll    bool
+	createMissing bool
+	rotate        bool
+	dryRun        bool
+	timeout       time.Duration
 }
 
 // Options contains completed runtime dependencies.
@@ -67,13 +74,20 @@ func DefaultOptions() *RawOptions {
 func BindOptions(opts *RawOptions, cmd *cobra.Command) {
 	cmd.Flags().StringVar(&opts.VaultURL, "vault-url", opts.VaultURL, "Key Vault data-plane URL, for example https://example.vault.azure.net.")
 	cmd.Flags().StringArrayVar(&opts.Mappings, "mapping", opts.Mappings, "Application display name and certificate name as app=certificate (repeatable).")
+	cmd.Flags().StringArrayVar(&opts.CertificateDNSMappings, "certificate-dns", opts.CertificateDNSMappings, "Certificate name and DNS name as certificate=dns (repeatable; required for certificate creation).")
 	cmd.Flags().StringVar(&opts.IndexedApplicationBase, "indexed-application-base", opts.IndexedApplicationBase, "Base application display name for an indexed set.")
 	cmd.Flags().StringVar(&opts.IndexedCertificateBase, "indexed-certificate-base", opts.IndexedCertificateBase, "Base Key Vault certificate name for an indexed set.")
+	cmd.Flags().StringVar(&opts.IndexedCertificateDNS, "indexed-certificate-dns-suffix", opts.IndexedCertificateDNS, "DNS suffix for indexed certificates, producing <index>.<suffix>.")
 	cmd.Flags().IntVar(&opts.IndexedCount, "indexed-count", opts.IndexedCount, "Number of indexed app/certificate pairs, named <base>-0 through <base>-N.")
 	cmd.Flags().BoolVar(&opts.ReplaceAll, "replace-all", opts.ReplaceAll, "Replace the application's complete keyCredentials collection with the requested certificate.")
+	cmd.Flags().BoolVar(&opts.CreateMissing, "create-missing", opts.CreateMissing, "Create missing self-signed Key Vault certificates before pinning.")
+	cmd.Flags().BoolVar(&opts.Rotate, "rotate", opts.Rotate, "Disruptively replace the current Key Vault certificates before pinning.")
+	cmd.Flags().StringVar(&opts.RotationConfirmation, "confirm-disruptive-rotation", opts.RotationConfirmation, "Required confirmation phrase when --rotate is used.")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Resolve and compare credentials without modifying applications.")
 	cmd.Flags().DurationVar(&opts.Timeout, "timeout", opts.Timeout, "Timeout per application, including Graph propagation retries.")
 }
+
+const rotationConfirmation = "replace-key-vault-certificates"
 
 func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	parsedURL, err := url.Parse(strings.TrimSpace(o.VaultURL))
@@ -86,11 +100,39 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	if o.Timeout <= 0 {
 		return nil, fmt.Errorf("--timeout must be greater than zero")
 	}
+	if o.DryRun && (o.CreateMissing || o.Rotate) {
+		return nil, fmt.Errorf("--dry-run cannot be combined with certificate creation or rotation")
+	}
+	if o.CreateMissing && o.Rotate {
+		return nil, fmt.Errorf("--create-missing and --rotate are mutually exclusive")
+	}
+	if o.Rotate && o.RotationConfirmation != rotationConfirmation {
+		return nil, fmt.Errorf("--rotate requires --confirm-disruptive-rotation=%s", rotationConfirmation)
+	}
+	if !o.Rotate && o.RotationConfirmation != "" {
+		return nil, fmt.Errorf("--confirm-disruptive-rotation is only valid with --rotate")
+	}
 	if o.IndexedCount < 0 {
 		return nil, fmt.Errorf("--indexed-count must be >= 0")
 	}
 	if o.IndexedCount > 0 && (strings.TrimSpace(o.IndexedApplicationBase) == "" || strings.TrimSpace(o.IndexedCertificateBase) == "") {
 		return nil, fmt.Errorf("--indexed-application-base and --indexed-certificate-base are required when --indexed-count is greater than zero")
+	}
+
+	certificateDNSNames := make(map[string]string, len(o.CertificateDNSMappings))
+	usedCertificateDNSNames := make(map[string]struct{}, len(o.CertificateDNSMappings))
+	for _, mapping := range o.CertificateDNSMappings {
+		certificate, dnsName, err := parsePair(mapping, "certificate=dns")
+		if err != nil {
+			return nil, fmt.Errorf("invalid --certificate-dns: %w", err)
+		}
+		if _, found := certificateDNSNames[certificate]; found {
+			return nil, fmt.Errorf("certificate %q has more than one DNS mapping", certificate)
+		}
+		if len(dnsName) > 64 {
+			return nil, fmt.Errorf("certificate DNS name %q exceeds the 64-character common-name limit", dnsName)
+		}
+		certificateDNSNames[certificate] = dnsName
 	}
 
 	bindings := make([]pinning.Binding, 0, len(o.Mappings)+o.IndexedCount)
@@ -104,6 +146,10 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 			return nil, fmt.Errorf("application %q is specified more than once", binding.ApplicationDisplayName)
 		}
 		seen[binding.ApplicationDisplayName] = struct{}{}
+		binding.CertificateDNSName = certificateDNSNames[binding.CertificateName]
+		if binding.CertificateDNSName != "" {
+			usedCertificateDNSNames[binding.CertificateName] = struct{}{}
+		}
 		bindings = append(bindings, binding)
 	}
 	for i := range o.IndexedCount {
@@ -111,36 +157,71 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 			ApplicationDisplayName: fmt.Sprintf("%s-%d", strings.TrimSpace(o.IndexedApplicationBase), i),
 			CertificateName:        fmt.Sprintf("%s-%d", strings.TrimSpace(o.IndexedCertificateBase), i),
 		}
+		if strings.TrimSpace(o.IndexedCertificateDNS) != "" {
+			binding.CertificateDNSName = fmt.Sprintf("%d.%s", i, strings.TrimSpace(o.IndexedCertificateDNS))
+			if len(binding.CertificateDNSName) > 64 {
+				return nil, fmt.Errorf("certificate DNS name %q exceeds the 64-character common-name limit", binding.CertificateDNSName)
+			}
+		}
 		if _, found := seen[binding.ApplicationDisplayName]; found {
 			return nil, fmt.Errorf("application %q is specified more than once", binding.ApplicationDisplayName)
 		}
 		seen[binding.ApplicationDisplayName] = struct{}{}
 		bindings = append(bindings, binding)
 	}
+	for certificate := range certificateDNSNames {
+		if _, found := usedCertificateDNSNames[certificate]; !found {
+			return nil, fmt.Errorf("certificate DNS mapping for %q has no matching application mapping", certificate)
+		}
+	}
 	if len(bindings) == 0 {
 		return nil, fmt.Errorf("at least one --mapping or a positive --indexed-count is required")
 	}
+	if o.CreateMissing || o.Rotate {
+		seenCertificates := map[string]struct{}{}
+		for _, binding := range bindings {
+			if binding.CertificateDNSName == "" {
+				return nil, fmt.Errorf("certificate %q requires a DNS name when creating or rotating certificates", binding.CertificateName)
+			}
+			if o.Rotate {
+				if _, found := seenCertificates[binding.CertificateName]; found {
+					return nil, fmt.Errorf("certificate %q cannot be rotated for more than one application in the same invocation", binding.CertificateName)
+				}
+				seenCertificates[binding.CertificateName] = struct{}{}
+			}
+		}
+	}
 
 	return &ValidatedOptions{
-		vaultURL:   parsedURL.String(),
-		bindings:   bindings,
-		replaceAll: o.ReplaceAll,
-		dryRun:     o.DryRun,
-		timeout:    o.Timeout,
+		vaultURL:      parsedURL.String(),
+		bindings:      bindings,
+		replaceAll:    o.ReplaceAll,
+		createMissing: o.CreateMissing,
+		rotate:        o.Rotate,
+		dryRun:        o.DryRun,
+		timeout:       o.Timeout,
 	}, nil
 }
 
 func parseMapping(raw string) (pinning.Binding, error) {
-	application, certificate, found := strings.Cut(raw, "=")
-	application = strings.TrimSpace(application)
-	certificate = strings.TrimSpace(certificate)
-	if !found || application == "" || certificate == "" {
-		return pinning.Binding{}, fmt.Errorf("invalid --mapping %q: expected app=certificate", raw)
+	application, certificate, err := parsePair(raw, "app=certificate")
+	if err != nil {
+		return pinning.Binding{}, fmt.Errorf("invalid --mapping %q: %w", raw, err)
 	}
 	return pinning.Binding{
 		ApplicationDisplayName: application,
 		CertificateName:        certificate,
 	}, nil
+}
+
+func parsePair(raw, expected string) (string, string, error) {
+	left, right, found := strings.Cut(raw, "=")
+	left = strings.TrimSpace(left)
+	right = strings.TrimSpace(right)
+	if !found || left == "" || right == "" {
+		return "", "", fmt.Errorf("expected %s", expected)
+	}
+	return left, right, nil
 }
 
 func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
@@ -169,8 +250,10 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 
 func (o *Options) Run(ctx context.Context) error {
 	return o.pinner.Pin(ctx, o.bindings, pinning.Options{
-		ReplaceAll: o.replaceAll,
-		DryRun:     o.dryRun,
-		Timeout:    o.timeout,
+		ReplaceAll:    o.replaceAll,
+		CreateMissing: o.createMissing,
+		Rotate:        o.rotate,
+		DryRun:        o.dryRun,
+		Timeout:       o.timeout,
 	})
 }

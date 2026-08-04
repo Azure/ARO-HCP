@@ -17,26 +17,18 @@
 // Instead, each app's Key Vault certificate PUBLIC key is registered as a pinned
 // `keyCredential` (AsymmetricX509Cert / Verify) by the privileged dev-ci
 // pipeline's Shell steps, which invoke `tooling/entra-app-credentials` to read
-// the cert from Key Vault (Bicep cannot read Key Vault certificate material) and
-// PATCH it onto the app via Microsoft Graph.
-// The `make pin-mock-identity-certs` / `make pin-int-mock-identity-certs` targets
-// remain available for targeted repair or rotation. Entra
-// then authenticates by matching the presented leaf's thumbprint against the
-// pinned keyCredentials — the proven, pre-SNI-migration behaviour. This module
-// deliberately does not manage `keyCredentials` (it defaults to empty, which
-// ../modules/entra/app.bicep maps to null / "leave unmanaged"), so redeploying
-// this template does NOT wipe the pinned certificates.
+// or create the cert in Key Vault (Bicep cannot manage Key Vault certificate
+// material) and PATCH it onto the app via Microsoft Graph. Entra then
+// authenticates by matching the presented leaf's thumbprint against the pinned
+// keyCredentials — the proven, pre-SNI-migration behaviour. This module
+// deliberately does not manage `keyCredentials`, so redeploying this template
+// does NOT wipe the pinned certificates.
 //
-// CERTIFICATE CREATION (separate step, not this template):
-// The certificates themselves are created out of band by `make
-// create-mock-identity-certs` (DEV) / `make create-int-mock-identity-certs`
-// (INT), which call scripts/create-kv-cert.sh (idempotent az keyvault
-// certificate create) into the environment Key Vault (aro-hcp-dev-svc-kv for
-// DEV, aro-hcp-int-kv for INT). Because auth is by pinned thumbprint, rotating a
-// certificate requires re-running the pin target so the new thumbprint is
-// registered.
-// For a fresh bootstrap, run the cert-create target, deploy this template, then
-// run the pin target (see docs/ci/dev-mock-identities.md).
+// CERTIFICATE LIFECYCLE:
+// The privileged pipeline creates missing certificates after deploying these
+// apps and before applying RBAC. Rotation is intentionally excluded from the
+// pipeline and requires an explicitly confirmed CLI invocation; see
+// docs/ci/dev-mock-identities.md.
 @description('Shared mock identity definitions: array of {applicationName, certDns}')
 param identities array
 
