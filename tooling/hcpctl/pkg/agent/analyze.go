@@ -146,8 +146,26 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 	for review := 0; review < reviewRounds; review++ {
 		logger.Info("Review pass.", "round", review+1)
 
+		// Compact conversation: summarize prior reasoning, then reset active
+		// context. The review prompt already contains the full rendered
+		// analysis (all evidence), so the model gets both the summary of
+		// prior reasoning and the complete evidence document.
+		compactPrompt := "Before the next review pass, briefly summarize (2-3 paragraphs) " +
+			"the key findings, root cause, and causal chain from our analysis so far. " +
+			"Focus on the reasoning and conclusions, not the raw data."
+		summary, compactErr := session.SendAndWait(ctx, compactPrompt)
+		if compactErr != nil {
+			logger.Info("Compaction summary failed; proceeding with context reset only.",
+				"error", compactErr, "round", review+1)
+			summary = ""
+		}
+		session.ResetHistory()
+
 		rendered := RenderMarkdown(hydratedChain, opts.TestName)
 		reviewPrompt := BuildReviewPrompt(rendered)
+		if summary != "" {
+			reviewPrompt = "Context from prior analysis rounds:\n\n" + summary + "\n\n---\n\n" + reviewPrompt
+		}
 
 		output, err = session.SendAndWait(ctx, reviewPrompt)
 		if err != nil {
