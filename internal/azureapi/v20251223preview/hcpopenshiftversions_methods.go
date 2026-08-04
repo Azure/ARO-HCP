@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package v20260630preview
+package v20251223preview
 
 import (
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/v20260630preview/generated"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview/generated"
 )
 
 type HcpOpenShiftVersion struct {

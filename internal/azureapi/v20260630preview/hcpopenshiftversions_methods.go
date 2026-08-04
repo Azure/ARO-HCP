@@ -1,4 +1,4 @@
-// Copyright 2026 Microsoft Corporation
+// Copyright 2025 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package v20260901preview
+package v20260630preview
 
 import (
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/v20260630preview/generated"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview/generated"
 )
 
 type HcpOpenShiftVersion struct {

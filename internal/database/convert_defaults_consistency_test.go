@@ -23,9 +23,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	v20240610preview "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
-	v20251223preview "github.com/Azure/ARO-HCP/internal/api/v20251223preview"
-	v20260630preview "github.com/Azure/ARO-HCP/internal/api/v20260630preview"
+	v20240610preview "github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
+	v20251223preview "github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
+	v20260630preview "github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 )
 
 // TestEnsureDefaultsConsistencyNodePool verifies that the defaults applied by
