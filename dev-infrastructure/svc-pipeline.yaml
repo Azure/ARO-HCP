@@ -637,19 +637,6 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: cluster-output
-  - name: cleanup-prometheus
-    aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: ./cleanup-prometheus.sh
-    workingDir: ./scripts
-    dependsOn:
-    - resourceGroup: service
-      step: upgrade-aks-cluster
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
   - name: istio-config
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
