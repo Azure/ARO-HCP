@@ -145,6 +145,17 @@ clouds:
             audit:
               connectSocket: true
         regions:
+          eastus2:
+            e2e:
+              regionTest:
+                # eastus2 is pinned to the Test-Tenant sub ("ARO HCP E2E") because
+                # the RH-tenant PROD subs (Prod-00/Prod-01) have every RP-allowed
+                # x64 general-purpose VM SKU restricted (NotAvailableForSubscription)
+                # in this region, which makes node pool creation fail there. The
+                # Test-Tenant sub is unrestricted in eastus2 (it also backs the
+                # eastus2euap canary), so routing eastus2 to it unblocks the gating
+                # job. Revert once the RH subs' SKU restriction is lifted (ARO-28614).
+                allowedSubscriptions: "ARO HCP E2E"
           eastus2euap:
             e2e:
               regionTest:
