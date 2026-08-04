@@ -569,6 +569,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyClusterDeletionErrors1h5m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '1h'
           severity: '3'
           short_window: '5m'
@@ -597,6 +598,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyClusterDeletionErrors6h30m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '6h'
           severity: '3'
           short_window: '30m'
@@ -625,6 +627,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyClusterDeletionErrors3d'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '3d'
           severity: '3'
           slo: 'cluster-deletion-errors'
@@ -652,6 +655,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyClusterDeletionErrorsDegradation'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '3'
           slo: 'cluster-deletion-errors'
         }
@@ -678,6 +682,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyClusterDeletionLatency1h5m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '1h'
           severity: '3'
           short_window: '5m'
@@ -706,6 +711,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyClusterDeletionLatency6h30m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '6h'
           severity: '3'
           short_window: '30m'
@@ -734,6 +740,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyClusterDeletionLatency3d'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '3d'
           severity: '3'
           slo: 'cluster-deletion-timeliness'
@@ -761,6 +768,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyClusterDeletionStuckOperation'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '3'
           slo: 'cluster-deletion-stuck'
         }
@@ -769,8 +777,8 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
           description: 'Cluster delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Cluster delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'aka.ms/arohcp-runbook-cluster-deletion'
-          summary: '{{ $labels.cluster }}: Cluster deletion operation stuck in {{ $labels.phase }} for over 1 hour'
-          title: '{{ $labels.cluster }}: Cluster deletion operation stuck in {{ $labels.phase }} for over 1 hour resource_id:{{ $labels.resource_id }}'
+          summary: '{{ $labels.cluster }}: Cluster deletion operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
+          title: '{{ $labels.cluster }}: Cluster deletion operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour'
         }
         expression: '(max without (prometheus_replica) (backend_resource_operation_phase_info{operation_type="delete",phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) and (time() - max without (prometheus_replica) (backend_resource_operation_last_transition_time_seconds{operation_type="delete",phase=~"accepted|awaitingsecret|provisioning|updating|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"})) > 3600)'
         for: 'PT15M'
@@ -800,6 +808,7 @@ resource arohcpClusterDeletionSaturationAlerts 'Microsoft.AlertsManagement/prome
         alert: 'userJourneyClusterDeletionQueueDepth'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '4'
         }
         annotations: {
@@ -825,6 +834,7 @@ resource arohcpClusterDeletionSaturationAlerts 'Microsoft.AlertsManagement/prome
         alert: 'userJourneyClusterDeletionRetryHotLoop'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '4'
         }
         annotations: {
