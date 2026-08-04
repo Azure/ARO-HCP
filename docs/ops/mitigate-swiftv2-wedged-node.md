@@ -2,7 +2,12 @@
 
 ## Overview
 
-Azure SWIFT v2 management-cluster nodes can enter a permanent failure state where every pod scheduled to the node fails with `FailedCreatePodSandBox`. The root cause is an Azure platform issue (Cloudnet/RNC) where the delegated FrontendNIC virtual function (VF) is torn down and re-added at the platform level just after CNI attach, leaving the node's network stack broken. The CNI errors are the symptom, not the cause.
+Azure SWIFT v2 management-cluster nodes can enter a failure state where every pod scheduled to the node fails with `FailedCreatePodSandBox`. The root cause is an Azure platform issue (Cloudnet/RNC) where the delegated FrontendNIC virtual function (VF) is torn down and re-added at the platform level just after CNI attach, leaving the node's network stack broken. The CNI errors are the symptom, not the cause.
+
+Two things to know before you start digging:
+
+- **CNS is not the culprit, so do not spend time there.** On the cases we have analysed, `azure-cns` assigned and released the pod's IP cleanly on every single retry with `ReturnCode:Success`, and the `MultitenantPodNetworkConfig` resolved a secondary IP within about a second of the pod being scheduled. IP pool exhaustion is ruled out too. The fault is in the `azure-vnet` CNI plugin's endpoint-creation step, which consumes the CNS response and programs the interface into the pod netns.
+- **`azure-vnet` has no logs in Kusto.** It runs as a host binary invoked by containerd, not as a pod, so nothing it emits is ingested into ServiceLogs. That is exactly why the log-collection script in the appendix exists: if Cloudnet/RNC want evidence, it has to be pulled off the node before you recycle it.
 
 The node will not self-heal. The standing mitigation is to **cordon and delete the wedged VMSS instance** so pods reschedule onto healthy nodes and AKS replaces the instance.
 
@@ -12,6 +17,7 @@ The node will not self-heal. The standing mitigation is to **cordon and delete t
 - **Past occurrences**:
   - `prod uksouth` — node `aks-userswft2-40171262-vmss000004`, ~18h of continuous failure, ~2,584 events (AROSLSRE-1524)
   - `prod australiaeast` — node `aks-userswft2-40474110-vmss00000f`, ~3 days of continuous failure, ~2,419 events (AROSLSRE-1563 / AROSLSRE-1585)
+  - `prod centralindia`, node `aks-userswft3-38105468-vmss000005`, ongoing since 2026-08-01, ~1,074 events, took out three consecutive prod e2e runs on 2026-08-04 (AROSLSRE-1717)
 
 ## Symptoms
 
@@ -22,20 +28,37 @@ All of these will be present on the affected node:
 | **Event** | `FailedCreatePodSandBox` at ~15s retry cadence, thousands of occurrences |
 | **Error messages** | `route ip+net: no such network interface`, `mtpnc is not ready`, `dhcp discover timed out` |
 | **Blast radius** | 100% of pods scheduled to the node fail; hosted-cluster router replicas are especially impacted → `KASLoadBalancerNotReachable` → cluster-create timeouts |
-| **Isolation** | Only one node is affected; other nodes in the same VMSS pool are healthy |
+| **Isolation** | Failures usually concentrate on one node, but a short cluster-wide burst across several nodes is possible (see AROSLSRE-1717). Confirm with per-node event counts rather than assuming a single node |
 | **Duration** | Does not self-heal; persists for days until the node is deleted |
 
 ## Diagnosis
 
+### 0. Quick check: node-health controller labels
+
+If the `node-health` controller is deployed on the cluster (see [Appendix: Automated Detection](#appendix-automated-detection-node-health-controller)), the quickest first pass is:
+
+```bash
+kubectl get nodes -l node-health.aro-hcp.azure.com/status=wedged
+kubectl get node <node-name> -o jsonpath='{.metadata.annotations}' | jq
+```
+
+Fall back to the Kusto queries below if the label is not present (e.g. on a cluster that has not picked up the controller yet).
+
 ### 1. Identify the wedged node via Kusto (hcp-prod-{region})
 
 ```kql
-// Look for sustained FailedCreatePodSandBox on a single node
-ContainerEvent
-| where Reason == "FailedCreatePodSandBox"
-| where Message has "no such network interface" or Message has "mtpnc is not ready" or Message has "dhcp discover timed out"
-| summarize EventCount = count(), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated) by NodeName
-| order by EventCount desc
+// Look for sustained FailedCreatePodSandBox, per node.
+// Run against the region's cluster, database ServiceLogs.
+kubernetesEvents
+| where timestamp > ago(7d)
+| where reason == "FailedCreatePodSandBox"
+| where message has "no such network interface"
+     or message has "mtpnc is not ready"
+     or message has "dhcp discover"
+| summarize events=count(), nsAffected=dcount(eventNamespace), podsAffected=dcount(objectName),
+            firstSeen=min(timestamp), lastSeen=max(timestamp)
+  by cluster, host
+| order by events desc
 ```
 
 ### 2. Distinguish hard-wedge from transient flap
@@ -52,29 +75,30 @@ This is the critical decision gate. Not every occurrence of these errors require
 // If SuccessCount > 0, the node is flapping (self-healing). Do NOT delete.
 // If SuccessCount == 0 for >= 30-60 min of continuous errors, it is wedged.
 let suspect_node = "<node-name>";
+let suspect_cluster = "<mgmt-cluster-name>";
 let lookback = 2h;
-ContainerEvent
-| where TimeGenerated > ago(lookback)
-| where NodeName == suspect_node
-| where Reason in ("FailedCreatePodSandBox", "Created", "Started")
+kubernetesEvents
+| where timestamp > ago(lookback)
+| where cluster == suspect_cluster and host == suspect_node
+| where reason in ("FailedCreatePodSandBox", "Created", "Started")
 | summarize
-    FailCount = countif(Reason == "FailedCreatePodSandBox"
-                        and (Message has "no such network interface"
-                             or Message has "mtpnc is not ready"
-                             or Message has "dhcp discover timed out")),
-    SuccessCount = countif(Reason in ("Created", "Started")),
-    FirstFail = minif(TimeGenerated, Reason == "FailedCreatePodSandBox"),
-    LastFail = maxif(TimeGenerated, Reason == "FailedCreatePodSandBox"),
-    LastSuccess = maxif(TimeGenerated, Reason in ("Created", "Started"))
-    by NodeName
+    FailCount = countif(reason == "FailedCreatePodSandBox"
+                        and (message has "no such network interface"
+                             or message has "mtpnc is not ready"
+                             or message has "dhcp discover")),
+    SuccessCount = countif(reason in ("Created", "Started")),
+    FirstFail = minif(timestamp, reason == "FailedCreatePodSandBox"),
+    LastFail = maxif(timestamp, reason == "FailedCreatePodSandBox"),
+    LastSuccess = maxif(timestamp, reason in ("Created", "Started"))
+    by host
 | extend FailDuration = LastFail - FirstFail,
          TimeSinceLastSuccess = LastFail - LastSuccess
-| project NodeName, FailCount, SuccessCount, FailDuration,
+| project host, FailCount, SuccessCount, FailDuration,
           TimeSinceLastSuccess, FirstFail, LastFail, LastSuccess
 ```
 
 > **Decision rule** (from Rael's analysis):
-> - 0 successful sandbox creations for >= 30-60 min of continuous route errors → **wedge** → proceed with cordon/drain/delete
+> - 0 successful sandbox creations for >= 30-60 min of continuous route errors → **wedge** → proceed with cordon + delete
 > - Any successes interleaved with the failures → **flap** → alert only, do not recycle
 >
 > Both are queryable in `hcp-prod-{region}` ServiceLogs.
@@ -178,6 +202,8 @@ kubectl delete node <node-name>
 
 > **Note**: Deleting the node object from Kubernetes does not delete the underlying VMSS instance. For a full cleanup, use `az vmss delete-instances`. The AKS cluster autoscaler or node-pool reconciler will provision a replacement.
 
+> **This mitigation is not durable.** The fault has been observed moving to a different instance in the same pool, sometimes within minutes of the previous one being recycled (AROSLSRE-1717). Recycling clears the immediate incident, it does not fix the underlying platform issue. Update ICM 832382845 on every recurrence so Azure has the pattern.
+
 ### Step 4: Verify recovery
 
 ```bash
@@ -196,16 +222,16 @@ kubectl get events --field-selector reason=FailedCreatePodSandBox --sort-by='.la
 ### 1. Verify no new sandbox failures (Kusto)
 
 ```kql
-// Run against hcp-prod-{region} after node deletion.
-// Expect 0 results for the deleted node, and no new nodes exhibiting the same pattern.
-ContainerEvent
-| where TimeGenerated > ago(30m)
-| where Reason == "FailedCreatePodSandBox"
-| where Message has "no such network interface"
-     or Message has "mtpnc is not ready"
-     or Message has "dhcp discover timed out"
-| summarize EventCount = count(), LastSeen = max(TimeGenerated) by NodeName
-| order by EventCount desc
+// Run against the region's cluster, database ServiceLogs, after node deletion.
+// Expect 0 results for the deleted node, and no new nodes showing the same pattern.
+kubernetesEvents
+| where timestamp > ago(30m)
+| where reason == "FailedCreatePodSandBox"
+| where message has "no such network interface"
+     or message has "mtpnc is not ready"
+     or message has "dhcp discover"
+| summarize events=count(), lastSeen=max(timestamp) by cluster, host
+| order by events desc
 ```
 
 ### 2. Verify cluster-creates resume
@@ -236,14 +262,28 @@ kubectl get events -A --sort-by='.lastTimestamp' | grep KASLoadBalancer | tail -
 | Self-healing | Never (manual deletion required) | Often recovers via auto-repair |
 | Node pool | `userswft2` / `userswft3` (SWIFT v2 pools) | Any pool |
 
-## Appendix: Node Healer Design Takeaways
+## Appendix: Automated Detection (node-health controller)
 
-From the investigation of the first observed self-heal (AROSLSRE-1642/1643), these criteria distinguish actionable wedges from transient flaps. Any future automated node healer should implement these rules:
+The criteria below came out of the first observed self-heal (AROSLSRE-1642/1643) and are now implemented by the `node-health` controller in mgmt-agent (AROSLSRE-1588):
 
-1. **Key on concurrent success on the node** -- do not wait passively for self-heal.
-2. **0 successful sandbox creations for >= 30-60 min of continuous route errors** → wedge → cordon/drain/delete.
+1. **Key on concurrent success on the node**, do not wait passively for self-heal.
+2. **0 successful sandbox creations for >= 30-60 min of continuous route errors** → wedge → cordon + delete.
 3. **Any successes interleaved with the failures** → flap → alert only, do not recycle.
-4. Both conditions are queryable in `hcp-prod-{region}` ServiceLogs.
+
+Where it has rolled out, a wedged node carries:
+
+- label `node-health.aro-hcp.azure.com/status=wedged`
+- annotations `node-health.aro-hcp.azure.com/detector`, `/reason`, `/signature`, `/observed-at`
+- metrics `nodehealth_node_wedged`, `nodehealth_detections_total`, `nodehealth_label_actions_total`
+
+So the quickest first pass at diagnosis is:
+
+```bash
+kubectl get nodes -l node-health.aro-hcp.azure.com/status=wedged
+kubectl get node <node-name> -o jsonpath='{.metadata.annotations}' | jq
+```
+
+The controller only labels and annotates, it does not cordon, drain or delete. The mitigation steps in this runbook are still manual. Fall back to the Kusto queries above if the label is not present, for example on a cluster that has not picked up the controller yet.
 
 ## Appendix: ACN Log-Collection Script
 
@@ -281,7 +321,7 @@ echo "Collecting logs into ${OUTPUT_DIR} ..."
 mapfile -t nodes < <(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' \
   | { if [[ -n "${NODES_FILTER:-}" ]]; then grep -E "${NODES_FILTER}"; else cat; fi; })
 
-# Create all debug pods in parallel
+# Create debug pods sequentially (wait/collection parallelised below)
 declare -A node_pods
 for node in "${nodes[@]}"; do
   create_output=$(kubectl debug "node/${node}" --image "${IMAGE}" -- sleep 3600 2>&1)
