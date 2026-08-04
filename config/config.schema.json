@@ -3127,6 +3127,9 @@
     "genevaHealthFunction": {
       "type": "object",
       "properties": {
+        "deploy": {
+          "type": "boolean"
+        },
         "certificateName": {
           "type": "string"
         },
@@ -3163,6 +3166,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "deploy",
         "certificateName",
         "certificateIssuer",
         "certificateSAN",

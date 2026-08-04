@@ -391,6 +391,7 @@ genevaHealthFunction:
   certificateIssuer: Self
   certificateName: geneva-health-publisher
   certificateSAN: geneva-health-publisher-ci01.geneva.keyvault.aro-hcp.azure.com
+  deploy: true
   functionAppName: arohcp-ci01-geneva-health-j7654321
   healthEnvironment: Int
   image:

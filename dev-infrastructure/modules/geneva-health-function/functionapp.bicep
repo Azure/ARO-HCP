@@ -1,3 +1,6 @@
+@description('Whether to deploy the Geneva Health Function App')
+param deploy bool
+
 @description('Azure region for all resources')
 param location string
 
@@ -51,13 +54,13 @@ param svcAcrResourceGroup string = resourceGroup().name
 
 
 // ── Managed Identity ──
-resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (deploy) {
   name: managedIdentityName
   location: location
 }
 
 // ── Storage Account (required by Function App runtime) ──
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = if (deploy) {
   name: storageAccountName
   location: location
   kind: 'StorageV2'
@@ -71,7 +74,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
 }
 
 // ── App Service Plan (Linux Elastic Premium for container support) ──
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = if (deploy) {
   name: appServicePlanName
   location: location
   kind: 'linux'
@@ -85,7 +88,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
 }
 
 // ── Function App ──
-resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
+resource functionApp 'Microsoft.Web/sites@2023-12-01' = if (deploy) {
   name: functionAppName
   location: location
   kind: 'functionapp,linux,container'
@@ -153,7 +156,7 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
 }
 
 // ── Key Vault access: grant managed identity Secrets User on the certificate ──
-module certAccess '../keyvault/key-vault-secret-access.bicep' = {
+module certAccess '../keyvault/key-vault-secret-access.bicep' = if (deploy) {
   name: 'geneva-health-cert-access-${uniqueString(managedIdentityName)}'
   scope: resourceGroup(serviceKeyVaultSubscription, svcKeyVaultResourceGroup)
   params: {
@@ -165,7 +168,7 @@ module certAccess '../keyvault/key-vault-secret-access.bicep' = {
 
 
 // ── ACR pull access: grant managed identity AcrPull on the SVC ACR ──
-module acrPullAccess 'acr-pull-access.bicep' = {
+module acrPullAccess 'acr-pull-access.bicep' = if (deploy) {
   name: 'geneva-health-acr-pull-${uniqueString(managedIdentityName)}'
   scope: resourceGroup(svcAcrResourceGroup)
   params: {
@@ -174,7 +177,7 @@ module acrPullAccess 'acr-pull-access.bicep' = {
   }
 }
 
-output functionAppName string = functionApp.name
-output functionAppDefaultHostName string = functionApp.properties.defaultHostName
-output managedIdentityPrincipalId string = managedIdentity.properties.principalId
-output managedIdentityClientId string = managedIdentity.properties.clientId
+output functionAppName string = deploy ? functionApp.name : ''
+output functionAppDefaultHostName string = deploy ? functionApp.properties.defaultHostName : ''
+output managedIdentityPrincipalId string = deploy ? managedIdentity.properties.principalId : ''
+output managedIdentityClientId string = deploy ? managedIdentity.properties.clientId : ''
