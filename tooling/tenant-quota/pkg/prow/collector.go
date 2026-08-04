@@ -110,8 +110,8 @@ func NewCollector(cfg *config.Config, logger *slog.Logger, clients ...prowjobs.C
 			nil,
 		),
 		durationBucketDesc: prometheus.NewDesc(
-			"prow_ci_job_duration_seconds_bucket",
-			"Number of completed Prow CI jobs in the retention window with duration at or below the bucket boundary",
+			"prow_ci_job_duration_window_runs",
+			"Number of completed Prow CI jobs in the retention window with duration at or below the le boundary; use histogram_quantile() directly without rate() or increase()",
 			durationBucketMetricLabels,
 			nil,
 		),

@@ -132,7 +132,7 @@ func TestCollectOnceFiltersAndExportsCompletedJobs(t *testing.T) {
 		"build_id": "1",
 		"result":   "success",
 	}, 1)
-	assertGauge(t, metrics, "prow_ci_job_duration_seconds_bucket", map[string]string{
+	assertGauge(t, metrics, "prow_ci_job_duration_window_runs", map[string]string{
 		"job_name": "periodic-ci-Azure-ARO-HCP-main-health",
 		"job_type": "periodic",
 		"result":   "failure",
@@ -142,6 +142,7 @@ func TestCollectOnceFiltersAndExportsCompletedJobs(t *testing.T) {
 	assertMetricAbsent(t, metrics, "prow_ci_job_completed_timestamp_seconds")
 	assertMetricAbsent(t, metrics, "prow_ci_job_duration_seconds_count")
 	assertMetricAbsent(t, metrics, "prow_ci_job_duration_seconds_sum")
+	assertMetricAbsent(t, metrics, "prow_ci_job_duration_seconds_bucket")
 }
 
 func TestDurationMetricsAggregateRuns(t *testing.T) {
@@ -165,9 +166,9 @@ func TestDurationMetricsAggregateRuns(t *testing.T) {
 		"job_type": "presubmit",
 		"result":   "success",
 	}
-	assertGauge(t, metrics, "prow_ci_job_duration_seconds_bucket", withLabel(labels, "le", "900"), 1)
-	assertGauge(t, metrics, "prow_ci_job_duration_seconds_bucket", withLabel(labels, "le", "1500"), 2)
-	assertGauge(t, metrics, "prow_ci_job_duration_seconds_bucket", withLabel(labels, "le", "+Inf"), 2)
+	assertGauge(t, metrics, "prow_ci_job_duration_window_runs", withLabel(labels, "le", "900"), 1)
+	assertGauge(t, metrics, "prow_ci_job_duration_window_runs", withLabel(labels, "le", "1500"), 2)
+	assertGauge(t, metrics, "prow_ci_job_duration_window_runs", withLabel(labels, "le", "+Inf"), 2)
 }
 
 func TestDurationBuckets(t *testing.T) {
