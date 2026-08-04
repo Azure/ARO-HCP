@@ -147,10 +147,17 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	runs := make([]runMetrics, 0, len(c.runs))
+	for _, run := range c.runs {
+		runs = append(runs, run)
+	}
+	collectionSuccess := c.collectionSuccess
+	lastSuccessTimestamp := c.lastSuccessTimestamp
+	cachedRuns := len(c.runs)
+	c.mu.RUnlock()
 
 	durations := make(map[durationMetricKey]*durationMetrics)
-	for _, run := range c.runs {
+	for _, run := range runs {
 		labels := []string{run.jobName, run.jobType, run.buildID, run.result}
 		ch <- prometheus.MustNewConstMetric(c.infoDesc, prometheus.GaugeValue, 1, labels...)
 
@@ -189,9 +196,9 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 			append(labels, "+Inf")...,
 		)
 	}
-	ch <- prometheus.MustNewConstMetric(c.collectionSuccessDesc, prometheus.GaugeValue, c.collectionSuccess)
-	ch <- prometheus.MustNewConstMetric(c.lastSuccessDesc, prometheus.GaugeValue, c.lastSuccessTimestamp)
-	ch <- prometheus.MustNewConstMetric(c.cachedRunsDesc, prometheus.GaugeValue, float64(len(c.runs)))
+	ch <- prometheus.MustNewConstMetric(c.collectionSuccessDesc, prometheus.GaugeValue, collectionSuccess)
+	ch <- prometheus.MustNewConstMetric(c.lastSuccessDesc, prometheus.GaugeValue, lastSuccessTimestamp)
+	ch <- prometheus.MustNewConstMetric(c.cachedRunsDesc, prometheus.GaugeValue, float64(cachedRuns))
 }
 
 func (c *Collector) Start(ctx context.Context) {
