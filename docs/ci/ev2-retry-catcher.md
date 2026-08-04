@@ -18,7 +18,7 @@ This is scoped to EV2 Stage/Prod gating steps only. Periodic and pre-merge/PR-va
 
 - Blind retry-until-green. Every failure is still triaged; this only removes the manual retrigger latency for a pre-agreed, narrow case.
 - Retrying on infra or management-cluster failures. Those need a different, separate mechanism (see the discussion in AROSLSRE-1721).
-- A permanent allowlist. Labeled tests are expected to carry a fix commitment and come off the label once fixed (see [TTL / "timebomb" intent](#ttl--timebomb-intent) below).
+- A permanent allowlist. Labeled tests are expected to carry a fix commitment and come off the label once fixed (see [Expiration configuration](#expiration-configuration) below).
 
 ## Design
 
@@ -141,7 +141,7 @@ then the catcher writes a single, easy-to-grep line to stderr:
 EV2_RETRY_ALLOWED: N known-issue test(s) failed (max 2 allowed), all labeled "allow-retry": [test names...]
 ```
 
-Any failure outside that narrow condition - more than 2 failures, or any failure without the label mixed in - means no marker is written at all, so the gate fails exactly as it does today with no behavior change. Stderr (not stdout) is used because that's where ci-operator/Prow persist step logs into `build-log.txt`, which is what the consumer side reads back.
+Any failure outside that narrow condition - more than 2 failures, or any failure without the label mixed in - means no marker is written at all, so the gate fails exactly as it does today with no behavior change. Stderr (not stdout) is used because that's where ci-operator/Prow persists step logs into `build-log.txt`, which is what the consumer side reads back.
 
 ### 3. Consuming the marker (ARO-Tools)
 
