@@ -205,7 +205,7 @@ func (c *cosmosMigrationController) migrateClusters(ctx context.Context, logger 
 
 		// Migrate the cluster document itself.
 		clusterCRUD := c.resourcesDBClient.HCPClusters(clusterSubID, clusterRG)
-		if err := replaceWithRetry(clusterCtx, clusterLogger, clusterCRUD, clusterName, "cluster"); err != nil {
+		if err := replaceWithRetry(clusterCtx, clusterLogger, clusterCRUD, clusterName, "cluster", migrateClusterKMS); err != nil {
 			migrationErrors = append(migrationErrors, err)
 		}
 
@@ -565,9 +565,26 @@ func migrateManagementClusterContents(ctx context.Context, logger logr.Logger, m
 	return errors.Join(migrationErrors...)
 }
 
+// migrateClusterKMS backfills KeyEncryptionKeyURL from ActiveKey fields for clusters
+// created before v2026_10_03_preview. It's safe to assume vault.azure.net URL in these cases,
+// since sovereign cloud keyvaults and alternate keyvault types were not supported before this field
+// was introduced, and will not be supported in API versions before v2026_10_03_preview.
+func migrateClusterKMS(cluster *coreapi.HCPOpenShiftCluster) {
+	kms := cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged
+	if kms == nil || kms.Kms == nil {
+		return
+	}
+	if kms.Kms.KeyEncryptionKeyURL == "" && kms.Kms.ActiveKey.VaultName != "" && kms.Kms.ActiveKey.Name != "" && kms.Kms.ActiveKey.Version != "" {
+		kms.Kms.KeyEncryptionKeyURL = fmt.Sprintf("https://%s.vault.azure.net/keys/%s/%s",
+			kms.Kms.ActiveKey.VaultName, kms.Kms.ActiveKey.Name, kms.Kms.ActiveKey.Version)
+	}
+}
+
 // replaceWithRetry performs a Get+Replace cycle on a single document.
 // On conflict errors (HTTP 409 or 412), it retries the full cycle up to maxRetries attempts.
-func replaceWithRetry[T any, TPointer coreapi.CosmosMetadataAccessorPtr[T]](ctx context.Context, logger logr.Logger, crud cosmosstorageutils.ResourceCRUD[T, TPointer], name string, resourceDesc string) error {
+// An optional transform function is applied to the freshly fetched document on each attempt
+// before writing it back; use this for migration-specific mutations.
+func replaceWithRetry[T any, TPointer coreapi.CosmosMetadataAccessorPtr[T]](ctx context.Context, logger logr.Logger, crud cosmosstorageutils.ResourceCRUD[T, TPointer], name string, resourceDesc string, transform ...func(TPointer)) error {
 	const maxRetries = 3
 	var lastErr error
 	for attempt := 1; attempt <= maxRetries; attempt++ {
@@ -585,6 +602,9 @@ func replaceWithRetry[T any, TPointer coreapi.CosmosMetadataAccessorPtr[T]](ctx 
 		// process restart would therefore prevent them from ever expiring.
 		if cosmosstorageutils.TimeToLiveForInternal(curr) > 0 {
 			return nil
+		}
+		for _, fn := range transform {
+			fn(curr)
 		}
 		_, err = crud.Replace(ctx, curr, nil)
 		if err == nil {

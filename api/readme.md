@@ -51,6 +51,14 @@ go:
   remove-unreferenced-types: true
 ```
 
+### Tag v20261003preview
+
+These settings apply only when `--tag=v20261003preview` is specified on the command line.
+
+``` yaml $(tag) == 'v20261003preview'
+input-file: redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2026-10-03-preview/openapi.json
+```
+
 ### Tag v20260901preview
 
 These settings apply only when `--tag=v20260901preview` is specified on the command line.
