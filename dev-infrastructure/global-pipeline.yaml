@@ -54,6 +54,17 @@ resourceGroups:
       configRef: monitoring.grafanaZoneRedundantMode
     crossTenantSecurityGroup:
       configRef: monitoring.crossTenantSecurityGroup
+    adx:
+      enabled:
+        configRef: monitoring.adxIntegrationEnabled
+      environment:
+        configRef: environmentName
+      geographies:
+        configRef: monitoring.adxIntegrationGeographies
+      scenario:
+        configRef: monitoring.adxIntegrationScenario
+      targetResourceId:
+        configRef: monitoring.adxIntegrationTargetResourceId
     timeout: "15m"
     identityFrom:
       resourceGroup: singleton

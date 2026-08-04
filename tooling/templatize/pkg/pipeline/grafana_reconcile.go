@@ -17,6 +17,8 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	configtypes "github.com/Azure/ARO-Tools/config/types"
@@ -30,6 +32,85 @@ func resolveOptionalValue(v types.Value, cfg configtypes.Configuration, outputs 
 		return "", nil
 	}
 	return resolveValue(v, cfg, outputs, serviceGroup)
+}
+
+func resolveGrafanaManageOptionalValue(serviceGroup, name string, value types.Value, cfg configtypes.Configuration, outputs Outputs) (any, bool, error) {
+	if value.Input == nil && value.ConfigRef == "" && value.Value == nil {
+		return nil, false, nil
+	}
+
+	values, err := getInputValues(serviceGroup, []types.Variable{{Name: name, Value: value}}, cfg, outputs)
+	if err != nil {
+		return nil, false, err
+	}
+	return values[name], true, nil
+}
+
+func resolveGrafanaManageOptionalBool(serviceGroup, name string, value types.Value, cfg configtypes.Configuration, outputs Outputs) (bool, error) {
+	raw, ok, err := resolveGrafanaManageOptionalValue(serviceGroup, name, value, cfg, outputs)
+	if err != nil || !ok {
+		return false, err
+	}
+
+	switch v := raw.(type) {
+	case bool:
+		return v, nil
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
+		if err != nil {
+			return false, fmt.Errorf("%s must resolve to a boolean, got %q", name, v)
+		}
+		return parsed, nil
+	default:
+		return false, fmt.Errorf("%s must resolve to a boolean, got %T", name, raw)
+	}
+}
+
+func resolveGrafanaManageOptionalString(serviceGroup, name string, value types.Value, cfg configtypes.Configuration, outputs Outputs) (string, error) {
+	raw, ok, err := resolveGrafanaManageOptionalValue(serviceGroup, name, value, cfg, outputs)
+	if err != nil || !ok {
+		return "", err
+	}
+
+	resolved, ok := raw.(string)
+	if !ok {
+		return "", fmt.Errorf("%s must resolve to a string, got %T", name, raw)
+	}
+	return strings.TrimSpace(resolved), nil
+}
+
+func applyGrafanaADXOptions(opts *manage.RawReconcileOptions, adx *types.GrafanaADXIntegrations, cfg configtypes.Configuration, outputs Outputs, serviceGroup string) error {
+	if adx == nil {
+		return nil
+	}
+
+	enabled, err := resolveGrafanaManageOptionalBool(serviceGroup, "adx.enabled", adx.Enabled, cfg, outputs)
+	if err != nil {
+		return fmt.Errorf("failed to resolve adx.enabled: %w", err)
+	}
+	environment, err := resolveGrafanaManageOptionalString(serviceGroup, "adx.environment", adx.Environment, cfg, outputs)
+	if err != nil {
+		return fmt.Errorf("failed to resolve adx.environment: %w", err)
+	}
+	geographies, err := resolveGrafanaManageOptionalString(serviceGroup, "adx.geographies", adx.Geographies, cfg, outputs)
+	if err != nil {
+		return fmt.Errorf("failed to resolve adx.geographies: %w", err)
+	}
+	scenario, err := resolveGrafanaManageOptionalString(serviceGroup, "adx.scenario", adx.Scenario, cfg, outputs)
+	if err != nil {
+		return fmt.Errorf("failed to resolve adx.scenario: %w", err)
+	}
+	targetResourceID, err := resolveGrafanaManageOptionalString(serviceGroup, "adx.targetResourceId", adx.TargetResourceID, cfg, outputs)
+	if err != nil {
+		return fmt.Errorf("failed to resolve adx.targetResourceId: %w", err)
+	}
+
+	opts.ADXIntegrationsEnabled = enabled
+	opts.ADXEnvironment = environment
+	opts.ADXGeographies = geographies
+	opts.ADXScenario = scenario
+	opts.ADXTargetResourceID = targetResourceID
+	return nil
 }
 
 func runGrafanaManageStep(id graph.Identifier, step *types.GrafanaManageStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, state *ExecutionState) error {
@@ -79,6 +160,10 @@ func runGrafanaManageStep(id graph.Identifier, step *types.GrafanaManageStep, ct
 		return fmt.Errorf("failed to resolve crossTenantSecurityGroup: %w", err)
 	}
 	opts.CrossTenantSecurityGroup = crossTenantSecurityGroup
+
+	if err := applyGrafanaADXOptions(opts, step.ADX, options.Configuration, outputs, id.ServiceGroup); err != nil {
+		return err
+	}
 
 	if step.Timeout != "" {
 		d, err := time.ParseDuration(step.Timeout)
