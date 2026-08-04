@@ -9,6 +9,7 @@
 # Optional env vars consumed:
 #   *_IMAGE (BACKEND_IMAGE, FRONTEND_IMAGE, etc.) — digest-based image refs
 #   LEASED_MSI_MOCK_SP      — MSI mock SP lease name
+#   LEASED_ARM_HELPER_SP    — ARM helper SP lease name
 #   LEASED_MSI_CONTAINERS   — MSI identity container lease (controls MGMT sizing)
 #
 # Outputs:
@@ -17,6 +18,8 @@
 
 : "${SHARED_DIR:?SHARED_DIR must be set}"
 : "${DEPLOY_ENV:?DEPLOY_ENV must be set}"
+
+ARM_HELPER_POOL_CATALOG="${ARM_HELPER_POOL_CATALOG:-dev-infrastructure/openshift-ci/arm-helper-pool.yaml}"
 
 # --- CI image overrides (optional) ---
 # Each *_IMAGE var is a full digest-based image ref like "registry/repo@sha256:...".
@@ -115,6 +118,31 @@ if [[ -n "${LEASED_MSI_MOCK_SP:-}" ]]; then
   unset _YQ_CID _YQ_PID _YQ_CERT
 else
   echo "No MSI mock SP lease provided, skipping mock SP overrides"
+fi
+
+# ARM helper SP overrides (if provided). armHelperFPAPrincipalId deliberately
+# remains unchanged: it identifies the mock first-party principal that receives
+# the simulated FPA grant, not the ARM helper that authenticates this client.
+if [[ -n "${LEASED_ARM_HELPER_SP:-}" ]]; then
+  ARM_HELPER_CLIENT_ID=$(yq ".armHelperPool.\"${LEASED_ARM_HELPER_SP}\".clientId" "${ARM_HELPER_POOL_CATALOG}")
+  ARM_HELPER_PRINCIPAL_ID=$(yq ".armHelperPool.\"${LEASED_ARM_HELPER_SP}\".principalId" "${ARM_HELPER_POOL_CATALOG}")
+  ARM_HELPER_CERT_NAME=$(yq ".armHelperPool.\"${LEASED_ARM_HELPER_SP}\".certName" "${ARM_HELPER_POOL_CATALOG}")
+  if [[ -z "${ARM_HELPER_CLIENT_ID}" || "${ARM_HELPER_CLIENT_ID}" == "null" || \
+        -z "${ARM_HELPER_PRINCIPAL_ID}" || "${ARM_HELPER_PRINCIPAL_ID}" == "null" || \
+        -z "${ARM_HELPER_CERT_NAME}" || "${ARM_HELPER_CERT_NAME}" == "null" ]]; then
+    echo "ERROR: LEASED_ARM_HELPER_SP='${LEASED_ARM_HELPER_SP}' not found or incomplete in ${ARM_HELPER_POOL_CATALOG}"
+    exit 1
+  fi
+  echo "ARM helper SP override: ${LEASED_ARM_HELPER_SP} -> clientId=${ARM_HELPER_CLIENT_ID}"
+  export _YQ_ARM_HELPER_CID="${ARM_HELPER_CLIENT_ID}"
+  export _YQ_ARM_HELPER_CERT="${ARM_HELPER_CERT_NAME}"
+  yq -i "
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.armHelperClientId = strenv(_YQ_ARM_HELPER_CID) |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.armHelperCertName = strenv(_YQ_ARM_HELPER_CERT)
+  " "${OVERRIDE_CONFIG_FILE}"
+  unset _YQ_ARM_HELPER_CID _YQ_ARM_HELPER_CERT
+else
+  echo "No ARM helper SP lease provided, skipping ARM helper overrides"
 fi
 
 # Healthcheck workflows provision without leases and don't need E2E-sized clusters.
