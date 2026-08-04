@@ -31,9 +31,11 @@ import (
 	"k8s.io/utils/set"
 
 	"github.com/Azure/azure-kusto-go/kusto"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/admin/server/handlers"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
+	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosquery"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	breakglasshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp/breakglass"
 	stamphandlers "github.com/Azure/ARO-HCP/admin/server/handlers/stamp"
@@ -68,6 +70,7 @@ func NewAdminAPI(
 	location string,
 	listener net.Listener,
 	metricsListener net.Listener,
+	cosmosDatabaseClient *azcosmos.DatabaseClient,
 	resourcesDBClient database.ResourcesDBClient,
 	billingDBClient database.BillingDBClient,
 	fleetDBClient database.FleetDBClient,
@@ -139,6 +142,10 @@ func NewAdminAPI(
 		errorutils.ReportError(stamphandlers.NewManagementClusterGetHandler(fleetDBClient).ServeHTTP))
 	middlewareMux.Handle("POST /admin/v1/stamps/{stampIdentifier}/approval",
 		errorutils.ReportError(stamphandlers.NewStampApprovalHandler(fleetDBClient).ServeHTTP))
+
+	// CosmosDB query route
+	middlewareMux.Handle("POST /admin/v1/cosmos/query",
+		errorutils.ReportError(cosmosquery.NewQueryHandler(cosmosDatabaseClient).ServeHTTP))
 
 	// Top-level mux (healthz bypasses all middleware)
 	apiMux := http.NewServeMux()

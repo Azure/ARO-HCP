@@ -35,6 +35,7 @@ import (
 
 	"github.com/Azure/azure-kusto-go/kusto"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
@@ -137,6 +138,7 @@ type completedOptions struct {
 	Port                    int
 	MetricsPort             int
 	Location                string
+	CosmosDatabaseClient    *azcosmos.DatabaseClient
 	ResourcesDBClient       database.ResourcesDBClient
 	BillingDBClient         database.BillingDBClient
 	FleetDBClient           database.FleetDBClient
@@ -294,6 +296,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			Port:                    o.Port,
 			MetricsPort:             o.MetricsPort,
 			Location:                o.Location,
+			CosmosDatabaseClient:    cosmosDatabaseClient,
 			ResourcesDBClient:       resourcesDBClient,
 			BillingDBClient:         billingDBClient,
 			FleetDBClient:           fleetDBClient,
@@ -350,6 +353,7 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.Location,
 		listener,
 		metricsListener,
+		opts.CosmosDatabaseClient,
 		opts.ResourcesDBClient,
 		opts.BillingDBClient,
 		opts.FleetDBClient,
