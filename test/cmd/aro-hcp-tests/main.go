@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	// If using ginkgo, import your tests here
@@ -121,6 +122,52 @@ func parseMIContainerCount() (int, string) {
 		return DefaultMIContainerCount, fmt.Sprintf("default (%s empty)", framework.LeasedMSIContainersEnvvar)
 	}
 	return count, framework.LeasedMSIContainersEnvvar
+}
+
+// maxAutoRetryFailures caps how many failed tests a run may have and still qualify for an
+// automatic EV2 gating retry. If more tests than this fail, or any failure isn't labeled
+// labels.AllowRetry, we stay silent and let the gate fail normally for a human to triage.
+const maxAutoRetryFailures = 2
+
+// registerEV2RetryCatcher watches test results as they complete and, once the full suite has
+// finished, emits a distinctive log line when the run's failures are narrow enough to safely
+// auto-retry during an EV2 Stage/Prod gating step: at most maxAutoRetryFailures tests failed,
+// and every one of them carries labels.AllowRetry. The EV2 gating step's retry catcher greps the
+// job log for this marker to decide whether to resubmit the job once instead of requiring a human
+// to notice the failure, review Prow output, and manually retrigger. See AROSLSRE-1721.
+func registerEV2RetryCatcher(specs et.ExtensionTestSpecs) {
+	allowRetryNames := map[string]bool{}
+	for _, spec := range specs {
+		if spec.Labels.Has(labels.AllowRetry[0]) {
+			allowRetryNames[spec.Name] = true
+		}
+	}
+
+	var mu sync.Mutex
+	var failedNames []string
+	nonRetriableFailures := 0
+
+	specs.AddAfterEach(func(res *et.ExtensionTestResult) {
+		if res.Result != et.ResultFailed {
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		failedNames = append(failedNames, res.Name)
+		if !allowRetryNames[res.Name] {
+			nonRetriableFailures++
+		}
+	})
+
+	specs.AddAfterAll(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		if len(failedNames) == 0 || len(failedNames) > maxAutoRetryFailures || nonRetriableFailures > 0 {
+			return
+		}
+		fmt.Fprintf(os.Stderr, "EV2_RETRY_ALLOWED: %d known-issue test(s) failed (max %d allowed), all labeled %q: %v\n",
+			len(failedNames), maxAutoRetryFailures, labels.AllowRetry[0], failedNames)
+	})
 }
 
 func miDemandPriority(spec *et.ExtensionTestSpec) int {
@@ -489,6 +536,8 @@ func setupCli() *cobra.Command {
 			return miDemandPriority(specs[i]) > miDemandPriority(specs[j])
 		})
 	}
+
+	registerEV2RetryCatcher(specs)
 
 	ext.AddSpecs(specs)
 	registry.Register(ext)

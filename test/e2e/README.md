@@ -378,6 +378,10 @@ Positivity labels:
 
 - `Positive`/`Negative`: indicates positive/negative test scenarios
 
+Retry labels:
+
+- `allow-retry`: marks a test as safe to auto-retry during an EV2 Stage/Prod gating run when it fails due to a known, actively tracked issue. Temporary by design (tracked in AROSLSRE-1721): every use must have an owner and a tracking issue, and must be removed once the underlying issue is fixed.
+
 ### Assertions
 
 The GOMEGA module is used for asserting values. The following example shows the recommended notation for making assertions.

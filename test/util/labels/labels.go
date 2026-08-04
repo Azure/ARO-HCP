@@ -58,6 +58,12 @@ var (
 	// ARM templates) to communicate with ARO HCP RP, so that it can run
 	// against either ARO HCP RP or ARM endpoint.
 	AroRpApiCompatible = ginkgo.Label("ARO-HCP-RP-API-Compatible")
+	// AllowRetry marks a test as safe to auto-retry during an EV2 Stage/Prod
+	// gating run when it fails due to a known, actively tracked issue. This is
+	// a temporary measure with a TTL: every use must have an owner and a
+	// tracking issue, and the label must be removed once the underlying issue
+	// is fixed. See AROSLSRE-1721.
+	AllowRetry = ginkgo.Label("allow-retry")
 )
 
 // MIContainers declares how many managed identity containers a test needs.

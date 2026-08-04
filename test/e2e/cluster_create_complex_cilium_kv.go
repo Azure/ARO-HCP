@@ -42,6 +42,7 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
+		labels.AllowRetry, // AROSLSRE-1721: known-issue test, retriable during EV2 gating
 		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
