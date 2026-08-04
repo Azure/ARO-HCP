@@ -4,6 +4,7 @@
 imageRegistry: ""
 imageRepository: "tenant-quota-collector"
 imageTag: ""
+imageDigest: ""
 msiClientId: ""
 secretProvider:
   keyVault: ""
