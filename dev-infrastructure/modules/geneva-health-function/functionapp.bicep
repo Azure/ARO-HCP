@@ -43,6 +43,13 @@ param genevaDefaultRegion string
 @description('Container image for the Function App (e.g. myacr.azurecr.io/geneva-health-function:latest)')
 param containerImage string
 
+@description('Name of the SVC ACR to pull images from')
+param svcAcrName string
+
+@description('Resource group containing the SVC ACR')
+param svcAcrResourceGroup string = resourceGroup().name
+
+
 // ── Managed Identity ──
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: managedIdentityName
@@ -93,6 +100,8 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
     httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'DOCKER|${containerImage}'
+      acrUseManagedIdentityCreds: true
+      acrUserManagedIdentityID: managedIdentity.properties.clientId
       appSettings: [
         {
           name: 'AzureWebJobsStorage'
@@ -101,6 +110,14 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'FUNCTIONS_EXTENSION_VERSION'
           value: '~4'
+        }
+        {
+          name: 'FUNCTIONS_WORKER_RUNTIME'
+          value: 'dotnet-isolated'
+        }
+        {
+          name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
+          value: 'false'
         }
         {
           name: 'AZURE_CLIENT_ID'
@@ -146,6 +163,16 @@ module certAccess '../keyvault/key-vault-secret-access.bicep' = {
   }
 }
 
+
+// ── ACR pull access: grant managed identity AcrPull on the SVC ACR ──
+module acrPullAccess 'acr-pull-access.bicep' = {
+  name: 'geneva-health-acr-pull-${uniqueString(managedIdentityName)}'
+  scope: resourceGroup(svcAcrResourceGroup)
+  params: {
+    acrName: svcAcrName
+    principalId: managedIdentity.properties.principalId
+  }
+}
 
 output functionAppName string = functionApp.name
 output functionAppDefaultHostName string = functionApp.properties.defaultHostName

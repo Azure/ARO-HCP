@@ -2,9 +2,15 @@ using GenevaHealthFunctionSample.Configuration;
 using GenevaHealthFunctionSample.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
+    .ConfigureLogging(logging =>
+    {
+        logging.AddConsole();
+        logging.SetMinimumLevel(LogLevel.Information);
+    })
     .ConfigureServices((context, services) =>
     {
         services
@@ -21,4 +27,5 @@ var host = new HostBuilder()
     })
     .Build();
 
+Console.WriteLine("Geneva Health Function host starting...");
 host.Run();

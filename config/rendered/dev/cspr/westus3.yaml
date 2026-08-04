@@ -385,6 +385,21 @@ geneva:
       account: AzureRedHatOpenShiftRP
   principalId: ""
   resourceContributor: ""
+genevaHealthFunction:
+  appServicePlanName: arohcp-cspr-geneva-health-plan-usw3
+  certificateCN: geneva-health-publisher-cspr.geneva.keyvault.aro-hcp.azure.com
+  certificateIssuer: Self
+  certificateName: geneva-health-publisher
+  certificateSAN: geneva-health-publisher-cspr.geneva.keyvault.aro-hcp.azure.com
+  functionAppName: arohcp-cspr-geneva-health-usw3
+  healthEnvironment: Int
+  image:
+    digest: ""
+    registry: arohcpsvcdev.azurecr.io
+    repository: geneva-health-function
+  managedIdentityName: arohcp-cspr-geneva-health-mi-usw3
+  monitoringAccount: testGenevaMetric
+  storageAccountName: arohcpcsprgenhltusw3
 global:
   billing:
     digest: placeholder

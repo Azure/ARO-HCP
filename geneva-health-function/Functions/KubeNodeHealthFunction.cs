@@ -6,6 +6,13 @@ using Microsoft.Extensions.Options;
 
 namespace GenevaHealthFunctionSample.Functions;
 
+internal sealed record NodeHealthInfo(
+    string NodeName,
+    string ResourceId,
+    string Status,
+    string Region,
+    string HostedControlPlane);
+
 public sealed class KubeNodeHealthFunction
 {
     private readonly PrometheusQueryService _prometheus;
@@ -27,51 +34,75 @@ public sealed class KubeNodeHealthFunction
         [TimerTrigger("0 0 * * * *")] TimerInfo timer,
         CancellationToken cancellationToken)
     {
+        Console.WriteLine($"[KubeNodeHealth] Timer triggered at {DateTime.UtcNow:O}");
         _logger.LogInformation("KubeNodeHealth timer triggered at {Time}", DateTime.UtcNow);
 
-        var nodeInfoResult = await _prometheus.QueryAsync("kube_node_info", cancellationToken);
-        var nodeReadyResult = await _prometheus.QueryAsync(
-            "kube_node_status_condition{condition=\"Ready\",status=\"true\"}", cancellationToken);
-
-        var readyNodes = new HashSet<string>(
-            nodeReadyResult.Result
-                .Where(r => r.Metric.ContainsKey("node"))
-                .Select(r => r.Metric["node"]));
-
-        var healthyCount = 0;
-        var unhealthyCount = 0;
-
-        foreach (var nodeResult in nodeInfoResult.Result)
+        try
         {
-            if (!nodeResult.Metric.TryGetValue("node", out var nodeName))
+            var nodeInfoResult = await _prometheus.QueryAsync("kube_node_info", cancellationToken);
+            var nodeReadyResult = await _prometheus.QueryAsync(
+                "kube_node_status_condition{condition=\"Ready\",status=\"true\"}", cancellationToken);
+
+            // Build node → provider_id lookup from kube_node_info (distinct by node name)
+            var nodeResourceIds = nodeInfoResult.Result
+                .Where(r => r.Metric.ContainsKey("node"))
+                .GroupBy(r => r.Metric["node"])
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.First().Metric.GetValueOrDefault("provider_id", ""));
+
+            // Build node → {region, hostedcontrolplane} lookup from kube_node_status_condition
+            var nodeConditions = nodeReadyResult.Result
+                .Where(r => r.Metric.ContainsKey("node"))
+                .GroupBy(r => r.Metric["node"])
+                .ToDictionary(
+                    g => g.Key,
+                    g => (
+                        Region: g.First().Metric.GetValueOrDefault("region", ""),
+                        HCP: g.First().Metric.GetValueOrDefault("hostedcontrolplane", "")
+                    ));
+
+            var readyNodes = new HashSet<string>(nodeConditions.Keys);
+            var allNodeNames = nodeResourceIds.Keys;
+
+            var healthyCount = 0;
+            var unhealthyCount = 0;
+
+            foreach (var nodeName in allNodeNames)
             {
-                continue;
+                var isReady = readyNodes.Contains(nodeName);
+                var status = isReady ? "Healthy" : "Error";
+                var resourceId = nodeResourceIds.GetValueOrDefault(nodeName, "");
+                var region = nodeConditions.TryGetValue(nodeName, out var cond) ? cond.Region : "";
+                var hcp = nodeConditions.TryGetValue(nodeName, out cond) ? cond.HCP : "";
+
+                if (isReady) healthyCount++; else unhealthyCount++;
+
+                Console.WriteLine($"[KubeNodeHealth] Node={nodeName}, Status={status}, Region={region}, HCP={hcp}, ResourceId={resourceId}");
+                _logger.LogInformation(
+                    "Node {NodeName}: Status={Status}, Region={Region}, HCP={HCP}, ResourceId={ResourceId}",
+                    nodeName, status, region, hcp, resourceId);
+
+                // TODO: re-enable Geneva Health submission once Microsoft.Cloud.HealthService.Client is accessible
             }
 
-            var isReady = readyNodes.Contains(nodeName);
-            var status = isReady ? "Healthy" : "Error";
-            var message = isReady
-                ? $"Node {nodeName} is Ready"
-                : $"Node {nodeName} is NotReady";
+            if (healthyCount == 0 && unhealthyCount == 0)
+            {
+                Console.WriteLine("[KubeNodeHealth] WARNING: No nodes found in Prometheus query results.");
+                _logger.LogWarning("No nodes found in Prometheus query results.");
+                return;
+            }
 
-            if (isReady) healthyCount++; else unhealthyCount++;
-
+            Console.WriteLine($"[KubeNodeHealth] Complete. Healthy: {healthyCount}, Unhealthy: {unhealthyCount}");
             _logger.LogInformation(
-                "Node {NodeName}: {Status} (Region: {Region})",
-                nodeName, status, _options.DefaultRegion);
-
-            // TODO: re-enable Geneva Health submission once Microsoft.Cloud.HealthService.Client is accessible
-            // Build WatchdogReport and submit via GenevaHealthClientFactory
+                "KubeNodeHealth check complete. Healthy: {Healthy}, Unhealthy: {Unhealthy}",
+                healthyCount, unhealthyCount);
         }
-
-        if (healthyCount == 0 && unhealthyCount == 0)
+        catch (Exception ex)
         {
-            _logger.LogWarning("No nodes found in Prometheus query results.");
-            return;
+            Console.WriteLine($"[KubeNodeHealth] ERROR: {ex}");
+            _logger.LogError(ex, "KubeNodeHealth check failed");
+            throw;
         }
-
-        _logger.LogInformation(
-            "KubeNodeHealth check complete. Healthy: {Healthy}, Unhealthy: {Unhealthy}",
-            healthyCount, unhealthyCount);
     }
 }

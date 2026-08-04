@@ -3751,7 +3751,8 @@
     "keyVaultDNSSuffix",
     "acrDNSSuffix",
     "e2e",
-    "entraAppOwnerIds"
+    "entraAppOwnerIds",
+    "genevaHealthFunction"
   ],
   "x-cel-validations": [
     {
