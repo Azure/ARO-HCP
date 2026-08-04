@@ -133,7 +133,6 @@ defaults:
     # monitoring.grafanaRoles so assigning a role on arohcp-stg2 never touches
     # the shared arohcp-stg (which already holds the grant manually).
     grafanaRoles: ""
-    grafanaMajorVersion: "empty-sentinel"
     billingKustoName: "empty-sentinel"
     billingKustoSku: "empty-sentinel"
   # Image Registry Policy

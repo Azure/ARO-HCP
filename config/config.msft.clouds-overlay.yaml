@@ -107,8 +107,6 @@ clouds:
             kustoName: "hcp-{{ .ctx.environment }}-uk-3"
             # V2 Grafana workspace (globally unique, differs from the live name).
             grafanaName: "arohcp-{{ .ctx.environment }}2"
-            # v13: Azure only accepts major 12/13 for new workspaces since 2026-06-15.
-            grafanaMajorVersion: "13"
             # Dedicated stg billing Kusto in hcp-stg-global (E8a_v4; E8ads_v5 is not
             # offered in uksouth). Consumed by the transient Billing.StgGlobal bicepparam.
             billingKustoName: "arohcpHoBo{{ .ctx.environment }}"
