@@ -2,7 +2,7 @@
 
 `tenant-quota` is the historical name of the extensible DEV CI telemetry exporter running on the standalone `opstool` AKS cluster. It began by collecting tenant and subscription quota data, but its scope is growing beyond quota-only telemetry.
 
-Current examples include tenant capacity, subscription quota, and E2E resource-group expiry. The design also supports future Prow and other CI telemetry sources without turning this README into a fixed collector or metric inventory.
+Current examples include tenant capacity, subscription quota, E2E resource-group expiry, and Prow job outcomes and durations. The design supports additional CI telemetry sources without turning this README into a fixed collector or metric inventory.
 
 For alert response, routing, and monitoring maintenance, use the canonical [DEV CI Monitoring and Alert Response](../../docs/ci/dev-ci-monitoring.md) runbook.
 
