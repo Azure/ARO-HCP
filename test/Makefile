@@ -6,6 +6,13 @@ all: build
 
 BICEP_OUTPUT_DIR=$(TEST_DIR)e2e/test-artifacts/generated-test-artifacts/
 
+bicep-install:
+	@for i in 1 2 3 4 5; do \
+		az bicep install && break || \
+		echo "az bicep install failed (attempt $$i/5), retrying in 10s..." && sleep 10; \
+	done
+.PHONY: bicep-install
+
 DEMO_BICEP_DIR=$(TEST_DIR)../demo/bicep
 DEMO_BICEP_SOURCES = $(shell find $(DEMO_BICEP_DIR) -name '*.bicep')
 DEMO_BICEP_OUTPUTS = $(addprefix $(BICEP_OUTPUT_DIR)standard-cluster-create/,$(addsuffix .json,$(basename $(notdir $(DEMO_BICEP_SOURCES)))))
@@ -37,7 +44,7 @@ PROW_JOB_EXECUTOR = $(TEST_DIR)prow-job-executor
 $(PROW_JOB_EXECUTOR): $(PROW_JOB_EXECUTOR_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum
 	cd $(TEST_DIR) && go build -o $@ ./cmd/prow-job-executor
 
-build: $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS)
+build: bicep-install $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS)
 .PHONY: build
 
 # Apply the slot-managed identity pool ARM deployment stack for a given environment.
