@@ -36,7 +36,10 @@ import (
 	"github.com/Azure/ARO-HCP/frontend/cmd"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
@@ -45,9 +48,9 @@ type CosmosIntegrationTestInfo struct {
 	ArtifactsDir string
 
 	CosmosDatabaseClient *azcosmos.DatabaseClient
-	resourcesDBClient    database.ResourcesDBClient
-	billingDBClient      database.BillingDBClient
-	fleetDBClient        database.FleetDBClient
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
+	billingDBClient      billingcosmosstorage.BillingDBClient
+	fleetDBClient        fleetcosmosstorage.FleetDBClient
 	cosmosClient         *azcosmos.Client
 }
 
@@ -60,15 +63,15 @@ func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrat
 	if err != nil {
 		return nil, fmt.Errorf("failed to Initialize Cosmos DB: %w", err)
 	}
-	resourcesDBClient, err := database.NewResourcesDBClient(cosmosDatabaseClient)
+	resourcesDBClient, err := corecosmosstorage.NewResourcesDBClient(cosmosDatabaseClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the resources database client: %w", err)
 	}
-	billingDBClient, err := database.NewBillingDBClient(cosmosDatabaseClient)
+	billingDBClient, err := billingcosmosstorage.NewBillingDBClient(cosmosDatabaseClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the billing database client: %w", err)
 	}
-	fleetDBClient, err := database.NewFleetDBClient(cosmosDatabaseClient)
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(cosmosDatabaseClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the fleet database client: %w", err)
 	}
@@ -110,19 +113,19 @@ func LoadCosmosContentFromFS(ctx context.Context, cosmosContainer *azcosmos.Cont
 	return nil
 }
 
-func (s *CosmosIntegrationTestInfo) ListAllDocuments(ctx context.Context) ([]*database.TypedDocument, error) {
+func (s *CosmosIntegrationTestInfo) ListAllDocuments(ctx context.Context) ([]*cosmosstorageutils.TypedDocument, error) {
 	return NewCosmosContentLoader(s.CosmosResourcesContainer()).ListAllDocuments(ctx)
 }
 
-func (s *CosmosIntegrationTestInfo) ResourcesDBClient() database.ResourcesDBClient {
+func (s *CosmosIntegrationTestInfo) ResourcesDBClient() corecosmosstorage.ResourcesDBClient {
 	return s.resourcesDBClient
 }
 
-func (s *CosmosIntegrationTestInfo) BillingDBClient() database.BillingDBClient {
+func (s *CosmosIntegrationTestInfo) BillingDBClient() billingcosmosstorage.BillingDBClient {
 	return s.billingDBClient
 }
 
-func (s *CosmosIntegrationTestInfo) FleetDBClient() database.FleetDBClient {
+func (s *CosmosIntegrationTestInfo) FleetDBClient() fleetcosmosstorage.FleetDBClient {
 	return s.fleetDBClient
 }
 
@@ -218,7 +221,7 @@ func (s *CosmosIntegrationTestInfo) deleteAllCosmosItems(ctx context.Context) {
 			}
 
 			for _, item := range queryResponse.Items {
-				var doc database.TypedDocument
+				var doc cosmosstorageutils.TypedDocument
 				if err := json.Unmarshal(item, &doc); err != nil {
 					logger.Error(err, "Failed to decode document")
 					continue
@@ -432,7 +435,7 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 	// Create the database if it doesn't exist
 	databaseProperties := azcosmos.DatabaseProperties{ID: integrationTestCosmosDatabaseName}
 	_, err := cosmosClient.CreateDatabase(ctx, databaseProperties, nil)
-	if err != nil && !database.IsConflictError(err) {
+	if err != nil && !cosmosstorageutils.IsConflictError(err) {
 		return nil, fmt.Errorf("failed to create database: %w", err)
 	}
 
@@ -468,7 +471,7 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 
 		logger.Info("Creating container", "containerName", container.name)
 		_, err = cosmosDatabaseClient.CreateContainer(ctx, containerProperties, nil)
-		if err != nil && database.IsConflictError(err) {
+		if err != nil && cosmosstorageutils.IsConflictError(err) {
 			logger.Info("Container already exists", "containerName", container.name)
 		} else if err != nil {
 			return nil, utils.TrackError(err)

@@ -24,7 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 type fakeManagementClusterLister struct {
@@ -42,13 +42,13 @@ func (f *fakeManagementClusterLister) List(_ context.Context) ([]*fleet.Manageme
 func (f *fakeManagementClusterLister) Get(_ context.Context, stampIdentifier string) (*fleet.ManagementCluster, error) {
 	managementCluster, ok := f.clusters[stampIdentifier]
 	if !ok {
-		return nil, database.NewNotFoundError()
+		return nil, cosmosstorageutils.NewNotFoundError()
 	}
 	return managementCluster, nil
 }
 
 func (f *fakeManagementClusterLister) GetByCSProvisionShardID(_ context.Context, _ string) (*fleet.ManagementCluster, error) {
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func boolPtr(b bool) *bool { return &b }

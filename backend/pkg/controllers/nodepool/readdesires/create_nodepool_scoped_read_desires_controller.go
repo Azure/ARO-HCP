@@ -25,7 +25,9 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -41,8 +43,8 @@ import (
 type createNodePoolScopedReadDesiresSyncer struct {
 	activeOperationLister corelisters.ActiveOperationLister
 
-	resourcesDBClient            database.ResourcesDBClient
-	kubeApplierDBClients         database.KubeApplierDBClients
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 
 	hostedClusterNamespaceEnvIdentifier string
@@ -52,8 +54,8 @@ var _ controllerutils.NodePoolSyncer = (*createNodePoolScopedReadDesiresSyncer)(
 
 func NewCreateNodePoolScopedReadDesiresController(
 	activeOperationLister corelisters.ActiveOperationLister,
-	resourcesDBClient database.ResourcesDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
@@ -78,7 +80,7 @@ func NewCreateNodePoolScopedReadDesiresController(
 
 func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -96,7 +98,7 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	// ServiceProviderCluster. Skip if the placement-sync controller hasn't
 	// populated it yet.
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will populate it. NodePoolWatchingController
 		// does not watch the ServiceProviderCluster informer (an SPC arrival
 		// can't be walked down to a specific node pool), so the next attempt
@@ -117,7 +119,7 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	// DomainPrefix into CustomerProperties.DNS.BaseDomainPrefix on the parent
 	// HCPCluster. Skip until that sync has happened; we'll retrigger on relist.
 	parentCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {

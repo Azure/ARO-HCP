@@ -26,12 +26,13 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func addOperationResponseHeaders(writer http.ResponseWriter, request *http.Request, notificationURI string, operationID *azcorearm.ResourceID) database.DBTransactionCallback {
-	return func(result database.DBTransactionResult) {
+func addOperationResponseHeaders(writer http.ResponseWriter, request *http.Request, notificationURI string, operationID *azcorearm.ResourceID) cosmosstorageutils.DBTransactionCallback {
+	return func(result cosmosstorageutils.DBTransactionResult) {
 		// If ARM passed a notification URI, acknowledge it.
 		if len(notificationURI) > 0 {
 			writer.Header().Set(arm.HeaderNameAsyncNotification, "Enabled")
@@ -54,22 +55,22 @@ func addOperationResponseHeaders(writer http.ResponseWriter, request *http.Reque
 // TODO we will collapse onto this function entirely once we complete the migration.  Creating a separate method now to avoid having to have a big bang
 func checkForProvisioningStateConflict(
 	ctx context.Context,
-	resourcesDBClient database.ResourcesDBClient,
-	operationRequest database.OperationRequest,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	operationRequest cosmosstorageutils.OperationRequest,
 	resourceID *azcorearm.ResourceID,
 	provisioningState arm.ProvisioningState,
 ) error {
 
 	switch operationRequest {
-	case database.OperationRequestCreate:
+	case cosmosstorageutils.OperationRequestCreate:
 		// Resource must already exist for there to be a conflict.
-	case database.OperationRequestDelete:
+	case cosmosstorageutils.OperationRequestDelete:
 		if provisioningState == arm.ProvisioningStateDeleting {
 			return arm.NewConflictError(
 				resourceID,
 				"Resource is already deleting")
 		}
-	case database.OperationRequestUpdate:
+	case cosmosstorageutils.OperationRequestUpdate:
 		// Defer to Cluster Service for ProvisioningStateFailed since
 		// it is ambiguous about whether the resource is functional.
 		if !provisioningState.IsTerminal() {
@@ -78,7 +79,7 @@ func checkForProvisioningStateConflict(
 				"Cannot update resource while resource is %q",
 				strings.ToLower(string(provisioningState)))
 		}
-	case database.OperationRequestSystemAdminCredentialRequest:
+	case cosmosstorageutils.OperationRequestSystemAdminCredentialRequest:
 		// Defer to Cluster Service for ProvisioningStateFailed since
 		// it is ambiguous about whether the resource is functional.
 		if !provisioningState.IsTerminal() {
@@ -87,7 +88,7 @@ func checkForProvisioningStateConflict(
 				"Cannot request credential while resource is %q",
 				strings.ToLower(string(provisioningState)))
 		}
-	case database.OperationRequestSystemAdminCredentialRevocation:
+	case cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation:
 		// Defer to Cluster Service for ProvisioningStateFailed since
 		// it is ambiguous about whether the resource is functional.
 		if !provisioningState.IsTerminal() {

@@ -25,7 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unionlisters/kubeapplier"
@@ -133,10 +133,10 @@ func TestUnionApplyDesireLister_EmptyUnion(t *testing.T) {
 	if got, err := u.List(ctx); err != nil || len(got) != 0 {
 		t.Errorf("empty List: got (%v, %v), want (empty, nil)", got, err)
 	}
-	if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "a1"); !database.IsNotFoundError(err) {
+	if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "a1"); !cosmosstorageutils.IsNotFoundError(err) {
 		t.Errorf("empty GetForCluster: want NotFound, got %v", err)
 	}
-	if _, err := u.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "a2"); !database.IsNotFoundError(err) {
+	if _, err := u.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "a2"); !cosmosstorageutils.IsNotFoundError(err) {
 		t.Errorf("empty GetForNodePool: want NotFound, got %v", err)
 	}
 	if got, err := u.ListForManagementCluster(ctx, mgmtAID); err != nil || got != nil {
@@ -235,7 +235,7 @@ func TestUnionApplyDesireLister_GetForCluster_FirstHitWins(t *testing.T) {
 	}
 
 	// Nowhere — NotFound (both sublisters reported NotFound, union folds them).
-	if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "missing"); !database.IsNotFoundError(err) {
+	if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "missing"); !cosmosstorageutils.IsNotFoundError(err) {
 		t.Errorf("GetForCluster missing: want NotFound, got %v", err)
 	}
 }
@@ -382,7 +382,7 @@ func TestUnionReadDesireLister(t *testing.T) {
 		if _, err := u.GetForCluster(ctx, testSub, testRG, "other-cluster", "b1"); err != nil {
 			t.Errorf("GetForCluster b1: %v", err)
 		}
-		if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "missing"); !database.IsNotFoundError(err) {
+		if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "missing"); !cosmosstorageutils.IsNotFoundError(err) {
 			t.Errorf("GetForCluster missing: want NotFound, got %v", err)
 		}
 	})
@@ -391,7 +391,7 @@ func TestUnionReadDesireLister(t *testing.T) {
 		if _, err := u.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "a2"); err != nil {
 			t.Errorf("GetForNodePool a2: %v", err)
 		}
-		if _, err := u.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "missing"); !database.IsNotFoundError(err) {
+		if _, err := u.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "missing"); !cosmosstorageutils.IsNotFoundError(err) {
 			t.Errorf("GetForNodePool missing: want NotFound, got %v", err)
 		}
 	})

@@ -26,7 +26,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -46,7 +47,7 @@ import (
 type clusterDegradedAggregator struct {
 	clusterLister     corelisters.ClusterLister
 	controllerLister  corelisters.ControllerLister
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 	inertia           statusutils.Inertia
 	clock             utilsclock.PassiveClock
 	// firstObservedBad supplies a LastTransitionTime for controllers that
@@ -74,7 +75,7 @@ func clusterDegradedAggregatorInertia() statusutils.Inertia {
 // clock is used to compute "now" for inertia evaluation; pass nil for
 // utilsclock.RealClock{}.
 func NewClusterDegradedAggregatorController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterLister corelisters.ClusterLister,
 	controllerLister corelisters.ControllerLister,
 	informers coreinformers.BackendInformers,
@@ -104,7 +105,7 @@ func NewClusterDegradedAggregatorController(
 
 func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	existing, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -132,10 +133,10 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	_, err = clusterCRUD.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {

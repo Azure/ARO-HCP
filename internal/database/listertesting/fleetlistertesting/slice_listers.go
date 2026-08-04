@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 )
 
@@ -44,7 +44,7 @@ func (l *SliceStampLister) Get(ctx context.Context, stampIdentifier string) (*fl
 			return s, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 // SliceManagementClusterLister implements fleetlisters.ManagementClusterLister backed by a slice.
@@ -65,7 +65,7 @@ func (l *SliceManagementClusterLister) Get(ctx context.Context, stampIdentifier 
 			return mc, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceManagementClusterLister) GetByCSProvisionShardID(ctx context.Context, shardID string) (*fleet.ManagementCluster, error) {
@@ -77,7 +77,7 @@ func (l *SliceManagementClusterLister) GetByCSProvisionShardID(ctx context.Conte
 	}
 	switch len(matches) {
 	case 0:
-		return nil, database.NewNotFoundError()
+		return nil, cosmosstorageutils.NewNotFoundError()
 	case 1:
 		return matches[0], nil
 	default:

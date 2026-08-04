@@ -17,12 +17,12 @@ package listertestingutils
 import (
 	"context"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
-// CollectFromIterator drains a database.DBClientIterator into a slice and propagates
+// CollectFromIterator drains a cosmosstorageutils.DBClientIterator into a slice and propagates
 // any iterator-level error.
-func CollectFromIterator[T any](ctx context.Context, iter database.DBClientIterator[T]) ([]*T, error) {
+func CollectFromIterator[T any](ctx context.Context, iter cosmosstorageutils.DBClientIterator[T]) ([]*T, error) {
 	var out []*T
 	for _, v := range iter.Items(ctx) {
 		out = append(out, v)

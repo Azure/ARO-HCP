@@ -26,7 +26,9 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -35,13 +37,13 @@ type backfillClusterUID struct {
 	clock             utilsclock.PassiveClock
 	cooldownChecker   controllerutil.CooldownChecker
 	clusterLister     corelisters.ClusterLister
-	resourcesDBClient database.ResourcesDBClient
-	billingDBClient   database.BillingDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
+	billingDBClient   billingcosmosstorage.BillingDBClient
 }
 
 // NewBackfillClusterUIDController creates a controller that populates ClusterUID
 // for existing clusters that don't have it set.
-func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterLister corelisters.ClusterLister) controllerutils.ClusterSyncer {
+func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, billingDBClient billingcosmosstorage.BillingDBClient, clusterLister corelisters.ClusterLister) controllerutils.ClusterSyncer {
 	c := &backfillClusterUID{
 		clock:             clock,
 		cooldownChecker:   controllerutil.NewTimeBasedCooldownChecker(60 * time.Minute),
@@ -66,7 +68,7 @@ func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutil
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedCluster, err := c.clusterLister.Get(ctx, keyObj.SubscriptionID, keyObj.ResourceGroupName, keyObj.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -80,7 +82,7 @@ func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutil
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, keyObj.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -100,7 +102,7 @@ func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutil
 		return utils.TrackError(err)
 	}
 
-	var billingDoc *database.BillingDocument
+	var billingDoc *billingcosmosstorage.BillingDocument
 	for _, doc := range billingDocs {
 		if existingCluster.SystemData.CreatedAt.Equal(doc.CreationTime) {
 			billingDoc = doc

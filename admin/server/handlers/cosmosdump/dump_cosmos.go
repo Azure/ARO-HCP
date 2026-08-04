@@ -18,16 +18,17 @@ import (
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type CosmosDumpHandler struct {
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
-func NewCosmosDumpHandler(resourcesDBClient database.ResourcesDBClient) *CosmosDumpHandler {
+func NewCosmosDumpHandler(resourcesDBClient corecosmosstorage.ResourcesDBClient) *CosmosDumpHandler {
 	return &CosmosDumpHandler{resourcesDBClient: resourcesDBClient}
 }
 
@@ -49,11 +50,11 @@ func (h *CosmosDumpHandler) ServeHTTP(w http.ResponseWriter, request *http.Reque
 }
 
 type BillingDumpHandler struct {
-	resourcesDBClient database.ResourcesDBClient
-	billingDBClient   database.BillingDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
+	billingDBClient   billingcosmosstorage.BillingDBClient
 }
 
-func NewBillingDumpHandler(resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient) *BillingDumpHandler {
+func NewBillingDumpHandler(resourcesDBClient corecosmosstorage.ResourcesDBClient, billingDBClient billingcosmosstorage.BillingDBClient) *BillingDumpHandler {
 	return &BillingDumpHandler{resourcesDBClient: resourcesDBClient, billingDBClient: billingDBClient}
 }
 

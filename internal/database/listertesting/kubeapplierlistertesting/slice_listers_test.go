@@ -29,7 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 )
 
@@ -71,7 +71,7 @@ func TestSliceManagementClusterLister(t *testing.T) {
 	t.Run("Get returns not found for non-existent management cluster", func(t *testing.T) {
 		_, err := lister.Get(ctx, "non-existent")
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 
 	t.Run("GetByCSProvisionShard returns matching management cluster", func(t *testing.T) {
@@ -85,7 +85,7 @@ func TestSliceManagementClusterLister(t *testing.T) {
 		csShardID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/99999999-9999-9999-9999-999999999999"))
 		_, err := lister.GetByCSProvisionShardID(ctx, csShardID.ID())
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 
 	t.Run("GetByCSProvisionShard returns error for duplicate shards", func(t *testing.T) {
@@ -186,12 +186,12 @@ func TestSliceApplyDesireLister_GetForCluster(t *testing.T) {
 	}
 
 	// A name that exists only as a nodepool-scoped desire is NotFound at the cluster scope.
-	if _, err := l.GetForCluster(ctx, testSub, testRG, testCluster, "a2"); !database.IsNotFoundError(err) {
+	if _, err := l.GetForCluster(ctx, testSub, testRG, testCluster, "a2"); !cosmosstorageutils.IsNotFoundError(err) {
 		t.Errorf("GetForCluster a2 (nodepool-only): want NotFound, got %v", err)
 	}
 
 	// Wrong subscription — NotFound.
-	if _, err := l.GetForCluster(ctx, "different-sub", testRG, testCluster, "a1"); !database.IsNotFoundError(err) {
+	if _, err := l.GetForCluster(ctx, "different-sub", testRG, testCluster, "a1"); !cosmosstorageutils.IsNotFoundError(err) {
 		t.Errorf("GetForCluster wrong sub: want NotFound, got %v", err)
 	}
 }
@@ -209,7 +209,7 @@ func TestSliceApplyDesireLister_GetForNodePool(t *testing.T) {
 	}
 
 	// A name that only exists as cluster-scoped is NotFound at nodepool scope.
-	if _, err := l.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "a1"); !database.IsNotFoundError(err) {
+	if _, err := l.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "a1"); !cosmosstorageutils.IsNotFoundError(err) {
 		t.Errorf("GetForNodePool a1 (cluster-only): want NotFound, got %v", err)
 	}
 }

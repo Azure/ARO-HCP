@@ -20,7 +20,8 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -32,11 +33,11 @@ import (
 // bail out when it is missing; this syncer is the single place in backend
 // controllers that actually creates the document, so the GetOrCreate pattern
 // stays in one well-known location. The frontend admission path still calls
-// database.GetOrCreateServiceProviderCluster directly because admission must
+// corecosmosstorage.GetOrCreateServiceProviderCluster directly because admission must
 // have the document in hand to validate the request before any controller
 // has a chance to run.
 type createServiceProviderClusterSyncer struct {
-	resourcesDBClient            database.ResourcesDBClient
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 }
@@ -46,7 +47,7 @@ var _ controllerutils.ClusterSyncer = (*createServiceProviderClusterSyncer)(nil)
 // NewCreateServiceProviderClusterController wires the controller that creates
 // missing ServiceProviderCluster documents.
 func NewCreateServiceProviderClusterController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterLister corelisters.ClusterLister,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	backendInformers coreinformers.BackendInformers,
@@ -77,7 +78,7 @@ func NewCreateServiceProviderClusterController(
 // it here would prevent that pipeline from converging, so we short-circuit.
 func (c *createServiceProviderClusterSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -91,11 +92,11 @@ func (c *createServiceProviderClusterSyncer) SyncOnce(ctx context.Context, key c
 	if err == nil {
 		return nil
 	}
-	if !database.IsNotFoundError(err) {
+	if !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from lister: %w", err))
 	}
 
-	if _, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID()); err != nil {
+	if _, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID()); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to create ServiceProviderCluster: %w", err))
 	}
 

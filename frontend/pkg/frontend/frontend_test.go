@@ -41,8 +41,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -82,7 +82,7 @@ func TestOperationsList(t *testing.T) {
 	)
 
 	reg := prometheus.NewRegistry()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	f := NewFrontend(
 		testr.New(t),
@@ -184,7 +184,7 @@ func TestSubscriptionsGET(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -333,7 +333,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -571,7 +571,7 @@ func TestDeploymentPreflight(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			preflightPath := path.Join(api.TestDeploymentResourceID, "preflight")
 
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -697,7 +697,7 @@ func TestRequestAdminCredential(t *testing.T) {
 			requestPath := path.Join(clusterResourceID.String(), "requestAdminCredential")
 
 			reg := prometheus.NewRegistry()
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 			f := NewFrontend(
 				testr.New(t),
@@ -744,7 +744,7 @@ func TestRequestAdminCredential(t *testing.T) {
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
 					OperationID: operationID,
-					Request:     database.OperationRequestSystemAdminCredentialRevocation,
+					Request:     cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation,
 					ExternalID:  clusterResourceID,
 					InternalID:  clusterInternalID,
 					Status:      arm.ProvisioningStateDeleting,
@@ -811,7 +811,7 @@ func TestRevokeCredentials(t *testing.T) {
 			requestPath := path.Join(clusterResourceID.String(), "revokeCredentials")
 
 			reg := prometheus.NewRegistry()
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 			f := NewFrontend(
 				testr.New(t),
@@ -858,7 +858,7 @@ func TestRevokeCredentials(t *testing.T) {
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
 					OperationID: operationID,
-					Request:     database.OperationRequestSystemAdminCredentialRevocation,
+					Request:     cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation,
 					ExternalID:  clusterResourceID,
 					InternalID:  clusterInternalID,
 					Status:      arm.ProvisioningStateDeleting,
@@ -877,7 +877,7 @@ func TestRevokeCredentials(t *testing.T) {
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
 					OperationID: operationID,
-					Request:     database.OperationRequestSystemAdminCredentialRequest,
+					Request:     cosmosstorageutils.OperationRequestSystemAdminCredentialRequest,
 					ExternalID:  clusterResourceID,
 					InternalID:  clusterInternalID,
 					Status:      arm.ProvisioningStateProvisioning,
@@ -976,7 +976,7 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 // newHTTPServer returns a test HTTP server. The mock DB client will be
 // bootstrapped with the provided subscription documents for the
 // subscription collector.
-func newHTTPServer(ctx context.Context, f *Frontend, mockResourcesDBClient *databasetesting.MockResourcesDBClient, subs map[string]*arm.Subscription) *httptest.Server {
+func newHTTPServer(ctx context.Context, f *Frontend, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, subs map[string]*arm.Subscription) *httptest.Server {
 	ts := httptest.NewUnstartedServer(f.server.Handler)
 	ts.Config.BaseContext = f.server.BaseContext
 	ts.Start()

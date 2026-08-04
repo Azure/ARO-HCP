@@ -25,7 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -33,7 +33,7 @@ func (c *operationClusterDelete) legacyShouldProcess(ctx context.Context, operat
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestDelete {
+	if operation.Request != cosmosstorageutils.OperationRequestDelete {
 		return false
 	}
 	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()) {
@@ -100,7 +100,7 @@ func (c *operationClusterDelete) legacySynchronizeOperation(ctx context.Context,
 
 		// Update the Cosmos DB billing document with a deletion timestamp.
 		err = controllerutils.MarkBillingDocumentDeleted(ctx, c.billingDBClient, operation.ExternalID, c.clock.Now())
-		if errors.Is(err, database.ErrAmbiguousResult) {
+		if errors.Is(err, cosmosstorageutils.ErrAmbiguousResult) {
 			logger.Error(err, "Failed to mark CosmosDB billing record for deletion")
 		} else if err != nil {
 			return utils.TrackError(err)

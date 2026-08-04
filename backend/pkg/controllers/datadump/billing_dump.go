@@ -20,7 +20,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -29,8 +30,8 @@ import (
 )
 
 type billingDump struct {
-	resourcesDBClient database.ResourcesDBClient
-	billingDBClient   database.BillingDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
+	billingDBClient   billingcosmosstorage.BillingDBClient
 
 	// nextDumpChecker ensures we don't hotloop from any source.
 	nextDumpChecker controllerutil.CooldownChecker
@@ -38,8 +39,8 @@ type billingDump struct {
 
 // NewBillingDumpController periodically dumps billing documents for each cluster.
 func NewBillingDumpController(
-	resourcesDBClient database.ResourcesDBClient,
-	billingDBClient database.BillingDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	billingDBClient billingcosmosstorage.BillingDBClient,
 	activeOperationLister corelisters.ActiveOperationLister,
 	backendInformers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,

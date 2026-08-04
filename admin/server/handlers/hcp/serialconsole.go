@@ -24,7 +24,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -38,13 +39,13 @@ const (
 // for debugging purposes. This endpoint allows SREs to access boot diagnostics
 // and console output from VMs in the HCP cluster's managed resource group.
 type HCPSerialConsoleHandler struct {
-	resourcesDBClient      database.ResourcesDBClient
+	resourcesDBClient      corecosmosstorage.ResourcesDBClient
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
 }
 
 // NewHCPSerialConsoleHandler creates a new serial console handler with the required dependencies
 func NewHCPSerialConsoleHandler(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
 ) *HCPSerialConsoleHandler {
 	return &HCPSerialConsoleHandler{
@@ -90,7 +91,7 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 	}
 
 	subscription, err := h.resourcesDBClient.Subscriptions().Get(request.Context(), resourceID.SubscriptionID)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return arm.NewCloudError(
 			http.StatusNotFound,
 			arm.CloudErrorCodeNotFound,

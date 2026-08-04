@@ -27,7 +27,7 @@ import (
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 )
 
 func testManagementCluster(stampIdentifier string, conditions ...metav1.Condition) *fleet.ManagementCluster {
@@ -212,7 +212,7 @@ func TestSyncOnce(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			mockDB, err := databasetesting.NewMockFleetDBClientWithResources(ctx, tt.resources)
+			mockDB, err := fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, tt.resources)
 			if err != nil {
 				t.Fatalf("failed to create mock DB: %v", err)
 			}

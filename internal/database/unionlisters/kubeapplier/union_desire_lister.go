@@ -34,7 +34,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 )
 
@@ -147,11 +147,11 @@ func (u *UnionDesireLister[T]) GetForCluster(
 		if err == nil {
 			return d, nil
 		}
-		if !database.IsNotFoundError(err) {
+		if !cosmosstorageutils.IsNotFoundError(err) {
 			return nil, err
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 // GetForNodePool tries each sublister in turn. First hit wins.
@@ -163,11 +163,11 @@ func (u *UnionDesireLister[T]) GetForNodePool(
 		if err == nil {
 			return d, nil
 		}
-		if !database.IsNotFoundError(err) {
+		if !cosmosstorageutils.IsNotFoundError(err) {
 			return nil, err
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 // GetForSystemAdminCredentialRequest tries each sublister in turn. First hit wins.
@@ -179,11 +179,11 @@ func (u *UnionDesireLister[T]) GetForSystemAdminCredentialRequest(
 		if err == nil {
 			return d, nil
 		}
-		if !database.IsNotFoundError(err) {
+		if !cosmosstorageutils.IsNotFoundError(err) {
 			return nil, err
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 // GetForSystemAdminCredentialRevocation tries each sublister in turn. First hit wins.
@@ -195,11 +195,11 @@ func (u *UnionDesireLister[T]) GetForSystemAdminCredentialRevocation(
 		if err == nil {
 			return d, nil
 		}
-		if !database.IsNotFoundError(err) {
+		if !cosmosstorageutils.IsNotFoundError(err) {
 			return nil, err
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 // ListForManagementCluster delegates to the single sublister registered under

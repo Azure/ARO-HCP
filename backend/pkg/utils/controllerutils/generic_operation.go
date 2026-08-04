@@ -30,7 +30,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -44,7 +45,7 @@ type genericOperation struct {
 
 	cooldownChecker   controllerutil.CooldownChecker
 	synchronizer      OperationSynchronizer
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -60,7 +61,7 @@ func NewGenericOperationController(
 	synchronizer OperationSynchronizer,
 	activeOperationScanInterval time.Duration,
 	activeOperationInformer cache.SharedIndexInformer,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 ) Controller {
 	c := &genericOperation{
 		name:              name,
@@ -99,7 +100,7 @@ func NewGenericOperationController(
 	return c
 }
 
-func (c *genericOperation) controllerCRUD(key OperationKey) database.ResourceCRUD[api.Controller, *api.Controller] {
+func (c *genericOperation) controllerCRUD(key OperationKey) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
 	parentResourceID := key.GetParentResourceID()
 	sub := parentResourceID.SubscriptionID
 	rg := parentResourceID.ResourceGroupName

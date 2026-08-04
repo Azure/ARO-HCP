@@ -34,10 +34,10 @@ import (
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -86,8 +86,8 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 	}
 
 	fixture := operationtesting.NewNodePoolTestFixture()
-	preconditionExistingOperation := fixture.NewOperation(database.OperationRequestCreate)
-	preconditionListerOperation := fixture.NewOperation(database.OperationRequestCreate)
+	preconditionExistingOperation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+	preconditionListerOperation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 	preconditionListerOperation.CosmosETag = "stale-etag"
 	// Not seeded to Cosmos, so PrepareForCreate never runs. operationbase.UpdateOperationStatus still
 	// requires a non-zero InstanceVersion before it will attempt the etag-checked replace.
@@ -102,16 +102,16 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		// When not set, the controller uses an active operations lister that contains the existingOperation
 		activeOperationsLister corelisters.ActiveOperationLister
 		expectError            bool
-		verifyDB               func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB               func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:              "node pool ready transitions to succeeded",
 			nodePool:          defaultNodePool,
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateReady), "")
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -125,11 +125,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:              "node pool installing transitions to provisioning",
 			nodePool:          defaultNodePool,
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateInstalling), "")
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
@@ -143,11 +143,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:              "node pool error transitions to failed",
 			nodePool:          defaultNodePool,
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateError), "node pool creation failed")
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -163,11 +163,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:              "node pool pending stays accepted",
 			nodePool:          defaultNodePool,
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStatePending), "")
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -176,11 +176,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:              "node pool validating stays accepted",
 			nodePool:          defaultNodePool,
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateValidating), "")
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -189,8 +189,8 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:              "ClusterServiceID nil skips reconciliation",
 			nodePool:          nodePoolWithoutCSID,
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -199,8 +199,8 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:              "ActiveOperationID mismatch skips reconciliation",
 			nodePool:          nodePoolWithMismatchedActiveOperationID,
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -209,8 +209,8 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:              "empty ActiveOperationID skips reconciliation",
 			nodePool:          nodePoolWithEmptyActiveOperationID,
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -219,8 +219,8 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:              "DeletionTimestamp set skips reconciliation",
 			nodePool:          nodePoolWithDeletionTimestamp,
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -235,11 +235,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
 				return np
 			},
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateInstalling), "")
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -256,11 +256,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
 				return np
 			},
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateInstalling), "")
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
@@ -276,7 +276,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateReady), "")
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status, "operation should be unchanged after optimistic concurrency conflict")
@@ -295,7 +295,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			nodePool := tt.nodePool(fixture)
 
 			resources := []any{cluster, nodePool, tt.existingOperation}
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			activeOperationsLister := tt.activeOperationsLister

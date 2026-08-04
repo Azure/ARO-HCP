@@ -32,7 +32,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
@@ -134,7 +134,7 @@ func startSyncedController(
 
 	// Pre-populate a MockKubeApplierDBClient with the desire so the
 	// controller's fetcher can read it back via the live-client contract.
-	mock := databasetesting.NewMockKubeApplierDBClient()
+	mock := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 	crud, err := mock.ReadDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
 		t.Fatalf("ReadDesiresForCluster: %v", err)

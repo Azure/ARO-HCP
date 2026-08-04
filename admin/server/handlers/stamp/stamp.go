@@ -20,7 +20,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -55,10 +56,10 @@ func toStamp(s *fleet.Stamp) (Stamp, error) {
 
 // StampListHandler handles GET /admin/v1/stamps.
 type StampListHandler struct {
-	fleetDBClient database.FleetDBClient
+	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
 
-func NewStampListHandler(fleetDBClient database.FleetDBClient) *StampListHandler {
+func NewStampListHandler(fleetDBClient fleetcosmosstorage.FleetDBClient) *StampListHandler {
 	return &StampListHandler{
 		fleetDBClient: fleetDBClient,
 	}
@@ -94,10 +95,10 @@ func (h *StampListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) err
 
 // StampGetHandler handles GET /admin/v1/stamps/{stampIdentifier}.
 type StampGetHandler struct {
-	fleetDBClient database.FleetDBClient
+	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
 
-func NewStampGetHandler(fleetDBClient database.FleetDBClient) *StampGetHandler {
+func NewStampGetHandler(fleetDBClient fleetcosmosstorage.FleetDBClient) *StampGetHandler {
 	return &StampGetHandler{
 		fleetDBClient: fleetDBClient,
 	}
@@ -113,7 +114,7 @@ func (h *StampGetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) erro
 
 	stamp, err := h.fleetDBClient.Stamps().Get(ctx, stampIdentifier)
 	if err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			return arm.NewCloudError(http.StatusNotFound, arm.CloudErrorCodeNotFound, "", "Stamp %q not found", stampIdentifier)
 		}
 		return utils.TrackError(fmt.Errorf("failed to get stamp: %w", err))

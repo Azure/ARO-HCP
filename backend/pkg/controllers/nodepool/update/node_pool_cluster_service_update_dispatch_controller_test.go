@@ -37,9 +37,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -228,7 +228,7 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 				seedResources = append(seedResources, tc.existingNodePool)
 			}
 
-			mockResourcesDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, seedResources)
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, seedResources)
 			require.NoError(t, err)
 
 			nodePoolLister := tc.nodePoolLister

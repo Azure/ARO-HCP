@@ -32,9 +32,10 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -124,13 +125,13 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 		name        string
 		cluster     *api.HCPOpenShiftCluster
 		expectError bool
-		verify      func(t *testing.T, billing *databasetesting.MockBillingDBClient)
+		verify      func(t *testing.T, billing *billingcosmosstoragetesting.MockBillingDBClient)
 	}{
 		{
 			name:        "creates billing document for succeeded cluster with ClusterUID",
 			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt),
 			expectError: false,
-			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
+			verify: func(t *testing.T, billing *billingcosmosstoragetesting.MockBillingDBClient) {
 				billingDocs := billing.GetBillingDocuments()
 				require.Len(t, billingDocs, 1)
 				doc := billingDocs[testClusterUID]
@@ -145,7 +146,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 			name:        "uses fallback time when CreatedAt is nil",
 			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, nil),
 			expectError: false,
-			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
+			verify: func(t *testing.T, billing *billingcosmosstoragetesting.MockBillingDBClient) {
 				billingDocs := billing.GetBillingDocuments()
 				require.Len(t, billingDocs, 1)
 				doc := billingDocs[testClusterUID]
@@ -157,7 +158,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 			name:        "skips cluster without ClusterUID",
 			cluster:     newTestCluster(t, "", arm.ProvisioningStateSucceeded, &createdAt),
 			expectError: false,
-			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
+			verify: func(t *testing.T, billing *billingcosmosstoragetesting.MockBillingDBClient) {
 				billingDocs := billing.GetBillingDocuments()
 				assert.Empty(t, billingDocs, "no billing document should be created when ClusterUID is empty")
 			},
@@ -166,7 +167,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 			name:        "skips cluster not in Succeeded state",
 			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateProvisioning, &createdAt),
 			expectError: false,
-			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
+			verify: func(t *testing.T, billing *billingcosmosstoragetesting.MockBillingDBClient) {
 				billingDocs := billing.GetBillingDocuments()
 				assert.Empty(t, billingDocs, "no billing document should be created for non-succeeded cluster")
 			},
@@ -175,7 +176,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 			name:        "skips cluster in Failed state",
 			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateFailed, &createdAt),
 			expectError: false,
-			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
+			verify: func(t *testing.T, billing *billingcosmosstoragetesting.MockBillingDBClient) {
 				billingDocs := billing.GetBillingDocuments()
 				assert.Empty(t, billingDocs, "no billing document should be created for failed cluster")
 			},
@@ -196,9 +197,9 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 			subscription := newTestSubscription()
 			resources := []any{tt.cluster, subscription}
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
-			mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+			mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 
 			controller := &createBillingDoc{
 				clock:             clocktesting.NewFakePassiveClock(fixedTime),
@@ -209,7 +210,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 					Clusters: []*api.HCPOpenShiftCluster{tt.cluster},
 				},
 				billingLister: &corelistertesting.SliceBillingLister{
-					BillingDocuments: []*database.BillingDocument{},
+					BillingDocuments: []*billingcosmosstorage.BillingDocument{},
 				},
 			}
 
@@ -238,9 +239,9 @@ func TestCreateBillingDoc_Idempotent(t *testing.T) {
 	cluster := newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt)
 	subscription := newTestSubscription()
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, subscription})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, subscription})
 	require.NoError(t, err)
-	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+	mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 
 	// Setup slice cluster lister (cache)
 	clusterLister := &corelistertesting.SliceClusterLister{
@@ -254,7 +255,7 @@ func TestCreateBillingDoc_Idempotent(t *testing.T) {
 		billingDBClient:   mockBillingDBClient,
 		clusterLister:     clusterLister,
 		billingLister: &corelistertesting.SliceBillingLister{
-			BillingDocuments: []*database.BillingDocument{},
+			BillingDocuments: []*billingcosmosstorage.BillingDocument{},
 		},
 	}
 
@@ -281,24 +282,24 @@ func TestCreateBillingDoc_ExistingBillingDocButMissingClusterRef(t *testing.T) {
 
 	// Pre-seed billing doc to simulate a prior cycle that created it but
 	// failed to update the cluster's BillingDocumentCosmosID.
-	preSeedDoc := database.NewBillingDocument(testClusterUID, newTestClusterResourceID(t))
+	preSeedDoc := billingcosmosstorage.NewBillingDocument(testClusterUID, newTestClusterResourceID(t))
 	preSeedDoc.CreationTime = createdAt
 	preSeedDoc.Location = testAzureLocation
 	preSeedDoc.TenantID = testTenantID
 
 	tests := []struct {
 		name             string
-		cachedBillingDoc []*database.BillingDocument
+		cachedBillingDoc []*billingcosmosstorage.BillingDocument
 		seedInDB         bool
 	}{
 		{
 			name:             "billing doc found in database",
-			cachedBillingDoc: []*database.BillingDocument{},
+			cachedBillingDoc: []*billingcosmosstorage.BillingDocument{},
 			seedInDB:         true,
 		},
 		{
 			name:             "billing doc found in cache",
-			cachedBillingDoc: []*database.BillingDocument{preSeedDoc},
+			cachedBillingDoc: []*billingcosmosstorage.BillingDocument{preSeedDoc},
 			seedInDB:         false,
 		},
 	}
@@ -314,9 +315,9 @@ func TestCreateBillingDoc_ExistingBillingDocButMissingClusterRef(t *testing.T) {
 
 			subscription := newTestSubscription()
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, subscription})
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, subscription})
 			require.NoError(t, err)
-			mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+			mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 
 			if tt.seedInDB {
 				err = mockBillingDBClient.BillingDocs(testSubscriptionID).Create(ctx, preSeedDoc)

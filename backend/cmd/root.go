@@ -32,7 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -412,7 +412,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	// additions/removals become visible without restarting the backend.
 	kubeApplierDBClients := app.NewKubeApplierDBClients(
 		cosmosDatabaseClient,
-		database.NewDBBackedManagementClusterLister(fleetDBClient),
+		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient),
 	)
 
 	clustersServiceClient, err := app.NewClustersServiceClient(ctx, f.ClustersServiceURL, f.ClustersServiceTLSInsecure)

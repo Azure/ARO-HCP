@@ -24,7 +24,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -38,7 +39,7 @@ import (
 //   - Status.ControlPlaneNamespace
 type serviceProviderClusterPropertiesSyncer struct {
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
-	resourcesDBClient            database.ResourcesDBClient
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	readDesireLister             kubeapplierlisters.ReadDesireLister
 }
 
@@ -50,7 +51,7 @@ const ServiceProviderClusterPropertiesSyncControllerName = "ServiceProviderClust
 // synchronizes HostedClusterNamespace and ControlPlaneNamespace from the
 // HostedCluster ReadDesire mirror to the ServiceProviderCluster in Cosmos DB.
 func NewServiceProviderClusterPropertiesSyncController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
@@ -77,7 +78,7 @@ func (c *serviceProviderClusterPropertiesSyncer) SyncOnce(ctx context.Context, k
 	logger := utils.LoggerFromContext(ctx)
 
 	existing, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -116,7 +117,7 @@ func (c *serviceProviderClusterPropertiesSyncer) SyncOnce(ctx context.Context, k
 		return nil
 	}
 
-	if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); database.IsPreconditionFailedError(err) {
+	if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))

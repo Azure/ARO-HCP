@@ -21,7 +21,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/listertestingutils"
 )
@@ -48,7 +48,7 @@ func (l *SliceApplyDesireLister) GetForCluster(
 			return d, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceApplyDesireLister) GetForNodePool(
@@ -63,7 +63,7 @@ func (l *SliceApplyDesireLister) GetForNodePool(
 			return d, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRequest(
@@ -78,7 +78,7 @@ func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRequest(
 			return d, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRevocation(
@@ -93,7 +93,7 @@ func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRevocation(
 			return d, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceApplyDesireLister) ListForManagementCluster(
@@ -157,7 +157,7 @@ func (l *SliceReadDesireLister) GetForCluster(
 			return d, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceReadDesireLister) GetForNodePool(
@@ -172,7 +172,7 @@ func (l *SliceReadDesireLister) GetForNodePool(
 			return d, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceReadDesireLister) GetForSystemAdminCredentialRequest(
@@ -187,7 +187,7 @@ func (l *SliceReadDesireLister) GetForSystemAdminCredentialRequest(
 			return d, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceReadDesireLister) GetForSystemAdminCredentialRevocation(
@@ -202,7 +202,7 @@ func (l *SliceReadDesireLister) GetForSystemAdminCredentialRevocation(
 			return d, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceReadDesireLister) ListForManagementCluster(

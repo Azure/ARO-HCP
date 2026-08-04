@@ -27,7 +27,7 @@ import (
 	hcphelpers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	sessiongateapiv1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
@@ -45,7 +45,7 @@ var groupRewriteMap = map[string]string{
 // HCPBreakglassSessionCreationHandler handles requests to create breakglass sessions.
 // This endpoint is accessed exclusively via Geneva Actions. See package documentation for security model.
 type HCPBreakglassSessionCreationHandler struct {
-	resourcesDBClient       database.ResourcesDBClient
+	resourcesDBClient       corecosmosstorage.ResourcesDBClient
 	csClient                ocm.ClusterServiceClientSpec
 	sessionClient           sessiongatev1alpha1.SessionInterface
 	AllowedBreakglassGroups set.Set[string]
@@ -53,7 +53,7 @@ type HCPBreakglassSessionCreationHandler struct {
 	MaxSessionTTL           time.Duration
 }
 
-func NewHCPBreakglassSessionCreationHandler(resourcesDBClient database.ResourcesDBClient, csClient ocm.ClusterServiceClientSpec, sessionClient sessiongatev1alpha1.SessionInterface, allowedBreakglassGroups set.Set[string], minSessionTTL time.Duration, maxSessionTTL time.Duration) *HCPBreakglassSessionCreationHandler {
+func NewHCPBreakglassSessionCreationHandler(resourcesDBClient corecosmosstorage.ResourcesDBClient, csClient ocm.ClusterServiceClientSpec, sessionClient sessiongatev1alpha1.SessionInterface, allowedBreakglassGroups set.Set[string], minSessionTTL time.Duration, maxSessionTTL time.Duration) *HCPBreakglassSessionCreationHandler {
 	return &HCPBreakglassSessionCreationHandler{
 		resourcesDBClient:       resourcesDBClient,
 		csClient:                csClient,

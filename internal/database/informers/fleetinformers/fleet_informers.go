@@ -23,7 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 )
@@ -35,14 +35,14 @@ const (
 
 // NewStampInformer creates an unstarted SharedIndexInformer for stamps
 // with the default relist duration.
-func NewStampInformer(lister database.GlobalLister[fleet.Stamp], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
+func NewStampInformer(lister cosmosstorageutils.GlobalLister[fleet.Stamp], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewStampInformerWithRelistDuration(lister, cosmosClient, StampRelistDuration)
 }
 
 // NewStampInformerWithRelistDuration creates an unstarted SharedIndexInformer for stamps
 // with a configurable relist duration.
-func NewStampInformerWithRelistDuration(lister database.GlobalLister[fleet.Stamp], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[fleet.Stamp, *fleet.Stamp, database.GenericDocument[fleet.Stamp]](
+func NewStampInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[fleet.Stamp], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[fleet.Stamp, *fleet.Stamp, cosmosstorageutils.GenericDocument[fleet.Stamp]](
 		[]azcorearm.ResourceType{fleet.StampResourceType},
 		utilsclock.RealClock{},
 		lister,
@@ -62,14 +62,14 @@ func NewStampInformerWithRelistDuration(lister database.GlobalLister[fleet.Stamp
 
 // NewManagementClusterInformer creates an unstarted SharedIndexInformer for management clusters
 // with the default relist duration.
-func NewManagementClusterInformer(lister database.GlobalLister[fleet.ManagementCluster], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
+func NewManagementClusterInformer(lister cosmosstorageutils.GlobalLister[fleet.ManagementCluster], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewManagementClusterInformerWithRelistDuration(lister, cosmosClient, ManagementClusterRelistDuration)
 }
 
 // NewManagementClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for management clusters
 // with a configurable relist duration.
-func NewManagementClusterInformerWithRelistDuration(lister database.GlobalLister[fleet.ManagementCluster], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[fleet.ManagementCluster, *fleet.ManagementCluster, database.GenericDocument[fleet.ManagementCluster]](
+func NewManagementClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[fleet.ManagementCluster], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[fleet.ManagementCluster, *fleet.ManagementCluster, cosmosstorageutils.GenericDocument[fleet.ManagementCluster]](
 		[]azcorearm.ResourceType{fleet.ManagementClusterResourceType},
 		utilsclock.RealClock{},
 		lister,

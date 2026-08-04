@@ -26,10 +26,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
 const (
@@ -87,14 +87,14 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 		},
 	}
 
-	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{clusterScoped, nodePoolScoped})
+	mock, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{clusterScoped, nodePoolScoped})
 	if err != nil {
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
 	}
 	// Wrap the single per-MC mock in the plural registry under testMgmtID so the
 	// DB-backed lister's ListForManagementCluster(testMgmtID) call resolves to
 	// this mock via clients.For(rid).
-	clients := databasetesting.NewMockKubeApplierDBClients()
+	clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	clients.Register(testMgmtID, mock)
 	lister := &fleetlistertesting.SliceManagementClusterLister{
 		ManagementClusters: []*fleet.ManagementCluster{
@@ -124,7 +124,7 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 	}
 
 	// Cluster-scoped Get for the nodepool name should NotFound.
-	if _, err := l.GetForCluster(ctx, testSub, testRG, testCluster, "np-d"); !database.IsNotFoundError(err) {
+	if _, err := l.GetForCluster(ctx, testSub, testRG, testCluster, "np-d"); !cosmosstorageutils.IsNotFoundError(err) {
 		t.Errorf("GetForCluster np-d: want NotFound, got %v", err)
 	}
 

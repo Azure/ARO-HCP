@@ -24,7 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -48,10 +48,10 @@ func BuildReadDesire(resourceIDString string, managementCluster *azcorearm.Resou
 // GetExistingReadDesire returns the named ReadDesire from cosmos, or nil
 // when the document doesn't exist. Non-NotFound errors are propagated.
 func GetExistingReadDesire(
-	ctx context.Context, crud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], name string,
+	ctx context.Context, crud cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], name string,
 ) (*kubeapplier.ReadDesire, error) {
 	existing, err := crud.Get(ctx, name)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil, nil
 	}
 	if err != nil {

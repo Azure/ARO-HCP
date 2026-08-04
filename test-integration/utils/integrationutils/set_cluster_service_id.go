@@ -24,7 +24,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -39,7 +39,7 @@ func GenerateRandomClusterClusterServiceHREF() string {
 // for a node pool, derived from the parent cluster's stored ClusterServiceID.
 func CalculateClusterServiceIDFromNodePoolResourceID(
 	ctx context.Context,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	resourceIDString string,
 ) (string, error) {
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
@@ -63,7 +63,7 @@ func CalculateClusterServiceIDFromNodePoolResourceID(
 // for an external auth, derived from the parent cluster's stored ClusterServiceID.
 func CalculateClusterServiceIDFromExternalAuthResourceID(
 	ctx context.Context,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	resourceIDString string,
 ) (string, error) {
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
@@ -86,13 +86,13 @@ func CalculateClusterServiceIDFromExternalAuthResourceID(
 // StampRandomClusterServiceID assigns a random Cluster Service cluster HREF to the cluster document.
 func StampRandomClusterServiceID(
 	ctx context.Context,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterResourceIDString string,
 ) error {
 	return SetClusterServiceID(ctx, resourcesDBClient, clusterResourceIDString, GenerateRandomClusterClusterServiceHREF())
 }
 
-func clusterClusterServiceID(ctx context.Context, resourcesDBClient database.ResourcesDBClient, childResourceID *azcorearm.ResourceID) (api.InternalID, error) {
+func clusterClusterServiceID(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, childResourceID *azcorearm.ResourceID) (api.InternalID, error) {
 	cluster, err := resourcesDBClient.HCPClusters(childResourceID.SubscriptionID, childResourceID.ResourceGroupName).
 		Get(ctx, childResourceID.Parent.Name)
 	if err != nil {
@@ -113,7 +113,7 @@ func clusterClusterServiceID(ctx context.Context, resourcesDBClient database.Res
 // with the given Cluster Service internal ID.
 func SetClusterServiceID(
 	ctx context.Context,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	resourceIDString string,
 	clusterServiceID string,
 ) error {
@@ -144,7 +144,7 @@ func SetClusterServiceID(
 
 func setClusterClusterServiceID(
 	ctx context.Context,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	resourceID *azcorearm.ResourceID,
 	csInternalID api.InternalID,
 ) error {
@@ -163,7 +163,7 @@ func setClusterClusterServiceID(
 
 func setNodePoolClusterServiceID(
 	ctx context.Context,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	resourceID *azcorearm.ResourceID,
 	csInternalID api.InternalID,
 ) error {
@@ -187,7 +187,7 @@ func setNodePoolClusterServiceID(
 
 func setExternalAuthClusterServiceID(
 	ctx context.Context,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	resourceID *azcorearm.ResourceID,
 	csInternalID api.InternalID,
 ) error {

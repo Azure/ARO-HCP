@@ -31,8 +31,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
 func mustParseResourceID(t *testing.T, id string) *azcorearm.ResourceID {
@@ -108,17 +108,17 @@ type informerTestCase struct {
 	name string
 
 	// seedDB populates the mock database with initial items.
-	seedDB func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient)
+	seedDB func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient)
 
 	// createInformer creates the SharedIndexInformer under test.
-	createInformer func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer
+	createInformer func(mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) cache.SharedIndexInformer
 
 	// expectedInitialAdds is the number of Add events expected from the initial list.
 	expectedInitialAdds int
 
 	// mutateDB modifies the database after initial sync. The informer will
 	// detect changes on the next relist triggered by the expiring watcher.
-	mutateDB func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient)
+	mutateDB func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient)
 
 	// verifyMutationEvents checks the events after mutation.
 	verifyMutationEvents func(t *testing.T, tracker *objectEventTracker)
@@ -138,7 +138,7 @@ func TestSharedInformerEvents(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 			defer cancel()
 
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tc.seedDB(t, ctx, mockResourcesDBClient)
 
 			informer := tc.createInformer(mockResourcesDBClient)
@@ -187,7 +187,7 @@ func TestSharedInformerResync(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 			defer cancel()
 
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tc.seedDB(t, ctx, mockResourcesDBClient)
 
 			informer := tc.createInformer(mockResourcesDBClient)
@@ -235,7 +235,7 @@ func TestSharedInformerResync(t *testing.T) {
 func subscriptionInformerTestCase() informerTestCase {
 	return informerTestCase{
 		name: "subscription",
-		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 			t.Helper()
 			sub1 := &arm.Subscription{
 				CosmosMetadata: arm.CosmosMetadata{
@@ -258,11 +258,11 @@ func subscriptionInformerTestCase() informerTestCase {
 			_, err = mockResourcesDBClient.Subscriptions().Create(ctx, sub2, nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer {
+		createInformer: func(mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) cache.SharedIndexInformer {
 			return NewSubscriptionInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().Subscriptions(), mockResourcesDBClient, 1*time.Second)
 		},
 		expectedInitialAdds: 2,
-		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 			t.Helper()
 			// Update sub-1. Deep-copy the existing document so the Replace
 			// carries the existing etag and instance version forward; the
@@ -369,7 +369,7 @@ func clusterInformerTestCase() informerTestCase {
 
 	return informerTestCase{
 		name: "cluster",
-		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 			t.Helper()
 			clusterCRUD := mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
 			_, err := clusterCRUD.Create(ctx, newCluster(t, "cluster-1", arm.ProvisioningStateSucceeded), nil)
@@ -377,11 +377,11 @@ func clusterInformerTestCase() informerTestCase {
 			_, err = clusterCRUD.Create(ctx, newCluster(t, "cluster-2", arm.ProvisioningStateSucceeded), nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer {
+		createInformer: func(mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) cache.SharedIndexInformer {
 			return NewClusterInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().Clusters(), mockResourcesDBClient, 1*time.Second)
 		},
 		expectedInitialAdds: 2,
-		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 			t.Helper()
 			clusterCRUD := mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
 
@@ -483,7 +483,7 @@ func nodePoolInformerTestCase() informerTestCase {
 
 	return informerTestCase{
 		name: "nodePool",
-		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 			t.Helper()
 			// We need a parent cluster first.
 			clusterResourceID := mustParseResourceID(t,
@@ -519,11 +519,11 @@ func nodePoolInformerTestCase() informerTestCase {
 			_, err = npCRUD.Create(ctx, newNodePool(t, "np-2", 5), nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer {
+		createInformer: func(mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) cache.SharedIndexInformer {
 			return NewNodePoolInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().NodePools(), mockResourcesDBClient, 1*time.Second)
 		},
 		expectedInitialAdds: 2,
-		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 			t.Helper()
 			npCRUD := mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName)
 
@@ -619,7 +619,7 @@ func activeOperationInformerTestCase() informerTestCase {
 
 	return informerTestCase{
 		name: "activeOperation",
-		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 			t.Helper()
 			opCRUD := mockResourcesDBClient.Operations(subscriptionID)
 			_, err := opCRUD.Create(ctx, newOperation(t, "op-1", arm.ProvisioningStateAccepted), nil)
@@ -627,11 +627,11 @@ func activeOperationInformerTestCase() informerTestCase {
 			_, err = opCRUD.Create(ctx, newOperation(t, "op-2", arm.ProvisioningStateProvisioning), nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer {
+		createInformer: func(mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) cache.SharedIndexInformer {
 			return NewActiveOperationInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().ActiveOperations(), mockResourcesDBClient, 1*time.Second)
 		},
 		expectedInitialAdds: 2,
-		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 			t.Helper()
 			opCRUD := mockResourcesDBClient.Operations(subscriptionID)
 
@@ -734,7 +734,7 @@ func controllerInformerTestCase() informerTestCase {
 
 	return informerTestCase{
 		name: "controller",
-		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 			t.Helper()
 			// Create the parent cluster.
 			clusterResourceID := mustParseResourceID(t,
@@ -811,11 +811,11 @@ func controllerInformerTestCase() informerTestCase {
 			_, err = eaCtrlCRUD.Create(ctx, newExternalAuthController(t, "ctrl-ea"), nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer {
+		createInformer: func(mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) cache.SharedIndexInformer {
 			return NewControllerInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().Controllers(), mockResourcesDBClient, 1*time.Second)
 		},
 		expectedInitialAdds: 4,
-		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 			t.Helper()
 			clusterCtrlCRUD := mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Controllers(clusterName)
 

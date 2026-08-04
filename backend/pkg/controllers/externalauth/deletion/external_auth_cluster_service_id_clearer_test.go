@@ -31,8 +31,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -44,7 +44,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 	}
 
-	verifyClusterServiceIDUnchanged := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyClusterServiceIDUnchanged := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
 			ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
@@ -60,7 +60,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		setupMockCSClient    func(mock *ocm.MockClusterServiceClientSpec)
 		wantErr              bool
 		wantErrContain       string
-		verifyDB             func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB             func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:                 "no DeletionTimestamp -- no-op",
@@ -80,7 +80,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 				withDeletionStampsExternalAuthOptsFunc(ea)
 				ea.ServiceProviderProperties.ClusterServiceID = nil
 			}),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
 					ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
@@ -110,7 +110,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 					GetExternalAuth(gomock.Any(), api.Must(api.NewInternalID(testExternalAuthCSIDStr))).
 					Return(nil, fakeOCMNotFoundError())
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
 					ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
@@ -152,7 +152,7 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			if tc.existingExternalAuth != nil {
 				resources = append(resources, tc.existingExternalAuth)
 			}
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)

@@ -26,7 +26,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -38,7 +39,7 @@ import (
 type externalAuthDegradedAggregator struct {
 	externalAuthLister corelisters.ExternalAuthLister
 	controllerLister   corelisters.ControllerLister
-	resourcesDBClient  database.ResourcesDBClient
+	resourcesDBClient  corecosmosstorage.ResourcesDBClient
 	inertia            statusutils.Inertia
 	clock              utilsclock.PassiveClock
 	firstObservedBad   *statusutils.FirstObservedBadCache
@@ -62,7 +63,7 @@ func externalAuthDegradedAggregatorInertia() statusutils.Inertia {
 // See NewClusterDegradedAggregatorController for the clock semantics —
 // they are identical across the three aggregators.
 func NewExternalAuthDegradedAggregatorController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	externalAuthLister corelisters.ExternalAuthLister,
 	controllerLister corelisters.ControllerLister,
 	informers coreinformers.BackendInformers,
@@ -90,7 +91,7 @@ func NewExternalAuthDegradedAggregatorController(
 
 func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
 	existing, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -118,10 +119,10 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 
 	externalAuthCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName)
 	_, err = externalAuthCRUD.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {

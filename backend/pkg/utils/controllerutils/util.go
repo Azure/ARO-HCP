@@ -31,7 +31,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
@@ -213,7 +214,7 @@ func ReportSyncError(syncErr error) controllerMutationFunc {
 // (for example HCPClusterKey.InitialController).
 type InitialControllerFunc func(controllerName string) *api.Controller
 
-func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller, *api.Controller], controllerName string, initialControllerFn InitialControllerFunc) func(interface{}) {
+func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller], controllerName string, initialControllerFn InitialControllerFunc) func(interface{}) {
 	return func(panicVal interface{}) {
 		stack := debug.Stack()
 		err := WriteController(ctx, controllerCRUD, controllerName, initialControllerFn, ReportSyncError(fmt.Errorf("panic caught:\n%v\n\n%s", panicVal, stack)))
@@ -224,7 +225,7 @@ func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD database
 	}
 }
 
-func controllerCRUDForParent(resourcesDBClient database.ResourcesDBClient, parentResourceID *azcorearm.ResourceID) (database.ResourceCRUD[api.Controller, *api.Controller], error) {
+func controllerCRUDForParent(resourcesDBClient corecosmosstorage.ResourcesDBClient, parentResourceID *azcorearm.ResourceID) (cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller], error) {
 	subscriptionID := parentResourceID.SubscriptionID
 	resourceGroupName := parentResourceID.ResourceGroupName
 	hcp := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
@@ -251,10 +252,10 @@ func controllerCRUDForParent(resourcesDBClient database.ResourcesDBClient, paren
 
 // getOrCreateControllerDocument returns the controller document from Cosmos, creating it with
 // initialControllerFn if missing. On create conflict (HTTP 409), it re-reads and returns the
-// existing document (same pattern as database.GetOrCreateServiceProviderCluster).
+// existing document (same pattern as corecosmosstorage.GetOrCreateServiceProviderCluster).
 func getOrCreateControllerDocument(
 	ctx context.Context,
-	controllerCRUD database.ResourceCRUD[api.Controller, *api.Controller],
+	controllerCRUD cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller],
 	controllerName string,
 	initialControllerFn InitialControllerFunc,
 	secondAttempt ...bool,
@@ -267,7 +268,7 @@ func getOrCreateControllerDocument(
 	switch {
 	case err == nil:
 		return existingController, nil
-	case database.IsNotFoundError(err):
+	case cosmosstorageutils.IsNotFoundError(err):
 		// fall through
 	default:
 		return nil, utils.TrackError(err)
@@ -277,7 +278,7 @@ func getOrCreateControllerDocument(
 	switch {
 	case err == nil:
 		return existingController, nil
-	case database.IsConflictError(err):
+	case cosmosstorageutils.IsConflictError(err):
 		// fall through
 	default:
 		return nil, utils.TrackError(err)
@@ -287,11 +288,11 @@ func getOrCreateControllerDocument(
 	switch {
 	case err == nil:
 		return existingController, nil
-	case database.IsNotFoundError(err):
+	case cosmosstorageutils.IsNotFoundError(err):
 		if len(secondAttempt) >= 1 && secondAttempt[0] {
 			return nil, utils.TrackError(fmt.Errorf("second NotFound, Conflict, NotFound error: %w", err))
 		}
-		timer := time.NewTimer((database.SoftDeleteTTLSeconds + 1) * time.Second)
+		timer := time.NewTimer((cosmosstorageutils.SoftDeleteTTLSeconds + 1) * time.Second)
 		defer timer.Stop()
 		select {
 		case <-ctx.Done():
@@ -310,9 +311,9 @@ func getOrCreateControllerDocument(
 // GetOrCreateController gets the named Controller document under the given parent resource
 // (cluster, node pool, or external auth). If it does not exist, it creates one using initialControllerFn.
 // On create conflict (HTTP 409), it re-reads and returns the existing document (same pattern as
-// database.GetOrCreateServiceProviderCluster).
+// corecosmosstorage.GetOrCreateServiceProviderCluster).
 func GetOrCreateController(
-	ctx context.Context, resourcesDBClient database.ResourcesDBClient, parentResourceID *azcorearm.ResourceID,
+	ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, parentResourceID *azcorearm.ResourceID,
 	controllerName string, initialControllerFn InitialControllerFunc,
 ) (*api.Controller, error) {
 	controllerCRUD, err := controllerCRUDForParent(resourcesDBClient, parentResourceID)
@@ -331,7 +332,7 @@ func GetOrCreateController(
 // If it fails, then the an error is returned.  This detail is important, it doesn't even retry conflicts.  This is so that
 // if a failure happens the control-loop will re-run and restablish the information it was trying to write as valid.
 // This prevents accidental recreation of controller instances in cosmos during a delete.
-func WriteController(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller, *api.Controller], controllerName string, initialControllerFn InitialControllerFunc, mutationFns ...controllerMutationFunc) error {
+func WriteController(ctx context.Context, controllerCRUD cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller], controllerName string, initialControllerFn InitialControllerFunc, mutationFns ...controllerMutationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	existingController, err := getOrCreateControllerDocument(ctx, controllerCRUD, controllerName, initialControllerFn)

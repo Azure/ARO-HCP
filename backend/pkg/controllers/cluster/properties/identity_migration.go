@@ -24,7 +24,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -37,7 +38,7 @@ import (
 // field is populated for clusters that were created before all identity state was held in Cosmos.
 type identityMigrationSyncer struct {
 	clusterLister        corelisters.ClusterLister
-	resourcesDBClient    database.ResourcesDBClient
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
@@ -48,7 +49,7 @@ var _ controllerutils.ClusterSyncer = (*identityMigrationSyncer)(nil)
 // It periodically checks each cluster and populates the Identity.UserAssignedIdentities
 // field if it is not set, using GetClusterServiceUserAssignedIdentities to extract the identity data.
 func NewIdentityMigrationController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
@@ -151,7 +152,7 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 
 	// do the super cheap cache check first
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// we'll be re-fired if it is created again
 		return nil
 	}
@@ -167,7 +168,7 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 	// Get the cluster from Cosmos
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
@@ -200,7 +201,7 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 
 	// Write the updated cluster back to Cosmos
 	_, err = clusterCRUD.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 		return nil
 	}

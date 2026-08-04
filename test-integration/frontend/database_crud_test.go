@@ -127,7 +127,7 @@ func testCRUDSuite[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadat
 // testUntypedCRUDSuite mirrors testCRUDSuite for the UntypedCRUD test suite which
 // operates on raw TypedDocument values that don't implement CosmosMetadataAccessor.
 // All actual steps in this suite are untyped-* variants that do not require a typed
-// CRUD client, so we instantiate with database.TypedDocument and skip the constraint.
+// CRUD client, so we instantiate with cosmosstorageutils.TypedDocument and skip the constraint.
 func testUntypedCRUDSuite(ctx context.Context, t *testing.T, crudSuiteDir fs.FS, withMock bool) {
 	testDirs := api.Must(fs.ReadDir(crudSuiteDir, "."))
 	for _, testDirEntry := range testDirs {

@@ -20,14 +20,14 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/listertestingutils"
 )
 
-// DBClusterLister implements corelisters.ClusterLister backed by a database.ResourcesDBClient.
+// DBClusterLister implements corelisters.ClusterLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBClusterLister struct {
-	ResourcesDBClient database.ResourcesDBClient
+	ResourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 var _ corelisters.ClusterLister = &DBClusterLister{}
@@ -52,9 +52,9 @@ func (l *DBClusterLister) ListForResourceGroup(ctx context.Context, subscription
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
-// DBNodePoolLister implements corelisters.NodePoolLister backed by a database.ResourcesDBClient.
+// DBNodePoolLister implements corelisters.NodePoolLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBNodePoolLister struct {
-	ResourcesDBClient database.ResourcesDBClient
+	ResourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 var _ corelisters.NodePoolLister = &DBNodePoolLister{}
@@ -96,9 +96,9 @@ func (l *DBNodePoolLister) ListForCluster(ctx context.Context, subscriptionID, r
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
-// DBServiceProviderNodePoolLister implements corelisters.ServiceProviderNodePoolLister backed by a database.ResourcesDBClient.
+// DBServiceProviderNodePoolLister implements corelisters.ServiceProviderNodePoolLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBServiceProviderNodePoolLister struct {
-	ResourcesDBClient database.ResourcesDBClient
+	ResourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 var _ corelisters.ServiceProviderNodePoolLister = &DBServiceProviderNodePoolLister{}
@@ -124,9 +124,9 @@ func (l *DBServiceProviderNodePoolLister) ListForNodePool(ctx context.Context, s
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
-// DBActiveOperationLister implements corelisters.ActiveOperationLister backed by a database.ResourcesDBClient.
+// DBActiveOperationLister implements corelisters.ActiveOperationLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBActiveOperationLister struct {
-	ResourcesDBClient database.ResourcesDBClient
+	ResourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 var _ corelisters.ActiveOperationLister = &DBActiveOperationLister{}
@@ -174,9 +174,9 @@ func (l *DBActiveOperationLister) listByPrefix(ctx context.Context, prefix strin
 	return result, nil
 }
 
-// DBExternalAuthLister implements corelisters.ExternalAuthLister backed by a database.ResourcesDBClient.
+// DBExternalAuthLister implements corelisters.ExternalAuthLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBExternalAuthLister struct {
-	ResourcesDBClient database.ResourcesDBClient
+	ResourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 var _ corelisters.ExternalAuthLister = &DBExternalAuthLister{}
@@ -217,9 +217,9 @@ func (l *DBExternalAuthLister) ListForCluster(ctx context.Context, subscriptionI
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
-// DBServiceProviderClusterLister implements corelisters.ServiceProviderClusterLister backed by a database.ResourcesDBClient.
+// DBServiceProviderClusterLister implements corelisters.ServiceProviderClusterLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBServiceProviderClusterLister struct {
-	ResourcesDBClient database.ResourcesDBClient
+	ResourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 var _ corelisters.ServiceProviderClusterLister = &DBServiceProviderClusterLister{}
@@ -244,9 +244,9 @@ func (l *DBServiceProviderClusterLister) ListForCluster(ctx context.Context, sub
 	return listertestingutils.CollectFromIterator(ctx, iter)
 }
 
-// DBControllerLister implements corelisters.ControllerLister backed by a database.ResourcesDBClient.
+// DBControllerLister implements corelisters.ControllerLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBControllerLister struct {
-	ResourcesDBClient database.ResourcesDBClient
+	ResourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 var _ corelisters.ControllerLister = &DBControllerLister{}
@@ -293,9 +293,9 @@ func (l *DBControllerLister) listWithPrefix(ctx context.Context, prefix string) 
 	return result, nil
 }
 
-// DBManagementClusterContentLister implements corelisters.ManagementClusterContentLister backed by a database.ResourcesDBClient.
+// DBManagementClusterContentLister implements corelisters.ManagementClusterContentLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBManagementClusterContentLister struct {
-	ResourcesDBClient database.ResourcesDBClient
+	ResourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 var _ corelisters.ManagementClusterContentLister = &DBManagementClusterContentLister{}
@@ -337,9 +337,9 @@ func (l *DBManagementClusterContentLister) listMCCWithPrefix(ctx context.Context
 	return result, nil
 }
 
-// DBSubscriptionLister implements corelisters.SubscriptionLister backed by a database.ResourcesDBClient.
+// DBSubscriptionLister implements corelisters.SubscriptionLister backed by a corecosmosstorage.ResourcesDBClient.
 type DBSubscriptionLister struct {
-	ResourcesDBClient database.ResourcesDBClient
+	ResourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 var _ corelisters.SubscriptionLister = &DBSubscriptionLister{}

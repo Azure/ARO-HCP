@@ -48,7 +48,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
@@ -62,7 +63,7 @@ type Frontend struct {
 	metricsListener      net.Listener
 	server               http.Server
 	metricsServer        http.Server
-	resourcesDBClient    database.ResourcesDBClient
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	auditClient          audit.Client
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
@@ -80,7 +81,7 @@ func NewFrontend(
 	metricsListener net.Listener,
 	registerer prometheus.Registerer,
 	gatherer prometheus.Gatherer,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
@@ -220,12 +221,12 @@ func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {
 	_, _ = writer.Write([]byte(f.azureLocation))
 }
 
-func dbListOptionsFromRequest(request *http.Request) *database.DBClientListResourceDocsOptions {
+func dbListOptionsFromRequest(request *http.Request) *cosmosstorageutils.DBClientListResourceDocsOptions {
 	// FIXME We may want to cap pageSizeHint. If we get a large enough
 	//       $top argument (and there's enough actual clusters to reach
 	//       that), we could potentially hit the 8MB response size limit.
 
-	options := &database.DBClientListResourceDocsOptions{
+	options := &cosmosstorageutils.DBClientListResourceDocsOptions{
 		PageSizeHint: api.Ptr(int32(20)),
 	}
 
@@ -318,7 +319,7 @@ func (f *Frontend) GetOpenshiftVersions(writer http.ResponseWriter, request *htt
 }
 
 func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseWriter, request *http.Request) error {
-	const operationRequest = database.OperationRequestSystemAdminCredentialRequest
+	const operationRequest = cosmosstorageutils.OperationRequestSystemAdminCredentialRequest
 
 	ctx := request.Context()
 
@@ -356,7 +357,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	transaction := f.resourcesDBClient.NewTransaction(clusterResourceID.SubscriptionID)
 
-	operationDoc := database.NewOperation(
+	operationDoc := cosmosstorageutils.NewOperation(
 		operationRequest,
 		clusterResourceID,
 		api.InternalID{},
@@ -381,7 +382,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 }
 
 func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter, request *http.Request) error {
-	const operationRequest = database.OperationRequestSystemAdminCredentialRevocation
+	const operationRequest = cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation
 
 	ctx := request.Context()
 	logger := utils.LoggerFromContext(ctx)
@@ -422,8 +423,8 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 
 	// Just as deleting an ARM resource cancels any other operations on the resource,
 	// revoking credentials cancels any credential requests in progress.
-	operationsToCancel, err := database.CancelActiveOperations(ctx, f.resourcesDBClient, transaction, &database.ResourcesDBClientListActiveOperationDocsOptions{
-		Request:    api.Ptr(database.OperationRequestSystemAdminCredentialRequest),
+	operationsToCancel, err := corecosmosstorage.CancelActiveOperations(ctx, f.resourcesDBClient, transaction, &corecosmosstorage.ResourcesDBClientListActiveOperationDocsOptions{
+		Request:    api.Ptr(cosmosstorageutils.OperationRequestSystemAdminCredentialRequest),
 		ExternalID: clusterResourceID,
 	})
 	if err != nil {
@@ -433,7 +434,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		logger.Info("canceling RequestCredential operations", "operationsToCancel", operationsToCancel)
 	}
 
-	operationDoc := database.NewOperation(
+	operationDoc := cosmosstorageutils.NewOperation(
 		operationRequest,
 		clusterResourceID,
 		*cluster.ServiceProviderProperties.ClusterServiceID,
@@ -507,7 +508,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
 	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, subscriptionID)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return arm.NewResourceNotFoundError(resourceID)
 	}
 	if err != nil {
@@ -550,7 +551,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 
 	var resultingSubscription *arm.Subscription
 	existingSubscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, subscriptionID)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		resultingSubscription, err = f.resourcesDBClient.Subscriptions().Create(ctx, &requestSubscription, nil)
 		if err != nil {
 			return utils.TrackError(err)
@@ -869,7 +870,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 		return nil
 	}
 
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, database.ToStatus(operation))
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, cosmosstorageutils.ToStatus(operation))
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -985,16 +986,16 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	var successStatusCode int
 
 	switch operation.Request {
-	case database.OperationRequestCreate:
+	case cosmosstorageutils.OperationRequestCreate:
 		successStatusCode = http.StatusCreated
-	case database.OperationRequestUpdate:
+	case cosmosstorageutils.OperationRequestUpdate:
 		successStatusCode = http.StatusOK
-	case database.OperationRequestDelete:
+	case cosmosstorageutils.OperationRequestDelete:
 		writer.WriteHeader(http.StatusNoContent)
 		return nil
-	case database.OperationRequestSystemAdminCredentialRequest:
+	case cosmosstorageutils.OperationRequestSystemAdminCredentialRequest:
 		successStatusCode = http.StatusOK
-	case database.OperationRequestSystemAdminCredentialRevocation:
+	case cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation:
 		writer.WriteHeader(http.StatusNoContent)
 		return nil
 	default:

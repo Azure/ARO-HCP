@@ -40,7 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -67,7 +67,7 @@ var (
 type cleanOrphanedClusterManagedResourceGroup struct {
 	location              string
 	cooldownChecker       controllerutil.CooldownChecker
-	resourcesDBClient     database.ResourcesDBClient
+	resourcesDBClient     corecosmosstorage.ResourcesDBClient
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
 }
 
@@ -76,7 +76,7 @@ type cleanOrphanedClusterManagedResourceGroup struct {
 func NewCleanOrphanedClusterManagedResourceGroupController(
 	location string,
 	activeOperationLister corelisters.ActiveOperationLister,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
 	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {

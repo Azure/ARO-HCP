@@ -41,11 +41,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -93,7 +93,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 	}
 
 	newOperationAccepted := func() *api.Operation {
-		return fixture.NewOperation(database.OperationRequestUpdate)
+		return fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate)
 	}
 
 	newServiceProviderClusterWithSpecControlPlaneVersion := func(version string) *api.ServiceProviderCluster {
@@ -158,7 +158,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		seedMismatchFirstSeenAt                       time.Time
 		setupMockCSClient                             func(*ocm.MockClusterServiceClientSpec)
 		wantErr                                       bool
-		verifyDB                                      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB                                      func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:                           "cs cluster ready transitions operation to succeeded",
@@ -172,7 +172,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -194,7 +194,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateUpdating), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
@@ -216,7 +216,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateError), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -239,7 +239,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStatePending), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -264,7 +264,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -289,7 +289,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -313,7 +313,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -337,7 +337,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -362,7 +362,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			existingOperation: newOperationAccepted(),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -374,7 +374,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: testClockNow}
 			}),
 			existingOperation: newOperationAccepted(),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -385,7 +385,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			existingCluster:   newClusterWithCustomerVersion("4.19"),
 			existingOperation: newOperationAccepted(),
 			clusterLister:     &corelistertesting.SliceClusterLister{},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -409,7 +409,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterReadyWithNodeDrainMinutes(30), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
@@ -464,7 +464,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -513,7 +513,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
@@ -544,7 +544,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
@@ -567,7 +567,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
@@ -591,7 +591,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
 					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -623,7 +623,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				resources = append(resources, tc.existingControlPlaneDesiredVersionController)
 			}
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			var readDesires []*kubeapplier.ReadDesire

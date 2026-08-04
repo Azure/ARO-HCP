@@ -30,7 +30,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
@@ -38,7 +39,7 @@ import (
 
 type dispatchRevokeCredentials struct {
 	clock                 utilsclock.PassiveClock
-	resourcesDBClient     database.ResourcesDBClient
+	resourcesDBClient     corecosmosstorage.ResourcesDBClient
 	clustersServiceClient ocm.ClusterServiceClientSpec
 }
 
@@ -52,7 +53,7 @@ type dispatchRevokeCredentials struct {
 //	      Status: Accepted
 func NewDispatchRevokeCredentialsController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
@@ -77,7 +78,7 @@ func (c *dispatchRevokeCredentials) ShouldProcess(ctx context.Context, operation
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestSystemAdminCredentialRevocation {
+	if operation.Request != cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation {
 		return false
 	}
 	// For this operation type, because there is no guarantee of break-
@@ -98,7 +99,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	logger.Info("checking operation")
 
 	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // no work to do
 	}
 	if err != nil {

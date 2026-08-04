@@ -22,7 +22,7 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -79,7 +79,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error) error {
 		}
 	}
 
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		resourceID, err := utils.ResourceIDFromContext(ctx) // used for error reporting
 		if err != nil {
 			arm.WriteInternalServerError(w)
@@ -89,7 +89,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error) error {
 		return nil
 	}
 
-	var stepError *database.TransactionStepError
+	var stepError *cosmosstorageutils.TransactionStepError
 	if errors.As(err, &stepError) && stepError.HTTPStatusCode == http.StatusPreconditionFailed {
 		w.Header().Set("Retry-After", "1")
 		arm.WriteCloudError(w, arm.NewCloudError(
@@ -120,11 +120,11 @@ func predictedResponseStatus(err error) int {
 		}
 	}
 
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return http.StatusNotFound
 	}
 
-	var stepError *database.TransactionStepError
+	var stepError *cosmosstorageutils.TransactionStepError
 	if errors.As(err, &stepError) && stepError.HTTPStatusCode == http.StatusPreconditionFailed {
 		return http.StatusTooManyRequests
 	}

@@ -27,8 +27,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -80,18 +81,18 @@ func TestDumpBillingToLogger(t *testing.T) {
 	}
 
 	// Create mock DB with clusters
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2})
 	require.NoError(t, err)
-	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+	mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 
 	// Create billing doc for cluster-1 (active)
-	billingDoc1 := database.NewBillingDocument("billing-doc-1", cluster1ResourceID)
+	billingDoc1 := billingcosmosstorage.NewBillingDocument("billing-doc-1", cluster1ResourceID)
 	billingDoc1.CreationTime = time.Now().UTC()
 	err = mockBillingDBClient.BillingDocs(cluster1ResourceID.SubscriptionID).Create(ctx, billingDoc1)
 	require.NoError(t, err)
 
 	// Create billing doc for cluster-2 (deleted)
-	billingDoc2 := database.NewBillingDocument("billing-doc-2", cluster2ResourceID)
+	billingDoc2 := billingcosmosstorage.NewBillingDocument("billing-doc-2", cluster2ResourceID)
 	billingDoc2.CreationTime = time.Now().UTC().Add(-1 * time.Hour)
 	deletionTime := time.Now().UTC()
 	billingDoc2.DeletionTime = &deletionTime
@@ -182,13 +183,13 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 		},
 	}
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2, cluster3})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2, cluster3})
 	require.NoError(t, err)
-	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+	mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 
 	// Create billing docs for all three clusters
 	for i, resourceID := range []*azcorearm.ResourceID{cluster1ResourceID, cluster2ResourceID, cluster3ResourceID} {
-		doc := database.NewBillingDocument(resourceID.Name+"-billing-"+string(rune('1'+i)), resourceID)
+		doc := billingcosmosstorage.NewBillingDocument(resourceID.Name+"-billing-"+string(rune('1'+i)), resourceID)
 		doc.CreationTime = time.Now().UTC()
 		err = mockBillingDBClient.BillingDocs(resourceID.SubscriptionID).Create(ctx, doc)
 		require.NoError(t, err)

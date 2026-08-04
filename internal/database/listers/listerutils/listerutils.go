@@ -27,7 +27,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -49,13 +49,13 @@ func ListAll[T any](store cache.Store) ([]*T, error) {
 func GetByKey[T any](indexer cache.Indexer, key string) (*T, error) {
 	item, exists, err := indexer.GetByKey(key)
 	if apierrors.IsNotFound(err) {
-		return nil, database.NewNotFoundError()
+		return nil, cosmosstorageutils.NewNotFoundError()
 	}
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 	if !exists {
-		return nil, database.NewNotFoundError()
+		return nil, cosmosstorageutils.NewNotFoundError()
 	}
 	typed, ok := item.(*T)
 	if !ok {

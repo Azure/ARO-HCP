@@ -22,7 +22,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -37,11 +37,11 @@ import (
 //
 
 type HCPHelloWorldHandler struct {
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 	csClient          ocm.ClusterServiceClientSpec
 }
 
-func NewHCPHelloWorldHandler(resourcesDBClient database.ResourcesDBClient, csClient ocm.ClusterServiceClientSpec) *HCPHelloWorldHandler {
+func NewHCPHelloWorldHandler(resourcesDBClient corecosmosstorage.ResourcesDBClient, csClient ocm.ClusterServiceClientSpec) *HCPHelloWorldHandler {
 	return &HCPHelloWorldHandler{resourcesDBClient: resourcesDBClient, csClient: csClient}
 }
 
@@ -87,12 +87,12 @@ func (h *HCPHelloWorldHandler) ServeHTTP(writer http.ResponseWriter, request *ht
 }
 
 type HCPDemoListLoadbalancersHandler struct {
-	resourcesDBClient      database.ResourcesDBClient
+	resourcesDBClient      corecosmosstorage.ResourcesDBClient
 	csClient               ocm.ClusterServiceClientSpec
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
 }
 
-func NewHCPDemoListLoadbalancersHandler(resourcesDBClient database.ResourcesDBClient, csClient ocm.ClusterServiceClientSpec, fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever) *HCPDemoListLoadbalancersHandler {
+func NewHCPDemoListLoadbalancersHandler(resourcesDBClient corecosmosstorage.ResourcesDBClient, csClient ocm.ClusterServiceClientSpec, fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever) *HCPDemoListLoadbalancersHandler {
 	return &HCPDemoListLoadbalancersHandler{resourcesDBClient: resourcesDBClient, csClient: csClient, fpaCredentialRetriever: fpaCredentialRetriever}
 }
 

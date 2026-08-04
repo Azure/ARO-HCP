@@ -32,7 +32,9 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -43,8 +45,8 @@ type deleteOrphanedCosmosResources struct {
 
 	subscriptionLister      corelisters.SubscriptionLister
 	managementClusterLister fleetlisters.ManagementClusterLister
-	resourcesDBClient       database.ResourcesDBClient
-	kubeApplierDBClients    database.KubeApplierDBClients
+	resourcesDBClient       corecosmosstorage.ResourcesDBClient
+	kubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -61,8 +63,8 @@ type deleteOrphanedCosmosResources struct {
 //     nodepool; we walk each MC's container and delete any desire whose parent isn't present
 //     in this subscription's resource map.
 func NewDeleteOrphanedCosmosResourcesController(
-	resourcesDBClient database.ResourcesDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	subscriptionLister corelisters.SubscriptionLister,
 	managementClusterLister fleetlisters.ManagementClusterLister,
 ) controllerutils.Controller {
@@ -105,7 +107,7 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 
 	errs := []error{}
 	// while the number of items is large, but we can paginate through
-	allSubscriptionResourceIDs := map[string]*database.TypedDocument{}
+	allSubscriptionResourceIDs := map[string]*cosmosstorageutils.TypedDocument{}
 	for _, subscriptionResource := range subscriptionResourceIterator.Items(ctx) {
 		if subscriptionResource.ResourceID == nil {
 			// n.b. our listers pass all data through a Cosmos -> internal representation mapping, which attempts to ensure
@@ -194,7 +196,7 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 	ctx context.Context,
 	subscriptionResourceID *azcorearm.ResourceID,
-	allSubscriptionResourceIDs map[string]*database.TypedDocument,
+	allSubscriptionResourceIDs map[string]*cosmosstorageutils.TypedDocument,
 ) error {
 	logger := utils.LoggerFromContext(ctx)
 

@@ -34,8 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
 // newTestNodePoolForAggregator builds a minimal HCPOpenShiftClusterNodePool
@@ -212,7 +212,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 			for _, ctrl := range tc.controllers {
 				seed = append(seed, ctrl)
 			}
-			mockDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, seed)
+			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, seed)
 			require.NoError(t, err)
 
 			clock := clocktesting.NewFakePassiveClock(statusutils.FixedNow)

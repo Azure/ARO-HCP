@@ -38,7 +38,8 @@ import (
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -48,7 +49,7 @@ import (
 
 type operationNodePoolUpdate struct {
 	clock                           utilsclock.PassiveClock
-	resourcesDBClient               database.ResourcesDBClient
+	resourcesDBClient               corecosmosstorage.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
 	nodePoolLister                  corelisters.NodePoolLister
 	serviceProviderNodePoolLister   corelisters.ServiceProviderNodePoolLister
@@ -74,7 +75,7 @@ type operationNodePoolUpdate struct {
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationNodePoolUpdateController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	notificationClient *http.Client,
@@ -112,7 +113,7 @@ func (c *operationNodePoolUpdate) ShouldProcess(ctx context.Context, operation *
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestUpdate {
+	if operation.Request != cosmosstorageutils.OperationRequestUpdate {
 		return false
 	}
 	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()) {
@@ -126,7 +127,7 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 	logger.Info("checking operation")
 
 	operation, err := c.activeOperationsLister.Get(ctx, key.SubscriptionID, key.OperationName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // no work to do
 	}
 	if err != nil {
@@ -137,7 +138,7 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 	}
 
 	existingNodePool, err := c.nodePoolLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Parent.Name, operation.ExternalID.Name)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.Info("node pool not found in cache, waiting")
 		return nil // no work to do
 	}
@@ -169,7 +170,7 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 
 	logger.Info("updating status")
 	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 		return nil
 	}

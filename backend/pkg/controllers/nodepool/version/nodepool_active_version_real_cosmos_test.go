@@ -34,9 +34,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -75,7 +75,7 @@ func loadCosmosResource[T any](t *testing.T, fsys embed.FS, path string) *T {
 // capture in /tmp/nodeversionfail did not include the subscription document
 // (subscriptions live in a separate container we did not snapshot), so this
 // is the only piece of the parent chain we still synthesize.
-func seedSubscription(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient, subscriptionID string) {
+func seedSubscription(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, subscriptionID string) {
 	t.Helper()
 	subscriptionRID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + subscriptionID))
 	_, err := mockDB.Subscriptions().Create(ctx, &arm.Subscription{
@@ -101,7 +101,7 @@ func TestNodePoolActiveVersionSyncer_RealCosmosFixture(t *testing.T) {
 	const artifactsRoot = "artifacts/TestNodePoolActiveVersionSyncer_RealCosmosFixture"
 
 	runCtx := utils.ContextWithLogger(context.Background(), logr.Discard())
-	mockDB := databasetesting.NewMockResourcesDBClient()
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	cluster := loadCosmosResource[api.HCPOpenShiftCluster](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/cluster.json")
 	nodePool := loadCosmosResource[api.HCPOpenShiftClusterNodePool](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/nodepool.json")

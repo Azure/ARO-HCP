@@ -25,7 +25,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,7 +41,7 @@ type externalAuthWatchingController struct {
 	syncer ExternalAuthSyncer
 
 	externalAuthLister corelisters.ExternalAuthLister
-	resourcesDBClient  database.ResourcesDBClient
+	resourcesDBClient  corecosmosstorage.ResourcesDBClient
 }
 
 // NewExternalAuthWatchingController periodically looks up all ExternalAuths and queues them
@@ -50,7 +51,7 @@ type externalAuthWatchingController struct {
 // This does NOT prevent us from re-executing on errors, so errors will continue to trigger fast checks as expected.
 func NewExternalAuthWatchingController(
 	name string,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
 	resyncDuration time.Duration,
 	syncer ExternalAuthSyncer,
@@ -86,7 +87,7 @@ func (c *externalAuthWatchingController) SyncOnce(ctx context.Context, key HCPEx
 
 	_, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
 	switch {
-	case database.IsNotFoundError(err):
+	case cosmosstorageutils.IsNotFoundError(err):
 		logger.Info("external auth not found, skipping sync")
 		return nil
 	case err != nil:

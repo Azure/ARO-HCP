@@ -33,7 +33,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -85,7 +86,7 @@ const (
 //
 // In all of these cases the operation document is still persisted and ARM is
 // notified, so the operation reaches its terminal state and does not get stuck.
-func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 	if existingOperation == nil {
 		return nil
@@ -179,7 +180,7 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 
 // getClusterForUpdate returns a deep copy of the cluster with updated provisioning
 // state, or nil if the resource update should be skipped.
-func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient database.HCPClusterCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftCluster, error) {
+func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.HCPClusterCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftCluster, error) {
 	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
@@ -213,7 +214,7 @@ func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient datab
 
 // getNodePoolForUpdate returns a deep copy of the node pool with updated provisioning
 // state, or nil if the resource update should be skipped.
-func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient database.NodePoolsCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftClusterNodePool, error) {
+func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.NodePoolsCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftClusterNodePool, error) {
 	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
@@ -247,7 +248,7 @@ func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient data
 
 // getExternalAuthForUpdate returns a deep copy of the external auth with updated
 // provisioning state, or nil if the resource update should be skipped.
-func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient database.ExternalAuthsCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftClusterExternalAuth, error) {
+func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.ExternalAuthsCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftClusterExternalAuth, error) {
 	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
@@ -291,7 +292,7 @@ func NeedToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.Pr
 }
 
 // PatchOperation patches the status and error fields of an OperationDocument.
-func PatchOperation(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func PatchOperation(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	if !NeedToPatchOperation(oldOperation, newOperationStatus, newOperationError) {
@@ -326,35 +327,35 @@ func PatchOperation(ctx context.Context, clock utilsclock.PassiveClock, resource
 // The notification URI is cleared in a separate write after the notification is
 // sent successfully. If the process crashes between sending the notification and
 // clearing the URI, the notification may be sent again on the next reconcile.
-func notifyOperationOwner(ctx context.Context, resourcesDBClient database.ResourcesDBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) {
+func notifyOperationOwner(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) {
 	logger := utils.LoggerFromContext(ctx)
 
 	message := fmt.Sprintf("Updated status to '%s'", operation.Status)
 	switch operation.Status {
 	case arm.ProvisioningStateSucceeded:
 		switch operation.Request {
-		case database.OperationRequestCreate:
+		case cosmosstorageutils.OperationRequestCreate:
 			message = "Resource creation succeeded"
-		case database.OperationRequestUpdate:
+		case cosmosstorageutils.OperationRequestUpdate:
 			message = "Resource update succeeded"
-		case database.OperationRequestDelete:
+		case cosmosstorageutils.OperationRequestDelete:
 			message = "Resource deletion succeeded"
-		case database.OperationRequestSystemAdminCredentialRequest:
+		case cosmosstorageutils.OperationRequestSystemAdminCredentialRequest:
 			message = "Credential request succeeded"
-		case database.OperationRequestSystemAdminCredentialRevocation:
+		case cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation:
 			message = "Credential revocation succeeded"
 		}
 	case arm.ProvisioningStateFailed:
 		switch operation.Request {
-		case database.OperationRequestCreate:
+		case cosmosstorageutils.OperationRequestCreate:
 			message = "Resource creation failed"
-		case database.OperationRequestUpdate:
+		case cosmosstorageutils.OperationRequestUpdate:
 			message = "Resource update failed"
-		case database.OperationRequestDelete:
+		case cosmosstorageutils.OperationRequestDelete:
 			message = "Resource deletion failed"
-		case database.OperationRequestSystemAdminCredentialRequest:
+		case cosmosstorageutils.OperationRequestSystemAdminCredentialRequest:
 			message = "Credential request failed"
-		case database.OperationRequestSystemAdminCredentialRevocation:
+		case cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation:
 			message = "Credential revocation failed"
 		}
 	}
@@ -403,7 +404,7 @@ func PostAsyncNotificationFn(notificationClient *http.Client) PostAsyncNotificat
 }
 
 func PostAsyncNotification(ctx context.Context, notificationClient *http.Client, operation *api.Operation) error {
-	data, err := arm.MarshalJSON(database.ToStatus(operation))
+	data, err := arm.MarshalJSON(cosmosstorageutils.ToStatus(operation))
 	if err != nil {
 		return err
 	}
@@ -468,7 +469,7 @@ func ConvertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 		// from Cluster Service returns a "404 Not Found" error. If
 		// we see the resource in a "Ready" state during a deletion
 		// operation, leave the current provisioning state as is.
-		if operation.Request != database.OperationRequestDelete {
+		if operation.Request != cosmosstorageutils.OperationRequestDelete {
 			newOperationStatus = arm.ProvisioningStateSucceeded
 		}
 	case arohcpv1alpha1.ClusterStateUninstalling:
@@ -526,7 +527,7 @@ func ConvertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 		// from Cluster Service returns a "404 Not Found" error. If
 		// we see the resource in a "Ready" state during a deletion
 		// operation, leave the current provisioning state as is.
-		if operation.Request != database.OperationRequestDelete {
+		if operation.Request != cosmosstorageutils.OperationRequestDelete {
 			newOperationStatus = arm.ProvisioningStateSucceeded
 		}
 	case NodePoolStateUpdating:
@@ -557,7 +558,7 @@ func ConvertExternalAuthStatus(operation *api.Operation, externalAuthStatus *aro
 
 	switch state := ExternalAuthStateValue(externalAuthStatus.State().Value()); state {
 	case ExternalAuthStateReady:
-		if operation.Request != database.OperationRequestDelete {
+		if operation.Request != cosmosstorageutils.OperationRequestDelete {
 			newOperationStatus = arm.ProvisioningStateSucceeded
 		}
 	case ExternalAuthStateError:
@@ -642,7 +643,7 @@ func convertInflightCheckDetails(inflightCheck *arohcpv1alpha1.InflightCheck) (s
 }
 
 // SetDeleteOperationAsCompleted updates Cosmos DB to reflect a completed resource deletion.
-func SetDeleteOperationAsCompleted(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func SetDeleteOperationAsCompleted(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	// Delete the resource document first. If it fails the backend will retry
 	// by virtue of the operation document still having a non-terminal status.
 	untypedCRUD, err := resourcesDBClient.UntypedCRUD(*operation.ExternalID)

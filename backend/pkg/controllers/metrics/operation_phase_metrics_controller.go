@@ -80,7 +80,7 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *api.Operati
 	if len(resourceID) == 0 {
 		// op.ExternalID is expected to always be populated for production
 		// operations (every frontend construction site passes the target
-		// resource ID into database.NewOperation). Log when the invariant
+		// resource ID into cosmosstorageutils.NewOperation). Log when the invariant
 		// breaks so an operator notices instead of staring at a silently
 		// missing metric. This logs once per Sync event for the offending
 		// op; if an operation persists with nil ExternalID across resyncs

@@ -23,8 +23,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
 
 func TestDBClusterLister(t *testing.T) {
@@ -35,7 +35,7 @@ func TestDBClusterLister(t *testing.T) {
 	cluster2 := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName2)
 	cluster3 := newTestCluster(testSubscriptionID2, testResourceGroupName, testClusterName)
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2, cluster3})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2, cluster3})
 	require.NoError(t, err)
 
 	lister := &DBClusterLister{ResourcesDBClient: mockResourcesDBClient}
@@ -55,7 +55,7 @@ func TestDBClusterLister(t *testing.T) {
 	t.Run("Get returns not found for non-existent cluster", func(t *testing.T) {
 		_, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, "non-existent")
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 
 	t.Run("ListForResourceGroup returns clusters in resource group", func(t *testing.T) {
@@ -75,7 +75,7 @@ func TestDBNodePoolLister(t *testing.T) {
 	np1 := newTestNodePool(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
 	np2 := newTestNodePool(testSubscriptionID, testResourceGroupName, testClusterName, "nodepool-2")
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, np1, np2})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, np1, np2})
 	require.NoError(t, err)
 
 	lister := &DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient}
@@ -95,7 +95,7 @@ func TestDBNodePoolLister(t *testing.T) {
 	t.Run("Get returns not found for non-existent node pool", func(t *testing.T) {
 		_, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, testClusterName, "non-existent")
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 
 	t.Run("ListForCluster returns node pools for cluster", func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestDBSubscriptionLister(t *testing.T) {
 	sub2 := newTestSubscription(testSubscriptionID2)
 	sub2.State = arm.SubscriptionStateRegistered
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{sub1, sub2})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{sub1, sub2})
 	require.NoError(t, err)
 
 	lister := &DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient}
@@ -140,7 +140,7 @@ func TestDBSubscriptionLister(t *testing.T) {
 	t.Run("Get returns not found for non-existent subscription", func(t *testing.T) {
 		_, err := lister.Get(ctx, "22222222-2222-2222-2222-222222222222")
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 }
 
@@ -160,7 +160,7 @@ func TestDBActiveOperationLister(t *testing.T) {
 	eaOp1 := newTestExternalAuthOperation(testSubscriptionID, "ea-op1", testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
 	eaOp1.Status = arm.ProvisioningStateProvisioning
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op1, op2, npOp1, eaOp1})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op1, op2, npOp1, eaOp1})
 	require.NoError(t, err)
 
 	lister := &DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
@@ -180,7 +180,7 @@ func TestDBActiveOperationLister(t *testing.T) {
 	t.Run("Get returns not found for non-existent operation", func(t *testing.T) {
 		_, err := lister.Get(ctx, testSubscriptionID, "non-existent")
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 
 	t.Run("ListActiveOperationsForCluster returns operations for cluster including child resources", func(t *testing.T) {
@@ -214,7 +214,7 @@ func TestDBExternalAuthLister(t *testing.T) {
 	ea1 := newTestExternalAuth(testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
 	ea2 := newTestExternalAuth(testSubscriptionID, testResourceGroupName, testClusterName, "external-auth-2")
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, ea1, ea2})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, ea1, ea2})
 	require.NoError(t, err)
 
 	lister := &DBExternalAuthLister{ResourcesDBClient: mockResourcesDBClient}
@@ -234,7 +234,7 @@ func TestDBExternalAuthLister(t *testing.T) {
 	t.Run("Get returns not found for non-existent external auth", func(t *testing.T) {
 		_, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, testClusterName, "non-existent")
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 
 	t.Run("ListForCluster returns external auths for cluster", func(t *testing.T) {
@@ -259,7 +259,7 @@ func TestDBServiceProviderClusterLister(t *testing.T) {
 	// Create test service provider cluster
 	spc := newTestServiceProviderCluster(testSubscriptionID, testResourceGroupName, testClusterName)
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
 	require.NoError(t, err)
 
 	lister := &DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient}
@@ -280,7 +280,7 @@ func TestDBServiceProviderClusterLister(t *testing.T) {
 	t.Run("Get returns not found for non-existent service provider cluster", func(t *testing.T) {
 		_, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, "non-existent")
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 
 	t.Run("ListForCluster returns service provider clusters for cluster", func(t *testing.T) {
@@ -305,7 +305,7 @@ func TestDBControllerLister(t *testing.T) {
 	npCtrl := newTestNodePoolController(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, "ctrl-np")
 	eaCtrl := newTestExternalAuthController(testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName, "ctrl-ea")
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
 		cluster1, cluster2, np, ea,
 		clusterCtrl1, clusterCtrl2, npCtrl, eaCtrl,
 	})
@@ -383,7 +383,7 @@ func TestDBManagementClusterContentLister(t *testing.T) {
 	mccCluster2 := newTestClusterScopedManagementClusterContent(testSubscriptionID, testResourceGroupName, testClusterName2, "mcc-under-cluster2")
 	mccNP := newTestNodePoolScopedManagementClusterContent(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, "mcc-under-np")
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
 		cluster1, cluster2, np,
 		mccCluster1, mccCluster2, mccNP,
 	})
@@ -429,7 +429,7 @@ func TestDBManagementClusterContentLister(t *testing.T) {
 
 func TestDBClusterListerWithEmptyDB(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	lister := &DBClusterLister{ResourcesDBClient: mockResourcesDBClient}
 
@@ -442,7 +442,7 @@ func TestDBClusterListerWithEmptyDB(t *testing.T) {
 	t.Run("Get returns not found", func(t *testing.T) {
 		_, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 
 	t.Run("ListForResourceGroup returns empty slice", func(t *testing.T) {
@@ -454,7 +454,7 @@ func TestDBClusterListerWithEmptyDB(t *testing.T) {
 
 func TestDBClusterListerWithDeletes(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	// Create test clusters
 	cluster1 := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
@@ -494,7 +494,7 @@ func TestDBClusterListerWithDeletes(t *testing.T) {
 	t.Run("Get returns not found for deleted cluster", func(t *testing.T) {
 		_, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 
 	t.Run("Get still returns non-deleted cluster", func(t *testing.T) {
@@ -513,7 +513,7 @@ func TestDBClusterListerWithDeletes(t *testing.T) {
 
 func TestDBClusterListerWithUpdates(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	// Create test cluster
 	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
@@ -552,7 +552,7 @@ func TestDBClusterListerWithUpdates(t *testing.T) {
 
 func TestDBNodePoolListerWithDeletes(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	// Create test cluster first
 	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
@@ -592,7 +592,7 @@ func TestDBNodePoolListerWithDeletes(t *testing.T) {
 	t.Run("Get returns not found for deleted node pool", func(t *testing.T) {
 		_, err := lister.Get(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 
 	t.Run("ListForCluster returns only remaining node pool", func(t *testing.T) {
@@ -604,7 +604,7 @@ func TestDBNodePoolListerWithDeletes(t *testing.T) {
 
 func TestDBNodePoolListerWithUpdates(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	// Create test cluster first
 	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
@@ -642,7 +642,7 @@ func TestDBNodePoolListerWithUpdates(t *testing.T) {
 
 func TestDBSubscriptionListerWithDeletes(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	// Create test subscriptions
 	sub1 := newTestSubscription(testSubscriptionID)
@@ -678,13 +678,13 @@ func TestDBSubscriptionListerWithDeletes(t *testing.T) {
 	t.Run("Get returns not found for deleted subscription", func(t *testing.T) {
 		_, err := lister.Get(ctx, testSubscriptionID)
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 }
 
 func TestDBSubscriptionListerWithUpdates(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	// Create test subscription
 	sub := newTestSubscription(testSubscriptionID)
@@ -716,7 +716,7 @@ func TestDBSubscriptionListerWithUpdates(t *testing.T) {
 
 func TestDBActiveOperationListerWithDeletes(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	// Create a test cluster first
 	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
@@ -758,13 +758,13 @@ func TestDBActiveOperationListerWithDeletes(t *testing.T) {
 	t.Run("Get returns not found for deleted operation", func(t *testing.T) {
 		_, err := lister.Get(ctx, testSubscriptionID, "op1")
 		require.Error(t, err)
-		assert.True(t, database.IsNotFoundError(err))
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
 	})
 }
 
 func TestDBActiveOperationListerWithUpdates(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	// Create a test cluster first
 	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
@@ -811,7 +811,7 @@ func TestDBActiveOperationListerWithUpdates(t *testing.T) {
 
 func TestDBActiveOperationListerWithUpdates_ListActiveOperationsForNodePool(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
 	clusterCRUD := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName)
@@ -858,7 +858,7 @@ func TestDBActiveOperationListerWithUpdates_ListActiveOperationsForNodePool(t *t
 
 func TestDBActiveOperationListerWithUpdates_ListActiveOperationsForExternalAuth(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
 	clusterCRUD := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName)
@@ -912,7 +912,7 @@ func TestNewMockResourcesDBClientWithResources_Clusters(t *testing.T) {
 	cluster2 := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName2)
 	cluster3 := newTestCluster(testSubscriptionID2, testResourceGroupName, testClusterName)
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2, cluster3})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2, cluster3})
 	require.NoError(t, err)
 
 	lister := &DBClusterLister{ResourcesDBClient: mockResourcesDBClient}
@@ -944,7 +944,7 @@ func TestNewMockResourcesDBClientWithResources_NodePools(t *testing.T) {
 	np2 := newTestNodePool(testSubscriptionID, testResourceGroupName, testClusterName, "nodepool-2")
 
 	// Create cluster first, then node pools
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, np1, np2})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, np1, np2})
 	require.NoError(t, err)
 
 	lister := &DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient}
@@ -976,7 +976,7 @@ func TestNewMockResourcesDBClientWithResources_Subscriptions(t *testing.T) {
 	sub2 := newTestSubscription(testSubscriptionID2)
 	sub2.State = arm.SubscriptionStateRegistered
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{sub1, sub2})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{sub1, sub2})
 	require.NoError(t, err)
 
 	lister := &DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient}
@@ -1007,7 +1007,7 @@ func TestNewMockResourcesDBClientWithResources_Operations(t *testing.T) {
 	eaOp1 := newTestExternalAuthOperation(testSubscriptionID, "ea-op1", testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
 	eaOp1.Status = arm.ProvisioningStateProvisioning
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op1, op2, npOp1, eaOp1})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op1, op2, npOp1, eaOp1})
 	require.NoError(t, err)
 
 	lister := &DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
@@ -1052,7 +1052,7 @@ func TestNewMockResourcesDBClientWithResources_ExternalAuths(t *testing.T) {
 	ea1 := newTestExternalAuth(testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
 	ea2 := newTestExternalAuth(testSubscriptionID, testResourceGroupName, testClusterName, "external-auth-2")
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, ea1, ea2})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, ea1, ea2})
 	require.NoError(t, err)
 
 	lister := &DBExternalAuthLister{ResourcesDBClient: mockResourcesDBClient}
@@ -1082,7 +1082,7 @@ func TestNewMockResourcesDBClientWithResources_ServiceProviderClusters(t *testin
 	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
 	spc := newTestServiceProviderCluster(testSubscriptionID, testResourceGroupName, testClusterName)
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc})
 	require.NoError(t, err)
 
 	lister := &DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient}
@@ -1120,7 +1120,7 @@ func TestNewMockResourcesDBClientWithResources_MixedTypes(t *testing.T) {
 	sub := newTestSubscription(testSubscriptionID)
 	sub.State = arm.SubscriptionStateRegistered
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
 		cluster,
 		np,
 		op,
@@ -1176,7 +1176,7 @@ func TestNewMockResourcesDBClientWithResources_MixedTypes(t *testing.T) {
 func TestNewMockResourcesDBClientWithResources_EmptySlice(t *testing.T) {
 	ctx := context.Background()
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{})
 	require.NoError(t, err)
 	require.NotNil(t, mockResourcesDBClient)
 
@@ -1190,7 +1190,7 @@ func TestNewMockResourcesDBClientWithResources_UnsupportedType(t *testing.T) {
 	ctx := context.Background()
 
 	// Try to add an unsupported type
-	_, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{"unsupported string"})
+	_, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{"unsupported string"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported resource type")
 }
@@ -1201,7 +1201,7 @@ func TestNewMockResourcesDBClientWithResources_NilResourceID(t *testing.T) {
 	// Create a cluster without a resource ID
 	clusterWithNilID := &api.HCPOpenShiftCluster{}
 
-	_, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{clusterWithNilID})
+	_, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{clusterWithNilID})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing resource ID")
 }

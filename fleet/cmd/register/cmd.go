@@ -27,7 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -76,7 +76,7 @@ func (o *RegisterOptions) registerStamp(ctx context.Context) error {
 
 	existing, err := stampsCRUD.Get(ctx, o.stampIdentifier)
 	if err != nil {
-		if !database.IsNotFoundError(err) {
+		if !cosmosstorageutils.IsNotFoundError(err) {
 			return fmt.Errorf("failed to get stamp %q: %w", o.stampIdentifier, err)
 		}
 
@@ -126,7 +126,7 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 	stampsCRUD := o.fleetDBClient.Stamps()
 
 	if _, err := stampsCRUD.Get(ctx, o.stampIdentifier); err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			return fmt.Errorf("parent stamp %q not found: register the stamp first", o.stampIdentifier)
 		}
 		return fmt.Errorf("failed to verify parent stamp %q: %w", o.stampIdentifier, err)
@@ -136,7 +136,7 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 
 	existing, err := managementClusterCRUD.Get(ctx, fleet.ManagementClusterResourceName)
 	if err != nil {
-		if !database.IsNotFoundError(err) {
+		if !cosmosstorageutils.IsNotFoundError(err) {
 			return fmt.Errorf("failed to get management cluster for stamp %q: %w", o.stampIdentifier, err)
 		}
 

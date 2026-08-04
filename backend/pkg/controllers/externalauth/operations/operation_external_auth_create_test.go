@@ -33,9 +33,9 @@ import (
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -74,7 +74,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 		externalAuth func(fixture *operationtesting.ExternalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth
 		setupCSMock  func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec
 		expectError  bool
-		verify       func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture)
+		verify       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture)
 	}{
 		{
 			name:         "external auth exists transitions to succeeded",
@@ -90,7 +90,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -117,7 +117,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:         "ClusterServiceID nil skips reconciliation",
 			externalAuth: externalAuthWithoutCSID,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -126,7 +126,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:         "ActiveOperationID mismatch skips reconciliation",
 			externalAuth: externalAuthWithMismatchedActiveOperationID,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -135,7 +135,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:         "empty ActiveOperationID skips reconciliation",
 			externalAuth: externalAuthWithEmptyActiveOperationID,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -144,7 +144,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:         "DeletionTimestamp set skips reconciliation",
 			externalAuth: externalAuthWithDeletionTimestamp,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -162,11 +162,11 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 			fixture := operationtesting.NewExternalAuthTestFixture()
 			cluster := fixture.NewCluster()
 			externalAuth := tt.externalAuth(fixture)
-			operation := fixture.NewOperation(database.OperationRequestCreate)
+			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 
 			resources := []any{cluster, externalAuth, operation}
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			var mockCSClient ocm.ClusterServiceClientSpec

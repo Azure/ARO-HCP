@@ -28,7 +28,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -46,7 +47,7 @@ type ApplyDesireKey struct {
 func (k ApplyDesireKey) IsNodePoolScoped() bool { return len(k.NodePoolName) > 0 }
 
 // CRUD returns the right per-scope CRUD for this key's parent.
-func (k ApplyDesireKey) CRUD(client database.KubeApplierApplyDesireCRUD) (database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+func (k ApplyDesireKey) CRUD(client kubeappliercosmosstorage.KubeApplierApplyDesireCRUD) (cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
 	if k.IsNodePoolScoped() {
 		return client.ApplyDesiresForNodePool(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName)
 	}
@@ -88,7 +89,7 @@ type ReadDesireKey struct {
 func (k ReadDesireKey) IsNodePoolScoped() bool { return len(k.NodePoolName) > 0 }
 
 // CRUD returns the right per-scope CRUD for this key's parent.
-func (k ReadDesireKey) CRUD(client database.KubeApplierReadDesireCRUD) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+func (k ReadDesireKey) CRUD(client kubeappliercosmosstorage.KubeApplierReadDesireCRUD) (cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
 	if k.IsNodePoolScoped() {
 		return client.ReadDesiresForNodePool(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName)
 	}

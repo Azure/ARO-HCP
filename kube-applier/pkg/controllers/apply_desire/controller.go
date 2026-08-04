@@ -47,7 +47,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
@@ -150,7 +151,7 @@ type ApplyDesireController struct {
 func NewApplyDesireController(
 	applyDesireInformer cache.SharedIndexInformer,
 	dyn dynamic.Interface,
-	crudByParent database.KubeApplierApplyDesireCRUD,
+	crudByParent kubeappliercosmosstorage.KubeApplierApplyDesireCRUD,
 	cfg Config,
 ) (*ApplyDesireController, error) {
 	cfg = cfg.withDefaults()
@@ -314,7 +315,7 @@ func (c *ApplyDesireController) processNext(ctx context.Context) bool {
 //     until the target disappears.
 func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesireKey) error {
 	desire, err := c.fetcher.Fetch(ctx, key)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -521,7 +522,7 @@ func isClientError(err error) bool {
 // from the lister cache here would lose the second of two back-to-back
 // status writes to a PreconditionFailed.
 type applyDesireFetcher struct {
-	crudByParent database.KubeApplierApplyDesireCRUD
+	crudByParent kubeappliercosmosstorage.KubeApplierApplyDesireCRUD
 }
 
 var _ desirestatuswriter.Fetcher[kubeapplier.ApplyDesire, keys.ApplyDesireKey] = &applyDesireFetcher{}
@@ -539,7 +540,7 @@ func (f *applyDesireFetcher) Fetch(ctx context.Context, key keys.ApplyDesireKey)
 // from each desire's resourceID at Replace time so a single Replacer can
 // serve desires across many parents.
 type applyDesireReplacer struct {
-	crudByParent database.KubeApplierApplyDesireCRUD
+	crudByParent kubeappliercosmosstorage.KubeApplierApplyDesireCRUD
 }
 
 var _ desirestatuswriter.Replacer[kubeapplier.ApplyDesire] = &applyDesireReplacer{}

@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -71,13 +71,13 @@ type ManagementClusterSyncer interface {
 type managementClusterWatchingController struct {
 	name          string
 	syncer        ManagementClusterSyncer
-	fleetDBClient database.FleetDBClient
+	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
 
 // NewManagementClusterWatchingController periodically looks up all management clusters and queues them.
 func NewManagementClusterWatchingController(
 	name string,
-	fleetDBClient database.FleetDBClient,
+	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	fleetInformers fleetinformers.FleetInformers,
 	resyncDuration time.Duration,
 	syncer ManagementClusterSyncer,

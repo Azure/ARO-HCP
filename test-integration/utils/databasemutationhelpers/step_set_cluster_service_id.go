@@ -28,7 +28,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
@@ -99,7 +99,7 @@ func (l *setClusterServiceIDStep) RunTest(ctx context.Context, t *testing.T, ste
 	require.NoError(t, err)
 }
 
-func (l *setClusterServiceIDStep) calculateClusterServiceID(ctx context.Context, resourcesDBClient database.ResourcesDBClient) (string, error) {
+func (l *setClusterServiceIDStep) calculateClusterServiceID(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient) (string, error) {
 	resourceID, err := azcorearm.ParseResourceID(l.key.ResourceID)
 	if err != nil {
 		return "", err
