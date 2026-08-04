@@ -104,7 +104,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_cluster_created_time_seconds) or vector(0)",
+          "expr": "count(backend_cluster_created_time_seconds{cluster=~\"$cluster\"}) or vector(0)",
           "instant": true,
           "range": false,
           "legendFormat": "__auto",
@@ -208,7 +208,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) or vector(0)",
           "instant": true,
           "legendFormat": "Completed",
           "range": false,
@@ -297,7 +297,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) * 100",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) * 100",
           "instant": true,
           "legendFormat": "Successful x100",
           "range": false,
@@ -309,7 +309,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
           "instant": true,
           "legendFormat": "Completed",
           "range": false,
@@ -434,7 +434,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)) or vector(0)",
           "instant": true,
           "legendFormat": "Unsuccessful",
           "range": false,
@@ -536,7 +536,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < 1800) and (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))) * 100",
+          "expr": "count((((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 1800) and (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))) * 100",
           "instant": true,
           "legendFormat": "Timely x100",
           "range": false,
@@ -548,7 +548,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
           "instant": true,
           "legendFormat": "Successful",
           "range": false,
@@ -672,7 +672,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
+          "expr": "((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
           "instant": true,
           "legendFormat": "p50",
           "range": false,
@@ -751,7 +751,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
+          "expr": "((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
           "instant": true,
           "legendFormat": "p95",
           "range": false,
@@ -830,7 +830,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
+          "expr": "((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
           "instant": true,
           "legendFormat": "p99",
           "range": false,
@@ -1000,7 +1000,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (phase) (backend_cluster_provision_state == 1)",
+          "expr": "count by (phase) (backend_cluster_provision_state{cluster=~\"$cluster\"} == 1)",
           "instant": false,
           "legendFormat": "{{phase}}",
           "range": true,
@@ -1080,7 +1080,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"}) > 3600)) or vector(0)",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) > 3600)) or vector(0)",
           "instant": true,
           "legendFormat": "Stuck",
           "range": false,
@@ -1199,7 +1199,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (subscription_id) ((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
+          "expr": "count by (subscription_id) ((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s))",
           "instant": true,
           "legendFormat": "{{subscription_id}}",
           "range": false,
@@ -1375,7 +1375,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
+          "expr": "(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"succeeded|failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < $__range_s)",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -1529,7 +1529,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", subscription_id!~\"${exclude_subs:raw}\"} == 1",
+          "expr": "backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"accepted|awaitingsecret|provisioning|updating|deleting\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -1649,7 +1649,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "quantile(0.50, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)",
+          "expr": "quantile(0.50, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)",
           "legendFormat": "p50 (per datasource)",
           "refId": "A"
         },
@@ -1659,8 +1659,8 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "quantile(0.95, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)",
-          "legendFormat": "p95 — SLO boundary (per datasource)",
+          "expr": "quantile(0.95, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)",
+          "legendFormat": "p95 \u2014 SLO boundary (per datasource)",
           "refId": "B"
         },
         {
@@ -1669,7 +1669,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "quantile(0.99, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)",
+          "expr": "quantile(0.99, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)",
           "legendFormat": "p99 (per datasource)",
           "refId": "C"
         }
@@ -1751,7 +1751,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "((count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"failed\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"failed\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)) / clamp_min(((count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)) + (count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"failed\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"failed\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0))), 1)) * 100",
+          "expr": "((count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"failed\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"failed\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)) / clamp_min(((count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)) + (count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"failed\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"failed\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0))), 1)) * 100",
           "legendFormat": "Failure Ratio (per datasource)",
           "refId": "A"
         }
@@ -1826,7 +1826,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(time() - backend_cluster_created_time_seconds) / 86400",
+          "expr": "(time() - backend_cluster_created_time_seconds{cluster=~\"$cluster\"}) / 86400",
           "instant": true,
           "range": false,
           "legendFormat": "Cluster Age (days)",
@@ -1856,17 +1856,42 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
+        "current": {},
+        "hide": 0,
         "includeAll": true,
+        "multi": false,
         "name": "datasource",
         "options": [],
         "query": "prometheus",
+        "queryValue": "",
         "refresh": 1,
         "regex": "^Managed_Prometheus_services-.*$",
+        "skipUrlSync": false,
         "type": "datasource"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(up,cluster)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Cluster",
+        "multi": false,
+        "name": "cluster",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(up,cluster)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "^.*-svc-\\d+$",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
       },
       {
         "current": {
