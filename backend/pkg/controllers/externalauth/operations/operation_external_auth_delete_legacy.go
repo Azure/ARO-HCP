@@ -22,7 +22,7 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"

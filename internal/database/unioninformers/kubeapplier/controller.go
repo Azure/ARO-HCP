@@ -64,7 +64,7 @@ func (k ManagementClusterKey) GetResourceID() *azcorearm.ResourceID {
 
 // AddLoggerValues enriches logger with the standard resource-id key/value
 // pairs derived from this management cluster's resourceID. Matches the
-// shape of the other controller keys in backend/pkg/controllers/controllerutils
+// shape of the other controller keys in backend/pkg/utils/controllerutils
 // (HCPClusterKey, HCPNodePoolKey, etc.).
 func (k ManagementClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 	return logger.WithValues(

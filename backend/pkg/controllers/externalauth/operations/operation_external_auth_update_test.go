@@ -32,9 +32,9 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation/operationtesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"

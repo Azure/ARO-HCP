@@ -24,8 +24,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"

@@ -27,8 +27,8 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -79,7 +79,7 @@ func NewOperationNodePoolDeleteController(
 		notificationClient:   notificationClient,
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"OperationNodePoolDelete",
 		syncer,
 		10*time.Second,

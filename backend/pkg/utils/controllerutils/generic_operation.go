@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package operation
+package controllerutils
 
 import (
 	"context"
@@ -28,7 +28,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -37,7 +36,7 @@ import (
 
 type OperationSynchronizer interface {
 	ShouldProcess(ctx context.Context, operation *api.Operation) bool
-	SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error
+	SynchronizeOperation(ctx context.Context, key OperationKey) error
 }
 
 type genericOperation struct {
@@ -49,7 +48,7 @@ type genericOperation struct {
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
-	queue workqueue.TypedRateLimitingInterface[controllerutils.OperationKey]
+	queue workqueue.TypedRateLimitingInterface[OperationKey]
 }
 
 // NewGenericOperationController returns a Controller that updates Cosmos DB documents
@@ -62,15 +61,15 @@ func NewGenericOperationController(
 	activeOperationScanInterval time.Duration,
 	activeOperationInformer cache.SharedIndexInformer,
 	resourcesDBClient database.ResourcesDBClient,
-) controllerutils.Controller {
+) Controller {
 	c := &genericOperation{
 		name:              name,
 		cooldownChecker:   controllerutil.NewTimeBasedCooldownChecker(10 * time.Second),
 		synchronizer:      synchronizer,
 		resourcesDBClient: resourcesDBClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedControllerRateLimiter[controllerutils.OperationKey](),
-			workqueue.TypedRateLimitingQueueConfig[controllerutils.OperationKey]{
+			workqueue.DefaultTypedControllerRateLimiter[OperationKey](),
+			workqueue.TypedRateLimitingQueueConfig[OperationKey]{
 				Name: name,
 			},
 		),
@@ -100,7 +99,7 @@ func NewGenericOperationController(
 	return c
 }
 
-func (c *genericOperation) controllerCRUD(key controllerutils.OperationKey) database.ResourceCRUD[api.Controller, *api.Controller] {
+func (c *genericOperation) controllerCRUD(key OperationKey) database.ResourceCRUD[api.Controller, *api.Controller] {
 	parentResourceID := key.GetParentResourceID()
 	sub := parentResourceID.SubscriptionID
 	rg := parentResourceID.ResourceGroupName
@@ -115,16 +114,16 @@ func (c *genericOperation) controllerCRUD(key controllerutils.OperationKey) data
 	}
 }
 
-func (c *genericOperation) QueueForInformers(resyncDuration time.Duration, notifiers ...controllerutils.Notifier) error {
+func (c *genericOperation) QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error {
 	// panic so that the developer error is noticed immediately
 	panic("not implemented")
 }
 
 func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
-	key := keyObj.(controllerutils.OperationKey)
+	key := keyObj.(OperationKey)
 	controllerCRUD := c.controllerCRUD(key)
 
-	defer utilruntime.HandleCrash(controllerutils.DegradedControllerPanicHandler(
+	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
 		controllerCRUD,
 		c.name,
@@ -132,12 +131,12 @@ func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
 
 	syncErr := c.synchronizer.SynchronizeOperation(ctx, key)
 
-	controllerWriteErr := controllerutils.WriteController(
+	controllerWriteErr := WriteController(
 		ctx,
 		controllerCRUD,
 		c.name,
 		key.InitialController,
-		controllerutils.ReportSyncError(syncErr),
+		ReportSyncError(syncErr),
 	)
 
 	return errors.Join(syncErr, controllerWriteErr)
@@ -182,7 +181,7 @@ func (c *genericOperation) processNextWorkItem(ctx context.Context) bool {
 	logger = ref.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
-	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
+	ReconcileTotal.WithLabelValues(c.name).Inc()
 	err := c.SyncOnce(ctx, ref)
 	if err == nil {
 		c.queue.Forget(ref)
@@ -205,7 +204,7 @@ func (c *genericOperation) enqueueAdd(newObj interface{}) {
 	if castObj.ExternalID == nil {
 		return
 	}
-	key := controllerutils.OperationKey{
+	key := OperationKey{
 		SubscriptionID:   castObj.ExternalID.SubscriptionID,
 		OperationName:    castObj.ResourceID.Name,
 		ParentResourceID: castObj.ExternalID.String(),
