@@ -288,7 +288,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	if err != nil {
 		retErr := utils.TrackError(err)
 		utilruntime.HandleError(retErr)
-		c.Stop()
+		c.signalStop()
 		cancel(retErr)
 		return
 	}
@@ -331,7 +331,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 			case <-c.done:
 			case <-ctx.Done():
 			}
-			c.Stop()
+			c.signalStop()
 			return
 		}
 	}(ctx)
@@ -469,6 +469,11 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 }
 
 func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Stop() {
+	c.signalStop()
+	<-c.finished
+}
+
+func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) signalStop() {
 	c.stopOnce.Do(func() {
 		close(c.done)
 	})
@@ -480,7 +485,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 // Finished returns a channel that is closed once Run and all of its child
 // goroutines have fully exited. It is safe to call before, during, or after
-// Run, and Stop must be invoked separately to actually trigger shutdown.
+// Run. Stop triggers shutdown and waits for this channel to close.
 func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Finished() <-chan struct{} {
 	return c.finished
 }
