@@ -1251,14 +1251,16 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "valid 4.19 version with experimental flag - create",
+			name: "invalid 4.19 version with experimental flag - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
+			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be at least 4.20", FieldPath: "customerProperties.version.id"},
+			},
 		},
 		{
 			name: "invalid 4.19 version without experimental flag - create",
@@ -2343,7 +2345,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "update: version can stay the same 4.19 version with experimental flag",
+			name: "update: version 4.19 rejected even with experimental flag",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.19"
@@ -2354,8 +2356,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
+			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be at least 4.20", FieldPath: "customerProperties.version.id"},
+			},
 		},
 		{
 			name: "update: version may not skip minor within same major (4.20 to 4.22)",

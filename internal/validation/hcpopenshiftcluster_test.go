@@ -453,14 +453,16 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "Version must be at least 4.19 with experimental flag",
+			name: "Version must be at least 4.20 with experimental flag",
 			resource: func() *api.HCPOpenShiftCluster {
 				r := api.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.19"
 				return r
 			}(),
-			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
+			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be at least 4.20", FieldPath: "customerProperties.version.id"},
+			},
 		},
 		{
 			name: "ChannelGroup nightly is rejected without experimental flag",
