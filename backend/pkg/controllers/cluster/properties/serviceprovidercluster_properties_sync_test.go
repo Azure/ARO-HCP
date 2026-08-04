@@ -23,10 +23,10 @@ import (
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
@@ -169,7 +169,7 @@ func TestServiceProviderClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			syncer := &serviceProviderClusterPropertiesSyncer{
-				serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
 				resourcesDBClient:            mockResourcesDB,
 				readDesireLister:             readDesireLister,
 			}

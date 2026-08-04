@@ -28,12 +28,12 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -71,7 +71,7 @@ func newCreatorTestCluster(t *testing.T) *api.HCPOpenShiftCluster {
 // boomClusterLister returns the configured error from every Get call. Used to
 // exercise the "lister error is propagated" branch.
 type boomClusterLister struct {
-	listers.ClusterLister
+	corelisters.ClusterLister
 	err error
 }
 
@@ -82,7 +82,7 @@ func (b *boomClusterLister) Get(_ context.Context, _, _, _ string) (*api.HCPOpen
 // boomServiceProviderClusterLister returns the configured error from every
 // Get call.
 type boomServiceProviderClusterLister struct {
-	listers.ServiceProviderClusterLister
+	corelisters.ServiceProviderClusterLister
 	err error
 }
 
@@ -108,8 +108,8 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 			buildSyncer: func(t *testing.T, mockDB *databasetesting.MockResourcesDBClient) *createServiceProviderClusterSyncer {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient:            mockDB,
-					clusterLister:                &listertesting.SliceClusterLister{},
-					serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{},
+					clusterLister:                &corelistertesting.SliceClusterLister{},
+					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
 				}
 			},
 			wantCreated: false,
@@ -120,7 +120,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient:            mockDB,
 					clusterLister:                &boomClusterLister{err: listerBoom},
-					serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{},
+					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
 				}
 			},
 			wantErrSubstring: "failed to get HCPCluster from lister",
@@ -132,10 +132,10 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				spcResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName))
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
-					clusterLister: &listertesting.SliceClusterLister{
+					clusterLister: &corelistertesting.SliceClusterLister{
 						Clusters: []*api.HCPOpenShiftCluster{newCreatorTestCluster(t)},
 					},
-					serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{
+					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
 						ServiceProviderClusters: []*api.ServiceProviderCluster{{
 							CosmosMetadata: api.CosmosMetadata{ResourceID: spcResourceID},
 						}},
@@ -151,7 +151,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 			buildSyncer: func(t *testing.T, mockDB *databasetesting.MockResourcesDBClient) *createServiceProviderClusterSyncer {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
-					clusterLister: &listertesting.SliceClusterLister{
+					clusterLister: &corelistertesting.SliceClusterLister{
 						Clusters: []*api.HCPOpenShiftCluster{newCreatorTestCluster(t)},
 					},
 					serviceProviderClusterLister: &boomServiceProviderClusterLister{err: listerBoom},
@@ -167,10 +167,10 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				deletingCluster.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.Now())
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
-					clusterLister: &listertesting.SliceClusterLister{
+					clusterLister: &corelistertesting.SliceClusterLister{
 						Clusters: []*api.HCPOpenShiftCluster{deletingCluster},
 					},
-					serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{},
+					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
 				}
 			},
 			wantCreated: false,
@@ -180,10 +180,10 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 			buildSyncer: func(t *testing.T, mockDB *databasetesting.MockResourcesDBClient) *createServiceProviderClusterSyncer {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
-					clusterLister: &listertesting.SliceClusterLister{
+					clusterLister: &corelistertesting.SliceClusterLister{
 						Clusters: []*api.HCPOpenShiftCluster{newCreatorTestCluster(t)},
 					},
-					serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{},
+					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
 				}
 			},
 			wantCreated: true,
@@ -193,12 +193,12 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 			buildSyncer: func(t *testing.T, mockDB *databasetesting.MockResourcesDBClient) *createServiceProviderClusterSyncer {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
-					clusterLister: &listertesting.SliceClusterLister{
+					clusterLister: &corelistertesting.SliceClusterLister{
 						Clusters: []*api.HCPOpenShiftCluster{newCreatorTestCluster(t)},
 					},
 					// Lister is stale (does not know about the SPC yet) but
 					// Cosmos already has it — GetOrCreate must absorb the 409.
-					serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{},
+					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
 				}
 			},
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {

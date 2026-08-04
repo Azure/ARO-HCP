@@ -38,15 +38,15 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -186,9 +186,9 @@ func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.Rea
 // newValidHostedClusterReadDesireLister returns a lister with a HostedCluster
 // ReadDesire carrying the canonical test UUID. Tests that don't care about
 // the new error paths get a working lister this way.
-func newValidHostedClusterReadDesireLister(t *testing.T) dblisters.ReadDesireLister {
+func newValidHostedClusterReadDesireLister(t *testing.T) kubeapplierlisters.ReadDesireLister {
 	t.Helper()
-	return &internallistertesting.SliceReadDesireLister{
+	return &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplier.ReadDesire{newHostedClusterReadDesire(t, testClusterExternalID)},
 	}
 }
@@ -204,7 +204,7 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name                  string
 		seedDB                func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient)
-		readDesireLister      func(t *testing.T) dblisters.ReadDesireLister
+		readDesireLister      func(t *testing.T) kubeapplierlisters.ReadDesireLister
 		expectedError         bool
 		expectedErrorContains string
 	}{
@@ -265,10 +265,10 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolVersionSyncer{
-				nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-				subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 				readDesireLister:              contentLister,
 				resourcesDBClient:             mockResourcesDBClient,
 				cincinnatiClientCache:         mockClientCache,
@@ -483,9 +483,9 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 			syncer := &nodePoolVersionSyncer{
-				nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 				subscriptionLister:            subscriptionLister,
 				readDesireLister:              newValidHostedClusterReadDesireLister(t),
 				resourcesDBClient:             mockResourcesDBClient,
@@ -988,10 +988,10 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testi
 	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.5")
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1046,10 +1046,10 @@ func TestNodePoolVersionSyncer_SyncOnce_SucceedsWithoutCincinnatiEdge(t *testing
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1107,10 +1107,10 @@ func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1165,10 +1165,10 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1223,10 +1223,10 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeWithinSkewSucceeds(t *testing.T
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1284,10 +1284,10 @@ func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1343,10 +1343,10 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).Times(1)
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1545,9 +1545,9 @@ func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context,
 	require.NoError(t, err)
 }
 
-func newTestSubscriptionLister() *listertesting.SliceSubscriptionLister {
+func newTestSubscriptionLister() *corelistertesting.SliceSubscriptionLister {
 	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
-	return &listertesting.SliceSubscriptionLister{
+	return &corelistertesting.SliceSubscriptionLister{
 		Subscriptions: []*arm.Subscription{{
 			CosmosMetadata: arm.CosmosMetadata{ResourceID: subResourceID},
 			ResourceID:     subResourceID,

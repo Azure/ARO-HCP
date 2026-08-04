@@ -19,10 +19,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -37,8 +37,8 @@ import (
 // has a chance to run.
 type createServiceProviderClusterSyncer struct {
 	resourcesDBClient            database.ResourcesDBClient
-	clusterLister                listers.ClusterLister
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 }
 
 var _ controllerutils.ClusterSyncer = (*createServiceProviderClusterSyncer)(nil)
@@ -47,9 +47,9 @@ var _ controllerutils.ClusterSyncer = (*createServiceProviderClusterSyncer)(nil)
 // missing ServiceProviderCluster documents.
 func NewCreateServiceProviderClusterController(
 	resourcesDBClient database.ResourcesDBClient,
-	clusterLister listers.ClusterLister,
-	serviceProviderClusterLister listers.ServiceProviderClusterLister,
-	backendInformers informers.BackendInformers,
+	clusterLister corelisters.ClusterLister,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &createServiceProviderClusterSyncer{
 		resourcesDBClient:            resourcesDBClient,

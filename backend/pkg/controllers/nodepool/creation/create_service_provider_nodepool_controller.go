@@ -19,10 +19,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -37,8 +37,8 @@ import (
 // request before any controller has a chance to run.
 type createServiceProviderNodePoolSyncer struct {
 	resourcesDBClient             database.ResourcesDBClient
-	nodePoolLister                listers.NodePoolLister
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	nodePoolLister                corelisters.NodePoolLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 }
 
 var _ controllerutils.NodePoolSyncer = (*createServiceProviderNodePoolSyncer)(nil)
@@ -47,9 +47,9 @@ var _ controllerutils.NodePoolSyncer = (*createServiceProviderNodePoolSyncer)(ni
 // missing ServiceProviderNodePool documents.
 func NewCreateServiceProviderNodePoolController(
 	resourcesDBClient database.ResourcesDBClient,
-	nodePoolLister listers.NodePoolLister,
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
-	backendInformers informers.BackendInformers,
+	nodePoolLister corelisters.NodePoolLister,
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &createServiceProviderNodePoolSyncer{
 		resourcesDBClient:             resourcesDBClient,

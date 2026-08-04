@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -35,8 +35,8 @@ import (
 // have been deleted from the ServiceProviderNodePool, and all nodepool-scoped kube-applier
 // *Desire documents have been deleted.
 type nodePoolDeletionController struct {
-	nodePoolLister                listers.NodePoolLister
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	nodePoolLister                corelisters.NodePoolLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 	resourcesDBClient             database.ResourcesDBClient
 }
 
@@ -44,7 +44,7 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolDeletionController)(nil)
 
 func NewNodePoolDeletionController(
 	resourcesDBClient database.ResourcesDBClient,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()

@@ -35,10 +35,10 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -254,7 +254,7 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 
 			syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 				clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-				nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
+				nodePoolLister:                  &corelistertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
 				resourcesDBClient:               mockResourcesDBClient,
 				clusterServiceClient:            mockCSClient,
 				firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
@@ -293,7 +293,7 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircuit(t
 
 	syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{cachedNodePool}},
+		nodePoolLister:                  &corelistertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{cachedNodePool}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
 		firstSeenDeletionTimestampCache: lru.New(10),
@@ -329,7 +329,7 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCa
 	firstSeenDeletionTimestampCache := lru.New(10)
 	syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
+		nodePoolLister:                  &corelistertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
 		firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
@@ -372,7 +372,7 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCa
 
 	syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
+		nodePoolLister:                  &corelistertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            mockCSClient,
 		firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,

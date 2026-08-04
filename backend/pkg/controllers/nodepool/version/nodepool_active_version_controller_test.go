@@ -32,11 +32,11 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -306,9 +306,9 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolActiveVersionSyncer{
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 				resourcesDBClient:             mockDB,
-				readDesireLister:              &internallistertesting.SliceReadDesireLister{Desires: desires},
+				readDesireLister:              &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
 			}
 
 			err := syncer.SyncOnce(runCtx, testKey)
@@ -337,9 +337,9 @@ func TestNodePoolActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testing.T
 	beforeETag := before.CosmosETag
 
 	syncer := &nodePoolActiveVersionSyncer{
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 		resourcesDBClient:             mockDB,
-		readDesireLister: &internallistertesting.SliceReadDesireLister{
+		readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 			Desires: []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.7")},
 		},
 	}

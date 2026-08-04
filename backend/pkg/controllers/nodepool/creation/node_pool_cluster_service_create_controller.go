@@ -25,11 +25,11 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -39,15 +39,15 @@ const NodePoolClusterServiceCreateControllerName = "NodePoolClusterServiceCreate
 
 type nodePoolClusterServiceCreateSyncer struct {
 	resourcesDBClient     database.ResourcesDBClient
-	nodePoolLister        listers.NodePoolLister
-	clusterLister         listers.ClusterLister
+	nodePoolLister        corelisters.NodePoolLister
+	clusterLister         corelisters.ClusterLister
 	clustersServiceClient ocm.ClusterServiceClientSpec
 }
 
 func NewNodePoolClusterServiceCreateController(
 	resourcesDBClient database.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()

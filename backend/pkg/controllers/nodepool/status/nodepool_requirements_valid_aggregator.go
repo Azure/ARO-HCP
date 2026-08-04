@@ -22,12 +22,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -45,8 +45,8 @@ const (
 // messages aggregated in the same "Source: message" form used by the Degraded
 // aggregator. When every validation is True (or none exist) the condition is True/Valid.
 type nodePoolRequirementsValidAggregator struct {
-	nodePoolLister                listers.NodePoolLister
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	nodePoolLister                corelisters.NodePoolLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 	resourcesDBClient             database.ResourcesDBClient
 }
 
@@ -57,9 +57,9 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolRequirementsValidAggregator)(ni
 // Status.UserFacingConditions as RequirementsValid.
 func NewNodePoolRequirementsValidAggregatorController(
 	resourcesDBClient database.ResourcesDBClient,
-	nodePoolLister listers.NodePoolLister,
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
-	informers informers.BackendInformers,
+	nodePoolLister corelisters.NodePoolLister,
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &nodePoolRequirementsValidAggregator{
 		nodePoolLister:                nodePoolLister,

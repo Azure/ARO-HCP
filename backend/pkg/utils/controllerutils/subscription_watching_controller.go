@@ -20,10 +20,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,7 +36,7 @@ type subscriptionWatchingController struct {
 	name   string
 	syncer SubscriptionSyncer
 
-	subscriptionLister listers.SubscriptionLister
+	subscriptionLister corelisters.SubscriptionLister
 }
 
 // NewSubscriptionWatchingController periodically looks up all subscriptions and queues them.
@@ -46,7 +46,7 @@ type subscriptionWatchingController struct {
 // This does NOT prevent us from re-executing on errors, so errors will continue to trigger fast checks as expected.
 func NewSubscriptionWatchingController(
 	name string,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	resyncDuration time.Duration,
 	syncer SubscriptionSyncer,
 ) Controller {

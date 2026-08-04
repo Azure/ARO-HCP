@@ -25,16 +25,16 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type doNothingExample struct {
 	name string
 
-	subscriptionLister listers.SubscriptionLister
+	subscriptionLister corelisters.SubscriptionLister
 	resourcesDBClient  database.ResourcesDBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
@@ -45,7 +45,7 @@ type doNothingExample struct {
 }
 
 // NewDoNothingExampleController periodically lists all clusters and for each out when the cluster was created and its state.
-func NewDoNothingExampleController(resourcesDBClient database.ResourcesDBClient, subscriptionLister listers.SubscriptionLister) controllerutils.Controller {
+func NewDoNothingExampleController(resourcesDBClient database.ResourcesDBClient, subscriptionLister corelisters.SubscriptionLister) controllerutils.Controller {
 	c := &doNothingExample{
 		name:               "DoNothingExample",
 		subscriptionLister: subscriptionLister,

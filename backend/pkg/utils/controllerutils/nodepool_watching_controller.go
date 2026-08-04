@@ -23,11 +23,11 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,7 +40,7 @@ type nodePoolWatchingController struct {
 	name   string
 	syncer NodePoolSyncer
 
-	nodePoolLister    listers.NodePoolLister
+	nodePoolLister    corelisters.NodePoolLister
 	resourcesDBClient database.ResourcesDBClient
 }
 
@@ -59,7 +59,7 @@ type nodePoolWatchingController struct {
 func NewNodePoolWatchingController(
 	name string,
 	resourcesDBClient database.ResourcesDBClient,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer NodePoolSyncer,

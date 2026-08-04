@@ -25,11 +25,11 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -39,8 +39,8 @@ import (
 // have been deleted from the ServiceProviderCluster, and all child NodePool and
 // ExternalAuth Cosmos documents have been deleted.
 type clusterDeletionController struct {
-	clusterLister                listers.ClusterLister
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	resourcesDBClient            database.ResourcesDBClient
 	billingDBClient              database.BillingDBClient
 	passiveClock                 utilsclock.PassiveClock
@@ -52,7 +52,7 @@ func NewClusterDeletionController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	billingDBClient database.BillingDBClient,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()

@@ -23,25 +23,25 @@ import (
 
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type backfillClusterUID struct {
 	clock             utilsclock.PassiveClock
 	cooldownChecker   controllerutil.CooldownChecker
-	clusterLister     listers.ClusterLister
+	clusterLister     corelisters.ClusterLister
 	resourcesDBClient database.ResourcesDBClient
 	billingDBClient   database.BillingDBClient
 }
 
 // NewBackfillClusterUIDController creates a controller that populates ClusterUID
 // for existing clusters that don't have it set.
-func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterLister listers.ClusterLister) controllerutils.ClusterSyncer {
+func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterLister corelisters.ClusterLister) controllerutils.ClusterSyncer {
 	c := &backfillClusterUID{
 		clock:             clock,
 		cooldownChecker:   controllerutil.NewTimeBasedCooldownChecker(60 * time.Minute),

@@ -25,11 +25,11 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,8 +40,8 @@ type triggerControlPlaneUpgradeSyncer struct {
 	clock                        utilsclock.PassiveClock
 	resourcesDBClient            database.ResourcesDBClient
 	clusterServiceClient         ocm.ClusterServiceClientSpec
-	activeOperationLister        listers.ActiveOperationLister
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	activeOperationLister        corelisters.ActiveOperationLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 }
 
 var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
@@ -57,9 +57,9 @@ func NewTriggerControlPlaneUpgradeController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	serviceProviderClusterLister listers.ServiceProviderClusterLister,
-	informers informers.BackendInformers,
+	activeOperationLister corelisters.ActiveOperationLister,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{

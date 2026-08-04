@@ -29,12 +29,12 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -79,7 +79,7 @@ func TestControllerNotifications(t *testing.T) {
 		}()
 
 		resourcesDBClient := testInfo.ResourcesDBClient()
-		backendInformers := informers.NewBackendInformersWithRelistDuration(ctx, resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient, testInfo.BillingDBClient().BillingGlobalListers(), ptr.To(100*time.Millisecond))
+		backendInformers := coreinformers.NewBackendInformersWithRelistDuration(ctx, resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient, testInfo.BillingDBClient().BillingGlobalListers(), ptr.To(100*time.Millisecond))
 
 		_, activeOperationLister := backendInformers.ActiveOperations()
 		testSyncer := newTestController(activeOperationLister)
@@ -130,7 +130,7 @@ type testController struct {
 	synced       chan struct{}
 }
 
-func newTestController(activeOperationLister listers.ActiveOperationLister) *testController {
+func newTestController(activeOperationLister corelisters.ActiveOperationLister) *testController {
 	c := &testController{
 		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		observedKeys:    sync.Map{},

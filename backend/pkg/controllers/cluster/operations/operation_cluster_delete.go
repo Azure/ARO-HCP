@@ -37,7 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -47,7 +47,7 @@ type operationClusterDelete struct {
 	resourcesDBClient    database.ResourcesDBClient
 	billingDBClient      database.BillingDBClient
 	kubeApplierDBClients database.KubeApplierDBClients
-	readDesireLister     dblisters.ReadDesireLister
+	readDesireLister     kubeapplierlisters.ReadDesireLister
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
 }
@@ -80,7 +80,7 @@ func NewOperationClusterDeleteController(
 	resourcesDBClient database.ResourcesDBClient,
 	billingDBClient database.BillingDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,

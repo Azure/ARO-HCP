@@ -26,8 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/listers"
-	"github.com/Azure/ARO-HCP/internal/database/listertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unionlisters/kubeapplier"
 )
 
@@ -68,9 +68,9 @@ func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kub
 
 // applySublisters returns two SliceApplyDesireListers, one per MC, populated
 // with disjoint fixtures so test assertions can tell them apart.
-func applySublisters(t *testing.T) (a, b *listertesting.SliceApplyDesireLister) {
+func applySublisters(t *testing.T) (a, b *kubeapplierlistertesting.SliceApplyDesireLister) {
 	t.Helper()
-	a = &listertesting.SliceApplyDesireLister{
+	a = &kubeapplierlistertesting.SliceApplyDesireLister{
 		Desires: []*kubeapplier.ApplyDesire{
 			newApplyDesire(t,
 				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
@@ -80,7 +80,7 @@ func applySublisters(t *testing.T) (a, b *listertesting.SliceApplyDesireLister) 
 				mgmtAID),
 		},
 	}
-	b = &listertesting.SliceApplyDesireLister{
+	b = &kubeapplierlistertesting.SliceApplyDesireLister{
 		Desires: []*kubeapplier.ApplyDesire{
 			newApplyDesire(t,
 				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
@@ -100,9 +100,9 @@ func newReadDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kube
 	}
 }
 
-func readSublisters(t *testing.T) (a, b *listertesting.SliceReadDesireLister) {
+func readSublisters(t *testing.T) (a, b *kubeapplierlistertesting.SliceReadDesireLister) {
 	t.Helper()
-	a = &listertesting.SliceReadDesireLister{
+	a = &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplier.ReadDesire{
 			newReadDesire(t,
 				kubeapplier.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, "a1"),
@@ -112,7 +112,7 @@ func readSublisters(t *testing.T) (a, b *listertesting.SliceReadDesireLister) {
 				mgmtAID),
 		},
 	}
-	b = &listertesting.SliceReadDesireLister{
+	b = &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplier.ReadDesire{
 			newReadDesire(t,
 				kubeapplier.ToClusterScopedReadDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
@@ -289,7 +289,7 @@ func TestUnionApplyDesireLister_RemoveDropsSublister(t *testing.T) {
 func TestUnionApplyDesireLister_AddReplaces(t *testing.T) {
 	ctx := context.Background()
 	a1, _ := applySublisters(t)
-	a2 := &listertesting.SliceApplyDesireLister{
+	a2 := &kubeapplierlistertesting.SliceApplyDesireLister{
 		Desires: []*kubeapplier.ApplyDesire{
 			newApplyDesire(t,
 				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "replacement"),
@@ -429,7 +429,7 @@ type erroringApplyLister struct {
 	err error
 }
 
-var _ listers.ApplyDesireLister = &erroringApplyLister{}
+var _ kubeapplierlisters.ApplyDesireLister = &erroringApplyLister{}
 
 func (e *erroringApplyLister) List(ctx context.Context) ([]*kubeapplier.ApplyDesire, error) {
 	return nil, e.err

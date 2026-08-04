@@ -40,7 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -492,7 +492,7 @@ func TestHypershiftNodePoolOperationState(t *testing.T) {
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
 			controller := &operationNodePoolUpdate{
-				readDesireLister: &internallistertesting.SliceReadDesireLister{
+				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 					Desires: tt.readDesires,
 				},
 			}

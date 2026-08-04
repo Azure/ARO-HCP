@@ -24,11 +24,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,8 +36,8 @@ import (
 // up onto HCPOpenShiftClusterExternalAuth.Status.Conditions. See the
 // package and clusterDegradedAggregator docs for the overall design.
 type externalAuthDegradedAggregator struct {
-	externalAuthLister listers.ExternalAuthLister
-	controllerLister   listers.ControllerLister
+	externalAuthLister corelisters.ExternalAuthLister
+	controllerLister   corelisters.ControllerLister
 	resourcesDBClient  database.ResourcesDBClient
 	inertia            statusutils.Inertia
 	clock              utilsclock.PassiveClock
@@ -63,9 +63,9 @@ func externalAuthDegradedAggregatorInertia() statusutils.Inertia {
 // they are identical across the three aggregators.
 func NewExternalAuthDegradedAggregatorController(
 	resourcesDBClient database.ResourcesDBClient,
-	externalAuthLister listers.ExternalAuthLister,
-	controllerLister listers.ControllerLister,
-	informers informers.BackendInformers,
+	externalAuthLister corelisters.ExternalAuthLister,
+	controllerLister corelisters.ControllerLister,
+	informers coreinformers.BackendInformers,
 	clock utilsclock.PassiveClock,
 ) controllerutils.Controller {
 	if clock == nil {

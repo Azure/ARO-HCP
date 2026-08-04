@@ -19,12 +19,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -33,9 +33,9 @@ import (
 // managementClusterPlacementSyncer resolves the management cluster an HCP runs on
 // and updates the ServiceProviderCluster document with the ManagementClusterResourceID.
 type managementClusterPlacementSyncer struct {
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
-	clusterLister                listers.ClusterLister
-	managementClusterLister      dblisters.ManagementClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	clusterLister                corelisters.ClusterLister
+	managementClusterLister      fleetlisters.ManagementClusterLister
 	cosmosClient                 database.ResourcesDBClient
 	clusterServiceClient         ocm.ClusterServiceClientSpec
 }
@@ -47,8 +47,8 @@ var _ controllerutils.ClusterSyncer = (*managementClusterPlacementSyncer)(nil)
 func NewManagementClusterPlacementSyncController(
 	cosmosClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	managementClusterLister dblisters.ManagementClusterLister,
-	informers informers.BackendInformers,
+	managementClusterLister fleetlisters.ManagementClusterLister,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()

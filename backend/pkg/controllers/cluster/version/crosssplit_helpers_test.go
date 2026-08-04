@@ -42,8 +42,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
@@ -109,9 +109,9 @@ func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.Rea
 
 // newValidHostedClusterReadDesireLister returns a lister with a HostedCluster
 // ReadDesire carrying the canonical test UUID.
-func newValidHostedClusterReadDesireLister(t *testing.T) dblisters.ReadDesireLister {
+func newValidHostedClusterReadDesireLister(t *testing.T) kubeapplierlisters.ReadDesireLister {
 	t.Helper()
-	return &internallistertesting.SliceReadDesireLister{
+	return &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplier.ReadDesire{newHostedClusterReadDesire(t, testClusterExternalID)},
 	}
 }

@@ -34,10 +34,10 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -253,8 +253,8 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolClusterServiceCreateSyncer{
-				nodePoolLister:        &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
-				clusterLister:         &listertesting.SliceClusterLister{Clusters: clustersForLister},
+				nodePoolLister:        &corelistertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
+				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:     mockResourcesDBClient,
 				clustersServiceClient: mockCSClient,
 			}

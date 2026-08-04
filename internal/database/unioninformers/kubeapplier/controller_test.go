@@ -30,8 +30,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database/informers"
-	"github.com/Azure/ARO-HCP/internal/database/listertesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
@@ -113,7 +113,7 @@ func (f *fakeMCInformer) emitUpdate(oldObj, newObj any) {
 
 // --- stub factory ---------------------------------------------------------
 
-// stubFactory builds an informers.KubeApplierInformers per call by wiring
+// stubFactory builds an kubeapplierinformers.KubeApplierInformers per call by wiring
 // up the per-MC mock DB client registered for the given resourceID. Calls
 // for unregistered resourceIDs return nil and bump a counter so tests can
 // assert "factory had nothing to give yet".
@@ -128,7 +128,7 @@ type stubFactory struct {
 
 type stubFactoryRun struct {
 	rid *azcorearm.ResourceID
-	inf informers.KubeApplierInformers
+	inf kubeapplierinformers.KubeApplierInformers
 }
 
 func newStubFactory(relist time.Duration) *stubFactory {
@@ -144,7 +144,7 @@ func (s *stubFactory) register(rid *azcorearm.ResourceID, mock *databasetesting.
 
 func (s *stubFactory) NewKubeApplierInformers(
 	ctx context.Context, rid *azcorearm.ResourceID,
-) informers.KubeApplierInformers {
+) kubeapplierinformers.KubeApplierInformers {
 	s.mu.Lock()
 	mock, ok := s.clients[strings.ToLower(rid.String())]
 	s.mu.Unlock()
@@ -152,7 +152,7 @@ func (s *stubFactory) NewKubeApplierInformers(
 		s.missCntr.Add(1)
 		return nil
 	}
-	inf := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &s.relist)
+	inf := kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &s.relist)
 	s.mu.Lock()
 	s.started = append(s.started, &stubFactoryRun{rid: rid, inf: inf})
 	s.mu.Unlock()
@@ -246,7 +246,7 @@ func TestController_AddRegistersSubInformer(t *testing.T) {
 	factory.register(ctlMgmtAID, mockA)
 
 	mcInformer := newFakeMCInformer()
-	mcLister := &listertesting.SliceManagementClusterLister{
+	mcLister := &fleetlistertesting.SliceManagementClusterLister{
 		ManagementClusters: []*fleet.ManagementCluster{ctlMC(ctlMgmtAID)},
 	}
 	ctl := unionkubeapplier.NewUnionKubeApplierInformersController(mcInformer, mcLister, factory)
@@ -527,12 +527,12 @@ func TestController_SyncOnceDirect(t *testing.T) {
 
 // --- mutable lister -------------------------------------------------------
 
-// mutableMCLister is a small extension of listertesting.SliceManagementClusterLister
+// mutableMCLister is a small extension of fleetlistertesting.SliceManagementClusterLister
 // whose contents can be mutated by tests during a run. We compose rather
 // than redeclare to keep delegating List/Get/GetByCSProvisionShardID.
 type mutableMCLister struct {
 	mu    sync.Mutex
-	inner listertesting.SliceManagementClusterLister
+	inner fleetlistertesting.SliceManagementClusterLister
 }
 
 func (m *mutableMCLister) set(mcs ...*fleet.ManagementCluster) {

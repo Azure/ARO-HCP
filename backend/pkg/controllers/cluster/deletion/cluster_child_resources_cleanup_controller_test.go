@@ -28,12 +28,12 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -508,7 +508,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			mockKubeApplierDBClients.Register(managementClusterResourceID, mockKubeApplierClient)
 
 			syncer := &clusterChildResourcesCleanupController{
-				clusterLister:        &listertesting.SliceClusterLister{Clusters: clustersForLister},
+				clusterLister:        &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:    mockResourcesDBClient,
 				kubeApplierDBClients: mockKubeApplierDBClients,
 			}
