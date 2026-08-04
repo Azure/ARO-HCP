@@ -54,7 +54,7 @@ The creation of ADO pipelines for pipeline.yaml is automated based on metadata f
 * [update the topology file to include a new pipeline.yaml](pipeline-topology.md)
 * [generate and register the ADO pipelines](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/README.md)
 
-The ADO pipeline will eventually show up under the [pipelines secion of sdp-pipelines](https://dev.azure.com/msazure/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp).
+The ADO pipeline will eventually show up under the [pipelines section of sdp-pipelines](https://dev.azure.com/msazure/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp).
 
 ## Prepare a rollout
 
@@ -88,11 +88,11 @@ Issues with EV2 artifact generation can be spotted in the ADO pipeline logs of t
 The `pipeline.yaml` step structure influences the generated EV2 `ServiceModel` and `RolloutSpecification` artifacts during EV2 build phase in the ADO pipeline. EV2 has a memory about what these artifacts looked like during previous SDP rollouts. If these artifacts change too much (e.g. steps being removed, renamed, reordered), EV2 will complain during artifact upload (e.g. `$ENV_Managed_SDP > Ev2_AgentRolloutJob > Ev2RARollout`), e.g. `Warnings: ServiceResourceGroupDefinition 'XXX' is being deleted`. While this is a meaningful protection mechanism for production releases, this is expected during development while iterating on the `pipeline.yaml` file.
 
 > [!IMPORTANT]
-> The following steps to clear EV2s memory by unregistering artifacts does not delete any deployed resources from Azure. BUT STILL: unregistering artifacts needs to be a concious decision with the implications being well understood in cases where a pipeline is already used in production. Ask for help and reviews if you are unsure!!
+> The following steps to clear EV2s memory by unregistering artifacts does not delete any deployed resources from Azure. BUT STILL: unregistering artifacts needs to be a conscious decision with the implications being well understood in cases where a pipeline is already used in production. Ask for help and reviews if you are unsure!!
 
 The following procedure allows for clearing EV2s memory about previous rollouts.
 
-* [one time prep steps to aquire EV2 tools](https://ev2docs.azure.net/getting-started/tutorial/prepare.html?tabs=tabid-1%2Ctabid-3)
+* [one time prep steps to acquire EV2 tools](https://ev2docs.azure.net/getting-started/tutorial/prepare.html?tabs=tabid-1%2Ctabid-3)
 * [activate temporary ARO EV2 membership via PIM](https://msazure.visualstudio.com/AzureRedHatOpenShift/_wiki/wikis/AzureRedHatOpenShift.wiki/702853/Admin-Group)
 * [unregister artifacts](https://msazure.visualstudio.com/AzureRedHatOpenShift/_wiki/wikis/AzureRedHatOpenShift.wiki/687243/Create-new-Service-with-Ev2-RA-and-using-Ev2-commands?anchor=unregister-artifact)
   * use `Test` for `<roll out infra>`

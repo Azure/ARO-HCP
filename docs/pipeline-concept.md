@@ -259,7 +259,7 @@ The resourcegroup (`resourceGroups.name`) is pre-created before step execution s
 
 #### AKS cluster
 
-If an `resourceGroups.aksCluster` is specified, the `KUBECONFIG` environment variable is set and allows cluster admin interaction withe the AKS cluster. This is mostly relevant for `Shell` steps.
+If an `resourceGroups.aksCluster` is specified, the `KUBECONFIG` environment variable is set and allows cluster admin interaction with the AKS cluster. This is mostly relevant for `Shell` steps.
 
 #### Environment variables
 
@@ -282,7 +282,7 @@ By structuring pipelines appropriately, deployments can be managed efficiently w
 
 ## Pipeline Execution in Different Environments
 
-The various target environments for ARO HCP infrastructure and service deployment have very unique requirements on the rollout process, involving different tools and policies. Microsoft environments require deployments to be driven by ADO and their [EV2](https://ev2docs.azure.net) deployment service, which cannot be used for non-Microsoft environments. The Red Hat developemnt environment on the other hand does not have such strictly regulated rollout processes and we chose to use GitHub actions as the overall driver for rollouts.
+The various target environments for ARO HCP infrastructure and service deployment have very unique requirements on the rollout process, involving different tools and policies. Microsoft environments require deployments to be driven by ADO and their [EV2](https://ev2docs.azure.net) deployment service, which cannot be used for non-Microsoft environments. The Red Hat development environment on the other hand does not have such strictly regulated rollout processes and we chose to use GitHub actions as the overall driver for rollouts.
 
 The custom pipeline format supports multiple deployment environments and tools to accommodate these different execution requirements and tooling.
 

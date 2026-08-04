@@ -1,4 +1,4 @@
-# Whats is MISE?
+# What is MISE?
 
 Microsoft Identity Service Essentials (MISE) is an internal Microsoft service providing:
 - Validation of Azure Active Directory (AAD) tokens, including Proof-of-Possession (PoP) tokens and Bearer tokens.
