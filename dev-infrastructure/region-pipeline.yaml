@@ -41,8 +41,8 @@ resourceGroups:
     outputOnly: true
   - name: ocp-acr-replication
     action: Shell
-    command: ./scripts/acr-replication/acr-replication
-    workingDir: .
+    command: ./acr-replication
+    workingDir: ./scripts/acr-replication
     variables:
     - name: SUBSCRIPTION_ID
       input:
@@ -55,8 +55,8 @@ resourceGroups:
       configRef: acr.ocp.name
     - name: REPLICATION_REGION
       configRef: region
-    - name: ENDPOINT_DISABLED_REGIONS
-      configRef: acr.ocp.regionEndpointDisabledRegions
+    - name: REPLICATION_STATE
+      configRef: acr.ocp.replicationState
     shellIdentity:
       input:
         resourceGroup: global
@@ -64,8 +64,8 @@ resourceGroups:
         name: globalMSIId
   - name: svc-acr-replication
     action: Shell
-    command: ./scripts/acr-replication/acr-replication
-    workingDir: .
+    command: ./acr-replication
+    workingDir: ./scripts/acr-replication
     variables:
     - name: SUBSCRIPTION_ID
       input:

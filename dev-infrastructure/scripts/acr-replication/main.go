@@ -31,10 +31,11 @@
 //	ACR_NAME                  - name of the Azure Container Registry
 //	REPLICATION_REGION        - Azure region to check/create a replica in;
 //	                            the replica is named after the region
-//	ENDPOINT_DISABLED_REGIONS - optional space-separated list of regions whose
-//	                            regional data endpoint must be kept disabled
-//	                            (e.g. a co-located canary replica). Defaults to
-//	                            none, i.e. the endpoint is enabled everywhere.
+//	REPLICATION_STATE         - optional desired state of this region's regional
+//	                            data endpoint: "true"/"false" (Go strconv.ParseBool).
+//	                            Defaults to true (enabled) if unset. Set to
+//	                            "false" for a region whose endpoint must stay
+//	                            disabled (e.g. a co-located canary replica).
 //	LOG_VERBOSITY             - optional slog verbosity (default 0)
 //	DRY_RUN                   - if set to any non-empty value, mutating calls
 //	                            (create/delete/update) are logged instead of
@@ -84,7 +85,7 @@ type config struct {
 	resourceGroup   string
 	acrName         string
 	region          string
-	disabledRegions map[string]bool
+	endpointEnabled bool
 	dryRun          bool
 }
 
@@ -113,9 +114,13 @@ func parseEnvConfig(env func(string) string) (*config, error) {
 		return nil, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
 
-	c.disabledRegions = map[string]bool{}
-	for _, r := range strings.Fields(env("ENDPOINT_DISABLED_REGIONS")) {
-		c.disabledRegions[r] = true
+	c.endpointEnabled = true
+	if v := env("REPLICATION_STATE"); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid REPLICATION_STATE %q: %w", v, err)
+		}
+		c.endpointEnabled = enabled
 	}
 
 	// Mirrors the replaced shell script: any non-empty DRY_RUN enables
@@ -129,7 +134,7 @@ func parseEnvConfig(env func(string) string) (*config, error) {
 // desiredEndpointEnabled reports whether the replica's regional data endpoint
 // should be enabled for the configured replication region.
 func (c *config) desiredEndpointEnabled() bool {
-	return !c.disabledRegions[c.region]
+	return c.endpointEnabled
 }
 
 func run(ctx context.Context) error {

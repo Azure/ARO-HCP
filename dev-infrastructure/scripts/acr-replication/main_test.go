@@ -56,13 +56,13 @@ func TestParseEnvConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("region in disabled list", func(t *testing.T) {
+	t.Run("REPLICATION_STATE false disables endpoint", func(t *testing.T) {
 		env := map[string]string{
-			"SUBSCRIPTION_ID":           "sub",
-			"RESOURCE_GROUP":            "rg",
-			"ACR_NAME":                  "myacr",
-			"REPLICATION_REGION":        "eastus2euap",
-			"ENDPOINT_DISABLED_REGIONS": "eastus2euap westus3",
+			"SUBSCRIPTION_ID":    "sub",
+			"RESOURCE_GROUP":     "rg",
+			"ACR_NAME":           "myacr",
+			"REPLICATION_REGION": "eastus2euap",
+			"REPLICATION_STATE":  "false",
 		}
 		c, err := parseEnvConfig(func(k string) string { return env[k] })
 		if err != nil {
@@ -73,13 +73,13 @@ func TestParseEnvConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("region not in disabled list", func(t *testing.T) {
+	t.Run("REPLICATION_STATE true enables endpoint", func(t *testing.T) {
 		env := map[string]string{
-			"SUBSCRIPTION_ID":           "sub",
-			"RESOURCE_GROUP":            "rg",
-			"ACR_NAME":                  "myacr",
-			"REPLICATION_REGION":        "eastus2",
-			"ENDPOINT_DISABLED_REGIONS": "eastus2euap westus3",
+			"SUBSCRIPTION_ID":    "sub",
+			"RESOURCE_GROUP":     "rg",
+			"ACR_NAME":           "myacr",
+			"REPLICATION_REGION": "eastus2",
+			"REPLICATION_STATE":  "true",
 		}
 		c, err := parseEnvConfig(func(k string) string { return env[k] })
 		if err != nil {
@@ -87,6 +87,20 @@ func TestParseEnvConfig(t *testing.T) {
 		}
 		if !c.desiredEndpointEnabled() {
 			t.Fatalf("expected endpoint enabled for eastus2")
+		}
+	})
+
+	t.Run("invalid REPLICATION_STATE is an error", func(t *testing.T) {
+		env := map[string]string{
+			"SUBSCRIPTION_ID":    "sub",
+			"RESOURCE_GROUP":     "rg",
+			"ACR_NAME":           "myacr",
+			"REPLICATION_REGION": "eastus2",
+			"REPLICATION_STATE":  "maybe",
+		}
+		_, err := parseEnvConfig(func(k string) string { return env[k] })
+		if err == nil {
+			t.Fatalf("expected error for invalid REPLICATION_STATE")
 		}
 	})
 }

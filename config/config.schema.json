@@ -392,9 +392,9 @@
           ],
           "additionalProperties": false
         },
-        "regionEndpointDisabledRegions": {
-          "type": "string",
-          "description": "Space-separated list of replication regions whose regional data endpoint must be kept disabled, e.g. the eastus2euap canary replica. Optional; defaults to none."
+        "replicationState": {
+          "type": "boolean",
+          "description": "Whether this region's replica should have its regional data endpoint enabled. False for a canary/EUAP replica (e.g. eastus2euap) that must be kept disabled, see config.msft.clouds-overlay.yaml. Defaults to true (enabled)."
         }
       },
       "additionalProperties": false,
