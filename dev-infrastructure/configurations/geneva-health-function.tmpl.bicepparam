@@ -1,5 +1,6 @@
 using '../modules/geneva-health-function/functionapp.bicep'
 
+param deploy = {{ .genevaHealthFunction.deploy }}
 param location = '{{ .region }}'
 param functionAppName = '{{ .genevaHealthFunction.functionAppName }}'
 param appServicePlanName = '{{ .genevaHealthFunction.appServicePlanName }}'

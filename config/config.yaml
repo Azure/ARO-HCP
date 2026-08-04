@@ -459,6 +459,7 @@ defaults:
         routingId: ""
         automitigationEnabled: ""
   genevaHealthFunction:
+    deploy: true
     certificateName: geneva-health-publisher
     certificateIssuer: Self
     certificateSAN: 'geneva-health-publisher-{{ .ctx.environment }}.geneva.keyvault.aro-hcp.azure.com'
