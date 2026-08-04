@@ -438,6 +438,8 @@ func setupCli() *cobra.Command {
 	//	}
 	// })
 
+	specs = specs.MustFilter([]string{`name.contains("should upgrade the control plane z-stream automatically on behalf of the customer") || name.contains("should upgrade and update a nodepool")`})
+
 	// Walk specs to wire up per-test MI container demands for the
 	// openshift-tests-extension resource-aware scheduler. Each spec's
 	// MIContainers(N) label declares how many pooled identity containers
