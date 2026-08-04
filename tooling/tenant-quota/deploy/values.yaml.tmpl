@@ -6,6 +6,22 @@ secretProvider:
   keyVault: "__keyVaultName__"
   msiClientId: "__tenantQuotaUAMIClientId__"
   tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
+prow:
+  enabled: {{ .opstool.tenantQuota.prow.enabled }}
+  baseURL: "{{ .opstool.tenantQuota.prow.baseURL }}"
+  interval: "{{ .opstool.tenantQuota.prow.interval }}"
+  retention: "{{ .opstool.tenantQuota.prow.retention }}"
+  repository:
+    org: "{{ .opstool.tenantQuota.prow.repository.org }}"
+    name: "{{ .opstool.tenantQuota.prow.repository.name }}"
+{{- if .opstool.tenantQuota.prow.excludeJobs }}
+  excludeJobs:
+{{- range .opstool.tenantQuota.prow.excludeJobs }}
+  - "{{ . }}"
+{{- end }}
+{{- else }}
+  excludeJobs: []
+{{- end }}
 tenants:
 {{- range .opstool.tenantQuota.tenants }}
 - tenantId: "{{ .tenantId }}"

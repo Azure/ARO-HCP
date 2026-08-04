@@ -81,6 +81,12 @@ func TestConfigValidate(t *testing.T) {
 				if cfg.GetCacheTTL() != DefaultCacheTTL {
 					t.Fatalf("cacheTTL: got %v, want %v", cfg.GetCacheTTL(), DefaultCacheTTL)
 				}
+				if cfg.Prow.GetInterval() != DefaultProwInterval {
+					t.Fatalf("prow interval: got %v, want %v", cfg.Prow.GetInterval(), DefaultProwInterval)
+				}
+				if cfg.Prow.GetRetention() != DefaultProwRetention {
+					t.Fatalf("prow retention: got %v, want %v", cfg.Prow.GetRetention(), DefaultProwRetention)
+				}
 			},
 		},
 		{
@@ -133,6 +139,80 @@ func TestConfigValidate(t *testing.T) {
 			cfg:        minimalValidConfig(),
 			mutate:     func(cfg *Config) { cfg.CacheTTL = "bad" },
 			wantErrSub: "invalid cacheTTL",
+		},
+		{
+			name: "valid prow config",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = validProwConfig()
+				cfg.Prow.Interval = "10m"
+				cfg.Prow.Retention = "48h"
+				cfg.Prow.ExcludeJobs = []string{" excluded-job "}
+			},
+			assertions: func(t *testing.T, cfg Config) {
+				t.Helper()
+				if cfg.Prow.GetInterval() != 10*time.Minute {
+					t.Fatalf("prow interval: got %v, want 10m", cfg.Prow.GetInterval())
+				}
+				if cfg.Prow.GetRetention() != 48*time.Hour {
+					t.Fatalf("prow retention: got %v, want 48h", cfg.Prow.GetRetention())
+				}
+				if len(cfg.Prow.ExcludeJobs) != 1 || cfg.Prow.ExcludeJobs[0] != "excluded-job" {
+					t.Fatalf("prow excludeJobs: got %v", cfg.Prow.ExcludeJobs)
+				}
+			},
+		},
+		{
+			name: "prow disabled allows empty connection settings",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = ProwConfig{Enabled: false}
+			},
+		},
+		{
+			name: "prow invalid base URL",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = validProwConfig()
+				cfg.Prow.BaseURL = "not-a-url"
+			},
+			wantErrSub: "prow.baseURL",
+		},
+		{
+			name: "prow missing repository org",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = validProwConfig()
+				cfg.Prow.Repository.Org = ""
+			},
+			wantErrSub: "prow.repository.org is required",
+		},
+		{
+			name: "prow missing repository name",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = validProwConfig()
+				cfg.Prow.Repository.Name = ""
+			},
+			wantErrSub: "prow.repository.name is required",
+		},
+		{
+			name: "prow empty exclusion",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = validProwConfig()
+				cfg.Prow.ExcludeJobs = []string{""}
+			},
+			wantErrSub: "prow.excludeJobs[0] must not be empty",
+		},
+		{
+			name: "prow duplicate exclusion",
+			cfg:  minimalValidConfig(),
+			mutate: func(cfg *Config) {
+				cfg.Prow = validProwConfig()
+				cfg.Prow.ExcludeJobs = []string{"job", "job"}
+			},
+			wantErrSub: `prow.excludeJobs[1] duplicates "job"`,
 		},
 		{
 			name:       "no tenants",
@@ -246,6 +326,17 @@ func TestConfigValidate(t *testing.T) {
 	}
 }
 
+func validProwConfig() ProwConfig {
+	return ProwConfig{
+		Enabled: true,
+		BaseURL: "https://prow.ci.openshift.org",
+		Repository: ProwRepositoryConfig{
+			Org:  "Azure",
+			Name: "ARO-HCP",
+		},
+	}
+}
+
 func TestLoadFromFile(t *testing.T) {
 	type testCase struct {
 		name       string
@@ -259,6 +350,14 @@ func TestLoadFromFile(t *testing.T) {
 			setup: func(t *testing.T) string {
 				t.Helper()
 				return writeYAML(t, `
+prow:
+  enabled: true
+  baseURL: "https://prow.ci.openshift.org"
+  repository:
+    org: "Azure"
+    name: "ARO-HCP"
+  excludeJobs:
+    - "excluded-job"
 tenants:
   - tenantId: "tid-1"
     servicePrincipalClientId: "sp-id"
@@ -292,6 +391,9 @@ tenants:
 				}
 				if cfg.Tenants[0].Subscriptions[0].SubscriptionID != "" {
 					t.Fatalf("subscriptionId: got %q, want empty runtime-resolved value", cfg.Tenants[0].Subscriptions[0].SubscriptionID)
+				}
+				if !cfg.Prow.Enabled || cfg.Prow.Repository.Name != "ARO-HCP" {
+					t.Fatalf("prow config: got %#v", cfg.Prow)
 				}
 			},
 		},

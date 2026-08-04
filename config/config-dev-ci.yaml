@@ -162,6 +162,15 @@ clouds:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "tenant-quota-collector"
             digest: sha256:36f2251c61812dded8489affdc5b16f010705da6001bbfa90e10e318922e5a4d # dd702fa31e866201f704288af2b1e5a2d87d8848 (2026-08-04 19:49)
+          prow:
+            enabled: true
+            baseURL: "https://prow.ci.openshift.org"
+            interval: "5m"
+            retention: "24h"
+            repository:
+              org: "Azure"
+              name: "ARO-HCP"
+            excludeJobs: []
           tenants:
           - tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
             tenantName: "RedHat0"
