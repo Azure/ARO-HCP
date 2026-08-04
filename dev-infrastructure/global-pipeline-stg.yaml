@@ -108,8 +108,8 @@ resourceGroups:
   # scripts/grafana-group-roles and the buildStep above.
   - name: grafana-group-roles
     action: Shell
-    command: ./scripts/grafana-group-roles/grafana-group-roles
-    workingDir: .
+    command: ./grafana-group-roles
+    workingDir: ./scripts/grafana-group-roles
     variables:
     - name: SUBSCRIPTION_ID
       input:
