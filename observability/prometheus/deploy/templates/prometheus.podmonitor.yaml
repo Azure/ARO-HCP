@@ -1,4 +1,4 @@
-apiVersion: {{ .Values.monitoringApiGroup }}/v1
+apiVersion: {{ required "monitoringApiGroup must be set in values" .Values.monitoringApiGroup }}/v1
 kind: PodMonitor
 metadata:
   labels:
