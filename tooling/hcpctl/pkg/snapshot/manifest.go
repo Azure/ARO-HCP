@@ -192,6 +192,7 @@ func directoryLayout() map[string]string {
 		"state":          "<phase>/resources/<type>/<name>/state/ — time-windowed raw resource state dumps (ARM state, CS state, Maestro logs, etc.)",
 		"conditions":     "<phase>/resources/<type>/<name>/conditions/ — status condition transition summaries (HyperShift conditions, controller conditions)",
 		"logs":           "<phase>/resources/<type>/<name>/logs/ — filtered or aggregated container and audit logs (operator logs, Maestro server/agent logs)",
+		"deployments":    "<phase>/resources/<type>/<name>/deployments/ — Kubernetes resource snapshots (e.g. Deployment manifests) from Kusto, written as YAML",
 		"requests":       "<phase>/resources/<type>/<name>/requests/<METHOD>-<client_request_id>/ — per-request trace data with state/ and logs/ subdirectories",
 		"node_boot_logs": "node_boot_logs/ — VM serial console output (boot diagnostics) from nodes in the test. Files are named <node-name>-console.log. Each entry in manifest.json node_console_logs includes an artifact_url for downloading the original from the Prow job artifacts.",
 		"azure_sdk_log":  "azure_sdk_log/azure.log — client-side Azure SDK request/response log. Present only when manifest.json azure_log is set.",
