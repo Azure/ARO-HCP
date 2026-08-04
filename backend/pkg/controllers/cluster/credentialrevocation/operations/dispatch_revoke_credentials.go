@@ -23,8 +23,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -61,7 +60,7 @@ func NewDispatchRevokeCredentialsController(
 		resourcesDBClient: resourcesDBClient,
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"SystemAdminCredentialDispatchRevokeCredentials",
 		syncer,
 		10*time.Second,
