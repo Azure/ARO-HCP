@@ -2752,16 +2752,6 @@
       "type": "object",
       "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`",
       "properties": {
-        "vaultName": {
-          "type": "string",
-          "description": "vaultName is the name of the keyvault that contains the secret.",
-          "minLength": 1,
-          "maxLength": 255,
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
         "visibility": {
           "$ref": "#/definitions/KeyVaultVisibility",
           "description": "visibility of the keyvault that contains the secret.",
@@ -2770,9 +2760,10 @@
             "create"
           ]
         },
-        "activeKey": {
-          "$ref": "#/definitions/KmsKey",
-          "description": "The details of the active key.",
+        "keyEncryptionKeyUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The versioned URL of the key used for ETCD data encryption, hosted in Azure Key Vault or Managed HSM.\nFormat: https://{vault-name}.vault.azure.net/keys/{key-name}/{key-version}\nor https://{hsm-name}.managedhsm.azure.net/keys/{key-name}/{key-version}",
           "x-ms-mutability": [
             "read",
             "update",
@@ -2781,66 +2772,18 @@
         }
       },
       "required": [
-        "vaultName",
         "visibility",
-        "activeKey"
+        "keyEncryptionKeyUrl"
       ]
     },
     "KmsEncryptionProfileUpdate": {
       "type": "object",
       "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`",
       "properties": {
-        "activeKey": {
-          "$ref": "#/definitions/KmsKeyUpdate",
-          "description": "The details of the active key.",
-          "x-ms-mutability": [
-            "read",
-            "update",
-            "create"
-          ]
-        }
-      }
-    },
-    "KmsKey": {
-      "type": "object",
-      "description": "A representation of a KeyVault Secret.",
-      "properties": {
-        "name": {
+        "keyEncryptionKeyUrl": {
           "type": "string",
-          "description": "name is the name of the keyvault key used for encryption/decryption.",
-          "minLength": 1,
-          "maxLength": 255,
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
-        "version": {
-          "type": "string",
-          "description": "version contains the version of the key to use.",
-          "minLength": 1,
-          "maxLength": 255,
-          "x-ms-mutability": [
-            "read",
-            "update",
-            "create"
-          ]
-        }
-      },
-      "required": [
-        "name",
-        "version"
-      ]
-    },
-    "KmsKeyUpdate": {
-      "type": "object",
-      "description": "A representation of a KeyVault Secret.",
-      "properties": {
-        "version": {
-          "type": "string",
-          "description": "version contains the version of the key to use.",
-          "minLength": 1,
-          "maxLength": 255,
+          "format": "uri",
+          "description": "The versioned URL of the key used for ETCD data encryption, hosted in Azure Key Vault or Managed HSM.\nFormat: https://{vault-name}.vault.azure.net/keys/{key-name}/{key-version}\nor https://{hsm-name}.managedhsm.azure.net/keys/{key-name}/{key-version}",
           "x-ms-mutability": [
             "read",
             "update",
