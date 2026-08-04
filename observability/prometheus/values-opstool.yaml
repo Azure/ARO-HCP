@@ -1,3 +1,4 @@
+monitoringApiGroup: monitoring.coreos.com
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
   crds:
