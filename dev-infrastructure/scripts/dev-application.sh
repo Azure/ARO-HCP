@@ -98,7 +98,23 @@ createApps() {
     --location "$LOCATION" \
     --name "$KEY_VAULT_NAME" \
     --resource-group "$RESOURCE_GROUP" \
-    --enable-rbac-authorization false
+    --enable-rbac-authorization true
+
+    # Assign RBAC roles to the current user for Key Vault certificate and secret management
+    KEY_VAULT_ID=$(az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
+    CURRENT_USER_ID=$(az ad signed-in-user show --query id -o tsv)
+
+    echo "Assigning Key Vault Certificates Officer role to current user"
+    az role assignment create \
+    --role "Key Vault Certificates Officer" \
+    --assignee "$CURRENT_USER_ID" \
+    --scope "$KEY_VAULT_ID" || true
+
+    echo "Assigning Key Vault Secrets User role to current user"
+    az role assignment create \
+    --role "Key Vault Secrets User" \
+    --assignee "$CURRENT_USER_ID" \
+    --scope "$KEY_VAULT_ID" || true
 
     # Create a custom role definition if it doesn't exist already
     echo "Checking if role definition $FP_ROLE_DEFINITION_NAME exists"

@@ -10,7 +10,7 @@ param keyVaultTagValue string
 @description('The Frontdoor Principal ID that is granted KV Certificates Officer permissions')
 param frontDoorPrincipalId string
 
-@description('Key vault admin service principal object ID - Used to create a Key Vault access policy for Ev2 extensions')
+@description('Key vault admin service principal object ID - Used to create a Key Vault RBAC role assignment for Ev2 extensions')
 param keyVaultAdminPrincipalId string
 
 module keyVault '../../keyvault/keyvault.bicep' = {
