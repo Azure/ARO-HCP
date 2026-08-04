@@ -259,7 +259,6 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &clusterClusterServiceUpdateDispatchSyncer{
-				cooldownChecker:                     &alwaysSyncCooldownChecker{},
 				minimumReconcileTimeCooldownChecker: tc.minimumReconcileTimeCooldownChecker,
 				clusterLister:                       clusterLister,
 				subscriptionLister:                  subscriptionLister,

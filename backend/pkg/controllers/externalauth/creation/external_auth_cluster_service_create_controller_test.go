@@ -51,12 +51,6 @@ const (
 	testExternalAuthCSIDStr = testClusterServiceIDStr + "/external_auth_config/external_auths/" + testExternalAuthName
 )
 
-type alwaysSyncCooldownChecker struct{}
-
-func (c *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
-	return true
-}
-
 func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 	testKey := controllerutils.HCPExternalAuthKey{
 		SubscriptionID:      testSubscriptionID,
@@ -274,7 +268,6 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &externalAuthClusterServiceCreateSyncer{
-				cooldownChecker:       &alwaysSyncCooldownChecker{},
 				externalAuthLister:    &listertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
 				clusterLister:         &listertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:     mockResourcesDBClient,

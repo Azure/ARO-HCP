@@ -50,7 +50,6 @@ import (
 // (operation_node_pool_update_state_calculation.go): dispatch sends updates, operation state
 // verifies propagation before the ARM node pool update operation succeeds.
 type nodePoolClusterServiceUpdateDispatchSyncer struct {
-	cooldownChecker      controllerutil.CooldownChecker
 	nodePoolLister       listers.NodePoolLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -65,14 +64,12 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolClusterServiceUpdateDispatchSyn
 func NewNodePoolClusterServiceUpdateDispatchController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	syncer := NewNodePoolClusterServiceUpdateDispatchSyncer(
 		resourcesDBClient,
 		clusterServiceClient,
-		activeOperationLister,
 		nodePoolLister,
 	)
 
@@ -89,11 +86,9 @@ func NewNodePoolClusterServiceUpdateDispatchController(
 func NewNodePoolClusterServiceUpdateDispatchSyncer(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	nodePoolLister listers.NodePoolLister,
 ) controllerutils.NodePoolSyncer {
 	return &nodePoolClusterServiceUpdateDispatchSyncer{
-		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		// We set minimumReconcileTimeCooldownChecker so that SyncOnce is not executed
 		// more than once per minute.
 		minimumReconcileTimeCooldownChecker: controllerutil.NewTimeBasedCooldownChecker(1 * time.Minute),
@@ -114,10 +109,6 @@ func needsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {
 	}
 
 	return true
-}
-
-func (c *nodePoolClusterServiceUpdateDispatchSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {

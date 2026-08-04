@@ -78,12 +78,10 @@ func (s *syncClusterClusterServiceUpdateDispatchStep) RunTest(ctx context.Contex
 	require.NoError(t, err)
 
 	clusterLister := &listertesting.SliceClusterLister{Clusters: []*api.HCPOpenShiftCluster{cluster}}
-	activeOperationLister := &listertesting.SliceActiveOperationLister{}
 	subscriptionLister := &listertesting.DBSubscriptionLister{ResourcesDBClient: stepInput.ResourcesDBClient}
 	syncer := clusterupdate.NewClusterClusterServiceUpdateDispatchSyncer(
 		stepInput.ResourcesDBClient,
 		stepInput.ClusterServiceMockInfo.MockClusterServiceClient,
-		activeOperationLister,
 		clusterLister,
 		subscriptionLister,
 	)

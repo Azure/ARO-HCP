@@ -29,7 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -38,7 +37,6 @@ import (
 const ExternalAuthClusterServiceCreateControllerName = "ExternalAuthClusterServiceCreate"
 
 type externalAuthClusterServiceCreateSyncer struct {
-	cooldownChecker       controllerutil.CooldownChecker
 	resourcesDBClient     database.ResourcesDBClient
 	externalAuthLister    listers.ExternalAuthLister
 	clusterLister         listers.ClusterLister
@@ -48,13 +46,11 @@ type externalAuthClusterServiceCreateSyncer struct {
 func NewExternalAuthClusterServiceCreateController(
 	resourcesDBClient database.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := informers.ExternalAuths()
 	_, clusterLister := informers.Clusters()
 	syncer := &externalAuthClusterServiceCreateSyncer{
-		cooldownChecker:       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:     resourcesDBClient,
 		externalAuthLister:    externalAuthLister,
 		clusterLister:         clusterLister,
@@ -171,10 +167,6 @@ func (c *externalAuthClusterServiceCreateSyncer) findCSExternalAuth(ctx context.
 		return nil, err
 	}
 	return ea, nil
-}
-
-func (c *externalAuthClusterServiceCreateSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *externalAuthClusterServiceCreateSyncer) isOCMErrorBadRequest(err error) bool {
