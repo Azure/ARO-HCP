@@ -304,6 +304,18 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 
 When ResourceBundles are already soft-deleted (`deleted_at` is set) but the Maestro Agent on the management cluster continues recreating ManifestWorks (see Scenario 7), the safest approach is to stop the agent, clean up, then restart it.
 
+> **⚠️ Prerequisite: Verify no customer-facing traffic on this management cluster.**
+>
+> Scaling the Maestro Agent to 0 stops **all** ManifestWork delivery on the management cluster, not just for the stuck clusters. While the agent is down, any in-flight or incoming ARM create, update, or delete operations targeting this MC will fail or time out.
+>
+> Before proceeding, confirm:
+> 1. The MC has **no customer clusters** currently running on it, **and**
+> 2. The region is **not actively serving new requests** that would be routed to this MC.
+>
+> If the region is live with customers, this procedure **requires a maintenance window**.
+>
+> If a maintenance window is not available, use [Strategy 4 (Manual Finalizer Removal)](#strategy-4-manual-finalizer-removal-on-management-cluster-last-resort) instead. Strategy 4 patches finalizers on individual resources without stopping the agent, so it does not block other operations on the MC.
+
 Connect to the management cluster:
 
 ```bash
