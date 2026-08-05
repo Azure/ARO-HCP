@@ -96,6 +96,8 @@ var _ = Describe("Customer", func() {
 				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", customerClusterName)
+			adminRESTConfig.QPS = 50
+			adminRESTConfig.Burst = 100
 			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "failed to verify HCP cluster %q is available", customerClusterName)
 
 			By("getting kubeconfig content for Helm")

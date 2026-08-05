@@ -66,7 +66,6 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters with version 4.22")
 			clusterParams := framework.NewDefaultClusterParams20260630()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = "4.22"
 
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName

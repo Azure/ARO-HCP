@@ -114,6 +114,8 @@ var _ = Describe("Customer", func() {
 				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", customerClusterName)
+			adminRESTConfig.QPS = 50
+			adminRESTConfig.Burst = 100
 
 			By("disabling kube-proxy via networks.operator.openshift.io patch")
 			opClient, err := operatorclient.NewForConfig(adminRESTConfig)
