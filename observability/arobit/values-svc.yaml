@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
 # Global Docker image parameters
 ##
 # imagePullSecrets:

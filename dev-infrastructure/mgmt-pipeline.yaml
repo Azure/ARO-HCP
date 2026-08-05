@@ -610,7 +610,7 @@ resourceGroups:
     releaseName: acrpull
     releaseNamespace: acrpull
     chartDir: ./../acrpull/deploy
-    valuesFile: ./../acrpull/deploy/values.yaml
+    valuesFile: ./../acrpull/deploy/values-mgmt.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -750,7 +750,7 @@ resourceGroups:
     releaseName: service-lifecycle
     releaseNamespace: kube-system
     chartDir: ../service-lifecycle/deploy
-    valuesFile: ../service-lifecycle/deploy/values.yaml
+    valuesFile: ../service-lifecycle/deploy/values-mgmt.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output

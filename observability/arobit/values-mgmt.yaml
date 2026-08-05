@@ -1,3 +1,4 @@
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
 # Global Docker image parameters
 ##
 # imagePullSecrets:
