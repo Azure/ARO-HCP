@@ -9,6 +9,7 @@ image:
   registry: "quay.io"
   repository: "roivaz/cihealth"
   tag: "8e6b0cd"
+  digest: ""
   pullPolicy: Always
   pullSecrets: []
 disableRuntimeWorkloads: false

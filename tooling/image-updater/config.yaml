@@ -165,6 +165,17 @@ images:
     targets:
     - jsonPath: clouds.dev.defaults.opstool.tenantQuota.image.digest
       filePath: ../../config/config-dev-ci.yaml
+  # CIHealth image
+  cihealth:
+    group: aro-ci-images
+    source:
+      image: quay.io/roivaz/cihealth
+      tagPattern: "^[a-f0-9]{7}$"
+      versionLabel: vcs-ref
+      multiArch: true
+    targets:
+    - jsonPath: clouds.dev.defaults.opstool.cihealth.image.digest
+      filePath: ../../config/config-dev-ci.yaml
   # Prometheus images
   prometheus-operator:
     group: prom-stack
