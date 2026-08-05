@@ -138,6 +138,10 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("PATCH", "/backupschedules"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPPatchBackupScheduleHandler(resourcesDBClient).ServeHTTP)),
 	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("POST", "/minimumversions"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPMinimumVersionsHandler(resourcesDBClient).ServeHTTP)),
+	)
 
 	// Non-HCP admin routes
 	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())

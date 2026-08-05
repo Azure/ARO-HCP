@@ -211,6 +211,10 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 		return utils.TrackError(err)
 	}
 
+	// Apply SRE minimum version override.
+	minimumVersions := cachedServiceProviderCluster.Spec.ControlPlaneVersion.MinimumVersions
+	desiredVersion = applyMinimumVersionOverride(desiredVersion, activeVersions, minimumVersions)
+
 	previousDesiredVersion := cachedServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
 	// Only advance stored desired when the newly resolved version is greater, so graph changes
 	// cannot automatically select a lower z-stream. When rollback support is added, relax this
