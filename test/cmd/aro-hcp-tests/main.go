@@ -150,7 +150,19 @@ const ev2RetryMetadataFile = "metadata.json"
 // prow-job-executor reads that key back out of the job's finished.json to decide whether to
 // resubmit the job once instead of requiring a human to notice the failure, review Prow
 // output, and manually retrigger. See AROSLSRE-1721.
+//
+// This must only run in the long-lived parent run-suite process. openshift-tests-extension
+// spawns each spec as a separate "run-test" worker subprocess, and that subprocess calls
+// specs.Run() itself with just its own single spec - which would re-trigger AddAfterEach/
+// AddAfterAll in the worker too, deciding auto-retry eligibility from one spec's result
+// instead of the whole suite's, and racing multiple workers writing the same file. Guard
+// registration with isRunSuiteProcess(), the same pattern used for the upgrade coordinator's
+// AddBeforeAll hook above.
 func registerEV2RetryCatcher(specs et.ExtensionTestSpecs) {
+	if !isRunSuiteProcess() {
+		return
+	}
+
 	allowRetryNames := map[string]bool{}
 	for _, spec := range specs {
 		if spec.Labels.Has(labels.AllowRetry[0]) {
