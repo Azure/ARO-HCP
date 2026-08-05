@@ -9,7 +9,7 @@ Two things to know before you start digging:
 - **CNS is not the culprit, so do not spend time there.** On the cases we have analysed, `azure-cns` assigned and released the pod's IP cleanly on every single retry with `ReturnCode:Success`, and the `MultitenantPodNetworkConfig` resolved a secondary IP within about a second of the pod being scheduled. IP pool exhaustion is ruled out too. The fault is in the `azure-vnet` CNI plugin's endpoint-creation step, which consumes the CNS response and programs the interface into the pod netns.
 - **`azure-vnet` has no logs in Kusto.** It runs as a host binary invoked by containerd, not as a pod, so nothing it emits is ingested into ServiceLogs. That is exactly why the log-collection script in the appendix exists: if Cloudnet/RNC want evidence, it has to be pulled off the node before you recycle it.
 
-The node will not self-heal. The standing mitigation is to **cordon and delete the wedged VMSS instance** so pods reschedule onto healthy nodes and AKS replaces the instance.
+The node will not self-heal in the hard-wedge variant. In the intermittent flapping variant (AROSLSRE-1717), the node alternates between healthy and failing states, self-resolving between bursts but recurring under pod scheduling pressure. The standing mitigation for both variants is to **cordon and delete the VMSS instance** so pods reschedule onto healthy nodes and AKS replaces the instance.
 
 ## Tracking
 
@@ -17,7 +17,7 @@ The node will not self-heal. The standing mitigation is to **cordon and delete t
 - **Past occurrences**:
   - `prod uksouth` — node `aks-userswft2-40171262-vmss000004`, ~18h of continuous failure, ~2,584 events (AROSLSRE-1524)
   - `prod australiaeast` — node `aks-userswft2-40474110-vmss00000f`, ~3 days of continuous failure, ~2,419 events (AROSLSRE-1563 / AROSLSRE-1585)
-  - `prod centralindia`, node `aks-userswft3-38105468-vmss000005`, ongoing since 2026-08-01, ~1,074 events, took out three consecutive prod e2e runs on 2026-08-04 (AROSLSRE-1717)
+  - `prod centralindia` — node `aks-userswft3-38105468-vmss000005`, intermittent flapping since 2026-08-01, ~1,074 events, took out three consecutive prod e2e runs on 2026-08-04; node deleted 2026-08-04 via `kubectl delete node` (AROSLSRE-1717 / AROSLSRE-1723)
 
 ## Symptoms
 
@@ -29,7 +29,7 @@ All of these will be present on the affected node:
 | **Error messages** | `route ip+net: no such network interface`, `mtpnc is not ready`, `dhcp discover timed out` |
 | **Blast radius** | 100% of pods scheduled to the node fail; hosted-cluster router replicas are especially impacted → `KASLoadBalancerNotReachable` → cluster-create timeouts |
 | **Isolation** | Failures usually concentrate on one node, but a short cluster-wide burst across several nodes is possible (see AROSLSRE-1717). Confirm with per-node event counts rather than assuming a single node |
-| **Duration** | Does not self-heal; persists for days until the node is deleted |
+| **Duration** | Hard-wedge does not self-heal; persists for days until the node is deleted. Intermittent flap variant self-resolves between bursts but recurs under pod scheduling pressure (see AROSLSRE-1717) |
 
 ## Diagnosis
 
@@ -103,12 +103,42 @@ kubernetesEvents
 >
 > Both are queryable in `hcp-prod-{region}` ServiceLogs.
 
-### 3. Confirm the node is still failing (kubectl)
+### 3. Confirm the node is still failing
+
+Kubernetes events have a short TTL (~1h). If the wedge is intermittent (flapping variant), kubectl events may show nothing even though the fault is still latent.
+
+**kubectl (if events are recent):**
 
 ```bash
-kubectl get events --field-selector reason=FailedCreatePodSandBox,involvedObject.kind=Pod \
-  --sort-by='.lastTimestamp' | grep <node-name> | tail -20
+kubectl get events -A --field-selector reason=FailedCreatePodSandBox | grep <node-name> | tail -20
 ```
+
+**Kusto (reliable regardless of event TTL):**
+
+```kql
+kubernetesEvents
+| where timestamp > ago(4h)
+| where host == "<node-name>"
+| where reason == "FailedCreatePodSandBox"
+| order by timestamp desc
+| take 20
+```
+
+**Test pod (confirms active vs. latent fault):**
+
+If Kusto shows recent failures but kubectl events are empty, schedule a test pod directly on the suspect node to check whether the NIC is currently functional:
+
+```bash
+kubectl run nic-test --image=mcr.microsoft.com/cbl-mariner/base/core:2.0 \
+    --overrides='{"spec":{"nodeName":"<node-name>"}}' \
+    --command -- sleep 300
+kubectl get pod nic-test -w
+```
+
+- If the pod reaches `Running`: the NIC is not actively wedged right now. The fault is intermittent and will likely recur under scheduling pressure (e.g. during e2e runs). Proceed with the flap-vs-wedge query (Step 2) to decide whether to delete.
+- If the pod stays in `ContainerCreating` with `FailedCreatePodSandBox`: the NIC is actively wedged. Proceed with mitigation.
+
+Clean up after: `kubectl delete pod nic-test`
 
 ### 4. Check whether AKS node auto-repair has already attempted remediation
 
@@ -158,6 +188,16 @@ kubectl get pods -A -o wide | grep router | grep <node-name>
 - `kubectl` configured against the management AKS
 - (Optional) The ACN log-collection script if Cloudnet/RNC wants on-node evidence before recycling
 
+### JIT Role Selection
+
+| Method | JIT Role | Notes |
+|---|---|---|
+| `kubectl delete node` | **Azure Kubernetes Service RBAC Cluster Admin** on the target subscription | Removes the Kubernetes node object. AKS node-pool reconciler detects the missing node, deprovisions the underlying VMSS instance, and provisions a replacement. Confirmed working on prod centralindia (AROSLSRE-1723). This is the normal JIT role used by the Service Life Cycle team. |
+| `az vmss delete-instances` | **Change Safety Contributor** on the target subscription | Deletes the VMSS instance directly via ARM; AKS provisions a replacement. Confirmed working on australiaeast (`87faad51-...`, AROSLSRE-1563). On centralindia (AROSLSRE-1723), both AKS RBAC Cluster Admin and Change Safety Contributor failed to grant `az vmss delete-instances` permission — the required ARM role for this subscription needs further investigation. |
+| Geneva action (ARM) | **Change Safety Contributor** on the target subscription | Use the Geneva Actions portal ([portal.microsoftgeneva.com/actions](https://portal.microsoftgeneva.com/actions)): **Azure Resource Manager > Resource Group Management > Delete resource and resource group data in a location for a subscription**. Target the specific VMSS instance resource ID. Alternative to `az vmss delete-instances` when CLI access is unavailable. |
+
+> **Note on the centralindia incident (AROSLSRE-1723)**: Both **AKS RBAC Cluster Admin** and **Change Safety Contributor** were granted via JIT. Neither was sufficient for `az vmss delete-instances` on this subscription. The mitigation succeeded via `kubectl delete node` instead — the node object was removed immediately, AKS deprovisioned the VMSS instance, and a replacement node was provisioned ~15 minutes later (reaching Ready ~40 seconds after creation).
+
 ## Mitigation Procedure
 
 ### Step 1: (Optional) Collect ACN logs for evidence preservation
@@ -181,6 +221,8 @@ This prevents new pods from being scheduled to the node while you verify and del
 
 ### Step 3: Delete the VMSS instance
 
+**Option A: `az vmss delete-instances` (preferred)**
+
 ```bash
 # Get the VMSS name and instance ID from the node's provider ID
 PROVIDER_ID=$(kubectl get node <node-name> -o jsonpath='{.spec.providerID}')
@@ -194,28 +236,32 @@ az vmss delete-instances \
   --instance-ids <instance-id>
 ```
 
-Alternatively, if you only have `kubectl` access:
+**Option B: `kubectl delete node` (fallback)**
+
+If `az vmss delete-instances` fails due to insufficient JIT permissions (see [JIT Role Selection](#jit-role-selection)):
 
 ```bash
 kubectl delete node <node-name>
 ```
 
-> **Note**: Deleting the node object from Kubernetes does not delete the underlying VMSS instance. For a full cleanup, use `az vmss delete-instances`. The AKS cluster autoscaler or node-pool reconciler will provision a replacement.
+This removes the Kubernetes node object. The AKS node-pool reconciler will detect the missing node, deprovision the underlying VMSS instance, and provision a replacement. This was confirmed working on prod centralindia (AROSLSRE-1723) where Change Safety Contributor was insufficient for direct VMSS deletion.
 
 > **This mitigation is not durable.** The fault has been observed moving to a different instance in the same pool, sometimes within minutes of the previous one being recycled (AROSLSRE-1717). Recycling clears the immediate incident, it does not fix the underlying platform issue. Update ICM 832382845 on every recurrence so Azure has the pattern.
 
 ### Step 4: Verify recovery
 
 ```bash
-# Confirm the node is gone
-kubectl get nodes | grep <node-name>
+# Confirm the old node is gone and a replacement is coming up
+kubectl get nodes | grep <vmss-pool-prefix>
 
 # Confirm pods are rescheduling to healthy nodes
 kubectl get pods -A --field-selector status.phase!=Running,status.phase!=Succeeded | head -20
 
 # Confirm no new FailedCreatePodSandBox events on other nodes
-kubectl get events --field-selector reason=FailedCreatePodSandBox --sort-by='.lastTimestamp' | tail -10
+kubectl get events -A --field-selector reason=FailedCreatePodSandBox --sort-by='.lastTimestamp' | tail -10
 ```
+
+> **Expected transient errors on the replacement node**: When the new VMSS instance joins the cluster, daemonset pods (e.g. `arobit-forwarder`) may briefly show `FailedCreatePodSandBox` with `Pod "..." not found`. This is a benign CNS cache sync race on the freshly provisioned node and self-resolves within 1-2 minutes. Do not confuse this with a recurrence of the SWIFT v2 wedge — check the error message: the wedge signature is `no such network interface` / `mtpnc is not ready` / `dhcp discover timed out`, not `Pod not found`.
 
 ## Post-Mitigation
 
@@ -259,8 +305,37 @@ kubectl get events -A --sort-by='.lastTimestamp' | grep KASLoadBalancer | tail -
 | Failure mode | Only pod sandbox creation fails | All node operations impacted |
 | Error signature | `no such network interface` / `mtpnc` / `dhcp discover` | Varies |
 | AKS auto-repair triggers? | **No** -- node is `Ready`, so auto-repair does not engage | Yes -- AKS escalates reboot, reimage, redeploy, delete |
-| Self-healing | Never (manual deletion required) | Often recovers via auto-repair |
+| Self-healing | Hard-wedge: never. Flap: self-resolves between bursts but recurs (manual deletion still recommended) | Often recovers via auto-repair |
 | Node pool | `userswft2` / `userswft3` (SWIFT v2 pools) | Any pool |
+
+## Lessons Learned
+
+Collected from operational incidents AROSLSRE-1524, 1563, 1604, 1717, 1723.
+
+### kubectl events have a ~1h TTL
+
+Do not rely on `kubectl get events` alone to confirm or rule out the wedge. If the last failure burst was more than ~1h ago, events will be empty even though the fault is still latent. Always cross-reference with Kusto (`kubernetesEvents` in `ServiceLogs`), which retains data for days.
+
+### The fault can be intermittent (flapping variant)
+
+AROSLSRE-1717 (centralindia) introduced a variant not seen in uksouth or australiaeast: the node alternates between healthy and failing states. Bounded error bursts (2-11 min) occur under pod scheduling pressure (e.g. e2e runs), then self-resolve when load drops. A test pod scheduled in a quiet period will succeed, but the fault recurs on the next burst. The flap-vs-wedge Kusto query (Diagnosis Step 2) is essential for deciding whether to delete.
+
+### `kubectl delete node` works as a fallback
+
+When `az vmss delete-instances` fails due to insufficient JIT permissions, `kubectl delete node <node-name>` is a viable alternative. The AKS node-pool reconciler detects the missing node object, deprovisions the underlying VMSS instance, and provisions a replacement. Confirmed on prod centralindia (AROSLSRE-1723): the node object was removed immediately, a replacement VMSS instance was provisioned ~15 minutes later, and the new node reached `Ready` ~40 seconds after creation.
+
+### Transient CNS errors on replacement nodes are benign
+
+When a new VMSS instance joins the cluster, daemonset pods (especially `arobit-forwarder`) may briefly show `FailedCreatePodSandBox` with `Pod "..." not found`. This is a CNS cache sync race on the freshly provisioned node, not a recurrence of the SWIFT v2 wedge. It self-resolves within 1-2 minutes. Check the error message to distinguish: the wedge signature is `no such network interface` / `mtpnc is not ready` / `dhcp discover timed out`.
+
+### `az vmss delete-instances` may fail even with expected JIT roles
+
+On AROSLSRE-1723 (centralindia), both **Azure Kubernetes Service RBAC Cluster Admin** and **Change Safety Contributor** were granted via JIT. Neither was sufficient for `az vmss delete-instances` on the target subscription. The required ARM role for VMSS instance deletion needs further investigation. The mitigation succeeded via `kubectl delete node` instead. For future occurrences, try `kubectl delete node` first (works with AKS RBAC Cluster Admin) and fall back to Geneva action if needed.
+
+### SAW Cloud Shell quirks
+
+- Multi-line commands with `|` can fail with `command not found`. Paste commands as single lines or type them manually.
+- `jsonpath` with curly braces and tabs/newlines may fail if pasted with smart quotes. Use `-o json` and pipe to `jq` as a fallback.
 
 ## Appendix: Automated Detection (node-health controller)
 
