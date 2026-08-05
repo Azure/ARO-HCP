@@ -39,9 +39,9 @@ var _ = Describe("Customer", func() {
 
 	backlevelVersions := []backlevelVersionSpec{
 		{
-			controlPlaneVersion: "4.19",
-			nodePoolVersions:    []string{"4.19.7"},
-			bicepModulesDir:     "test-artifacts/generated-test-artifacts/modules-4.19",
+			controlPlaneVersion: "4.20",
+			nodePoolVersions:    []string{"4.20.32"},
+			bicepModulesDir:     "test-artifacts/generated-test-artifacts/modules-4.20",
 		},
 	}
 
@@ -251,14 +251,14 @@ func buildHCPClusterRequest(
 ) (hcpsdk20240610preview.HcpOpenShiftCluster, error) {
 
 	switch controlPlaneVersion {
-	case "4.19":
-		return buildHCPClusterRequest_4_19(location, managedResourceGroupName, controlPlaneVersion, channelGroup, customerInfra, userAssignedIdentitiesProfile, identityProfile), nil
+	case "4.20":
+		return buildHCPClusterRequest_4_20(location, managedResourceGroupName, controlPlaneVersion, channelGroup, customerInfra, userAssignedIdentitiesProfile, identityProfile), nil
 	default:
 		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("unsupported control plane version: %s", controlPlaneVersion)
 	}
 }
 
-func buildHCPClusterRequest_4_19(
+func buildHCPClusterRequest_4_20(
 	location string,
 	managedResourceGroupName string,
 	controlPlaneVersion string,
@@ -324,14 +324,14 @@ func buildNodePoolRequest(
 	defaults nodePoolDefaults,
 ) (hcpsdk20240610preview.NodePool, error) {
 	switch nodePoolVersion {
-	case "4.19.7":
-		return buildNodePoolRequest_4_19(location, nodePoolVersion, defaults), nil
+	case "4.20.32":
+		return buildNodePoolRequest_4_20(location, nodePoolVersion, defaults), nil
 	default:
 		return hcpsdk20240610preview.NodePool{}, fmt.Errorf("unsupported node pool version: %s", nodePoolVersion)
 	}
 }
 
-func buildNodePoolRequest_4_19(
+func buildNodePoolRequest_4_20(
 	location string,
 	nodePoolVersion string,
 	defaults nodePoolDefaults,
