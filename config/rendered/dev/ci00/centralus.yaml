@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:c8b9aa2f3e0d3db6c11974c2ae820dab5cf3c290f7de8b5115e1839e0a8aab1d
+      digest: sha256:bc1c8b78956c1ac1f80427869391c210c0827e18e92b57546cc81174f1eaa666
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:72b7793fba6c2f320616b4c2b8542e6c93fed6793ee51e19e019ba92dd1b2334
+      digest: sha256:219d7a80b0c0945624b8c30b12c561c13cfa22f5597362974d28b73be2d78709
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -72,7 +72,7 @@ armHelperTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 arobit:
   forwarder:
     image:
-      digest: sha256:c81f949228a0d446aea4966d8da39cfcd63f17c69a5eae143ce8264ddddc5777
+      digest: sha256:e8df41b2461b466e5f1d28157f7931f7c68b4b0917258e12de4d7922fd283703
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
     resources:
@@ -88,7 +88,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:5c0159feac3312c447b10c840558a5db6591f78c498cf9150e010be9fa860a20
+      digest: sha256:83b9cbd2662c56a6d6858210bfb375e81a5d6bea5462786d5005a473ad2ee657
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -172,7 +172,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci00
   image:
-    digest: sha256:981637a1e08c3a6c86f3631c6642f6f1412c2e89d306590f72958712f7a9211d
+    digest: sha256:5931b36242ac61b69a2c0628f2291aaf38220ab9e41b3c33e227387359103cfa
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -451,7 +451,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:0a0397b7e1fec51b2704e5c9ca131ebc1cb607d1ee9c882fd6205f9b7ca6b724
+    digest: sha256:f74ffb720e622ff79fed6eb9f47b3af09b112fd3fc1e5b8406503130eeb40c2a
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -471,7 +471,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:aa1a693a0d0d990392bc851153352a8d9180a1d9b1e501af22a13234af52a7d3
+      digest: sha256:81441ace3a179898bb1a5eb9012a76f552e6e5b9107005d5e17aba0c186d88c1
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -503,7 +503,7 @@ kubeApplier:
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:10a020acbc382e490deecdc78ad7945cbd26852f301f7a25f06ac89a3de8d802
+    digest: sha256:dea4ec46b0d97261cedd62ab6235e6aa6002e5aac8fab87b80d41e57f9658f82
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
   k8s:
@@ -557,7 +557,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:b770cd63558c97c4e19d6f0dbe22b7a636b1eb4d267efe37f1ad44cdaecfddb9
+        digest: sha256:2c0ba08f2ebb48b3938b103cdce87450110a2f8ad76dd6a082d0dcd3e02c289e
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certIssuer: Self
@@ -566,7 +566,7 @@ maestro:
     name: arohcp-ci00-maestro-j7654321
     private: false
   image:
-    digest: sha256:b18d465c3adeb15d59fb20be899c40b3693b039f0465e6cb27b5ceb930d76e63
+    digest: sha256:f70df67b0e2125b9809f551fc608c057d9aa970935da6c58265ac3c622eb4802
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -709,7 +709,7 @@ mgmt:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: thanos/thanos
-        sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6
+        sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
         tag: v0.41.0
   rg: hcp-underlay-ci00-j7654321-mgmt-1
   stampIdentifier: "1"
@@ -1073,7 +1073,7 @@ svc:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: thanos/thanos
-        sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6
+        sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
         tag: v0.41.0
   rg: hcp-underlay-ci00-j7654321-svc
   subscription:
@@ -1115,14 +1115,14 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:c4c26fca6614917e9b2812415e8f912fc45cfe6ea1755efea443670763898e3d
+    digest: sha256:6c9a836847b7992bf4b62e4abbcf1abca396c8766b4736cbeecf43c85921dfeb
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:e072512980311316a92b5cfc9252b7d71fc9e534d8db8a9db2ff1d7004e1524b
+    digest: sha256:1e959bed1cbfaf165fef00818235110674327c568d93fafa2027233aa331a9cc
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:a48979677ab533f849bf8c15eaab148f74857c8f48da945f52f10f029fdb569c
+    digest: sha256:a611f6c4f62b7f9a281bda0ae7390264e8f4be21f4751710e1feb90956ffad23
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9
