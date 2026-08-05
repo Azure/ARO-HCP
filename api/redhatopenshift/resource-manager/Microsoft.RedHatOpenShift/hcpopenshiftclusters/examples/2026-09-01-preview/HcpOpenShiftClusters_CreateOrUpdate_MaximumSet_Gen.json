@@ -88,7 +88,10 @@
         "clusterImageRegistry": {
           "state": "Enabled"
         },
-        "cryptoRestrictions": "None"
+        "cryptoRestrictions": "None",
+        "nodeSshPublicKeys": [
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl user@host"
+        ]
       },
       "identity": {
         "type": "UserAssigned",
@@ -188,7 +191,10 @@
           "clusterImageRegistry": {
             "state": "Enabled"
           },
-          "cryptoRestrictions": "None"
+          "cryptoRestrictions": "None",
+          "nodeSshPublicKeys": [
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl user@host"
+          ]
         },
         "identity": {
           "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",
@@ -306,7 +312,10 @@
           "clusterImageRegistry": {
             "state": "Enabled"
           },
-          "cryptoRestrictions": "None"
+          "cryptoRestrictions": "None",
+          "nodeSshPublicKeys": [
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl user@host"
+          ]
         },
         "identity": {
           "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",

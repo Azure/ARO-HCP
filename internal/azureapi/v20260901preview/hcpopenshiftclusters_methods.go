@@ -397,6 +397,7 @@ func (v version) NewHCPOpenShiftCluster(from *coreapi.HCPOpenShiftCluster) corea
 				Autoscaling:       metadataapi.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
 				// Use Ptr (not PtrOrNil) to ensure int32 zero value is preserved in JSON response.
 				NodeDrainTimeoutMinutes: metadataapi.Ptr(from.CustomerProperties.NodeDrainTimeoutMinutes),
+				NodeSSHPublicKeys:       metadataapi.StringSliceToStringPtrSlice(from.CustomerProperties.NodeSshPublicKeys),
 				ClusterImageRegistry:    metadataapi.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
 				Etcd:                    metadataapi.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
@@ -522,6 +523,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.HCPOpenShiftCl
 			normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
 		}
 		out.CustomerProperties.NodeDrainTimeoutMinutes = metadataapi.Deref(c.Properties.NodeDrainTimeoutMinutes)
+		out.CustomerProperties.NodeSshPublicKeys = metadataapi.StringPtrSliceToStringSlice(c.Properties.NodeSSHPublicKeys)
 		if c.Properties.ClusterImageRegistry != nil {
 			normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
 		}
@@ -544,9 +546,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.HCPOpenShiftCl
 }
 
 // preserveUnknownClusterFields copies customer-facing fields from existing that
-// this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20260630preview.
-func preserveUnknownClusterFields(from, to *coreapi.HCPOpenShiftCluster) {
+// this API version doesn't know about.
+func preserveUnknownClusterFields(_, _ *coreapi.HCPOpenShiftCluster) {
+	// All fields introduced up to v2026_06_30_preview are known to this version.
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *coreapi.ManagedServiceIdentity {

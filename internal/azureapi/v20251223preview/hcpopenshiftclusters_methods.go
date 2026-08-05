@@ -494,6 +494,8 @@ func preserveUnknownClusterFields(from, to *coreapi.HCPOpenShiftCluster) {
 	to.CustomerProperties.Ingress = from.CustomerProperties.Ingress
 	// CryptoRestrictions was added in v2026_06_30_preview
 	to.CustomerProperties.CryptoRestrictions = from.CustomerProperties.CryptoRestrictions
+	// NodeSshPublicKeys was added in v2026_09_01_preview.
+	to.CustomerProperties.NodeSshPublicKeys = from.CustomerProperties.NodeSshPublicKeys
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *coreapi.ManagedServiceIdentity {

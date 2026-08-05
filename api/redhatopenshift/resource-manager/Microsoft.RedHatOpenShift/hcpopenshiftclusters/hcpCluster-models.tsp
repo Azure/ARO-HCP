@@ -137,6 +137,20 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   clusterImageRegistry?: ClusterImageRegistryProfile;
 
+  /** One or more SSH public keys used for secure access to worker nodes. When set,
+   * these keys are distributed to all nodes, enabling SSH access for debugging
+   * and maintenance purposes. If changed, all keys previously set will be replaced.
+   *
+   * WARNING: Setting or changing this field currently causes the recreation of all worker nodes.
+   * This behavior is subject to change in a future OpenShift release.
+   *
+   * SSH public key format: <algorithm> <base64-encoded-key> [comment]
+   * Key constraints: algorithm + space + base64 blob required; comment optional; no newlines within key.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @added(Versions.v2026_09_01_preview)
+  nodeSshPublicKeys?: string[];
+
   /** Status of the cluster resource */
   @visibility(Lifecycle.Read)
   @added(Versions.v2026_06_30_preview)
