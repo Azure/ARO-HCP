@@ -27,7 +27,7 @@ All of these will be present on the affected node:
 |---|---|
 | **Event** | `FailedCreatePodSandBox` at ~15s retry cadence, thousands of occurrences |
 | **Error messages** | `route ip+net: no such network interface`, `mtpnc is not ready`, `dhcp discover timed out` |
-| **Blast radius** | 100% of pods scheduled to the node fail; hosted-cluster router replicas are especially impacted → `KASLoadBalancerNotReachable` → cluster-create timeouts |
+| **Blast radius** | Every pod needing a delegated NIC fails on that node, which in practice is the whole hosted-control-plane workload scheduled there; hosted-cluster router replicas are especially impacted → `KASLoadBalancerNotReachable` → cluster-create timeouts |
 | **Isolation** | Failures usually concentrate on one node, but a short cluster-wide burst across several nodes is possible (see AROSLSRE-1717). Confirm with per-node event counts rather than assuming a single node |
 | **Duration** | Hard-wedge does not self-heal; persists for days until the node is deleted. Intermittent flap variant self-resolves between bursts but recurs under pod scheduling pressure (see AROSLSRE-1717) |
 
@@ -135,7 +135,7 @@ kubectl run nic-test --image=mcr.microsoft.com/cbl-mariner/base/core:2.0 \
 kubectl get pod nic-test -w
 ```
 
-- If the pod reaches `Running`: the NIC is not actively wedged right now. The fault is intermittent and will likely recur under scheduling pressure (e.g. during e2e runs). Proceed with the flap-vs-wedge query (Step 2) to decide whether to delete.
+- If the pod reaches `Running`: this is inconclusive, not a clean bill of health. The probe pod has no delegated NIC, so it exercises the ordinary CNI path and not the `SecondaryEndpointClient` path that fails here. Decide from the flap-vs-wedge query (Step 2), not from this pod.
 - If the pod stays in `ContainerCreating` with `FailedCreatePodSandBox`: the NIC is actively wedged. Proceed with mitigation.
 
 Clean up after: `kubectl delete pod nic-test`
@@ -206,10 +206,10 @@ Run the log-collection script **before** deleting the node, in case the Azure ne
 
 ```bash
 # Target only the wedged node (run from this directory: docs/ops/)
-NODES_FILTER='<vmss-instance-id>' ./collect-swiftv2-node-logs.sh
+NODES_FILTER='<node-name>' ./collect-swiftv2-node-logs.sh
 ```
 
-The script is read-only: it creates temporary busybox debug pods, pulls `/host/var/log/azure-vnet*` and `/host/var/run/azure-cns` state, tars them, and deletes only the debug pods it created.
+The script is read-only: it creates temporary debug pods, pulls `/host/var/log/azure-vnet*` and `/host/var/run/azure-cns` state, tars them, and deletes only the debug pods it created.
 
 ### Step 2: Cordon the node
 
@@ -219,7 +219,17 @@ kubectl cordon <node-name>
 
 This prevents new pods from being scheduled to the node while you verify and delete.
 
-### Step 3: Delete the VMSS instance
+### Step 3: Drain the node
+
+```bash
+kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data --timeout=5m
+```
+
+Draining evicts remaining pods gracefully, consulting PodDisruptionBudgets and giving workloads time to terminate cleanly. Skipping this step means the subsequent node deletion force-kills pods without PDB checks.
+
+> **Note**: On a fully wedged node most pods are already in `CrashLoopBackOff` / `ContainerCreating`, so drain may have little to evict. It is still worth running for the few pods (e.g. daemonsets excluded by `--ignore-daemonsets`) that may still be healthy.
+
+### Step 4: Delete the VMSS instance
 
 **Option A: `az vmss delete-instances` (preferred)**
 
@@ -248,7 +258,7 @@ This removes the Kubernetes node object. The AKS node-pool reconciler will detec
 
 > **This mitigation is not durable.** The fault has been observed moving to a different instance in the same pool, sometimes within minutes of the previous one being recycled (AROSLSRE-1717). Recycling clears the immediate incident, it does not fix the underlying platform issue. Update ICM 832382845 on every recurrence so Azure has the pattern.
 
-### Step 4: Verify recovery
+### Step 5: Verify recovery
 
 ```bash
 # Confirm the old node is gone and a replacement is coming up

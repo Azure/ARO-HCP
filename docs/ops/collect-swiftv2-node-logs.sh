@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ICM 832382845 - SWIFT v2 delegated-NIC (VF) churn log collection.
-# Read-only: creates its own busybox debug pods, pulls
+# Read-only: creates its own debug pods, pulls
 # /host/var/log/azure-vnet* + /host/var/run/azure-cns state,
 # tars them, and deletes ONLY the debug pods it created.
 #
@@ -14,7 +14,7 @@ set -x
 
 OUTPUT_DIR="$(mktemp -d)"
 TARBALL="node-logs-$(date +%Y%m%dT%H%M%S).tar.gz"
-IMAGE="busybox"
+IMAGE="mcr.microsoft.com/cbl-mariner/base/core:2.0"
 PODS_TO_DELETE=()
 
 cleanup() {
