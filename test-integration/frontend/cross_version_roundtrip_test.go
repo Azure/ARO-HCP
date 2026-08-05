@@ -423,8 +423,75 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }`, clusterName, subscriptionID, subscriptionID, subscriptionID))
 
-	case v20260901, v20261001:
-		// v20260901 / v20261001 payload (v20261001 is an identical copy of v20260901)
+	case v20260901:
+		// v20260901 payload — v20260630 plus nodeSshPublicKeys (the new field introduced in this version)
+		return []byte(fmt.Sprintf(`{
+  "identity": {
+    "type": "UserAssigned",
+    "userAssignedIdentities": {}
+  },
+  "name": "%s",
+  "properties": {
+    "api": {
+      "visibility": "Public"
+    },
+    "autoscaling": {
+      "maxNodeProvisionTimeSeconds": 1200,
+      "maxNodesTotal": 50,
+      "maxPodGracePeriodSeconds": 300,
+      "podPriorityThreshold": -5
+    },
+    "clusterImageRegistry": {
+      "state": "Disabled"
+    },
+    "etcd": {
+      "dataEncryption": {
+        "customerManaged": {
+          "encryptionType": "KMS",
+          "kms": {
+            "activeKey": {
+              "name": "vc-encryption-key",
+              "version": "2024-12-01-preview"
+            },
+            "vaultName": "vc-key-vault",
+            "visibility": "Public"
+          }
+        },
+        "keyManagementMode": "CustomerManaged"
+      }
+    },
+    "ingress": {
+      "type": "Private"
+    },
+    "nodeDrainTimeoutMinutes": 15,
+	"nodeSshPublicKeys": [{"kind": "inline", "key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIApY9GkD07ixdNdt3J8cCKdYx5bwqkE903Zs4+YjDMj+ user@host"}],
+    "network": {
+      "hostPrefix": 23,
+      "machineCidr": "10.0.0.0/16",
+      "networkType": "OVNKubernetes",
+      "podCidr": "10.128.0.0/14",
+      "serviceCidr": "172.30.0.0/16"
+    },
+    "platform": {
+      "managedResourceGroup": "managed-rg-xvrt",
+      "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "outboundType": "LoadBalancer",
+      "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+      "vnetIntegrationSubnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
+    },
+    "version": {
+      "channelGroup": "stable",
+      "id": "4.20"
+    }
+  },
+  "tags": {
+    "env": "test"
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}`, clusterName, subscriptionID, subscriptionID, subscriptionID))
+
+	case v20261001:
+		// v20261001 payload — identical copy of v20260901 that does not (yet) carry nodeSshPublicKeys
 		return []byte(fmt.Sprintf(`{
   "identity": {
     "type": "UserAssigned",
