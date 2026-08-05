@@ -208,11 +208,11 @@ data:
         Name            rewrite_tag
         Alias           filter.container_name_router
         Match           kubernetes.var.log.containers.*
-        Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
-        Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
-        Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
-        Rule            $kubernetes['container_name'] ^fleet-controller* fleet-controller.logs true
-        Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
+        Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs false
+        Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs false
+        Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs false
+        Rule            $kubernetes['container_name'] ^fleet-controller* fleet-controller.logs false
+        Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs false
         Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Emitter_Name    re_emitted_container_name_router
         Emitter_Mem_Buf_Limit  20M
@@ -620,7 +620,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 20bf883546c17dd4266cd7d93d1f0aa75caf1067da8295f2c661dee07a3bc3ad
+        checksum/configmap: 1cc3fb715040f14fbbe9c5c0775b900d1dc87f808bb9b283ce6fa2ac3f5a7bf4
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
