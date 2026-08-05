@@ -16,6 +16,7 @@ package prow
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -32,10 +33,25 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/prowjobs"
 )
 
+const (
+	invalidReasonMissingJobName        = "missing_job_name"
+	invalidReasonMissingBuildID        = "missing_build_id"
+	invalidReasonMissingStartTime      = "missing_start_time"
+	invalidReasonMissingCompletionTime = "missing_completion_time"
+	invalidReasonInvalidTimeRange      = "invalid_time_range"
+)
+
 var (
 	infoMetricLabels           = []string{"job_name", "job_type", "build_id", "result"}
 	durationBucketMetricLabels = []string{"job_name", "job_type", "result", "le"}
-	durationBuckets            = []float64{
+	invalidJobReasons          = []string{
+		invalidReasonMissingJobName,
+		invalidReasonMissingBuildID,
+		invalidReasonMissingStartTime,
+		invalidReasonMissingCompletionTime,
+		invalidReasonInvalidTimeRange,
+	}
+	durationBuckets = []float64{
 		60,
 		300,
 		600,
@@ -84,11 +100,14 @@ type Collector struct {
 	collectionSuccessDesc *prometheus.Desc
 	lastSuccessDesc       *prometheus.Desc
 	cachedRunsDesc        *prometheus.Desc
+	invalidJobsDesc       *prometheus.Desc
 
 	mu                   sync.RWMutex
 	runs                 map[string]runMetrics
 	collectionSuccess    float64
 	lastSuccessTimestamp float64
+	seenInvalidJobs      sets.Set[string]
+	invalidJobCounts     map[string]float64
 }
 
 func NewCollector(cfg *config.Config, logger *slog.Logger, clients ...prowjobs.Client) *Collector {
@@ -134,7 +153,15 @@ func NewCollector(cfg *config.Config, logger *slog.Logger, clients ...prowjobs.C
 			nil,
 			nil,
 		),
-		runs: make(map[string]runMetrics),
+		invalidJobsDesc: prometheus.NewDesc(
+			"prow_ci_invalid_jobs_total",
+			"Total number of unique malformed completed Prow CI jobs observed since exporter start",
+			[]string{"reason"},
+			nil,
+		),
+		runs:             make(map[string]runMetrics),
+		seenInvalidJobs:  sets.New[string](),
+		invalidJobCounts: make(map[string]float64, len(invalidJobReasons)),
 	}
 }
 
@@ -144,6 +171,7 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.collectionSuccessDesc
 	ch <- c.lastSuccessDesc
 	ch <- c.cachedRunsDesc
+	ch <- c.invalidJobsDesc
 }
 
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
@@ -155,6 +183,10 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	collectionSuccess := c.collectionSuccess
 	lastSuccessTimestamp := c.lastSuccessTimestamp
 	cachedRuns := len(c.runs)
+	invalidJobCounts := make(map[string]float64, len(invalidJobReasons))
+	for _, reason := range invalidJobReasons {
+		invalidJobCounts[reason] = c.invalidJobCounts[reason]
+	}
 	c.mu.RUnlock()
 
 	durations := make(map[durationMetricKey]*durationMetrics)
@@ -200,6 +232,14 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.collectionSuccessDesc, prometheus.GaugeValue, collectionSuccess)
 	ch <- prometheus.MustNewConstMetric(c.lastSuccessDesc, prometheus.GaugeValue, lastSuccessTimestamp)
 	ch <- prometheus.MustNewConstMetric(c.cachedRunsDesc, prometheus.GaugeValue, float64(cachedRuns))
+	for _, reason := range invalidJobReasons {
+		ch <- prometheus.MustNewConstMetric(
+			c.invalidJobsDesc,
+			prometheus.CounterValue,
+			invalidJobCounts[reason],
+			reason,
+		)
+	}
 }
 
 func (c *Collector) Start(ctx context.Context) {
@@ -265,7 +305,23 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 		if excluded.Has(jobName) {
 			continue
 		}
-		if !validCompletedJob(job) {
+		if !prowjobs.IsTerminalState(job.Status.State) {
+			continue
+		}
+		if reason := invalidCompletedJobReason(job); reason != "" {
+			jobID := invalidJobID(job)
+			if !c.seenInvalidJobs.Has(jobID) {
+				c.seenInvalidJobs.Insert(jobID)
+				c.invalidJobCounts[reason]++
+				c.logger.Warn(
+					"Skipping malformed completed Prow CI job",
+					"reason", reason,
+					"prowJob", strings.TrimSpace(job.Metadata.Name),
+					"jobName", jobName,
+					"buildID", strings.TrimSpace(job.Status.BuildID),
+					"state", prowjobs.NormalizeState(job.Status.State),
+				)
+			}
 			continue
 		}
 
@@ -328,11 +384,36 @@ func refsMatch(refs prowjobs.Refs, repository config.ProwRepositoryConfig) bool 
 		strings.EqualFold(strings.TrimSpace(refs.Repo), strings.TrimSpace(repository.Name))
 }
 
-func validCompletedJob(job prowjobs.Job) bool {
-	return strings.TrimSpace(job.Spec.Job) != "" &&
-		strings.TrimSpace(job.Status.BuildID) != "" &&
-		prowjobs.IsTerminalState(job.Status.State) &&
-		!job.Status.StartTime.IsZero() &&
-		!job.Status.CompletionTime.IsZero() &&
-		!job.Status.CompletionTime.Before(job.Status.StartTime)
+func invalidCompletedJobReason(job prowjobs.Job) string {
+	switch {
+	case strings.TrimSpace(job.Spec.Job) == "":
+		return invalidReasonMissingJobName
+	case strings.TrimSpace(job.Status.BuildID) == "":
+		return invalidReasonMissingBuildID
+	case job.Status.StartTime.IsZero():
+		return invalidReasonMissingStartTime
+	case job.Status.CompletionTime.IsZero():
+		return invalidReasonMissingCompletionTime
+	case job.Status.CompletionTime.Before(job.Status.StartTime):
+		return invalidReasonInvalidTimeRange
+	default:
+		return ""
+	}
+}
+
+func invalidJobID(job prowjobs.Job) string {
+	if name := strings.TrimSpace(job.Metadata.Name); name != "" {
+		return name
+	}
+
+	identity := fmt.Sprintf(
+		"%s\x00%s\x00%s\x00%s\x00%s\x00%s",
+		job.Spec.Job,
+		job.Status.BuildID,
+		job.Status.State,
+		job.Status.StartTime.UTC().Format(time.RFC3339Nano),
+		job.Status.CompletionTime.UTC().Format(time.RFC3339Nano),
+		job.Status.URL,
+	)
+	return fmt.Sprintf("fallback:%x", sha256.Sum256([]byte(identity)))
 }

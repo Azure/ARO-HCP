@@ -15,10 +15,12 @@
 package prow
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,6 +69,7 @@ func testConfig(t *testing.T) *config.Config {
 
 func completedJob(name, buildID, state string, completed time.Time) prowjobs.Job {
 	return prowjobs.Job{
+		Metadata: prowjobs.Metadata{Name: name + "-" + buildID},
 		Spec: prowjobs.Spec{
 			Type: "presubmit",
 			Job:  name,
@@ -143,6 +146,57 @@ func TestCollectOnceFiltersAndExportsCompletedJobs(t *testing.T) {
 	assertMetricAbsent(t, metrics, "prow_ci_job_duration_seconds_count")
 	assertMetricAbsent(t, metrics, "prow_ci_job_duration_seconds_sum")
 	assertMetricAbsent(t, metrics, "prow_ci_job_duration_seconds_bucket")
+}
+
+func TestMalformedCompletedJobsAreCountedOnce(t *testing.T) {
+	now := time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)
+	missingJobName := completedJob("job", "1", "success", now)
+	missingJobName.Metadata.Name = ""
+	missingJobName.Spec.Job = ""
+	missingBuildID := completedJob("job", "2", "failure", now)
+	missingBuildID.Metadata.Name = "missing-build-id"
+	missingBuildID.Status.BuildID = ""
+	missingStartTime := completedJob("job", "3", "error", now)
+	missingStartTime.Metadata.Name = "missing-start-time"
+	missingStartTime.Status.StartTime = time.Time{}
+	missingCompletionTime := completedJob("job", "4", "success", now)
+	missingCompletionTime.Metadata.Name = "missing-completion-time"
+	missingCompletionTime.Status.CompletionTime = time.Time{}
+	invalidTimeRange := completedJob("job", "5", "failure", now)
+	invalidTimeRange.Metadata.Name = "invalid-time-range"
+	invalidTimeRange.Status.StartTime = now.Add(time.Minute)
+	pending := completedJob("job", "", "pending", now)
+	pending.Metadata.Name = "pending"
+	aborted := completedJob("job", "", "aborted", now)
+	aborted.Metadata.Name = "aborted"
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	collector := NewCollector(testConfig(t), logger, &fakeClient{
+		jobs: []prowjobs.Job{
+			missingJobName,
+			missingBuildID,
+			missingStartTime,
+			missingCompletionTime,
+			invalidTimeRange,
+			pending,
+			aborted,
+		},
+	})
+	collector.now = func() time.Time { return now }
+	for range 2 {
+		if err := collector.collectOnce(context.Background()); err != nil {
+			t.Fatalf("collectOnce() error = %v", err)
+		}
+	}
+
+	metrics := gatherMetrics(t, collector)
+	for _, reason := range invalidJobReasons {
+		assertCounter(t, metrics, "prow_ci_invalid_jobs_total", map[string]string{"reason": reason}, 1)
+	}
+	if got := strings.Count(logs.String(), "Skipping malformed completed Prow CI job"); got != len(invalidJobReasons) {
+		t.Fatalf("malformed job warnings = %d, want %d", got, len(invalidJobReasons))
+	}
 }
 
 func TestDurationMetricsAggregateRuns(t *testing.T) {
@@ -260,6 +314,19 @@ func assertGauge(t *testing.T, metrics map[string][]*dto.Metric, name string, la
 	for _, metric := range metrics[name] {
 		if hasLabels(metric, labels) {
 			if got := metric.GetGauge().GetValue(); got != want {
+				t.Fatalf("%s value = %v, want %v", name, got, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("metric %s with labels %v not found", name, labels)
+}
+
+func assertCounter(t *testing.T, metrics map[string][]*dto.Metric, name string, labels map[string]string, want float64) {
+	t.Helper()
+	for _, metric := range metrics[name] {
+		if hasLabels(metric, labels) {
+			if got := metric.GetCounter().GetValue(); got != want {
 				t.Fatalf("%s value = %v, want %v", name, got, want)
 			}
 			return
