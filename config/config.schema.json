@@ -3406,7 +3406,7 @@
               "type": "string"
             },
             "versions": {
-              "description": "The current istio version in the AKS cluster as CSV, will need to change to array once tooling is ready",
+              "description": "Desired Istio revision for the IstioUpgrade pipeline step to reconcile (e.g. asm-1-29). Not an observed cluster field. CSV form retained for compatibility; will move to a single value/array once tooling is ready.",
               "type": "string",
               "pattern": "^[a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*$"
             },
