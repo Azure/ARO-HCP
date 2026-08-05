@@ -66,6 +66,7 @@ type ClusterParams20260901 struct {
 	Autoscaling                   *hcpsdk20260901preview.ClusterAutoscalingProfile
 	CryptoRestrictions            *hcpsdk20260901preview.CryptoRestrictions
 	Tags                          map[string]*string
+	NodeSSHPublicKeys             []*string
 }
 
 type NodePoolParams20260901 struct {
@@ -516,6 +517,7 @@ func BuildHCPClusterFromParams20260901(
 				},
 			},
 			ImageDigestMirrors: imageDigestMirrors,
+			NodeSSHPublicKeys:  parameters.NodeSSHPublicKeys,
 		},
 	}, nil
 }
