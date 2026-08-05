@@ -40,8 +40,8 @@ import (
 // across API versions preserve all fields, including those unknown to the
 // requesting version.
 //
-// Today (v20240610 and v20251223 share all fields) these tests PASS as a baseline.
-// When v20251223-exclusive fields land, the cross-version tests will FAIL unless
+// Today v20240610 and v20251223 share all fields; newer versions (v20260630/v20260901) add fields (e.g. ingress).
+// Cross-version tests will FAIL when a newer version introduces fields that an older version drops unless
 // ConvertToInternal preserves unknown fields (the Classic ARO pattern).
 func TestCrossVersionRoundTrip(t *testing.T) {
 	defer integrationutils.VerifyNoNewGoLeaks(t)
