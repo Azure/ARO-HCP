@@ -433,8 +433,10 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 			},
 		},
 		{
+			// A higher minor than the control plane genuinely exceeds it and
+			// must persist IntentFailed (a higher patch would now be allowed).
 			name:                "desired version exceeds control plane persists IntentFailed",
-			customerVersion:     "4.19.20",
+			customerVersion:     "4.20.0",
 			nodePoolVersion:     "4.19.15",
 			controlPlaneVersion: "4.19.15",
 			setupCincinnati:     func(mc *cincinnati.MockClient) {},
@@ -443,7 +445,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status:  metav1.ConditionTrue,
 					Reason:  api.VersionUpgradeNotAcceptedReason,
-					Message: "invalid node pool version 4.19.20: cannot exceed control plane version 4.19.15",
+					Message: "invalid node pool version 4.20.0: cannot exceed control plane version 4.19.15",
 				})
 			},
 		},
@@ -594,12 +596,13 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			errorContains:        "cannot exceed control plane version",
 		},
 		{
-			name:                 "desired same minor higher patch than control plane - fail",
+			// Same minor, higher patch (z-stream) than the control plane is
+			// allowed: only major.minor must not exceed the control plane.
+			name:                 "desired same minor higher patch than control plane - pass",
 			desiredVersion:       "4.19.15",
 			activeVersions:       []string{"4.19.5"},
 			controlPlaneVersions: []string{"4.19.10"},
-			expectError:          true,
-			errorContains:        "cannot exceed control plane version",
+			expectError:          false,
 		},
 		// Minor version skipping tests
 		{
@@ -978,8 +981,8 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testi
 	mockClientCache := cincinnati.NewMockClientCache(ctrl)
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(cincinnati.NewMockClient(ctrl)).AnyTimes()
 
-	// Create node pool with desired version 4.19.15 (exceeds control plane 4.19.10)
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
+	// Create node pool with desired version 4.20.0 (exceeds control plane 4.19.10 by minor)
+	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
 
 	// Create ServiceProviderCluster with control plane at 4.19.10 (lower than desired)
 	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.19.10")
