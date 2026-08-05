@@ -212,7 +212,7 @@ var _ = Describe("Customer", func() {
 					SourceAddressPrefix:      to.Ptr(workerCIDR),
 					SourcePortRange:          to.Ptr("*"),
 					DestinationAddressPrefix: to.Ptr(swiftCIDR),
-					DestinationPortRange:     to.Ptr("*"),
+					DestinationPortRange:     to.Ptr("8443"),
 					Access:                   to.Ptr(armnetwork.SecurityRuleAccessDeny),
 					Priority:                 to.Ptr[int32](100),
 					Direction:                to.Ptr(armnetwork.SecurityRuleDirectionInbound),
