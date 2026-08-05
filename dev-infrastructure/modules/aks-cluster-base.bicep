@@ -264,7 +264,7 @@ var systemPoolZonesArray = systemZoneRedundantMode == 'Enabled' || (systemZoneRe
   ? systemAgentPoolZones
   : null
 
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-preview' = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-04-02-preview' = {
   location: location
   name: aksClusterName
   sku: {
