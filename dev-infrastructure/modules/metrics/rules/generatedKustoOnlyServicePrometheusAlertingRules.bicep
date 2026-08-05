@@ -1717,19 +1717,19 @@ resource svcFrontendPathLatency 'Microsoft.AlertsManagement/prometheusRuleGroups
         enabled: true
         labels: {
           component: 'frontend'
-          severity: 'info'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'FrontendPathLatency/{{ $labels.cluster }}/{{ $labels.method }}/{{ $labels.route }}'
-          description: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 30 minutes.'
-          info: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 30 minutes.'
+          description: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 5 minutes.'
+          info: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 5 minutes.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
           summary: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
           title: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
         }
-        expression: 'histogram_quantile(0.99, sum by (le, route, method) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))) > 1'
+        expression: 'histogram_quantile(0.99, sum by (le, route, method, cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])))) > 1'
         for: 'PT1M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
