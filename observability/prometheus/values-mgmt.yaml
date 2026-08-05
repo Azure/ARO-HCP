@@ -156,7 +156,7 @@ kube-prometheus-stack:
                 stateSet:
                   path: [status, phase]
                   labelName: phase
-                  list: ["New", "InProgress", "WaitingForPluginOperations", "WaitingForPluginOperationsPartiallyFailed", "Finalizing", "FinalizingPartiallyFailed", "Completed", "PartiallyFailed", "Failed", "Deleting"]
+                  list: ["New", "Queued", "ReadyToStart", "FailedValidation", "InProgress", "WaitingForPluginOperations", "WaitingForPluginOperationsPartiallyFailed", "Finalizing", "FinalizingPartiallyFailed", "Completed", "PartiallyFailed", "Failed", "Deleting"]
 # this is our own config for the files in templates/
 prometheusSpec:
   image:
