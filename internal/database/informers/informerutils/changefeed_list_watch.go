@@ -89,6 +89,11 @@ func waitForWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMe
 	}
 }
 
+func stopAndWaitForWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](ctx context.Context, clock utilsclock.Clock, watcher *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) error {
+	watcher.signalStop()
+	return waitForWatcher(ctx, clock, watcher)
+}
+
 func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) List(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -108,8 +113,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 	prevFeedWatcher := c.currentWatcher
 	c.currentWatcher = nil
 	if prevFeedWatcher != nil {
-		prevFeedWatcher.Stop()
-		if err := waitForWatcher(ctx, c.clock, prevFeedWatcher); err != nil {
+		if err := stopAndWaitForWatcher(ctx, c.clock, prevFeedWatcher); err != nil {
 			logger.Error(err, "failed to wait for previous watcher to stop, continuing")
 		}
 	}
@@ -121,8 +125,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 
 	iter, err := c.globalLister.List(ctx, nil)
 	if err != nil {
-		c.currentWatcher.Stop()
-		if err := waitForWatcher(ctx, c.clock, c.currentWatcher); err != nil {
+		if err := stopAndWaitForWatcher(ctx, c.clock, c.currentWatcher); err != nil {
 			logger.Error(err, "failed to wait for current watcher to stop, continuing")
 		}
 		c.currentWatcher = nil
@@ -146,8 +149,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 			})
 	}
 	if err := iter.GetError(); err != nil {
-		c.currentWatcher.Stop()
-		if err := waitForWatcher(ctx, c.clock, c.currentWatcher); err != nil {
+		if err := stopAndWaitForWatcher(ctx, c.clock, c.currentWatcher); err != nil {
 			logger.Error(err, "failed to wait for current watcher to stop, continuing")
 		}
 		c.currentWatcher = nil

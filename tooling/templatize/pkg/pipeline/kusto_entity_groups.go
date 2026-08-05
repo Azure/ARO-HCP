@@ -25,16 +25,25 @@ import (
 )
 
 func runKustoEntityGroupsStep(_ graph.Identifier, step *types.KustoEntityGroupsStep, ctx context.Context) error {
+	opts, err := kustoEntityGroupsOptions(step)
+	if err != nil {
+		return err
+	}
+
+	return opts.Run(ctx)
+}
+
+func kustoEntityGroupsOptions(step *types.KustoEntityGroupsStep) (*entitygroups.RawSyncOptions, error) {
 	opts := entitygroups.DefaultSyncOptions()
 	opts.EntityGroups = step.EntityGroups
 
 	if step.Timeout != "" {
 		d, err := time.ParseDuration(step.Timeout)
 		if err != nil {
-			return fmt.Errorf("failed to parse timeout %q: %w", step.Timeout, err)
+			return nil, fmt.Errorf("failed to parse timeout %q: %w", step.Timeout, err)
 		}
 		opts.Timeout = d
 	}
 
-	return opts.Run(ctx)
+	return opts, nil
 }

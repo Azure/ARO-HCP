@@ -16,39 +16,41 @@ package pipeline
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/ARO-Tools/pipelines/types"
+	"github.com/Azure/ARO-Tools/tools/kustoctl/cmd/entitygroups"
 )
 
-func TestRunKustoEntityGroupsStep_TimeoutParse(t *testing.T) {
+func TestKustoEntityGroupsOptions(t *testing.T) {
+	defaultTimeout := entitygroups.DefaultSyncOptions().Timeout
 	tests := []struct {
-		name      string
-		timeout   string
-		wantError bool
-		errorMsg  string
+		name        string
+		timeout     string
+		wantTimeout time.Duration
+		wantError   string
 	}{
 		{
-			name:      "valid timeout",
-			timeout:   "10m",
-			wantError: false,
+			name:        "valid timeout",
+			timeout:     "10m",
+			wantTimeout: 10 * time.Minute,
 		},
 		{
-			name:      "valid timeout seconds",
-			timeout:   "30s",
-			wantError: false,
+			name:        "valid timeout seconds",
+			timeout:     "30s",
+			wantTimeout: 30 * time.Second,
 		},
 		{
-			name:      "empty timeout uses default",
-			timeout:   "",
-			wantError: false,
+			name:        "empty timeout uses default",
+			wantTimeout: defaultTimeout,
 		},
 		{
 			name:      "invalid timeout",
 			timeout:   "notaduration",
-			wantError: true,
-			errorMsg:  "failed to parse timeout",
+			wantError: "failed to parse timeout",
 		},
 	}
 
@@ -59,36 +61,33 @@ func TestRunKustoEntityGroupsStep_TimeoutParse(t *testing.T) {
 				Timeout:      tt.timeout,
 			}
 
-			// runKustoEntityGroupsStep will fail at opts.Run (no Azure creds)
-			// but we're testing the timeout parse path before that
-			err := runKustoEntityGroupsStep(graph.Identifier{}, step, context.Background())
-
-			if tt.wantError {
-				if err == nil {
-					t.Fatalf("expected error containing %q, got nil", tt.errorMsg)
+			opts, err := kustoEntityGroupsOptions(step)
+			if tt.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+					t.Fatalf("kustoEntityGroupsOptions() error = %v, want error containing %q", err, tt.wantError)
 				}
-				if tt.errorMsg != "" && !containsStr(err.Error(), tt.errorMsg) {
-					t.Fatalf("expected error containing %q, got %q", tt.errorMsg, err.Error())
-				}
+				return
 			}
-			// For valid timeouts, the function will fail later (no Azure creds),
-			// which is fine - we only care that it didn't fail on timeout parse
-			if !tt.wantError && err != nil && containsStr(err.Error(), "failed to parse timeout") {
-				t.Fatalf("unexpected timeout parse error: %v", err)
+			if err != nil {
+				t.Fatalf("kustoEntityGroupsOptions() error = %v", err)
+			}
+			if opts.Timeout != tt.wantTimeout {
+				t.Errorf("kustoEntityGroupsOptions() timeout = %v, want %v", opts.Timeout, tt.wantTimeout)
+			}
+			if len(opts.EntityGroups) != 1 || opts.EntityGroups[0] != "TestEG:TestDB" {
+				t.Errorf("kustoEntityGroupsOptions() entity groups = %v, want [TestEG:TestDB]", opts.EntityGroups)
 			}
 		})
 	}
 }
 
-func containsStr(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && findSubstr(s, substr))
-}
-
-func findSubstr(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+func TestRunStepDispatchesKustoEntityGroupsStep(t *testing.T) {
+	step := &types.KustoEntityGroupsStep{
+		Timeout: "notaduration",
 	}
-	return false
+
+	_, _, err := RunStep(graph.Identifier{}, step, context.Background(), nil, nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "error running Kusto Entity Groups Step: failed to parse timeout") {
+		t.Fatalf("RunStep() error = %v, want KustoEntityGroupsStep timeout parse error", err)
+	}
 }
