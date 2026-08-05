@@ -2,6 +2,8 @@
 
 This document describes the design behind automatically retrying an EV2 gating E2E run when it fails on a small, deliberately labeled set of known-issue tests.
 
+> **Status:** the code referenced below (`labels.AllowRetry`, `registerEV2RetryCatcher`, `writeEV2RetryMetadata`, and the ARO-Tools `prowjob` changes) is not yet merged to `main`. It lives in the implementation PRs linked in [Where to look](#where-to-look). This doc describes the design those PRs implement.
+
 ## Problem
 
 EV2 Stage and Prod rollouts gate promotion on an E2E run against the pinned rollout commit (see [CI EV2 Integration](ev2-integration.md)). When that gating run fails because of a single test with a known, already-tracked issue, someone still has to notice the failure, review the Prow output, and manually retrigger the run before the rollout can continue.
