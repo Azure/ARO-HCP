@@ -531,7 +531,7 @@ tests:
   alert_rule_test:
   # Two duplicate series in → exactly one alert out (instance dropped; environment/region preserved).
   - eval_time: 150m
-    alertname: UJNodePoolStuckOperation
+    alertname: userJourneyNodePoolStuckOperation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -546,6 +546,6 @@ tests:
         exclude_internal_subscriptions: "true"
         subscription_id: "sub-10"
       exp_annotations:
-        summary: "mgmt-1: Node Pool operation for /sub/10/np/dup stuck in updating for over 2 hours"
+        summary: "Node Pool operation for /sub/10/np/dup stuck in updating for over 2 hours"
         description: "Node pool operation for /sub/10/np/dup has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
