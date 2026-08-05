@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 const (
@@ -170,18 +172,15 @@ func (c *ProwConfig) validate() error {
 		return fmt.Errorf("prow.repository.name is required")
 	}
 
-	seen := make(map[string]struct{}, len(c.ExcludeJobs))
+	excludedJobs := sets.New[string]()
 	for i, jobName := range c.ExcludeJobs {
 		normalized := strings.TrimSpace(jobName)
 		if normalized == "" {
 			return fmt.Errorf("prow.excludeJobs[%d] must not be empty", i)
 		}
-		if _, found := seen[normalized]; found {
-			return fmt.Errorf("prow.excludeJobs[%d] duplicates %q", i, normalized)
-		}
-		seen[normalized] = struct{}{}
-		c.ExcludeJobs[i] = normalized
+		excludedJobs.Insert(normalized)
 	}
+	c.ExcludeJobs = sets.List(excludedJobs)
 	return nil
 }
 

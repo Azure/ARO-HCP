@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/prowjobs"
@@ -248,10 +249,7 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 	}
 
 	now := c.now().UTC()
-	excluded := make(map[string]struct{}, len(c.config.Prow.ExcludeJobs))
-	for _, jobName := range c.config.Prow.ExcludeJobs {
-		excluded[strings.TrimSpace(jobName)] = struct{}{}
-	}
+	excluded := sets.New(c.config.Prow.ExcludeJobs...)
 
 	matched := 0
 	completed := 0
@@ -264,7 +262,7 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 		matched++
 
 		jobName := strings.TrimSpace(job.Spec.Job)
-		if _, found := excluded[jobName]; found {
+		if excluded.Has(jobName) {
 			continue
 		}
 		if !validCompletedJob(job) {

@@ -17,6 +17,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -206,13 +207,18 @@ func TestConfigValidate(t *testing.T) {
 			wantErrSub: "prow.excludeJobs[0] must not be empty",
 		},
 		{
-			name: "prow duplicate exclusion",
+			name: "prow duplicate exclusions are deduplicated",
 			cfg:  minimalValidConfig(),
 			mutate: func(cfg *Config) {
 				cfg.Prow = validProwConfig()
-				cfg.Prow.ExcludeJobs = []string{"job", "job"}
+				cfg.Prow.ExcludeJobs = []string{" job-b ", "job-a", "job-b"}
 			},
-			wantErrSub: `prow.excludeJobs[1] duplicates "job"`,
+			assertions: func(t *testing.T, cfg Config) {
+				t.Helper()
+				if !slices.Equal(cfg.Prow.ExcludeJobs, []string{"job-a", "job-b"}) {
+					t.Fatalf("prow excludeJobs: got %v, want [job-a job-b]", cfg.Prow.ExcludeJobs)
+				}
+			},
 		},
 		{
 			name:       "no tenants",
