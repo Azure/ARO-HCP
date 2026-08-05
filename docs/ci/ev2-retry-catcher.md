@@ -33,11 +33,12 @@ flowchart LR
  subgraph aro_hcp["ARO-HCP"]
         label["allow-retry label\non known-issue tests"]
         catcher["registerEV2RetryCatcher\n(test/cmd/aro-hcp-tests)"]
-        marker["EV2_RETRY_ALLOWED\nbuild-log marker"]
+        artifact["$ARTIFACT_DIR/metadata.json\nev2-retry-allowed: true"]
   end
  subgraph prow["Prow"]
         job["E2E gating job"]
-        buildlog["build-log.txt\n(GCS)"]
+        sidecar["Prow sidecar\n(combineMetadata)"]
+        finished["finished.json\n(GCS)"]
   end
  subgraph aro_tools["ARO-Tools"]
         executor["prow-job-executor"]
@@ -46,11 +47,12 @@ flowchart LR
   end
   label --> catcher
   job -- runs --> catcher
-  catcher -- "<=2 failures, all labeled" --> marker
-  marker -- written to --> buildlog
+  catcher -- "<=2 failures, all labeled" --> artifact
+  artifact -- read by --> sidecar
+  sidecar -- merges into --> finished
   executor --> monitor
-  monitor -- "job failed" --> buildlog
-  buildlog -- "marker found" --> retry
+  monitor -- "job failed" --> finished
+  finished -- "ev2-retry-allowed: true" --> retry
   retry -- resubmit once --> job
 ```
 
@@ -64,32 +66,36 @@ sequenceDiagram
     participant executor as prow-job-executor
     participant gangway as Gangway
     participant job as Prow E2E job
-    participant gcs as GCS build-log.txt
+    participant sidecar as Prow sidecar
+    participant gcs as GCS finished.json
 
     EV2->>executor: execute --gate-promotion --allow-ev2-retry
     executor->>gangway: SubmitJob (pinned to rollout commit)
     gangway->>job: start job
     job->>job: run e2e-parallel suite
-    job->>gcs: stream build log (incl. EV2_RETRY_ALLOWED if applicable)
+    job->>job: write $ARTIFACT_DIR/metadata.json (if applicable)
+    job-->>sidecar: container exits (failed)
+    sidecar->>sidecar: combineMetadata (merge metadata.json files)
+    sidecar->>gcs: upload finished.json (result=FAILURE, metadata merged in)
     job-->>executor: ProwJobStatus = failure
     executor->>executor: classify as JobFailedError (FailureState)
-    executor->>gcs: fetch build-log.txt
-    gcs-->>executor: log content
-    executor->>executor: scan for EV2_RETRY_ALLOWED marker
-    alt marker found
+    executor->>gcs: fetch finished.json
+    gcs-->>executor: finished.json content
+    executor->>executor: check metadata["ev2-retry-allowed"] == true
+    alt ev2-retry-allowed is true
         executor->>gangway: SubmitJob again (retryMonitor, allowEV2Retry=false)
         gangway->>job: start retry job
         job-->>executor: ProwJobStatus = success/failure
         executor-->>EV2: final result (no further retry either way)
-    else marker absent, or ErrorState/AbortedState
+    else ev2-retry-allowed absent/false, or ErrorState/AbortedState
         executor-->>EV2: fail the gate immediately
     end
 ```
 
 Two properties fall out of this directly:
 
-- **Only `FailureState` is inspected.** `ErrorState` (infra/tooling error) and `AbortedState` (cancellation/timeout) go straight to failing the gate; the build log is never fetched for those, since they are not the class of failure this mechanism is meant to catch.
-- **The retry is unconditional once triggered.** Whatever the retried run's outcome is (pass or fail), the executor does not evaluate the marker again and does not resubmit again - the shallow-copied `Monitor` used for the retry has `allowEV2Retry` hardcoded to `false`, so there is no code path back into the retry branch.
+- **Only `FailureState` is inspected.** `ErrorState` (infra/tooling error) and `AbortedState` (cancellation/timeout) go straight to failing the gate; `finished.json` is never fetched for those, since they are not the class of failure this mechanism is meant to catch.
+- **The retry is unconditional once triggered.** Whatever the retried run's outcome is (pass or fail), the executor does not evaluate the metadata again and does not resubmit again - the shallow-copied `Monitor` used for the retry has `allowEV2Retry` hardcoded to `false`, so there is no code path back into the retry branch.
 
 ### 1. E2E tagging (ARO-HCP)
 
@@ -125,9 +131,9 @@ for _, spec := range specs {
 
 It then registers `AddAfterEach` / `AddAfterAll` hooks (from `openshift-tests-extension`'s lifecycle API) that, guarded by a mutex, track every failure as it happens and check whether it's in `allowRetryNames`. This correlate-by-name approach exists because `openshift-tests-extension`'s `ExtensionTestResult` does not carry a `Labels` field on the result itself - the label set has to be captured from the pre-run spec list up front.
 
-At `AddAfterAll`, once the whole suite has finished, the accumulated counts decide whether to emit the marker (see [Emitting the retry marker](#2-emitting-the-retry-marker-aro-hcp) below).
+At `AddAfterAll`, once the whole suite has finished, the accumulated counts decide whether to write the retry signal (see [Writing the retry signal](#2-writing-the-retry-signal-aro-hcp) below).
 
-### 2. Emitting the retry marker (ARO-HCP)
+### 2. Writing the retry signal (ARO-HCP)
 
 If, once the suite finishes:
 
@@ -135,15 +141,25 @@ If, once the suite finishes:
 - the total number of failed tests is at most `maxAutoRetryFailures` (currently `2`, a `const` in `test/cmd/aro-hcp-tests/main.go`), and
 - every failed test is in `allowRetryNames` (i.e. `nonRetriableFailures == 0`)
 
-then the catcher writes a single, easy-to-grep line to stderr:
+then the catcher merges `ev2-retry-allowed: true` (plus the failed test names, for debugging) into `$ARTIFACT_DIR/metadata.json`:
 
-```text
-EV2_RETRY_ALLOWED: N known-issue test(s) failed (max 2 allowed), all labeled "allow-retry": [test names...]
+```json
+{
+  "ev2-retry-allowed": true,
+  "ev2-retry-allowed-tests": ["spec name 1", "spec name 2"]
+}
 ```
 
-Any failure outside that narrow condition - more than 2 failures, or any failure without the label mixed in - means no marker is written at all, so the gate fails exactly as it does today with no behavior change. Stderr (not stdout) is used because that's where ci-operator/Prow persists step logs into `build-log.txt`, which is what the consumer side reads back.
+Any failure outside that narrow condition - more than 2 failures, or any failure without the label mixed in - means the file is left untouched, so the gate fails exactly as it does today with no behavior change.
 
-### 3. Consuming the marker (ARO-Tools)
+`$ARTIFACT_DIR/metadata.json` is Prow's own, standard mechanism for a test step to attach structured data to the job's result: any Prow-decorated container can write that file, and Prow's `sidecar` reads it (if present) and merges its top-level keys into `finished.json`'s `metadata` object once the job completes (see `sigs.k8s.io/prow/pkg/sidecar`'s `combineMetadata`). This was chosen over the two alternatives considered:
+
+- **A custom `finished.json` "result" value** (e.g. `RETRIABLE_FAILURE`) isn't possible - `result` is hardcoded by Prow's sidecar to `SUCCESS`/`FAILURE`/`ABORTED` based on the container exit code, and isn't something test code or ci-operator config can influence.
+- **Grepping a marker line out of `build-log.txt`** (the original design) works but is fragile: risk of truncation on multi-MB logs, needs a tail-range fetch and a chunked scan, and matches on unstructured text instead of a typed value. `metadata.json` avoids all of that.
+
+The write is merge-safe: if some other step already wrote `$ARTIFACT_DIR/metadata.json` (nothing does today, but a future step might), the existing content is read first and only the `ev2-retry-allowed*` keys are added or overwritten. `ARTIFACT_DIR` being unset (e.g. a local, non-Prow run) is not an error - the write is simply skipped.
+
+### 3. Consuming the signal (ARO-Tools)
 
 `prow-job-executor`'s `prowjob.Monitor` gets a `allowEV2Retry bool` field (set from the new `--allow-ev2-retry` CLI flag) and a dedicated `JobFailedError` type that carries the `ProwExecutionID` and `Status.URL` of a job that ended in `FailureState`. This type only exists so `ExecuteAndWait` can distinguish "the job ran and a test failed" from any other error via `errors.As`.
 
@@ -151,11 +167,11 @@ Any failure outside that narrow condition - more than 2 failures, or any failure
 
 - `executeAndWaitOnce` is the original submit-and-poll logic, unchanged: submit through Gangway, poll `GetJobStatus` until a terminal state, return `nil`/error accordingly.
 - `ExecuteAndWait` calls `executeAndWaitOnce` once. If it returns a `JobFailedError` and `allowEV2Retry` is set, it:
-  1. converts the job's Prow "view" status URL (`https://<prow-host>/view/gs/<bucket>/<path>`) into its plain-text GCS log URL (`https://storage.googleapis.com/<bucket>/<path>/build-log.txt`), via `buildLogURLFromViewURL`,
-  2. fetches that log (bounded by a byte cap and a fetch timeout) and scans it for the `EV2_RETRY_ALLOWED` marker, via `buildLogContainsEV2RetryMarker` / `fetchLogContainsEV2RetryMarker`,
-  3. on a marker match, builds a shallow copy of the `Monitor` (`retryMonitor := *m; retryMonitor.allowEV2Retry = false`) and calls `executeAndWaitOnce` again on that copy.
+  1. converts the job's Prow "view" status URL (`https://<prow-host>/view/gs/<bucket>/<path>`) into its GCS `finished.json` URL (`https://storage.googleapis.com/<bucket>/<path>/finished.json`), via `finishedJSONURLFromViewURL`,
+  2. fetches that file (bounded by a byte cap and a fetch timeout) and checks whether its top-level `metadata` object has `ev2-retry-allowed == true`, via `jobAllowsEV2Retry` / `fetchFinishedJSONAllowsRetry`,
+  3. on a positive match, builds a shallow copy of the `Monitor` (`retryMonitor := *m; retryMonitor.allowEV2Retry = false`) and calls `executeAndWaitOnce` again on that copy.
 
-The shallow copy is what makes "exactly one retry" a structural guarantee rather than a counter that could be bypassed: the copy's `allowEV2Retry` is always `false`, so even if the retried run also fails with a marker present, there is no code path that resubmits a third time. The `client *Client` field is a pointer, so the copy safely shares the same HTTP client/backoff state as the original.
+The shallow copy is what makes "exactly one retry" a structural guarantee rather than a counter that could be bypassed: the copy's `allowEV2Retry` is always `false`, so even if the retried run also fails with the metadata key set, there is no code path that resubmits a third time. The `client *Client` field is a pointer, so the copy safely shares the same HTTP client/backoff state as the original.
 
 `--allow-ev2-retry` is only wired into the `execute` subcommand's options (`RawExecuteOptions` / `completedExecuteOptions` in `options.go`); the separate read-only `monitor` subcommand always passes `false` to `NewMonitor`, since it observes a job it didn't submit and has no meaningful way to resubmit it.
 
@@ -171,21 +187,21 @@ There is currently no automated enforcement of the TTL described below - it is a
 - **Central manifest.** Instead of inline comments, maintain a small YAML/JSON file (e.g. `test/util/labels/allow-retry.yaml`) mapping test name -> tracking issue -> expiry date, loaded by `registerEV2RetryCatcher` to validate expiry at suite-build time and fail fast (or at least log loudly) if a label has expired.
 - **Periodic audit.** A scheduled job (or a recurring SRE Jira card) that lists all `allow-retry`-labeled tests and their age, independent of any code enforcement, as a lighter-weight starting point before investing in the above.
 
-Any of these can be layered on without changing the marker-emission or retry-consumption contract described above, since they only affect whether a test is allowed to carry the label in the first place, not how the label is consumed once present.
+Any of these can be layered on without changing the metadata-write or retry-consumption contract described above, since they only affect whether a test is allowed to carry the label in the first place, not how the signal is consumed once present.
 
 ## Naming
 
-The label and marker names went through some discussion (`flaky`, `retry-during-rollout`, `retryable-during-rollout`, `known-issue`, `ev2-retriable`) before settling on `allow-retry` / `EV2_RETRY_ALLOWED`, specifically to avoid implying anything about flakiness or root cause. The intent is purely operational: make it easy for SREs to decide when an automatic retry is reasonable, without conflating it with terms already used for other purposes (e.g. actual flaky-test quarantine).
+The label and signal names went through some discussion (`flaky`, `retry-during-rollout`, `retryable-during-rollout`, `known-issue`, `ev2-retriable`) before settling on `allow-retry` / `ev2-retry-allowed`, specifically to avoid implying anything about flakiness or root cause. The intent is purely operational: make it easy for SREs to decide when an automatic retry is reasonable, without conflating it with terms already used for other purposes (e.g. actual flaky-test quarantine).
 
 ## Where to look
 
 - `test/util/labels/labels.go` - `AllowRetry` label definition
-- `test/cmd/aro-hcp-tests/main.go` - `registerEV2RetryCatcher`, `maxAutoRetryFailures`, marker emission
+- `test/cmd/aro-hcp-tests/main.go` - `registerEV2RetryCatcher`, `maxAutoRetryFailures`, `writeEV2RetryMetadata`
 - `test/e2e/README.md` - test-author-facing documentation of the label
 - ARO-Tools `tools/prow-job-executor/prowjob/monitor.go` - `JobFailedError`, `Monitor.allowEV2Retry`, single-retry `ExecuteAndWait`/`executeAndWaitOnce`
-- ARO-Tools `tools/prow-job-executor/prowjob/retrymarker.go` - `buildLogURLFromViewURL`, `buildLogContainsEV2RetryMarker`, `fetchLogContainsEV2RetryMarker`
+- ARO-Tools `tools/prow-job-executor/prowjob/retrymarker.go` - `finishedJSONURLFromViewURL`, `jobAllowsEV2Retry`, `fetchFinishedJSONAllowsRetry`
 - ARO-Tools `tools/prow-job-executor/options.go` - `--allow-ev2-retry` flag, `AllowEV2Retry` option wiring
-- [Azure/ARO-HCP#6409](https://github.com/Azure/ARO-HCP/pull/6409) - label + marker emission implementation
+- [Azure/ARO-HCP#6409](https://github.com/Azure/ARO-HCP/pull/6409) - label + metadata.json signal implementation
 - [Azure/ARO-Tools#282](https://github.com/Azure/ARO-Tools/pull/282) - retry-catcher implementation
 
 ## Follow-ups

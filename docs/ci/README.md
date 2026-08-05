@@ -132,8 +132,8 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Design](ev2-retry-catcher.md#design)
 - [End-To-End Flow](ev2-retry-catcher.md#end-to-end-flow)
 - [E2E Tagging (ARO-HCP)](ev2-retry-catcher.md#1-e2e-tagging-aro-hcp)
-- [Emitting The Retry Marker (ARO-HCP)](ev2-retry-catcher.md#2-emitting-the-retry-marker-aro-hcp)
-- [Consuming The Marker (ARO-Tools)](ev2-retry-catcher.md#3-consuming-the-marker-aro-tools)
+- [Writing The Retry Signal (ARO-HCP)](ev2-retry-catcher.md#2-writing-the-retry-signal-aro-hcp)
+- [Consuming The Signal (ARO-Tools)](ev2-retry-catcher.md#3-consuming-the-signal-aro-tools)
 - [Expiration Configuration](ev2-retry-catcher.md#expiration-configuration)
 - [Where To Look](ev2-retry-catcher.md#where-to-look)
 
