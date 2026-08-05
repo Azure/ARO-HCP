@@ -36,9 +36,7 @@ spec:
       annotations:
         summary: etcd gRPC P99 latency exceeds 200ms in {{ $labels.namespace }} (fast burn 1h/5m)
         description: >-
-          etcd gRPC P99 latency in namespace {{ $labels.namespace }} has exceeded 200ms
-          in both the 1h and 5m windows, indicating a fast burn-rate degradation
-          affecting hosted cluster operations.
+          etcd gRPC P99 latency in namespace {{ $labels.namespace }} has exceeded 200ms in both the 1h and 5m windows, indicating a fast burn-rate degradation affecting hosted cluster operations.
         correlationId: userJourneyEtcdLatencyP991h5m/{{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     # MWMBR Medium burn (6h/30m) — Sev 3 per ADR-001
@@ -68,9 +66,7 @@ spec:
       annotations:
         summary: etcd gRPC P99 latency exceeds 200ms in {{ $labels.namespace }} (medium burn 6h/30m)
         description: >-
-          etcd gRPC P99 latency in namespace {{ $labels.namespace }} has exceeded 200ms
-          in both the 6h and 30m windows, indicating a sustained medium burn-rate degradation
-          affecting hosted cluster operations.
+          etcd gRPC P99 latency in namespace {{ $labels.namespace }} has exceeded 200ms in both the 6h and 30m windows, indicating a sustained medium burn-rate degradation affecting hosted cluster operations.
         correlationId: userJourneyEtcdLatencyP996h30m/{{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-etcd
     # MWMBR Slow burn (3d) — Sev 4 per ADR-001 (slow burn = ticket, not page)
@@ -89,8 +85,6 @@ spec:
       annotations:
         summary: etcd gRPC P99 latency exceeds 200ms in {{ $labels.namespace }} (slow burn 3d)
         description: >-
-          etcd gRPC P99 latency in namespace {{ $labels.namespace }} has exceeded 200ms
-          over a 3d window, indicating a slow but persistent latency degradation.
-          This generates a ticket for investigation.
+          etcd gRPC P99 latency in namespace {{ $labels.namespace }} has exceeded 200ms over a 3d window, indicating a slow but persistent latency degradation. This generates a ticket for investigation.
         correlationId: userJourneyEtcdLatencyP993d/{{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-etcd

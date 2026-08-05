@@ -27,12 +27,9 @@ tests:
       exp_annotations:
         summary: "etcd gRPC P99 latency exceeds 200ms in ocm-test-456 (fast burn 1h/5m)"
         description: >-
-          etcd gRPC P99 latency in namespace ocm-test-456 has exceeded 200ms
-          in both the 1h and 5m windows, indicating a fast burn-rate degradation
-          affecting hosted cluster operations.
+          etcd gRPC P99 latency in namespace ocm-test-456 has exceeded 200ms in both the 1h and 5m windows, indicating a fast burn-rate degradation affecting hosted cluster operations.
         correlationId: "userJourneyEtcdLatencyP991h5m/mgmt-2/ocm-test-456"
         runbook_url: "https://aka.ms/arohcp-runbook-etcd"
-
 # Test 2: No alert fires when P99 < 200ms (healthy latency)
 - interval: 1m
   name: "Test 2: No alerts fire when latency is healthy"
@@ -57,7 +54,6 @@ tests:
   - eval_time: 65m
     alertname: userJourneyEtcdLatencyP993d
     exp_alerts: []
-
 # Test 3: Non-etcd gRPC service is excluded from alerts
 - interval: 1m
   name: "Test 3: Non-etcdserverpb traffic is excluded"

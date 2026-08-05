@@ -31,7 +31,6 @@ tests:
     exp_samples:
     - labels: '{__name__="etcd:grpc_server_handling:latency_p95:rate5m", namespace="ocm-test-123", cluster="mgmt-1"}'
       value: 2.9999999999999993e-01
-
 # Test 2: Non-etcd gRPC service is excluded from recording rules
 - interval: 1m
   name: "Test 2: Non-etcdserverpb traffic excluded from recording rules"
