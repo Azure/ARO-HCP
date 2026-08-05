@@ -1,4 +1,4 @@
-package main
+package controlplaneversion
 
 import (
 	"context"
@@ -9,9 +9,11 @@ import (
 	"strings"
 
 	"github.com/blang/semver/v4"
+
+	"k8s.io/klog/v2"
+
 	configv1 "github.com/openshift/api/config/v1"
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
-	"k8s.io/klog/v2"
 )
 
 // ARO-HCP specific user agent; put whatever you like in here to identify yourself.
@@ -49,7 +51,7 @@ func SelectControlPlaneVersion(ctx context.Context, channelStability string, des
 	}
 	clusterUpdateService := hostedCluster.Spec.UpdateService
 	if len(clusterUpdateService) == 0 {
-		clusterUpdateService = configv1.URL(defaultUpstreamUpdateService)
+		clusterUpdateService = configv1.URL(DefaultUpstreamUpdateService)
 	}
 	if updateService != nil && configv1.URL(updateService.String()) != clusterUpdateService {
 		return nil, fmt.Errorf("HostedCluster spec.updateService %q diverges from the explicitly-requested update service %q.  Call SelectControlPlaneVersion with a nil update service to defer to the current HostedCluster configuration, or update the HostedCluster spec.updateService to match the update service you want that cluster to use.", hostedCluster.Spec.UpdateService, updateService)
@@ -85,8 +87,7 @@ func preferFeatureConnectivityOverPatchFixes(channelStability string) rankReleas
 				minor = 0
 			}
 			if stability == channelStability {
-				var r float32
-				r = float32(major) + float32(minor)/1000 // there will never be more than 1k minor releases in any given major release
+				var r float32 = float32(major) + float32(minor)/1000 // there will never be more than 1k minor releases in any given major release
 				if r > rank {
 					rank = r
 				}

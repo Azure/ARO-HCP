@@ -1,4 +1,4 @@
-package main
+package controlplaneversion
 
 import (
 	"context"
@@ -12,10 +12,12 @@ import (
 	"strings"
 
 	"github.com/blang/semver/v4"
-	configv1 "github.com/openshift/api/config/v1"
-	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	configv1 "github.com/openshift/api/config/v1"
+	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
 
 // RoundTrip allows customizing the RoundTripper (e.g. to support
@@ -51,7 +53,7 @@ type graph struct {
 	Nodes []node `json:"nodes"`
 }
 
-var defaultUpstreamUpdateService = "https://api.openshift.com/api/upgrades_info/graph"
+var DefaultUpstreamUpdateService = "https://api.openshift.com/api/upgrades_info/graph"
 
 // roundTrip converts a RoundTrip function into a RoundTripper.
 type roundTrip struct {
@@ -67,7 +69,7 @@ func (rt *roundTrip) RoundTrip(request *http.Request) (*http.Response, error) {
 func defaultInstall(ctx context.Context, roundTripper RoundTrip, updateService *url.URL, userAgent string, channel string, rankRelease rankRelease) (*semver.Version, error) {
 	if updateService == nil {
 		var err error
-		updateService, err = url.Parse(defaultUpstreamUpdateService)
+		updateService, err = url.Parse(DefaultUpstreamUpdateService)
 		if err != nil {
 			return nil, err
 		}

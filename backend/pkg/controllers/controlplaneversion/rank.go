@@ -1,4 +1,4 @@
-package main
+package controlplaneversion
 
 import (
 	"cmp"
@@ -7,8 +7,10 @@ import (
 	"slices"
 
 	"github.com/blang/semver/v4"
-	configv1 "github.com/openshift/api/config/v1"
+
 	"k8s.io/klog/v2"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 // rankRelease allows hosting maintainers to rank a target release

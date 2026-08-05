@@ -1,13 +1,15 @@
-package main
+package controlplaneversion
 
 import (
 	"context"
 	"testing"
 
 	"github.com/blang/semver/v4"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	configv1 "github.com/openshift/api/config/v1"
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestSelectControlPlaneVersionUpdate(t *testing.T) {

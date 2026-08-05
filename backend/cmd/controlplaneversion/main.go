@@ -8,7 +8,10 @@ import (
 	"os"
 
 	"github.com/blang/semver/v4"
+
 	"k8s.io/klog/v2"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 )
 
 func main() {
@@ -26,11 +29,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "expected X.Y version, but failed to parse: %v\n", err)
 		os.Exit(1)
 	}
-	var upstreamUpdateService string // customizable for testing and disconnected/restricted-network environments
+	var upstreamUpdateService string
 	if len(args) >= 3 {
 		upstreamUpdateService = args[2]
 	} else {
-		upstreamUpdateService = defaultUpstreamUpdateService
+		upstreamUpdateService = controlplaneversion.DefaultUpstreamUpdateService
 	}
 
 	updateService, err := url.Parse(upstreamUpdateService)
@@ -39,6 +42,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	version, err := SelectControlPlaneVersion(context.Background(), channelStability, desiredXYVersion, nil, updateService, nil)
+	version, err := controlplaneversion.SelectControlPlaneVersion(context.Background(), channelStability, desiredXYVersion, nil, updateService, nil)
 	fmt.Printf("%v (%v)\n", version, err)
 }
