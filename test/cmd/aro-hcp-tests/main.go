@@ -139,9 +139,20 @@ func parseMIContainerCount() (int, string) {
 // decision (how many failures are tolerable, etc.) is policy that belongs to
 // prow-job-executor, which can evolve independently of an ARO-HCP release. See
 // retrymarker.go in ARO-Tools for the eligibility logic that consumes these keys.
+// ev2TestsTotalKey, ev2TestsPassedKey, ev2TestsFailedKey, ev2TestsSkippedKey, and
+// ev2SuiteDurationSecondsKey are additional finished.json metadata keys reported alongside
+// ev2FailedTestsKey/ev2AllowRetryTestsKey. They aren't used by the EV2 retry decision, but
+// give anyone looking at a gating run's finished.json (a human triaging a failure, or a
+// future dashboard) the basic shape of the run without having to open the Prow job UI:
+// how many specs ran, how many of each result, and how long the suite took wall-clock.
 const (
-	ev2FailedTestsKey     = "ev2-failed-tests"
-	ev2AllowRetryTestsKey = "ev2-allow-retry-tests"
+	ev2FailedTestsKey          = "ev2-failed-tests"
+	ev2AllowRetryTestsKey      = "ev2-allow-retry-tests"
+	ev2TestsTotalKey           = "ev2-tests-total"
+	ev2TestsPassedKey          = "ev2-tests-passed"
+	ev2TestsFailedKey          = "ev2-tests-failed"
+	ev2TestsSkippedKey         = "ev2-tests-skipped"
+	ev2SuiteDurationSecondsKey = "ev2-suite-duration-seconds"
 )
 
 // ev2RetryMetadataFile is where Prow's sidecar picks up per-step custom metadata to merge
@@ -149,14 +160,17 @@ const (
 const ev2RetryMetadataFile = "metadata.json"
 
 // registerEV2RetryCatcher watches test results as they complete and, once the full suite has
-// finished, always writes ev2FailedTestsKey and ev2AllowRetryTestsKey into
-// $ARTIFACT_DIR/metadata.json - even when nothing failed, in which case both lists are
-// empty. Writing unconditionally means the keys' presence tells prow-job-executor the run
-// reached this point at all, so an absent key is unambiguously "this step didn't run",
-// never "the run failed but wasn't retry-eligible". prow-job-executor reads these lists
-// back out of the job's finished.json to decide whether to resubmit the job once, instead
-// of requiring a human to notice the failure, review Prow output, and manually retrigger.
-// See AROSLSRE-1721.
+// finished, always writes ev2FailedTestsKey and ev2AllowRetryTestsKey, plus basic run stats
+// (ev2TestsTotalKey/ev2TestsPassedKey/ev2TestsFailedKey/ev2TestsSkippedKey/
+// ev2SuiteDurationSecondsKey), into $ARTIFACT_DIR/metadata.json - even when nothing failed,
+// in which case both failure lists are empty. Writing unconditionally means the keys'
+// presence tells prow-job-executor the run reached this point at all, so an absent key is
+// unambiguously "this step didn't run", never "the run failed but wasn't retry-eligible".
+// prow-job-executor reads the failure lists back out of the job's finished.json to decide
+// whether to resubmit the job once, instead of requiring a human to notice the failure,
+// review Prow output, and manually retrigger. The stats aren't used by that decision, but
+// save a trip to the Prow job UI for anyone triaging a run straight from finished.json. See
+// AROSLSRE-1721.
 //
 // This must only run in the long-lived parent run-suite process. openshift-tests-extension
 // spawns each spec as a separate "run-test" worker subprocess, and that subprocess calls
@@ -180,37 +194,68 @@ func registerEV2RetryCatcher(specs et.ExtensionTestSpecs) {
 	var mu sync.Mutex
 	var failedNames []string
 	var allowRetryFailedNames []string
+	var passedCount, failedCount, skippedCount int
+	var suiteStart time.Time
 
-	specs.AddAfterEach(func(res *et.ExtensionTestResult) {
-		if res.Result != et.ResultFailed {
-			return
-		}
+	specs.AddBeforeAll(func() {
 		mu.Lock()
 		defer mu.Unlock()
-		failedNames = append(failedNames, res.Name)
-		if allowRetryNames[res.Name] {
-			allowRetryFailedNames = append(allowRetryFailedNames, res.Name)
+		suiteStart = time.Now()
+	})
+
+	specs.AddAfterEach(func(res *et.ExtensionTestResult) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch res.Result {
+		case et.ResultPassed:
+			passedCount++
+		case et.ResultSkipped:
+			skippedCount++
+		case et.ResultFailed:
+			failedCount++
+			failedNames = append(failedNames, res.Name)
+			if allowRetryNames[res.Name] {
+				allowRetryFailedNames = append(allowRetryFailedNames, res.Name)
+			}
 		}
 	})
 
 	specs.AddAfterAll(func() {
 		mu.Lock()
 		defer mu.Unlock()
-		fmt.Fprintf(os.Stderr, "%d test(s) failed (%d labeled %q): writing %s/%s to %s: failed=%v allow-retry=%v\n",
-			len(failedNames), len(allowRetryFailedNames), labels.AllowRetry[0],
+		stats := ev2SuiteStats{
+			Total:           passedCount + failedCount + skippedCount,
+			Passed:          passedCount,
+			Failed:          failedCount,
+			Skipped:         skippedCount,
+			DurationSeconds: time.Since(suiteStart).Seconds(),
+		}
+		fmt.Fprintf(os.Stderr, "%d test(s) failed (%d labeled %q) out of %d total, suite took %.0fs: writing %s/%s to %s: failed=%v allow-retry=%v\n",
+			stats.Failed, len(allowRetryFailedNames), labels.AllowRetry[0], stats.Total, stats.DurationSeconds,
 			ev2FailedTestsKey, ev2AllowRetryTestsKey, ev2RetryMetadataFile, failedNames, allowRetryFailedNames)
-		if err := writeEV2RetryMetadata(os.Getenv("ARTIFACT_DIR"), failedNames, allowRetryFailedNames); err != nil {
+		if err := writeEV2RetryMetadata(os.Getenv("ARTIFACT_DIR"), failedNames, allowRetryFailedNames, stats); err != nil {
 			fmt.Fprintf(os.Stderr, "WARNING: failed to write EV2 retry metadata: %v\n", err)
 		}
 	})
 }
 
+// ev2SuiteStats is the basic shape of a suite run, reported alongside the retry facts so a
+// human (or a future dashboard) can see run size/duration without opening the Prow job UI.
+type ev2SuiteStats struct {
+	Total           int
+	Passed          int
+	Failed          int
+	Skipped         int
+	DurationSeconds float64
+}
+
 // writeEV2RetryMetadata merges ev2FailedTestsKey and ev2AllowRetryTestsKey (always present,
-// even as empty lists) into $ARTIFACT_DIR/metadata.json, creating the file if it doesn't
-// exist yet and preserving any keys another step may have already written there.
-// artifactDir empty (not running under Prow, e.g. a local run) is not an error - it just
-// means there's nowhere to write the signal, so we skip it.
-func writeEV2RetryMetadata(artifactDir string, failedNames, allowRetryFailedNames []string) error {
+// even as empty lists), plus the ev2SuiteStats counters/duration, into
+// $ARTIFACT_DIR/metadata.json, creating the file if it doesn't exist yet and preserving any
+// keys another step may have already written there. artifactDir empty (not running under
+// Prow, e.g. a local run) is not an error - it just means there's nowhere to write the
+// signal, so we skip it.
+func writeEV2RetryMetadata(artifactDir string, failedNames, allowRetryFailedNames []string, stats ev2SuiteStats) error {
 	if artifactDir == "" {
 		fmt.Fprintln(os.Stderr, "WARNING: ARTIFACT_DIR is not set, skipping EV2 retry metadata")
 		return nil
@@ -227,10 +272,16 @@ func writeEV2RetryMetadata(artifactDir string, failedNames, allowRetryFailedName
 		return fmt.Errorf("failed to read existing %s: %w", path, err)
 	}
 
-	// Always write both keys, even when empty, so their presence is unambiguous: prow-job-executor
-	// can tell "the suite ran and nothing/little failed" apart from "this step never ran".
+	// Always write both failure-list keys, even when empty, so their presence is unambiguous:
+	// prow-job-executor can tell "the suite ran and nothing/little failed" apart from "this
+	// step never ran".
 	metadata[ev2FailedTestsKey] = orEmptySlice(failedNames)
 	metadata[ev2AllowRetryTestsKey] = orEmptySlice(allowRetryFailedNames)
+	metadata[ev2TestsTotalKey] = stats.Total
+	metadata[ev2TestsPassedKey] = stats.Passed
+	metadata[ev2TestsFailedKey] = stats.Failed
+	metadata[ev2TestsSkippedKey] = stats.Skipped
+	metadata[ev2SuiteDurationSecondsKey] = stats.DurationSeconds
 
 	data, err := json.MarshalIndent(metadata, "", "  ")
 	if err != nil {

@@ -72,15 +72,17 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 }
 
 func TestWriteEV2RetryMetadata(t *testing.T) {
+	sampleStats := ev2SuiteStats{Total: 3, Passed: 1, Failed: 2, Skipped: 0, DurationSeconds: 12.5}
+
 	t.Run("empty artifact dir is skipped without error", func(t *testing.T) {
-		if err := writeEV2RetryMetadata("", []string{"spec A"}, []string{"spec A"}); err != nil {
+		if err := writeEV2RetryMetadata("", []string{"spec A"}, []string{"spec A"}, sampleStats); err != nil {
 			t.Fatalf("expected no error when ARTIFACT_DIR is unset, got %v", err)
 		}
 	})
 
 	t.Run("writes a fresh metadata.json", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := writeEV2RetryMetadata(dir, []string{"spec A", "spec B"}, []string{"spec A"}); err != nil {
+		if err := writeEV2RetryMetadata(dir, []string{"spec A", "spec B"}, []string{"spec A"}, sampleStats); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -93,11 +95,26 @@ func TestWriteEV2RetryMetadata(t *testing.T) {
 		if !ok || len(allowRetry) != 1 {
 			t.Fatalf("expected 1 allow-retry test name recorded, got %v", got[ev2AllowRetryTestsKey])
 		}
+		if got[ev2TestsTotalKey] != float64(3) {
+			t.Fatalf("expected total=3, got %v", got[ev2TestsTotalKey])
+		}
+		if got[ev2TestsPassedKey] != float64(1) {
+			t.Fatalf("expected passed=1, got %v", got[ev2TestsPassedKey])
+		}
+		if got[ev2TestsFailedKey] != float64(2) {
+			t.Fatalf("expected failed=2, got %v", got[ev2TestsFailedKey])
+		}
+		if got[ev2TestsSkippedKey] != float64(0) {
+			t.Fatalf("expected skipped=0, got %v", got[ev2TestsSkippedKey])
+		}
+		if got[ev2SuiteDurationSecondsKey] != 12.5 {
+			t.Fatalf("expected duration=12.5, got %v", got[ev2SuiteDurationSecondsKey])
+		}
 	})
 
 	t.Run("writes empty lists when nothing failed, so the keys are always present", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := writeEV2RetryMetadata(dir, nil, nil); err != nil {
+		if err := writeEV2RetryMetadata(dir, nil, nil, ev2SuiteStats{Total: 5, Passed: 5}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -109,6 +126,9 @@ func TestWriteEV2RetryMetadata(t *testing.T) {
 		allowRetry, ok := got[ev2AllowRetryTestsKey].([]interface{})
 		if !ok || len(allowRetry) != 0 {
 			t.Fatalf("expected an empty allow-retry-tests list, got %v", got[ev2AllowRetryTestsKey])
+		}
+		if got[ev2TestsTotalKey] != float64(5) {
+			t.Fatalf("expected total=5, got %v", got[ev2TestsTotalKey])
 		}
 	})
 
@@ -123,7 +143,7 @@ func TestWriteEV2RetryMetadata(t *testing.T) {
 			t.Fatalf("failed to write fixture: %v", err)
 		}
 
-		if err := writeEV2RetryMetadata(dir, []string{"spec A"}, []string{"spec A"}); err != nil {
+		if err := writeEV2RetryMetadata(dir, []string{"spec A"}, []string{"spec A"}, sampleStats); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
