@@ -247,7 +247,7 @@ clouds:
           # Regions charted on the Dev quota dashboard: the three regions the
           # dev tenant-quota subscriptions actually collect quota for above.
           regions: "westus3,centralus,canadacentral"
-          e2eSubscriptions: "974ebd46-8ad3-41e3-afef-7ef25fd5c371=ARO HCP E2E Hosted Clusters (EA Subscription),e8c5a115-842d-4d7e-98ad-cfb2c50b209e=ARO HCP E2E Hosted Clusters 2 (EA Subscription),e627aa70-36a3-40b0-8e68-975269e39d7b=ARO HCP E2E Hosted Clusters - Dev - 02,6ed122d1-7e03-4a01-baae-9020abf350d4=ARO HCP E2E Hosted Clusters - Dev - 03"
+          e2eSubscriptions: "974ebd46-8ad3-41e3-afef-7ef25fd5c371=ARO HCP E2E Hosted Clusters (EA Subscription),e8c5a115-842d-4d7e-98ad-cfb2c50b209e=ARO HCP E2E Hosted Clusters 2 (EA Subscription),e627aa70-36a3-40b0-8e68-975269e39d7b=ARO HCP E2E Hosted Clusters - Dev - 02,6ed122d1-7e03-4a01-baae-9020abf350d4=ARO HCP E2E Hosted Clusters - Dev - 03,be741169-a256-480b-a903-cfb1cd057021=ARO HCP E2E Hosted Clusters - Dev - 04"
           infrastructureSubscriptions: "1d3378d3-5a3f-4712-85a1-2485495dfc4b=ARO Hosted Control Planes (EA Subscription 1),0ef1ad54-9296-44cd-9600-5dc8e9a74034=ARO HCP E2E Infrastructure (EA Subscription)"
           infrastructureSubscriptionsGlobals: "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
           infrastructureSubscriptionsCostTags: "0ef1ad54-9296-44cd-9600-5dc8e9a74034"
@@ -265,7 +265,7 @@ clouds:
               appBaseName: "aro-dev-arm-helper-pool"
               certBaseName: "armHelperPoolCert"
               certBaseDns: "armhelperpool.hcp.osadev.cloud"
-              size: 40
+              size: 100
             msiMock:
               applicationName: "aro-dev-msi-mock2"
               certName: "msiMockCert2"
@@ -274,7 +274,7 @@ clouds:
               appBaseName: "aro-dev-msi-mock-pool"
               certBaseName: "msiMockPoolCert"
               certBaseDns: "msimockpool.hcp.osadev.cloud"
-              size: 20
+              size: 50
         int:
           bot:
             applicationName: "OpenShift Release Bot - INT"
