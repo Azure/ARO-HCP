@@ -279,7 +279,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			wantEnqueue:         true,
 		},
 		{
-			name: "already-succeeded validation -- skipped",
+			name: "already-succeeded validation -- still re-run",
 			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				defaultSetupDB(t, ctx, mockDB)
@@ -297,8 +297,10 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 			},
 			validation: NewMockNodePoolValidation(testValidationName).WithFailed(
-				"ShouldNotBeCalled", "should not be called", "should not be called",
+				"NoLongerValid", "no longer valid", "No longer valid.",
 			),
+			wantCondition: &metav1.Condition{Status: metav1.ConditionFalse, Reason: "NoLongerValid", Message: "No longer valid."},
+			wantEnqueue:   true,
 		},
 	}
 
@@ -357,8 +359,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 // Cosmos/DB plumbing, covering the boundary cases around maxConsecutiveUnknownsBeforeWrite.
 func TestNodePoolValidationSyncer_ShouldWriteCondition(t *testing.T) {
 	// shouldWriteCondition only checks previousCondition's nilness, not its Status, so the Status value
-	// here is just fixture data; it could never realistically be ConditionTrue, since shouldProcess
-	// prevents SyncOnce from reaching this code once the stored condition is already True.
+	// here is just fixture data.
 	storedCondition := &metav1.Condition{Type: testValidationName, Status: metav1.ConditionUnknown}
 
 	testCases := []struct {
