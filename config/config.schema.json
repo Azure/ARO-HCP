@@ -1453,13 +1453,25 @@
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by the mgmt-agent to interact with Azure"
+        },
+        "nodeHealth": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether the mgmt-agent node-health detection controller is enabled. On by default. It only labels and annotates a node it believes is wedged and emits a metric; set this to false per environment to opt out."
+            }
+          },
+          "additionalProperties": false,
+          "required": ["enabled"]
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
         "k8s",
-        "managedIdentityName"
+        "managedIdentityName",
+        "nodeHealth"
       ]
     },
     "kubeApplier": {

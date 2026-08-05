@@ -758,6 +758,8 @@ mgmtAgent:
         memory: 768Mi
     serviceAccountName: mgmt-agent
   managedIdentityName: mgmt-agent
+  nodeHealth:
+    enabled: true
 mgmtKeyVault:
   name: ah-dev-mg-usw3-1
   private: false
