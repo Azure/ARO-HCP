@@ -972,6 +972,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	clusterCredentialDeletionMarkerController := clusterdeletion.NewClusterCredentialDeletionMarkerController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+
 	clusterChildResourcesCleanupController := clusterdeletion.NewClusterChildResourcesCleanupController(
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
@@ -1098,6 +1104,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthDeletionController.Run(ctx, 20)
 				go clusterDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
 				go clusterClusterServiceIDClearerController.Run(ctx, 20)
+				go clusterCredentialDeletionMarkerController.Run(ctx, 20)
 				go clusterChildResourcesCleanupController.Run(ctx, 20)
 				go clusterDeletionController.Run(ctx, 20)
 				go clusterClusterServiceUpdateDispatchController.Run(ctx, 20)
