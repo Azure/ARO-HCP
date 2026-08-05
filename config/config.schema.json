@@ -4147,8 +4147,8 @@
       "message": "infrastructure identity reuse requires an explicit AKS identity name for the current management stamp"
     },
     {
-      "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01', 'pers']",
-      "message": "svc.aks.systemPoolOnly is supported only in ci00, ci01 and pers"
+      "rule": "!has(self.svc.aks.systemPoolOnly) || !self.svc.aks.systemPoolOnly || self.environmentName in ['ci00', 'ci01', 'ci02', 'pers']",
+      "message": "svc.aks.systemPoolOnly is supported only in ci00, ci01, ci02 and pers"
     },
     {
       "rule": "!has(self.mgmt.aks.systemPoolOnly) || !self.mgmt.aks.systemPoolOnly",
