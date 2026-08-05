@@ -129,6 +129,18 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 			verifyDB:        verifyClusterStillExists,
 		},
 		{
+			name:            "cluster still has credential requests -- blocks",
+			existingCluster: readyForDeletionCluster(t),
+			extraResources:  []any{newTestCredentialRequest(t, "cred-1")},
+			verifyDB:        verifyClusterStillExists,
+		},
+		{
+			name:            "cluster still has credential revocations -- blocks",
+			existingCluster: readyForDeletionCluster(t),
+			extraResources:  []any{newTestCredentialRevocation(t, "revoke-1")},
+			verifyDB:        verifyClusterStillExists,
+		},
+		{
 			name:            "non-controller child resource still exists -- blocks",
 			existingCluster: readyForDeletionCluster(t),
 			extraResources:  []any{newTestClusterScopedManagementClusterContent(t, "test-mcc")},
@@ -150,6 +162,18 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 			name:            "orphaned externalauth controller docs do not block deletion",
 			existingCluster: readyForDeletionCluster(t),
 			extraResources:  []any{newTestExternalAuthController(t, "orphaned-ea-controller")},
+			verifyDB:        verifyClusterDeleted,
+		},
+		{
+			name:            "orphaned credential request controller docs do not block deletion",
+			existingCluster: readyForDeletionCluster(t),
+			extraResources:  []any{newTestCredentialRequestController(t, "orphaned-cred-controller")},
+			verifyDB:        verifyClusterDeleted,
+		},
+		{
+			name:            "orphaned credential revocation controller docs do not block deletion",
+			existingCluster: readyForDeletionCluster(t),
+			extraResources:  []any{newTestCredentialRevocationController(t, "orphaned-rev-controller")},
 			verifyDB:        verifyClusterDeleted,
 		},
 		{
@@ -401,6 +425,44 @@ func newTestExternalAuthController(t *testing.T, name string) *api.Controller {
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/externalAuths/test-auth" +
+			"/hcpOpenShiftControllers/" + name))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+		Status: api.ControllerStatus{
+			Conditions: []metav1.Condition{},
+		},
+	}
+}
+
+func newTestCredentialRequestController(t *testing.T, name string) *api.Controller {
+	t.Helper()
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/systemAdminCredentialRequests/test-cred" +
+			"/hcpOpenShiftControllers/" + name))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+		Status: api.ControllerStatus{
+			Conditions: []metav1.Condition{},
+		},
+	}
+}
+
+func newTestCredentialRevocationController(t *testing.T, name string) *api.Controller {
+	t.Helper()
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/systemAdminCredentialRevocations/test-revoke" +
 			"/hcpOpenShiftControllers/" + name))
 	return &api.Controller{
 		CosmosMetadata: api.CosmosMetadata{
