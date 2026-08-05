@@ -225,6 +225,39 @@ func TestDurationMetricsAggregateRuns(t *testing.T) {
 	assertGauge(t, metrics, "prow_ci_job_duration_window_runs", withLabel(labels, "le", "+Inf"), 2)
 }
 
+func TestConsecutiveFailuresUsesCompletionOrder(t *testing.T) {
+	now := time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)
+	jobs := []prowjobs.Job{
+		completedJob("pull-ci-Azure-ARO-HCP-main-e2e-parallel", "old-success", "success", now.Add(-7*time.Hour)),
+		completedJob("pull-ci-Azure-ARO-HCP-main-e2e-parallel", "failure-3", "failure", now.Add(-3*time.Hour)),
+		completedJob("pull-ci-Azure-ARO-HCP-main-e2e-parallel", "failure-1", "failure", now.Add(-time.Hour)),
+		completedJob("pull-ci-Azure-ARO-HCP-main-e2e-parallel", "failure-5", "error", now.Add(-5*time.Hour)),
+		completedJob("pull-ci-Azure-ARO-HCP-main-e2e-parallel", "failure-2", "failure", now.Add(-2*time.Hour)),
+		completedJob("pull-ci-Azure-ARO-HCP-main-e2e-parallel", "failure-4", "failure", now.Add(-4*time.Hour)),
+		completedJob("pull-ci-Azure-ARO-HCP-main-lint", "latest-success", "success", now.Add(-time.Hour)),
+		completedJob("pull-ci-Azure-ARO-HCP-main-lint", "old-failure", "failure", now.Add(-2*time.Hour)),
+	}
+	for i := range jobs {
+		jobs[i].Spec.Type = "batch"
+	}
+
+	collector := NewCollector(testConfig(t), testLogger(), &fakeClient{jobs: jobs})
+	collector.now = func() time.Time { return now }
+	if err := collector.collectOnce(context.Background()); err != nil {
+		t.Fatalf("collectOnce() error = %v", err)
+	}
+
+	metrics := gatherMetrics(t, collector)
+	assertGauge(t, metrics, "prow_ci_job_consecutive_failures", map[string]string{
+		"job_name": "pull-ci-Azure-ARO-HCP-main-e2e-parallel",
+		"job_type": "batch",
+	}, 5)
+	assertGauge(t, metrics, "prow_ci_job_consecutive_failures", map[string]string{
+		"job_name": "pull-ci-Azure-ARO-HCP-main-lint",
+		"job_type": "batch",
+	}, 0)
+}
+
 func TestDurationBuckets(t *testing.T) {
 	want := []float64{
 		60,

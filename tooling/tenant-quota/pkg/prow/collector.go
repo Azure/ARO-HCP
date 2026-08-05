@@ -19,6 +19,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -89,6 +90,11 @@ type durationMetrics struct {
 	buckets []float64
 }
 
+type jobMetricKey struct {
+	jobName string
+	jobType string
+}
+
 type Collector struct {
 	config *config.Config
 	logger *slog.Logger
@@ -101,6 +107,7 @@ type Collector struct {
 	lastSuccessDesc       *prometheus.Desc
 	cachedRunsDesc        *prometheus.Desc
 	invalidJobsDesc       *prometheus.Desc
+	consecutiveFailsDesc  *prometheus.Desc
 
 	mu                   sync.RWMutex
 	runs                 map[string]runMetrics
@@ -159,6 +166,12 @@ func NewCollector(cfg *config.Config, logger *slog.Logger, clients ...prowjobs.C
 			[]string{"reason"},
 			nil,
 		),
+		consecutiveFailsDesc: prometheus.NewDesc(
+			"prow_ci_job_consecutive_failures",
+			"Number of consecutive completed Prow CI job failures or errors since the most recent success",
+			[]string{"job_name", "job_type"},
+			nil,
+		),
 		runs:             make(map[string]runMetrics),
 		seenInvalidJobs:  sets.New[string](),
 		invalidJobCounts: make(map[string]float64, len(invalidJobReasons)),
@@ -172,6 +185,7 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.lastSuccessDesc
 	ch <- c.cachedRunsDesc
 	ch <- c.invalidJobsDesc
+	ch <- c.consecutiveFailsDesc
 }
 
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
@@ -190,6 +204,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	c.mu.RUnlock()
 
 	durations := make(map[durationMetricKey]*durationMetrics)
+	runsByJob := make(map[jobMetricKey][]runMetrics)
 	for _, run := range runs {
 		labels := []string{run.jobName, run.jobType, run.buildID, run.result}
 		ch <- prometheus.MustNewConstMetric(c.infoDesc, prometheus.GaugeValue, 1, labels...)
@@ -210,6 +225,9 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 			}
 		}
 		metrics.buckets[len(durationBuckets)]++
+
+		jobKey := jobMetricKey{jobName: run.jobName, jobType: run.jobType}
+		runsByJob[jobKey] = append(runsByJob[jobKey], run)
 	}
 	for key, metrics := range durations {
 		labels := []string{key.jobName, key.jobType, key.result}
@@ -227,6 +245,28 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 			prometheus.GaugeValue,
 			metrics.buckets[len(durationBuckets)],
 			append(labels, "+Inf")...,
+		)
+	}
+	for key, jobRuns := range runsByJob {
+		slices.SortFunc(jobRuns, func(a, b runMetrics) int {
+			if order := b.completionAt.Compare(a.completionAt); order != 0 {
+				return order
+			}
+			return strings.Compare(b.buildID, a.buildID)
+		})
+		consecutiveFailures := 0
+		for _, run := range jobRuns {
+			if run.result == "success" {
+				break
+			}
+			consecutiveFailures++
+		}
+		ch <- prometheus.MustNewConstMetric(
+			c.consecutiveFailsDesc,
+			prometheus.GaugeValue,
+			float64(consecutiveFailures),
+			key.jobName,
+			key.jobType,
 		)
 	}
 	ch <- prometheus.MustNewConstMetric(c.collectionSuccessDesc, prometheus.GaugeValue, collectionSuccess)
