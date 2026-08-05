@@ -193,17 +193,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 		var cincinnatiErr *cvocincinnati.Error
 		persistIntentFailed := cincinnati.IsCincinnatiVersionNotFoundError(err) || !errors.As(err, &cincinnatiErr)
 		if persistIntentFailed {
-			logger.Error(err, "desired version resolution failed, persisting IntentFailed condition")
-			controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName)
-			if writeErr := controllerutils.WriteController(ctx, controllerCRUD, controlPlaneDesiredVersionControllerName, key.InitialController,
-				func(ctrl *coreapi.Controller) {
-					apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
-						Type:    coreapi.ControllerConditionTypeIntentFailed,
-						Status:  metav1.ConditionTrue,
-						Reason:  coreapi.VersionUpgradeNotAcceptedReason,
-						Message: utils.ErrorMessageWithoutLineTracking(err),
-					})
-				}); writeErr != nil {
+			if writeErr := c.persistIntentFailedCondition(ctx, key, err); writeErr != nil {
 				return utils.TrackError(writeErr)
 			}
 			return nil
@@ -211,9 +201,34 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 		return utils.TrackError(err)
 	}
 
-	// Apply SRE minimum version override.
-	minimumVersions := cachedServiceProviderCluster.Spec.ControlPlaneVersion.MinimumVersions
-	desiredVersion = applyMinimumVersionOverride(desiredVersion, activeVersions, minimumVersions)
+	// Apply SRE minimum version override. If it forces desiredVersion to a higher minor
+	// than the cluster's current minor, re-run the same upgrade-safety validation that
+	// desiredControlPlaneZVersion applies to customer-initiated y-stream upgrades (AFEC
+	// gating, one-minor skew, and node pool skew admission) against the overridden target
+	// before persisting it, so a MinimumVersions entry cannot bypass those checks.
+	if minimumVersions := cachedServiceProviderCluster.Spec.ControlPlaneVersion.MinimumVersions; len(minimumVersions) > 0 {
+		overridden := applyMinimumVersionOverride(desiredVersion, activeVersions, minimumVersions)
+		if currentMinor, ok := currentControlPlaneMinor(activeVersions, desiredVersion); ok && overridden != nil {
+			overriddenMinor := semver.MustParse(fmt.Sprintf("%d.%d.0", overridden.Major, overridden.Minor))
+			if overriddenMinor.GT(currentMinor) {
+				ready, validationErr := c.validateMinorVersionUpgrade(ctx, key.GetResourceID(), currentMinor, overriddenMinor,
+					operation.HasOption(metadataapi.FeatureExperimentalReleaseFeatures))
+				switch {
+				case validationErr != nil:
+					if writeErr := c.persistIntentFailedCondition(ctx, key, validationErr); writeErr != nil {
+						return utils.TrackError(writeErr)
+					}
+					return nil
+				case !ready:
+					// Node pool version data isn't fully available yet; leave desiredVersion
+					// unchanged this cycle rather than persist an unvalidated minor jump.
+					// The informer will re-enqueue us once it is.
+					overridden = desiredVersion
+				}
+			}
+		}
+		desiredVersion = overridden
+	}
 
 	previousDesiredVersion := cachedServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
 	// Only advance stored desired when the newly resolved version is greater, so graph changes
@@ -317,23 +332,14 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 	}
 
 	if desiredMinorVersion.GT(actualLatestMinorVersion) {
-		if desiredMinorVersion.Major >= 5 && !allowExperimentalReleaseFeatures {
-			return nil, utils.TrackError(errors.New("OpenShift v5 and above is not supported"))
-		}
-		if err := validation.OpenshiftVersionAtMostOneMinorSkew(actualLatestMinorVersion.String(), desiredMinorVersion.String()); err != nil {
-			return nil, utils.TrackError(err)
-		}
-		clusterNodePools, ready, err := c.listClusterAdmissionNodePools(ctx, clusterResourceID)
+		ready, err := c.validateMinorVersionUpgrade(ctx, clusterResourceID, actualLatestMinorVersion, desiredMinorVersion, allowExperimentalReleaseFeatures)
 		if err != nil {
-			return nil, utils.TrackError(err)
+			return nil, err
 		}
 		if !ready {
 			// Skip until every node pool has its ServiceProviderNodePool;
 			// without complete version data we can't validate minor skew.
 			return nil, nil
-		}
-		if err := admission.AdmitClusterNodePoolsMinorVersionSkew(ctx, clusterNodePools, desiredMinorVersion); err != nil {
-			return nil, utils.TrackError(err)
 		}
 	}
 
@@ -370,6 +376,59 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 		"no upgrade path found from %s to %s: no reachable versions in target minor and no gateway version in current minor",
 		actualLatestVersion.String(), desiredMinorVersion.String(),
 	))
+}
+
+// persistIntentFailedCondition logs err and persists it on the controller document as an
+// IntentFailed condition. It is used both when desiredControlPlaneZVersion cannot resolve a
+// version and when a MinimumVersions override fails upgrade-safety validation.
+func (c *controlPlaneDesiredVersionSyncer) persistIntentFailedCondition(ctx context.Context, key controllerutils.HCPClusterKey, err error) error {
+	logger := utils.LoggerFromContext(ctx)
+	logger.Error(err, "desired version resolution failed, persisting IntentFailed condition")
+	controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName)
+	return controllerutils.WriteController(ctx, controllerCRUD, controlPlaneDesiredVersionControllerName, key.InitialController,
+		func(ctrl *coreapi.Controller) {
+			apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
+				Type:    coreapi.ControllerConditionTypeIntentFailed,
+				Status:  metav1.ConditionTrue,
+				Reason:  coreapi.VersionUpgradeNotAcceptedReason,
+				Message: utils.ErrorMessageWithoutLineTracking(err),
+			})
+		})
+}
+
+// validateMinorVersionUpgrade enforces the safety checks required before the control plane's
+// desired version is allowed to advance from currentMinor to a higher targetMinor: OpenShift
+// v5 requires allowExperimentalReleaseFeatures, the jump must be within one minor
+// (validation.OpenshiftVersionAtMostOneMinorSkew), and every node pool must tolerate the
+// resulting skew (admission.AdmitClusterNodePoolsMinorVersionSkew).
+//
+// It is shared by desiredControlPlaneZVersion (for customer-initiated y-stream upgrades) and
+// SyncOnce (for SRE-specified MinimumVersions overrides that force a higher minor), so neither
+// path can advance the minor version without going through the same guarantees.
+//
+// Returns (false, nil) -- without error -- when node pool version data isn't fully available
+// yet; callers should leave the version unchanged this cycle and retry on the next sync.
+func (c *controlPlaneDesiredVersionSyncer) validateMinorVersionUpgrade(
+	ctx context.Context, clusterResourceID *azcorearm.ResourceID,
+	currentMinor, targetMinor semver.Version, allowExperimentalReleaseFeatures bool,
+) (bool, error) {
+	if targetMinor.Major >= 5 && !allowExperimentalReleaseFeatures {
+		return false, utils.TrackError(errors.New("OpenShift v5 and above is not supported"))
+	}
+	if err := validation.OpenshiftVersionAtMostOneMinorSkew(currentMinor.String(), targetMinor.String()); err != nil {
+		return false, utils.TrackError(err)
+	}
+	clusterNodePools, ready, err := c.listClusterAdmissionNodePools(ctx, clusterResourceID)
+	if err != nil {
+		return false, utils.TrackError(err)
+	}
+	if !ready {
+		return false, nil
+	}
+	if err := admission.AdmitClusterNodePoolsMinorVersionSkew(ctx, clusterNodePools, targetMinor); err != nil {
+		return false, utils.TrackError(err)
+	}
+	return true, nil
 }
 
 // listClusterAdmissionNodePools prefetches every node pool that is not in the process of being deleted

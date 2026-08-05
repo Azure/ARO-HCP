@@ -19,8 +19,24 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
+
+// currentControlPlaneMinor derives the cluster's current control-plane minor version: the
+// most recent active version's minor if any active versions exist, otherwise the
+// pre-override selected version's minor (the install case, where nothing has become active
+// yet). Returns false when neither is available, meaning there is no minor to compare
+// against.
+func currentControlPlaneMinor(activeVersions []coreapi.HCPClusterActiveVersion, selected *semver.Version) (semver.Version, bool) {
+	if len(activeVersions) > 0 && activeVersions[0].Version != nil {
+		v := *activeVersions[0].Version
+		return semver.MustParse(fmt.Sprintf("%d.%d.0", v.Major, v.Minor)), true
+	}
+	if selected != nil {
+		return semver.MustParse(fmt.Sprintf("%d.%d.0", selected.Major, selected.Minor)), true
+	}
+	return semver.Version{}, false
+}
 
 // applyMinimumVersionOverride applies SRE-specified minimum version constraints.
 // It compares the selected version against the MinimumVersions list and returns
@@ -35,25 +51,19 @@ import (
 //     activeVersions), return that minimum directly (forces y-stream upgrade).
 //     When multiple higher-minor minimums exist, use the lowest one (one step at a time).
 //
-// When selected is nil and a minimum forces a version, it returns the forced version.
-// When minimumVersions is empty, returns selected unchanged.
-func applyMinimumVersionOverride(selected *semver.Version, activeVersions []api.HCPClusterActiveVersion, minimumVersions []semver.Version) *semver.Version {
+// selected may be nil (e.g. the z-stream managed-upgrade case found no candidate patch);
+// a same-minor or higher-minor minimum can still force a version in that case, as long as
+// currentControlPlaneMinor can derive a minor from activeVersions. When neither
+// activeVersions nor selected can establish a current minor (initial install with no
+// candidate resolved yet), there is nothing to compare minimums against and nil is
+// returned. When minimumVersions is empty, returns selected unchanged.
+func applyMinimumVersionOverride(selected *semver.Version, activeVersions []coreapi.HCPClusterActiveVersion, minimumVersions []semver.Version) *semver.Version {
 	if len(minimumVersions) == 0 {
 		return selected
 	}
 
-	// Determine the cluster's current minor from the most recent active version.
-	// If no active versions, use the selected version's minor (install case).
-	var currentMinor semver.Version
-	if len(activeVersions) > 0 && activeVersions[0].Version != nil {
-		v := *activeVersions[0].Version
-		currentMinor = semver.MustParse(fmt.Sprintf("%d.%d.0", v.Major, v.Minor))
-	} else if selected != nil {
-		currentMinor = semver.MustParse(fmt.Sprintf("%d.%d.0", selected.Major, selected.Minor))
-	} else {
-		// No active versions and no selected version: examine minimums for any
-		// that would force a version. Without a current minor to compare against
-		// we cannot determine same-minor vs higher-minor, so return nil.
+	currentMinor, ok := currentControlPlaneMinor(activeVersions, selected)
+	if !ok {
 		return nil
 	}
 

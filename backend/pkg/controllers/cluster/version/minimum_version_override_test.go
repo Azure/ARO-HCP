@@ -24,70 +24,70 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 func TestApplyMinimumVersionOverride(t *testing.T) {
 	tests := []struct {
 		name            string
 		selected        *semver.Version
-		activeVersions  []api.HCPClusterActiveVersion
+		activeVersions  []coreapi.HCPClusterActiveVersion
 		minimumVersions []semver.Version
 		expected        *semver.Version
 	}{
 		{
 			name:            "empty minimumVersions returns selected unchanged",
 			selected:        ptr.To(semver.MustParse("4.19.15")),
-			activeVersions:  []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
 			minimumVersions: nil,
 			expected:        ptr.To(semver.MustParse("4.19.15")),
 		},
 		{
 			name:            "empty minimumVersions with nil selected returns nil",
 			selected:        nil,
-			activeVersions:  []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
 			minimumVersions: nil,
 			expected:        nil,
 		},
 		{
 			name:            "same minor, selected >= minimum returns selected",
 			selected:        ptr.To(semver.MustParse("4.19.20")),
-			activeVersions:  []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
 			minimumVersions: []semver.Version{semver.MustParse("4.19.15")},
 			expected:        ptr.To(semver.MustParse("4.19.20")),
 		},
 		{
 			name:            "same minor, selected equals minimum returns selected",
 			selected:        ptr.To(semver.MustParse("4.19.15")),
-			activeVersions:  []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
 			minimumVersions: []semver.Version{semver.MustParse("4.19.15")},
 			expected:        ptr.To(semver.MustParse("4.19.15")),
 		},
 		{
 			name:            "same minor, selected < minimum returns minimum",
 			selected:        ptr.To(semver.MustParse("4.19.10")),
-			activeVersions:  []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.5")), State: configv1.CompletedUpdate}},
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.5")), State: configv1.CompletedUpdate}},
 			minimumVersions: []semver.Version{semver.MustParse("4.19.15")},
 			expected:        ptr.To(semver.MustParse("4.19.15")),
 		},
 		{
 			name:            "same minor, selected is nil returns minimum",
 			selected:        nil,
-			activeVersions:  []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
 			minimumVersions: []semver.Version{semver.MustParse("4.19.15")},
 			expected:        ptr.To(semver.MustParse("4.19.15")),
 		},
 		{
 			name:            "higher minor minimum forces y-stream upgrade",
 			selected:        ptr.To(semver.MustParse("4.19.22")),
-			activeVersions:  []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
 			minimumVersions: []semver.Version{semver.MustParse("4.20.12")},
 			expected:        ptr.To(semver.MustParse("4.20.12")),
 		},
 		{
 			name:     "multiple higher minor minimums returns the lowest one",
 			selected: ptr.To(semver.MustParse("4.19.22")),
-			activeVersions: []api.HCPClusterActiveVersion{
+			activeVersions: []coreapi.HCPClusterActiveVersion{
 				{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
 			},
 			minimumVersions: []semver.Version{
@@ -100,7 +100,7 @@ func TestApplyMinimumVersionOverride(t *testing.T) {
 		{
 			name:     "multiple same-minor minimums uses the highest",
 			selected: ptr.To(semver.MustParse("4.19.5")),
-			activeVersions: []api.HCPClusterActiveVersion{
+			activeVersions: []coreapi.HCPClusterActiveVersion{
 				{Version: ptr.To(semver.MustParse("4.19.3")), State: configv1.CompletedUpdate},
 			},
 			minimumVersions: []semver.Version{
@@ -127,7 +127,7 @@ func TestApplyMinimumVersionOverride(t *testing.T) {
 		{
 			name:     "mixed: same-minor AND higher-minor minimums, higher-minor wins",
 			selected: ptr.To(semver.MustParse("4.19.10")),
-			activeVersions: []api.HCPClusterActiveVersion{
+			activeVersions: []coreapi.HCPClusterActiveVersion{
 				{Version: ptr.To(semver.MustParse("4.19.5")), State: configv1.CompletedUpdate},
 			},
 			minimumVersions: []semver.Version{
@@ -139,7 +139,7 @@ func TestApplyMinimumVersionOverride(t *testing.T) {
 		{
 			name:            "higher minor minimum with nil selected forces upgrade",
 			selected:        nil,
-			activeVersions:  []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
 			minimumVersions: []semver.Version{semver.MustParse("4.20.12")},
 			expected:        ptr.To(semver.MustParse("4.20.12")),
 		},
@@ -153,7 +153,7 @@ func TestApplyMinimumVersionOverride(t *testing.T) {
 		{
 			name:            "minimum for lower minor than current is ignored",
 			selected:        ptr.To(semver.MustParse("4.20.10")),
-			activeVersions:  []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.5")), State: configv1.CompletedUpdate}},
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.5")), State: configv1.CompletedUpdate}},
 			minimumVersions: []semver.Version{semver.MustParse("4.19.15")},
 			expected:        ptr.To(semver.MustParse("4.20.10")),
 		},

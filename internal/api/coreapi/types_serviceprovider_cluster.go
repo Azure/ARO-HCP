@@ -130,7 +130,7 @@ type ServiceProviderClusterSpecVersion struct {
 	// 3. if the minimumVersion y-stream is ahead of the current y-stream, the desiredVersion will be set to the minimumVersion
 	//    Think: current cluster is on 4.19.23, the slice is 4.20.12, 4.21.10, 4.22.8, 5.0.6. The cluster will be forced to 4.20.12.
 	// Written by: Admin HCPMinimumVersionsHandler
-	MinimumVersions []semver.Version `json:"minimumVersions,omitempty"`
+	MinimumVersions []semver.Version `json:"minimum_versions,omitempty"`
 }
 
 // ServiceProviderClusterStatus contains the observed state of the cluster.

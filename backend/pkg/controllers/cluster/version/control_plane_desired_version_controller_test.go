@@ -1137,6 +1137,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 		customerVersion        string
 		controlPlaneVersion    string
 		previousDesiredVersion *semver.Version
+		minimumVersions        []semver.Version
 		channelExistence       channelExistence
 		setupCincinnati        func(mc *cincinnati.MockClient)
 		wantSyncErr            bool
@@ -1229,6 +1230,62 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 				Message: "VersionNotFound: ",
 			},
 		},
+		{
+			name:                "same-minor MinimumVersions floor is applied without extra validation",
+			customerVersion:     "4.19",
+			controlPlaneVersion: "4.19.15",
+			minimumVersions:     []semver.Version{semver.MustParse("4.19.20")},
+			channelExistence:    channelExistence{"stable": {"4.20": false}},
+			setupCincinnati: func(mc *cincinnati.MockClient) {
+				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.15")).Return(
+					configv1.Release{},
+					[]configv1.Release{{Version: "4.19.18"}},
+					nil,
+					nil,
+				).Times(1)
+			},
+			wantDesiredVersion: ptr.To(semver.MustParse("4.19.20")),
+			wantIntentFailed: &metav1.Condition{
+				Type:   coreapi.ControllerConditionTypeIntentFailed,
+				Status: metav1.ConditionFalse,
+				Reason: coreapi.ControllerConditionReasonAsExpected,
+			},
+		},
+		{
+			name:                "higher-minor MinimumVersions override that passes upgrade-safety validation is applied",
+			customerVersion:     "4.19",
+			controlPlaneVersion: "4.19.15",
+			minimumVersions:     []semver.Version{semver.MustParse("4.20.5")},
+			setupCincinnati: func(mc *cincinnati.MockClient) {
+				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.15")).Return(
+					configv1.Release{}, nil, nil, nil,
+				).Times(1)
+			},
+			wantDesiredVersion: ptr.To(semver.MustParse("4.20.5")),
+			wantIntentFailed: &metav1.Condition{
+				Type:   coreapi.ControllerConditionTypeIntentFailed,
+				Status: metav1.ConditionFalse,
+				Reason: coreapi.ControllerConditionReasonAsExpected,
+			},
+		},
+		{
+			name:                "higher-minor MinimumVersions override that skips a minor fails validation and does not bypass skew checks",
+			customerVersion:     "4.19",
+			controlPlaneVersion: "4.19.15",
+			minimumVersions:     []semver.Version{semver.MustParse("4.21.5")},
+			setupCincinnati: func(mc *cincinnati.MockClient) {
+				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.15")).Return(
+					configv1.Release{}, nil, nil, nil,
+				).Times(1)
+			},
+			wantDesiredVersion: nil,
+			wantIntentFailed: &metav1.Condition{
+				Type:    coreapi.ControllerConditionTypeIntentFailed,
+				Status:  metav1.ConditionTrue,
+				Reason:  coreapi.VersionUpgradeNotAcceptedReason,
+				Message: "only upgrade to the next minor is allowed: expected 4.20 after 4.19",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1241,7 +1298,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 
 			createTestHCPClusterWithCustomerVersion(t, ctx, mockResourcesDBClient, tt.customerVersion, testChannelGroup)
-			createServiceProviderClusterWithActiveAndDesiredVersion(t, ctx, mockResourcesDBClient, semver.MustParse(tt.controlPlaneVersion), tt.previousDesiredVersion)
+			createServiceProviderClusterWithActiveAndDesiredVersion(t, ctx, mockResourcesDBClient, semver.MustParse(tt.controlPlaneVersion), tt.previousDesiredVersion, tt.minimumVersions...)
 
 			mockCincinnati := cincinnati.NewMockClient(ctrl)
 			tt.setupCincinnati(mockCincinnati)
@@ -1302,7 +1359,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 	}
 }
 
-func createServiceProviderClusterWithActiveAndDesiredVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, activeVersion semver.Version, desiredVersion *semver.Version) {
+func createServiceProviderClusterWithActiveAndDesiredVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, activeVersion semver.Version, desiredVersion *semver.Version, minimumVersions ...semver.Version) {
 	t.Helper()
 
 	serviceProviderCluster := &coreapi.ServiceProviderCluster{
@@ -1313,7 +1370,8 @@ func createServiceProviderClusterWithActiveAndDesiredVersion(t *testing.T, ctx c
 		},
 		Spec: coreapi.ServiceProviderClusterSpec{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{
-				DesiredVersion: desiredVersion,
+				DesiredVersion:  desiredVersion,
+				MinimumVersions: minimumVersions,
 			},
 		},
 		Status: coreapi.ServiceProviderClusterStatus{
