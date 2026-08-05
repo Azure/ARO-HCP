@@ -415,7 +415,7 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
 }`, clusterName, subscriptionID, subscriptionID, subscriptionID))
 
 	case v20260901:
-		// v20260901 payload
+		// v20260901 payload — v20260630 plus nodeSshPublicKeys (the new field introduced in this version)
 		return []byte(fmt.Sprintf(`{
   "identity": {
     "type": "UserAssigned",
@@ -455,6 +455,7 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
       "type": "Private"
     },
     "nodeDrainTimeoutMinutes": 15,
+	"nodeSshPublicKeys": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIApY9GkD07ixdNdt3J8cCKdYx5bwqkE903Zs4+YjDMj+ user@host"],
     "network": {
       "hostPrefix": 23,
       "machineCidr": "10.0.0.0/16",
