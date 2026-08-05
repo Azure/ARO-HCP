@@ -35,8 +35,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -129,7 +129,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		existingServiceProviderCluster *api.ServiceProviderCluster // nil = not pre-seeded; controller get-or-creates
 		setupMockCS                    func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
 		expectError                    bool
-		verifyDB                       func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB                       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name: "successful sync records cluster service ID on cluster",
@@ -163,7 +163,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				return mockCS
 			},
 			expectError: false,
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID)
@@ -182,7 +182,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
 			expectError: false,
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID)
@@ -197,7 +197,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
 			expectError: false,
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID)
@@ -215,7 +215,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
 			expectError: false,
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				assert.Nil(t, cluster.ServiceProviderProperties.ClusterServiceID)
@@ -252,7 +252,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				return mockCS
 			},
 			expectError: false,
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				require.NotNil(t, cluster.ServiceProviderProperties.ClusterServiceID)
@@ -268,7 +268,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			subscription := newTestSubscription()
-			mockDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{subscription, tt.dbCluster})
+			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{subscription, tt.dbCluster})
 			require.NoError(t, err)
 
 			if tt.existingServiceProviderCluster != nil {

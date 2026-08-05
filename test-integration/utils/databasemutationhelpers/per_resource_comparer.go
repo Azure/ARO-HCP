@@ -30,7 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
@@ -169,9 +169,9 @@ func ResourceName(resource any) string {
 	case arm.CosmosPersistable:
 		return cast.GetCosmosData().ResourceID.String()
 
-	case database.TypedDocument:
+	case cosmosstorageutils.TypedDocument:
 		return cast.ResourceID.String()
-	case *database.TypedDocument:
+	case *cosmosstorageutils.TypedDocument:
 		return cast.ResourceID.String()
 
 	default:

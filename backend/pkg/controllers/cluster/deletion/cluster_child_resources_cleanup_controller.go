@@ -24,7 +24,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -39,15 +41,15 @@ import (
 // Cluster document itself is removed.
 type clusterChildResourcesCleanupController struct {
 	clusterLister        corelisters.ClusterLister
-	resourcesDBClient    database.ResourcesDBClient
-	kubeApplierDBClients database.KubeApplierDBClients
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterChildResourcesCleanupController)(nil)
 
 func NewClusterChildResourcesCleanupController(
-	resourcesDBClient database.ResourcesDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
@@ -84,7 +86,7 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -96,7 +98,7 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	cluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -233,7 +235,7 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		serviceProviderClusterResourceID.ResourceGroupName,
 		clusterName,
 	).Get(ctx, api.ServiceProviderClusterResourceName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return false, nil
 	}
 	if err != nil {
@@ -289,7 +291,7 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 	logger := utils.LoggerFromContext(ctx)
 
 	spc, err := c.resourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// If there is no ServiceProviderCluster, we cannot determine the management cluster resource ID, so we skip the deletion of the
 		// *Desire documents without erroring.
 		return nil
@@ -363,7 +365,7 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 	return nil
 }
 
-func deletePreconditionAllNodePoolsDeleted(ctx context.Context, dbClient database.ResourcesDBClient, key controllerutils.HCPClusterKey) (bool, error) {
+func deletePreconditionAllNodePoolsDeleted(ctx context.Context, dbClient corecosmosstorage.ResourcesDBClient, key controllerutils.HCPClusterKey) (bool, error) {
 	nodePoolIterator, err := dbClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).List(ctx, nil)
 	if err != nil {
 		return false, utils.TrackError(fmt.Errorf("failed to list node pools: %w", err))
@@ -377,7 +379,7 @@ func deletePreconditionAllNodePoolsDeleted(ctx context.Context, dbClient databas
 	return true, nil
 }
 
-func deletePreconditionAllExternalAuthsDeleted(ctx context.Context, dbClient database.ResourcesDBClient, key controllerutils.HCPClusterKey) (bool, error) {
+func deletePreconditionAllExternalAuthsDeleted(ctx context.Context, dbClient corecosmosstorage.ResourcesDBClient, key controllerutils.HCPClusterKey) (bool, error) {
 	externalAuthIterator, err := dbClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName).List(ctx, nil)
 	if err != nil {
 		return false, utils.TrackError(fmt.Errorf("failed to list external auths: %w", err))

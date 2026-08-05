@@ -21,7 +21,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
@@ -62,7 +62,7 @@ func (l *informerBasedManagementClusterLister) GetByCSProvisionShardID(ctx conte
 	}
 	switch len(results) {
 	case 0:
-		return nil, database.NewNotFoundError()
+		return nil, cosmosstorageutils.NewNotFoundError()
 	case 1:
 		return results[0], nil
 	default:

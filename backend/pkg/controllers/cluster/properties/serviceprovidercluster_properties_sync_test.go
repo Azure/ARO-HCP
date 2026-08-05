@@ -26,8 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
 const (
@@ -162,7 +162,7 @@ func TestServiceProviderClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			if tc.existingSPC != nil {
 				resources = append(resources, tc.existingSPC)
 			}
-			mockResourcesDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			readDesireLister, err := newSeededReadDesireLister(ctx, tc.readDesires...)

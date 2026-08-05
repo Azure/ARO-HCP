@@ -35,7 +35,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
@@ -147,7 +148,7 @@ type runningInstance struct {
 func NewReadDesireInformerManagingController(
 	readDesireInformer cache.SharedIndexInformer,
 	dyn dynamic.Interface,
-	crudByParent database.KubeApplierReadDesireCRUD,
+	crudByParent kubeappliercosmosstorage.KubeApplierReadDesireCRUD,
 	cfg Config,
 ) (*ReadDesireInformerManagingController, error) {
 	cfg = cfg.withDefaults()
@@ -190,7 +191,7 @@ func (c *ReadDesireInformerManagingController) SetFactory(f PerInstanceFactory) 
 // and CRUD provider.
 type realPerInstanceFactory struct {
 	dyn          dynamic.Interface
-	crudByParent database.KubeApplierReadDesireCRUD
+	crudByParent kubeappliercosmosstorage.KubeApplierReadDesireCRUD
 }
 
 var _ PerInstanceFactory = &realPerInstanceFactory{}
@@ -318,7 +319,7 @@ func (c *ReadDesireInformerManagingController) processNext(ctx context.Context) 
 // is running with the desired TargetItem.
 func (c *ReadDesireInformerManagingController) SyncOnce(ctx context.Context, key keys.ReadDesireKey) error {
 	desire, err := c.fetcher.Fetch(ctx, key)
-	if err != nil && !database.IsNotFoundError(err) {
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return err
 	}
 	if desire == nil {
@@ -410,7 +411,7 @@ func (c *ReadDesireInformerManagingController) Running(key keys.ReadDesireKey) b
 // manager self-contained; the per-instance controller package has its
 // own equivalent struct.
 type readDesireFetcher struct {
-	crudByParent database.KubeApplierReadDesireCRUD
+	crudByParent kubeappliercosmosstorage.KubeApplierReadDesireCRUD
 }
 
 var _ desirestatuswriter.Fetcher[kubeapplier.ReadDesire, keys.ReadDesireKey] = &readDesireFetcher{}
@@ -430,7 +431,7 @@ func (f *readDesireFetcher) Fetch(ctx context.Context, key keys.ReadDesireKey) (
 // writer for KubeContent and steady-state Successful. Both writers go
 // through a Replacer like this one.
 type readDesireReplacer struct {
-	crudByParent database.KubeApplierReadDesireCRUD
+	crudByParent kubeappliercosmosstorage.KubeApplierReadDesireCRUD
 }
 
 var _ desirestatuswriter.Replacer[kubeapplier.ReadDesire] = &readDesireReplacer{}

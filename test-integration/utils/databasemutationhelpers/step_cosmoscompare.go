@@ -21,18 +21,18 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type cosmosCompare struct {
 	stepID StepID
 
-	expectedContent []*database.TypedDocument
+	expectedContent []*cosmosstorageutils.TypedDocument
 }
 
 func NewCosmosCompareStep(stepID StepID, stepDir fs.FS) (*cosmosCompare, error) {
-	expectedContent, err := readResourcesInDir[database.TypedDocument](stepDir)
+	expectedContent, err := readResourcesInDir[cosmosstorageutils.TypedDocument](stepDir)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -50,7 +50,7 @@ func (l *cosmosCompare) StepID() StepID {
 }
 
 func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	var allActual []*database.TypedDocument
+	var allActual []*cosmosstorageutils.TypedDocument
 	var err error
 
 	// Use the DocumentLister interface (works with both Cosmos and mock)

@@ -26,7 +26,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -39,7 +40,7 @@ import (
 type nodePoolDegradedAggregator struct {
 	nodePoolLister    corelisters.NodePoolLister
 	controllerLister  corelisters.ControllerLister
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 	inertia           statusutils.Inertia
 	clock             utilsclock.PassiveClock
 	firstObservedBad  *statusutils.FirstObservedBadCache
@@ -63,7 +64,7 @@ func nodePoolDegradedAggregatorInertia() statusutils.Inertia {
 // See NewClusterDegradedAggregatorController for the clock semantics —
 // they are identical across the three aggregators.
 func NewNodePoolDegradedAggregatorController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	nodePoolLister corelisters.NodePoolLister,
 	controllerLister corelisters.ControllerLister,
 	informers coreinformers.BackendInformers,
@@ -93,7 +94,7 @@ func NewNodePoolDegradedAggregatorController(
 
 func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	existing, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -121,10 +122,10 @@ func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controlle
 
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	_, err = nodePoolCRUD.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {

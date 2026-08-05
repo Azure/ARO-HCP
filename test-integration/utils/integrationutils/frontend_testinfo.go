@@ -31,7 +31,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -41,9 +43,9 @@ type StorageIntegrationTestInfo interface {
 	DocumentLister
 
 	GetArtifactDir() string
-	ResourcesDBClient() database.ResourcesDBClient
-	BillingDBClient() database.BillingDBClient
-	FleetDBClient() database.FleetDBClient
+	ResourcesDBClient() corecosmosstorage.ResourcesDBClient
+	BillingDBClient() billingcosmosstorage.BillingDBClient
+	FleetDBClient() fleetcosmosstorage.FleetDBClient
 
 	Cleanup(ctx context.Context)
 }

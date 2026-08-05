@@ -21,7 +21,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -30,14 +31,14 @@ import (
 
 type clusterPendingClusterServiceIDAssignSyncer struct {
 	clusterLister     corelisters.ClusterLister
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterPendingClusterServiceIDAssignSyncer)(nil)
 
 const ClusterPendingClusterServiceIDAssignControllerName = "ClusterPendingClusterServiceIDAssign"
 
-func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient database.ResourcesDBClient, backendInformers coreinformers.BackendInformers) controllerutils.Controller {
+func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient corecosmosstorage.ResourcesDBClient, backendInformers coreinformers.BackendInformers) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	syncer := &clusterPendingClusterServiceIDAssignSyncer{
 		clusterLister:     clusterLister,
@@ -65,7 +66,7 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 	logger := utils.LoggerFromContext(ctx)
 
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -77,7 +78,7 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 	}
 
 	cluster, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -93,7 +94,7 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 	logger.Info("Assigning PendingClusterServiceID", "pendingClusterServiceID", pendingID.String())
 	cluster.ServiceProviderProperties.PendingClusterServiceID = &pendingID
 	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, cluster, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
 	if err != nil {

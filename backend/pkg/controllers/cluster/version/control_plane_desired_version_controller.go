@@ -37,7 +37,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -62,7 +63,7 @@ const controlPlaneDesiredVersionControllerName = "ControlPlaneDesiredVersion"
 type controlPlaneDesiredVersionSyncer struct {
 	clock                         utilsclock.PassiveClock
 	readDesireLister              kubeapplierlisters.ReadDesireLister
-	resourcesDBClient             database.ResourcesDBClient
+	resourcesDBClient             corecosmosstorage.ResourcesDBClient
 	clusterServiceClient          ocm.ClusterServiceClientSpec
 	subscriptionLister            corelisters.SubscriptionLister
 	activeOperationLister         corelisters.ActiveOperationLister
@@ -80,7 +81,7 @@ var _ controllerutils.ClusterSyncer = (*controlPlaneDesiredVersionSyncer)(nil)
 // based on the OCPVersion logic documented in the ServiceProviderCluster type.
 func NewControlPlaneDesiredVersionController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister corelisters.ActiveOperationLister,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
@@ -130,7 +131,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	logger := utils.LoggerFromContext(ctx)
 
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
@@ -141,7 +142,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
 		return nil
 	}
@@ -393,7 +394,7 @@ func (c *controlPlaneDesiredVersionSyncer) listClusterAdmissionNodePools(ctx con
 			continue
 		}
 		serviceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, nodePool.ID.Name)
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			return nil, false, nil
 		}
 		if err != nil {
@@ -648,7 +649,7 @@ func (c *controlPlaneDesiredVersionSyncer) clusterHasActiveCreateOperation(ctx c
 	if err != nil {
 		return false, fmt.Errorf("failed to get operations %q for cluster: %w", cluster.ServiceProviderProperties.ActiveOperationID, err)
 	}
-	if operation.Request != database.OperationRequestCreate {
+	if operation.Request != cosmosstorageutils.OperationRequestCreate {
 		logger.Info("Cluster has active create operation but it is not a create operation", "cluster", cluster.Name, "operation", operation.Request)
 		return false, nil
 	}

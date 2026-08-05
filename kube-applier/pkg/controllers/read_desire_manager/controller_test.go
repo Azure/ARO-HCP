@@ -24,7 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
 )
@@ -118,7 +118,7 @@ func (f *fakePerInstance) IsRunning() bool {
 // MockKubeApplierDBClient and uses a recording fake-factory, so lifecycle
 // tests can run without spinning up real reflectors or workqueues.
 func newTestController(
-	mock *databasetesting.MockKubeApplierDBClient,
+	mock *kubeappliercosmosstoragetesting.MockKubeApplierDBClient,
 	fakes *[]*fakePerInstance,
 ) *ReadDesireInformerManagingController {
 	return &ReadDesireInformerManagingController{
@@ -132,7 +132,7 @@ func newTestController(
 // loadDesires inserts the provided ReadDesires into the mock under the
 // canonical (subscriptionID, resourceGroup, cluster) parent. The test desires
 // all share the same parent in this file's fixtures.
-func loadDesires(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, ds ...*kubeapplier.ReadDesire) {
+func loadDesires(t *testing.T, mock *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, ds ...*kubeapplier.ReadDesire) {
 	t.Helper()
 	crud, err := mock.ReadDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
@@ -146,7 +146,7 @@ func loadDesires(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, ds
 }
 
 // deleteDesire removes a ReadDesire from the mock store.
-func deleteDesire(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, d *kubeapplier.ReadDesire) {
+func deleteDesire(t *testing.T, mock *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, d *kubeapplier.ReadDesire) {
 	t.Helper()
 	crud, err := mock.ReadDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
@@ -158,7 +158,7 @@ func deleteDesire(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, d
 }
 
 // replaceDesire swaps a ReadDesire's TargetItem in the mock store.
-func replaceDesire(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, d *kubeapplier.ReadDesire) {
+func replaceDesire(t *testing.T, mock *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, d *kubeapplier.ReadDesire) {
 	t.Helper()
 	crud, err := mock.ReadDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
@@ -196,7 +196,7 @@ func TestManagerSyncOnce_LaunchesPerInstanceController(t *testing.T) {
 
 	target := kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"}
 	desire := newReadDesire(t, target)
-	mock := databasetesting.NewMockKubeApplierDBClient()
+	mock := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 	loadDesires(t, mock, desire)
 	var fakes []*fakePerInstance
 	c := newTestController(mock, &fakes)
@@ -224,7 +224,7 @@ func TestManagerSyncOnce_RestartsOnTargetChange(t *testing.T) {
 	t1 := kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"}
 	t2 := kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "y"}
 	desire := newReadDesire(t, t1)
-	mock := databasetesting.NewMockKubeApplierDBClient()
+	mock := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 	loadDesires(t, mock, desire)
 	var fakes []*fakePerInstance
 	c := newTestController(mock, &fakes)
@@ -261,7 +261,7 @@ func TestManagerSyncOnce_NoOpWhenTargetUnchanged(t *testing.T) {
 
 	target := kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"}
 	desire := newReadDesire(t, target)
-	mock := databasetesting.NewMockKubeApplierDBClient()
+	mock := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 	loadDesires(t, mock, desire)
 	var fakes []*fakePerInstance
 	c := newTestController(mock, &fakes)
@@ -284,7 +284,7 @@ func TestManagerSyncOnce_StopsOnDelete(t *testing.T) {
 
 	target := kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"}
 	desire := newReadDesire(t, target)
-	mock := databasetesting.NewMockKubeApplierDBClient()
+	mock := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 	loadDesires(t, mock, desire)
 	var fakes []*fakePerInstance
 	c := newTestController(mock, &fakes)

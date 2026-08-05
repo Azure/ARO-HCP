@@ -25,11 +25,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
@@ -37,9 +39,9 @@ import (
 )
 
 type ControllerInitializationInput struct {
-	ResourcesDBClient       database.ResourcesDBClient
-	BillingDBClient         database.BillingDBClient
-	KubeApplierDBClients    database.KubeApplierDBClients
+	ResourcesDBClient       corecosmosstorage.ResourcesDBClient
+	BillingDBClient         billingcosmosstorage.BillingDBClient
+	KubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
 	SubscriptionLister      corelisters.SubscriptionLister
 	ManagementClusterLister fleetlisters.ManagementClusterLister
 	ClusterServiceClient    ocm.ClusterServiceClientSpec
@@ -121,7 +123,7 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 		// Pre-populating here keeps tests that don't touch *Desires from accidentally
 		// exercising a nil kube-applier registry; iterating an empty registry is exactly
 		// what "no management clusters configured" means in those scenarios.
-		KubeApplierDBClients: databasetesting.NewMockKubeApplierDBClients(),
+		KubeApplierDBClients: kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients(),
 		// Empty lister by default — tests that need actual management clusters
 		// in the sweep should overlay a populated SliceManagementClusterLister.
 		ManagementClusterLister: &fleetlistertesting.SliceManagementClusterLister{},

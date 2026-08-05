@@ -36,7 +36,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
@@ -51,15 +51,15 @@ type ChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer arm.Cosmo
 	desiredResourceTypes []azcorearm.ResourceType
 	relistDuration       time.Duration
 	clock                utilsclock.Clock
-	globalLister         database.GlobalLister[InternalAPIType]
-	changeFeedClient     database.ChangeFeedClient
+	globalLister         cosmosstorageutils.GlobalLister[InternalAPIType]
+	changeFeedClient     cosmosstorageutils.ChangeFeedClient
 	shouldDeliverItemFn  ShouldDeliverFunc[InternalAPITypePointer]
 
 	currentWatcher *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]
 }
 
 func NewChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
-	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, globalLister database.GlobalLister[InternalAPIType], changeFeedClient database.ChangeFeedClient, relistDuration time.Duration) *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
+	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, globalLister cosmosstorageutils.GlobalLister[InternalAPIType], changeFeedClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 
 	return &ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]{
 		desiredResourceTypes: desiredResourceTypes,
@@ -209,7 +209,7 @@ type ChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMet
 	desiredResourceTypes []azcorearm.ResourceType
 	maxWatchDuration     time.Duration
 	clock                utilsclock.Clock
-	changeFeedClient     database.ChangeFeedClient
+	changeFeedClient     cosmosstorageutils.ChangeFeedClient
 	startFrom            time.Time
 	shouldDeliverItemFn  ShouldDeliverFunc[InternalAPITypePointer]
 
@@ -238,7 +238,7 @@ type ChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMet
 }
 
 func newChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
-	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, changeFeedClient database.ChangeFeedClient, startFrom time.Time, maxWatchDuration time.Duration, shouldDeliverFn ShouldDeliverFunc[InternalAPITypePointer]) *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
+	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, changeFeedClient cosmosstorageutils.ChangeFeedClient, startFrom time.Time, maxWatchDuration time.Duration, shouldDeliverFn ShouldDeliverFunc[InternalAPITypePointer]) *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 	return &ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]{
 		desiredResourceTypes:        desiredResourceTypes,
 		maxWatchDuration:            maxWatchDuration,
@@ -365,7 +365,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		}
 	}
 
-	objAsTypedDocument := &database.TypedDocument{}
+	objAsTypedDocument := &cosmosstorageutils.TypedDocument{}
 	if err := json.Unmarshal(item, objAsTypedDocument); err != nil {
 		return utils.TrackError(err)
 	}
@@ -395,7 +395,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	}
 	var internalObj InternalAPITypePointer
 	var err error
-	internalObj, err = database.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
+	internalObj, err = cosmosstorageutils.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
 	if err != nil {
 		return utils.TrackError(err)
 	}

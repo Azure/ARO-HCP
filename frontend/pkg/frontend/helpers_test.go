@@ -28,8 +28,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -43,58 +43,58 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 	tests := []struct {
 		name             string
 		resourceID       string
-		operationRequest database.OperationRequest
+		operationRequest cosmosstorageutils.OperationRequest
 		directConflict   func(arm.ProvisioningState) bool
 		parentConflict   func(arm.ProvisioningState) bool
 	}{
 		{
 			name:             "Create cluster",
 			resourceID:       api.TestClusterResourceID,
-			operationRequest: database.OperationRequestCreate,
+			operationRequest: cosmosstorageutils.OperationRequestCreate,
 			directConflict:   func(s arm.ProvisioningState) bool { return false },
 		},
 		{
 			name:             "Delete cluster",
 			resourceID:       api.TestClusterResourceID,
-			operationRequest: database.OperationRequestDelete,
+			operationRequest: cosmosstorageutils.OperationRequestDelete,
 			directConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
 		},
 		{
 			name:             "Update cluster",
 			resourceID:       api.TestClusterResourceID,
-			operationRequest: database.OperationRequestUpdate,
+			operationRequest: cosmosstorageutils.OperationRequestUpdate,
 			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Request cluster credential",
 			resourceID:       api.TestClusterResourceID,
-			operationRequest: database.OperationRequestSystemAdminCredentialRequest,
+			operationRequest: cosmosstorageutils.OperationRequestSystemAdminCredentialRequest,
 			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Revoke cluster credentials",
 			resourceID:       api.TestClusterResourceID,
-			operationRequest: database.OperationRequestSystemAdminCredentialRevocation,
+			operationRequest: cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation,
 			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Create node pool",
 			resourceID:       api.TestNodePoolResourceID,
-			operationRequest: database.OperationRequestCreate,
+			operationRequest: cosmosstorageutils.OperationRequestCreate,
 			directConflict:   func(s arm.ProvisioningState) bool { return false },
 			parentConflict:   parentConflictFunc,
 		},
 		{
 			name:             "Delete node pool",
 			resourceID:       api.TestNodePoolResourceID,
-			operationRequest: database.OperationRequestDelete,
+			operationRequest: cosmosstorageutils.OperationRequestDelete,
 			directConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
 			parentConflict:   parentConflictFunc,
 		},
 		{
 			name:             "Update node pool",
 			resourceID:       api.TestNodePoolResourceID,
-			operationRequest: database.OperationRequestUpdate,
+			operationRequest: cosmosstorageutils.OperationRequestUpdate,
 			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
 			parentConflict:   parentConflictFunc,
 		},
@@ -110,7 +110,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			name = fmt.Sprintf("%s (provisioningState=%s)", tt.name, provisioningState)
 			t.Run(name, func(t *testing.T) {
 				ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-				mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+				mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 				frontend := &Frontend{
 					resourcesDBClient: mockResourcesDBClient,
@@ -157,7 +157,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				name = fmt.Sprintf("%s (parent provisioningState=%s)", tt.name, provisioningState)
 				t.Run(name, func(t *testing.T) {
 					ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-					mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+					mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 					frontend := &Frontend{
 						resourcesDBClient: mockResourcesDBClient,

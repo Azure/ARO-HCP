@@ -23,7 +23,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -48,7 +49,7 @@ import (
 type desiredControlPlaneSizeSyncer struct {
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	clusterLister                corelisters.ClusterLister
-	resourcesDBClient            database.ResourcesDBClient
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterServiceClient         ocm.ClusterServiceClientSpec
 }
 
@@ -59,7 +60,7 @@ var _ controllerutils.ClusterSyncer = (*desiredControlPlaneSizeSyncer)(nil)
 // SPC Spec once the cluster update dispatch controller has applied the
 // effective size override to cluster-service.
 func NewDesiredControlPlaneSizeController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
@@ -114,7 +115,7 @@ func (c *desiredControlPlaneSizeSyncer) SyncOnce(ctx context.Context, key contro
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -125,7 +126,7 @@ func (c *desiredControlPlaneSizeSyncer) SyncOnce(ctx context.Context, key contro
 	}
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.V(1).Info("Cluster not found in cache, skipping")
 		return nil
 	}
@@ -164,7 +165,7 @@ func (c *desiredControlPlaneSizeSyncer) SyncOnce(ctx context.Context, key contro
 	}
 	serviceProviderClusterCRUD := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClusterCRUD.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// Another writer beat us to the SPC; the informer will deliver the
 		// updated document and re-enqueue us, so treat the conflict as a no-op.
 		return nil

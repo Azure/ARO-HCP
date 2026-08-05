@@ -35,10 +35,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
 const (
@@ -66,12 +66,12 @@ func newSeededReadDesireLister(ctx context.Context, readDesires ...*kubeapplier.
 		}
 	}
 
-	mockKubeApplierDB, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, resources)
+	mockKubeApplierDB, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, resources)
 	if err != nil {
 		return nil, err
 	}
 
-	kubeApplierClients := databasetesting.NewMockKubeApplierDBClients()
+	kubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	managementClusterID := api.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
 	kubeApplierClients.Register(managementClusterID, mockKubeApplierDB)

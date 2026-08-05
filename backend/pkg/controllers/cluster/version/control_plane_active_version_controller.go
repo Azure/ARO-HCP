@@ -28,7 +28,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -40,7 +41,7 @@ import (
 // versions in ServiceProviderCluster status by reading the version from the per-cluster
 // ReadDesire kubeContent (the kube-applier's mirror of the management cluster's HostedCluster).
 type controlPlaneActiveVersionSyncer struct {
-	resourcesDBClient            database.ResourcesDBClient
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	readDesireLister             kubeapplierlisters.ReadDesireLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 }
@@ -51,7 +52,7 @@ var _ controllerutils.ClusterSyncer = (*controlPlaneActiveVersionSyncer)(nil)
 // Status.ControlPlaneVersion.ActiveVersions from the per-cluster ReadDesire's
 // observed HostedCluster.
 func NewControlPlaneActiveVersionController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
@@ -78,7 +79,7 @@ func NewControlPlaneActiveVersionController(
 // includes Version and State (Completed or Partial) and is persisted on replace.
 func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -104,7 +105,7 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	}
 
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
 		return nil
 	}

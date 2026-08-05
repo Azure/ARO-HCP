@@ -21,7 +21,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -72,7 +72,7 @@ func (c *subscriptionWatchingController) SyncOnce(ctx context.Context, key Subsc
 
 	_, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	switch {
-	case database.IsNotFoundError(err):
+	case cosmosstorageutils.IsNotFoundError(err):
 		logger.Info("subscription not found, skipping sync")
 		return nil
 	case err != nil:

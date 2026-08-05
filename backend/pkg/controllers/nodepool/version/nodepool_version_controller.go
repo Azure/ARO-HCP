@@ -33,7 +33,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -56,7 +57,7 @@ type nodePoolVersionSyncer struct {
 	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
 	subscriptionLister            corelisters.SubscriptionLister
 	readDesireLister              kubeapplierlisters.ReadDesireLister
-	resourcesDBClient             database.ResourcesDBClient
+	resourcesDBClient             corecosmosstorage.ResourcesDBClient
 
 	cincinnatiClientCache cincinnati.ClientCache
 }
@@ -66,7 +67,7 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolVersionSyncer)(nil)
 // NewNodePoolVersionController creates a new syncer that validates and persists
 // the customer's desired NodePool version on the ServiceProviderNodePool.
 func NewNodePoolVersionController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	subscriptionLister corelisters.SubscriptionLister,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
@@ -158,7 +159,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 
 	// Do the super cheap cache check first.
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// we'll be re-fired if it is created again
 		return nil
 	}
@@ -168,7 +169,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	// SPNP must be in cache. If a sibling controller hasn't created it yet,
 	// skip this sync; the informer will retrigger us when it lands.
 	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -179,7 +180,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	// re-fetching live: validation only reads them, and if either isn't yet
 	// observed by the informer we'll be retriggered when it lands.
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -197,7 +198,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -250,7 +251,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	replacement := cachedServiceProviderNodePool.DeepCopy()
 	replacement.Spec.NodePoolVersion.DesiredVersion = &customerDesiredVersion
 	_, err = c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName).Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// the cache will update eventually since we're out of date and we'll enter this controller again. No need to fail.
 		return nil
 	}

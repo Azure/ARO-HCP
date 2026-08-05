@@ -69,7 +69,10 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -88,10 +91,10 @@ type BackendOptions struct {
 	AppVersion                         string
 	AzureLocation                      string
 	LeaderElectionLock                 resourcelock.Interface
-	ResourcesDBClient                  database.ResourcesDBClient
-	BillingDBClient                    database.BillingDBClient
-	FleetDBClient                      database.FleetDBClient
-	KubeApplierDBClients               database.KubeApplierDBClients
+	ResourcesDBClient                  corecosmosstorage.ResourcesDBClient
+	BillingDBClient                    billingcosmosstorage.BillingDBClient
+	FleetDBClient                      fleetcosmosstorage.FleetDBClient
+	KubeApplierDBClients               kubeappliercosmosstorage.KubeApplierDBClients
 	ClustersServiceClient              ocm.ClusterServiceClientSpec
 	MetricsRegisterer                  prometheus.Registerer
 	MetricsGatherer                    prometheus.Gatherer

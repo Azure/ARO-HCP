@@ -20,7 +20,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 // ContentLoader is an interface for loading test content into a database.
@@ -35,7 +35,7 @@ type ContentLoader interface {
 // This is used by the cosmosCompare step to verify database contents.
 type DocumentLister interface {
 	// ListAllDocuments returns all documents in the database.
-	ListAllDocuments(ctx context.Context) ([]*database.TypedDocument, error)
+	ListAllDocuments(ctx context.Context) ([]*cosmosstorageutils.TypedDocument, error)
 }
 
 // CosmosContentLoader implements ContentLoader and DocumentLister using a real Cosmos DB container.
@@ -54,7 +54,7 @@ func (c *CosmosContentLoader) LoadContent(ctx context.Context, content []byte) e
 }
 
 // ListAllDocuments returns all documents in the Cosmos container.
-func (c *CosmosContentLoader) ListAllDocuments(ctx context.Context) ([]*database.TypedDocument, error) {
+func (c *CosmosContentLoader) ListAllDocuments(ctx context.Context) ([]*cosmosstorageutils.TypedDocument, error) {
 	querySQL := "SELECT * FROM c"
 	queryOptions := &azcosmos.QueryOptions{
 		QueryParameters: []azcosmos.QueryParameter{},
@@ -62,7 +62,7 @@ func (c *CosmosContentLoader) ListAllDocuments(ctx context.Context) ([]*database
 
 	queryPager := c.container.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
 
-	var results []*database.TypedDocument
+	var results []*cosmosstorageutils.TypedDocument
 	for queryPager.More() {
 		queryResponse, err := queryPager.NextPage(ctx)
 		if err != nil {
@@ -70,7 +70,7 @@ func (c *CosmosContentLoader) ListAllDocuments(ctx context.Context) ([]*database
 		}
 
 		for _, item := range queryResponse.Items {
-			var doc database.TypedDocument
+			var doc cosmosstorageutils.TypedDocument
 			if err := json.Unmarshal(item, &doc); err != nil {
 				return nil, err
 			}

@@ -31,7 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -45,7 +46,7 @@ type ProvisionShardClient interface {
 }
 
 type clustersServiceRegistrationSyncer struct {
-	fleetDBClient         database.FleetDBClient
+	fleetDBClient         fleetcosmosstorage.FleetDBClient
 	clustersServiceClient ProvisionShardClient
 	stampLister           fleetlisters.StampLister
 	region                string
@@ -56,7 +57,7 @@ type clustersServiceRegistrationSyncer struct {
 func NewClustersServiceRegistrationController(
 	managementClusterInformer cache.SharedIndexInformer,
 	stampInformer cache.SharedIndexInformer,
-	fleetDBClient database.FleetDBClient,
+	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	clustersServiceClient ProvisionShardClient,
 	stampLister fleetlisters.StampLister,
 	region string,
@@ -86,7 +87,7 @@ func (s *clustersServiceRegistrationSyncer) SyncOnce(ctx context.Context, key fl
 	managementClusterCRUD := s.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier)
 	managementCluster, err := managementClusterCRUD.Get(ctx, fleet.ManagementClusterResourceName)
 	if err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			return nil
 		}
 		return utils.TrackError(err)
@@ -94,7 +95,7 @@ func (s *clustersServiceRegistrationSyncer) SyncOnce(ctx context.Context, key fl
 
 	stamp, err := s.stampLister.Get(ctx, key.StampIdentifier)
 	if err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			utils.LoggerFromContext(ctx).Info("stamp not found in lister, skipping")
 			return nil
 		}

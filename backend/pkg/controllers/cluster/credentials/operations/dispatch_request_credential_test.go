@@ -30,8 +30,8 @@ import (
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -41,12 +41,12 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 		name                         string
 		revokeCredentialsOperationID string
 		expectError                  bool
-		verify                       func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture)
+		verify                       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture)
 	}{
 		{
 			name:        "successful dispatch records a break-glass credential ID",
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, operationtesting.TestBreakGlassCredentialIDStr, op.InternalID.String())
@@ -56,7 +56,7 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			name:                         "in-progress revocation cancels operation",
 			revokeCredentialsOperationID: "test-revoke-operation-id",
 			expectError:                  false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateCanceled, op.Status)
@@ -74,10 +74,10 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			fixture := operationtesting.NewClusterTestFixture()
 			cluster := fixture.NewCluster(nil)
 			cluster.ServiceProviderProperties.RevokeCredentialsOperationID = tt.revokeCredentialsOperationID
-			operation := fixture.NewOperation(database.OperationRequestSystemAdminCredentialRequest)
+			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestSystemAdminCredentialRequest)
 			operation.InternalID = api.InternalID{}
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)

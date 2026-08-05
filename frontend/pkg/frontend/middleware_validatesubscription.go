@@ -20,7 +20,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -32,10 +33,10 @@ const (
 )
 
 type middlewareValidateSubscriptionState struct {
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
-func newMiddlewareValidateSubscriptionState(resourcesDBClient database.ResourcesDBClient) *middlewareValidateSubscriptionState {
+func newMiddlewareValidateSubscriptionState(resourcesDBClient corecosmosstorage.ResourcesDBClient) *middlewareValidateSubscriptionState {
 	return &middlewareValidateSubscriptionState{
 		resourcesDBClient: resourcesDBClient,
 	}
@@ -62,7 +63,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 		logger.Error(err, "failed to get subscription document", "subscriptionId", subscriptionId)
 
 		// subscription not found, treat as unregistered
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			arm.WriteError(
 				w, http.StatusBadRequest,
 				arm.CloudErrorCodeInvalidSubscriptionState, "",

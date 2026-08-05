@@ -35,8 +35,8 @@ import (
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -56,14 +56,14 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 		name                                string
 		existingExternalAuth                *api.HCPOpenShiftClusterExternalAuth
 		wantErr                             bool
-		verifyDB                            func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB                            func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 		usesNewExternalAuthDeletionApproach bool
 		setupCSMock                         func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec
 	}{
 		{
 			name:                                "external auth document gone completes operation",
 			usesNewExternalAuthDeletionApproach: true,
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -77,7 +77,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 				return ea
 			}(),
 			usesNewExternalAuthDeletionApproach: true,
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -93,7 +93,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 				return ea
 			}(),
 			usesNewExternalAuthDeletionApproach: true,
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -116,7 +116,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 					Return(csEA, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -139,7 +139,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 					Return(csEA, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
@@ -163,7 +163,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 					Return(csEA, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -183,7 +183,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 					Return(nil, notFoundErr)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -200,7 +200,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 					Return(nil, notFoundErr)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -222,7 +222,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 					Return(externalAuth, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -236,7 +236,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			operation := fixture.NewOperation(database.OperationRequestDelete)
+			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestDelete)
 			// TODO remove this once the new deletion approach is fully rolled out in all ARO-HCP permanent environments, for all regions.
 			operation.UsesNewExternalAuthDeletionApproach = tc.usesNewExternalAuthDeletionApproach
 
@@ -245,7 +245,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 				resources = append(resources, tc.existingExternalAuth)
 			}
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			var mockCSClient ocm.ClusterServiceClientSpec

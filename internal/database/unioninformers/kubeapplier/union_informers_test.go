@@ -30,9 +30,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
 const (
@@ -380,7 +380,7 @@ func buildPerMCInformers(t *testing.T, ctx context.Context, seed ...*kubeapplier
 	for _, d := range seed {
 		resources = append(resources, d)
 	}
-	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, resources)
+	mock, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, resources)
 	if err != nil {
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
 	}

@@ -23,7 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 )
@@ -46,16 +46,16 @@ func desireIndexers() cache.Indexers {
 
 // NewApplyDesireInformer creates an unstarted SharedIndexInformer for ApplyDesires
 // using the default relist duration.
-func NewApplyDesireInformer(lister database.GlobalLister[kubeapplier.ApplyDesire], changeFeedClient database.ChangeFeedClient) cache.SharedIndexInformer {
+func NewApplyDesireInformer(lister cosmosstorageutils.GlobalLister[kubeapplier.ApplyDesire], changeFeedClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewApplyDesireInformerWithRelistDuration(lister, changeFeedClient, ApplyDesireRelistDuration)
 }
 
 // NewApplyDesireInformerWithRelistDuration creates an unstarted SharedIndexInformer
 // for ApplyDesires with a configurable relist duration.
 func NewApplyDesireInformerWithRelistDuration(
-	lister database.GlobalLister[kubeapplier.ApplyDesire], changeFeedClient database.ChangeFeedClient, relistDuration time.Duration,
+	lister cosmosstorageutils.GlobalLister[kubeapplier.ApplyDesire], changeFeedClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration,
 ) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, database.GenericDocument[kubeapplier.ApplyDesire]](
+	lw := informerutils.NewChangeFeedListWatcher[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplier.ApplyDesire]](
 		[]azcorearm.ResourceType{
 			kubeapplier.ClusterScopedApplyDesireResourceType,
 			kubeapplier.NodePoolScopedApplyDesireResourceType,
@@ -80,16 +80,16 @@ func NewApplyDesireInformerWithRelistDuration(
 
 // NewReadDesireInformer creates an unstarted SharedIndexInformer for ReadDesires
 // using the default relist duration.
-func NewReadDesireInformer(lister database.GlobalLister[kubeapplier.ReadDesire], changeFeedClient database.ChangeFeedClient) cache.SharedIndexInformer {
+func NewReadDesireInformer(lister cosmosstorageutils.GlobalLister[kubeapplier.ReadDesire], changeFeedClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewReadDesireInformerWithRelistDuration(lister, changeFeedClient, ReadDesireRelistDuration)
 }
 
 // NewReadDesireInformerWithRelistDuration creates an unstarted SharedIndexInformer
 // for ReadDesires with a configurable relist duration.
 func NewReadDesireInformerWithRelistDuration(
-	lister database.GlobalLister[kubeapplier.ReadDesire], changeFeedClient database.ChangeFeedClient, relistDuration time.Duration,
+	lister cosmosstorageutils.GlobalLister[kubeapplier.ReadDesire], changeFeedClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration,
 ) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, database.GenericDocument[kubeapplier.ReadDesire]](
+	lw := informerutils.NewChangeFeedListWatcher[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplier.ReadDesire]](
 		[]azcorearm.ResourceType{
 			kubeapplier.ClusterScopedReadDesireResourceType,
 			kubeapplier.NodePoolScopedReadDesireResourceType,

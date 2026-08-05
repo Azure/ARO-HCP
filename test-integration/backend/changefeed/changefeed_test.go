@@ -35,7 +35,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -63,13 +64,13 @@ const (
 type clusterChangeFeedWatcher = informerutils.ChangeFeedWatcher[
 	api.HCPOpenShiftCluster,
 	*api.HCPOpenShiftCluster,
-	database.GenericDocument[api.HCPOpenShiftCluster],
+	cosmosstorageutils.GenericDocument[api.HCPOpenShiftCluster],
 ]
 
 type clusterChangeFeedListWatcher = informerutils.ChangeFeedListWatcher[
 	api.HCPOpenShiftCluster,
 	*api.HCPOpenShiftCluster,
-	database.GenericDocument[api.HCPOpenShiftCluster],
+	cosmosstorageutils.GenericDocument[api.HCPOpenShiftCluster],
 ]
 
 // TestChangeFeedListWatcher exercises the change-feed-backed ListWatcher
@@ -182,7 +183,7 @@ func TestChangeFeedListWatcher(t *testing.T) {
 
 				_, err := env.resourcesDBClient.HCPClusters(clusterRID.SubscriptionID, clusterRID.ResourceGroupName).
 					Get(env.ctx, clusterRID.Name)
-				require.Truef(t, database.IsNotFoundError(err),
+				require.Truef(t, cosmosstorageutils.IsNotFoundError(err),
 					"expected not-found error after soft-delete, got: %v", err)
 			},
 		},
@@ -341,7 +342,7 @@ type changefeedTestEnv struct {
 	cancel context.CancelFunc
 
 	storage           integrationutils.StorageIntegrationTestInfo
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 	listWatcher       *clusterChangeFeedListWatcher
 
 	listStarted bool
@@ -369,7 +370,7 @@ func newChangeFeedTestEnv(t *testing.T, withMock bool) *changefeedTestEnv {
 	listWatcher := informerutils.NewChangeFeedListWatcher[
 		api.HCPOpenShiftCluster,
 		*api.HCPOpenShiftCluster,
-		database.GenericDocument[api.HCPOpenShiftCluster],
+		cosmosstorageutils.GenericDocument[api.HCPOpenShiftCluster],
 	](
 		[]azcorearm.ResourceType{api.ClusterResourceType},
 		utilsclock.RealClock{},

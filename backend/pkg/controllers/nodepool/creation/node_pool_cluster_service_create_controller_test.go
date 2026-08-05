@@ -37,8 +37,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -63,7 +63,7 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 	clusterCSInternalID := api.Must(api.NewInternalID(testClusterServiceIDStr))
 	nodePoolCSInternalID := api.Must(api.NewInternalID(testNodePoolCSIDStr))
 
-	verifyClusterServiceIDIsNil := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyClusterServiceIDIsNil := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
 			NodePools(testClusterName).Get(ctx, testNodePoolName)
@@ -71,7 +71,7 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 		assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID)
 	}
 
-	verifyClusterServiceIDIsSet := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyClusterServiceIDIsSet := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
 			NodePools(testClusterName).Get(ctx, testNodePoolName)
@@ -88,7 +88,7 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
 		wantErr           bool
 		wantErrContain    string
-		verifyDB          func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB          func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:          "when ClusterServiceID is already set no-op is performed",
@@ -230,7 +230,7 @@ func TestNodePoolClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			if tc.existingNodePool != nil {
 				resources = append(resources, tc.existingNodePool)
 			}
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)

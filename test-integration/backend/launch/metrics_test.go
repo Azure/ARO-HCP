@@ -41,7 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -104,7 +104,7 @@ func TestBackendExposesMetrics(t *testing.T) {
 			LeaderElectionLock:                 newFakeLeaderElectionLock("metrics-test"),
 			ResourcesDBClient:                  resourcesDBClient,
 			BillingDBClient:                    billingDBClient,
-			FleetDBClient:                      databasetesting.NewMockFleetDBClient(),
+			FleetDBClient:                      fleetcosmosstoragetesting.NewMockFleetDBClient(),
 			ClustersServiceClient:              clusterServiceMock.MockClusterServiceClient,
 			MetricsRegisterer:                  registry,
 			MetricsGatherer:                    registry,

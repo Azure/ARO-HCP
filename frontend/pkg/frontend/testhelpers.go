@@ -23,7 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/audit"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
 
 // The definitions in this file are meant for unit tests.
@@ -35,7 +35,7 @@ func newNoopAuditClient(t *testing.T) *audit.AuditClient {
 }
 
 func NewTestFrontend(t *testing.T) *Frontend {
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	reg := prometheus.NewRegistry()
 
 	f := NewFrontend(

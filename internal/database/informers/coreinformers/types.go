@@ -26,7 +26,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -142,11 +143,11 @@ func (b *backendInformers) BillingDocs() (cache.SharedIndexInformer, corelisters
 	return b.billingInformer, b.billingLister
 }
 
-func NewBackendInformers(ctx context.Context, resourcesGlobalListers database.ResourcesGlobalListers, resourcesDBClient database.ResourcesDBClient, billingGlobalListers database.BillingGlobalListers) BackendInformers {
+func NewBackendInformers(ctx context.Context, resourcesGlobalListers corecosmosstorage.ResourcesGlobalListers, resourcesDBClient corecosmosstorage.ResourcesDBClient, billingGlobalListers billingcosmosstorage.BillingGlobalListers) BackendInformers {
 	return NewBackendInformersWithRelistDuration(ctx, resourcesGlobalListers, resourcesDBClient, billingGlobalListers, nil)
 }
 
-func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalListers database.ResourcesGlobalListers, resourcesDBClient database.ResourcesDBClient, billingGlobalListers database.BillingGlobalListers, relistDuration *time.Duration) BackendInformers {
+func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalListers corecosmosstorage.ResourcesGlobalListers, resourcesDBClient corecosmosstorage.ResourcesDBClient, billingGlobalListers billingcosmosstorage.BillingGlobalListers, relistDuration *time.Duration) BackendInformers {
 	subscriptionRelistDuration := SubscriptionRelistDuration
 	clusterRelistDuration := ClusterRelistDuration
 	nodePoolRelistDuration := NodePoolRelistDuration

@@ -27,7 +27,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,13 +37,13 @@ const MissingResourceIDControllerName = "MissingResourceID"
 type missingResourceIDController struct {
 	name string
 
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 
 	queue workqueue.TypedRateLimitingInterface[string]
 }
 
 func NewMissingResourceIDController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 ) controllerutils.Controller {
 	c := &missingResourceIDController{
 		name:              MissingResourceIDControllerName,
@@ -59,7 +60,7 @@ func NewMissingResourceIDController(
 }
 
 // shouldDelete returns true if a document without a resourceID should be deleted.
-func shouldDelete(doc *database.TypedDocument) bool {
+func shouldDelete(doc *cosmosstorageutils.TypedDocument) bool {
 	resourceType := strings.ToLower(doc.ResourceType)
 	if len(resourceType) == 0 {
 		return false
@@ -78,7 +79,7 @@ func shouldDelete(doc *database.TypedDocument) bool {
 func (c *missingResourceIDController) sweep(ctx context.Context) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	allDocs, err := database.ListAll[database.TypedDocument](ctx, 100, c.resourcesDBClient.ListMissingResourceID)
+	allDocs, err := cosmosstorageutils.ListAll[cosmosstorageutils.TypedDocument](ctx, 100, c.resourcesDBClient.ListMissingResourceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("listing documents missing resourceID: %w", err))
 	}
@@ -113,7 +114,7 @@ func (c *missingResourceIDController) sweep(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-func deleteByItemID(ctx context.Context, resourcesDBClient database.ResourcesDBClient, partitionKey, cosmosID string) error {
+func deleteByItemID(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, partitionKey, cosmosID string) error {
 	subscriptionResourceID, err := arm.ToSubscriptionResourceID(partitionKey)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("parsing partition key %q as subscription ID: %w", partitionKey, err))

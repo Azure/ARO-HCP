@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 // MustParseTime parses a time string in RFC3339 format and panics on error.
@@ -130,7 +130,7 @@ func (f *ClusterTestFixture) NewCluster(createdAt *time.Time) *api.HCPOpenShiftC
 	}
 }
 
-func (f *ClusterTestFixture) NewOperation(request database.OperationRequest) *api.Operation {
+func (f *ClusterTestFixture) NewOperation(request cosmosstorageutils.OperationRequest) *api.Operation {
 	return &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID:   f.CosmosOperationResourceID,
@@ -260,7 +260,7 @@ func (f *NodePoolTestFixture) NewNodePoolVersionController(conditions []metav1.C
 	}
 }
 
-func (f *NodePoolTestFixture) NewOperation(request database.OperationRequest) *api.Operation {
+func (f *NodePoolTestFixture) NewOperation(request cosmosstorageutils.OperationRequest) *api.Operation {
 	return &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID:   f.CosmosOperationResourceID,
@@ -360,7 +360,7 @@ func (f *ExternalAuthTestFixture) NewExternalAuth() *api.HCPOpenShiftClusterExte
 	}
 }
 
-func (f *ExternalAuthTestFixture) NewOperation(request database.OperationRequest) *api.Operation {
+func (f *ExternalAuthTestFixture) NewOperation(request cosmosstorageutils.OperationRequest) *api.Operation {
 	return &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID:   f.CosmosOperationResourceID,

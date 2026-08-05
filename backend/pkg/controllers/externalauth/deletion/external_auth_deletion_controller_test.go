@@ -27,9 +27,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -41,18 +41,18 @@ func TestExternalAuthDeletionController_SyncOnce(t *testing.T) {
 		ea.ServiceProviderProperties.ClusterServiceID = nil
 	}
 
-	verifyExternalAuthStillExists := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyExternalAuthStillExists := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		_, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
 			ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
 		require.NoError(t, err, "expected external auth to still exist in Cosmos")
 	}
 
-	verifyExternalAuthDeleted := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyExternalAuthDeleted := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		_, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
 			ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
-		assert.True(t, database.IsNotFoundError(err), "expected external auth to be deleted from Cosmos")
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err), "expected external auth to be deleted from Cosmos")
 	}
 
 	testCases := []struct {
@@ -60,7 +60,7 @@ func TestExternalAuthDeletionController_SyncOnce(t *testing.T) {
 		existingExternalAuth *api.HCPOpenShiftClusterExternalAuth
 		childResources       []any
 		wantErr              bool
-		verifyDB             func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB             func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:                 "no DeletionTimestamp -- no-op",
@@ -114,7 +114,7 @@ func TestExternalAuthDeletionController_SyncOnce(t *testing.T) {
 				resources = append(resources, tc.existingExternalAuth)
 			}
 			resources = append(resources, tc.childResources...)
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			externalAuthsForLister := []*api.HCPOpenShiftClusterExternalAuth{}

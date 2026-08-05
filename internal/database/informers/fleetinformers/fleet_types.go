@@ -21,15 +21,15 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // FleetInformers bundles one SharedIndexInformer per fleet type plus the
 // matching fleetlisters. Both the fleet management binary and the backend
-// construct one of these with the appropriate database.FleetGlobalListers
-// and database.FleetDBClient — the factory does not care which.
+// construct one of these with the appropriate fleetcosmosstorage.FleetGlobalListers
+// and fleetcosmosstorage.FleetDBClient — the factory does not care which.
 type FleetInformers interface {
 	Stamps() (cache.SharedIndexInformer, fleetlisters.StampLister)
 	ManagementClusters() (cache.SharedIndexInformer, fleetlisters.ManagementClusterLister)
@@ -52,7 +52,7 @@ func (f *fleetInformers) ManagementClusters() (cache.SharedIndexInformer, fleetl
 }
 
 // NewFleetInformers creates FleetInformers with default relist durations.
-func NewFleetInformers(ctx context.Context, globalListers database.FleetGlobalListers, fleetDBClient database.FleetDBClient) FleetInformers {
+func NewFleetInformers(ctx context.Context, globalListers fleetcosmosstorage.FleetGlobalListers, fleetDBClient fleetcosmosstorage.FleetDBClient) FleetInformers {
 	ret := &fleetInformers{}
 	ret.stampInformer = NewStampInformer(globalListers.Stamps(), fleetDBClient)
 	ret.stampLister = fleetlisters.NewStampLister(ret.stampInformer.GetIndexer())

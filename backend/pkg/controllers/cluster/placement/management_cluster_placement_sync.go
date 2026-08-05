@@ -21,7 +21,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
@@ -36,7 +37,7 @@ type managementClusterPlacementSyncer struct {
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	clusterLister                corelisters.ClusterLister
 	managementClusterLister      fleetlisters.ManagementClusterLister
-	cosmosClient                 database.ResourcesDBClient
+	cosmosClient                 corecosmosstorage.ResourcesDBClient
 	clusterServiceClient         ocm.ClusterServiceClientSpec
 }
 
@@ -45,7 +46,7 @@ var _ controllerutils.ClusterSyncer = (*managementClusterPlacementSyncer)(nil)
 // NewManagementClusterPlacementSyncController creates a new controller that syncs the
 // management cluster placement from Cluster Service into the ServiceProviderCluster document.
 func NewManagementClusterPlacementSyncController(
-	cosmosClient database.ResourcesDBClient,
+	cosmosClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	managementClusterLister fleetlisters.ManagementClusterLister,
 	informers coreinformers.BackendInformers,
@@ -87,7 +88,7 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 
 	// do the super cheap cache check first
 	cachedSPC, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.V(1).Info("ServiceProviderCluster not found in cache, skipping")
 		return nil
 	}
@@ -101,7 +102,7 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 
 	// Get the cluster from cache to check if it has a CS ID to query
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.V(1).Info("Cluster not found in cache, skipping")
 		return nil
 	}
@@ -116,7 +117,7 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 	// Get the ServiceProviderCluster from Cosmos (live read)
 	spcCRUD := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	existingSPC, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.V(1).Info("ServiceProviderCluster not found in Cosmos, skipping")
 		return nil
 	}

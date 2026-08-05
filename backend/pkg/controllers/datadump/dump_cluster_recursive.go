@@ -20,7 +20,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
@@ -30,8 +31,8 @@ import (
 )
 
 type clusterRecursiveDataDump struct {
-	resourcesDBClient       database.ResourcesDBClient
-	kubeApplierDBClients    database.KubeApplierDBClients
+	resourcesDBClient       corecosmosstorage.ResourcesDBClient
+	kubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
 	managementClusterLister fleetlisters.ManagementClusterLister
 
 	// nextDataDumpChecker ensures we don't hotloop from any source.
@@ -40,8 +41,8 @@ type clusterRecursiveDataDump struct {
 
 // NewClusterRecursiveDataDumpController periodically lists all clusters and logs when the cluster was created and its state.
 func NewClusterRecursiveDataDumpController(
-	resourcesDBClient database.ResourcesDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	managementClusterLister fleetlisters.ManagementClusterLister,
 	activeOperationLister corelisters.ActiveOperationLister,
 	backendInformers coreinformers.BackendInformers,

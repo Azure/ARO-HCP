@@ -32,8 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
 // newTestValidationCondition builds a validation condition with a stable
@@ -146,7 +146,7 @@ func TestClusterRequirementsValidAggregator_SyncOnce(t *testing.T) {
 				seed = append(seed, tc.existingServiceProviderCluster)
 			}
 
-			mockDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, seed)
+			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, seed)
 			require.NoError(t, err)
 
 			syncer := &clusterRequirementsValidAggregator{

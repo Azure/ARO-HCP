@@ -21,20 +21,22 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // MarkBillingDocumentDeleted patches a Cosmos DB document in the Billing container to add a deletion timestamp.
-func MarkBillingDocumentDeleted(ctx context.Context, billingDBClient database.BillingDBClient, resourceID *azcorearm.ResourceID, deletionTime time.Time) error {
+func MarkBillingDocumentDeleted(ctx context.Context, billingDBClient billingcosmosstorage.BillingDBClient, resourceID *azcorearm.ResourceID, deletionTime time.Time) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	var patchOperations database.BillingDocumentPatchOperations
+	var patchOperations billingcosmosstorage.BillingDocumentPatchOperations
 	patchOperations.SetDeletionTime(deletionTime)
 	err := billingDBClient.BillingDocs(resourceID.SubscriptionID).PatchByClusterID(ctx, resourceID, patchOperations)
 	if err == nil {
 		logger.Info("Updated billing for cluster deletion")
-	} else if database.IsNotFoundError(err) {
+	} else if cosmosstorageutils.IsNotFoundError(err) {
 		// Log the error but proceed with normal processing.
 		logger.Info("No billing document found")
 		err = nil
@@ -43,7 +45,7 @@ func MarkBillingDocumentDeleted(ctx context.Context, billingDBClient database.Bi
 	return err
 }
 
-func DeleteRecursively(ctx context.Context, resourcesDBClient database.ResourcesDBClient, rootResourceID *azcorearm.ResourceID) error {
+func DeleteRecursively(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, rootResourceID *azcorearm.ResourceID) error {
 	// now delete everything related to this item.  Operations will be cleaned up when ttl expires.
 	// this does not do any advanced cleanup of content.  As we migrate more to cosmos, this will become more and more
 	// stale.  Feel free to refactor if we can do a better job of cleanup at some point.

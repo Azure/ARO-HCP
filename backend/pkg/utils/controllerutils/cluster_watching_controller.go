@@ -25,7 +25,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -41,7 +42,7 @@ type clusterWatchingController struct {
 	syncer ClusterSyncer
 
 	clusterLister     corelisters.ClusterLister
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
 // NewClusterWatchingController periodically looks up all clusters and queues them
@@ -58,7 +59,7 @@ type clusterWatchingController struct {
 // wired in because their status doesn't carry cluster-state signal.
 func NewClusterWatchingController(
 	name string,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
@@ -113,7 +114,7 @@ func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPCluster
 
 	_, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	switch {
-	case database.IsNotFoundError(err):
+	case cosmosstorageutils.IsNotFoundError(err):
 		logger.Info("cluster not found, skipping sync")
 		return nil
 	case err != nil:

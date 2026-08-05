@@ -26,13 +26,14 @@ import (
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type maestroRegistrationSyncer struct {
-	fleetDBClient                database.FleetDBClient
+	fleetDBClient                fleetcosmosstorage.FleetDBClient
 	maestroConsumerClientFactory MaestroConsumerClientFactory
 	stampLister                  fleetlisters.StampLister
 }
@@ -40,7 +41,7 @@ type maestroRegistrationSyncer struct {
 func NewMaestroRegistrationController(
 	managementClusterInformer cache.SharedIndexInformer,
 	stampInformer cache.SharedIndexInformer,
-	fleetDBClient database.FleetDBClient,
+	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	maestroConsumerClientFactory MaestroConsumerClientFactory,
 	stampLister fleetlisters.StampLister,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
@@ -68,7 +69,7 @@ func (s *maestroRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontr
 	managementClusterCRUD := s.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier)
 	managementCluster, err := managementClusterCRUD.Get(ctx, fleet.ManagementClusterResourceName)
 	if err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			return nil
 		}
 		return utils.TrackError(err)
@@ -76,7 +77,7 @@ func (s *maestroRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontr
 
 	stamp, err := s.stampLister.Get(ctx, key.StampIdentifier)
 	if err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			utils.LoggerFromContext(ctx).Info("stamp not found in lister, skipping")
 			return nil
 		}

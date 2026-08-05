@@ -28,7 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -38,7 +38,7 @@ type clusterServiceClusterMatching struct {
 	name string
 
 	subscriptionLister   corelisters.SubscriptionLister
-	resourcesDBClient    database.ResourcesDBClient
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
@@ -47,7 +47,7 @@ type clusterServiceClusterMatching struct {
 }
 
 // NewClusterServiceClusterMatchingController periodically looks for mismatched cluster-service and cosmos clusters
-func NewClusterServiceClusterMatchingController(resourcesDBClient database.ResourcesDBClient, subscriptionLister corelisters.SubscriptionLister, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.Controller {
+func NewClusterServiceClusterMatchingController(resourcesDBClient corecosmosstorage.ResourcesDBClient, subscriptionLister corelisters.SubscriptionLister, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.Controller {
 	c := &clusterServiceClusterMatching{
 		name:                 "ClusterServiceMatchingClusters",
 		subscriptionLister:   subscriptionLister,

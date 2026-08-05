@@ -36,7 +36,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -499,7 +499,7 @@ type StepInput struct {
 	CosmosContainer        *azcosmos.ContainerClient
 	ContentLoader          integrationutils.ContentLoader
 	DocumentLister         integrationutils.DocumentLister
-	ResourcesDBClient      database.ResourcesDBClient
+	ResourcesDBClient      corecosmosstorage.ResourcesDBClient
 	FrontendURL            string
 	AdminURL               string
 	APIVersion             string

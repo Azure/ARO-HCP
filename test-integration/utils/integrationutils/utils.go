@@ -43,7 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -181,7 +181,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	return testInfo, nil
 }
 
-func MarkOperationsCompleteForName(ctx context.Context, resourcesDBClient database.ResourcesDBClient, subscriptionID, resourceName string) error {
+func MarkOperationsCompleteForName(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, subscriptionID, resourceName string) error {
 	operationsIterator := resourcesDBClient.Operations(subscriptionID).ListActiveOperations(nil)
 	for _, operation := range operationsIterator.Items(ctx) {
 		if operation.ExternalID.Name != resourceName {

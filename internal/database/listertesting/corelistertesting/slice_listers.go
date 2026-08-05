@@ -20,7 +20,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 )
 
@@ -46,7 +47,7 @@ func (l *SliceClusterLister) Get(ctx context.Context, subscriptionID, resourceGr
 			return c, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceClusterLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.HCPOpenShiftCluster, error) {
@@ -86,7 +87,7 @@ func (l *SliceNodePoolLister) Get(ctx context.Context, subscriptionID, resourceG
 			return np, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.HCPOpenShiftClusterNodePool, error) {
@@ -139,7 +140,7 @@ func (l *SliceActiveOperationLister) Get(ctx context.Context, subscriptionID, na
 			return op, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 // ListActiveOperationsForCluster returns active operations for the cluster and its
@@ -195,7 +196,7 @@ func (l *SliceExternalAuthLister) Get(ctx context.Context, subscriptionID, resou
 			return ea, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceExternalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.HCPOpenShiftClusterExternalAuth, error) {
@@ -250,7 +251,7 @@ func (l *SliceServiceProviderClusterLister) Get(ctx context.Context, subscriptio
 			return spc, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceServiceProviderClusterLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.ServiceProviderCluster, error) {
@@ -293,7 +294,7 @@ func (l *SliceServiceProviderNodePoolLister) Get(ctx context.Context, subscripti
 			return spnp, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceServiceProviderNodePoolLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.ServiceProviderNodePool, error) {
@@ -337,7 +338,7 @@ func (l *SliceManagementClusterContentLister) GetForCluster(ctx context.Context,
 			return c, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *SliceManagementClusterContentLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.ManagementClusterContent, error) {
@@ -392,31 +393,31 @@ func (l *SliceSubscriptionLister) Get(ctx context.Context, subscriptionID string
 			return s, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 // SliceBillingLister implements corelisters.BillingLister backed by a slice.
 type SliceBillingLister struct {
-	BillingDocuments []*database.BillingDocument
+	BillingDocuments []*billingcosmosstorage.BillingDocument
 }
 
 var _ corelisters.BillingLister = &SliceBillingLister{}
 
-func (l *SliceBillingLister) List(ctx context.Context) ([]*database.BillingDocument, error) {
+func (l *SliceBillingLister) List(ctx context.Context) ([]*billingcosmosstorage.BillingDocument, error) {
 	return l.BillingDocuments, nil
 }
 
-func (l *SliceBillingLister) GetByID(ctx context.Context, billingDocID string) (*database.BillingDocument, error) {
+func (l *SliceBillingLister) GetByID(ctx context.Context, billingDocID string) (*billingcosmosstorage.BillingDocument, error) {
 	for _, bd := range l.BillingDocuments {
 		if strings.EqualFold(bd.ID, billingDocID) {
 			return bd, nil
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
-func (l *SliceBillingLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*database.BillingDocument, error) {
-	var result []*database.BillingDocument
+func (l *SliceBillingLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*billingcosmosstorage.BillingDocument, error) {
+	var result []*billingcosmosstorage.BillingDocument
 	for _, bd := range l.BillingDocuments {
 		if strings.EqualFold(bd.SubscriptionID, subscriptionID) {
 			result = append(result, bd)

@@ -30,8 +30,8 @@ import (
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 )
 
 func testStamp(identifier string, approved bool) *fleet.Stamp {
@@ -112,7 +112,7 @@ func (f *fakeStampLister) List(ctx context.Context) ([]*fleet.Stamp, error) {
 func (f *fakeStampLister) Get(ctx context.Context, stampIdentifier string) (*fleet.Stamp, error) {
 	stamp, ok := f.stamps[stampIdentifier]
 	if !ok {
-		return nil, database.NewNotFoundError()
+		return nil, cosmosstorageutils.NewNotFoundError()
 	}
 	return stamp, nil
 }
@@ -335,7 +335,7 @@ func TestSyncOnce(t *testing.T) {
 			if tt.managementCluster != nil {
 				resources = append(resources, tt.managementCluster)
 			}
-			mockDB, err := databasetesting.NewMockFleetDBClientWithResources(ctx, resources)
+			mockDB, err := fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, resources)
 			if err != nil {
 				t.Fatalf("failed to create mock DB: %v", err)
 			}

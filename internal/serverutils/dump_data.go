@@ -25,7 +25,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -42,7 +45,7 @@ type ObjectMetadata struct {
 	ResourceID      string `json:"resourceID"`
 }
 
-func objectMetadataForTypedDocument(container string, doc *database.TypedDocument) ObjectMetadata {
+func objectMetadataForTypedDocument(container string, doc *cosmosstorageutils.TypedDocument) ObjectMetadata {
 	if doc == nil || doc.ResourceID == nil {
 		return ObjectMetadata{CosmosContainer: container}
 	}
@@ -90,9 +93,9 @@ func ObjectMetadataForResourceID(container string, resourceID *azcorearm.Resourc
 // dumps.
 func DumpDataToLogger(
 	ctx context.Context,
-	resourcesDBClient database.ResourcesDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
-	managementClusterLister database.ManagementClusterLister,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	managementClusterLister kubeappliercosmosstorage.ManagementClusterLister,
 	resourceID *azcorearm.ResourceID,
 ) error {
 	logger := utils.LoggerFromContext(ctx)
@@ -177,8 +180,8 @@ func DumpDataToLogger(
 // silently no-ops.
 func dumpKubeApplierData(
 	ctx context.Context,
-	kubeApplierDBClients database.KubeApplierDBClients,
-	managementClusterLister database.ManagementClusterLister,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	managementClusterLister kubeappliercosmosstorage.ManagementClusterLister,
 	resourceID *azcorearm.ResourceID,
 ) error {
 	if kubeApplierDBClients == nil || managementClusterLister == nil {
@@ -242,12 +245,12 @@ func resourceIDToString(id *azcorearm.ResourceID) string {
 }
 
 // DumpBillingToLogger dumps active billing documents for the given cluster resource ID to the logger.
-func DumpBillingToLogger(ctx context.Context, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, resourceID *azcorearm.ResourceID) error {
+func DumpBillingToLogger(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, billingDBClient billingcosmosstorage.BillingDBClient, resourceID *azcorearm.ResourceID) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	clusterCRUD := resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, resourceID.Name)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -260,7 +263,7 @@ func DumpBillingToLogger(ctx context.Context, resourcesDBClient database.Resourc
 	}
 
 	billingDoc, err := billingDBClient.BillingDocs(resourceID.SubscriptionID).GetByID(ctx, clusterUID)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -277,7 +280,7 @@ func DumpBillingToLogger(ctx context.Context, resourcesDBClient database.Resourc
 	return nil
 }
 
-func redactTypedDocument(d *database.TypedDocument) error {
+func redactTypedDocument(d *cosmosstorageutils.TypedDocument) error {
 	if d == nil {
 		return fmt.Errorf("typed document is nil")
 	}

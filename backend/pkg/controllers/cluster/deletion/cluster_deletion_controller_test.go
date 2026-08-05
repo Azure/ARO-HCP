@@ -32,9 +32,10 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -55,16 +56,16 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 		})
 	}
 
-	verifyClusterStillExists := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyClusterStillExists := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		_, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 		require.NoError(t, err, "expected cluster to still exist in Cosmos")
 	}
 
-	verifyClusterDeleted := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyClusterDeleted := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		_, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
-		assert.True(t, database.IsNotFoundError(err), "expected cluster to be deleted from Cosmos")
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err), "expected cluster to be deleted from Cosmos")
 	}
 
 	testCases := []struct {
@@ -72,7 +73,7 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 		existingCluster *api.HCPOpenShiftCluster
 		extraResources  []any
 		wantErr         bool
-		verifyDB        func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB        func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:            "all preconditions met, no children -- cluster is deleted",
@@ -175,10 +176,10 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 			}
 			resources = append(resources, tc.extraResources...)
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+			mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 
 			clustersForLister := []*api.HCPOpenShiftCluster{}
 			if tc.existingCluster != nil {

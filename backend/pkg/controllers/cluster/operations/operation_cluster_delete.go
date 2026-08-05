@@ -36,7 +36,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -44,9 +47,9 @@ import (
 
 type operationClusterDelete struct {
 	clock                utilsclock.PassiveClock
-	resourcesDBClient    database.ResourcesDBClient
-	billingDBClient      database.BillingDBClient
-	kubeApplierDBClients database.KubeApplierDBClients
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
+	billingDBClient      billingcosmosstorage.BillingDBClient
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients
 	readDesireLister     kubeapplierlisters.ReadDesireLister
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
@@ -77,9 +80,9 @@ type operationClusterDelete struct {
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationClusterDeleteController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
-	billingDBClient database.BillingDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	billingDBClient billingcosmosstorage.BillingDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
@@ -110,7 +113,7 @@ func (c *operationClusterDelete) ShouldProcess(ctx context.Context, operation *a
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestDelete {
+	if operation.Request != cosmosstorageutils.OperationRequestDelete {
 		return false
 	}
 	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()) {
@@ -124,7 +127,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 	logger.Info("checking operation")
 
 	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // no work to do
 	}
 	if err != nil {
@@ -144,7 +147,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName)
 	cluster, err := clusterCRUD.Get(ctx, operation.ExternalID.Name)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.Info("cluster document deleted - completing operation")
 		err = operationbase.SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, operationbase.PostAsyncNotificationFn(c.notificationClient))
 		if err != nil {
@@ -168,7 +171,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 			Message: message,
 		}
 		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, arm.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
-		if database.IsPreconditionFailedError(err) {
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
 			return nil
 		}
 		if err != nil {
@@ -312,7 +315,7 @@ func (c *operationClusterDelete) clusterServiceStatusForDeletion(ctx context.Con
 	return operationbase.NewOperationState(arm.ProvisioningStateDeleting, fmt.Sprintf("ClusterService state is %q", csClusterStatus.State())), nil
 }
 
-func (c *operationClusterDelete) shouldCountChild(child *database.TypedDocument) bool {
+func (c *operationClusterDelete) shouldCountChild(child *cosmosstorageutils.TypedDocument) bool {
 	lowered := strings.ToLower(child.ResourceType)
 	if strings.Contains(lowered, strings.ToLower(api.ControllerResourceTypeName)) {
 		return false
@@ -349,7 +352,7 @@ func (c *operationClusterDelete) remainingDescendantResources(ctx context.Contex
 	}
 
 	spc, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
-	if err != nil && !database.IsNotFoundError(err) {
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		logger.Error(err, "failed to get ServiceProviderCluster for kube-applier resource count")
 	}
 	if spc != nil && spc.Status.ManagementClusterResourceID != nil {
@@ -374,7 +377,7 @@ func (c *operationClusterDelete) remainingDescendantResources(ctx context.Contex
 	return operationbase.NewOperationState(arm.ProvisioningStateDeleting, fmt.Sprintf("remaining resources: %s", strings.Join(parts, ", "))), nil
 }
 
-func countDescendants(ctx context.Context, crud database.UntypedResourceCRUD, shouldCount func(*database.TypedDocument) bool, typeCounts map[string]int) error {
+func countDescendants(ctx context.Context, crud cosmosstorageutils.UntypedResourceCRUD, shouldCount func(*cosmosstorageutils.TypedDocument) bool, typeCounts map[string]int) error {
 	childIterator, err := crud.ListRecursive(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list descendant resources: %w", err)

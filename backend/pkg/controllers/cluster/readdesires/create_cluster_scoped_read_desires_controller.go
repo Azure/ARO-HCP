@@ -27,7 +27,9 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -45,8 +47,8 @@ import (
 type createClusterScopedReadDesiresSyncer struct {
 	activeOperationLister corelisters.ActiveOperationLister
 
-	resourcesDBClient            database.ResourcesDBClient
-	kubeApplierDBClients         database.KubeApplierDBClients
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 
 	// hostedClusterNamespaceEnvIdentifier is the "envName" segment of the
@@ -64,8 +66,8 @@ var _ controllerutils.ClusterSyncer = (*createClusterScopedReadDesiresSyncer)(ni
 // pipeline.
 func NewCreateClusterScopedReadDesiresController(
 	activeOperationLister corelisters.ActiveOperationLister,
-	resourcesDBClient database.ResourcesDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
 	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
@@ -99,7 +101,7 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -120,7 +122,7 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	// lands we have nowhere to write the ReadDesire, so skip and wait for
 	// the next reconcile cycle.
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
 		return nil
 	}
@@ -233,7 +235,7 @@ func servingCATarget(controlPlaneNamespace string) kubeapplier.ResourceReference
 }
 
 // ensureReadDesire creates or updates a ReadDesire when the desired spec differs from cosmos.
-func (c *createClusterScopedReadDesiresSyncer) ensureReadDesire(ctx context.Context, crud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], desired *kubeapplier.ReadDesire) error {
+func (c *createClusterScopedReadDesiresSyncer) ensureReadDesire(ctx context.Context, crud cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], desired *kubeapplier.ReadDesire) error {
 	existing, err := controllerutils.GetExistingReadDesire(ctx, crud, desired.ResourceID.Name)
 	if err != nil {
 		return err
@@ -244,7 +246,7 @@ func (c *createClusterScopedReadDesiresSyncer) ensureReadDesire(ctx context.Cont
 	name := desired.ResourceID.Name
 	if existing == nil {
 		_, err := crud.Create(ctx, desired, nil)
-		if database.IsConflictError(err) {
+		if cosmosstorageutils.IsConflictError(err) {
 			return nil
 		}
 		if err != nil {
@@ -255,7 +257,7 @@ func (c *createClusterScopedReadDesiresSyncer) ensureReadDesire(ctx context.Cont
 	replacement := existing.DeepCopy()
 	replacement.Spec = *desired.Spec.DeepCopy()
 	_, err = crud.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
 	if err != nil {

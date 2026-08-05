@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 // fakeControllerCRUD is a simple in-memory implementation of ResourceCRUD[api.Controller, *api.Controller] for testing
@@ -50,10 +50,10 @@ func (f *fakeControllerCRUD) Get(ctx context.Context, resourceID string) (*api.C
 	if c, ok := f.controllers[resourceID]; ok {
 		return c, nil
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
-func (f *fakeControllerCRUD) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[api.Controller], error) {
+func (f *fakeControllerCRUD) List(ctx context.Context, opts *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[api.Controller], error) {
 	return nil, nil
 }
 
@@ -72,11 +72,11 @@ func (f *fakeControllerCRUD) Delete(ctx context.Context, resourceID string) erro
 	return nil
 }
 
-func (f *fakeControllerCRUD) AddCreateToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *api.Controller, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (f *fakeControllerCRUD) AddCreateToTransaction(ctx context.Context, transaction cosmosstorageutils.DBTransaction, newObj *api.Controller, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	return "", nil
 }
 
-func (f *fakeControllerCRUD) AddReplaceToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *api.Controller, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (f *fakeControllerCRUD) AddReplaceToTransaction(ctx context.Context, transaction cosmosstorageutils.DBTransaction, newObj *api.Controller, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	return "", nil
 }
 

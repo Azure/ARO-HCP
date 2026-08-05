@@ -40,7 +40,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -55,7 +56,7 @@ type operationClusterCreate struct {
 	serviceProviderClusterLister          corelisters.ServiceProviderClusterLister
 	clusterManagementClusterContentLister corelisters.ManagementClusterContentLister
 	readDesireLister                      kubeapplierlisters.ReadDesireLister
-	resourcesDBClient                     database.ResourcesDBClient
+	resourcesDBClient                     corecosmosstorage.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
 	notificationClient                    *http.Client
 }
@@ -76,7 +77,7 @@ type operationClusterCreate struct {
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationClusterCreateController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
@@ -114,7 +115,7 @@ func (c *operationClusterCreate) ShouldProcess(ctx context.Context, operation *a
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestCreate {
+	if operation.Request != cosmosstorageutils.OperationRequestCreate {
 		return false
 	}
 	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()) {
@@ -128,7 +129,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	logger.Info("checking operation")
 
 	operation, err := c.activeOperationLister.Get(ctx, key.SubscriptionID, key.OperationName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // no work to do
 	}
 	if err != nil {
@@ -139,7 +140,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	}
 
 	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.Info("cluster not found in cache, waiting")
 		return nil
 	}
@@ -191,7 +192,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 
 	logger.Info("updating status")
 	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
 	if err != nil {
@@ -272,7 +273,7 @@ func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.
 
 func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationbase.OperationState, error) {
 	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// if the cache doesn't have the cosmos cluster yet, we'll eventually recheck when we resync. Currently 10s for
 		// active operations.  No need to fail and trigger an extra check.
 		return operationbase.NewOperationState(arm.ProvisioningStateProvisioning, "cluster state not cached yet"), nil
@@ -305,7 +306,7 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 	// the union lister. The union lister hides per-MC routing so callers
 	// don't need to know which management cluster the HostedCluster is on.
 	readDesire, err := c.readDesireLister.GetForCluster(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return operationbase.NewOperationState(arm.ProvisioningStateProvisioning, "hosted cluster state not cached yet"), nil
 	}
 	if err != nil {
@@ -387,7 +388,7 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 	// cluster that has a control-plane namespace, regardless of OpenShift
 	// version. The create operation blocks until that bundle has been populated.
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return operationbase.NewOperationState(arm.ProvisioningStateProvisioning, "ServiceProviderCluster not cached yet"), nil
 	}
 	if err != nil {

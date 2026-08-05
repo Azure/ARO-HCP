@@ -27,9 +27,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
 const (
@@ -90,7 +90,7 @@ func TestKubeApplierInformers_ListByManagementCluster(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
+	mock, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		// mgmt-a: cluster-scoped + nodepool-scoped under cluster c
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
@@ -148,7 +148,7 @@ func TestKubeApplierInformers_ListForCluster_UnionsClusterAndNodePool(t *testing
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
+	mock, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 			testMgmtAID),
@@ -191,7 +191,7 @@ func TestKubeApplierInformers_GetByID(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
+	mock, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 			testMgmtAID),

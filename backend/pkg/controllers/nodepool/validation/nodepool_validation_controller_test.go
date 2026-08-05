@@ -33,9 +33,9 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -130,7 +130,7 @@ func (m *mockNodePoolValidation) Validate(_ context.Context, _ *api.HCPOpenShift
 
 func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 
-	defaultSetupDB := func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+	defaultSetupDB := func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
 		require.NoError(t, err)
@@ -141,20 +141,20 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 		require.NoError(t, err)
 		// Seed an empty ServiceProviderNodePool the way the production creator
 		// controller would have populated it by the time the syncer runs.
-		_, err = database.GetOrCreateServiceProviderNodePool(ctx, mockDB, nodePool.ID)
+		_, err = corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, mockDB, nodePool.ID)
 		require.NoError(t, err)
 	}
 
 	testCases := []struct {
 		name                string
-		setupDB             func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient)
+		setupDB             func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient)
 		validation          *mockNodePoolValidation
 		wantErr             bool
 		wantConditionStatus *metav1.ConditionStatus
 	}{
 		{
 			name: "cluster not found -- no-op",
-			setupDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName).Create(ctx, newTestNodePool(t), nil)
 				require.NoError(t, err)
@@ -165,7 +165,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "node pool not found -- no-op",
-			setupDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
 				require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "already-succeeded validation -- skipped",
-			setupDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				defaultSetupDB(t, ctx, mockDB)
 				spnpCRUD := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName)
@@ -221,7 +221,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-			mockDB := databasetesting.NewMockResourcesDBClient()
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 			if tc.setupDB != nil {
 				tc.setupDB(t, ctx, mockDB)
 			}

@@ -31,20 +31,22 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func newTestBillingDocument(billingDocID, subscriptionID, resourceGroupName, clusterName string, deletedAt *time.Time) *database.BillingDocument {
+func newTestBillingDocument(billingDocID, subscriptionID, resourceGroupName, clusterName string, deletedAt *time.Time) *billingcosmosstorage.BillingDocument {
 	resourceID := api.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	return &database.BillingDocument{
-		BaseDocument: database.BaseDocument{
+	return &billingcosmosstorage.BillingDocument{
+		BaseDocument: cosmosstorageutils.BaseDocument{
 			ID: billingDocID,
 		},
 		SubscriptionID: subscriptionID,
@@ -62,19 +64,19 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		billingDocuments []*database.BillingDocument
+		billingDocuments []*billingcosmosstorage.BillingDocument
 		clusters         []*api.HCPOpenShiftCluster
 		expectError      bool
-		verify           func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient)
+		verify           func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient)
 	}{
 		{
 			name: "marks orphaned billing document as deleted",
-			billingDocuments: []*database.BillingDocument{
+			billingDocuments: []*billingcosmosstorage.BillingDocument{
 				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, testClusterName, nil),
 			},
 			clusters:    []*api.HCPOpenShiftCluster{}, // No clusters
 			expectError: false,
-			verify: func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient) {
+			verify: func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient) {
 				billingDocs := billingDBClient.GetBillingDocuments()
 				require.Len(t, billingDocs, 1)
 				doc := billingDocs["billing-doc-1"]
@@ -84,14 +86,14 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "skips billing document when cluster still exists",
-			billingDocuments: []*database.BillingDocument{
+			billingDocuments: []*billingcosmosstorage.BillingDocument{
 				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, testClusterName, nil),
 			},
 			clusters: []*api.HCPOpenShiftCluster{
 				newTestCluster(t, "billing-doc-1", arm.ProvisioningStateSucceeded, &createdAt),
 			},
 			expectError: false,
-			verify: func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient) {
+			verify: func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient) {
 				billingDocs := billingDBClient.GetBillingDocuments()
 				require.Len(t, billingDocs, 1)
 				doc := billingDocs["billing-doc-1"]
@@ -101,12 +103,12 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "skips billing document already marked as deleted",
-			billingDocuments: []*database.BillingDocument{
+			billingDocuments: []*billingcosmosstorage.BillingDocument{
 				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, "cluster-1", ptr.To(mustParseTime("2025-01-19T10:30:00Z"))),
 			},
 			clusters:    []*api.HCPOpenShiftCluster{}, // No clusters
 			expectError: false,
-			verify: func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient) {
+			verify: func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient) {
 				billingDocs := billingDBClient.GetBillingDocuments()
 				require.Len(t, billingDocs, 1)
 				doc := billingDocs["billing-doc-1"]
@@ -119,7 +121,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 
 		{
 			name: "handles multiple billing documents",
-			billingDocuments: []*database.BillingDocument{
+			billingDocuments: []*billingcosmosstorage.BillingDocument{
 				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, "cluster-1", nil),
 				newTestBillingDocument("billing-doc-2", testSubscriptionID, testResourceGroupName, "cluster-2", nil),
 				newTestBillingDocument("billing-doc-3", testSubscriptionID, testResourceGroupName, "cluster-3", nil),
@@ -149,7 +151,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 				},
 			},
 			expectError: false,
-			verify: func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient) {
+			verify: func(t *testing.T, billingDBClient *billingcosmosstoragetesting.MockBillingDBClient) {
 				billingDocs := billingDBClient.GetBillingDocuments()
 				require.Len(t, billingDocs, 3)
 
@@ -177,10 +179,10 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
 			// Create mock DB and add billing documents
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 			// Add billing documents directly
-			mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+			mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 			for _, doc := range tt.billingDocuments {
 				billingCRUD := mockBillingDBClient.BillingDocs(doc.SubscriptionID)
 				err := billingCRUD.Create(ctx, doc)

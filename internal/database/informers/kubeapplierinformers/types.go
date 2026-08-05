@@ -22,14 +22,15 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // KubeApplierInformers bundles one SharedIndexInformer per *Desire type plus the
 // matching kubeapplierlisters. Each instance is scoped to one management cluster's
-// container — the factory takes the per-MC database.KubeApplierListers. The
+// container — the factory takes the per-MC kubeappliercosmosstorage.KubeApplierListers. The
 // kube-applier binary constructs one instance for its single management
 // cluster; the backend constructs one per management cluster it talks to.
 type KubeApplierInformers interface {
@@ -61,7 +62,7 @@ func (k *kubeApplierInformers) ReadDesires() (cache.SharedIndexInformer, kubeapp
 // the per-management-cluster KubeApplierListers from KubeApplierDBClient.Listers()
 // and the KubeApplierDBClient itself as the ChangeFeedClient.
 func NewKubeApplierInformers(
-	ctx context.Context, gl database.KubeApplierListers, changeFeedClient database.ChangeFeedClient,
+	ctx context.Context, gl kubeappliercosmosstorage.KubeApplierListers, changeFeedClient cosmosstorageutils.ChangeFeedClient,
 ) KubeApplierInformers {
 	return NewKubeApplierInformersWithRelistDuration(ctx, gl, changeFeedClient, nil)
 }
@@ -70,7 +71,7 @@ func NewKubeApplierInformers(
 // but lets the caller override the relist duration uniformly across all
 // informers. Tests use this to drive faster relists.
 func NewKubeApplierInformersWithRelistDuration(
-	ctx context.Context, gl database.KubeApplierListers, changeFeedClient database.ChangeFeedClient, relistDuration *time.Duration,
+	ctx context.Context, gl kubeappliercosmosstorage.KubeApplierListers, changeFeedClient cosmosstorageutils.ChangeFeedClient, relistDuration *time.Duration,
 ) KubeApplierInformers {
 	apply := ApplyDesireRelistDuration
 	read := ReadDesireRelistDuration

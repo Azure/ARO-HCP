@@ -25,7 +25,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 )
 
 type RawRegisterOptions struct {
@@ -149,7 +150,7 @@ func (o *RawRegisterOptions) Validate(ctx context.Context) (*ValidatedRegisterOp
 }
 
 type registerOptions struct {
-	fleetDBClient                                        database.FleetDBClient
+	fleetDBClient                                        fleetcosmosstorage.FleetDBClient
 	stampIdentifier                                      string
 	stampResourceID                                      *azcorearm.ResourceID
 	managementClusterResourceID                          *azcorearm.ResourceID
@@ -174,12 +175,12 @@ func (o *ValidatedRegisterOptions) Complete(ctx context.Context) (*RegisterOptio
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentFleet)
 	clientOpts.Cloud = o.cloudConfiguration
 
-	dbClient, err := database.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
+	dbClient, err := corecosmosstorage.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CosmosDB client: %w", err)
 	}
 
-	fleetDBClient, err := database.NewFleetDBClient(dbClient)
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(dbClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fleet DB client: %w", err)
 	}

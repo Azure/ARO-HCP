@@ -21,7 +21,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
@@ -37,7 +37,7 @@ type managementClusterDataDump struct {
 
 // NewManagementClusterDataDumpController periodically dumps management cluster data.
 func NewManagementClusterDataDumpController(
-	fleetDBClient database.FleetDBClient,
+	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	managementClusterLister fleetlisters.ManagementClusterLister,
 	fleetInformers fleetinformers.FleetInformers,
 ) controllerutils.Controller {
