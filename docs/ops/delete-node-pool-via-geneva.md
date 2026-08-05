@@ -71,7 +71,7 @@ Use a **fresh** shell session (not a reconnected one) to avoid stale scrollback:
 
 ```bash
 kubectl get nodes -l kubernetes.azure.com/agentpool=<pool-name> --no-headers   # expect no output
-kubectl get pods -A -o wide --no-headers | grep -vE 'Running|Completed'       # investigate any output
+kubectl get pods -A --no-headers | awk '{n=split($3,r,"/")} $4!="Completed" && (r[1]!=r[2] || $4!="Running")'  # investigate any output
 ```
 
 If a reconnected/old terminal session shows the deleted pool's nodes still present, check the
@@ -88,7 +88,7 @@ quota, and that the control plane's Deployments land on the new nodes as expecte
   reconcile, plus `kubectl get nodes` / `kubectl get machines` on the management cluster for
   the replacement pool's nodes joining.
 - **Expected healthy state:** the replacement node pool's nodes reach `Ready`, and the
-  platform Deployments that were pending reschedule and go `Running` on those nodes.
+  platform Deployments that were pending reschedule land on those nodes and go `Running`.
 - **Approximate timeout:** node pool scale-up and platform pod rescheduling typically
   complete within 10-15 minutes of the Geneva Action succeeding. If the rollout is still
   stuck after that:
