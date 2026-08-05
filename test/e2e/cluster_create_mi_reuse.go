@@ -61,13 +61,19 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources")
 
-			By("reusing the same managed identity for two control plane operators")
+			By("reusing the same managed identity for all control plane operators")
 			cpOps := clusterParams.UserAssignedIdentitiesProfile.ControlPlaneOperators
-			originalIngressMI := *cpOps["ingress"]
-			cpOps["ingress"] = cpOps["cluster-api-azure"]
-			delete(clusterParams.Identity.UserAssignedIdentities, originalIngressMI)
+			sharedMI := cpOps["cluster-api-azure"]
+			for name := range cpOps {
+				if name == "cluster-api-azure" {
+					continue
+				}
+				originalMI := *cpOps[name]
+				cpOps[name] = sharedMI
+				delete(clusterParams.Identity.UserAssignedIdentities, originalMI)
+			}
 
-			By("creating a cluster with reused managed identity")
+			By("creating a cluster with reused managed identity among all control plane operators")
 			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
