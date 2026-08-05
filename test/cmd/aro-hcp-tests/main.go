@@ -126,38 +126,45 @@ func parseMIContainerCount() (int, string) {
 	return count, framework.LeasedMSIContainersEnvvar
 }
 
-// maxAutoRetryFailures caps how many failed tests a run may have and still qualify for an
-// automatic EV2 gating retry. If more tests than this fail, or any failure isn't labeled
-// labels.AllowRetry, we stay silent and let the gate fail normally for a human to triage.
-const maxAutoRetryFailures = 2
-
-// ev2RetryMetadataKey is the finished.json metadata key prow-job-executor looks for (see
-// AROSLSRE-1721) to decide whether an EV2 gating job failure is safe to auto-retry. It is
-// written into $ARTIFACT_DIR/metadata.json, which Prow's sidecar merges verbatim into the
-// job's finished.json under the top-level "metadata" object - the standard Prow
-// custom-metadata mechanism (see sigs.k8s.io/prow/pkg/sidecar), rather than a log line
-// prow-job-executor would otherwise have to scrape out of the build log.
-const ev2RetryMetadataKey = "ev2-retry-allowed"
+// ev2FailedTestsKey and ev2AllowRetryTestsKey are the finished.json metadata keys
+// prow-job-executor reads (see AROSLSRE-1721) to decide whether an EV2 gating job failure
+// is safe to auto-retry. They are written into $ARTIFACT_DIR/metadata.json, which Prow's
+// sidecar merges verbatim into the job's finished.json under the top-level "metadata"
+// object - the standard Prow custom-metadata mechanism (see sigs.k8s.io/prow/pkg/sidecar),
+// rather than a log line prow-job-executor would otherwise have to scrape out of the build
+// log.
+//
+// aro-hcp-tests only reports raw facts here - which specs failed, and which of those carry
+// labels.AllowRetry - it does not decide whether a run qualifies for auto-retry. That
+// decision (how many failures are tolerable, etc.) is policy that belongs to
+// prow-job-executor, which can evolve independently of an ARO-HCP release. See
+// retrymarker.go in ARO-Tools for the eligibility logic that consumes these keys.
+const (
+	ev2FailedTestsKey     = "ev2-failed-tests"
+	ev2AllowRetryTestsKey = "ev2-allow-retry-tests"
+)
 
 // ev2RetryMetadataFile is where Prow's sidecar picks up per-step custom metadata to merge
 // into finished.json. See sigs.k8s.io/prow/pkg/pod-utils/decorate.metadataFile.
 const ev2RetryMetadataFile = "metadata.json"
 
 // registerEV2RetryCatcher watches test results as they complete and, once the full suite has
-// finished, writes ev2RetryMetadataKey=true into $ARTIFACT_DIR/metadata.json when the run's
-// failures are narrow enough to safely auto-retry during an EV2 Stage/Prod gating step: at
-// most maxAutoRetryFailures tests failed, and every one of them carries labels.AllowRetry.
-// prow-job-executor reads that key back out of the job's finished.json to decide whether to
-// resubmit the job once instead of requiring a human to notice the failure, review Prow
-// output, and manually retrigger. See AROSLSRE-1721.
+// finished, always writes ev2FailedTestsKey and ev2AllowRetryTestsKey into
+// $ARTIFACT_DIR/metadata.json - even when nothing failed, in which case both lists are
+// empty. Writing unconditionally means the keys' presence tells prow-job-executor the run
+// reached this point at all, so an absent key is unambiguously "this step didn't run",
+// never "the run failed but wasn't retry-eligible". prow-job-executor reads these lists
+// back out of the job's finished.json to decide whether to resubmit the job once, instead
+// of requiring a human to notice the failure, review Prow output, and manually retrigger.
+// See AROSLSRE-1721.
 //
 // This must only run in the long-lived parent run-suite process. openshift-tests-extension
 // spawns each spec as a separate "run-test" worker subprocess, and that subprocess calls
 // specs.Run() itself with just its own single spec - which would re-trigger AddAfterEach/
-// AddAfterAll in the worker too, deciding auto-retry eligibility from one spec's result
-// instead of the whole suite's, and racing multiple workers writing the same file. Guard
-// registration with isRunSuiteProcess(), the same pattern used for the upgrade coordinator's
-// AddBeforeAll hook above.
+// AddAfterAll in the worker too, reporting one spec's result as if it were the whole
+// suite's, and racing multiple workers writing the same file. Guard registration with
+// isRunSuiteProcess(), the same pattern used for the upgrade coordinator's AddBeforeAll
+// hook above.
 func registerEV2RetryCatcher(specs et.ExtensionTestSpecs) {
 	if !isRunSuiteProcess() {
 		return
@@ -172,7 +179,7 @@ func registerEV2RetryCatcher(specs et.ExtensionTestSpecs) {
 
 	var mu sync.Mutex
 	var failedNames []string
-	nonRetriableFailures := 0
+	var allowRetryFailedNames []string
 
 	specs.AddAfterEach(func(res *et.ExtensionTestResult) {
 		if res.Result != et.ResultFailed {
@@ -181,42 +188,29 @@ func registerEV2RetryCatcher(specs et.ExtensionTestSpecs) {
 		mu.Lock()
 		defer mu.Unlock()
 		failedNames = append(failedNames, res.Name)
-		if !allowRetryNames[res.Name] {
-			nonRetriableFailures++
+		if allowRetryNames[res.Name] {
+			allowRetryFailedNames = append(allowRetryFailedNames, res.Name)
 		}
 	})
 
 	specs.AddAfterAll(func() {
 		mu.Lock()
 		defer mu.Unlock()
-		if !ev2RetryAllowed(failedNames, nonRetriableFailures) {
-			return
-		}
-		fmt.Fprintf(os.Stderr, "%d known-issue test(s) failed (max %d allowed), all labeled %q: writing %s=true to %s: %v\n",
-			len(failedNames), maxAutoRetryFailures, labels.AllowRetry[0], ev2RetryMetadataKey, ev2RetryMetadataFile, failedNames)
-		if err := writeEV2RetryMetadata(os.Getenv("ARTIFACT_DIR"), failedNames); err != nil {
+		fmt.Fprintf(os.Stderr, "%d test(s) failed (%d labeled %q): writing %s/%s to %s: failed=%v allow-retry=%v\n",
+			len(failedNames), len(allowRetryFailedNames), labels.AllowRetry[0],
+			ev2FailedTestsKey, ev2AllowRetryTestsKey, ev2RetryMetadataFile, failedNames, allowRetryFailedNames)
+		if err := writeEV2RetryMetadata(os.Getenv("ARTIFACT_DIR"), failedNames, allowRetryFailedNames); err != nil {
 			fmt.Fprintf(os.Stderr, "WARNING: failed to write EV2 retry metadata: %v\n", err)
 		}
 	})
 }
 
-// ev2RetryAllowed decides whether a finished run qualifies for an automatic EV2 gating
-// retry. It is the whole decision, kept separate from registerEV2RetryCatcher's hook wiring
-// so it can be tested directly.
-//
-// A run qualifies only when it failed at all, no more than maxAutoRetryFailures tests
-// failed, and every failure carried labels.AllowRetry. Any other shape stays silent so
-// the gate fails normally and a human triages it.
-func ev2RetryAllowed(failedNames []string, nonRetriableFailures int) bool {
-	return len(failedNames) > 0 && len(failedNames) <= maxAutoRetryFailures && nonRetriableFailures == 0
-}
-
-// writeEV2RetryMetadata merges ev2RetryMetadataKey=true (plus the failed test names, for
-// debugging) into $ARTIFACT_DIR/metadata.json, creating the file if it doesn't exist yet and
-// preserving any keys another step may have already written there. artifactDir empty (not
-// running under Prow, e.g. a local run) is not an error - it just means there's nowhere to
-// write the signal, so we skip it.
-func writeEV2RetryMetadata(artifactDir string, failedNames []string) error {
+// writeEV2RetryMetadata merges ev2FailedTestsKey and ev2AllowRetryTestsKey (always present,
+// even as empty lists) into $ARTIFACT_DIR/metadata.json, creating the file if it doesn't
+// exist yet and preserving any keys another step may have already written there.
+// artifactDir empty (not running under Prow, e.g. a local run) is not an error - it just
+// means there's nowhere to write the signal, so we skip it.
+func writeEV2RetryMetadata(artifactDir string, failedNames, allowRetryFailedNames []string) error {
 	if artifactDir == "" {
 		fmt.Fprintln(os.Stderr, "WARNING: ARTIFACT_DIR is not set, skipping EV2 retry metadata")
 		return nil
@@ -233,8 +227,10 @@ func writeEV2RetryMetadata(artifactDir string, failedNames []string) error {
 		return fmt.Errorf("failed to read existing %s: %w", path, err)
 	}
 
-	metadata[ev2RetryMetadataKey] = true
-	metadata[ev2RetryMetadataKey+"-tests"] = failedNames
+	// Always write both keys, even when empty, so their presence is unambiguous: prow-job-executor
+	// can tell "the suite ran and nothing/little failed" apart from "this step never ran".
+	metadata[ev2FailedTestsKey] = orEmptySlice(failedNames)
+	metadata[ev2AllowRetryTestsKey] = orEmptySlice(allowRetryFailedNames)
 
 	data, err := json.MarshalIndent(metadata, "", "  ")
 	if err != nil {
@@ -247,6 +243,15 @@ func writeEV2RetryMetadata(artifactDir string, failedNames []string) error {
 		return fmt.Errorf("failed to write %s: %w", path, err)
 	}
 	return nil
+}
+
+// orEmptySlice returns a non-nil empty slice in place of nil, so json.Marshal emits "[]"
+// instead of "null" for metadata consumers that expect a list.
+func orEmptySlice(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }
 
 func miDemandPriority(spec *et.ExtensionTestSpec) int {

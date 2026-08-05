@@ -71,73 +71,44 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 	}
 }
 
-func TestEV2RetryAllowed(t *testing.T) {
-	for _, tc := range []struct {
-		name        string
-		failedNames []string
-		nonRetried  int
-		want        bool
-	}{
-		{
-			name: "clean run does not qualify",
-			want: false,
-		},
-		{
-			name:        "single labeled failure qualifies",
-			failedNames: []string{"spec A"},
-			want:        true,
-		},
-		{
-			name:        "failures at the cap still qualify",
-			failedNames: []string{"spec A", "spec B"},
-			want:        true,
-		},
-		{
-			name:        "one failure over the cap disqualifies",
-			failedNames: []string{"spec A", "spec B", "spec C"},
-			want:        false,
-		},
-		{
-			name:        "an unlabeled failure disqualifies the whole run",
-			failedNames: []string{"spec A", "spec B"},
-			nonRetried:  1,
-			want:        false,
-		},
-		{
-			name:        "a lone unlabeled failure disqualifies",
-			failedNames: []string{"spec A"},
-			nonRetried:  1,
-			want:        false,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := ev2RetryAllowed(tc.failedNames, tc.nonRetried); got != tc.want {
-				t.Fatalf("ev2RetryAllowed(%v, %d) = %v, want %v", tc.failedNames, tc.nonRetried, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestWriteEV2RetryMetadata(t *testing.T) {
 	t.Run("empty artifact dir is skipped without error", func(t *testing.T) {
-		if err := writeEV2RetryMetadata("", []string{"spec A"}); err != nil {
+		if err := writeEV2RetryMetadata("", []string{"spec A"}, []string{"spec A"}); err != nil {
 			t.Fatalf("expected no error when ARTIFACT_DIR is unset, got %v", err)
 		}
 	})
 
 	t.Run("writes a fresh metadata.json", func(t *testing.T) {
 		dir := t.TempDir()
-		if err := writeEV2RetryMetadata(dir, []string{"spec A", "spec B"}); err != nil {
+		if err := writeEV2RetryMetadata(dir, []string{"spec A", "spec B"}, []string{"spec A"}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		got := readMetadataFile(t, dir)
-		if got[ev2RetryMetadataKey] != true {
-			t.Fatalf("expected %s=true, got %v", ev2RetryMetadataKey, got[ev2RetryMetadataKey])
+		failed, ok := got[ev2FailedTestsKey].([]interface{})
+		if !ok || len(failed) != 2 {
+			t.Fatalf("expected 2 failed test names recorded, got %v", got[ev2FailedTestsKey])
 		}
-		names, ok := got[ev2RetryMetadataKey+"-tests"].([]interface{})
-		if !ok || len(names) != 2 {
-			t.Fatalf("expected 2 failed test names recorded, got %v", got[ev2RetryMetadataKey+"-tests"])
+		allowRetry, ok := got[ev2AllowRetryTestsKey].([]interface{})
+		if !ok || len(allowRetry) != 1 {
+			t.Fatalf("expected 1 allow-retry test name recorded, got %v", got[ev2AllowRetryTestsKey])
+		}
+	})
+
+	t.Run("writes empty lists when nothing failed, so the keys are always present", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := writeEV2RetryMetadata(dir, nil, nil); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got := readMetadataFile(t, dir)
+		failed, ok := got[ev2FailedTestsKey].([]interface{})
+		if !ok || len(failed) != 0 {
+			t.Fatalf("expected an empty failed-tests list, got %v", got[ev2FailedTestsKey])
+		}
+		allowRetry, ok := got[ev2AllowRetryTestsKey].([]interface{})
+		if !ok || len(allowRetry) != 0 {
+			t.Fatalf("expected an empty allow-retry-tests list, got %v", got[ev2AllowRetryTestsKey])
 		}
 	})
 
@@ -152,7 +123,7 @@ func TestWriteEV2RetryMetadata(t *testing.T) {
 			t.Fatalf("failed to write fixture: %v", err)
 		}
 
-		if err := writeEV2RetryMetadata(dir, []string{"spec A"}); err != nil {
+		if err := writeEV2RetryMetadata(dir, []string{"spec A"}, []string{"spec A"}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -160,8 +131,9 @@ func TestWriteEV2RetryMetadata(t *testing.T) {
 		if got["some-other-step"] != "wrote-this" {
 			t.Fatalf("expected pre-existing key to survive the merge, got %v", got)
 		}
-		if got[ev2RetryMetadataKey] != true {
-			t.Fatalf("expected %s=true, got %v", ev2RetryMetadataKey, got[ev2RetryMetadataKey])
+		failed, ok := got[ev2FailedTestsKey].([]interface{})
+		if !ok || len(failed) != 1 {
+			t.Fatalf("expected 1 failed test name recorded, got %v", got[ev2FailedTestsKey])
 		}
 	})
 }
