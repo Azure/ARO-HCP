@@ -157,7 +157,7 @@ The write is merge-safe: if some other step already wrote `$ARTIFACT_DIR/metadat
 
 ### 3. Consuming the signal (ARO-Tools)
 
-`prow-job-executor`'s `prowjob.Monitor` gets a `allowEV2Retry bool` field (set from the `--allow-ev2-retry` CLI flag) and a `maxAutoRetryFailures int` field (set from `--max-ev2-auto-retry-failures`, default `prowjob.DefaultMaxEV2AutoRetryFailures = 2`), plus a dedicated `JobFailedError` type that carries the `ProwExecutionID` and `Status.URL` of a job that ended in `FailureState`. This type only exists so `ExecuteAndWait` can distinguish "the job ran and a test failed" from any other error via `errors.As`.
+`prow-job-executor`'s `prowjob.Monitor` gets an `allowEV2Retry bool` field (set from the `--allow-ev2-retry` CLI flag) and a `maxAutoRetryFailures int` field (set from `--max-ev2-auto-retry-failures`, default `prowjob.DefaultMaxEV2AutoRetryFailures = 2`), plus a dedicated `JobFailedError` type that carries the `ProwExecutionID` and `Status.URL` of a job that ended in `FailureState`. This type only exists so `ExecuteAndWait` can distinguish "the job ran and a test failed" from any other error via `errors.As`.
 
 `ExecuteAndWait` is split into a public wrapper and a private `executeAndWaitOnce`:
 
