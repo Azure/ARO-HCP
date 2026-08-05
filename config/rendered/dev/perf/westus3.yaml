@@ -387,19 +387,25 @@ geneva:
   resourceContributor: ""
 genevaHealthFunction:
   appServicePlanName: arohcp-perf-geneva-health-plan-usw3ptest
-  certificateCN: geneva-health-publisher-perf.geneva.keyvault.aro-hcp.azure.com
-  certificateIssuer: Self
-  certificateName: geneva-health-publisher
-  certificateSAN: geneva-health-publisher-perf.geneva.keyvault.aro-hcp.azure.com
-  deploy: true
+  certificate:
+    commonName: ""
+    issuer: OneCertV2-PrivateCA
+    manage: true
+    name: geneva-health-publisher
+    sanDnsNames: []
+  deploy: false
   functionAppName: arohcp-perf-geneva-health-usw3ptest
-  healthEnvironment: Int
+  healthEnvironment: ""
   image:
     digest: ""
-    registry: arohcpsvcdev.azurecr.io
-    repository: geneva-health-function
+    registry: empty-sentinel
+    repository: empty-sentinel
+  imageArtifact:
+    adoProject: ""
+    artifactName: ""
+    buildId: 0
   managedIdentityName: arohcp-perf-geneva-health-mi-usw3ptest
-  monitoringAccount: testGenevaMetric
+  monitoringAccount: ""
   storageAccountName: arohcpperfgenhltusw3ptest
 global:
   billing:

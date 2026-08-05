@@ -448,21 +448,27 @@ defaults:
         routingId: ""
         automitigationEnabled: ""
   genevaHealthFunction:
-    deploy: true
-    certificateName: geneva-health-publisher
-    certificateIssuer: Self
-    certificateSAN: 'geneva-health-publisher-{{ .ctx.environment }}.geneva.keyvault.aro-hcp.azure.com'
-    certificateCN: 'geneva-health-publisher-{{ .ctx.environment }}.geneva.keyvault.aro-hcp.azure.com'
-    monitoringAccount: testGenevaMetric
-    healthEnvironment: Int
+    deploy: false
+    monitoringAccount: ""
+    healthEnvironment: ""
     functionAppName: 'arohcp-{{ .ctx.environment }}-geneva-health-{{ .ctx.regionShort }}'
     storageAccountName: 'arohcp{{ .ctx.environment }}genhlt{{ .ctx.regionShort }}'
     appServicePlanName: 'arohcp-{{ .ctx.environment }}-geneva-health-plan-{{ .ctx.regionShort }}'
     managedIdentityName: 'arohcp-{{ .ctx.environment }}-geneva-health-mi-{{ .ctx.regionShort }}'
     image:
-      registry: arohcpsvcdev.azurecr.io
-      repository: geneva-health-function
+      registry: "empty-sentinel"
+      repository: "empty-sentinel"
       digest: ""
+    certificate:
+      name: "geneva-health-publisher"
+      issuer: OneCertV2-PrivateCA
+      manage: true
+      commonName: ""
+      sanDnsNames: []
+    imageArtifact:
+      adoProject: ""
+      artifactName: ""
+      buildId: 0
   quotaizer:
     quotaGroup:
       id: "aro-{{ .ctx.environment }}-{{ .ctx.region }}"
