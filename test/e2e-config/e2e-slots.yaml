@@ -54,6 +54,13 @@ environments:
       slot_count: 1
       identity_container_prefix: aro-hcp-msi-container-int-shard0
       identity_container_count: 20
+    - subscription_name: "ARO SRE Team - INT (EA Subscription 3)"
+      region: westus3
+      region_mode: fixed
+      resource_type: aro-hcp-int-westus3-shard0-slot
+      slot_count: 1
+      identity_container_prefix: aro-hcp-msi-container-int-westus3-shard0
+      identity_container_count: 20
   stg:
     deploy_envs:
     - stg
