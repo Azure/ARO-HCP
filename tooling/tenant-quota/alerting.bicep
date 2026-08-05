@@ -18,6 +18,22 @@ var e2eExpiredCountInfoThreshold = 10 // TODO: tighten to 0 once cleanup-sweeper
 var e2eExpiredCountEscalationThreshold = 25 // TODO: tighten to 5 once cleanup-sweeper baseline improves
 var e2eMaxExpiredAgeSeconds = 604800 // 7 days; TODO: tighten to 86400 (1 day)
 
+// Prow CI alert thresholds
+var prowHighFrequencyMinRuns = 5
+var prowScheduledMinRuns = 3
+var prowHealthcheckMaxFailureRate = '0.20'
+var prowE2EParallelMinSuccessfulRuns = 20
+var prowE2EParallelP95MaxSeconds = 9000 // 2h30m
+var prowCollectionMaxAgeSeconds = 900 // 15 minutes
+var prowBatchMaxConsecutiveFailures = 5
+
+var prowHighFrequencyRuns = 'sum by (job_name, job_type) (prow_ci_job_info{job_type=~"presubmit|batch"})'
+var prowHighFrequencyFailures = 'sum by (job_name, job_type) (prow_ci_job_info{job_type=~"presubmit|batch",result=~"failure|error"})'
+var prowScheduledRuns = 'sum by (job_name, job_type) (prow_ci_job_info{job_type=~"periodic|postsubmit"})'
+var prowScheduledFailures = 'sum by (job_name, job_type) (prow_ci_job_info{job_type=~"periodic|postsubmit",result=~"failure|error"})'
+var prowHealthcheckRuns = 'sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*"})'
+var prowHealthcheckFailures = 'sum by (job_name) (prow_ci_job_info{job_name=~"periodic-ci-Azure-ARO-HCP-main-periodic-healthcheck-provision-.*",result=~"failure|error"})'
+
 // Prometheus Rule Group for tenant-quota alerts
 resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'tenant-quota-alerts'
@@ -360,6 +376,205 @@ resource e2eExpiredRGAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@202
   }
 }
 
+resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'prow-ci-alerts'
+  location: resourceGroup().location
+  properties: {
+    enabled: alertingEnabled
+    interval: 'PT1M'
+    scopes: [
+      azureMonitorWorkspaceId
+    ]
+    rules: [
+      {
+        alert: 'ProwCIHighFrequencyJobPermafailing'
+        enabled: true
+        expression: '(${prowHighFrequencyFailures} / ${prowHighFrequencyRuns}) == 1 and on (job_name, job_type) ${prowHighFrequencyRuns} >= ${prowHighFrequencyMinRuns}'
+        for: 'PT15M'
+        severity: 3
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          summary: 'Prow CI job is consistently failing'
+          description: '{{ $labels.job_name }} ({{ $labels.job_type }}) has failed every run in the 24-hour window with at least ${prowHighFrequencyMinRuns} completed runs.'
+        }
+        actions: [
+          {
+            actionGroupId: sharedActionGroupId
+          }
+        ]
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+      }
+      {
+        alert: 'ProwCIScheduledJobPermafailing'
+        enabled: true
+        expression: '(${prowScheduledFailures} / ${prowScheduledRuns}) == 1 and on (job_name, job_type) ${prowScheduledRuns} >= ${prowScheduledMinRuns}'
+        for: 'PT30M'
+        severity: 3
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          summary: 'Scheduled Prow CI job is consistently failing'
+          description: '{{ $labels.job_name }} ({{ $labels.job_type }}) has failed every run in the 24-hour window with at least ${prowScheduledMinRuns} completed runs.'
+        }
+        actions: [
+          {
+            actionGroupId: sharedActionGroupId
+          }
+        ]
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+      }
+      {
+        alert: 'ProwCIHealthcheckProvisionSuccessRateLow'
+        enabled: true
+        expression: 'label_replace((${prowHealthcheckFailures} / ${prowHealthcheckRuns}), "region", "$1", "job_name", ".*-provision-(.*)") > ${prowHealthcheckMaxFailureRate} and on (job_name) ${prowHealthcheckRuns} >= ${prowHighFrequencyMinRuns}'
+        for: 'PT30M'
+        severity: 3
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          summary: 'Regional Prow provision healthcheck success rate is below 80%'
+          description: 'Provision healthchecks in {{ $labels.region }} have a {{ $value | humanizePercentage }} failure rate over the 24-hour window.'
+        }
+        actions: [
+          {
+            actionGroupId: sharedActionGroupId
+          }
+        ]
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+      }
+      {
+        alert: 'ProwCIE2EParallelDurationP95High'
+        enabled: true
+        expression: 'histogram_quantile(0.95, sum by (job_name, le) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success"})) > ${prowE2EParallelP95MaxSeconds} and on (job_name) sum by (job_name) (prow_ci_job_duration_window_runs{job_name="pull-ci-Azure-ARO-HCP-main-e2e-parallel",result="success",le="+Inf"}) >= ${prowE2EParallelMinSuccessfulRuns}'
+        for: 'PT30M'
+        severity: 3
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          summary: 'Prow e2e-parallel P95 duration exceeds 2h30m'
+          description: '{{ $labels.job_name }} successful-run P95 duration is {{ $value | humanizeDuration }} over the 24-hour window.'
+        }
+        actions: [
+          {
+            actionGroupId: sharedActionGroupId
+          }
+        ]
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+      }
+      {
+        alert: 'ProwCICollectionStale'
+        enabled: true
+        expression: 'time() - prow_ci_collection_last_success_timestamp_seconds > ${prowCollectionMaxAgeSeconds}'
+        for: 'PT15M'
+        severity: 2
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          summary: 'Prow CI metrics collection is stale'
+          description: 'The last successful Prow collection was {{ $value | humanizeDuration }} ago. Check exporter logs and connectivity to prow.ci.openshift.org.'
+        }
+        actions: [
+          {
+            actionGroupId: sharedActionGroupId
+          }
+        ]
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+      }
+      {
+        alert: 'ProwCIInvalidJobsDetected'
+        enabled: true
+        expression: 'increase(prow_ci_invalid_jobs_total[1h]) > 0'
+        for: 'PT1M'
+        severity: 3
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          summary: 'Malformed completed Prow CI jobs detected'
+          description: '{{ $value }} malformed completed Prow jobs with reason {{ $labels.reason }} were observed in the last hour.'
+        }
+        actions: [
+          {
+            actionGroupId: sharedActionGroupId
+          }
+        ]
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+      }
+      {
+        alert: 'ProwCINoCachedRuns'
+        enabled: true
+        expression: 'prow_ci_collection_success == 1 and prow_ci_cached_runs == 0'
+        for: 'PT15M'
+        severity: 2
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          summary: 'Prow collection succeeds but exports no completed runs'
+          description: 'The exporter can reach Prow but has no cached ARO-HCP runs. Check repository matching and the Prow response format.'
+        }
+        actions: [
+          {
+            actionGroupId: sharedActionGroupId
+          }
+        ]
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+      }
+      {
+        alert: 'ProwCIMergeQueueBlocked'
+        enabled: true
+        expression: 'prow_ci_job_consecutive_failures{job_type="batch"} >= ${prowBatchMaxConsecutiveFailures}'
+        for: 'PT1M'
+        severity: 2
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          summary: 'Prow merge queue job has failed ${prowBatchMaxConsecutiveFailures} consecutive times'
+          description: '{{ $labels.job_name }} has {{ $value }} consecutive Tide batch failures. Inspect the merge queue and failing job before retesting.'
+        }
+        actions: [
+          {
+            actionGroupId: sharedActionGroupId
+          }
+        ]
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+      }
+    ]
+  }
+}
+
 output alertRuleGroupId string = tenantQuotaAlerts.id
 output subscriptionAlertRuleGroupId string = subscriptionQuotaAlerts.id
 output e2eExpiredRGAlertRuleGroupId string = e2eExpiredRGAlerts.id
+output prowCIAlertRuleGroupId string = prowCIAlerts.id
