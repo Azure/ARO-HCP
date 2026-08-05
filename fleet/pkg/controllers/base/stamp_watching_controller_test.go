@@ -26,8 +26,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	fleetapi "github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 )
 
@@ -55,7 +55,7 @@ func TestStampKeyFromObject(t *testing.T) {
 			obj: func() *fleetapi.Stamp {
 				rid, _ := fleetapi.ToStampResourceID("abc")
 				return &fleetapi.Stamp{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
 				}
 			}(),
 			wantKey: StampKey{StampIdentifier: "abc"},
@@ -65,7 +65,7 @@ func TestStampKeyFromObject(t *testing.T) {
 			obj: func() *fleetapi.ManagementCluster {
 				rid, _ := fleetapi.ToManagementClusterResourceID("xyz")
 				return &fleetapi.ManagementCluster{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
 				}
 			}(),
 			wantKey: StampKey{StampIdentifier: "xyz"},
@@ -78,14 +78,14 @@ func TestStampKeyFromObject(t *testing.T) {
 		{
 			name: "Stamp with nil resource ID",
 			obj: &fleetapi.Stamp{
-				CosmosMetadata: api.CosmosMetadata{ResourceID: nil},
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: nil},
 			},
 			wantError: true,
 		},
 		{
 			name: "ManagementCluster with nil resource ID",
 			obj: &fleetapi.ManagementCluster{
-				CosmosMetadata: api.CosmosMetadata{ResourceID: nil},
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: nil},
 			},
 			wantError: true,
 		},
@@ -125,7 +125,7 @@ func TestStampKeyGetResourceID(t *testing.T) {
 func testStamp(stampID string, etag azcore.ETag) *fleetapi.Stamp {
 	rid, _ := fleetapi.ToStampResourceID(stampID)
 	s := &fleetapi.Stamp{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
 	}
 	s.SetEtag(etag)
 	return s
@@ -149,7 +149,7 @@ func TestStampHandleAdd(t *testing.T) {
 			obj: func() *fleetapi.ManagementCluster {
 				rid, _ := fleetapi.ToManagementClusterResourceID("s2")
 				return &fleetapi.ManagementCluster{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
 				}
 			}(),
 			wantQueueLen: 1,

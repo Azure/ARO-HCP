@@ -30,8 +30,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 const (
@@ -43,45 +43,45 @@ const (
 	testVMSize         = "Standard_D8ds_v5"
 )
 
-func newTestSubscription() *arm.Subscription {
-	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
-	return &arm.Subscription{
-		CosmosMetadata: api.CosmosMetadata{
+func newTestSubscription() *coreapi.Subscription {
+	subResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
+	return &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   subResourceID,
 			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
 		},
 		ResourceID: subResourceID,
-		State:      arm.SubscriptionStateRegistered,
-		Properties: &arm.SubscriptionProperties{
+		State:      coreapi.SubscriptionStateRegistered,
+		Properties: &coreapi.SubscriptionProperties{
 			TenantId: ptr.To(testTenantID),
 		},
 	}
 }
 
-func newTestNodePool(t *testing.T, diskType api.OsDiskType, vmSize string) *api.HCPOpenShiftClusterNodePool {
+func newTestNodePool(t *testing.T, diskType metadataapi.OsDiskType, vmSize string) *coreapi.HCPOpenShiftClusterNodePool {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/" + testNodePoolName))
-	return &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: testNodePoolName,
-				Type: api.NodePoolResourceType.String(),
+				Type: coreapi.NodePoolResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Platform: api.NodePoolPlatformProfile{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			Platform: coreapi.NodePoolPlatformProfile{
 				VMSize: vmSize,
-				OSDisk: api.OSDiskProfile{
+				OSDisk: coreapi.OSDiskProfile{
 					DiskType: diskType,
 				},
 			},
@@ -98,23 +98,23 @@ func makeTestVMResourceSKU(name string, capabilities ...*armcompute.ResourceSKUC
 
 func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 	ctx := context.Background()
-	cluster := &api.HCPOpenShiftCluster{}
+	cluster := &coreapi.HCPOpenShiftCluster{}
 	subscription := newTestSubscription()
 
 	tests := []struct {
 		name                       string
-		subscription               *arm.Subscription
-		nodePool                   *api.HCPOpenShiftClusterNodePool
+		subscription               *coreapi.Subscription
+		nodePool                   *coreapi.HCPOpenShiftClusterNodePool
 		setupMockVMSKUCachedReader func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader)
 		wantErr                    string
 	}{
 		{
 			name:     "managed OS disk succeeds",
-			nodePool: newTestNodePool(t, api.OsDiskTypeManaged, testVMSize),
+			nodePool: newTestNodePool(t, metadataapi.OsDiskTypeManaged, testVMSize),
 		},
 		{
 			name:     "ephemeral OS disk succeeds when capability is True",
-			nodePool: newTestNodePool(t, api.OsDiskTypeEphemeral, testVMSize),
+			nodePool: newTestNodePool(t, metadataapi.OsDiskTypeEphemeral, testVMSize),
 			setupMockVMSKUCachedReader: func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader) {
 				skuReader.EXPECT().
 					GetVirtualMachineSKU(gomock.Any(), testTenantID, testSubscriptionID, "eastus", testVMSize).
@@ -126,7 +126,7 @@ func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 		},
 		{
 			name:     "ephemeral OS disk succeeds when capability is true (case-insensitive)",
-			nodePool: newTestNodePool(t, api.OsDiskTypeEphemeral, testVMSize),
+			nodePool: newTestNodePool(t, metadataapi.OsDiskTypeEphemeral, testVMSize),
 			setupMockVMSKUCachedReader: func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader) {
 				skuReader.EXPECT().
 					GetVirtualMachineSKU(gomock.Any(), testTenantID, testSubscriptionID, "eastus", testVMSize).
@@ -138,7 +138,7 @@ func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 		},
 		{
 			name:     "ephemeral OS disk fails when capability is False",
-			nodePool: newTestNodePool(t, api.OsDiskTypeEphemeral, testVMSize),
+			nodePool: newTestNodePool(t, metadataapi.OsDiskTypeEphemeral, testVMSize),
 			setupMockVMSKUCachedReader: func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader) {
 				skuReader.EXPECT().
 					GetVirtualMachineSKU(gomock.Any(), testTenantID, testSubscriptionID, "eastus", testVMSize).
@@ -151,7 +151,7 @@ func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 		},
 		{
 			name:     "ephemeral OS disk fails when capability is missing",
-			nodePool: newTestNodePool(t, api.OsDiskTypeEphemeral, testVMSize),
+			nodePool: newTestNodePool(t, metadataapi.OsDiskTypeEphemeral, testVMSize),
 			setupMockVMSKUCachedReader: func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader) {
 				skuReader.EXPECT().
 					GetVirtualMachineSKU(gomock.Any(), testTenantID, testSubscriptionID, "eastus", testVMSize).
@@ -161,7 +161,7 @@ func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 		},
 		{
 			name:     "ephemeral OS disk fails when SKU lookup fails",
-			nodePool: newTestNodePool(t, api.OsDiskTypeEphemeral, testVMSize),
+			nodePool: newTestNodePool(t, metadataapi.OsDiskTypeEphemeral, testVMSize),
 			setupMockVMSKUCachedReader: func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader) {
 				skuReader.EXPECT().
 					GetVirtualMachineSKU(gomock.Any(), testTenantID, testSubscriptionID, "eastus", testVMSize).
@@ -171,10 +171,10 @@ func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 		},
 		{
 			name: "ephemeral OS disk fails when subscription is missing tenant ID",
-			subscription: &arm.Subscription{
-				Properties: &arm.SubscriptionProperties{},
+			subscription: &coreapi.Subscription{
+				Properties: &coreapi.SubscriptionProperties{},
 			},
-			nodePool: newTestNodePool(t, api.OsDiskTypeEphemeral, testVMSize),
+			nodePool: newTestNodePool(t, metadataapi.OsDiskTypeEphemeral, testVMSize),
 			wantErr:  "subscription is missing tenant ID",
 		},
 	}

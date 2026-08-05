@@ -22,8 +22,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // UnderCluster reports whether desireID is nested under the given HCPOpenShiftCluster.
@@ -34,8 +33,8 @@ func UnderCluster(desireID *azcorearm.ResourceID, subscriptionID, resourceGroupN
 		return false
 	}
 	for cur := desireID; cur != nil; cur = cur.Parent {
-		if !strings.EqualFold(cur.ResourceType.Namespace, api.ProviderNamespace) ||
-			!strings.EqualFold(cur.ResourceType.Type, api.ClusterResourceType.Type) {
+		if !strings.EqualFold(cur.ResourceType.Namespace, coreapi.ProviderNamespace) ||
+			!strings.EqualFold(cur.ResourceType.Type, coreapi.ClusterResourceType.Type) {
 			continue
 		}
 		return strings.EqualFold(cur.SubscriptionID, subscriptionID) &&
@@ -55,8 +54,8 @@ func UnderNodePool(
 		return false
 	}
 	for cur := desireID; cur != nil; cur = cur.Parent {
-		if !strings.EqualFold(cur.ResourceType.Namespace, api.ProviderNamespace) ||
-			!strings.EqualFold(cur.ResourceType.Type, api.NodePoolResourceType.Type) {
+		if !strings.EqualFold(cur.ResourceType.Namespace, coreapi.ProviderNamespace) ||
+			!strings.EqualFold(cur.ResourceType.Type, coreapi.NodePoolResourceType.Type) {
 			continue
 		}
 		// cur is the NodePool ancestor; cur.Parent should be the cluster.
@@ -72,9 +71,9 @@ func UnderNodePool(
 }
 
 // ResourceIDOf returns the ResourceID of a *Desire-shaped object via its embedded
-// arm.CosmosMetadata. Used by the slice-backed listers.
+// coreapi.CosmosMetadata. Used by the slice-backed listers.
 func ResourceIDOf(desire any) *azcorearm.ResourceID {
-	if a, ok := desire.(arm.CosmosMetadataAccessor); ok {
+	if a, ok := desire.(coreapi.CosmosMetadataAccessor); ok {
 		return a.GetResourceID()
 	}
 	return nil

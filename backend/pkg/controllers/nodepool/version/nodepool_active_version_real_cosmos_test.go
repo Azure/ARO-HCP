@@ -31,9 +31,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -77,15 +77,15 @@ func loadCosmosResource[T any](t *testing.T, fsys embed.FS, path string) *T {
 // is the only piece of the parent chain we still synthesize.
 func seedSubscription(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, subscriptionID string) {
 	t.Helper()
-	subscriptionRID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + subscriptionID))
-	_, err := mockDB.Subscriptions().Create(ctx, &arm.Subscription{
-		CosmosMetadata: arm.CosmosMetadata{
+	subscriptionRID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + subscriptionID))
+	_, err := mockDB.Subscriptions().Create(ctx, &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   subscriptionRID,
 			PartitionKey: strings.ToLower(subscriptionRID.SubscriptionID),
 		},
 		ResourceID: subscriptionRID,
-		State:      arm.SubscriptionStateRegistered,
-		Properties: &arm.SubscriptionProperties{TenantId: ptr.To("test-tenant-id")},
+		State:      coreapi.SubscriptionStateRegistered,
+		Properties: &coreapi.SubscriptionProperties{TenantId: ptr.To("test-tenant-id")},
 	}, nil)
 	require.NoError(t, err)
 }
@@ -103,10 +103,10 @@ func TestNodePoolActiveVersionSyncer_RealCosmosFixture(t *testing.T) {
 	runCtx := utils.ContextWithLogger(context.Background(), logr.Discard())
 	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 
-	cluster := loadCosmosResource[api.HCPOpenShiftCluster](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/cluster.json")
-	nodePool := loadCosmosResource[api.HCPOpenShiftClusterNodePool](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/nodepool.json")
-	spnp := loadCosmosResource[api.ServiceProviderNodePool](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/serviceprovidernodepool.json")
-	readDesire := loadCosmosResource[kubeapplier.ReadDesire](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/readonlyhypershiftnodepool.json")
+	cluster := loadCosmosResource[coreapi.HCPOpenShiftCluster](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/cluster.json")
+	nodePool := loadCosmosResource[coreapi.HCPOpenShiftClusterNodePool](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/nodepool.json")
+	spnp := loadCosmosResource[coreapi.ServiceProviderNodePool](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/serviceprovidernodepool.json")
+	readDesire := loadCosmosResource[kubeapplierapi.ReadDesire](t, nodePoolActiveVersionRealCosmosFS, artifactsRoot+"/readonlyhypershiftnodepool.json")
 
 	// Sanity-check the inputs match what was captured: empty active versions
 	// going in, NodeVersions present on the mirrored Hypershift NodePool.
@@ -146,7 +146,7 @@ func TestNodePoolActiveVersionSyncer_RealCosmosFixture(t *testing.T) {
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 		resourcesDBClient:             mockDB,
 		readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
-			Desires: []*kubeapplier.ReadDesire{readDesire},
+			Desires: []*kubeapplierapi.ReadDesire{readDesire},
 		},
 	}
 
@@ -159,7 +159,7 @@ func TestNodePoolActiveVersionSyncer_RealCosmosFixture(t *testing.T) {
 
 	after, err := mockDB.ServiceProviderNodePools(
 		clusterRID.SubscriptionID, clusterRID.ResourceGroupName, clusterRID.Name, nodePoolRID.Name,
-	).Get(runCtx, api.ServiceProviderNodePoolResourceName)
+	).Get(runCtx, coreapi.ServiceProviderNodePoolResourceName)
 	require.NoError(t, err)
 	require.Len(t, after.Status.NodePoolVersion.ActiveVersions, 1,
 		"expected the single observed OCPVersion to be promoted into ActiveVersions")

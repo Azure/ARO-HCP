@@ -29,8 +29,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -212,7 +212,7 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 
 			// Register subscription
 			subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
-			subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
+			subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
 			subscriptionJSON := []byte(`{
 				"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7",
 				"state": "Registered",
@@ -503,7 +503,7 @@ func createClusterAndComplete(
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, clusterCreatePayload(clusterName, apiVersion)))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	createServiceProviderClusterForTesting(t, ctx, testInfo, clusterName, "4.20.8")
@@ -518,7 +518,7 @@ func createClusterAndComplete(
 
 // createServiceProviderClusterForTesting inserts a serviceProviderCluster document
 // to simulate the backend controller populating active_versions.
-// Document id must be arm.ResourceIDStringToCosmosID(resourceID)
+// Document id must be coreapi.ResourceIDStringToCosmosID(resourceID)
 func createServiceProviderClusterForTesting(
 	t *testing.T,
 	ctx context.Context,
@@ -528,14 +528,14 @@ func createServiceProviderClusterForTesting(
 ) {
 	t.Helper()
 
-	parsedID := api.Must(azcorearm.ParseResourceID(clusterResourceID(clusterName)))
+	parsedID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID(clusterName)))
 	subscriptionID := parsedID.SubscriptionID
 	resourceGroupName := parsedID.ResourceGroupName
 
 	spcResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/serviceProviderClusters/default",
 		subscriptionID, resourceGroupName, clusterName)
 
-	cosmosID, err := arm.ResourceIDStringToCosmosID(spcResourceID)
+	cosmosID, err := coreapi.ResourceIDStringToCosmosID(spcResourceID)
 	require.NoError(t, err)
 
 	spcDoc := map[string]interface{}{
@@ -588,7 +588,7 @@ func runClusterCrossVersionPUT(
 	putAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, putVersion)
 	require.NoError(t, putAccessor.CreateOrUpdate(ctx, resourceID, oldBody))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	_, afterMap := getResourceResponse(t, ctx, testInfo, createVersion, resourceID)
@@ -620,7 +620,7 @@ func runClusterCrossVersionPATCH(
 	patchAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, patchVersion)
 	require.NoError(t, patchAccessor.Patch(ctx, resourceID, patchBody))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	_, afterMap := getResourceResponse(t, ctx, testInfo, createVersion, resourceID)
@@ -747,7 +747,7 @@ func createNodePoolAndComplete(
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, nodePoolCreatePayload(nodePoolName, apiVersion)))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Setting the Cluster Service ID for the node pool is needed until we move all cs interactions to the backend.
@@ -818,7 +818,7 @@ func createExternalAuthAndComplete(
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, externalAuthCreatePayload(apiVersion)))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Setting the Cluster Service ID for the external auth is needed until we move all cs interactions to the backend.
@@ -874,7 +874,7 @@ func testCrossVersionNodePoolPUT(t *testing.T, testInfo *integrationutils.Integr
 	v20240610Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v20240610)
 	require.NoError(t, v20240610Accessor.CreateOrUpdate(ctx, resourceID, v20240610Body))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 6: GET via v20251223 → snapshot after the v20240610 round-trip ("after")
@@ -909,7 +909,7 @@ func testCrossVersionNodePoolPATCH(t *testing.T, testInfo *integrationutils.Inte
 	v20240610Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v20240610)
 	require.NoError(t, v20240610Accessor.Patch(ctx, resourceID, patchBody))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 4: GET via v20251223 → snapshot after the v20240610 PATCH ("after")
@@ -954,7 +954,7 @@ func testCrossVersionExternalAuthPUT(t *testing.T, testInfo *integrationutils.In
 	require.NoError(t, v20240610Accessor.CreateOrUpdate(ctx, resourceID, v20240610Body))
 
 	// Complete the update operation
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 6: GET via v20251223 → snapshot after the v20240610 round-trip ("after")
@@ -992,7 +992,7 @@ func testCrossVersionExternalAuthPATCH(t *testing.T, testInfo *integrationutils.
 	require.NoError(t, v20240610Accessor.Patch(ctx, resourceID, patchBody))
 
 	// Complete the update operation
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := metadataapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 5: GET via v20251223 → snapshot after the v20240610 PATCH ("after")

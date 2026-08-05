@@ -26,7 +26,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -47,7 +47,7 @@ func TestDispatchRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateDeleting, op.Status)
 			},
 		},
 		{
@@ -57,7 +57,7 @@ func TestDispatchRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateCanceled, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateCanceled, op.Status)
 			},
 		},
 	}

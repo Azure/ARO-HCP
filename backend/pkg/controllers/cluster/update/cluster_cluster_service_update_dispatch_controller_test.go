@@ -33,8 +33,8 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -50,12 +50,12 @@ const (
 )
 
 func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
-	csID := api.Must(api.NewInternalID(testClusterServiceIDStr))
+	csID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 
-	defaultExistingCSCluster := api.Must(arohcpv1alpha1.NewCluster().Build())
+	defaultExistingCSCluster := metadataapi.Must(arohcpv1alpha1.NewCluster().Build())
 
-	newClusterWithConfigDiff := func() *api.HCPOpenShiftCluster {
-		return newTestCluster(func(c *api.HCPOpenShiftCluster) {
+	newClusterWithConfigDiff := func() *coreapi.HCPOpenShiftCluster {
+		return newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 			c.CustomerProperties.NodeDrainTimeoutMinutes = 60
 			c.CustomerProperties.Autoscaling.MaxNodesTotal = 10
 		})
@@ -79,9 +79,9 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                           string
-		existingCluster                *api.HCPOpenShiftCluster
-		existingSubscription           *arm.Subscription
-		existingServiceProviderCluster *api.ServiceProviderCluster
+		existingCluster                *coreapi.HCPOpenShiftCluster
+		existingSubscription           *coreapi.Subscription
+		existingServiceProviderCluster *coreapi.ServiceProviderCluster
 		existingCSCluster              *arohcpv1alpha1.Cluster
 		// When not set, the syncer uses a cluster lister backed by the seeded Cosmos resources.
 		clusterLister                       corelisters.ClusterLister
@@ -92,7 +92,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name: "skip without CS call when no CSID",
-			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.ClusterServiceID = nil
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 			}),
@@ -116,18 +116,18 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no-op when config matches",
-			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 			}),
 			existingSubscription:           newTestSubscription(),
 			existingServiceProviderCluster: newTestServiceProviderCluster(testClusterName),
-			existingCSCluster: mustBuildCSClusterFromRP(t, newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			existingCSCluster: mustBuildCSClusterFromRP(t, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 			})),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetCluster(gomock.Any(), csID).
-					Return(mustBuildCSClusterFromRP(t, newTestCluster(func(c *api.HCPOpenShiftCluster) {
+					Return(mustBuildCSClusterFromRP(t, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 						c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 					})), nil)
 			},
@@ -202,7 +202,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 		{
 			name:                                "when subscription properties are nil error is propagated",
 			existingCluster:                     newClusterWithConfigDiff(),
-			existingSubscription:                newTestSubscription(func(s *arm.Subscription) { s.Properties = nil }),
+			existingSubscription:                newTestSubscription(func(s *coreapi.Subscription) { s.Properties = nil }),
 			existingServiceProviderCluster:      newTestServiceProviderCluster(testClusterName),
 			wantErr:                             true,
 			wantErrContain:                      "subscription properties or subscription tenant ID is nil",
@@ -211,7 +211,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 		{
 			name:                                "when subscription tenant ID is nil error is propagated",
 			existingCluster:                     newClusterWithConfigDiff(),
-			existingSubscription:                newTestSubscription(func(s *arm.Subscription) { s.Properties.TenantId = nil }),
+			existingSubscription:                newTestSubscription(func(s *coreapi.Subscription) { s.Properties.TenantId = nil }),
 			existingServiceProviderCluster:      newTestServiceProviderCluster(testClusterName),
 			wantErr:                             true,
 			wantErrContain:                      "subscription properties or subscription tenant ID is nil",
@@ -249,7 +249,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			var subscriptionLister corelisters.SubscriptionLister
 			if tc.existingSubscription != nil {
 				subscriptionLister = &corelistertesting.SliceSubscriptionLister{
-					Subscriptions: []*arm.Subscription{tc.existingSubscription},
+					Subscriptions: []*coreapi.Subscription{tc.existingSubscription},
 				}
 			}
 
@@ -286,18 +286,18 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 }
 
 func TestNeedsWork(t *testing.T) {
-	csID := api.Must(api.NewInternalID(testClusterServiceIDStr))
+	csID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 	now := metav1.Now()
 
 	tests := []struct {
 		name    string
-		cluster *api.HCPOpenShiftCluster
+		cluster *coreapi.HCPOpenShiftCluster
 		want    bool
 	}{
 		{
 			name: "proceed when CSID set",
-			cluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			cluster: &coreapi.HCPOpenShiftCluster{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 					ClusterServiceID: &csID,
 				},
 			},
@@ -305,8 +305,8 @@ func TestNeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when deletion timestamp is set",
-			cluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			cluster: &coreapi.HCPOpenShiftCluster{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 					DeletionTimestamp: &now,
 					ClusterServiceID:  &csID,
 				},
@@ -315,8 +315,8 @@ func TestNeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when no CSID",
-			cluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{},
+			cluster: &coreapi.HCPOpenShiftCluster{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{},
 			},
 			want: false,
 		},
@@ -329,13 +329,13 @@ func TestNeedsWork(t *testing.T) {
 	}
 }
 
-func mustBuildCSClusterFromRP(t *testing.T, hcpCluster *api.HCPOpenShiftCluster) *arohcpv1alpha1.Cluster {
+func mustBuildCSClusterFromRP(t *testing.T, hcpCluster *coreapi.HCPOpenShiftCluster) *arohcpv1alpha1.Cluster {
 	t.Helper()
 
 	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
 	require.NoError(t, err)
 
-	clusterBuilder, err := ocm.BuildCSCluster(hcpCluster.ID, "", hcpCluster, nil, oldClusterServiceCluster, &api.ServiceProviderCluster{})
+	clusterBuilder, err := ocm.BuildCSCluster(hcpCluster.ID, "", hcpCluster, nil, oldClusterServiceCluster, &coreapi.ServiceProviderCluster{})
 	require.NoError(t, err)
 
 	csCluster, err := clusterBuilder.Build()
@@ -343,13 +343,13 @@ func mustBuildCSClusterFromRP(t *testing.T, hcpCluster *api.HCPOpenShiftCluster)
 	return csCluster
 }
 
-func newTestSubscription(opts ...func(*arm.Subscription)) *arm.Subscription {
-	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
-	subscription := &arm.Subscription{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: subResourceID},
+func newTestSubscription(opts ...func(*coreapi.Subscription)) *coreapi.Subscription {
+	subResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
+	subscription := &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: subResourceID},
 		ResourceID:     subResourceID,
-		Properties: &arm.SubscriptionProperties{
-			TenantId: api.Ptr("11111111-1111-1111-1111-111111111111"),
+		Properties: &coreapi.SubscriptionProperties{
+			TenantId: metadataapi.Ptr("11111111-1111-1111-1111-111111111111"),
 		},
 	}
 	for _, opt := range opts {
@@ -358,27 +358,27 @@ func newTestSubscription(opts ...func(*arm.Subscription)) *arm.Subscription {
 	return subscription
 }
 
-func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 
-	csID := api.Must(api.NewInternalID(testClusterServiceIDStr))
-	cluster := &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	csID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
+	cluster := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: testClusterName,
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID: &csID,
 		},
 	}
@@ -390,20 +390,20 @@ func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftClu
 	return cluster
 }
 
-func newTestServiceProviderCluster(clusterName string) *api.ServiceProviderCluster {
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+func newTestServiceProviderCluster(clusterName string) *coreapi.ServiceProviderCluster {
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName,
 	))
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		clusterResourceID.String() + "/" +
-			api.ServiceProviderClusterResourceTypeName + "/" +
-			api.ServiceProviderClusterResourceName,
+			coreapi.ServiceProviderClusterResourceTypeName + "/" +
+			coreapi.ServiceProviderClusterResourceName,
 	))
 
-	return &api.ServiceProviderCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},

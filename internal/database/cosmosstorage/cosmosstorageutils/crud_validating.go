@@ -22,19 +22,19 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // validatingCRUD wraps a ResourceCRUD and runs type-specific validation before
 // Create and Replace. The wrapped CRUD is never exposed directly, so validation
 // cannot be bypassed.
-type validatingCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
+type validatingCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
 	inner           ResourceCRUD[InternalAPIType, InternalAPITypePointer]
 	validateCreate  func(context.Context, *InternalAPIType) field.ErrorList
 	validateReplace func(context.Context, *InternalAPIType, *InternalAPIType) field.ErrorList
 }
 
-func NewValidatingCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](
+func NewValidatingCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](
 	inner ResourceCRUD[InternalAPIType, InternalAPITypePointer],
 	validateCreate func(context.Context, *InternalAPIType) field.ErrorList,
 	validateReplace func(context.Context, *InternalAPIType, *InternalAPIType) field.ErrorList,

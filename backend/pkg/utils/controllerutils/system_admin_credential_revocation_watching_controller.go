@@ -23,7 +23,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -61,7 +61,7 @@ func NewSystemAdminCredentialRevocationWatchingController(
 		resourcesDBClient: resourcesDBClient,
 		syncer:            syncer,
 	}
-	controller := newGenericWatchingController(name, api.SystemAdminCredentialRevocationResourceType, systemAdminCredentialRevocationSyncer)
+	controller := newGenericWatchingController(name, coreapi.SystemAdminCredentialRevocationResourceType, systemAdminCredentialRevocationSyncer)
 
 	// this happens when unit tests don't want triggering. This isn't beautiful, but fails to do nothing which is pretty safe.
 	if backendInformers != nil {

@@ -22,8 +22,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview/generated"
 )
 
@@ -31,7 +31,7 @@ type NodePool struct {
 	generated.NodePool
 }
 
-var _ api.VersionedCreatableResource[api.HCPOpenShiftClusterNodePool] = &NodePool{}
+var _ coreapi.VersionedCreatableResource[coreapi.HCPOpenShiftClusterNodePool] = &NodePool{}
 
 func (h *NodePool) NewExternal() any {
 	return &NodePool{}
@@ -45,7 +45,7 @@ func SetDefaultValuesNodePool(obj *NodePool) {
 		obj.Properties.Version = &generated.NodePoolVersionProfile{}
 	}
 	if obj.Properties.Version.ChannelGroup == nil {
-		obj.Properties.Version.ChannelGroup = ptr.To(api.DefaultNodePoolVersionChannelGroup)
+		obj.Properties.Version.ChannelGroup = ptr.To(coreapi.DefaultNodePoolVersionChannelGroup)
 	}
 	if obj.Properties.Platform == nil {
 		obj.Properties.Platform = &generated.NodePoolPlatformProfile{}
@@ -54,7 +54,7 @@ func SetDefaultValuesNodePool(obj *NodePool) {
 		obj.Properties.Platform.OSDisk = &generated.OsDiskProfile{}
 	}
 	if obj.Properties.Platform.OSDisk.SizeGiB == nil {
-		obj.Properties.Platform.OSDisk.SizeGiB = ptr.To(api.DefaultNodePoolOSDiskSizeGiB)
+		obj.Properties.Platform.OSDisk.SizeGiB = ptr.To(coreapi.DefaultNodePoolOSDiskSizeGiB)
 	}
 	if obj.Properties.Platform.OSDisk.DiskStorageAccountType == nil {
 		obj.Properties.Platform.OSDisk.DiskStorageAccountType = ptr.To(generated.DiskStorageAccountTypePremiumLRS)
@@ -67,12 +67,12 @@ func SetDefaultValuesNodePool(obj *NodePool) {
 	}
 }
 
-func (h *NodePool) GetVersion() api.Version {
+func (h *NodePool) GetVersion() coreapi.Version {
 	return versionedInterface
 }
 
-func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	out := &api.HCPOpenShiftClusterNodePool{}
+func (h *NodePool) ConvertToInternal(existing *coreapi.HCPOpenShiftClusterNodePool) (*coreapi.HCPOpenShiftClusterNodePool, error) {
+	out := &coreapi.HCPOpenShiftClusterNodePool{}
 	errs := field.ErrorList{}
 
 	// Reject null on required fields. On the PATCH path, JSON merge-patch
@@ -86,8 +86,8 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 	}
 
 	if h.ID != nil {
-		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
-		out.ResourceID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
+		out.ID = metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
+		out.ResourceID = metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
 	}
 	if h.Name != nil {
 		out.Name = *h.Name
@@ -96,7 +96,7 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 		out.Type = *h.Type
 	}
 	if h.SystemData != nil {
-		out.SystemData = &arm.SystemData{
+		out.SystemData = &coreapi.SystemData{
 			CreatedAt:      h.SystemData.CreatedAt,
 			LastModifiedAt: h.SystemData.LastModifiedAt,
 		}
@@ -104,13 +104,13 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 			out.SystemData.CreatedBy = *h.SystemData.CreatedBy
 		}
 		if h.SystemData.CreatedByType != nil {
-			out.SystemData.CreatedByType = arm.CreatedByType(*h.SystemData.CreatedByType)
+			out.SystemData.CreatedByType = coreapi.CreatedByType(*h.SystemData.CreatedByType)
 		}
 		if h.SystemData.LastModifiedBy != nil {
 			out.SystemData.LastModifiedBy = *h.SystemData.LastModifiedBy
 		}
 		if h.SystemData.LastModifiedByType != nil {
-			out.SystemData.LastModifiedByType = arm.CreatedByType(*h.SystemData.LastModifiedByType)
+			out.SystemData.LastModifiedByType = coreapi.CreatedByType(*h.SystemData.LastModifiedByType)
 		}
 	}
 	if h.Location != nil {
@@ -122,13 +122,13 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 	//   When Tags are patched, the tags from the request
 	//   replace all existing tags for the resource
 	//
-	out.Tags = api.StringPtrMapToStringMap(h.Tags)
+	out.Tags = metadataapi.StringPtrMapToStringMap(h.Tags)
 	if h.Properties != nil {
 		if h.Properties.ProvisioningState != nil {
-			out.Properties.ProvisioningState = arm.ProvisioningState(*h.Properties.ProvisioningState)
+			out.Properties.ProvisioningState = coreapi.ProvisioningState(*h.Properties.ProvisioningState)
 		}
-		out.Properties.AutoRepair = api.Deref(h.Properties.AutoRepair)
-		out.Properties.Replicas = api.Deref(h.Properties.Replicas)
+		out.Properties.AutoRepair = metadataapi.Deref(h.Properties.AutoRepair)
+		out.Properties.Replicas = metadataapi.Deref(h.Properties.Replicas)
 		out.Properties.NodeDrainTimeoutMinutes = h.Properties.NodeDrainTimeoutMinutes
 		if h.Properties.Version != nil {
 			normalizeNodePoolVersion(h.Properties.Version, &out.Properties.Version)
@@ -137,9 +137,9 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 			errs = append(errs, normalizeNodePoolPlatform(field.NewPath("properties", "platform"), h.Properties.Platform, &out.Properties.Platform)...)
 		}
 		if h.Properties.AutoScaling != nil {
-			out.Properties.AutoScaling = &api.NodePoolAutoScaling{
-				Max: api.Deref(h.Properties.AutoScaling.Max),
-				Min: api.Deref(h.Properties.AutoScaling.Min),
+			out.Properties.AutoScaling = &coreapi.NodePoolAutoScaling{
+				Max: metadataapi.Deref(h.Properties.AutoScaling.Max),
+				Min: metadataapi.Deref(h.Properties.AutoScaling.Min),
 			}
 		}
 		if h.Properties.Labels != nil {
@@ -162,11 +162,11 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 			}
 		}
 		if h.Properties.Taints != nil {
-			out.Properties.Taints = make([]api.Taint, len(h.Properties.Taints))
+			out.Properties.Taints = make([]coreapi.Taint, len(h.Properties.Taints))
 			for i := range h.Properties.Taints {
-				out.Properties.Taints[i].Effect = api.Effect(api.Deref(h.Properties.Taints[i].Effect))
-				out.Properties.Taints[i].Key = api.Deref(h.Properties.Taints[i].Key)
-				out.Properties.Taints[i].Value = api.Deref(h.Properties.Taints[i].Value)
+				out.Properties.Taints[i].Effect = metadataapi.Effect(metadataapi.Deref(h.Properties.Taints[i].Effect))
+				out.Properties.Taints[i].Key = metadataapi.Deref(h.Properties.Taints[i].Key)
+				out.Properties.Taints[i].Value = metadataapi.Deref(h.Properties.Taints[i].Value)
 			}
 		}
 	}
@@ -177,30 +177,30 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 		preserveUnknownNodePoolFields(existing, out)
 	}
 
-	return out, arm.CloudErrorFromFieldErrors(errs)
+	return out, coreapi.CloudErrorFromFieldErrors(errs)
 }
 
 // preserveUnknownNodePoolFields copies customer-facing fields from existing that
 // this API version doesn't know about. Currently empty — no cross-version
 // customer fields exist yet between v20240610preview and v20251223preview.
-func preserveUnknownNodePoolFields(from, to *api.HCPOpenShiftClusterNodePool) {
+func preserveUnknownNodePoolFields(from, to *coreapi.HCPOpenShiftClusterNodePool) {
 }
 
-func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.NodePoolVersionProfile) {
-	out.ID = api.Deref(p.ID)
-	out.ChannelGroup = api.Deref(p.ChannelGroup)
+func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *coreapi.NodePoolVersionProfile) {
+	out.ID = metadataapi.Deref(p.ID)
+	out.ChannelGroup = metadataapi.Deref(p.ChannelGroup)
 }
 
-func normalizeNodePoolPlatform(fldPath *field.Path, p *generated.NodePoolPlatformProfile, out *api.NodePoolPlatformProfile) field.ErrorList {
+func normalizeNodePoolPlatform(fldPath *field.Path, p *generated.NodePoolPlatformProfile, out *coreapi.NodePoolPlatformProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	out.VMSize = api.Deref(p.VMSize)
-	out.AvailabilityZone = api.Deref(p.AvailabilityZone)
-	out.EnableEncryptionAtHost = api.Deref(p.EnableEncryptionAtHost)
+	out.VMSize = metadataapi.Deref(p.VMSize)
+	out.AvailabilityZone = metadataapi.Deref(p.AvailabilityZone)
+	out.EnableEncryptionAtHost = metadataapi.Deref(p.EnableEncryptionAtHost)
 	if p.OSDisk != nil {
 		errs = append(errs, normalizeOSDiskProfile(fldPath.Child("osDisk"), p.OSDisk, &out.OSDisk)...)
 	} else {
-		out.OSDisk = api.OSDiskProfile{}
+		out.OSDisk = coreapi.OSDiskProfile{}
 	}
 	if p.SubnetID != nil && len(*p.SubnetID) > 0 {
 		if resourceID, err := azcorearm.ParseResourceID(*p.SubnetID); err != nil {
@@ -214,11 +214,11 @@ func normalizeNodePoolPlatform(fldPath *field.Path, p *generated.NodePoolPlatfor
 	return errs
 }
 
-func normalizeOSDiskProfile(fldPath *field.Path, p *generated.OsDiskProfile, out *api.OSDiskProfile) field.ErrorList {
+func normalizeOSDiskProfile(fldPath *field.Path, p *generated.OsDiskProfile, out *coreapi.OSDiskProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	out.SizeGiB = p.SizeGiB
-	out.DiskStorageAccountType = api.DiskStorageAccountType(api.Deref(p.DiskStorageAccountType))
+	out.DiskStorageAccountType = metadataapi.DiskStorageAccountType(metadataapi.Deref(p.DiskStorageAccountType))
 	if p.EncryptionSetID != nil && len(*p.EncryptionSetID) > 0 {
 		if resourceID, err := azcorearm.ParseResourceID(*p.EncryptionSetID); err != nil {
 			errs = append(errs, field.Invalid(fldPath.Child("encryptionSetID"), *p.EncryptionSetID, err.Error()))
@@ -228,7 +228,7 @@ func normalizeOSDiskProfile(fldPath *field.Path, p *generated.OsDiskProfile, out
 	} else {
 		out.EncryptionSetID = nil
 	}
-	out.DiskType = api.OsDiskType(api.Deref(p.DiskType))
+	out.DiskType = metadataapi.OsDiskType(metadataapi.Deref(p.DiskType))
 	return errs
 }
 
@@ -244,57 +244,57 @@ type NodePoolAutoScaling struct {
 	generated.NodePoolAutoScaling
 }
 
-func newNodePoolVersionProfile(from *api.NodePoolVersionProfile) generated.NodePoolVersionProfile {
+func newNodePoolVersionProfile(from *coreapi.NodePoolVersionProfile) generated.NodePoolVersionProfile {
 	if from == nil {
 		return generated.NodePoolVersionProfile{}
 	}
 	return generated.NodePoolVersionProfile{
-		ID:           api.PtrOrNil(from.ID),
-		ChannelGroup: api.PtrOrNil(from.ChannelGroup),
+		ID:           metadataapi.PtrOrNil(from.ID),
+		ChannelGroup: metadataapi.PtrOrNil(from.ChannelGroup),
 	}
 }
 
-func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) generated.NodePoolPlatformProfile {
+func newNodePoolPlatformProfile(from *coreapi.NodePoolPlatformProfile) generated.NodePoolPlatformProfile {
 	if from == nil {
 		return generated.NodePoolPlatformProfile{}
 	}
 	return generated.NodePoolPlatformProfile{
-		VMSize:           api.PtrOrNil(from.VMSize),
-		AvailabilityZone: api.PtrOrNil(from.AvailabilityZone),
+		VMSize:           metadataapi.PtrOrNil(from.VMSize),
+		AvailabilityZone: metadataapi.PtrOrNil(from.AvailabilityZone),
 		// Use Ptr (not PtrOrNil) to ensure boolean is always present in JSON response, even when false
-		EnableEncryptionAtHost: api.Ptr(from.EnableEncryptionAtHost),
-		OSDisk:                 api.PtrOrNil(newOSDiskProfile(&from.OSDisk)),
-		SubnetID:               api.ResourceIDToStringPtr(from.SubnetID),
+		EnableEncryptionAtHost: metadataapi.Ptr(from.EnableEncryptionAtHost),
+		OSDisk:                 metadataapi.PtrOrNil(newOSDiskProfile(&from.OSDisk)),
+		SubnetID:               metadataapi.ResourceIDToStringPtr(from.SubnetID),
 	}
 }
 
-func newOSDiskProfile(from *api.OSDiskProfile) generated.OsDiskProfile {
+func newOSDiskProfile(from *coreapi.OSDiskProfile) generated.OsDiskProfile {
 	if from == nil {
 		return generated.OsDiskProfile{}
 	}
 	return generated.OsDiskProfile{
 		SizeGiB:                from.SizeGiB,
-		DiskStorageAccountType: api.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
-		EncryptionSetID:        api.ResourceIDToStringPtr(from.EncryptionSetID),
-		DiskType:               api.Ptr(generated.OsDiskType(from.DiskType)),
+		DiskStorageAccountType: metadataapi.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
+		EncryptionSetID:        metadataapi.ResourceIDToStringPtr(from.EncryptionSetID),
+		DiskType:               metadataapi.Ptr(generated.OsDiskType(from.DiskType)),
 	}
 }
 
-func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) generated.NodePoolAutoScaling {
+func newNodePoolAutoScaling(from *coreapi.NodePoolAutoScaling) generated.NodePoolAutoScaling {
 	if from == nil {
 		return generated.NodePoolAutoScaling{}
 	}
 	return generated.NodePoolAutoScaling{
 		// Use Ptr (not PtrOrNil) to ensure int32 zero values are preserved in JSON response.
-		Max: api.Ptr(from.Max),
-		Min: api.Ptr(from.Min),
+		Max: metadataapi.Ptr(from.Max),
+		Min: metadataapi.Ptr(from.Min),
 	}
 }
 
 // NewHCPOpenShiftClusterNodePool converts an internal representation to this API version.
 // If from is nil, returns a defaulted external object for use on the write path
 // where defaults are applied before unmarshaling the request body.
-func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
+func (v version) NewHCPOpenShiftClusterNodePool(from *coreapi.HCPOpenShiftClusterNodePool) coreapi.VersionedHCPOpenShiftClusterNodePool {
 	if from == nil {
 		ret := &NodePool{}
 		SetDefaultValuesNodePool(ret)
@@ -308,22 +308,22 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 
 	out := &NodePool{
 		generated.NodePool{
-			ID:         api.PtrOrNil(idString),
-			Name:       api.PtrOrNil(from.Name),
-			Type:       api.PtrOrNil(from.Type),
-			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),
-			Location:   api.PtrOrNil(from.Location),
-			Tags:       api.StringMapToStringPtrMap(from.Tags),
+			ID:         metadataapi.PtrOrNil(idString),
+			Name:       metadataapi.PtrOrNil(from.Name),
+			Type:       metadataapi.PtrOrNil(from.Type),
+			SystemData: metadataapi.PtrOrNil(newSystemData(from.SystemData)),
+			Location:   metadataapi.PtrOrNil(from.Location),
+			Tags:       metadataapi.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.NodePoolProperties{
-				ProvisioningState: api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
-				Platform:          api.PtrOrNil(newNodePoolPlatformProfile(&from.Properties.Platform)),
-				Version:           api.PtrOrNil(newNodePoolVersionProfile(&from.Properties.Version)),
+				ProvisioningState: metadataapi.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
+				Platform:          metadataapi.PtrOrNil(newNodePoolPlatformProfile(&from.Properties.Platform)),
+				Version:           metadataapi.PtrOrNil(newNodePoolVersionProfile(&from.Properties.Version)),
 				// Use Ptr to preserve explicit false values in JSON responses (solves GET-then-PUT data loss).
 				// See docs/api-version-defaults-and-storage.md for details.
-				AutoRepair:  api.Ptr(from.Properties.AutoRepair),
-				AutoScaling: api.PtrOrNil(newNodePoolAutoScaling(from.Properties.AutoScaling)),
+				AutoRepair:  metadataapi.Ptr(from.Properties.AutoRepair),
+				AutoScaling: metadataapi.PtrOrNil(newNodePoolAutoScaling(from.Properties.AutoScaling)),
 				// Use Ptr (not PtrOrNil) to ensure int32 zero value is preserved in JSON response.
-				Replicas:                api.Ptr(from.Properties.Replicas),
+				Replicas:                metadataapi.Ptr(from.Properties.Replicas),
 				NodeDrainTimeoutMinutes: from.Properties.NodeDrainTimeoutMinutes,
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
@@ -335,8 +335,8 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 	}
 	for k, v := range from.Properties.Labels {
 		out.Properties.Labels = append(out.Properties.Labels, &generated.Label{
-			Key:   api.PtrOrNil(k),
-			Value: api.PtrOrNil(v),
+			Key:   metadataapi.PtrOrNil(k),
+			Value: metadataapi.PtrOrNil(v),
 		})
 	}
 
@@ -345,9 +345,9 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 	}
 	for _, t := range from.Properties.Taints {
 		out.Properties.Taints = append(out.Properties.Taints, &generated.Taint{
-			Effect: api.PtrOrNil(generated.Effect(t.Effect)),
-			Key:    api.PtrOrNil(t.Key),
-			Value:  api.PtrOrNil(t.Value),
+			Effect: metadataapi.PtrOrNil(generated.Effect(t.Effect)),
+			Key:    metadataapi.PtrOrNil(t.Key),
+			Value:  metadataapi.PtrOrNil(t.Value),
 		})
 	}
 

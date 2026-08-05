@@ -30,8 +30,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
@@ -50,19 +50,19 @@ func newTestValidationCondition(name string, status metav1.ConditionStatus, reas
 
 // newTestClusterForAggregator builds the parent cluster that the node pool
 // aggregator test seeds so the node pool has an owning cluster in the store.
-func newTestClusterForAggregator(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestClusterForAggregator(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
 	))
-	cluster := &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	cluster := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: statusutils.TestClusterName,
 				Type: resourceID.ResourceType.String(),
@@ -75,16 +75,16 @@ func newTestClusterForAggregator(opts ...func(*api.HCPOpenShiftCluster)) *api.HC
 	return cluster
 }
 
-func newTestServiceProviderNodePoolForAggregator(opts ...func(*api.ServiceProviderNodePool)) *api.ServiceProviderNodePool {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestServiceProviderNodePoolForAggregator(opts ...func(*coreapi.ServiceProviderNodePool)) *coreapi.ServiceProviderNodePool {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
 			"/nodePools/" + statusutils.TestNodePoolName +
-			"/serviceProviderNodePools/" + api.ServiceProviderNodePoolResourceName,
+			"/serviceProviderNodePools/" + coreapi.ServiceProviderNodePoolResourceName,
 	))
-	spnp := &api.ServiceProviderNodePool{
-		CosmosMetadata: arm.CosmosMetadata{
+	spnp := &coreapi.ServiceProviderNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
@@ -112,8 +112,8 @@ func TestNodePoolRequirementsValidAggregator_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                            string
-		existingNodePool                *api.HCPOpenShiftClusterNodePool
-		existingServiceProviderNodePool *api.ServiceProviderNodePool
+		existingNodePool                *coreapi.HCPOpenShiftClusterNodePool
+		existingServiceProviderNodePool *coreapi.ServiceProviderNodePool
 		// wantCondition is the expected RequirementsValid condition after SyncOnce.
 		// nil means the condition must remain absent. Only Type/Status/Reason/Message
 		// are asserted; LastTransitionTime is not considered.
@@ -128,17 +128,17 @@ func TestNodePoolRequirementsValidAggregator_SyncOnce(t *testing.T) {
 		{
 			name:             "failed validation writes False/Degraded",
 			existingNodePool: newTestNodePoolForAggregator(),
-			existingServiceProviderNodePool: newTestServiceProviderNodePoolForAggregator(func(spnp *api.ServiceProviderNodePool) {
+			existingServiceProviderNodePool: newTestServiceProviderNodePoolForAggregator(func(spnp *coreapi.ServiceProviderNodePool) {
 				spnp.Status.Validations = []metav1.Condition{failedValidation}
 			}),
 			wantCondition: &degradedCondition,
 		},
 		{
 			name: "no-op when UserFacingConditions already match",
-			existingNodePool: newTestNodePoolForAggregator(func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolForAggregator(func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				np.Status.UserFacingConditions = []metav1.Condition{degradedCondition}
 			}),
-			existingServiceProviderNodePool: newTestServiceProviderNodePoolForAggregator(func(spnp *api.ServiceProviderNodePool) {
+			existingServiceProviderNodePool: newTestServiceProviderNodePoolForAggregator(func(spnp *coreapi.ServiceProviderNodePool) {
 				spnp.Status.Validations = []metav1.Condition{failedValidation}
 			}),
 			wantCondition: &degradedCondition,
@@ -151,11 +151,11 @@ func TestNodePoolRequirementsValidAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "deleting node pool skips write",
-			existingNodePool: newTestNodePoolForAggregator(func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolForAggregator(func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				now := metav1.Now()
 				np.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
-			existingServiceProviderNodePool: newTestServiceProviderNodePoolForAggregator(func(spnp *api.ServiceProviderNodePool) {
+			existingServiceProviderNodePool: newTestServiceProviderNodePoolForAggregator(func(spnp *coreapi.ServiceProviderNodePool) {
 				spnp.Status.Validations = []metav1.Condition{failedValidation}
 			}),
 			wantCondition: nil,
@@ -212,7 +212,7 @@ func TestNodePoolRequirementsValidAggregator_NeedsWork(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		nodePool *api.HCPOpenShiftClusterNodePool
+		nodePool *coreapi.HCPOpenShiftClusterNodePool
 		want     bool
 	}{
 		{
@@ -222,7 +222,7 @@ func TestNodePoolRequirementsValidAggregator_NeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when deletion timestamp is set",
-			nodePool: newTestNodePoolForAggregator(func(np *api.HCPOpenShiftClusterNodePool) {
+			nodePool: newTestNodePoolForAggregator(func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
 			want: false,

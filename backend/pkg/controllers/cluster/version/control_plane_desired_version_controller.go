@@ -35,7 +35,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/admission"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -184,7 +185,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
 	desiredVersion, err := c.desiredControlPlaneZVersion(ctx, cincinnatiClient, key.GetResourceID(), customerDesiredMinor, channelGroup, activeVersions,
-		operation.HasOption(api.FeatureExperimentalReleaseFeatures))
+		operation.HasOption(metadataapi.FeatureExperimentalReleaseFeatures))
 
 	if err != nil {
 		// Persist IntentFailed on the controller document for Cincinnati VersionNotFound or any non-Cincinnati resolution error.
@@ -195,11 +196,11 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 			logger.Error(err, "desired version resolution failed, persisting IntentFailed condition")
 			controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName)
 			if writeErr := controllerutils.WriteController(ctx, controllerCRUD, controlPlaneDesiredVersionControllerName, key.InitialController,
-				func(ctrl *api.Controller) {
+				func(ctrl *coreapi.Controller) {
 					apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
-						Type:    api.ControllerConditionTypeIntentFailed,
+						Type:    coreapi.ControllerConditionTypeIntentFailed,
 						Status:  metav1.ConditionTrue,
-						Reason:  api.VersionUpgradeNotAcceptedReason,
+						Reason:  coreapi.VersionUpgradeNotAcceptedReason,
 						Message: utils.ErrorMessageWithoutLineTracking(err),
 					})
 				}); writeErr != nil {
@@ -230,11 +231,11 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 
 	controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName)
 	if err = controllerutils.WriteController(ctx, controllerCRUD, controlPlaneDesiredVersionControllerName, key.InitialController,
-		func(ctrl *api.Controller) {
+		func(ctrl *coreapi.Controller) {
 			apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
-				Type:    api.ControllerConditionTypeIntentFailed,
+				Type:    coreapi.ControllerConditionTypeIntentFailed,
 				Status:  metav1.ConditionFalse,
-				Reason:  api.ControllerConditionReasonAsExpected,
+				Reason:  coreapi.ControllerConditionReasonAsExpected,
 				Message: "",
 			})
 		}); err != nil {
@@ -256,7 +257,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 // customerDesiredMinor and channelGroup are required. If they are not specified, no version is returned.
 // Returns nil if no upgrade is needed.
 func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx context.Context, cincinnatiClient cincinnati.Client, clusterResourceID *azcorearm.ResourceID,
-	customerDesiredMinor string, channelGroup string, activeVersions []api.HCPClusterActiveVersion, allowExperimentalReleaseFeatures bool) (*semver.Version, error) {
+	customerDesiredMinor string, channelGroup string, activeVersions []coreapi.HCPClusterActiveVersion, allowExperimentalReleaseFeatures bool) (*semver.Version, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	if len(customerDesiredMinor) == 0 {
@@ -272,7 +273,7 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 		logger.Info("Resolving initial desired version", "customerDesiredMinor", customerDesiredMinor, "channelGroup", channelGroup)
 
 		// ParseTolerant handles both "4.19" and "4.19.0" formats
-		customerDotZeroRelease := api.Must(semver.ParseTolerant(customerDesiredMinor))
+		customerDotZeroRelease := metadataapi.Must(semver.ParseTolerant(customerDesiredMinor))
 
 		initialDesiredVersion, err := FindBestVersionInMinor(ctx, cincinnatiClient, c.graphClient, channelGroup, customerDotZeroRelease, []semver.Version{customerDotZeroRelease}, false)
 		if err != nil {
@@ -301,7 +302,7 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 
 	// ParseTolerant handles both "4.19", "4.19.0" and full versions like "4.20.15". Normalize to major.minor.0
 	// so that same-minor z-stream (e.g. 4.20.0 -> 4.20.15) is not mistaken for a y-stream upgrade.
-	parsedDesired := api.Must(semver.ParseTolerant(customerDesiredMinor))
+	parsedDesired := metadataapi.Must(semver.ParseTolerant(customerDesiredMinor))
 	desiredMinorVersion := semver.MustParse(fmt.Sprintf("%d.%d.0", parsedDesired.Major, parsedDesired.Minor))
 
 	if desiredMinorVersion.LT(actualLatestMinorVersion) {
@@ -562,7 +563,7 @@ func selectBestVersionFromCandidates(
 
 	// Check if next minor channel exists before checking for gateways.
 	// Query the public graph API directly (not GetUpdates from a candidate version).
-	nextMinorVersion := api.NextMinorReleaseLine(targetMinorVersion)
+	nextMinorVersion := metadataapi.NextMinorReleaseLine(targetMinorVersion)
 	nextMinor := fmt.Sprintf("%d.%d", nextMinorVersion.Major, nextMinorVersion.Minor)
 	nextMinorExists, err := graphClient.ChannelExists(ctx, channelGroup, nextMinor)
 	if err != nil {
@@ -610,7 +611,7 @@ func selectBestVersionFromCandidates(
 // Otherwise (DesiredVersion already set, cluster still young, Create in
 // flight) we skip so a freshly created cluster doesn't have its initial
 // desired version overwritten while creation is still in progress.
-func (c *controlPlaneDesiredVersionSyncer) shouldDetermineDesiredVersion(ctx context.Context, cluster *api.HCPOpenShiftCluster, spc *api.ServiceProviderCluster) (bool, error) {
+func (c *controlPlaneDesiredVersionSyncer) shouldDetermineDesiredVersion(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (bool, error) {
 	if spc.Spec.ControlPlaneVersion.DesiredVersion == nil {
 		return true, nil
 	}
@@ -628,7 +629,7 @@ func (c *controlPlaneDesiredVersionSyncer) shouldDetermineDesiredVersion(ctx con
 // is more than clusterCreateGracePeriod in the past. A missing CreatedAt is
 // treated as "old enough" so a malformed document does not pin the controller
 // in skip-forever mode.
-func (c *controlPlaneDesiredVersionSyncer) clusterOlderThanGracePeriod(cluster *api.HCPOpenShiftCluster) bool {
+func (c *controlPlaneDesiredVersionSyncer) clusterOlderThanGracePeriod(cluster *coreapi.HCPOpenShiftCluster) bool {
 	if cluster.SystemData == nil || cluster.SystemData.CreatedAt == nil {
 		return true
 	}
@@ -639,7 +640,7 @@ func (c *controlPlaneDesiredVersionSyncer) clusterOlderThanGracePeriod(cluster *
 // Create operation whose ExternalID is the cluster itself. Operations on
 // child resources (node pools, external auths) under the cluster are
 // ignored on purpose: they don't gate control-plane upgrade selection.
-func (c *controlPlaneDesiredVersionSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *api.HCPOpenShiftCluster) (bool, error) {
+func (c *controlPlaneDesiredVersionSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 	if len(cluster.ServiceProviderProperties.ActiveOperationID) == 0 {
 		logger.Info("Cluster has no active create operation", "cluster", cluster.Name)

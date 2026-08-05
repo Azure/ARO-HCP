@@ -32,7 +32,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 )
 
@@ -118,7 +118,7 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 		return candidates[0].String(), false, nil
 	}
 
-	nextMinorVersion := api.NextMinorReleaseLine(candidates[0])
+	nextMinorVersion := metadataapi.NextMinorReleaseLine(candidates[0])
 	nextMinorStr := fmt.Sprintf("%d.%d", nextMinorVersion.Major, nextMinorVersion.Minor)
 	maxVersion, err := GetLatestVersionInMinor(ctx, channelGroup, nextMinorStr)
 	if err != nil {
@@ -195,7 +195,7 @@ func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string,
 		}
 		uniqueVersionsInMinor[root.String()] = root
 		for _, release := range releases {
-			candidateVersion := api.Must(semver.ParseTolerant(release.Version))
+			candidateVersion := metadataapi.Must(semver.ParseTolerant(release.Version))
 			if candidateVersion.Major != maj || candidateVersion.Minor != min {
 				continue
 			}
@@ -290,7 +290,7 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 
 	var out []semver.Version
 	for _, release := range possibleCandidates {
-		candidateVersion := api.Must(semver.ParseTolerant(release.Version))
+		candidateVersion := metadataapi.Must(semver.ParseTolerant(release.Version))
 		if candidateVersion.Major != maxVer.Major || candidateVersion.Minor != maxVer.Minor {
 			continue
 		}

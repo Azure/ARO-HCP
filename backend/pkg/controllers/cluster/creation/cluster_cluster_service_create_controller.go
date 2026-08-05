@@ -23,7 +23,8 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -65,7 +66,7 @@ func NewClusterClusterServiceCreateController(
 	)
 }
 
-func (c *clusterClusterServiceCreateSyncer) needsWork(cluster *api.HCPOpenShiftCluster) bool {
+func (c *clusterClusterServiceCreateSyncer) needsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
 		cluster.ServiceProviderProperties.PendingClusterServiceID != nil &&
 		(cluster.ServiceProviderProperties.ClusterServiceID == nil ||
@@ -136,7 +137,7 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 		}
 	}
 
-	csInternalID, err := api.NewInternalID(csCluster.HREF())
+	csInternalID, err := metadataapi.NewInternalID(csCluster.HREF())
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -158,7 +159,7 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 // createPreconditionDesiredVersionResolved reports whether the ControlPlaneDesiredVersion
 // controller has written the Cincinnati-resolved desired version to the ServiceProviderCluster.
 // Returns (false, nil) when this controller should wait and retry.
-func (c *clusterClusterServiceCreateSyncer) createPreconditionDesiredVersionResolved(ctx context.Context, serviceProviderCluster *api.ServiceProviderCluster) (bool, error) {
+func (c *clusterClusterServiceCreateSyncer) createPreconditionDesiredVersionResolved(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	if serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion != nil {
@@ -231,7 +232,7 @@ func (c *clusterClusterServiceCreateSyncer) csClustersMatchingClusterByAzureInfo
 	return res, nil
 }
 
-func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *api.HCPOpenShiftCluster, serviceProviderCluster *api.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
+func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	csClusterBuilder, err := ocm.BuildCSCluster(cluster.ID, tenantID, cluster, nil, nil, serviceProviderCluster)

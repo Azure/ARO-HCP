@@ -19,17 +19,17 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // ControllerLister lists and gets Controllers from an informer's indexer.
 type ControllerLister interface {
-	List(ctx context.Context) ([]*api.Controller, error)
-	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*api.Controller, error)
-	ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Controller, error)
-	ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.Controller, error)
-	ListForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*api.Controller, error)
+	List(ctx context.Context) ([]*coreapi.Controller, error)
+	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.Controller, error)
+	ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.Controller, error)
+	ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.Controller, error)
+	ListForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.Controller, error)
 }
 
 // controllerLister implements ControllerLister backed by a SharedIndexInformer.
@@ -44,26 +44,26 @@ func NewControllerLister(indexer cache.Indexer) ControllerLister {
 	}
 }
 
-func (l *controllerLister) List(ctx context.Context) ([]*api.Controller, error) {
-	return listerutils.ListAll[api.Controller](l.indexer)
+func (l *controllerLister) List(ctx context.Context) ([]*coreapi.Controller, error) {
+	return listerutils.ListAll[coreapi.Controller](l.indexer)
 }
 
-func (l *controllerLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*api.Controller, error) {
-	key := api.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
-	return listerutils.ListFromIndex[api.Controller](l.indexer, ByResourceGroup, key)
+func (l *controllerLister) ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*coreapi.Controller, error) {
+	key := coreapi.ToResourceGroupResourceIDString(subscriptionName, resourceGroupName)
+	return listerutils.ListFromIndex[coreapi.Controller](l.indexer, ByResourceGroup, key)
 }
 
-func (l *controllerLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Controller, error) {
-	key := api.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
-	return listerutils.ListFromIndex[api.Controller](l.indexer, ByCluster, key)
+func (l *controllerLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.Controller, error) {
+	key := coreapi.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
+	return listerutils.ListFromIndex[coreapi.Controller](l.indexer, ByCluster, key)
 }
 
-func (l *controllerLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.Controller, error) {
-	key := api.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
-	return listerutils.ListFromIndex[api.Controller](l.indexer, ByNodePool, key)
+func (l *controllerLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.Controller, error) {
+	key := coreapi.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
+	return listerutils.ListFromIndex[coreapi.Controller](l.indexer, ByNodePool, key)
 }
 
-func (l *controllerLister) ListForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*api.Controller, error) {
-	key := api.ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName)
-	return listerutils.ListFromIndex[api.Controller](l.indexer, ByExternalAuth, key)
+func (l *controllerLister) ListForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.Controller, error) {
+	key := coreapi.ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName)
+	return listerutils.ListFromIndex[coreapi.Controller](l.indexer, ByExternalAuth, key)
 }

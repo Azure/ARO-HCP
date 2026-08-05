@@ -14,12 +14,9 @@
 
 package conversion
 
-import (
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-)
+import "github.com/Azure/ARO-HCP/internal/api/coreapi"
 
-func CopyReadOnlyTrackedResourceValues(dest, src *arm.TrackedResource) {
+func CopyReadOnlyTrackedResourceValues(dest, src *coreapi.TrackedResource) {
 	dest.ID = src.ID
 	dest.Name = src.Name
 	dest.Type = src.Type
@@ -27,7 +24,7 @@ func CopyReadOnlyTrackedResourceValues(dest, src *arm.TrackedResource) {
 	dest.SystemData = src.SystemData.DeepCopy()
 }
 
-func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
+func CopyReadOnlyClusterValues(dest, src *coreapi.HCPOpenShiftCluster) {
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 
 	// CosmosMetadata is read-only on the API surface; carry over so the
@@ -36,7 +33,7 @@ func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
 
 	switch {
 	case hasClusterIdentityToSet(src.Identity) && dest.Identity == nil:
-		dest.Identity = &arm.ManagedServiceIdentity{}
+		dest.Identity = &coreapi.ManagedServiceIdentity{}
 	case src.Identity == nil && dest.Identity != nil:
 		dest.Identity = nil
 	}
@@ -48,7 +45,7 @@ func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
 	dest.Status = *src.Status.DeepCopy()
 }
 
-func copyReadOnlyManagedServiceIdentityValues(dest, src *arm.ManagedServiceIdentity) {
+func copyReadOnlyManagedServiceIdentityValues(dest, src *coreapi.ManagedServiceIdentity) {
 	dest.PrincipalID = src.PrincipalID
 	dest.TenantID = src.TenantID
 
@@ -63,13 +60,13 @@ func copyReadOnlyManagedServiceIdentityValues(dest, src *arm.ManagedServiceIdent
 			continue
 		}
 		if dest.UserAssignedIdentities == nil {
-			dest.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
+			dest.UserAssignedIdentities = make(map[string]*coreapi.UserAssignedIdentity)
 		}
 		dest.UserAssignedIdentities[key] = srcVal.DeepCopy()
 	}
 }
 
-func hasClusterIdentityToSet(src *arm.ManagedServiceIdentity) bool {
+func hasClusterIdentityToSet(src *coreapi.ManagedServiceIdentity) bool {
 	if src == nil {
 		return false
 	}

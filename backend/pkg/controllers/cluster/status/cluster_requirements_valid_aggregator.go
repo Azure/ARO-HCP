@@ -24,7 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -119,6 +119,6 @@ func (c *clusterRequirementsValidAggregator) SyncOnce(ctx context.Context, key c
 
 // needsWork reports whether this aggregator should update UserFacingConditions
 // for the given cluster. Deleting clusters are skipped.
-func (c *clusterRequirementsValidAggregator) needsWork(cluster *api.HCPOpenShiftCluster) bool {
+func (c *clusterRequirementsValidAggregator) needsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil
 }

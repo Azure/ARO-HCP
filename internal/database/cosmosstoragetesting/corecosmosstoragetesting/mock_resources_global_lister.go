@@ -21,8 +21,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
@@ -34,88 +33,88 @@ type mockResourcesGlobalListers struct {
 
 var _ corecosmosstorage.ResourcesGlobalListers = &mockResourcesGlobalListers{}
 
-func (g *mockResourcesGlobalListers) Subscriptions() cosmosstorageutils.GlobalLister[arm.Subscription] {
+func (g *mockResourcesGlobalListers) Subscriptions() cosmosstorageutils.GlobalLister[coreapi.Subscription] {
 	return &mockSubscriptionGlobalLister{client: g.client}
 }
 
-func (g *mockResourcesGlobalListers) Clusters() cosmosstorageutils.GlobalLister[api.HCPOpenShiftCluster] {
-	return &MockGlobalLister[api.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[api.HCPOpenShiftCluster]]{
+func (g *mockResourcesGlobalListers) Clusters() cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftCluster] {
+	return &MockGlobalLister[coreapi.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster]]{
 		client:        g.client,
-		resourceTypes: []azcorearm.ResourceType{api.ClusterResourceType},
+		resourceTypes: []azcorearm.ResourceType{coreapi.ClusterResourceType},
 	}
 }
 
-func (g *mockResourcesGlobalListers) NodePools() cosmosstorageutils.GlobalLister[api.HCPOpenShiftClusterNodePool] {
-	return &MockGlobalLister[api.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterNodePool]]{
+func (g *mockResourcesGlobalListers) NodePools() cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftClusterNodePool] {
+	return &MockGlobalLister[coreapi.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterNodePool]]{
 		client:        g.client,
-		resourceTypes: []azcorearm.ResourceType{api.NodePoolResourceType},
+		resourceTypes: []azcorearm.ResourceType{coreapi.NodePoolResourceType},
 	}
 }
 
-func (g *mockResourcesGlobalListers) ExternalAuths() cosmosstorageutils.GlobalLister[api.HCPOpenShiftClusterExternalAuth] {
-	return &MockGlobalLister[api.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterExternalAuth]]{
+func (g *mockResourcesGlobalListers) ExternalAuths() cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftClusterExternalAuth] {
+	return &MockGlobalLister[coreapi.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterExternalAuth]]{
 		client:        g.client,
-		resourceTypes: []azcorearm.ResourceType{api.ExternalAuthResourceType},
+		resourceTypes: []azcorearm.ResourceType{coreapi.ExternalAuthResourceType},
 	}
 }
 
-func (g *mockResourcesGlobalListers) ServiceProviderClusters() cosmosstorageutils.GlobalLister[api.ServiceProviderCluster] {
-	return &MockGlobalLister[api.ServiceProviderCluster, cosmosstorageutils.GenericDocument[api.ServiceProviderCluster]]{
+func (g *mockResourcesGlobalListers) ServiceProviderClusters() cosmosstorageutils.GlobalLister[coreapi.ServiceProviderCluster] {
+	return &MockGlobalLister[coreapi.ServiceProviderCluster, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderCluster]]{
 		client:        g.client,
-		resourceTypes: []azcorearm.ResourceType{api.ServiceProviderClusterResourceType},
+		resourceTypes: []azcorearm.ResourceType{coreapi.ServiceProviderClusterResourceType},
 	}
 }
 
-func (g *mockResourcesGlobalListers) ServiceProviderNodePools() cosmosstorageutils.GlobalLister[api.ServiceProviderNodePool] {
-	return &MockGlobalLister[api.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[api.ServiceProviderNodePool]]{
+func (g *mockResourcesGlobalListers) ServiceProviderNodePools() cosmosstorageutils.GlobalLister[coreapi.ServiceProviderNodePool] {
+	return &MockGlobalLister[coreapi.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderNodePool]]{
 		client:        g.client,
-		resourceTypes: []azcorearm.ResourceType{api.ServiceProviderNodePoolResourceType},
+		resourceTypes: []azcorearm.ResourceType{coreapi.ServiceProviderNodePoolResourceType},
 	}
 }
 
-func (g *mockResourcesGlobalListers) Controllers() cosmosstorageutils.GlobalLister[api.Controller] {
-	return &MockGlobalLister[api.Controller, cosmosstorageutils.GenericDocument[api.Controller]]{
+func (g *mockResourcesGlobalListers) Controllers() cosmosstorageutils.GlobalLister[coreapi.Controller] {
+	return &MockGlobalLister[coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]]{
 		client: g.client,
 		resourceTypes: []azcorearm.ResourceType{
-			api.ClusterControllerResourceType,
-			api.NodePoolControllerResourceType,
-			api.ExternalAuthControllerResourceType,
+			coreapi.ClusterControllerResourceType,
+			coreapi.NodePoolControllerResourceType,
+			coreapi.ExternalAuthControllerResourceType,
 		},
 	}
 }
 
-func (g *mockResourcesGlobalListers) ManagementClusterContents() cosmosstorageutils.GlobalLister[api.ManagementClusterContent] {
-	return &MockGlobalLister[api.ManagementClusterContent, cosmosstorageutils.GenericDocument[api.ManagementClusterContent]]{
+func (g *mockResourcesGlobalListers) ManagementClusterContents() cosmosstorageutils.GlobalLister[coreapi.ManagementClusterContent] {
+	return &MockGlobalLister[coreapi.ManagementClusterContent, cosmosstorageutils.GenericDocument[coreapi.ManagementClusterContent]]{
 		client: g.client,
 		resourceTypes: []azcorearm.ResourceType{
-			api.ClusterScopedManagementClusterContentResourceType,
-			api.NodePoolScopedManagementClusterContentResourceType,
+			coreapi.ClusterScopedManagementClusterContentResourceType,
+			coreapi.NodePoolScopedManagementClusterContentResourceType,
 		},
 	}
 }
 
-func (g *mockResourcesGlobalListers) SystemAdminCredentialRequests() cosmosstorageutils.GlobalLister[api.SystemAdminCredentialRequest] {
-	return &MockGlobalLister[api.SystemAdminCredentialRequest, cosmosstorageutils.GenericDocument[api.SystemAdminCredentialRequest]]{
+func (g *mockResourcesGlobalListers) SystemAdminCredentialRequests() cosmosstorageutils.GlobalLister[coreapi.SystemAdminCredentialRequest] {
+	return &MockGlobalLister[coreapi.SystemAdminCredentialRequest, cosmosstorageutils.GenericDocument[coreapi.SystemAdminCredentialRequest]]{
 		client:        g.client,
-		resourceTypes: []azcorearm.ResourceType{api.SystemAdminCredentialRequestResourceType},
+		resourceTypes: []azcorearm.ResourceType{coreapi.SystemAdminCredentialRequestResourceType},
 	}
 }
 
-func (g *mockResourcesGlobalListers) SystemAdminCredentialRevocations() cosmosstorageutils.GlobalLister[api.SystemAdminCredentialRevocation] {
-	return &MockGlobalLister[api.SystemAdminCredentialRevocation, cosmosstorageutils.GenericDocument[api.SystemAdminCredentialRevocation]]{
+func (g *mockResourcesGlobalListers) SystemAdminCredentialRevocations() cosmosstorageutils.GlobalLister[coreapi.SystemAdminCredentialRevocation] {
+	return &MockGlobalLister[coreapi.SystemAdminCredentialRevocation, cosmosstorageutils.GenericDocument[coreapi.SystemAdminCredentialRevocation]]{
 		client:        g.client,
-		resourceTypes: []azcorearm.ResourceType{api.SystemAdminCredentialRevocationResourceType},
+		resourceTypes: []azcorearm.ResourceType{coreapi.SystemAdminCredentialRevocationResourceType},
 	}
 }
 
-func (g *mockResourcesGlobalListers) Operations() cosmosstorageutils.GlobalLister[api.Operation] {
-	return &MockGlobalLister[api.Operation, cosmosstorageutils.GenericDocument[api.Operation]]{
+func (g *mockResourcesGlobalListers) Operations() cosmosstorageutils.GlobalLister[coreapi.Operation] {
+	return &MockGlobalLister[coreapi.Operation, cosmosstorageutils.GenericDocument[coreapi.Operation]]{
 		client:        g.client,
-		resourceTypes: []azcorearm.ResourceType{api.OperationStatusResourceType},
+		resourceTypes: []azcorearm.ResourceType{coreapi.OperationStatusResourceType},
 	}
 }
 
-func (g *mockResourcesGlobalListers) ActiveOperations() cosmosstorageutils.GlobalLister[api.Operation] {
+func (g *mockResourcesGlobalListers) ActiveOperations() cosmosstorageutils.GlobalLister[coreapi.Operation] {
 	return &mockActiveOperationsGlobalLister{client: g.client}
 }
 
@@ -124,14 +123,14 @@ type mockSubscriptionGlobalLister struct {
 	client *MockResourcesDBClient
 }
 
-func (l *mockSubscriptionGlobalLister) List(ctx context.Context, options *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[arm.Subscription], error) {
+func (l *mockSubscriptionGlobalLister) List(ctx context.Context, options *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[coreapi.Subscription], error) {
 	documents := l.client.ListDocuments(&azcorearm.SubscriptionResourceType, "")
 
 	var ids []string
-	var items []*arm.Subscription
+	var items []*coreapi.Subscription
 
 	for _, data := range documents {
-		var cosmosObj cosmosstorageutils.GenericDocument[arm.Subscription]
+		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.Subscription]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			continue
 		}
@@ -154,11 +153,11 @@ type mockActiveOperationsGlobalLister struct {
 	client *MockResourcesDBClient
 }
 
-func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[api.Operation], error) {
+func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[coreapi.Operation], error) {
 	allDocs := l.client.GetAllDocuments()
 
 	var ids []string
-	var items []*api.Operation
+	var items []*coreapi.Operation
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
@@ -166,7 +165,7 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *co
 			continue
 		}
 
-		if !strings.EqualFold(typedDoc.ResourceType, api.OperationStatusResourceType.String()) {
+		if !strings.EqualFold(typedDoc.ResourceType, coreapi.OperationStatusResourceType.String()) {
 			continue
 		}
 
@@ -178,16 +177,16 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *co
 			continue
 		}
 
-		var cosmosObj cosmosstorageutils.GenericDocument[api.Operation]
+		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.Operation]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			continue
 		}
 
 		// Filter out terminal states.
 		status := cosmosObj.Content.Status
-		if status == arm.ProvisioningStateSucceeded ||
-			status == arm.ProvisioningStateFailed ||
-			status == arm.ProvisioningStateCanceled {
+		if status == coreapi.ProvisioningStateSucceeded ||
+			status == coreapi.ProvisioningStateFailed ||
+			status == coreapi.ProvisioningStateCanceled {
 			continue
 		}
 

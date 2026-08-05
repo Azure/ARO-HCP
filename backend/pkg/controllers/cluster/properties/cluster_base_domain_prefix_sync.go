@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -68,7 +68,7 @@ func NewClusterBaseDomainPrefixSyncController(
 	)
 }
 
-func (c *clusterBaseDomainPrefixSyncer) needsWork(existingCluster *api.HCPOpenShiftCluster) bool {
+func (c *clusterBaseDomainPrefixSyncer) needsWork(existingCluster *coreapi.HCPOpenShiftCluster) bool {
 	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil ||
 		len(existingCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return false

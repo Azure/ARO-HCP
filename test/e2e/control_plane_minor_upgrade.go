@@ -35,7 +35,7 @@ import (
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -48,7 +48,7 @@ var _ = Describe("Customer", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
-			targetVer := api.Must(semver.ParseTolerant(targetMinor))
+			targetVer := metadataapi.Must(semver.ParseTolerant(targetMinor))
 			targetPlusOneVer := semver.Version{Major: targetVer.Major, Minor: targetVer.Minor + 1}
 			if targetMinor == "4.22" {
 				targetPlusOneVer = semver.Version{Major: 5, Minor: 0}

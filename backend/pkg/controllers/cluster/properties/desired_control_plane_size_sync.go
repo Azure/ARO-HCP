@@ -22,7 +22,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -91,7 +91,7 @@ func NewDesiredControlPlaneSizeController(
 //   - set → changed:  Spec=A, Status=B
 //   - unset → set:    Spec=A, Status=nil
 //   - set → unset:    Spec=nil, Status=B  (the case Spec alone cannot signal)
-func (c *desiredControlPlaneSizeSyncer) NeedsWork(serviceProviderCluster *api.ServiceProviderCluster) bool {
+func (c *desiredControlPlaneSizeSyncer) NeedsWork(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	if serviceProviderCluster == nil {
 		return false
 	}

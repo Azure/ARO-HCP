@@ -15,10 +15,10 @@
 package corecosmosstorage
 
 import (
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 type ManagementClusterContentContainer interface {
-	ManagementClusterContents(resourceName string) cosmosstorageutils.ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent]
+	ManagementClusterContents(resourceName string) cosmosstorageutils.ResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent]
 }

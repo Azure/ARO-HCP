@@ -37,8 +37,8 @@ import (
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
 	operationcontrollers "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
@@ -187,7 +187,7 @@ func MarkOperationsCompleteForName(ctx context.Context, resourcesDBClient coreco
 		if operation.ExternalID.Name != resourceName {
 			continue
 		}
-		err := operationcontrollers.UpdateOperationStatus(ctx, utilsclock.RealClock{}, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
+		err := operationcontrollers.UpdateOperationStatus(ctx, utilsclock.RealClock{}, resourcesDBClient, operation, coreapi.ProvisioningStateSucceeded, nil, nil)
 		if err != nil {
 			return err
 		}
@@ -210,11 +210,11 @@ func (t *FakeOTELClient) Send(ctx context.Context, msg msgs.Msg, options ...base
 // IMPORTANT: When adding a new API version to frontend/pkg/frontend/frontend.go,
 // also add a RegisterVersion call here.
 func AllAPIVersions() []string {
-	registry := api.NewAPIRegistry()
-	api.Must[any](nil, v20240610preview.RegisterVersion(registry))
-	api.Must[any](nil, v20251223preview.RegisterVersion(registry))
-	api.Must[any](nil, v20260630preview.RegisterVersion(registry))
-	api.Must[any](nil, v20260901preview.RegisterVersion(registry))
+	registry := coreapi.NewAPIRegistry()
+	metadataapi.Must[any](nil, v20240610preview.RegisterVersion(registry))
+	metadataapi.Must[any](nil, v20251223preview.RegisterVersion(registry))
+	metadataapi.Must[any](nil, v20260630preview.RegisterVersion(registry))
+	metadataapi.Must[any](nil, v20260901preview.RegisterVersion(registry))
 
 	versions := registry.ListVersions().UnsortedList()
 	sort.Strings(versions)

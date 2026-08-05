@@ -29,8 +29,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -53,16 +53,16 @@ func newCreatorTestClusterKey() controllerutils.HCPClusterKey {
 	}
 }
 
-func newCreatorTestCluster(t *testing.T) *api.HCPOpenShiftCluster {
+func newCreatorTestCluster(t *testing.T) *coreapi.HCPOpenShiftCluster {
 	t.Helper()
-	resourceID := api.Must(api.ToClusterResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName))
-	return &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	resourceID := metadataapi.Must(coreapi.ToClusterResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName))
+	return &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: creatorTestClusterName,
-				Type: api.ClusterResourceType.String(),
+				Type: coreapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
@@ -76,7 +76,7 @@ type boomClusterLister struct {
 	err error
 }
 
-func (b *boomClusterLister) Get(_ context.Context, _, _, _ string) (*api.HCPOpenShiftCluster, error) {
+func (b *boomClusterLister) Get(_ context.Context, _, _, _ string) (*coreapi.HCPOpenShiftCluster, error) {
 	return nil, b.err
 }
 
@@ -87,12 +87,12 @@ type boomServiceProviderClusterLister struct {
 	err error
 }
 
-func (b *boomServiceProviderClusterLister) Get(_ context.Context, _, _, _ string) (*api.ServiceProviderCluster, error) {
+func (b *boomServiceProviderClusterLister) Get(_ context.Context, _, _, _ string) (*coreapi.ServiceProviderCluster, error) {
 	return nil, b.err
 }
 
 func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
-	clusterResourceID := api.Must(api.ToClusterResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName))
+	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName))
 	listerBoom := errors.New("lister exploded")
 
 	tests := []struct {
@@ -130,15 +130,15 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 		{
 			name: "ServiceProviderCluster already in lister is a no-op",
 			buildSyncer: func(t *testing.T, mockDB *corecosmosstoragetesting.MockResourcesDBClient) *createServiceProviderClusterSyncer {
-				spcResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName))
+				spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/" + coreapi.ServiceProviderClusterResourceTypeName + "/" + coreapi.ServiceProviderClusterResourceName))
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
 					clusterLister: &corelistertesting.SliceClusterLister{
-						Clusters: []*api.HCPOpenShiftCluster{newCreatorTestCluster(t)},
+						Clusters: []*coreapi.HCPOpenShiftCluster{newCreatorTestCluster(t)},
 					},
 					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
-						ServiceProviderClusters: []*api.ServiceProviderCluster{{
-							CosmosMetadata: api.CosmosMetadata{ResourceID: spcResourceID},
+						ServiceProviderClusters: []*coreapi.ServiceProviderCluster{{
+							CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
 						}},
 					},
 				}
@@ -153,7 +153,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
 					clusterLister: &corelistertesting.SliceClusterLister{
-						Clusters: []*api.HCPOpenShiftCluster{newCreatorTestCluster(t)},
+						Clusters: []*coreapi.HCPOpenShiftCluster{newCreatorTestCluster(t)},
 					},
 					serviceProviderClusterLister: &boomServiceProviderClusterLister{err: listerBoom},
 				}
@@ -169,7 +169,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
 					clusterLister: &corelistertesting.SliceClusterLister{
-						Clusters: []*api.HCPOpenShiftCluster{deletingCluster},
+						Clusters: []*coreapi.HCPOpenShiftCluster{deletingCluster},
 					},
 					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
 				}
@@ -182,7 +182,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
 					clusterLister: &corelistertesting.SliceClusterLister{
-						Clusters: []*api.HCPOpenShiftCluster{newCreatorTestCluster(t)},
+						Clusters: []*coreapi.HCPOpenShiftCluster{newCreatorTestCluster(t)},
 					},
 					serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{},
 				}
@@ -195,7 +195,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				return &createServiceProviderClusterSyncer{
 					resourcesDBClient: mockDB,
 					clusterLister: &corelistertesting.SliceClusterLister{
-						Clusters: []*api.HCPOpenShiftCluster{newCreatorTestCluster(t)},
+						Clusters: []*coreapi.HCPOpenShiftCluster{newCreatorTestCluster(t)},
 					},
 					// Lister is stale (does not know about the SPC yet) but
 					// Cosmos already has it — GetOrCreate must absorb the 409.
@@ -229,7 +229,7 @@ func TestCreateServiceProviderClusterSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			_, getErr := mockDB.ServiceProviderClusters(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+			_, getErr := mockDB.ServiceProviderClusters(creatorTestSubscriptionID, creatorTestResourceGroup, creatorTestClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			if tc.wantCreated {
 				assert.NoError(t, getErr, "expected ServiceProviderCluster to exist in cosmos")
 			} else {

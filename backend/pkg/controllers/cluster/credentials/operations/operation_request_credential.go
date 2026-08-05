@@ -27,8 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -82,7 +81,7 @@ func NewOperationRequestCredentialController(
 	return controller
 }
 
-func (opsync *operationRequestCredential) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (opsync *operationRequestCredential) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
@@ -115,22 +114,22 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 		return utils.TrackError(err)
 	}
 
-	var newOperationStatus arm.ProvisioningState
-	var newOperationError *arm.CloudErrorBody
+	var newOperationStatus coreapi.ProvisioningState
+	var newOperationError *coreapi.CloudErrorBody
 
 	switch status := breakGlassCredential.Status(); status {
 	case cmv1.BreakGlassCredentialStatusCreated:
-		newOperationStatus = arm.ProvisioningStateProvisioning
+		newOperationStatus = coreapi.ProvisioningStateProvisioning
 	case cmv1.BreakGlassCredentialStatusFailed:
 		// XXX Cluster Service does not provide a reason for the failure,
 		//     so we have no choice but to use a generic error message.
-		newOperationStatus = arm.ProvisioningStateFailed
-		newOperationError = &arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeInternalServerError,
+		newOperationStatus = coreapi.ProvisioningStateFailed
+		newOperationError = &coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeInternalServerError,
 			Message: "Failed to provision cluster credential",
 		}
 	case cmv1.BreakGlassCredentialStatusIssued:
-		newOperationStatus = arm.ProvisioningStateSucceeded
+		newOperationStatus = coreapi.ProvisioningStateSucceeded
 	default:
 		return fmt.Errorf("unhandled BreakGlassCredentialStatus '%s'", status)
 	}

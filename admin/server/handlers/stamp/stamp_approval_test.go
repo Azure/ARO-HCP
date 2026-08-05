@@ -28,16 +28,16 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func newStamp(stampIdentifier string) *fleet.Stamp {
-	stampResourceID, _ := fleet.ToStampResourceID(stampIdentifier)
-	return &fleet.Stamp{
-		CosmosMetadata: arm.CosmosMetadata{
+func newStamp(stampIdentifier string) *fleetapi.Stamp {
+	stampResourceID, _ := fleetapi.ToStampResourceID(stampIdentifier)
+	return &fleetapi.Stamp{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   stampResourceID,
 			PartitionKey: strings.ToLower(stampIdentifier),
 		},
@@ -45,15 +45,15 @@ func newStamp(stampIdentifier string) *fleet.Stamp {
 	}
 }
 
-func newStampWithConditions(stampIdentifier string, conditions ...metav1.Condition) *fleet.Stamp {
-	stampResourceID, _ := fleet.ToStampResourceID(stampIdentifier)
-	return &fleet.Stamp{
-		CosmosMetadata: arm.CosmosMetadata{
+func newStampWithConditions(stampIdentifier string, conditions ...metav1.Condition) *fleetapi.Stamp {
+	stampResourceID, _ := fleetapi.ToStampResourceID(stampIdentifier)
+	return &fleetapi.Stamp{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   stampResourceID,
 			PartitionKey: strings.ToLower(stampIdentifier),
 		},
 		ResourceID: stampResourceID,
-		Status: fleet.StampStatus{
+		Status: fleetapi.StampStatus{
 			Conditions: conditions,
 		},
 	}
@@ -80,7 +80,7 @@ func TestStampApprovalHandler(t *testing.T) {
 				ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 				stamp, err := mock.Stamps().Get(ctx, "a1")
 				require.NoError(t, err)
-				cond := apimeta.FindStatusCondition(stamp.Status.Conditions, string(fleet.StampConditionApproved))
+				cond := apimeta.FindStatusCondition(stamp.Status.Conditions, string(fleetapi.StampConditionApproved))
 				require.NotNil(t, cond)
 				require.Equal(t, metav1.ConditionTrue, cond.Status)
 				require.Equal(t, "ManuallyApproved", cond.Reason)
@@ -93,9 +93,9 @@ func TestStampApprovalHandler(t *testing.T) {
 			body:            `{"approved":false,"reason":"ApprovalRevoked","message":"Revoked for maintenance"}`,
 			setupResources: []any{
 				newStampWithConditions("a1", metav1.Condition{
-					Type:   string(fleet.StampConditionApproved),
+					Type:   string(fleetapi.StampConditionApproved),
 					Status: metav1.ConditionTrue,
-					Reason: string(fleet.StampConditionReasonManuallyApproved),
+					Reason: string(fleetapi.StampConditionReasonManuallyApproved),
 				}),
 			},
 			expectedStatusCode: http.StatusNoContent,
@@ -103,7 +103,7 @@ func TestStampApprovalHandler(t *testing.T) {
 				ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 				stamp, err := mock.Stamps().Get(ctx, "a1")
 				require.NoError(t, err)
-				cond := apimeta.FindStatusCondition(stamp.Status.Conditions, string(fleet.StampConditionApproved))
+				cond := apimeta.FindStatusCondition(stamp.Status.Conditions, string(fleetapi.StampConditionApproved))
 				require.NotNil(t, cond)
 				require.Equal(t, metav1.ConditionFalse, cond.Status)
 				require.Equal(t, "ApprovalRevoked", cond.Reason)
@@ -115,9 +115,9 @@ func TestStampApprovalHandler(t *testing.T) {
 			body:            `{"approved":true,"reason":"ManuallyApproved","message":"Approved by SRE"}`,
 			setupResources: []any{
 				newStampWithConditions("a1", metav1.Condition{
-					Type:   string(fleet.StampConditionApproved),
+					Type:   string(fleetapi.StampConditionApproved),
 					Status: metav1.ConditionTrue,
-					Reason: string(fleet.StampConditionReasonManuallyApproved),
+					Reason: string(fleetapi.StampConditionReasonManuallyApproved),
 				}),
 			},
 			expectedStatusCode: http.StatusNoContent,
@@ -128,9 +128,9 @@ func TestStampApprovalHandler(t *testing.T) {
 			body:            `{"approved":false,"reason":"ApprovalRevoked","message":"Revoked"}`,
 			setupResources: []any{
 				newStampWithConditions("a1", metav1.Condition{
-					Type:   string(fleet.StampConditionApproved),
+					Type:   string(fleetapi.StampConditionApproved),
 					Status: metav1.ConditionFalse,
-					Reason: string(fleet.StampConditionReasonApprovalRevoked),
+					Reason: string(fleetapi.StampConditionReasonApprovalRevoked),
 				}),
 			},
 			expectedStatusCode: http.StatusNoContent,
@@ -201,7 +201,7 @@ func TestStampApprovalHandler(t *testing.T) {
 
 			if len(tt.expectedError) > 0 {
 				require.Error(t, handlerErr)
-				var cloudErr *arm.CloudError
+				var cloudErr *coreapi.CloudError
 				require.True(t, errors.As(handlerErr, &cloudErr), "expected CloudError but got %T: %v", handlerErr, handlerErr)
 				require.Equal(t, tt.expectedStatusCode, cloudErr.StatusCode)
 				require.Contains(t, cloudErr.Error(), tt.expectedError)

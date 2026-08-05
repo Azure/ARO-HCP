@@ -19,8 +19,8 @@ import (
 	"fmt"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -41,8 +41,8 @@ func (v *AzureVMSizeSupportsEphemeralOSDiskValidation) Name() string {
 	return "AzureVMSizeSupportsEphemeralOSDiskValidation"
 }
 
-func (v *AzureVMSizeSupportsEphemeralOSDiskValidation) Validate(ctx context.Context, _ *api.HCPOpenShiftCluster, nodePoolSubscription *arm.Subscription, nodePool *api.HCPOpenShiftClusterNodePool) error {
-	if nodePool.Properties.Platform.OSDisk.DiskType != api.OsDiskTypeEphemeral {
+func (v *AzureVMSizeSupportsEphemeralOSDiskValidation) Validate(ctx context.Context, _ *coreapi.HCPOpenShiftCluster, nodePoolSubscription *coreapi.Subscription, nodePool *coreapi.HCPOpenShiftClusterNodePool) error {
+	if nodePool.Properties.Platform.OSDisk.DiskType != metadataapi.OsDiskTypeEphemeral {
 		return nil
 	}
 

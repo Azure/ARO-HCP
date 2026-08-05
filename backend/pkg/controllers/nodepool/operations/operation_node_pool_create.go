@@ -28,8 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -92,14 +91,14 @@ func NewOperationNodePoolCreateController(
 	return controller
 }
 
-func (c *operationNodePoolCreate) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationNodePoolCreate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != cosmosstorageutils.OperationRequestCreate {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.NodePoolResourceType.String()) {
 		return false
 	}
 
@@ -145,13 +144,13 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		return utils.TrackError(err)
 	}
 
-	var persistErr *arm.CloudErrorBody
-	if operationalState.ProvisioningState == arm.ProvisioningStateFailed {
-		persistErr = &arm.CloudErrorBody{
+	var persistErr *coreapi.CloudErrorBody
+	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
+		persistErr = &coreapi.CloudErrorBody{
 			// TODO for now we always set the error code to InternalServerError, but we should improve to be able
 			// to be more specific than that when we calculate operationalState. When work is done to improve on this, we
 			// should design it in a way where no internal details are exposed to the operation's error.
-			Code:    arm.CloudErrorCodeInternalServerError,
+			Code:    coreapi.CloudErrorCodeInternalServerError,
 			Message: operationalState.Message,
 		}
 	}
@@ -166,9 +165,9 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		logger.Info("create operation deadline exceeded, marking as failed",
 			"deadline", nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
 			"message", message)
-		operationalState.ProvisioningState = arm.ProvisioningStateFailed
-		persistErr = &arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeInternalServerError,
+		operationalState.ProvisioningState = coreapi.ProvisioningStateFailed
+		persistErr = &coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeInternalServerError,
 			Message: message,
 		}
 	}
@@ -186,11 +185,11 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 	return nil
 }
 
-func (c *operationNodePoolCreate) shouldReconcileOperationAndResourceStatus(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+func (c *operationNodePoolCreate) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil && nodePool.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, operation *api.Operation, nodePool *api.HCPOpenShiftClusterNodePool) (*operationbase.OperationState, error) {
+func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.HCPOpenShiftClusterNodePool) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	var errs []error
@@ -221,7 +220,7 @@ func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, o
 	return picked, nil
 }
 
-func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx context.Context, operation *api.Operation, nodePool *api.HCPOpenShiftClusterNodePool) (*operationbase.OperationState, error) {
+func (c *operationNodePoolCreate) nodePoolServiceCreateOperationState(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.HCPOpenShiftClusterNodePool) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 	csNodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {

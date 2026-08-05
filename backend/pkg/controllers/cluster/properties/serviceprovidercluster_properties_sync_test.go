@@ -24,8 +24,8 @@ import (
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
@@ -42,9 +42,9 @@ func TestServiceProviderClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                           string
-		existingCluster                *api.HCPOpenShiftCluster
-		existingSPC                    *api.ServiceProviderCluster
-		readDesires                    []*kubeapplier.ReadDesire
+		existingCluster                *coreapi.HCPOpenShiftCluster
+		existingSPC                    *coreapi.ServiceProviderCluster
+		readDesires                    []*kubeapplierapi.ReadDesire
 		wantErr                        bool
 		expectedHostedClusterNamespace string
 		expectedControlPlaneNamespace  string
@@ -54,7 +54,7 @@ func TestServiceProviderClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			name:            "sync namespaces from HostedCluster ReadDesire",
 			existingCluster: newTestCluster(testClusterName),
 			existingSPC:     newTestServiceProviderCluster(testClusterName, nil, nil),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				newTestHostedClusterReadDesire(t, func(hc *hsv1beta1.HostedCluster) {
 					hc.Namespace = testHostedClusterNamespace
 					hc.Name = testHostedClusterName
@@ -67,7 +67,7 @@ func TestServiceProviderClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			name:            "sync namespaces and serving CA bundle",
 			existingCluster: newTestCluster(testClusterName),
 			existingSPC:     newTestServiceProviderCluster(testClusterName, nil, nil),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				newTestHostedClusterReadDesire(t, func(hc *hsv1beta1.HostedCluster) {
 					hc.Namespace = testHostedClusterNamespace
 					hc.Name = testHostedClusterName
@@ -81,14 +81,14 @@ func TestServiceProviderClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 		{
 			name:            "short-circuit when namespaces and serving CA already match",
 			existingCluster: newTestCluster(testClusterName),
-			existingSPC: func() *api.ServiceProviderCluster {
+			existingSPC: func() *coreapi.ServiceProviderCluster {
 				spc := newTestServiceProviderCluster(testClusterName, nil, nil)
 				spc.Status.HostedClusterNamespace = testHostedClusterNamespace
 				spc.Status.ControlPlaneNamespace = testControlPlaneNamespace
 				spc.Status.ServingCABundle = testServingCABundle
 				return spc
 			}(),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				newTestHostedClusterReadDesire(t, func(hc *hsv1beta1.HostedCluster) {
 					hc.Namespace = testHostedClusterNamespace
 					hc.Name = testHostedClusterName
@@ -108,7 +108,7 @@ func TestServiceProviderClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			name:            "no-op when HostedCluster has empty namespace",
 			existingCluster: newTestCluster(testClusterName),
 			existingSPC:     newTestServiceProviderCluster(testClusterName, nil, nil),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				newTestHostedClusterReadDesire(t, func(hc *hsv1beta1.HostedCluster) {
 					hc.Namespace = ""
 					hc.Name = testHostedClusterName
@@ -119,7 +119,7 @@ func TestServiceProviderClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			name:            "no-op when HostedCluster has empty name",
 			existingCluster: newTestCluster(testClusterName),
 			existingSPC:     newTestServiceProviderCluster(testClusterName, nil, nil),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				newTestHostedClusterReadDesire(t, func(hc *hsv1beta1.HostedCluster) {
 					hc.Namespace = testHostedClusterNamespace
 					hc.Name = ""
@@ -130,7 +130,7 @@ func TestServiceProviderClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			name:            "no-op when ServiceProviderCluster not found",
 			existingCluster: newTestCluster(testClusterName),
 			existingSPC:     nil,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				newTestHostedClusterReadDesire(t, func(hc *hsv1beta1.HostedCluster) {
 					hc.Namespace = testHostedClusterNamespace
 					hc.Name = testHostedClusterName
@@ -141,7 +141,7 @@ func TestServiceProviderClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			name:            "dots in name are replaced with dashes in control plane namespace",
 			existingCluster: newTestCluster(testClusterName),
 			existingSPC:     newTestServiceProviderCluster(testClusterName, nil, nil),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				newTestHostedClusterReadDesire(t, func(hc *hsv1beta1.HostedCluster) {
 					hc.Namespace = "ns"
 					hc.Name = "my.dotted.name"
@@ -192,7 +192,7 @@ func TestServiceProviderClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 
 			updatedSPC, err := mockResourcesDB.ServiceProviderClusters(
 				testSubscriptionID, testResourceGroupName, tc.existingCluster.Name,
-			).Get(ctx, api.ServiceProviderClusterResourceName)
+			).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedHostedClusterNamespace, updatedSPC.Status.HostedClusterNamespace)

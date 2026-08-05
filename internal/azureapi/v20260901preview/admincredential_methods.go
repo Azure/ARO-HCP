@@ -17,28 +17,28 @@ package v20260901preview
 import (
 	"encoding/json"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview/generated"
 )
 
-func newHCPOpenShiftClusterAdminCredential(from *api.HCPOpenShiftClusterAdminCredential) *generated.HcpOpenShiftClusterAdminCredential {
+func newHCPOpenShiftClusterAdminCredential(from *coreapi.HCPOpenShiftClusterAdminCredential) *generated.HcpOpenShiftClusterAdminCredential {
 	return &generated.HcpOpenShiftClusterAdminCredential{
-		ExpirationTimestamp: api.PtrOrNil(from.ExpirationTimestamp),
-		Kubeconfig:          api.PtrOrNil(from.Kubeconfig),
+		ExpirationTimestamp: metadataapi.PtrOrNil(from.ExpirationTimestamp),
+		Kubeconfig:          metadataapi.PtrOrNil(from.Kubeconfig),
 	}
 }
 
-func (v version) MarshalHCPOpenShiftClusterAdminCredential(from *api.HCPOpenShiftClusterAdminCredential) ([]byte, error) {
-	return arm.MarshalJSON(newHCPOpenShiftClusterAdminCredential(from))
+func (v version) MarshalHCPOpenShiftClusterAdminCredential(from *coreapi.HCPOpenShiftClusterAdminCredential) ([]byte, error) {
+	return coreapi.MarshalJSON(newHCPOpenShiftClusterAdminCredential(from))
 }
 
-func (v version) UnmarshalHCPOpenShiftClusterAdminCredentialRequest(data []byte) (*api.HCPOpenShiftClusterAdminCredentialRequest, error) {
+func (v version) UnmarshalHCPOpenShiftClusterAdminCredentialRequest(data []byte) (*coreapi.HCPOpenShiftClusterAdminCredentialRequest, error) {
 	var versionedRequest generated.HcpOpenShiftClusterAdminCredentialRequest
 	if err := json.Unmarshal(data, &versionedRequest); err != nil {
 		return nil, err
 	}
-	return &api.HCPOpenShiftClusterAdminCredentialRequest{
-		CertificateRequest: api.Deref(versionedRequest.CertificateSigningRequest),
+	return &coreapi.HCPOpenShiftClusterAdminCredentialRequest{
+		CertificateRequest: metadataapi.Deref(versionedRequest.CertificateSigningRequest),
 	}, nil
 }

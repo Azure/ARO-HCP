@@ -24,7 +24,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -55,7 +55,7 @@ func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBC
 	return c
 }
 
-func (c *backfillClusterUID) NeedsWork(ctx context.Context, existingCluster *api.HCPOpenShiftCluster) bool {
+func (c *backfillClusterUID) NeedsWork(ctx context.Context, existingCluster *coreapi.HCPOpenShiftCluster) bool {
 	// Skip if the cluster is deleted or already has ClusterUID.
 	if existingCluster == nil || len(existingCluster.ServiceProviderProperties.ClusterUID) != 0 {
 		return false

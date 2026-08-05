@@ -29,9 +29,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -48,7 +48,7 @@ const (
 	readDesireTestControlPlaneNS    = "ocm-int-abc123-cluster1"
 )
 
-var readDesireTestManagementClusterResourceID = api.Must(azcorearm.ParseResourceID(
+var readDesireTestManagementClusterResourceID = metadataapi.Must(azcorearm.ParseResourceID(
 	"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default",
 ))
 
@@ -60,32 +60,32 @@ func readDesireTestKey() controllerutils.HCPClusterKey {
 	}
 }
 
-func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + readDesireTestSubscriptionID +
 			"/resourceGroups/" + readDesireTestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + readDesireTestClusterName,
 	))
-	cluster := &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	cluster := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: readDesireTestClusterName,
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID(readDesireTestClusterServiceID))),
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(readDesireTestClusterServiceID))),
 		},
-		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-			DNS: api.CustomerDNSProfile{
+		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			DNS: coreapi.CustomerDNSProfile{
 				BaseDomainPrefix: readDesireTestDomainPrefix,
 			},
-			Version: api.VersionProfile{
+			Version: coreapi.VersionProfile{
 				ID: "4.20.0",
 			},
 		},
@@ -96,19 +96,19 @@ func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftClu
 	return cluster
 }
 
-func newTestSPC(mcResourceID *azcorearm.ResourceID, opts ...func(*api.ServiceProviderCluster)) *api.ServiceProviderCluster {
-	spcResourceID := api.Must(azcorearm.ParseResourceID(
+func newTestSPC(mcResourceID *azcorearm.ResourceID, opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceProviderCluster {
+	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + readDesireTestSubscriptionID +
 			"/resourceGroups/" + readDesireTestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + readDesireTestClusterName +
-			"/serviceProviderClusters/" + api.ServiceProviderClusterResourceName,
+			"/serviceProviderClusters/" + coreapi.ServiceProviderClusterResourceName,
 	))
-	spc := &api.ServiceProviderCluster{
-		CosmosMetadata: api.CosmosMetadata{
+	spc := &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   spcResourceID,
 			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
 		},
-		Status: api.ServiceProviderClusterStatus{
+		Status: coreapi.ServiceProviderClusterStatus{
 			ManagementClusterResourceID: mcResourceID,
 		},
 	}
@@ -124,7 +124,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name                         string
 		resources                    []any
-		cachedServiceProviderCluster *api.ServiceProviderCluster
+		cachedServiceProviderCluster *coreapi.ServiceProviderCluster
 		kubeApplierDesires           []any
 		wantErr                      bool
 		verifyDB                     func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient)
@@ -159,7 +159,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			resources: []any{
 				newTestCluster(),
 			},
-			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID, func(spc *api.ServiceProviderCluster) {
+			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID, func(spc *coreapi.ServiceProviderCluster) {
 				spc.Status.ControlPlaneNamespace = readDesireTestControlPlaneNS
 			}),
 			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -181,11 +181,11 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			// ReadDesires) must be created regardless of the cluster version.
 			name: "creates serving CA ReadDesire regardless of cluster version when ControlPlaneNamespace is set",
 			resources: []any{
-				newTestCluster(func(c *api.HCPOpenShiftCluster) {
+				newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 					c.CustomerProperties.Version.ID = "4.19.0"
 				}),
 			},
-			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID, func(spc *api.ServiceProviderCluster) {
+			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID, func(spc *coreapi.ServiceProviderCluster) {
 				spc.Status.ControlPlaneNamespace = readDesireTestControlPlaneNS
 			}),
 			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
@@ -223,7 +223,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 		{
 			name: "skips when domain prefix is not yet synced",
 			resources: []any{
-				newTestCluster(func(c *api.HCPOpenShiftCluster) {
+				newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 					c.CustomerProperties.DNS.BaseDomainPrefix = ""
 				}),
 			},
@@ -257,7 +257,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID),
 			kubeApplierDesires: []any{
 				controllerutils.BuildReadDesire(
-					kubeapplier.ToClusterScopedReadDesireResourceIDString(
+					kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 						readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler),
 					readDesireTestManagementClusterResourceID,
 					clusterAutoscalerTarget(readDesireTestEnvIdentifier, "abc123", "old-prefix"),
@@ -289,7 +289,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 
 			serviceProviderClusterListerStub := &corelistertesting.SliceServiceProviderClusterLister{}
 			if tt.cachedServiceProviderCluster != nil {
-				serviceProviderClusterListerStub.ServiceProviderClusters = []*api.ServiceProviderCluster{tt.cachedServiceProviderCluster}
+				serviceProviderClusterListerStub.ServiceProviderClusters = []*coreapi.ServiceProviderCluster{tt.cachedServiceProviderCluster}
 			}
 
 			syncer := &createClusterScopedReadDesiresSyncer{

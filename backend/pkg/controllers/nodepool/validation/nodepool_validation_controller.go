@@ -24,7 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -151,6 +151,6 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 
 // shouldProcess returns true when the condition associated to the validation does not exist or when it exists but
 // it failed to run successfully in a previous attempt.
-func (c *nodePoolValidationSyncer) shouldProcess(serviceProviderNodePool *api.ServiceProviderNodePool) bool {
+func (c *nodePoolValidationSyncer) shouldProcess(serviceProviderNodePool *coreapi.ServiceProviderNodePool) bool {
 	return !meta.IsStatusConditionTrue(serviceProviderNodePool.Status.Validations, c.validation.Name())
 }

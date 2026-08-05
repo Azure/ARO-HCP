@@ -24,7 +24,7 @@ import (
 	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -67,7 +67,7 @@ func NewMaestroRegistrationController(
 
 func (s *maestroRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.StampKey) error {
 	managementClusterCRUD := s.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier)
-	managementCluster, err := managementClusterCRUD.Get(ctx, fleet.ManagementClusterResourceName)
+	managementCluster, err := managementClusterCRUD.Get(ctx, fleetapi.ManagementClusterResourceName)
 	if err != nil {
 		if cosmosstorageutils.IsNotFoundError(err) {
 			return nil
@@ -87,15 +87,15 @@ func (s *maestroRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontr
 	updated := managementCluster.DeepCopy()
 
 	var syncErr error
-	if !apimeta.IsStatusConditionTrue(stamp.Status.Conditions, string(fleet.StampConditionApproved)) {
+	if !apimeta.IsStatusConditionTrue(stamp.Status.Conditions, string(fleetapi.StampConditionApproved)) {
 		// an unapproved stamp is not a sync error
 		// the controller will wake up when the stamp is approved and try again
 		// we update the condition though to reflect the fact
-		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleet.ManagementClusterConditionMaestroRegistered), fleetcontrollers.ErrStampNotApproved)
+		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleetapi.ManagementClusterConditionMaestroRegistered), fleetcontrollers.ErrStampNotApproved)
 	} else {
 		client := s.maestroConsumerClientFactory.NewMaestroConsumerClient(updated.Status.MaestroRESTAPIURL)
 		syncErr = s.ensureConsumer(ctx, client, updated.Status.MaestroConsumerName)
-		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleet.ManagementClusterConditionMaestroRegistered), syncErr)
+		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleetapi.ManagementClusterConditionMaestroRegistered), syncErr)
 	}
 
 	if controllerutils.NeedsUpdate(managementCluster, updated) {

@@ -32,28 +32,28 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
 
 // newTestExternalAuthForAggregator builds a minimal
 // HCPOpenShiftClusterExternalAuth suitable for the aggregator tests.
-func newTestExternalAuthForAggregator(opts ...func(*api.HCPOpenShiftClusterExternalAuth)) *api.HCPOpenShiftClusterExternalAuth {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestExternalAuthForAggregator(opts ...func(*coreapi.HCPOpenShiftClusterExternalAuth)) *coreapi.HCPOpenShiftClusterExternalAuth {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
 			"/externalAuths/" + statusutils.TestExternalAuthName,
 	))
-	ea := &api.HCPOpenShiftClusterExternalAuth{
-		CosmosMetadata: arm.CosmosMetadata{
+	ea := &coreapi.HCPOpenShiftClusterExternalAuth{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		ProxyResource: arm.ProxyResource{
-			Resource: arm.Resource{
+		ProxyResource: coreapi.ProxyResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: statusutils.TestExternalAuthName,
 				Type: resourceID.ResourceType.String(),
@@ -67,13 +67,13 @@ func newTestExternalAuthForAggregator(opts ...func(*api.HCPOpenShiftClusterExter
 }
 
 func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
 			"/externalAuths/" + statusutils.TestExternalAuthName,
 	))
-	parentClusterID := api.Must(azcorearm.ParseResourceID(
+	parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
@@ -88,7 +88,7 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name string
 
-		controllers []*api.Controller
+		controllers []*coreapi.Controller
 		inertia     statusutils.Inertia
 		// initialConditions, if set, is layered onto the external auth before
 		// SyncOnce runs.
@@ -108,7 +108,7 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "all-good aggregate",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia:       thirtySecondInertia,
@@ -118,7 +118,7 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "bad controller within 30s inertia stays hidden",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 5*time.Second),
 			},
 			inertia:       thirtySecondInertia,
@@ -128,7 +128,7 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "bad controller past 30s inertia flips aggregate",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 1*time.Minute),
 			},
 			inertia:       thirtySecondInertia,
@@ -138,7 +138,7 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "per-controller override delays SlowController",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "SlowController", metav1.ConditionTrue, "Failed", "settling", 2*time.Minute),
 			},
 			inertia:       fiveMinuteOverrideInertia,
@@ -148,7 +148,7 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "per-controller override: SlowController past 5m flips",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "SlowController", metav1.ConditionTrue, "Failed", "stuck", 6*time.Minute),
 			},
 			inertia:       fiveMinuteOverrideInertia,
@@ -158,7 +158,7 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "nil inertia propagates immediately",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 1*time.Second),
 			},
 			inertia:       nil,
@@ -168,7 +168,7 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no-op when conditions unchanged",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
@@ -190,18 +190,18 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			existing := newTestExternalAuthForAggregator(func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			existing := newTestExternalAuthForAggregator(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				if len(tc.initialConditions) > 0 {
 					ea.Status.Conditions = append([]metav1.Condition{}, tc.initialConditions...)
 				}
 			})
-			parentCluster := &api.HCPOpenShiftCluster{
-				CosmosMetadata: arm.CosmosMetadata{
+			parentCluster := &coreapi.HCPOpenShiftCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   parentClusterID,
 					PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),
 				},
-				TrackedResource: arm.TrackedResource{
-					Resource: arm.Resource{ID: parentClusterID, Name: statusutils.TestClusterName, Type: parentClusterID.ResourceType.String()},
+				TrackedResource: coreapi.TrackedResource{
+					Resource: coreapi.Resource{ID: parentClusterID, Name: statusutils.TestClusterName, Type: parentClusterID.ResourceType.String()},
 				},
 			}
 

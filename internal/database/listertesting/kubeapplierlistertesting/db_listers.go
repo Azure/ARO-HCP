@@ -19,8 +19,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -60,12 +60,12 @@ type DBApplyDesireLister struct {
 
 var _ kubeapplierlisters.ApplyDesireLister = &DBApplyDesireLister{}
 
-func (l *DBApplyDesireLister) List(ctx context.Context) ([]*kubeapplier.ApplyDesire, error) {
+func (l *DBApplyDesireLister) List(ctx context.Context) ([]*kubeapplierapi.ApplyDesire, error) {
 	rids, err := managementClusterResourceIDs(ctx, l.Lister)
 	if err != nil {
 		return nil, err
 	}
-	var all []*kubeapplier.ApplyDesire
+	var all []*kubeapplierapi.ApplyDesire
 	for _, rid := range rids {
 		client := l.Clients.For(ctx, rid)
 		if client == nil {
@@ -86,43 +86,43 @@ func (l *DBApplyDesireLister) List(ctx context.Context) ([]*kubeapplier.ApplyDes
 
 func (l *DBApplyDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
-) (*kubeapplier.ApplyDesire, error) {
+) (*kubeapplierapi.ApplyDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
 			return c.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
 		})
 }
 
 func (l *DBApplyDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
-) (*kubeapplier.ApplyDesire, error) {
+) (*kubeapplierapi.ApplyDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
 			return c.ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 		})
 }
 
 func (l *DBApplyDesireLister) GetForSystemAdminCredentialRequest(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
-) (*kubeapplier.ApplyDesire, error) {
+) (*kubeapplierapi.ApplyDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
 			return c.ApplyDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
 		})
 }
 
 func (l *DBApplyDesireLister) GetForSystemAdminCredentialRevocation(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
-) (*kubeapplier.ApplyDesire, error) {
+) (*kubeapplierapi.ApplyDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
 			return c.ApplyDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, revocationName)
 		})
 }
 
 func (l *DBApplyDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
-) ([]*kubeapplier.ApplyDesire, error) {
+) ([]*kubeapplierapi.ApplyDesire, error) {
 	client := l.Clients.For(ctx, managementClusterResourceID)
 	if client == nil {
 		return nil, nil
@@ -136,12 +136,12 @@ func (l *DBApplyDesireLister) ListForManagementCluster(
 
 func (l *DBApplyDesireLister) ListForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName string,
-) ([]*kubeapplier.ApplyDesire, error) {
+) ([]*kubeapplierapi.ApplyDesire, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []*kubeapplier.ApplyDesire
+	var out []*kubeapplierapi.ApplyDesire
 	for _, d := range all {
 		if listertestingutils.UnderCluster(listertestingutils.ResourceIDOf(d), subscriptionID, resourceGroupName, clusterName) {
 			out = append(out, d)
@@ -152,12 +152,12 @@ func (l *DBApplyDesireLister) ListForCluster(
 
 func (l *DBApplyDesireLister) ListForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) ([]*kubeapplier.ApplyDesire, error) {
+) ([]*kubeapplierapi.ApplyDesire, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []*kubeapplier.ApplyDesire
+	var out []*kubeapplierapi.ApplyDesire
 	for _, d := range all {
 		if listertestingutils.UnderNodePool(listertestingutils.ResourceIDOf(d), subscriptionID, resourceGroupName, clusterName, nodePoolName) {
 			out = append(out, d)
@@ -169,7 +169,7 @@ func (l *DBApplyDesireLister) ListForNodePool(
 // findClusterDesireInAnyClient tries Get on each configured per-MC client; first
 // hit wins. Stops on the first non-NotFound error. crudFor lets the caller
 // pick which per-scope CRUD method (ForCluster vs ForNodePool) to invoke.
-func findClusterDesireInAnyClient[T any, P arm.CosmosMetadataAccessorPtr[T]](
+func findClusterDesireInAnyClient[T any, P coreapi.CosmosMetadataAccessorPtr[T]](
 	ctx context.Context, clients kubeappliercosmosstorage.KubeApplierDBClients, lister kubeappliercosmosstorage.ManagementClusterLister,
 	name string, crudFor func(kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[T, P], error),
 ) (*T, error) {
@@ -206,12 +206,12 @@ type DBReadDesireLister struct {
 
 var _ kubeapplierlisters.ReadDesireLister = &DBReadDesireLister{}
 
-func (l *DBReadDesireLister) List(ctx context.Context) ([]*kubeapplier.ReadDesire, error) {
+func (l *DBReadDesireLister) List(ctx context.Context) ([]*kubeapplierapi.ReadDesire, error) {
 	rids, err := managementClusterResourceIDs(ctx, l.Lister)
 	if err != nil {
 		return nil, err
 	}
-	var all []*kubeapplier.ReadDesire
+	var all []*kubeapplierapi.ReadDesire
 	for _, rid := range rids {
 		client := l.Clients.For(ctx, rid)
 		if client == nil {
@@ -232,43 +232,43 @@ func (l *DBReadDesireLister) List(ctx context.Context) ([]*kubeapplier.ReadDesir
 
 func (l *DBReadDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
-) (*kubeapplier.ReadDesire, error) {
+) (*kubeapplierapi.ReadDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
 			return c.ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
 		})
 }
 
 func (l *DBReadDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
-) (*kubeapplier.ReadDesire, error) {
+) (*kubeapplierapi.ReadDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
 			return c.ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 		})
 }
 
 func (l *DBReadDesireLister) GetForSystemAdminCredentialRequest(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
-) (*kubeapplier.ReadDesire, error) {
+) (*kubeapplierapi.ReadDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
 			return c.ReadDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
 		})
 }
 
 func (l *DBReadDesireLister) GetForSystemAdminCredentialRevocation(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
-) (*kubeapplier.ReadDesire, error) {
+) (*kubeapplierapi.ReadDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
 			return c.ReadDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, revocationName)
 		})
 }
 
 func (l *DBReadDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
-) ([]*kubeapplier.ReadDesire, error) {
+) ([]*kubeapplierapi.ReadDesire, error) {
 	client := l.Clients.For(ctx, managementClusterResourceID)
 	if client == nil {
 		return nil, nil
@@ -282,12 +282,12 @@ func (l *DBReadDesireLister) ListForManagementCluster(
 
 func (l *DBReadDesireLister) ListForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName string,
-) ([]*kubeapplier.ReadDesire, error) {
+) ([]*kubeapplierapi.ReadDesire, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []*kubeapplier.ReadDesire
+	var out []*kubeapplierapi.ReadDesire
 	for _, d := range all {
 		if listertestingutils.UnderCluster(listertestingutils.ResourceIDOf(d), subscriptionID, resourceGroupName, clusterName) {
 			out = append(out, d)
@@ -298,12 +298,12 @@ func (l *DBReadDesireLister) ListForCluster(
 
 func (l *DBReadDesireLister) ListForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) ([]*kubeapplier.ReadDesire, error) {
+) ([]*kubeapplierapi.ReadDesire, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []*kubeapplier.ReadDesire
+	var out []*kubeapplierapi.ReadDesire
 	for _, d := range all {
 		if listertestingutils.UnderNodePool(listertestingutils.ResourceIDOf(d), subscriptionID, resourceGroupName, clusterName, nodePoolName) {
 			out = append(out, d)

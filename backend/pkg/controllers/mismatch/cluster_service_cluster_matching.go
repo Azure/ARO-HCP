@@ -27,7 +27,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -64,9 +64,9 @@ func NewClusterServiceClusterMatchingController(resourcesDBClient corecosmosstor
 	return c
 }
 
-func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (map[string]*api.HCPOpenShiftCluster, []*api.HCPOpenShiftCluster, error) {
-	clusterServiceIDToCluster := map[string]*api.HCPOpenShiftCluster{}
-	ret := []*api.HCPOpenShiftCluster{}
+func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (map[string]*coreapi.HCPOpenShiftCluster, []*coreapi.HCPOpenShiftCluster, error) {
+	clusterServiceIDToCluster := map[string]*coreapi.HCPOpenShiftCluster{}
+	ret := []*coreapi.HCPOpenShiftCluster{}
 
 	allSubscriptions, err := c.subscriptionLister.List(ctx)
 	if err != nil {

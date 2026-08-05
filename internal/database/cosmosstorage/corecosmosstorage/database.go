@@ -24,8 +24,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -58,9 +58,9 @@ type ResourcesDBClient interface {
 	// to end users via ARM.  They must also survive the thing they are deleting, so they live under a subscription directly.
 	Operations(subscriptionID string) OperationCRUD
 
-	Subscriptions() cosmosstorageutils.ResourceCRUD[arm.Subscription, *arm.Subscription]
+	Subscriptions() cosmosstorageutils.ResourceCRUD[coreapi.Subscription, *coreapi.Subscription]
 
-	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster]
+	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
 
 	// ListMissingResourceID returns documents in the Resources container that lack a resourceID field.
 	// These are typically old records created before the resourceID field was introduced.
@@ -71,7 +71,7 @@ type ResourcesDBClient interface {
 	// (Resources container only), intended for feeding SharedInformers.
 	ResourcesGlobalListers() ResourcesGlobalListers
 
-	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool]
+	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool]
 
 	cosmosstorageutils.ChangeFeedClient
 }
@@ -110,21 +110,21 @@ func (d *resourcesCosmosDBClient) Operations(subscriptionID string) OperationCRU
 	return NewOperationCRUD(d.resources, subscriptionID)
 }
 
-func (d *resourcesCosmosDBClient) Subscriptions() cosmosstorageutils.ResourceCRUD[arm.Subscription, *arm.Subscription] {
-	return cosmosstorageutils.NewCosmosResourceCRUD[arm.Subscription, *arm.Subscription, cosmosstorageutils.GenericDocument[arm.Subscription]](
+func (d *resourcesCosmosDBClient) Subscriptions() cosmosstorageutils.ResourceCRUD[coreapi.Subscription, *coreapi.Subscription] {
+	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.Subscription, *coreapi.Subscription, cosmosstorageutils.GenericDocument[coreapi.Subscription]](
 		d.resources, nil, azcorearm.SubscriptionResourceType)
 }
 
-func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster] {
-	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
-	return cosmosstorageutils.NewCosmosResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster, cosmosstorageutils.GenericDocument[api.ServiceProviderCluster]](
-		d.resources, clusterResourceID, api.ServiceProviderClusterResourceType)
+func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderCluster]](
+		d.resources, clusterResourceID, coreapi.ServiceProviderClusterResourceType)
 }
 
-func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] {
-	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
-	return cosmosstorageutils.NewCosmosResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[api.ServiceProviderNodePool]](
-		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
+func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool] {
+	nodePoolResourceID := metadataapi.Must(coreapi.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderNodePool]](
+		d.resources, nodePoolResourceID, coreapi.ServiceProviderNodePoolResourceType)
 }
 
 func (d *resourcesCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (cosmosstorageutils.UntypedResourceCRUD, error) {

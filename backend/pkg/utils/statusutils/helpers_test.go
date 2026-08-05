@@ -25,13 +25,13 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // buildController is a tiny helper for table cases. It produces a Controller
 // document whose ResourceID has the given trailing controller name; only the
 // fields that CollectDegradedConditions reads are populated.
-func buildController(t *testing.T, controllerName string, conditions ...metav1.Condition) *api.Controller {
+func buildController(t *testing.T, controllerName string, conditions ...metav1.Condition) *coreapi.Controller {
 	t.Helper()
 	rid, err := azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000" +
@@ -41,9 +41,9 @@ func buildController(t *testing.T, controllerName string, conditions ...metav1.C
 	if err != nil {
 		t.Fatalf("parsing resource id: %v", err)
 	}
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
-		Status:         api.ControllerStatus{Conditions: conditions},
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
+		Status:         coreapi.ControllerStatus{Conditions: conditions},
 	}
 }
 
@@ -68,7 +68,7 @@ func TestCollectDegradedConditions(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		controllers []*api.Controller
+		controllers []*coreapi.Controller
 		expected    []expectation
 	}{
 		{
@@ -78,49 +78,49 @@ func TestCollectDegradedConditions(t *testing.T) {
 		},
 		{
 			name: "controller missing ResourceID is skipped",
-			controllers: []*api.Controller{
-				{CosmosMetadata: api.CosmosMetadata{}, Status: api.ControllerStatus{Conditions: []metav1.Condition{degradedTrue}}},
+			controllers: []*coreapi.Controller{
+				{CosmosMetadata: coreapi.CosmosMetadata{}, Status: coreapi.ControllerStatus{Conditions: []metav1.Condition{degradedTrue}}},
 			},
 			expected: nil,
 		},
 		{
 			name: "Degraded=True passes through with its real LastTransitionTime",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				buildController(t, "A", degradedTrue),
 			},
 			expected: []expectation{{controllerName: "A", status: metav1.ConditionTrue, reason: "Failed"}},
 		},
 		{
 			name: "Degraded=False passes through",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				buildController(t, "A", degradedFalse),
 			},
 			expected: []expectation{{controllerName: "A", status: metav1.ConditionFalse, reason: "NoErrors"}},
 		},
 		{
 			name: "Degraded=Unknown passes through unchanged (real LastTransitionTime, original reason)",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				buildController(t, "A", degradedUnknown),
 			},
 			expected: []expectation{{controllerName: "A", status: metav1.ConditionUnknown, reason: "Investigating"}},
 		},
 		{
 			name: "missing Degraded condition -> synthesized Degraded=True with first-observed-bad time",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				buildController(t, "A", availableTrue),
 			},
 			expected: []expectation{{controllerName: "A", status: metav1.ConditionTrue, reason: reasonMissingDegraded, useFirstObservedTime: true}},
 		},
 		{
 			name: "controller with no conditions at all -> synthesized missing-Degraded entry",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				buildController(t, "A"),
 			},
 			expected: []expectation{{controllerName: "A", status: metav1.ConditionTrue, reason: reasonMissingDegraded, useFirstObservedTime: true}},
 		},
 		{
 			name: "mix: real conditions and missing controllers each get their own entry",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				buildController(t, "A", degradedTrue),
 				buildController(t, "B", availableTrue),
 				buildController(t, "C", degradedFalse),
@@ -133,7 +133,7 @@ func TestCollectDegradedConditions(t *testing.T) {
 		},
 		{
 			name: "nil entries in the slice are tolerated",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				nil,
 				buildController(t, "A", degradedTrue),
 				nil,
@@ -176,7 +176,7 @@ func TestCollectDegradedConditions_FirstObservedBadIsSticky(t *testing.T) {
 	clock := clocktesting.NewFakePassiveClock(FixedNow)
 	cache := NewFirstObservedBadCache(clock)
 
-	controllers := []*api.Controller{buildController(t, "A")}
+	controllers := []*coreapi.Controller{buildController(t, "A")}
 
 	first := CollectDegradedConditions(controllers, cache)
 	assert.Len(t, first, 1)
@@ -199,8 +199,8 @@ func TestCollectDegradedConditions_RealConditionForgetsCache(t *testing.T) {
 	clock := clocktesting.NewFakePassiveClock(FixedNow)
 	cache := NewFirstObservedBadCache(clock)
 
-	missingPhase := []*api.Controller{buildController(t, "A")}
-	reportingPhase := []*api.Controller{
+	missingPhase := []*coreapi.Controller{buildController(t, "A")}
+	reportingPhase := []*coreapi.Controller{
 		buildController(t, "A", metav1.Condition{Type: DegradedConditionType, Status: metav1.ConditionFalse, Reason: "NoErrors"}),
 	}
 

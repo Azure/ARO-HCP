@@ -17,7 +17,8 @@ package ocm
 import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // externalAuthUpdateDispatchConfig is a dispatch-specific canonical model of the ExternalAuth's
@@ -38,8 +39,8 @@ import (
 // Note: This does not include all fields updatable via the ExternalAuth Cluster Service API, only
 // the subset that the external auth's cluster service update dispatch controller considers.
 //
-// Note: Do not embed internal/api struct types (for example api.ExternalAuthClientProfile,
-// api.TokenClaimMappingsProfile, or api.TokenClaimValidationRule) in this struct or its nested
+// Note: Do not embed internal/api struct types (for example coreapi.ExternalAuthClientProfile,
+// coreapi.TokenClaimMappingsProfile, or coreapi.TokenClaimValidationRule) in this struct or its nested
 // field types. We want to make those internal/api struct types independent of this so they can
 // evolve independently. For example, if a field here referenced an internal/api struct type
 // directly, any new field added to that struct would be automatically considered as updatable
@@ -114,7 +115,7 @@ type externalAuthUpdateDispatchConfig struct {
 }
 
 // externalAuthUpdateDispatchConfigIssuer is the curated issuer subset used for dispatch hash and
-// sync. See externalAuthUpdateDispatchConfig: do not embed api.TokenIssuerProfile.
+// sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.TokenIssuerProfile.
 type externalAuthUpdateDispatchConfigIssuer struct {
 	URL       string   `json:"url"`
 	Audiences []string `json:"audiences"`
@@ -122,56 +123,56 @@ type externalAuthUpdateDispatchConfigIssuer struct {
 }
 
 // externalAuthUpdateDispatchConfigClient is the curated client subset used for dispatch hash and
-// sync. See externalAuthUpdateDispatchConfig: do not embed api.ExternalAuthClientProfile.
+// sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.ExternalAuthClientProfile.
 // Type uses the RP enum in the dispatch canonical form. fromCS() and applyToCSBuilder() convert
 // through convertExternalAuthClientTypeCSToRP and convertExternalAuthClientTypeRPToCS because CS
 // uses lowercase values ("public", "confidential") while RP uses PascalCase ("Public", "Confidential").
 type externalAuthUpdateDispatchConfigClient struct {
-	ComponentName      string                     `json:"componentName"`
-	ComponentNamespace string                     `json:"componentNamespace"`
-	ClientID           string                     `json:"clientId"`
-	ExtraScopes        []string                   `json:"extraScopes"`
-	Type               api.ExternalAuthClientType `json:"type"`
+	ComponentName      string                             `json:"componentName"`
+	ComponentNamespace string                             `json:"componentNamespace"`
+	ClientID           string                             `json:"clientId"`
+	ExtraScopes        []string                           `json:"extraScopes"`
+	Type               metadataapi.ExternalAuthClientType `json:"type"`
 }
 
 // externalAuthUpdateDispatchConfigClaim is the curated claim subset used for dispatch hash and
-// sync. See externalAuthUpdateDispatchConfig: do not embed api.ExternalAuthClaimProfile.
+// sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.ExternalAuthClaimProfile.
 type externalAuthUpdateDispatchConfigClaim struct {
 	Mappings        externalAuthUpdateDispatchConfigClaimMappings    `json:"mappings"`
 	ValidationRules []externalAuthUpdateDispatchConfigValidationRule `json:"validationRules"`
 }
 
 // externalAuthUpdateDispatchConfigClaimMappings is the curated claim mappings subset used for
-// dispatch hash and sync. See externalAuthUpdateDispatchConfig: do not embed api.TokenClaimMappingsProfile.
+// dispatch hash and sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.TokenClaimMappingsProfile.
 type externalAuthUpdateDispatchConfigClaimMappings struct {
 	Username externalAuthUpdateDispatchConfigUsernameClaim `json:"username"`
 	Groups   *externalAuthUpdateDispatchConfigGroupsClaim  `json:"groups"`
 }
 
 // externalAuthUpdateDispatchConfigUsernameClaim is the curated username claim subset used for
-// dispatch hash and sync. See externalAuthUpdateDispatchConfig: do not embed api.UsernameClaimProfile.
+// dispatch hash and sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.UsernameClaimProfile.
 type externalAuthUpdateDispatchConfigUsernameClaim struct {
-	Claim        string                        `json:"claim"`
-	Prefix       string                        `json:"prefix"`
-	PrefixPolicy api.UsernameClaimPrefixPolicy `json:"prefixPolicy"`
+	Claim        string                                `json:"claim"`
+	Prefix       string                                `json:"prefix"`
+	PrefixPolicy metadataapi.UsernameClaimPrefixPolicy `json:"prefixPolicy"`
 }
 
 // externalAuthUpdateDispatchConfigGroupsClaim is the curated groups claim subset used for dispatch
-// hash and sync. See externalAuthUpdateDispatchConfig: do not embed api.GroupClaimProfile.
+// hash and sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.GroupClaimProfile.
 type externalAuthUpdateDispatchConfigGroupsClaim struct {
 	Claim  string `json:"claim"`
 	Prefix string `json:"prefix"`
 }
 
 // externalAuthUpdateDispatchConfigValidationRule is the curated validation rule subset used for
-// dispatch hash and sync. See externalAuthUpdateDispatchConfig: do not embed api.TokenClaimValidationRule.
+// dispatch hash and sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.TokenClaimValidationRule.
 type externalAuthUpdateDispatchConfigValidationRule struct {
-	Type          api.TokenValidationRuleType                   `json:"type"`
+	Type          metadataapi.TokenValidationRuleType           `json:"type"`
 	RequiredClaim externalAuthUpdateDispatchConfigRequiredClaim `json:"requiredClaim"`
 }
 
 // externalAuthUpdateDispatchConfigRequiredClaim is the curated required-claim subset used for
-// dispatch hash and sync. See externalAuthUpdateDispatchConfig: do not embed api.TokenRequiredClaim.
+// dispatch hash and sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.TokenRequiredClaim.
 type externalAuthUpdateDispatchConfigRequiredClaim struct {
 	Claim         string `json:"claim"`
 	RequiredValue string `json:"requiredValue"`
@@ -179,7 +180,7 @@ type externalAuthUpdateDispatchConfigRequiredClaim struct {
 
 // ExternalAuthUpdateDispatchConfigJSONFromRP returns the canonical JSON of the dispatch config
 // projected from RP desired state.
-func ExternalAuthUpdateDispatchConfigJSONFromRP(externalAuth *api.HCPOpenShiftClusterExternalAuth) (string, error) {
+func ExternalAuthUpdateDispatchConfigJSONFromRP(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (string, error) {
 	config, err := externalAuthUpdateDispatchConfigFromRP(externalAuth)
 	if err != nil {
 		return "", err
@@ -206,7 +207,7 @@ func ExternalAuthUpdateDispatchConfigJSONFromCS(csExternalAuth *arohcpv1alpha1.E
 }
 
 // externalAuthUpdateDispatchConfigFromRP projects RP desired state into the dispatch canonical form.
-func externalAuthUpdateDispatchConfigFromRP(ea *api.HCPOpenShiftClusterExternalAuth) (*externalAuthUpdateDispatchConfig, error) {
+func externalAuthUpdateDispatchConfigFromRP(ea *coreapi.HCPOpenShiftClusterExternalAuth) (*externalAuthUpdateDispatchConfig, error) {
 	clients, err := externalAuthUpdateDispatchConfigClientsFromRP(ea.Properties.Clients)
 	if err != nil {
 		return nil, err
@@ -242,7 +243,7 @@ func externalAuthUpdateDispatchConfigFromRP(ea *api.HCPOpenShiftClusterExternalA
 }
 
 // externalAuthUpdateDispatchConfigClientsFromRP copies clients from RP into the dispatch canonical form.
-func externalAuthUpdateDispatchConfigClientsFromRP(clients []api.ExternalAuthClientProfile) ([]externalAuthUpdateDispatchConfigClient, error) {
+func externalAuthUpdateDispatchConfigClientsFromRP(clients []coreapi.ExternalAuthClientProfile) ([]externalAuthUpdateDispatchConfigClient, error) {
 	if len(clients) == 0 {
 		return nil, nil
 	}
@@ -263,7 +264,7 @@ func externalAuthUpdateDispatchConfigClientsFromRP(clients []api.ExternalAuthCli
 
 // externalAuthUpdateDispatchConfigValidationRulesFromRP copies validation rules from RP into the
 // dispatch canonical form.
-func externalAuthUpdateDispatchConfigValidationRulesFromRP(rules []api.TokenClaimValidationRule) []externalAuthUpdateDispatchConfigValidationRule {
+func externalAuthUpdateDispatchConfigValidationRulesFromRP(rules []coreapi.TokenClaimValidationRule) []externalAuthUpdateDispatchConfigValidationRule {
 	if len(rules) == 0 {
 		return nil
 	}
@@ -374,7 +375,7 @@ func externalAuthUpdateDispatchConfigValidationRulesFromCS(rules []*arohcpv1alph
 	out := make([]externalAuthUpdateDispatchConfigValidationRule, 0, len(rules))
 	for _, r := range rules {
 		out = append(out, externalAuthUpdateDispatchConfigValidationRule{
-			Type: api.TokenValidationRuleTypeRequiredClaim,
+			Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
 			RequiredClaim: externalAuthUpdateDispatchConfigRequiredClaim{
 				Claim:         r.Claim(),
 				RequiredValue: r.RequiredValue(),

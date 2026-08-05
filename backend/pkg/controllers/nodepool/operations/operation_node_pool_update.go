@@ -36,8 +36,7 @@ import (
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -109,14 +108,14 @@ func NewOperationNodePoolUpdateController(
 	return controller
 }
 
-func (c *operationNodePoolUpdate) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationNodePoolUpdate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != cosmosstorageutils.OperationRequestUpdate {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.NodePoolResourceType.String()) {
 		return false
 	}
 	return true
@@ -160,10 +159,10 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		return utils.TrackError(err)
 	}
 
-	var persistErr *arm.CloudErrorBody
-	if operationalState.ProvisioningState == arm.ProvisioningStateFailed {
-		persistErr = &arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeInvalidRequestContent,
+	var persistErr *coreapi.CloudErrorBody
+	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
+		persistErr = &coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeInvalidRequestContent,
 			Message: operationalState.Message,
 		}
 	}
@@ -181,12 +180,12 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 	return nil
 }
 
-func (c *operationNodePoolUpdate) shouldReconcileOperationAndResourceStatus(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+func (c *operationNodePoolUpdate) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, operation *api.Operation, existingNodePool *api.HCPOpenShiftClusterNodePool) (*operationbase.OperationState, error) {
+func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, operation *coreapi.Operation, existingNodePool *coreapi.HCPOpenShiftClusterNodePool) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	nodePoolCSID := existingNodePool.ServiceProviderProperties.ClusterServiceID
@@ -244,7 +243,7 @@ func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, o
 	return picked, nil
 }
 
-func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *api.Operation, existingNodePool *api.HCPOpenShiftClusterNodePool, existingServiceProviderNodePool *api.ServiceProviderNodePool) (*operationbase.OperationState, error) {
+func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *coreapi.Operation, existingNodePool *coreapi.HCPOpenShiftClusterNodePool, existingServiceProviderNodePool *coreapi.ServiceProviderNodePool) (*operationbase.OperationState, error) {
 	resultingDesiredVersion := existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion
 	if resultingDesiredVersion == nil {
 		return nil, utils.TrackError(fmt.Errorf("service provider node pool has no desired version"))
@@ -259,7 +258,7 @@ func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx con
 	// be evicted by the LRU.
 	if customerDesiredVersion.EQ(*resultingDesiredVersion) {
 		c.desiredVersionMismatchFirstSeen.Remove(operationID)
-		return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 
 	nodePoolKey := controllerutils.HCPNodePoolKey{
@@ -275,10 +274,10 @@ func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx con
 		return nil, utils.TrackError(getControllerErr)
 	}
 
-	intentFailedCondition := apimeta.FindStatusCondition(controllerDoc.Status.Conditions, api.ControllerConditionTypeIntentFailed)
+	intentFailedCondition := apimeta.FindStatusCondition(controllerDoc.Status.Conditions, coreapi.ControllerConditionTypeIntentFailed)
 
 	if intentFailedCondition == nil {
-		return operationbase.NewOperationState(arm.ProvisioningStateAccepted, "customer desired version not yet calculated"), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "customer desired version not yet calculated"), nil
 	}
 	// Customer desired version differs from the service provider resolved version, and the
 	// NodePoolVersion controller has not yet set IntentFailed (VersionUpgradeNotAccepted)
@@ -287,8 +286,8 @@ func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx con
 	// This avoids immediately failing long-running operations after controller restarts
 	// and is double the relistDuration of the nodepool and serviceProviderNodePool coreinformers.
 	// This will not solve all the edge cases, but it will give enough time to the other controllers to act.
-	if intentFailedCondition.Status != metav1.ConditionTrue || intentFailedCondition.Reason != api.VersionUpgradeNotAcceptedReason {
-		pending := operationbase.NewOperationState(arm.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")
+	if intentFailedCondition.Status != metav1.ConditionTrue || intentFailedCondition.Reason != coreapi.VersionUpgradeNotAcceptedReason {
+		pending := operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")
 		firstSeen, ok := c.desiredVersionMismatchFirstSeen.Get(operationID)
 		if !ok {
 			c.desiredVersionMismatchFirstSeen.Add(operationID, c.clock.Now())
@@ -302,13 +301,13 @@ func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx con
 			existingNodePool.Properties.Version.ID,
 		)
 		c.desiredVersionMismatchFirstSeen.Remove(operationID)
-		return operationbase.NewOperationState(arm.ProvisioningStateFailed, msg), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateFailed, msg), nil
 	}
 	c.desiredVersionMismatchFirstSeen.Remove(operationID)
-	return operationbase.NewOperationState(arm.ProvisioningStateFailed, intentFailedCondition.Message), nil
+	return operationbase.NewOperationState(coreapi.ProvisioningStateFailed, intentFailedCondition.Message), nil
 }
 
-func (c *operationNodePoolUpdate) clusterServiceNodePoolStatusOperationState(ctx context.Context, operation *api.Operation, existingCSNodePoolStatus *arohcpv1alpha1.NodePoolStatus) (*operationbase.OperationState, error) {
+func (c *operationNodePoolUpdate) clusterServiceNodePoolStatusOperationState(ctx context.Context, operation *coreapi.Operation, existingCSNodePoolStatus *arohcpv1alpha1.NodePoolStatus) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 	newOperationStatus, opError, err := operationbase.ConvertNodePoolStatus(operation, existingCSNodePoolStatus)
 	if err != nil {

@@ -26,7 +26,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -81,7 +81,7 @@ func NewClusterDeletionController(
 // - DeletionTimestamp must be set
 // - ClusterServiceDeletionTimestamp must be set
 // - ClusterServiceID must be nil
-func (c *clusterDeletionController) NeedsWork(cluster *api.HCPOpenShiftCluster) bool {
+func (c *clusterDeletionController) NeedsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
 	if !cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach {
 		return false
 	}
@@ -198,7 +198,7 @@ func (c *clusterDeletionController) deletePreconditionAllMaestroClusterScopedRea
 	logger := utils.LoggerFromContext(ctx)
 
 	spcCRUD := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	spc, spcErr := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
+	spc, spcErr := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if spcErr != nil && !cosmosstorageutils.IsNotFoundError(spcErr) {
 		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", spcErr))
 	}
@@ -230,8 +230,8 @@ func (c *clusterDeletionController) deletePreconditionCosmosChildResourcesDelete
 	// externalauths after their parent documents have been deleted. We skip
 	// those here because the orphan scraper handles them.
 	skipSubtreeTypes := []azcorearm.ResourceType{
-		api.NodePoolResourceType,
-		api.ExternalAuthResourceType,
+		coreapi.NodePoolResourceType,
+		coreapi.ExternalAuthResourceType,
 	}
 
 	clusterResourceID := cluster.ID
@@ -244,7 +244,7 @@ func (c *clusterDeletionController) deletePreconditionCosmosChildResourcesDelete
 		return false, utils.TrackError(fmt.Errorf("failed to list child resources: %w", err))
 	}
 	for _, childResource := range childIterator.Items(ctx) {
-		if strings.EqualFold(childResource.ResourceType, api.ClusterControllerResourceType.String()) {
+		if strings.EqualFold(childResource.ResourceType, coreapi.ClusterControllerResourceType.String()) {
 			continue
 		}
 		if hasSkippedResourceTypePrefix(childResource.ResourceID, skipSubtreeTypes) {

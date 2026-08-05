@@ -26,8 +26,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -36,7 +36,7 @@ import (
 
 // hypershiftHostedClusterExternalAuthOperationState contains the external auth update operation state calculation
 // comparing desired state against Hypershift's HostedCluster in the management cluster.
-func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthOperationState(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
+func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthOperationState(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
 	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx,
 		c.readDesireLister,
@@ -48,24 +48,24 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthOperati
 		return nil, utils.TrackError(err)
 	}
 	if hostedCluster == nil {
-		return operationbase.NewOperationState(arm.ProvisioningStateUpdating, "Hypershift HostedCluster has not been observed yet"), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "Hypershift HostedCluster has not been observed yet"), nil
 	}
 
 	if matches, message := c.hypershiftHostedClusterExternalAuthSpecMatchesDesired(externalAuth, hostedCluster); !matches {
-		return operationbase.NewOperationState(arm.ProvisioningStateUpdating, message), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
 	}
 
 	// TODO compare with Hypershift HostedCluster relevant parts of status.configuration.authentication when possible.
 	// At the moment of writing this (2026-06-29) the status.configuration.authentication is only available on
 	// HostedClusters >= 4.21.
 
-	return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }
 
 // hypershiftHostedClusterExternalAuthSpecMatchesDesired reports whether Hypershift HostedCluster .Spec fields
 // and other non status configuration matches desired external auth state. Returns false and a diagnostic message
 // when any leaf check fails. HostedCluster .status is not checked here.
-func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthSpecMatchesDesired(externalAuth *api.HCPOpenShiftClusterExternalAuth, hostedCluster *v1beta1.HostedCluster) (bool, string) {
+func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthSpecMatchesDesired(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth, hostedCluster *v1beta1.HostedCluster) (bool, string) {
 	if hostedCluster.Spec.Configuration == nil ||
 		hostedCluster.Spec.Configuration.Authentication == nil ||
 		len(hostedCluster.Spec.Configuration.Authentication.OIDCProviders) == 0 {
@@ -101,7 +101,7 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthSpecMat
 
 // hypershiftHostedClusterExternalAuthIssuerSpecMatchesDesired reports whether HostedCluster OIDCProvider issuer
 // configuration matches desired external auth issuer profile.
-func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthIssuerSpecMatchesDesired(desired api.TokenIssuerProfile, observed configv1.OIDCProvider) (bool, string) {
+func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthIssuerSpecMatchesDesired(desired coreapi.TokenIssuerProfile, observed configv1.OIDCProvider) (bool, string) {
 	if desired.URL != observed.Issuer.URL {
 		return false, fmt.Sprintf(
 			"hypershift HostedCluster OIDCProvider issuer URL is %q, want %q",
@@ -126,7 +126,7 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthIssuerS
 
 // hypershiftHostedClusterExternalAuthClientsSpecMatchesDesired reports whether HostedCluster OIDCProvider clients
 // match desired external auth client profiles.
-func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthClientsSpecMatchesDesired(desired []api.ExternalAuthClientProfile, observed []configv1.OIDCClientConfig) (bool, string) {
+func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthClientsSpecMatchesDesired(desired []coreapi.ExternalAuthClientProfile, observed []configv1.OIDCClientConfig) (bool, string) {
 	if len(desired) != len(observed) {
 		return false, fmt.Sprintf(
 			"hypershift HostedCluster OIDCProvider has %d clients, want %d",
@@ -169,7 +169,7 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthClients
 
 // hypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired reports whether HostedCluster OIDCProvider
 // claim mappings match desired external auth claim profile.
-func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(desired api.ExternalAuthClaimProfile, observed configv1.OIDCProvider) (bool, string) {
+func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(desired coreapi.ExternalAuthClaimProfile, observed configv1.OIDCProvider) (bool, string) {
 	if desired.Mappings.Username.Claim != observed.ClaimMappings.Username.Claim {
 		return false, fmt.Sprintf(
 			"hypershift HostedCluster OIDCProvider username claim is %q, want %q",
@@ -179,11 +179,11 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthClaimMa
 
 	var expectedPrefixPolicy configv1.UsernamePrefixPolicy
 	switch desired.Mappings.Username.PrefixPolicy {
-	case api.UsernameClaimPrefixPolicyPrefix:
+	case metadataapi.UsernameClaimPrefixPolicyPrefix:
 		expectedPrefixPolicy = configv1.Prefix
-	case api.UsernameClaimPrefixPolicyNoPrefix:
+	case metadataapi.UsernameClaimPrefixPolicyNoPrefix:
 		expectedPrefixPolicy = configv1.NoPrefix
-	case api.UsernameClaimPrefixPolicyNone:
+	case metadataapi.UsernameClaimPrefixPolicyNone:
 		expectedPrefixPolicy = configv1.NoOpinion
 	}
 	if observed.ClaimMappings.Username.PrefixPolicy != expectedPrefixPolicy {
@@ -194,7 +194,7 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthClaimMa
 	}
 
 	expectedUsernamePrefix := ""
-	if desired.Mappings.Username.PrefixPolicy == api.UsernameClaimPrefixPolicyPrefix {
+	if desired.Mappings.Username.PrefixPolicy == metadataapi.UsernameClaimPrefixPolicyPrefix {
 		expectedUsernamePrefix = desired.Mappings.Username.Prefix
 	}
 	observedUsernamePrefix := ""
@@ -237,7 +237,7 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthClaimMa
 
 // hypershiftHostedClusterExternalAuthValidationRulesSpecMatchesDesired reports whether HostedCluster OIDCProvider
 // validation rules match desired external auth validation rules.
-func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthValidationRulesSpecMatchesDesired(desired []api.TokenClaimValidationRule, observed []configv1.TokenClaimValidationRule) (bool, string) {
+func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthValidationRulesSpecMatchesDesired(desired []coreapi.TokenClaimValidationRule, observed []configv1.TokenClaimValidationRule) (bool, string) {
 	if len(desired) != len(observed) {
 		return false, fmt.Sprintf(
 			"hypershift HostedCluster OIDCProvider has %d validation rules, want %d",
@@ -250,7 +250,7 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthValidat
 		observedRule := observed[i]
 
 		switch desiredRule.Type {
-		case api.TokenValidationRuleTypeRequiredClaim:
+		case metadataapi.TokenValidationRuleTypeRequiredClaim:
 			if observedRule.Type != configv1.TokenValidationRuleTypeRequiredClaim {
 				return false, fmt.Sprintf(
 					"hypershift HostedCluster OIDCProvider validation rule[%d] type is %q, want %q",
@@ -288,19 +288,19 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthValidat
 
 // clusterServiceExternalAuthSpecOperationState reports whether Cluster Service external auth spec fields
 // match desired state intent for the external auth update operation. Only checks outside CS .status.
-func (c *operationExternalAuthUpdate) clusterServiceExternalAuthSpecOperationState(externalAuth *api.HCPOpenShiftClusterExternalAuth, csExternalAuth *arohcpv1alpha1.ExternalAuth) (*operationbase.OperationState, error) {
+func (c *operationExternalAuthUpdate) clusterServiceExternalAuthSpecOperationState(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth, csExternalAuth *arohcpv1alpha1.ExternalAuth) (*operationbase.OperationState, error) {
 	if matches, message, err := c.clusterServiceExternalAuthSpecMatchesDesired(externalAuth, csExternalAuth); err != nil {
 		return nil, err
 	} else if !matches {
-		return operationbase.NewOperationState(arm.ProvisioningStateUpdating, message), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
 	}
-	return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }
 
 // clusterServiceExternalAuthSpecMatchesDesired reports whether Cluster Service external auth spec fields
 // relevant to the external auth update operation match desired state. Returns false and a diagnostic
 // message when any leaf check fails.
-func (c *operationExternalAuthUpdate) clusterServiceExternalAuthSpecMatchesDesired(externalAuth *api.HCPOpenShiftClusterExternalAuth, csExternalAuth *arohcpv1alpha1.ExternalAuth) (bool, string, error) {
+func (c *operationExternalAuthUpdate) clusterServiceExternalAuthSpecMatchesDesired(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth, csExternalAuth *arohcpv1alpha1.ExternalAuth) (bool, string, error) {
 	desiredJSON, err := ocm.ExternalAuthUpdateDispatchConfigJSONFromRP(externalAuth)
 	if err != nil {
 		return false, "", err

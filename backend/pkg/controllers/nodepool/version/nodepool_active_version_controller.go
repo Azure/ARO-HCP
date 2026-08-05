@@ -26,7 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -83,7 +83,7 @@ func NewNodePoolActiveVersionController(
 // depends on the ReadDesire NodePool's Status.Version (compared to the SPNP's
 // current tip), which can only be evaluated after the ReadDesire fetch — so
 // here we only verify that an SPNP exists to write back to.
-func (c *nodePoolActiveVersionSyncer) NeedsWork(spnp *api.ServiceProviderNodePool) bool {
+func (c *nodePoolActiveVersionSyncer) NeedsWork(spnp *coreapi.ServiceProviderNodePool) bool {
 	return spnp != nil
 }
 
@@ -161,7 +161,7 @@ func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controll
 // KubeletVersion / readiness counts), so we dedupe; entries whose OCPVersion is
 // empty or unparseable are skipped with an Info log so a single malformed row
 // doesn't poison the rest of the list.
-func activeVersionsFromNodeVersions(ctx context.Context, nodeVersions []hsv1beta1.NodeVersion) ([]api.HCPNodePoolActiveVersion, error) {
+func activeVersionsFromNodeVersions(ctx context.Context, nodeVersions []hsv1beta1.NodeVersion) ([]coreapi.HCPNodePoolActiveVersion, error) {
 	logger := utils.LoggerFromContext(ctx)
 	seen := map[string]struct{}{}
 	parsed := []semver.Version{}
@@ -184,9 +184,9 @@ func activeVersionsFromNodeVersions(ctx context.Context, nodeVersions []hsv1beta
 	semver.Sort(parsed)
 	slices.Reverse(parsed)
 
-	out := make([]api.HCPNodePoolActiveVersion, 0, len(parsed))
+	out := make([]coreapi.HCPNodePoolActiveVersion, 0, len(parsed))
 	for i := range parsed {
-		out = append(out, api.HCPNodePoolActiveVersion{Version: &parsed[i]})
+		out = append(out, coreapi.HCPNodePoolActiveVersion{Version: &parsed[i]})
 	}
 	return out, nil
 }

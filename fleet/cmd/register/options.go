@@ -23,7 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -99,7 +99,7 @@ type validatedRegisterOptions struct {
 	managementClusterResourceID *azcorearm.ResourceID
 	aksResourceID               *azcorearm.ResourceID
 	publicDNSZoneResourceID     *azcorearm.ResourceID
-	schedulingPolicy            fleet.ManagementClusterSchedulingPolicy
+	schedulingPolicy            fleetapi.ManagementClusterSchedulingPolicy
 }
 
 type ValidatedRegisterOptions struct {
@@ -112,17 +112,17 @@ func (o *RawRegisterOptions) Validate(ctx context.Context) (*ValidatedRegisterOp
 		return nil, fmt.Errorf("--cloud-environment: %w", err)
 	}
 
-	stampResourceID, err := fleet.ToStampResourceID(o.StampIdentifier)
+	stampResourceID, err := fleetapi.ToStampResourceID(o.StampIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("invalid stamp identifier %q: %w", o.StampIdentifier, err)
 	}
-	managementClusterResourceID, err := fleet.ToManagementClusterResourceID(o.StampIdentifier)
+	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(o.StampIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("invalid stamp identifier %q: %w", o.StampIdentifier, err)
 	}
 
-	schedulingPolicy := fleet.ManagementClusterSchedulingPolicy(o.SchedulingPolicy)
-	if !fleet.ValidManagementClusterSchedulingPolicies.Has(schedulingPolicy) {
+	schedulingPolicy := fleetapi.ManagementClusterSchedulingPolicy(o.SchedulingPolicy)
+	if !fleetapi.ValidManagementClusterSchedulingPolicies.Has(schedulingPolicy) {
 		return nil, fmt.Errorf("invalid scheduling policy %q: must be Schedulable or Unschedulable", o.SchedulingPolicy)
 	}
 
@@ -155,7 +155,7 @@ type registerOptions struct {
 	stampResourceID                                      *azcorearm.ResourceID
 	managementClusterResourceID                          *azcorearm.ResourceID
 	autoApprove                                          bool
-	schedulingPolicy                                     fleet.ManagementClusterSchedulingPolicy
+	schedulingPolicy                                     fleetapi.ManagementClusterSchedulingPolicy
 	aksResourceID                                        *azcorearm.ResourceID
 	publicDNSZoneResourceID                              *azcorearm.ResourceID
 	hostedClustersSecretsKeyVaultURL                     string

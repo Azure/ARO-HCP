@@ -27,45 +27,45 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview/generated"
 )
 
 func TestSizeGiBRoundTrip(t *testing.T) {
 	tests := []struct {
 		name     string
-		original *api.HCPOpenShiftClusterNodePool
+		original *coreapi.HCPOpenShiftClusterNodePool
 	}{
 		{
 			name: "SizeGiB with explicit value should round-trip",
-			original: &api.HCPOpenShiftClusterNodePool{
-				CosmosMetadata: arm.CosmosMetadata{ResourceID: api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool")))},
-				TrackedResource: arm.TrackedResource{
-					Resource: arm.Resource{
-						ID:   api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool"))),
+			original: &coreapi.HCPOpenShiftClusterNodePool{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool")))},
+				TrackedResource: coreapi.TrackedResource{
+					Resource: coreapi.Resource{
+						ID:   metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool"))),
 						Name: "myNodePool",
 						Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
 					},
 					Location: "eastus",
 				},
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
-					Version: api.NodePoolVersionProfile{
+				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+					Version: coreapi.NodePoolVersionProfile{
 						ID:           "4.15.1",
 						ChannelGroup: "stable",
 					},
-					Platform: api.NodePoolPlatformProfile{
-						SubnetID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet")),
+					Platform: coreapi.NodePoolPlatformProfile{
+						SubnetID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet")),
 						VMSize:   "Standard_D2s_v3",
-						OSDisk: api.OSDiskProfile{
+						OSDisk: coreapi.OSDiskProfile{
 							SizeGiB:                ptr.To(int32(128)),
-							DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+							DiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,
 						},
 					},
 					Replicas:   3,
 					AutoRepair: true,
 					Labels:     map[string]string{},
-					Taints:     []api.Taint{},
+					Taints:     []coreapi.Taint{},
 				},
 			},
 		},
@@ -212,8 +212,8 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    *generated.OsDiskProfile
-		existing *api.OSDiskProfile
-		expected *api.OSDiskProfile
+		existing *coreapi.OSDiskProfile
+		expected *coreapi.OSDiskProfile
 	}{
 		{
 			name: "nil SizeGiB writes nil (unconditional write)",
@@ -221,13 +221,13 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 				SizeGiB:                nil,
 				DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypeStandardSSDLRS),
 			},
-			existing: &api.OSDiskProfile{
+			existing: &coreapi.OSDiskProfile{
 				SizeGiB:                ptr.To(int32(128)),
-				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+				DiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,
 			},
-			expected: &api.OSDiskProfile{
+			expected: &coreapi.OSDiskProfile{
 				SizeGiB:                nil,
-				DiskStorageAccountType: api.DiskStorageAccountTypeStandardSSD_LRS,
+				DiskStorageAccountType: metadataapi.DiskStorageAccountTypeStandardSSD_LRS,
 			},
 		},
 		{
@@ -236,13 +236,13 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 				SizeGiB:                ptr.To(int32(128)),
 				DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypeStandardSSDLRS),
 			},
-			existing: &api.OSDiskProfile{
+			existing: &coreapi.OSDiskProfile{
 				SizeGiB:                ptr.To(int32(64)),
-				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+				DiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,
 			},
-			expected: &api.OSDiskProfile{
+			expected: &coreapi.OSDiskProfile{
 				SizeGiB:                ptr.To(int32(128)),
-				DiskStorageAccountType: api.DiskStorageAccountTypeStandardSSD_LRS,
+				DiskStorageAccountType: metadataapi.DiskStorageAccountTypeStandardSSD_LRS,
 			},
 		},
 		{
@@ -251,13 +251,13 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 				SizeGiB:                ptr.To(int32(0)),
 				DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypePremiumLRS),
 			},
-			existing: &api.OSDiskProfile{
+			existing: &coreapi.OSDiskProfile{
 				SizeGiB:                ptr.To(int32(64)),
-				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+				DiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,
 			},
-			expected: &api.OSDiskProfile{
+			expected: &coreapi.OSDiskProfile{
 				SizeGiB:                ptr.To(int32(0)),
-				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+				DiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,
 			},
 		},
 		{
@@ -267,12 +267,12 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 				DiskStorageAccountType: nil,
 				EncryptionSetID:        nil,
 			},
-			existing: &api.OSDiskProfile{
+			existing: &coreapi.OSDiskProfile{
 				SizeGiB:                ptr.To(int32(100)),
-				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
-				EncryptionSetID:        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
+				DiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,
+				EncryptionSetID:        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
 			},
-			expected: &api.OSDiskProfile{
+			expected: &coreapi.OSDiskProfile{
 				SizeGiB:                nil,
 				DiskStorageAccountType: "",
 				EncryptionSetID:        nil,
@@ -295,31 +295,31 @@ func TestNormalizeOSDiskProfile_DiskType(t *testing.T) {
 	tests := []struct {
 		name         string
 		input        *generated.OsDiskProfile
-		existing     *api.OSDiskProfile
-		expectedType api.OsDiskType
+		existing     *coreapi.OSDiskProfile
+		expectedType metadataapi.OsDiskType
 	}{
 		{
 			name: "Ephemeral input maps to OsDiskTypeEphemeral",
 			input: &generated.OsDiskProfile{
 				DiskType: ptr.To(generated.OsDiskTypeEphemeral),
 			},
-			existing:     &api.OSDiskProfile{},
-			expectedType: api.OsDiskTypeEphemeral,
+			existing:     &coreapi.OSDiskProfile{},
+			expectedType: metadataapi.OsDiskTypeEphemeral,
 		},
 		{
 			name: "Managed input maps to OsDiskTypeManaged",
 			input: &generated.OsDiskProfile{
 				DiskType: ptr.To(generated.OsDiskTypeManaged),
 			},
-			existing:     &api.OSDiskProfile{},
-			expectedType: api.OsDiskTypeManaged,
+			existing:     &coreapi.OSDiskProfile{},
+			expectedType: metadataapi.OsDiskTypeManaged,
 		},
 		{
 			name: "nil DiskType writes zero value (SetDefaultValuesNodePool guarantees non-nil on write path)",
 			input: &generated.OsDiskProfile{
 				DiskType: nil,
 			},
-			existing:     &api.OSDiskProfile{DiskType: api.OsDiskTypeEphemeral},
+			existing:     &coreapi.OSDiskProfile{DiskType: metadataapi.OsDiskTypeEphemeral},
 			expectedType: "",
 		},
 	}
@@ -337,16 +337,16 @@ func TestNormalizeOSDiskProfile_DiskType(t *testing.T) {
 func TestNewOSDiskProfile(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    *api.OSDiskProfile
+		input    *coreapi.OSDiskProfile
 		expected generated.OsDiskProfile
 	}{
 		{
 			name: "nil SizeGiB should remain nil in output",
-			input: &api.OSDiskProfile{
+			input: &coreapi.OSDiskProfile{
 				SizeGiB:                nil,
-				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
-				DiskType:               api.OsDiskTypeManaged,
-				EncryptionSetID:        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
+				DiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,
+				DiskType:               metadataapi.OsDiskTypeManaged,
+				EncryptionSetID:        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
 			},
 			expected: generated.OsDiskProfile{
 				SizeGiB:                nil,
@@ -357,10 +357,10 @@ func TestNewOSDiskProfile(t *testing.T) {
 		},
 		{
 			name: "explicit SizeGiB should be preserved",
-			input: &api.OSDiskProfile{
+			input: &coreapi.OSDiskProfile{
 				SizeGiB:                ptr.To(int32(128)),
-				DiskStorageAccountType: api.DiskStorageAccountTypeStandardSSD_LRS,
-				DiskType:               api.OsDiskTypeEphemeral,
+				DiskStorageAccountType: metadataapi.DiskStorageAccountTypeStandardSSD_LRS,
+				DiskType:               metadataapi.OsDiskTypeEphemeral,
 				EncryptionSetID:        nil,
 			},
 			expected: generated.OsDiskProfile{
@@ -391,7 +391,7 @@ func TestNewOSDiskProfile(t *testing.T) {
 	}
 }
 
-func roundTripInternalNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) {
+func roundTripInternalNodePool(t *testing.T, original *coreapi.HCPOpenShiftClusterNodePool) {
 	v := version{}
 	roundTrippedObj, err := v.NewHCPOpenShiftClusterNodePool(original).ConvertToInternal(nil)
 	require.NoError(t, err)

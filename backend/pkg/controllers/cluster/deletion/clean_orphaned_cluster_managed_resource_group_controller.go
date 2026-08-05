@@ -38,7 +38,7 @@ import (
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -132,7 +132,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) listManagedResourceGroupsForS
 			}
 
 			// Only track HCP-managed resource groups
-			if !(strings.EqualFold(parsedID.ResourceType.String(), api.ClusterResourceType.String())) {
+			if !(strings.EqualFold(parsedID.ResourceType.String(), coreapi.ClusterResourceType.String())) {
 				continue
 			}
 

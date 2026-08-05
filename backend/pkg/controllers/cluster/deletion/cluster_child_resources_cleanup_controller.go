@@ -23,7 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -69,7 +69,7 @@ func NewClusterChildResourcesCleanupController(
 	)
 }
 
-func (c *clusterChildResourcesCleanupController) NeedsWork(cluster *api.HCPOpenShiftCluster) bool {
+func (c *clusterChildResourcesCleanupController) NeedsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
 	// TODO temporary check to skip the new deletion approach for Clusters that were created before the new approach was implemented.
 	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
@@ -140,18 +140,18 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 	// A child resource is left alone if its type path starts with any of these
 	// types, because those subtrees have their own deletion pipelines.
 	skipSubtreeTypes := []azcorearm.ResourceType{
-		api.NodePoolResourceType,
-		api.ExternalAuthResourceType,
+		coreapi.NodePoolResourceType,
+		coreapi.ExternalAuthResourceType,
 	}
 
 	// extraDeleteGates contains per-resource-type conditional logic for
 	// resources that are not part of a skipped subtree. If the resource type
 	// is not in this map, the resource is deleted unconditionally.
 	extraDeleteGates := map[string]func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error){
-		strings.ToLower(api.ServiceProviderClusterResourceType.String()): c.extraDeleteGateShouldDeleteServiceProviderCluster,
+		strings.ToLower(coreapi.ServiceProviderClusterResourceType.String()): c.extraDeleteGateShouldDeleteServiceProviderCluster,
 		// We never delete cluster controllers here, as there might be controllers still running
 		// for the Cluster until the very end of the deletion process
-		strings.ToLower(api.ClusterControllerResourceType.String()): func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error) { return false, nil },
+		strings.ToLower(coreapi.ClusterControllerResourceType.String()): func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error) { return false, nil },
 	}
 
 	if err := c.ensureClusterScopedKubeApplierResourcesDeleted(ctx, clusterResourceID); err != nil {
@@ -234,7 +234,7 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		serviceProviderClusterResourceID.SubscriptionID,
 		serviceProviderClusterResourceID.ResourceGroupName,
 		clusterName,
-	).Get(ctx, api.ServiceProviderClusterResourceName)
+	).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return false, nil
 	}
@@ -290,7 +290,7 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierResourcesDeleted(ctx context.Context, clusterResourceID *azcorearm.ResourceID) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	spc, err := c.resourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// If there is no ServiceProviderCluster, we cannot determine the management cluster resource ID, so we skip the deletion of the
 		// *Desire documents without erroring.

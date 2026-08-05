@@ -27,8 +27,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
@@ -40,7 +41,7 @@ type ManagementClusterKey struct {
 }
 
 func (k ManagementClusterKey) GetResourceID() *azcorearm.ResourceID {
-	return api.Must(fleet.ToManagementClusterResourceID(k.StampIdentifier))
+	return metadataapi.Must(fleetapi.ToManagementClusterResourceID(k.StampIdentifier))
 }
 
 func (k ManagementClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -49,15 +50,15 @@ func (k ManagementClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 			AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
-func (k ManagementClusterKey) InitialController(controllerName string) *api.Controller {
-	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + fleet.ControllerResourceTypeName + "/" + controllerName))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+func (k ManagementClusterKey) InitialController(controllerName string) *coreapi.Controller {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + fleetapi.ControllerResourceTypeName + "/" + controllerName))
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(k.StampIdentifier),
 		},
 		ExternalID: k.GetResourceID(),
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
@@ -87,7 +88,7 @@ func NewManagementClusterWatchingController(
 		syncer:        syncer,
 		fleetDBClient: fleetDBClient,
 	}
-	mcController := newGenericWatchingController(name, fleet.ManagementClusterResourceType, mcSyncer)
+	mcController := newGenericWatchingController(name, fleetapi.ManagementClusterResourceType, mcSyncer)
 
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
 	if fleetInformers != nil {

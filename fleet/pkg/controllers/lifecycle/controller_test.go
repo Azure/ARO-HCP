@@ -25,23 +25,24 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 )
 
-func testManagementCluster(stampIdentifier string, conditions ...metav1.Condition) *fleet.ManagementCluster {
-	resourceID := api.Must(fleet.ToManagementClusterResourceID(stampIdentifier))
-	aksResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"))
-	dnsResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
-	placeholderShardID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder"))
-	managementCluster := &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(stampIdentifier)},
+func testManagementCluster(stampIdentifier string, conditions ...metav1.Condition) *fleetapi.ManagementCluster {
+	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stampIdentifier))
+	aksResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"))
+	dnsResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
+	placeholderShardID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder"))
+	managementCluster := &fleetapi.ManagementCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(stampIdentifier)},
 		ResourceID:     resourceID,
-		Spec: fleet.ManagementClusterSpec{
-			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
+		Spec: fleetapi.ManagementClusterSpec{
+			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
-		Status: fleet.ManagementClusterStatus{
+		Status: fleetapi.ManagementClusterStatus{
 			AKSResourceID:                                        aksResourceID,
 			PublicDNSZoneResourceID:                              dnsResourceID,
 			HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
@@ -58,10 +59,10 @@ func testManagementCluster(stampIdentifier string, conditions ...metav1.Conditio
 	return managementCluster
 }
 
-func testStamp(identifier string) *fleet.Stamp {
-	resourceID := api.Must(fleet.ToStampResourceID(identifier))
-	return &fleet.Stamp{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(identifier)},
+func testStamp(identifier string) *fleetapi.Stamp {
+	resourceID := metadataapi.Must(fleetapi.ToStampResourceID(identifier))
+	return &fleetapi.Stamp{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(identifier)},
 		ResourceID:     resourceID,
 	}
 }
@@ -70,7 +71,7 @@ func conditionTrue(condType string) metav1.Condition {
 	return metav1.Condition{
 		Type:   condType,
 		Status: metav1.ConditionTrue,
-		Reason: string(fleet.ManagementClusterConditionReasonRegistered),
+		Reason: string(fleetapi.ManagementClusterConditionReasonRegistered),
 	}
 }
 
@@ -78,16 +79,16 @@ func conditionFalse(condType string) metav1.Condition {
 	return metav1.Condition{
 		Type:   condType,
 		Status: metav1.ConditionFalse,
-		Reason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
+		Reason: string(fleetapi.ManagementClusterConditionReasonRegistrationFailed),
 	}
 }
 
 func TestSyncOnce(t *testing.T) {
 	const stampID = "s1"
 
-	csRegistered := string(fleet.ManagementClusterConditionClustersServiceRegistered)
-	maestroRegistered := string(fleet.ManagementClusterConditionMaestroRegistered)
-	ready := string(fleet.ManagementClusterConditionReady)
+	csRegistered := string(fleetapi.ManagementClusterConditionClustersServiceRegistered)
+	maestroRegistered := string(fleetapi.ManagementClusterConditionMaestroRegistered)
+	ready := string(fleetapi.ManagementClusterConditionReady)
 
 	tests := []struct {
 		name           string
@@ -110,7 +111,7 @@ func TestSyncOnce(t *testing.T) {
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
-			wantCondReason: string(fleet.ManagementClusterConditionReasonAllRegistered),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
 		},
 		{
 			name: "CS False, Maestro True: Ready=False/RegistrationIncomplete",
@@ -122,7 +123,7 @@ func TestSyncOnce(t *testing.T) {
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationIncomplete),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationIncomplete),
 		},
 		{
 			name: "CS True, Maestro False: Ready=False/RegistrationIncomplete",
@@ -134,7 +135,7 @@ func TestSyncOnce(t *testing.T) {
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationIncomplete),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationIncomplete),
 		},
 		{
 			name: "both False: Ready=False/RegistrationIncomplete",
@@ -146,7 +147,7 @@ func TestSyncOnce(t *testing.T) {
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionFalse),
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationIncomplete),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationIncomplete),
 		},
 		{
 			name: "CS absent, Maestro present: preserve existing Ready=True (migration safety)",
@@ -157,12 +158,12 @@ func TestSyncOnce(t *testing.T) {
 					metav1.Condition{
 						Type:   ready,
 						Status: metav1.ConditionTrue,
-						Reason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+						Reason: string(fleetapi.ManagementClusterConditionReasonProvisionShardActive),
 					},
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
-			wantCondReason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonProvisionShardActive),
 			wantNoWrite:    true,
 		},
 		{
@@ -173,12 +174,12 @@ func TestSyncOnce(t *testing.T) {
 					metav1.Condition{
 						Type:   ready,
 						Status: metav1.ConditionTrue,
-						Reason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+						Reason: string(fleetapi.ManagementClusterConditionReasonProvisionShardActive),
 					},
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
-			wantCondReason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonProvisionShardActive),
 			wantNoWrite:    true,
 		},
 		{
@@ -198,12 +199,12 @@ func TestSyncOnce(t *testing.T) {
 					metav1.Condition{
 						Type:   ready,
 						Status: metav1.ConditionTrue,
-						Reason: string(fleet.ManagementClusterConditionReasonAllRegistered),
+						Reason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
 					},
 				),
 			},
 			wantCondStatus: conditionStatusPtr(metav1.ConditionTrue),
-			wantCondReason: string(fleet.ManagementClusterConditionReasonAllRegistered),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonAllRegistered),
 			wantNoWrite:    true,
 		},
 	}
@@ -227,7 +228,7 @@ func TestSyncOnce(t *testing.T) {
 				t.Fatalf("unexpected error: %v", syncErr)
 			}
 
-			managementCluster, err := mockDB.Stamps().ManagementClusters(stampID).Get(ctx, fleet.ManagementClusterResourceName)
+			managementCluster, err := mockDB.Stamps().ManagementClusters(stampID).Get(ctx, fleetapi.ManagementClusterResourceName)
 			if err != nil {
 				if tt.wantCondStatus == nil {
 					return

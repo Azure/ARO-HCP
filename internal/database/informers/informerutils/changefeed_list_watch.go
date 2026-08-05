@@ -34,8 +34,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
@@ -45,7 +45,7 @@ const feedRangePollInterval = 1 * time.Second
 
 type ShouldDeliverFunc[InternalAPITypePointer any] func(obj InternalAPITypePointer) bool
 
-type ChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any] struct {
+type ChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any] struct {
 	lock sync.Mutex
 
 	desiredResourceTypes []azcorearm.ResourceType
@@ -58,7 +58,7 @@ type ChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer arm.Cosmo
 	currentWatcher *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]
 }
 
-func NewChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
+func NewChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
 	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, globalLister cosmosstorageutils.GlobalLister[InternalAPIType], changeFeedClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 
 	return &ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]{
@@ -75,7 +75,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 	return c
 }
 
-func waitForWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](ctx context.Context, clock utilsclock.Clock, watcher *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) error {
+func waitForWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](ctx context.Context, clock utilsclock.Clock, watcher *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) error {
 	logger := utils.LoggerFromContext(ctx)
 	for {
 		select {
@@ -205,7 +205,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 	<-watcher.Finished()
 }
 
-type ChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any] struct {
+type ChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any] struct {
 	desiredResourceTypes []azcorearm.ResourceType
 	maxWatchDuration     time.Duration
 	clock                utilsclock.Clock
@@ -237,7 +237,7 @@ type ChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMet
 	finished chan struct{}
 }
 
-func newChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
+func newChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
 	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, changeFeedClient cosmosstorageutils.ChangeFeedClient, startFrom time.Time, maxWatchDuration time.Duration, shouldDeliverFn ShouldDeliverFunc[InternalAPITypePointer]) *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 	return &ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]{
 		desiredResourceTypes:        desiredResourceTypes,
@@ -505,15 +505,15 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 	for changeFeedStatus != http.StatusNotModified {
 		options := &azcosmos.ChangeFeedOptions{
-			StartFrom: api.Ptr(c.startFrom),
+			StartFrom: metadataapi.Ptr(c.startFrom),
 		}
 
 		if continuation, ok := c.continuationTokens.Load(feedRange); ok {
 			// Continue from a previous read of this feed range.
-			options.Continuation = api.Ptr(continuation.(string))
+			options.Continuation = metadataapi.Ptr(continuation.(string))
 		} else {
 			// First read for this feed range.
-			options.FeedRange = api.Ptr(feedRange)
+			options.FeedRange = metadataapi.Ptr(feedRange)
 		}
 
 		logger.V(4).Info("reading feed range", "options", options)

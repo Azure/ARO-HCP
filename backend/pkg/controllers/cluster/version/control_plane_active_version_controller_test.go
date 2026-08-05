@@ -34,9 +34,9 @@ import (
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -54,7 +54,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name          string
 		seedDB        func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient)
-		readDesires   func(t *testing.T) []*kubeapplier.ReadDesire
+		readDesires   func(t *testing.T) []*kubeapplierapi.ReadDesire
 		expectedError bool
 		validateAfter func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
@@ -82,8 +82,8 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
 				createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
 			},
-			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+			readDesires: func(t *testing.T) []*kubeapplierapi.ReadDesire {
+				return []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
 					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
 						{Version: "4.19.15", State: configv1.CompletedUpdate},
 					}},
@@ -92,9 +92,9 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []api.HCPClusterActiveVersion{
+				assert.Equal(t, []coreapi.HCPClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -105,8 +105,8 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
 			},
-			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+			readDesires: func(t *testing.T) []*kubeapplierapi.ReadDesire {
+				return []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
 					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
 						{Version: "4.19.17", State: configv1.PartialUpdate}, {Version: "4.19.16", State: configv1.PartialUpdate}, {Version: "4.19.15", State: configv1.CompletedUpdate},
 						{Version: "4.19.14", State: configv1.PartialUpdate}, {Version: "4.19.13", State: configv1.CompletedUpdate},
@@ -116,9 +116,9 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []api.HCPClusterActiveVersion{
+				assert.Equal(t, []coreapi.HCPClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.19.17")), State: configv1.PartialUpdate}, {Version: ptr.To(semver.MustParse("4.19.16")), State: configv1.PartialUpdate}, {Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -129,8 +129,8 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
 			},
-			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+			readDesires: func(t *testing.T) []*kubeapplierapi.ReadDesire {
+				return []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
 					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
 						{Version: "4.19.16", State: configv1.PartialUpdate},
 					}},
@@ -139,9 +139,9 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []api.HCPClusterActiveVersion{
+				assert.Equal(t, []coreapi.HCPClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.19.16")), State: configv1.PartialUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -152,13 +152,13 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
 			},
-			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil, hsv1beta1.ControlPlaneVersionStatus{})}
+			readDesires: func(t *testing.T) []*kubeapplierapi.ReadDesire {
+				return []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil, hsv1beta1.ControlPlaneVersionStatus{})}
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
 				require.Empty(t, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -169,13 +169,13 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
 			},
-			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil, hsv1beta1.ControlPlaneVersionStatus{})}
+			readDesires: func(t *testing.T) []*kubeapplierapi.ReadDesire {
+				return []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil, hsv1beta1.ControlPlaneVersionStatus{})}
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
 				require.Empty(t, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -186,8 +186,8 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
 			},
-			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+			readDesires: func(t *testing.T) []*kubeapplierapi.ReadDesire {
+				return []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
 					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
 						{Version: "", State: configv1.PartialUpdate},
 						{Version: "not-a-version", State: configv1.PartialUpdate},
@@ -198,9 +198,9 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []api.HCPClusterActiveVersion{
+				assert.Equal(t, []coreapi.HCPClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -211,8 +211,8 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
 			},
-			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t,
+			readDesires: func(t *testing.T) []*kubeapplierapi.ReadDesire {
+				return []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t,
 					&hsv1beta1.ClusterVersionStatus{History: []configv1.UpdateHistory{
 						{Version: "4.20.1", State: configv1.PartialUpdate},
 					}},
@@ -224,9 +224,9 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []api.HCPClusterActiveVersion{
+				assert.Equal(t, []coreapi.HCPClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.20.1")), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -237,8 +237,8 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
 			},
-			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+			readDesires: func(t *testing.T) []*kubeapplierapi.ReadDesire {
+				return []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
 					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
 						{Version: "4.19.0-0.nightly-multi-2026-01-10-204154", State: configv1.CompletedUpdate},
 					}},
@@ -247,10 +247,10 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []api.HCPClusterActiveVersion{
-					{Version: ptr.To(api.Must(semver.ParseTolerant("4.19.0-0.nightly-multi-2026-01-10-204154"))), State: configv1.CompletedUpdate},
+				assert.Equal(t, []coreapi.HCPClusterActiveVersion{
+					{Version: ptr.To(metadataapi.Must(semver.ParseTolerant("4.19.0-0.nightly-multi-2026-01-10-204154"))), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
 		},
@@ -260,8 +260,8 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
 			},
-			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t,
+			readDesires: func(t *testing.T) []*kubeapplierapi.ReadDesire {
+				return []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t,
 					&hsv1beta1.ClusterVersionStatus{History: []configv1.UpdateHistory{
 						{Version: "4.19.17", State: configv1.PartialUpdate},
 						{Version: "4.19.16", State: configv1.PartialUpdate},
@@ -273,9 +273,9 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []api.HCPClusterActiveVersion{
+				assert.Equal(t, []coreapi.HCPClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.19.17")), State: configv1.PartialUpdate},
 					{Version: ptr.To(semver.MustParse("4.19.16")), State: configv1.PartialUpdate},
 					{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
@@ -291,7 +291,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 
 			tt.seedDB(t, runCtx, mockResourcesDBClient)
 
-			var desires []*kubeapplier.ReadDesire
+			var desires []*kubeapplierapi.ReadDesire
 			if tt.readDesires != nil {
 				desires = tt.readDesires(t)
 			}
@@ -325,14 +325,14 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 
 	createTestHCPCluster(t, runCtx, mockResourcesDBClient)
 	createServiceProviderClusterWithVersion(t, runCtx, mockResourcesDBClient, "4.19.15")
-	desires := []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+	desires := []*kubeapplierapi.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
 		hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
 			{Version: "4.19.15", State: configv1.CompletedUpdate},
 		}},
 	)}
 
 	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
-	before, err := spcCRUD.Get(runCtx, api.ServiceProviderClusterResourceName)
+	before, err := spcCRUD.Get(runCtx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	beforeETag := before.CosmosETag
 
@@ -347,7 +347,7 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 		HCPClusterName:    testClusterName,
 	}))
 
-	after, err := spcCRUD.Get(runCtx, api.ServiceProviderClusterResourceName)
+	after, err := spcCRUD.Get(runCtx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	assert.Equal(t, beforeETag, after.CosmosETag, "ServiceProviderCluster.CosmosETag changed despite identical ActiveVersions; the syncer wrote unnecessarily")
 }
@@ -361,27 +361,27 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 	t.Helper()
 
-	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	clusterInternalID, err := api.NewInternalID(testCSClusterIDStr)
+	clusterInternalID, err := metadataapi.NewInternalID(testCSClusterIDStr)
 	require.NoError(t, err)
 
-	cluster := &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	cluster := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   clusterResourceID,
 				Name: testClusterName,
-				Type: api.ClusterResourceType.String(),
+				Type: coreapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ProvisioningState: arm.ProvisioningStateSucceeded,
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &clusterInternalID,
 		},
 	}
@@ -400,7 +400,7 @@ func newHostedClusterReadDesireWithVersions(
 	t *testing.T,
 	version *hsv1beta1.ClusterVersionStatus,
 	controlPlaneVersion hsv1beta1.ControlPlaneVersionStatus,
-) *kubeapplier.ReadDesire {
+) *kubeapplierapi.ReadDesire {
 	t.Helper()
 
 	hc := &hsv1beta1.HostedCluster{}
@@ -411,12 +411,12 @@ func newHostedClusterReadDesireWithVersions(
 	hc.Status.Version = version
 	raw, err := json.Marshal(hc)
 	require.NoError(t, err)
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   hostedClusterReadDesireResourceID(t),
 			PartitionKey: strings.ToLower("management-cluster-resource-id"),
 		},
-		Status: kubeapplier.ReadDesireStatus{
+		Status: kubeapplierapi.ReadDesireStatus{
 			KubeContent: &kruntime.RawExtension{Raw: raw},
 		},
 	}

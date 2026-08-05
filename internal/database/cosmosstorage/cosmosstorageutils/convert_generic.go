@@ -18,8 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 const operationTimeToLive = 604800 // 7 days
@@ -29,19 +28,19 @@ func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) 
 		return nil, nil
 	}
 
-	metadata, ok := any(internalObj).(arm.CosmosMetadataAccessor)
+	metadata, ok := any(internalObj).(coreapi.CosmosMetadataAccessor)
 	if !ok {
-		return nil, fmt.Errorf("internalObj must be an arm.CosmosMetadataAccessor: %T", internalObj)
+		return nil, fmt.Errorf("internalObj must be an coreapi.CosmosMetadataAccessor: %T", internalObj)
 	}
 
 	// PartitionKey must be populated on metadata by the CRUD layer (via
-	// arm.EnsurePartitionKey) before serialization, and must already be
+	// coreapi.EnsurePartitionKey) before serialization, and must already be
 	// lowercased — Cosmos partition keys are case-sensitive, so writing a
 	// mixed-case value here would silently fragment a partition across two
 	// "equal but unequal" keys. Refuse to serialize otherwise.
 	partitionKey := metadata.GetPartitionKey()
 	if len(partitionKey) == 0 {
-		return nil, fmt.Errorf("internalObj %T has no PartitionKey on its CosmosMetadata; the CRUD layer must call arm.EnsurePartitionKey before serializing", internalObj)
+		return nil, fmt.Errorf("internalObj %T has no PartitionKey on its CosmosMetadata; the CRUD layer must call coreapi.EnsurePartitionKey before serializing", internalObj)
 	}
 	if partitionKey != strings.ToLower(partitionKey) {
 		return nil, fmt.Errorf("internalObj %T PartitionKey %q is not lowercased; CosmosMetadata.SetPartitionKey normalizes case but the field was bypassed", internalObj, partitionKey)
@@ -61,7 +60,7 @@ func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) 
 
 	// this isn't pretty, but on balance it's a better choice so that we can share all the rest.
 	switch any(internalObj).(type) {
-	case *api.Operation:
+	case *coreapi.Operation:
 		// TODO Add TTL to cosmosMetadata
 		cosmosObj.TimeToLive = operationTimeToLive
 	}
@@ -74,11 +73,11 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 		return nil, nil
 	}
 
-	ret, ok := any(&cosmosObj.Content).(arm.CosmosMetadataAccessor)
+	ret, ok := any(&cosmosObj.Content).(coreapi.CosmosMetadataAccessor)
 	if !ok {
-		return nil, fmt.Errorf("internalObj must be an arm.CosmosMetadataAccessor: %T", cosmosObj)
+		return nil, fmt.Errorf("internalObj must be an coreapi.CosmosMetadataAccessor: %T", cosmosObj)
 	}
-	cosmosData := ret.(arm.CosmosPersistable).GetCosmosData()
+	cosmosData := ret.(coreapi.CosmosPersistable).GetCosmosData()
 	cosmosData.ExistingCosmosUID = cosmosObj.ID
 	ret.SetEtag(cosmosObj.CosmosETag)
 	// Legacy documents predating the InstanceVersion field land here with
@@ -107,7 +106,7 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 
 	// this isn't pretty, but on balance it's a better choice so that we can share all the rest.
 	switch castObj := any(ret).(type) {
-	case *arm.Subscription:
+	case *coreapi.Subscription:
 		if castObj.CosmosMetadata.ResourceID == nil && castObj.ResourceID != nil {
 			castObj.CosmosMetadata.ResourceID = castObj.ResourceID
 		}
@@ -115,7 +114,7 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 			castObj.CosmosMetadata.ResourceID = cosmosObj.ResourceID
 		}
 		castObj.LastUpdated = cosmosObj.CosmosTimestamp
-	case arm.Subscription:
+	case coreapi.Subscription:
 		castObj.LastUpdated = cosmosObj.CosmosTimestamp
 	}
 

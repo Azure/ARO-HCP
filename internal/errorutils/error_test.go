@@ -25,7 +25,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -65,7 +65,7 @@ func TestWriteError_TransactionPreconditionFailedBecomes429(t *testing.T) {
 	resp := recorder.Result()
 	t.Logf("response status code: %d", resp.StatusCode)
 
-	var cloudErr arm.CloudError
+	var cloudErr coreapi.CloudError
 	if err := json.NewDecoder(resp.Body).Decode(&cloudErr); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}

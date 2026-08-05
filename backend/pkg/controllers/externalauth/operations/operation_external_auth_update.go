@@ -28,8 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -96,20 +95,20 @@ func NewOperationExternalAuthUpdateController(
 	return controller
 }
 
-func (c *operationExternalAuthUpdate) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationExternalAuthUpdate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != cosmosstorageutils.OperationRequestUpdate {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.ExternalAuthResourceType.String()) {
 		return false
 	}
 	return true
 }
 
-func (c *operationExternalAuthUpdate) shouldReconcileOperationAndResourceStatus(ea *api.HCPOpenShiftClusterExternalAuth) bool {
+func (c *operationExternalAuthUpdate) shouldReconcileOperationAndResourceStatus(ea *coreapi.HCPOpenShiftClusterExternalAuth) bool {
 	return ea.ServiceProviderProperties.DeletionTimestamp == nil &&
 		ea.ServiceProviderProperties.ClusterServiceID != nil
 }
@@ -152,10 +151,10 @@ func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, 
 		return utils.TrackError(err)
 	}
 
-	var persistErr *arm.CloudErrorBody
-	if operationalState.ProvisioningState == arm.ProvisioningStateFailed {
-		persistErr = &arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeInvalidRequestContent,
+	var persistErr *coreapi.CloudErrorBody
+	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
+		persistErr = &coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeInvalidRequestContent,
 			Message: operationalState.Message,
 		}
 	}
@@ -172,7 +171,7 @@ func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, 
 	return nil
 }
 
-func (c *operationExternalAuthUpdate) determineOperationState(ctx context.Context, existingExternalAuth *api.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
+func (c *operationExternalAuthUpdate) determineOperationState(ctx context.Context, existingExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	externalAuthCSID := existingExternalAuth.ServiceProviderProperties.ClusterServiceID

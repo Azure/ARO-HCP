@@ -37,7 +37,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
@@ -182,7 +183,7 @@ func OpenshiftVersionAtMostOneMinorSkew(previousVersionID, newVersionID string) 
 		}
 		previousVersionReleaseLine := fmt.Sprintf("%d.%d", parsedPreviousVersion.Major, parsedPreviousVersion.Minor)
 		desiredVersionReleaseLine := fmt.Sprintf("%d.%d", parsedDesiredVersion.Major, parsedDesiredVersion.Minor)
-		allowedTargetReleaseLine := api.AllowMajorUpgradePaths[previousVersionReleaseLine]
+		allowedTargetReleaseLine := metadataapi.AllowMajorUpgradePaths[previousVersionReleaseLine]
 		if desiredVersionReleaseLine != allowedTargetReleaseLine {
 			return fmt.Errorf("invalid upgrade path from %s to %s: cross-major upgrade from %s is only allowed to %s", previousVersionID, newVersionID, previousVersionReleaseLine, allowedTargetReleaseLine)
 		}
@@ -934,7 +935,7 @@ func ValidateCrossMajorNodePoolSkew(nodePoolVersion, controlPlaneVersion semver.
 	npKey := fmt.Sprintf("%d.%d", nodePoolVersion.Major, nodePoolVersion.Minor)
 	cpKey := fmt.Sprintf("%d.%d", controlPlaneVersion.Major, controlPlaneVersion.Minor)
 
-	allowedCPs, exists := api.AllowControlPlaneNodePoolMajorVersionSkew[npKey]
+	allowedCPs, exists := metadataapi.AllowControlPlaneNodePoolMajorVersionSkew[npKey]
 	if !exists {
 		return fmt.Errorf("node pool version %s is not allowed to coexist with a different-major control plane",
 			nodePoolVersion.String())
@@ -953,7 +954,7 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 	sourceKey := fmt.Sprintf("%d.%d", fromVersion.Major, fromVersion.Minor)
 	targetKey := fmt.Sprintf("%d.%d", toVersion.Major, toVersion.Minor)
 
-	allowedTargets, exists := api.AllowMajorUpgradePaths[sourceKey]
+	allowedTargets, exists := metadataapi.AllowMajorUpgradePaths[sourceKey]
 	if !exists {
 		return fmt.Errorf("invalid upgrade path from %s to %s: major version upgrades are not supported",
 			fromVersion.String(), toVersion.String())
@@ -974,9 +975,9 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 //   - Downgrade: at most -2 minor versions from the highest control plane version
 //   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
 //   - NP version must be in the allowed skew map when CP and NP are on different majors
-func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions []api.HCPNodePoolActiveVersion, lowestCPVersion, highestCPVersion *semver.Version, allowMajorUpgrade bool) error {
+func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions []coreapi.HCPNodePoolActiveVersion, lowestCPVersion, highestCPVersion *semver.Version, allowMajorUpgrade bool) error {
 	// Skip if already in active versions
-	if slices.ContainsFunc(activeVersions, func(av api.HCPNodePoolActiveVersion) bool {
+	if slices.ContainsFunc(activeVersions, func(av coreapi.HCPNodePoolActiveVersion) bool {
 		return av.Version != nil && av.Version.EQ(desiredVersion)
 	}) {
 		return nil

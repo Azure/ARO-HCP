@@ -29,7 +29,7 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -99,7 +99,7 @@ func NewNodePoolClusterServiceUpdateDispatchSyncer(
 	}
 }
 
-func needsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+func needsWork(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
 	if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
@@ -239,12 +239,12 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 }
 
 // buildNodePoolUpdateBuilder builds the Cluster Service node pool PATCH payload from RP desired state.
-func (c *nodePoolClusterServiceUpdateDispatchSyncer) buildNodePoolUpdateBuilder(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool) (*arohcpv1alpha1.NodePoolBuilder, error) {
+func (c *nodePoolClusterServiceUpdateDispatchSyncer) buildNodePoolUpdateBuilder(ctx context.Context, nodePool *coreapi.HCPOpenShiftClusterNodePool) (*arohcpv1alpha1.NodePoolBuilder, error) {
 	return ocm.BuildCSNodePool(ctx, nodePool, true)
 }
 
 // marshalClusterServiceNodePoolUpdatePayload serializes the CS node pool PATCH body for logging.
-func (c *nodePoolClusterServiceUpdateDispatchSyncer) marshalClusterServiceNodePoolUpdatePayload(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool) (string, error) {
+func (c *nodePoolClusterServiceUpdateDispatchSyncer) marshalClusterServiceNodePoolUpdatePayload(ctx context.Context, nodePool *coreapi.HCPOpenShiftClusterNodePool) (string, error) {
 	builder, err := c.buildNodePoolUpdateBuilder(ctx, nodePool)
 	if err != nil {
 		return "", err

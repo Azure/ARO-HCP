@@ -23,7 +23,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -70,7 +70,7 @@ func NewNodePoolWatchingController(
 		resourcesDBClient: resourcesDBClient,
 		syncer:            syncer,
 	}
-	nodePoolController := newGenericWatchingController(name, api.NodePoolResourceType, controller)
+	nodePoolController := newGenericWatchingController(name, coreapi.NodePoolResourceType, controller)
 
 	nodePoolInformer, nodePoolLister := informers.NodePools()
 	serviceProviderNodePoolInformer, _ := informers.ServiceProviderNodePools()

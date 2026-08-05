@@ -26,7 +26,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -115,7 +115,7 @@ func (c *missingResourceIDController) sweep(ctx context.Context) error {
 }
 
 func deleteByItemID(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, partitionKey, cosmosID string) error {
-	subscriptionResourceID, err := arm.ToSubscriptionResourceID(partitionKey)
+	subscriptionResourceID, err := coreapi.ToSubscriptionResourceID(partitionKey)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("parsing partition key %q as subscription ID: %w", partitionKey, err))
 	}

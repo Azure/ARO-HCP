@@ -34,8 +34,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // armSystemDataPolicy adds ARM system data headers for direct RP requests.
@@ -101,10 +100,10 @@ func (p *armResourceGroupValidationPolicy) Do(req *policy.Request) (*http.Respon
 	err = p.rgClient.Get(req.Raw().Context(), subID, rgName)
 	if err != nil {
 		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && respErr.ErrorCode == arm.CloudErrorCodeResourceGroupNotFound {
-			cloudErr := arm.NewCloudError(
+		if errors.As(err, &respErr) && respErr.ErrorCode == coreapi.CloudErrorCodeResourceGroupNotFound {
+			cloudErr := coreapi.NewCloudError(
 				http.StatusNotFound,
-				arm.CloudErrorCodeResourceGroupNotFound,
+				coreapi.CloudErrorCodeResourceGroupNotFound,
 				"",
 				"Resource group '%s' could not be found.",
 				rgName,
@@ -153,11 +152,11 @@ func (p *requestIDPolicy) Do(req *policy.Request) (*http.Response, error) {
 	}
 
 	if req.Raw().URL.Host == frontendURL.Host {
-		if req.Raw().Header.Get(arm.HeaderNameCorrelationRequestID) == "" {
-			req.Raw().Header.Set(arm.HeaderNameCorrelationRequestID, uuid.New().String())
+		if req.Raw().Header.Get(coreapi.HeaderNameCorrelationRequestID) == "" {
+			req.Raw().Header.Set(coreapi.HeaderNameCorrelationRequestID, uuid.New().String())
 		}
-		if req.Raw().Header.Get(arm.HeaderNameClientRequestID) == "" {
-			req.Raw().Header.Set(arm.HeaderNameClientRequestID, uuid.New().String())
+		if req.Raw().Header.Get(coreapi.HeaderNameClientRequestID) == "" {
+			req.Raw().Header.Set(coreapi.HeaderNameClientRequestID, uuid.New().String())
 		}
 	}
 	return req.Next()
@@ -327,7 +326,7 @@ func (p *retryVersionNotFoundPolicy) Do(req *policy.Request) (*http.Response, er
 	if err != nil {
 		return req.Next()
 	}
-	if !strings.EqualFold(resourceID.ResourceType.String(), api.ClusterResourceType.String()) {
+	if !strings.EqualFold(resourceID.ResourceType.String(), coreapi.ClusterResourceType.String()) {
 		return req.Next()
 	}
 

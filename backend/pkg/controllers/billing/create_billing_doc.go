@@ -24,8 +24,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -58,7 +57,7 @@ func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation 
 	}
 }
 
-func (c *createBillingDoc) NeedsWork(ctx context.Context, existingCluster *api.HCPOpenShiftCluster) bool {
+func (c *createBillingDoc) NeedsWork(ctx context.Context, existingCluster *coreapi.HCPOpenShiftCluster) bool {
 	// Skip if the cluster is deleted or does not have a ClusterUID because the cluster is old and yet-to-be backfilled old data (backfill controller's responsibility).
 	// All new clusters will have it from admission.
 	if existingCluster == nil || len(existingCluster.ServiceProviderProperties.ClusterUID) == 0 {
@@ -71,7 +70,7 @@ func (c *createBillingDoc) NeedsWork(ctx context.Context, existingCluster *api.H
 	}
 
 	// Skip if the cluster provision is not succeeded yet.
-	if existingCluster.ServiceProviderProperties.ProvisioningState != arm.ProvisioningStateSucceeded {
+	if existingCluster.ServiceProviderProperties.ProvisioningState != coreapi.ProvisioningStateSucceeded {
 		return false
 	}
 
@@ -152,7 +151,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 		if len(existingCluster.CustomerProperties.Platform.ManagedResourceGroup) != 0 {
 			managedRGName = existingCluster.CustomerProperties.Platform.ManagedResourceGroup
 		}
-		doc.ManagedResourceGroup = api.ToResourceGroupResourceIDString(existingCluster.ID.SubscriptionID, managedRGName)
+		doc.ManagedResourceGroup = coreapi.ToResourceGroupResourceIDString(existingCluster.ID.SubscriptionID, managedRGName)
 
 		err = billingDocCRUD.Create(ctx, doc)
 		if err != nil {

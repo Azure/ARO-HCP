@@ -23,13 +23,12 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 )
 
-type ResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]] interface {
+type ResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]] interface {
 	GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error)
 	Get(ctx context.Context, resourceID string) (*InternalAPIType, error)
 	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
@@ -41,7 +40,7 @@ type ResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadata
 	AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error)
 }
 
-type ValidatingResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]] interface {
+type ValidatingResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]] interface {
 	GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error)
 	Get(ctx context.Context, resourceID string) (*InternalAPIType, error)
 	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
@@ -89,9 +88,9 @@ func (SubscriptionPartitionKeyDeriver) PartitionKey(ParentResourceID *azcorearm.
 }
 
 func (SubscriptionPartitionKeyDeriver) PartitionKeyFromObject(obj any) (string, error) {
-	md, ok := obj.(arm.CosmosMetadataAccessor)
+	md, ok := obj.(coreapi.CosmosMetadataAccessor)
 	if !ok {
-		return "", fmt.Errorf("subscription partitioning requires an arm.CosmosMetadataAccessor, got %T", obj)
+		return "", fmt.Errorf("subscription partitioning requires an coreapi.CosmosMetadataAccessor, got %T", obj)
 	}
 	rid := md.GetResourceID()
 	if rid == nil {
@@ -132,14 +131,14 @@ func (FleetPartitionKeyDeriver) PartitionKey(ParentResourceID *azcorearm.Resourc
 
 func (FleetPartitionKeyDeriver) PartitionKeyFromObject(obj any) (string, error) {
 	switch obj.(type) {
-	case *fleet.Stamp, *fleet.ManagementCluster:
+	case *fleetapi.Stamp, *fleetapi.ManagementCluster:
 		// only the fleet types live in the fleet container
 	default:
 		return "", fmt.Errorf("fleet partitioning does not apply to %T", obj)
 	}
-	md, ok := obj.(arm.CosmosMetadataAccessor)
+	md, ok := obj.(coreapi.CosmosMetadataAccessor)
 	if !ok {
-		return "", fmt.Errorf("fleet partitioning requires an arm.CosmosMetadataAccessor, got %T", obj)
+		return "", fmt.Errorf("fleet partitioning requires an coreapi.CosmosMetadataAccessor, got %T", obj)
 	}
 	if pk := TopLevelResourceName(md.GetResourceID()); len(pk) > 0 {
 		return pk, nil
@@ -178,9 +177,9 @@ func (d KubeApplierPartitionKeyDeriver) PartitionKey(_ *azcorearm.ResourceID, _ 
 }
 
 func (KubeApplierPartitionKeyDeriver) PartitionKeyFromObject(obj any) (string, error) {
-	mc, ok := obj.(kubeapplier.ManagementClusterAccessor)
+	mc, ok := obj.(kubeapplierapi.ManagementClusterAccessor)
 	if !ok {
-		return "", fmt.Errorf("kube-applier partitioning requires a kubeapplier.ManagementClusterAccessor, got %T", obj)
+		return "", fmt.Errorf("kube-applier partitioning requires a kubeapplierapi.ManagementClusterAccessor, got %T", obj)
 	}
 	rid := mc.GetManagementCluster()
 	if rid == nil {
@@ -199,7 +198,7 @@ type ClusterNestedResourceIDBuilder struct{}
 
 func (ClusterNestedResourceIDBuilder) BuildResourceID(ParentResourceID *azcorearm.ResourceID, ResourceType azcorearm.ResourceType, resourceName string) (*azcorearm.ResourceID, error) {
 	if ParentResourceID == nil {
-		return arm.ToSubscriptionResourceID(resourceName)
+		return coreapi.ToSubscriptionResourceID(resourceName)
 	}
 
 	if len(ParentResourceID.SubscriptionID) == 0 {
@@ -207,7 +206,7 @@ func (ClusterNestedResourceIDBuilder) BuildResourceID(ParentResourceID *azcorear
 	}
 	parts := []string{ParentResourceID.String()}
 
-	if !strings.EqualFold(ParentResourceID.ResourceType.Namespace, api.ProviderNamespace) {
+	if !strings.EqualFold(ParentResourceID.ResourceType.Namespace, coreapi.ProviderNamespace) {
 		if len(resourceName) == 0 {
 			// in this case, adding the actual provider type results in an illegal resourceID
 			// for instance /subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters does not parse
@@ -256,7 +255,7 @@ func (FleetResourceIDBuilder) BuildResourceID(ParentResourceID *azcorearm.Resour
 	return azcorearm.ParseResourceID(strings.ToLower(base))
 }
 
-type NestedCosmosResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any] struct {
+type NestedCosmosResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any] struct {
 	ContainerClient *azcosmos.ContainerClient
 
 	// ParentResourceID is relative to the storage we're using.  it can be as high as a subscription and as low as we go.
@@ -267,13 +266,13 @@ type NestedCosmosResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.Co
 	resourceIDBuilder   ResourceIDBuilder
 }
 
-var _ ResourceCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool] = &NestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool, GenericDocument[api.HCPOpenShiftClusterNodePool]]{}
+var _ ResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool] = &NestedCosmosResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool, GenericDocument[coreapi.HCPOpenShiftClusterNodePool]]{}
 
 // NewCosmosResourceCRUD constructs a CRUD using the subscription-ID partition
 // key policy and the standard ARM-style path builder. For containers that
 // partition or build paths differently use NewCosmosResourceCRUDWithPartitionKey
 // or NewCosmosResourceCRUDWithStrategies.
-func NewCosmosResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
+func NewCosmosResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
 	ContainerClient *azcosmos.ContainerClient, ParentResourceID *azcorearm.ResourceID, ResourceType azcorearm.ResourceType) *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 
 	return NewCosmosResourceCRUDWithStrategies[InternalAPIType, InternalAPITypePointer, CosmosAPIType](
@@ -282,7 +281,7 @@ func NewCosmosResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.Cosmo
 
 // NewCosmosResourceCRUDWithPartitionKey constructs a CRUD with a caller-chosen
 // partition key policy and the standard ARM-style path builder.
-func NewCosmosResourceCRUDWithPartitionKey[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
+func NewCosmosResourceCRUDWithPartitionKey[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
 	ContainerClient *azcosmos.ContainerClient, ParentResourceID *azcorearm.ResourceID, ResourceType azcorearm.ResourceType, partitionKeyDeriver PartitionKeyDeriver) *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 
 	return NewCosmosResourceCRUDWithStrategies[InternalAPIType, InternalAPITypePointer, CosmosAPIType](
@@ -292,7 +291,7 @@ func NewCosmosResourceCRUDWithPartitionKey[InternalAPIType any, InternalAPITypeP
 // NewCosmosResourceCRUDWithStrategies constructs a CRUD with caller-chosen
 // partition-key and resource-ID-path policies. Use this to back containers
 // whose layout deviates from the standard ARO scheme (fleet, kube-applier).
-func NewCosmosResourceCRUDWithStrategies[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
+func NewCosmosResourceCRUDWithStrategies[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
 	ContainerClient *azcosmos.ContainerClient, ParentResourceID *azcorearm.ResourceID, ResourceType azcorearm.ResourceType, partitionKeyDeriver PartitionKeyDeriver, resourceIDBuilder ResourceIDBuilder) *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 
 	return &NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]{

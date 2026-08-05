@@ -20,7 +20,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -56,7 +56,7 @@ type operationPhaseMetricsHandler struct {
 }
 
 // NewOperationPhaseMetricsHandler creates a metrics handler for operation metrics.
-func NewOperationPhaseMetricsHandler(r prometheus.Registerer) Handler[*api.Operation] {
+func NewOperationPhaseMetricsHandler(r prometheus.Registerer) Handler[*coreapi.Operation] {
 	h := &operationPhaseMetricsHandler{
 		phaseInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_resource_operation_phase_info",
@@ -75,7 +75,7 @@ func NewOperationPhaseMetricsHandler(r prometheus.Registerer) Handler[*api.Opera
 	return h
 }
 
-func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *api.Operation) {
+func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *coreapi.Operation) {
 	resourceID := resourceIDMetricLabel(op.ExternalID)
 	if len(resourceID) == 0 {
 		// op.ExternalID is expected to always be populated for production
@@ -167,6 +167,6 @@ func (h *operationPhaseMetricsHandler) deleteByResourceIDAndOperationType(resour
 	h.lastTransitionTime.DeletePartialMatch(deleteSelector)
 }
 
-func operationTypeMetricLabel(request api.OperationRequest) string {
+func operationTypeMetricLabel(request coreapi.OperationRequest) string {
 	return strings.ToLower(string(request))
 }

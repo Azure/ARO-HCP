@@ -27,7 +27,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 type RBACScope string
@@ -160,7 +160,7 @@ func DefaultOpenshiftNodePoolChannelGroup() string {
 // plane operator image with one built from a HyperShift PR.
 func applyCPOImageOverride(tags map[string]*string) {
 	if cpoImage := os.Getenv("CPO_IMAGE_OVERRIDE"); cpoImage != "" {
-		tags[api.TagClusterCPOImageOverride] = to.Ptr(cpoImage)
+		tags[metadataapi.TagClusterCPOImageOverride] = to.Ptr(cpoImage)
 	}
 }
 

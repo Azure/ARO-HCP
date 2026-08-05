@@ -31,8 +31,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -64,9 +64,9 @@ func makeTestQuotaSKU(vcpus string) *armcompute.ResourceSKU {
 	}
 }
 
-func newQuotaTestNodePool(t *testing.T, replicas int32, autoScaling *api.NodePoolAutoScaling) *api.HCPOpenShiftClusterNodePool {
+func newQuotaTestNodePool(t *testing.T, replicas int32, autoScaling *coreapi.NodePoolAutoScaling) *coreapi.HCPOpenShiftClusterNodePool {
 	t.Helper()
-	np := newTestNodePool(t, api.OsDiskTypeManaged, testVMSize)
+	np := newTestNodePool(t, metadataapi.OsDiskTypeManaged, testVMSize)
 	np.Location = testLocation
 	np.Properties.Replicas = replicas
 	np.Properties.AutoScaling = autoScaling
@@ -96,13 +96,13 @@ func newTestUsageListPager(usages []*armcompute.Usage, fetchErr error) *runtime.
 
 func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-	cluster := &api.HCPOpenShiftCluster{}
+	cluster := &coreapi.HCPOpenShiftCluster{}
 	subscription := newTestSubscription()
 
 	tests := []struct {
 		name                       string
-		subscription               *arm.Subscription
-		nodePool                   *api.HCPOpenShiftClusterNodePool
+		subscription               *coreapi.Subscription
+		nodePool                   *coreapi.HCPOpenShiftClusterNodePool
 		setupMockVMSKUCachedReader func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader)
 		setupMockFPAUsageClient    func(ctrl *gomock.Controller, fpaBuilder *azureclient.MockFirstPartyApplicationClientBuilder)
 		wantErrs                   []string
@@ -113,8 +113,8 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 		},
 		{
 			name: "fails when subscription is missing tenant ID",
-			subscription: &arm.Subscription{
-				Properties: &arm.SubscriptionProperties{},
+			subscription: &coreapi.Subscription{
+				Properties: &coreapi.SubscriptionProperties{},
 			},
 			nodePool: newQuotaTestNodePool(t, 2, nil),
 			wantErrs: []string{"subscription is missing tenant ID"},
@@ -142,7 +142,7 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 		},
 		{
 			name: "autoscaling uses max for required instances",
-			nodePool: newQuotaTestNodePool(t, 0, &api.NodePoolAutoScaling{
+			nodePool: newQuotaTestNodePool(t, 0, &coreapi.NodePoolAutoScaling{
 				Min: 1,
 				Max: 5,
 			}),
@@ -367,7 +367,7 @@ func TestAzureNodePoolVMQuotaValidation_requiredInstanceCount(t *testing.T) {
 	tests := []struct {
 		name        string
 		replicas    int32
-		autoScaling *api.NodePoolAutoScaling
+		autoScaling *coreapi.NodePoolAutoScaling
 		want        int32
 	}{
 		{
@@ -378,7 +378,7 @@ func TestAzureNodePoolVMQuotaValidation_requiredInstanceCount(t *testing.T) {
 		{
 			name:     "autoscaling uses max",
 			replicas: 1,
-			autoScaling: &api.NodePoolAutoScaling{
+			autoScaling: &coreapi.NodePoolAutoScaling{
 				Min: 1,
 				Max: 7,
 			},

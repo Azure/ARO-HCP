@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -64,7 +64,7 @@ func NewExternalAuthDeletionController(
 // - DeletionTimestamp must be set
 // - ClusterServiceDeletionTimestamp must be set
 // - ClusterServiceID must be nil
-func (c *externalAuthDeletionController) NeedsWork(externalAuth *api.HCPOpenShiftClusterExternalAuth) bool {
+func (c *externalAuthDeletionController) NeedsWork(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) bool {
 	// TODO temporary check to skip the new deletion approach for ExternalAuths that were created before the new approach was implemented.
 	// This will be removed once all externalauths whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
@@ -142,7 +142,7 @@ func (c *externalAuthDeletionController) deletePreconditionCosmosChildResourcesD
 	for _, childResource := range childIterator.Items(ctx) {
 		// We ignore external auth controllers here, as there might be controllers still running for the ExternalAuth until the very
 		// end of the deletion process
-		if strings.EqualFold(childResource.ResourceType, api.ExternalAuthControllerResourceType.String()) {
+		if strings.EqualFold(childResource.ResourceType, coreapi.ExternalAuthControllerResourceType.String()) {
 			continue
 		}
 		logger.Info("child resource still exists, waiting for cleanup", "childResourceID", childResource.ResourceID)

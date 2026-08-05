@@ -26,7 +26,7 @@ import (
 
 	hcphelpers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -68,7 +68,7 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 	// get the azure resource ID for this HCP
 	resourceID, err := utils.ResourceIDFromContext(request.Context())
 	if err != nil {
-		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "invalid resource identifier in request")
+		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "invalid resource identifier in request")
 	}
 
 	// get HCP details
@@ -92,17 +92,17 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 
 	group, ttl, err := h.validateSessionParameters(request)
 	if err != nil {
-		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "%s", err.Error())
+		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "%s", err.Error())
 	}
 
 	clientPrincipalReference, err := middleware.ClientPrincipalFromContext(request.Context())
 	if err != nil {
-		return arm.NewCloudError(http.StatusUnauthorized, "Unauthorized", "", "missing client principal AAD reference")
+		return coreapi.NewCloudError(http.StatusUnauthorized, "Unauthorized", "", "missing client principal AAD reference")
 	}
 
 	principalName, principalType, err := mapGenevaActionClientReference(clientPrincipalReference)
 	if err != nil {
-		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "%s", err.Error())
+		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "%s", err.Error())
 	}
 
 	session := &sessiongateapiv1alpha1.Session{

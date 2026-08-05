@@ -19,15 +19,15 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // ServiceProviderClusterLister lists and gets ServiceProviderClusters from an informer's indexer.
 type ServiceProviderClusterLister interface {
-	List(ctx context.Context) ([]*api.ServiceProviderCluster, error)
-	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*api.ServiceProviderCluster, error)
-	ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.ServiceProviderCluster, error)
+	List(ctx context.Context) ([]*coreapi.ServiceProviderCluster, error)
+	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.ServiceProviderCluster, error)
+	ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.ServiceProviderCluster, error)
 }
 
 // serviceProviderClusterLister implements ServiceProviderClusterLister backed by a SharedIndexInformer.
@@ -42,8 +42,8 @@ func NewServiceProviderClusterLister(indexer cache.Indexer) ServiceProviderClust
 	}
 }
 
-func (l *serviceProviderClusterLister) List(ctx context.Context) ([]*api.ServiceProviderCluster, error) {
-	return listerutils.ListAll[api.ServiceProviderCluster](l.indexer)
+func (l *serviceProviderClusterLister) List(ctx context.Context) ([]*coreapi.ServiceProviderCluster, error) {
+	return listerutils.ListAll[coreapi.ServiceProviderCluster](l.indexer)
 }
 
 // Get retrieves a single ServiceProviderCluster by subscription ID, resource group name, and cluster name.
@@ -51,12 +51,12 @@ func (l *serviceProviderClusterLister) List(ctx context.Context) ([]*api.Service
 // The store key is the lowercased ResourceID string:
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster>/serviceproviderclusters/default
-func (l *serviceProviderClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*api.ServiceProviderCluster, error) {
-	key := api.ToServiceProviderClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
-	return listerutils.GetByKey[api.ServiceProviderCluster](l.indexer, key)
+func (l *serviceProviderClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.ServiceProviderCluster, error) {
+	key := coreapi.ToServiceProviderClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	return listerutils.GetByKey[coreapi.ServiceProviderCluster](l.indexer, key)
 }
 
-func (l *serviceProviderClusterLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.ServiceProviderCluster, error) {
-	key := api.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
-	return listerutils.ListFromIndex[api.ServiceProviderCluster](l.indexer, ByCluster, key)
+func (l *serviceProviderClusterLister) ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*coreapi.ServiceProviderCluster, error) {
+	key := coreapi.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
+	return listerutils.ListFromIndex[coreapi.ServiceProviderCluster](l.indexer, ByCluster, key)
 }

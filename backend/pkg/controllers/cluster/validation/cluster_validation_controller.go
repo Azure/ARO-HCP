@@ -24,7 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -138,6 +138,6 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 
 // shouldProcess returns true when the condition associated to the validation does not exist or when it exists but
 // it failed to run successfully in a previous attempt.
-func (c *clusterValidationSyncer) shouldProcess(serviceProviderCluster *api.ServiceProviderCluster) bool {
+func (c *clusterValidationSyncer) shouldProcess(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	return !meta.IsStatusConditionTrue(serviceProviderCluster.Status.Validations, c.validation.Name())
 }

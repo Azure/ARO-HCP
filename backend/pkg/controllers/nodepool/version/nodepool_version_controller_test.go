@@ -39,9 +39,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -65,15 +65,15 @@ const (
 func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 	t.Helper()
 
-	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
-	subscription := &arm.Subscription{
-		CosmosMetadata: arm.CosmosMetadata{
+	subResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
+	subscription := &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   subResourceID,
 			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
 		},
 		ResourceID: subResourceID,
-		State:      arm.SubscriptionStateRegistered,
-		Properties: &arm.SubscriptionProperties{
+		State:      coreapi.SubscriptionStateRegistered,
+		Properties: &coreapi.SubscriptionProperties{
 			TenantId: ptr.To("test-tenant-id"),
 		},
 	}
@@ -89,27 +89,27 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 	createTestSubscription(t, ctx, mockResourcesDBClient)
 
 	// Create parent cluster first (required by mock DB structure).
-	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	clusterInternalID, err := api.NewInternalID(testCSClusterIDStr)
+	clusterInternalID, err := metadataapi.NewInternalID(testCSClusterIDStr)
 	require.NoError(t, err)
 
-	cluster := &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	cluster := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   clusterResourceID,
 			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   clusterResourceID,
 				Name: testClusterName,
-				Type: api.ClusterResourceType.String(),
+				Type: coreapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ProvisioningState: arm.ProvisioningStateSucceeded,
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: coreapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &clusterInternalID,
 		},
 	}
@@ -117,29 +117,29 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 	require.NoError(t, err)
 
 	// Create node pool with version
-	nodePoolResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+	nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 		"/nodePools/" + testNodePoolName))
-	nodePoolInternalID := api.Ptr(api.Must(api.NewInternalID(testCSNodePoolIDStr)))
+	nodePoolInternalID := metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testCSNodePoolIDStr)))
 
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: nodePoolResourceID, PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID)},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: nodePoolResourceID, PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID)},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   nodePoolResourceID,
 				Name: testNodePoolName,
-				Type: api.NodePoolResourceType.String(),
+				Type: coreapi.NodePoolResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Version: api.NodePoolVersionProfile{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			Version: coreapi.NodePoolVersionProfile{
 				ID:           desiredVersion,
-				ChannelGroup: api.DefaultClusterVersionChannelGroup,
+				ChannelGroup: coreapi.DefaultClusterVersionChannelGroup,
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 			ClusterServiceID: nodePoolInternalID,
 		},
 	}
@@ -153,8 +153,8 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 // matches on this ID to satisfy GetForCluster.
 func hostedClusterReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
-	return api.Must(azcorearm.ParseResourceID(
-		kubeapplier.ToClusterScopedReadDesireResourceIDString(
+	return metadataapi.Must(azcorearm.ParseResourceID(
+		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)))
 }
 
@@ -162,7 +162,7 @@ func hostedClusterReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 // the serialized HostedCluster carrying the given Spec.ClusterID. The
 // consumer kubeapplierhelpers.GetCachedHostedClusterForCluster unmarshals it as
 // the raw HostedCluster directly.
-func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.ReadDesire {
+func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplierapi.ReadDesire {
 	t.Helper()
 	hostedCluster := &v1beta1.HostedCluster{
 		TypeMeta: metav1.TypeMeta{
@@ -175,9 +175,9 @@ func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.Rea
 	}
 	raw, err := json.Marshal(hostedCluster)
 	require.NoError(t, err)
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: hostedClusterReadDesireResourceID(t)},
-		Status: kubeapplier.ReadDesireStatus{
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: hostedClusterReadDesireResourceID(t)},
+		Status: kubeapplierapi.ReadDesireStatus{
 			KubeContent: &kruntime.RawExtension{Raw: raw},
 		},
 	}
@@ -189,7 +189,7 @@ func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.Rea
 func newValidHostedClusterReadDesireLister(t *testing.T) kubeapplierlisters.ReadDesireLister {
 	t.Helper()
 	return &kubeapplierlistertesting.SliceReadDesireLister{
-		Desires: []*kubeapplier.ReadDesire{newHostedClusterReadDesire(t, testClusterExternalID)},
+		Desires: []*kubeapplierapi.ReadDesire{newHostedClusterReadDesire(t, testClusterExternalID)},
 	}
 }
 
@@ -221,24 +221,24 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				// SyncOnce only runs Cosmos NodePools.Get in this case
-				nodePoolResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+				nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
 					"/resourceGroups/" + testResourceGroupName +
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 					"/nodePools/" + testNodePoolName))
-				nodePool := &api.HCPOpenShiftClusterNodePool{
-					CosmosMetadata: arm.CosmosMetadata{
+				nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   nodePoolResourceID,
 						PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID),
 					},
-					TrackedResource: arm.TrackedResource{
-						Resource: arm.Resource{
+					TrackedResource: coreapi.TrackedResource{
+						Resource: coreapi.Resource{
 							ID:   nodePoolResourceID,
 							Name: testNodePoolName,
-							Type: api.NodePoolResourceType.String(),
+							Type: coreapi.NodePoolResourceType.String(),
 						},
 						Location: "eastus",
 					},
-					ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{},
+					ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{},
 				}
 				_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
 					NodePools(testClusterName).Create(ctx, nodePool, nil)
@@ -292,12 +292,12 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 	}
 	subscriptionLister := newTestSubscriptionLister()
 
-	stableURI := api.Must(cincinnati.GetCincinnatiURI("stable"))
+	stableURI := metadataapi.Must(cincinnati.GetCincinnatiURI("stable"))
 
 	verifyDesiredVersion := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, wantVersion *semver.Version) {
 		t.Helper()
 		spNodePool, err := db.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
-			Get(ctx, api.ServiceProviderNodePoolResourceName)
+			Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 		require.NoError(t, err)
 		if wantVersion != nil {
 			require.NotNil(t, spNodePool.Spec.NodePoolVersion.DesiredVersion)
@@ -317,7 +317,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 			return
 		}
 		require.NoError(t, err)
-		got := apimeta.FindStatusCondition(nodePoolVersionControllerDoc.Status.Conditions, api.ControllerConditionTypeIntentFailed)
+		got := apimeta.FindStatusCondition(nodePoolVersionControllerDoc.Status.Conditions, coreapi.ControllerConditionTypeIntentFailed)
 		require.NotNil(t, got)
 		assert.Equal(t, want.Status, got.Status)
 		assert.Equal(t, want.Reason, got.Reason)
@@ -356,7 +356,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 				verifyDesiredVersion(t, ctx, db, ptr.To(semver.MustParse("4.19.20")))
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status: metav1.ConditionFalse,
-					Reason: api.ControllerConditionReasonAsExpected,
+					Reason: coreapi.ControllerConditionReasonAsExpected,
 				})
 			},
 		},
@@ -377,7 +377,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 				verifyDesiredVersion(t, ctx, db, ptr.To(semver.MustParse("4.19.5")))
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status: metav1.ConditionFalse,
-					Reason: api.ControllerConditionReasonAsExpected,
+					Reason: coreapi.ControllerConditionReasonAsExpected,
 				})
 			},
 		},
@@ -391,7 +391,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 				verifyDesiredVersion(t, ctx, db, nil)
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status:  metav1.ConditionTrue,
-					Reason:  api.VersionUpgradeNotAcceptedReason,
+					Reason:  coreapi.VersionUpgradeNotAcceptedReason,
 					Message: "invalid node pool version 4.19.5: must be within 2 minor versions of control plane version 4.22.0",
 				})
 			},
@@ -410,7 +410,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 				verifyDesiredVersion(t, ctx, db, nil)
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status:  metav1.ConditionTrue,
-					Reason:  api.VersionUpgradeNotAcceptedReason,
+					Reason:  coreapi.VersionUpgradeNotAcceptedReason,
 					Message: "version 4.19.20 not found in Cincinnati channel stable-4.19",
 				})
 			},
@@ -444,7 +444,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 				verifyDesiredVersion(t, ctx, db, nil)
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status:  metav1.ConditionTrue,
-					Reason:  api.VersionUpgradeNotAcceptedReason,
+					Reason:  coreapi.VersionUpgradeNotAcceptedReason,
 					Message: "invalid node pool version 4.20.0: cannot exceed control plane version 4.19.15",
 				})
 			},
@@ -459,7 +459,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 				verifyDesiredVersion(t, ctx, db, nil)
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status:  metav1.ConditionTrue,
-					Reason:  api.VersionUpgradeNotAcceptedReason,
+					Reason:  coreapi.VersionUpgradeNotAcceptedReason,
 					Message: "invalid upgrade path from 4.18.15 to 4.21.1: skipping more than 2 minor versions is not allowed",
 				})
 			},
@@ -517,26 +517,26 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 func TestNodePoolVersionSyncer_NeedsWork(t *testing.T) {
 	syncer := &nodePoolVersionSyncer{}
 
-	npWith := func(customerVersion string) *api.HCPOpenShiftClusterNodePool {
-		return &api.HCPOpenShiftClusterNodePool{
-			Properties: api.HCPOpenShiftClusterNodePoolProperties{
-				Version: api.NodePoolVersionProfile{ID: customerVersion},
+	npWith := func(customerVersion string) *coreapi.HCPOpenShiftClusterNodePool {
+		return &coreapi.HCPOpenShiftClusterNodePool{
+			Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+				Version: coreapi.NodePoolVersionProfile{ID: customerVersion},
 			},
 		}
 	}
-	spnpWithDesired := func(desiredVersion string) *api.ServiceProviderNodePool {
-		spnp := &api.ServiceProviderNodePool{}
+	spnpWithDesired := func(desiredVersion string) *coreapi.ServiceProviderNodePool {
+		spnp := &coreapi.ServiceProviderNodePool{}
 		if desiredVersion != "" {
 			v := semver.MustParse(desiredVersion)
 			spnp.Spec.NodePoolVersion.DesiredVersion = &v
 		}
 		return spnp
 	}
-	spcWithActiveVersions := func(versions ...string) *api.ServiceProviderCluster {
-		spc := &api.ServiceProviderCluster{}
+	spcWithActiveVersions := func(versions ...string) *coreapi.ServiceProviderCluster {
+		spc := &coreapi.ServiceProviderCluster{}
 		for _, v := range versions {
 			version := semver.MustParse(v)
-			spc.Status.ControlPlaneVersion.ActiveVersions = append(spc.Status.ControlPlaneVersion.ActiveVersions, api.HCPClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
+			spc.Status.ControlPlaneVersion.ActiveVersions = append(spc.Status.ControlPlaneVersion.ActiveVersions, coreapi.HCPClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
 		}
 		return spc
 	}
@@ -910,28 +910,28 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion := semver.MustParse(tt.desiredVersion)
 
 			// Build ServiceProviderNodePool with active versions
-			var nodePoolActiveVersions []api.HCPNodePoolActiveVersion
+			var nodePoolActiveVersions []coreapi.HCPNodePoolActiveVersion
 			for _, v := range tt.activeVersions {
 				version := semver.MustParse(v)
-				nodePoolActiveVersions = append(nodePoolActiveVersions, api.HCPNodePoolActiveVersion{Version: &version})
+				nodePoolActiveVersions = append(nodePoolActiveVersions, coreapi.HCPNodePoolActiveVersion{Version: &version})
 			}
-			spNodePool := &api.ServiceProviderNodePool{
-				Status: api.ServiceProviderNodePoolStatus{
-					NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
+			spNodePool := &coreapi.ServiceProviderNodePool{
+				Status: coreapi.ServiceProviderNodePoolStatus{
+					NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
 						ActiveVersions: nodePoolActiveVersions,
 					},
 				},
 			}
 
 			// Build ServiceProviderCluster with control plane versions
-			var cpActiveVersions []api.HCPClusterActiveVersion
+			var cpActiveVersions []coreapi.HCPClusterActiveVersion
 			for _, v := range tt.controlPlaneVersions {
 				version := semver.MustParse(v)
-				cpActiveVersions = append(cpActiveVersions, api.HCPClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
+				cpActiveVersions = append(cpActiveVersions, coreapi.HCPClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
 			}
-			spCluster := &api.ServiceProviderCluster{
-				Status: api.ServiceProviderClusterStatus{
-					ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+			spCluster := &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{
+					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
 						ActiveVersions: cpActiveVersions,
 					},
 				},
@@ -1014,7 +1014,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testi
 	require.NoError(t, err)
 	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
 		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 	require.NoError(t, err)
 	assert.Nil(t, spnp.Spec.NodePoolVersion.DesiredVersion, "desired version must not be persisted when validation fails")
 }
@@ -1073,7 +1073,7 @@ func TestNodePoolVersionSyncer_SyncOnce_SucceedsWithoutCincinnatiEdge(t *testing
 	// Verify the ServiceProviderNodePool DesiredVersion was updated
 	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
 		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 	require.NoError(t, err)
 	require.NotNil(t, spnp.Spec.NodePoolVersion.DesiredVersion)
 	expectedDesiredVersion := semver.MustParse("4.19.10")
@@ -1133,7 +1133,7 @@ func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T
 	require.NoError(t, err)
 	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
 		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 	require.NoError(t, err)
 	assert.Nil(t, spnp.Spec.NodePoolVersion.DesiredVersion, "desired version must not be persisted when validation fails")
 }
@@ -1191,7 +1191,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *
 	require.NoError(t, err)
 	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
 		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 	require.NoError(t, err)
 	assert.Nil(t, spnp.Spec.NodePoolVersion.DesiredVersion, "desired version must not be persisted when validation fails")
 }
@@ -1250,7 +1250,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeWithinSkewSucceeds(t *testing.T
 	// Verify the ServiceProviderNodePool DesiredVersion was updated to the downgrade target
 	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
 		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 	require.NoError(t, err)
 	require.NotNil(t, spnp.Spec.NodePoolVersion.DesiredVersion)
 	expectedDesiredVersion := semver.MustParse("4.19.5")
@@ -1310,7 +1310,7 @@ func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {
 	// Verify the ServiceProviderNodePool was updated correctly
 	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
 		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 	require.NoError(t, err)
 
 	// Verify DesiredVersion was persisted
@@ -1369,7 +1369,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	// Verify the ServiceProviderNodePool was created with correct versions
 	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
 		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 	require.NoError(t, err, "ServiceProviderNodePool should exist after sync")
 
 	expectedDesiredVersion := semver.MustParse("4.19.15")
@@ -1412,7 +1412,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	// Verify that DesiredVersion was NOT changed (still 4.19.15)
 	spnp, err = mockResourcesDBClient.ServiceProviderNodePools(
 		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 	require.NoError(t, err)
 	require.NotNil(t, spnp.Spec.NodePoolVersion.DesiredVersion,
 		"DesiredVersion should still be set")
@@ -1452,7 +1452,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	// Verify that DesiredVersion HAS changed to 4.19.20
 	spnp, err = mockResourcesDBClient.ServiceProviderNodePools(
 		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 	require.NoError(t, err)
 	expectedNewDesiredVersion := semver.MustParse("4.19.20")
 	require.NotNil(t, spnp.Spec.NodePoolVersion.DesiredVersion,
@@ -1485,15 +1485,15 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName
 	// ServiceProviderCluster resource ID format: {clusterResourceID}/{resourceTypeName}/{resourceName}
-	spClusterResourceID := clusterResourceID + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName
+	spClusterResourceID := clusterResourceID + "/" + coreapi.ServiceProviderClusterResourceTypeName + "/" + coreapi.ServiceProviderClusterResourceName
 
 	cpVersion := semver.MustParse(controlPlaneVersion)
 	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 
-	existing, getErr := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
+	existing, getErr := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if getErr == nil {
 		replacement := existing.DeepCopy()
-		replacement.Status.ControlPlaneVersion.ActiveVersions = []api.HCPClusterActiveVersion{
+		replacement.Status.ControlPlaneVersion.ActiveVersions = []coreapi.HCPClusterActiveVersion{
 			{Version: &cpVersion, State: configv1.CompletedUpdate},
 		}
 		_, err := spcCRUD.Replace(ctx, replacement, nil)
@@ -1502,14 +1502,14 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 	}
 	require.True(t, cosmosstorageutils.IsNotFoundError(getErr), "unexpected error reading SPC before seeding: %v", getErr)
 
-	spCluster := &api.ServiceProviderCluster{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID:   api.Must(azcorearm.ParseResourceID(spClusterResourceID)),
+	spCluster := &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(spClusterResourceID)),
 			PartitionKey: strings.ToLower(testSubscriptionID),
 		},
-		Status: api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []api.HCPClusterActiveVersion{
+		Status: coreapi.ServiceProviderClusterStatus{
+			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+				ActiveVersions: []coreapi.HCPClusterActiveVersion{
 					{Version: &cpVersion, State: configv1.CompletedUpdate},
 				},
 			},
@@ -1528,17 +1528,17 @@ func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context,
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 		"/nodePools/" + testNodePoolName
 	// ServiceProviderNodePool resource ID format: {nodePoolResourceID}/{resourceTypeName}/{resourceName}
-	spNodePoolResourceID := nodePoolResourceID + "/" + api.ServiceProviderNodePoolResourceTypeName + "/" + api.ServiceProviderNodePoolResourceName
+	spNodePoolResourceID := nodePoolResourceID + "/" + coreapi.ServiceProviderNodePoolResourceTypeName + "/" + coreapi.ServiceProviderNodePoolResourceName
 
 	version := semver.MustParse(activeVersion)
-	spNodePool := &api.ServiceProviderNodePool{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID:   api.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
+	spNodePool := &coreapi.ServiceProviderNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
 			PartitionKey: strings.ToLower(testSubscriptionID),
 		},
-		Status: api.ServiceProviderNodePoolStatus{
-			NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
-				ActiveVersions: []api.HCPNodePoolActiveVersion{
+		Status: coreapi.ServiceProviderNodePoolStatus{
+			NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
+				ActiveVersions: []coreapi.HCPNodePoolActiveVersion{
 					{Version: &version},
 				},
 			},
@@ -1549,12 +1549,12 @@ func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context,
 }
 
 func newTestSubscriptionLister() *corelistertesting.SliceSubscriptionLister {
-	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
+	subResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
 	return &corelistertesting.SliceSubscriptionLister{
-		Subscriptions: []*arm.Subscription{{
-			CosmosMetadata: arm.CosmosMetadata{ResourceID: subResourceID},
+		Subscriptions: []*coreapi.Subscription{{
+			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: subResourceID},
 			ResourceID:     subResourceID,
-			Properties:     &arm.SubscriptionProperties{},
+			Properties:     &coreapi.SubscriptionProperties{},
 		}},
 	}
 }

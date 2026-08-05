@@ -28,8 +28,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -47,11 +48,11 @@ func validRegisterOptions(t *testing.T, fleetDBClient *fleetcosmosstoragetesting
 		registerOptions: &registerOptions{
 			fleetDBClient:                              fleetDBClient,
 			stampIdentifier:                            testStampIdentifier,
-			stampResourceID:                            api.Must(fleet.ToStampResourceID(testStampIdentifier)),
-			managementClusterResourceID:                api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)),
-			schedulingPolicy:                           fleet.ManagementClusterSchedulingPolicySchedulable,
-			aksResourceID:                              api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1")),
-			publicDNSZoneResourceID:                    api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
+			stampResourceID:                            metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
+			managementClusterResourceID:                metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)),
+			schedulingPolicy:                           fleetapi.ManagementClusterSchedulingPolicySchedulable,
+			aksResourceID:                              metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1")),
+			publicDNSZoneResourceID:                    metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
 			hostedClustersSecretsKeyVaultURL:           "https://kv-secrets.vault.azure.net",
 			hostedClustersManagedIdentitiesKeyVaultURL: "https://kv-mi.vault.azure.net",
 			hostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
@@ -82,9 +83,9 @@ func TestRun(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, stamp)
 
-				managementCluster, err := client.Stamps().ManagementClusters(testStampIdentifier).Get(ctx, fleet.ManagementClusterResourceName)
+				managementCluster, err := client.Stamps().ManagementClusters(testStampIdentifier).Get(ctx, fleetapi.ManagementClusterResourceName)
 				require.NoError(t, err)
-				require.Equal(t, fleet.ManagementClusterSchedulingPolicySchedulable, managementCluster.Spec.SchedulingPolicy)
+				require.Equal(t, fleetapi.ManagementClusterSchedulingPolicySchedulable, managementCluster.Spec.SchedulingPolicy)
 				require.Equal(t, "hcp-underlay-westus3-mgmt-1", managementCluster.Status.MaestroConsumerName)
 			},
 		},
@@ -97,10 +98,10 @@ func TestRun(t *testing.T) {
 				ctx := testContext(t)
 				stamp, err := client.Stamps().Get(ctx, testStampIdentifier)
 				require.NoError(t, err)
-				condition := apimeta.FindStatusCondition(stamp.Status.Conditions, string(fleet.StampConditionApproved))
+				condition := apimeta.FindStatusCondition(stamp.Status.Conditions, string(fleetapi.StampConditionApproved))
 				require.NotNil(t, condition)
 				require.Equal(t, metav1.ConditionTrue, condition.Status)
-				require.Equal(t, string(fleet.StampConditionReasonAutoApproved), condition.Reason)
+				require.Equal(t, string(fleetapi.StampConditionReasonAutoApproved), condition.Reason)
 			},
 		},
 		{
@@ -112,22 +113,22 @@ func TestRun(t *testing.T) {
 				ctx := testContext(t)
 				stamp, err := client.Stamps().Get(ctx, testStampIdentifier)
 				require.NoError(t, err)
-				condition := apimeta.FindStatusCondition(stamp.Status.Conditions, string(fleet.StampConditionApproved))
+				condition := apimeta.FindStatusCondition(stamp.Status.Conditions, string(fleetapi.StampConditionApproved))
 				require.Nil(t, condition)
 			},
 		},
 		{
 			name: "update existing stamp preserves conditions",
 			seed: func(t *testing.T) []any {
-				stamp := &fleet.Stamp{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     api.Must(fleet.ToStampResourceID(testStampIdentifier)),
-					Status: fleet.StampStatus{
+				stamp := &fleetapi.Stamp{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
+					ResourceID:     metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
+					Status: fleetapi.StampStatus{
 						Conditions: []metav1.Condition{
 							{
-								Type:   string(fleet.StampConditionApproved),
+								Type:   string(fleetapi.StampConditionApproved),
 								Status: metav1.ConditionTrue,
-								Reason: string(fleet.StampConditionReasonManuallyApproved),
+								Reason: string(fleetapi.StampConditionReasonManuallyApproved),
 							},
 						},
 					},
@@ -141,31 +142,31 @@ func TestRun(t *testing.T) {
 				ctx := testContext(t)
 				stamp, err := client.Stamps().Get(ctx, testStampIdentifier)
 				require.NoError(t, err)
-				condition := apimeta.FindStatusCondition(stamp.Status.Conditions, string(fleet.StampConditionApproved))
+				condition := apimeta.FindStatusCondition(stamp.Status.Conditions, string(fleetapi.StampConditionApproved))
 				require.NotNil(t, condition)
-				require.Equal(t, string(fleet.StampConditionReasonManuallyApproved), condition.Reason)
+				require.Equal(t, string(fleetapi.StampConditionReasonManuallyApproved), condition.Reason)
 			},
 		},
 		{
 			name: "update existing management cluster with same values succeeds",
 			seed: func(t *testing.T) []any {
-				stamp := &fleet.Stamp{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     api.Must(fleet.ToStampResourceID(testStampIdentifier)),
+				stamp := &fleetapi.Stamp{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
+					ResourceID:     metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
 				}
-				managementCluster := &fleet.ManagementCluster{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)),
-					Spec: fleet.ManagementClusterSpec{
-						SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
+				managementCluster := &fleetapi.ManagementCluster{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
+					ResourceID:     metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)),
+					Spec: fleetapi.ManagementClusterSpec{
+						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 					},
-					Status: fleet.ManagementClusterStatus{
-						AKSResourceID:                                        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1")),
-						PublicDNSZoneResourceID:                              api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
+					Status: fleetapi.ManagementClusterStatus{
+						AKSResourceID:                                        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1")),
+						PublicDNSZoneResourceID:                              metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
 						HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
 						HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-mi.vault.azure.net",
 						HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-						ClusterServiceProvisionShardID:                       ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
+						ClusterServiceProvisionShardID:                       ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
 						MaestroConsumerName:                                  "hcp-underlay-westus3-mgmt-1",
 						MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
 						MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
@@ -177,31 +178,31 @@ func TestRun(t *testing.T) {
 			modify: func(t *testing.T, opts *RegisterOptions) {},
 			verify: func(t *testing.T, client *fleetcosmosstoragetesting.MockFleetDBClient) {
 				ctx := testContext(t)
-				managementCluster, err := client.Stamps().ManagementClusters(testStampIdentifier).Get(ctx, fleet.ManagementClusterResourceName)
+				managementCluster, err := client.Stamps().ManagementClusters(testStampIdentifier).Get(ctx, fleetapi.ManagementClusterResourceName)
 				require.NoError(t, err)
-				require.Equal(t, fleet.ManagementClusterSchedulingPolicySchedulable, managementCluster.Spec.SchedulingPolicy)
+				require.Equal(t, fleetapi.ManagementClusterSchedulingPolicySchedulable, managementCluster.Spec.SchedulingPolicy)
 			},
 		},
 		{
 			name: "update existing management cluster rejects changed immutable field",
 			seed: func(t *testing.T) []any {
-				stamp := &fleet.Stamp{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     api.Must(fleet.ToStampResourceID(testStampIdentifier)),
+				stamp := &fleetapi.Stamp{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
+					ResourceID:     metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
 				}
-				managementCluster := &fleet.ManagementCluster{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)),
-					Spec: fleet.ManagementClusterSpec{
-						SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
+				managementCluster := &fleetapi.ManagementCluster{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
+					ResourceID:     metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)),
+					Spec: fleetapi.ManagementClusterSpec{
+						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 					},
-					Status: fleet.ManagementClusterStatus{
-						AKSResourceID:                                        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/original-aks")),
-						PublicDNSZoneResourceID:                              api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
+					Status: fleetapi.ManagementClusterStatus{
+						AKSResourceID:                                        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/original-aks")),
+						PublicDNSZoneResourceID:                              metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
 						HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
 						HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-mi.vault.azure.net",
 						HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-						ClusterServiceProvisionShardID:                       ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
+						ClusterServiceProvisionShardID:                       ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
 						MaestroConsumerName:                                  "hcp-underlay-westus3-mgmt-1",
 						MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
 						MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
@@ -211,30 +212,30 @@ func TestRun(t *testing.T) {
 				return []any{stamp, managementCluster}
 			},
 			modify: func(t *testing.T, opts *RegisterOptions) {
-				opts.aksResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/different-aks"))
+				opts.aksResourceID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/different-aks"))
 			},
 			expectErr: "replace validation failed",
 		},
 		{
 			name: "update existing management cluster allows scheduling policy change",
 			seed: func(t *testing.T) []any {
-				stamp := &fleet.Stamp{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     api.Must(fleet.ToStampResourceID(testStampIdentifier)),
+				stamp := &fleetapi.Stamp{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
+					ResourceID:     metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)),
 				}
-				managementCluster := &fleet.ManagementCluster{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
-					ResourceID:     api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)),
-					Spec: fleet.ManagementClusterSpec{
-						SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
+				managementCluster := &fleetapi.ManagementCluster{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
+					ResourceID:     metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)),
+					Spec: fleetapi.ManagementClusterSpec{
+						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 					},
-					Status: fleet.ManagementClusterStatus{
-						AKSResourceID:                                        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1")),
-						PublicDNSZoneResourceID:                              api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
+					Status: fleetapi.ManagementClusterStatus{
+						AKSResourceID:                                        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1")),
+						PublicDNSZoneResourceID:                              metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
 						HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
 						HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-mi.vault.azure.net",
 						HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-						ClusterServiceProvisionShardID:                       ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
+						ClusterServiceProvisionShardID:                       ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
 						MaestroConsumerName:                                  "hcp-underlay-westus3-mgmt-1",
 						MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
 						MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
@@ -244,13 +245,13 @@ func TestRun(t *testing.T) {
 				return []any{stamp, managementCluster}
 			},
 			modify: func(t *testing.T, opts *RegisterOptions) {
-				opts.schedulingPolicy = fleet.ManagementClusterSchedulingPolicyUnschedulable
+				opts.schedulingPolicy = fleetapi.ManagementClusterSchedulingPolicyUnschedulable
 			},
 			verify: func(t *testing.T, client *fleetcosmosstoragetesting.MockFleetDBClient) {
 				ctx := testContext(t)
-				managementCluster, err := client.Stamps().ManagementClusters(testStampIdentifier).Get(ctx, fleet.ManagementClusterResourceName)
+				managementCluster, err := client.Stamps().ManagementClusters(testStampIdentifier).Get(ctx, fleetapi.ManagementClusterResourceName)
 				require.NoError(t, err)
-				require.Equal(t, fleet.ManagementClusterSchedulingPolicyUnschedulable, managementCluster.Spec.SchedulingPolicy)
+				require.Equal(t, fleetapi.ManagementClusterSchedulingPolicyUnschedulable, managementCluster.Spec.SchedulingPolicy)
 			},
 		},
 	}

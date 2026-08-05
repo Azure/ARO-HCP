@@ -25,7 +25,7 @@ import (
 
 	"k8s.io/component-base/metrics/legacyregistry"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -82,7 +82,7 @@ func middlewarePanicRecover(w http.ResponseWriter, r *http.Request, next http.Ha
 				}
 				frontendHTTPRequestPanicsTotalCounterVec.WithLabelValues(requestRoutePattern, requestMethod).Inc()
 
-				arm.WriteInternalServerError(w)
+				coreapi.WriteInternalServerError(w)
 			}
 		}()
 	}

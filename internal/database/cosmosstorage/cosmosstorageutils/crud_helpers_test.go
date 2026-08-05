@@ -20,12 +20,12 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 func TestPrepareForCreate_SetsInstanceVersionToOne(t *testing.T) {
-	obj := &arm.Subscription{
-		CosmosMetadata: arm.CosmosMetadata{InstanceVersion: 0},
+	obj := &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{InstanceVersion: 0},
 	}
 	if err := PrepareForCreate(obj); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -37,8 +37,8 @@ func TestPrepareForCreate_SetsInstanceVersionToOne(t *testing.T) {
 
 func TestPrepareForCreate_RejectsNonZeroInstanceVersion(t *testing.T) {
 	for _, start := range []int64{1, 7, 999} {
-		obj := &arm.Subscription{
-			CosmosMetadata: arm.CosmosMetadata{InstanceVersion: start},
+		obj := &coreapi.Subscription{
+			CosmosMetadata: coreapi.CosmosMetadata{InstanceVersion: start},
 		}
 		err := PrepareForCreate(obj)
 		if err == nil {
@@ -55,8 +55,8 @@ func TestPrepareForCreate_RejectsNonZeroInstanceVersion(t *testing.T) {
 }
 
 func TestPrepareForReplace_IncrementsInstanceVersion(t *testing.T) {
-	obj := &arm.Subscription{
-		CosmosMetadata: arm.CosmosMetadata{
+	obj := &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			InstanceVersion: 7,
 			CosmosETag:      azcore.ETag("etag-7"),
 		},
@@ -70,8 +70,8 @@ func TestPrepareForReplace_IncrementsInstanceVersion(t *testing.T) {
 }
 
 func TestPrepareForReplace_RequiresEtag(t *testing.T) {
-	obj := &arm.Subscription{
-		CosmosMetadata: arm.CosmosMetadata{
+	obj := &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			InstanceVersion: 7,
 			// CosmosETag intentionally empty
 		},
@@ -92,7 +92,7 @@ func TestPrepareForReplace_RequiresEtag(t *testing.T) {
 }
 
 func TestSetPartitionKeyLowercases(t *testing.T) {
-	md := &arm.CosmosMetadata{}
+	md := &coreapi.CosmosMetadata{}
 	md.SetPartitionKey("MIXED-Case")
 	if got, want := md.PartitionKey, "mixed-case"; got != want {
 		t.Errorf("stored PartitionKey = %q, want %q", got, want)

@@ -24,7 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -117,6 +117,6 @@ func (c *nodePoolRequirementsValidAggregator) SyncOnce(ctx context.Context, key 
 	return nil
 }
 
-func (c *nodePoolRequirementsValidAggregator) needsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+func (c *nodePoolRequirementsValidAggregator) needsWork(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil
 }

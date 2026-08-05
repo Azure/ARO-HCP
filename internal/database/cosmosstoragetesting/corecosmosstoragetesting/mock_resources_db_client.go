@@ -28,8 +28,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
@@ -78,9 +78,9 @@ func (m *MockResourcesDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceI
 func (m *MockResourcesDBClient) HCPClusters(subscriptionID, resourceGroupName string) corecosmosstorage.HCPClusterCRUD {
 	var parentResourceID *azcorearm.ResourceID
 	if len(resourceGroupName) > 0 {
-		parentResourceID = api.Must(api.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
+		parentResourceID = metadataapi.Must(coreapi.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
 	} else {
-		parentResourceID = api.Must(arm.ToSubscriptionResourceID(subscriptionID))
+		parentResourceID = metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
 	}
 
 	return newMockHCPClusterCRUD(m, parentResourceID)
@@ -88,13 +88,13 @@ func (m *MockResourcesDBClient) HCPClusters(subscriptionID, resourceGroupName st
 
 // Operations returns a CRUD interface for operation resources.
 func (m *MockResourcesDBClient) Operations(subscriptionID string) corecosmosstorage.OperationCRUD {
-	parentResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
+	parentResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
 
 	return newMockOperationCRUD(m, parentResourceID)
 }
 
 // Subscriptions returns a CRUD interface for subscription resources.
-func (m *MockResourcesDBClient) Subscriptions() cosmosstorageutils.ResourceCRUD[arm.Subscription, *arm.Subscription] {
+func (m *MockResourcesDBClient) Subscriptions() cosmosstorageutils.ResourceCRUD[coreapi.Subscription, *coreapi.Subscription] {
 	return newMockSubscriptionCRUD(m)
 }
 
@@ -130,14 +130,14 @@ func (m *MockResourcesDBClient) ResourcesGlobalListers() corecosmosstorage.Resou
 }
 
 // ServiceProviderClusters returns a CRUD interface for service provider cluster resources.
-func (m *MockResourcesDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster] {
-	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+func (m *MockResourcesDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] {
+	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return newMockServiceProviderClusterCRUD(m, clusterResourceID)
 }
 
 // ServiceProviderNodePools returns a CRUD interface for service provider node pool resources.
-func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] {
-	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool] {
+	nodePoolResourceID := metadataapi.Must(coreapi.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }
 
@@ -420,20 +420,20 @@ func (r *mockTransactionResult) GetItem(cosmosUID string) (any, error) {
 	}
 
 	switch strings.ToLower(typedDoc.ResourceType) {
-	case strings.ToLower(api.ClusterResourceType.String()):
-		var cosmosObj cosmosstorageutils.GenericDocument[api.HCPOpenShiftCluster]
+	case strings.ToLower(coreapi.ClusterResourceType.String()):
+		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
 		return cosmosstorageutils.CosmosGenericToInternal(&cosmosObj)
-	case strings.ToLower(api.NodePoolResourceType.String()):
-		var cosmosObj cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterNodePool]
+	case strings.ToLower(coreapi.NodePoolResourceType.String()):
+		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterNodePool]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
 		return cosmosstorageutils.CosmosGenericToInternal(&cosmosObj)
-	case strings.ToLower(api.ExternalAuthResourceType.String()):
-		var cosmosObj cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterExternalAuth]
+	case strings.ToLower(coreapi.ExternalAuthResourceType.String()):
+		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterExternalAuth]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
@@ -480,4 +480,4 @@ func (iter *MockIterator[T]) GetError() error {
 	return iter.err
 }
 
-var _ cosmosstorageutils.DBClientIterator[api.HCPOpenShiftCluster] = &MockIterator[api.HCPOpenShiftCluster]{}
+var _ cosmosstorageutils.DBClientIterator[coreapi.HCPOpenShiftCluster] = &MockIterator[coreapi.HCPOpenShiftCluster]{}

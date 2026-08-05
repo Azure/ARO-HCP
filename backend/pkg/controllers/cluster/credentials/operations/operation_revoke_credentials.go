@@ -27,8 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -81,7 +80,7 @@ func NewOperationRevokeCredentialsController(
 	return controller
 }
 
-func (opsync *operationRevokeCredentials) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (opsync *operationRevokeCredentials) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
@@ -95,13 +94,13 @@ func (opsync *operationRevokeCredentials) ShouldProcess(ctx context.Context, ope
 	// the credential revocation has not yet been dispatched to Clusters
 	// Service. Once dispatched, the operation status becomes "Deleting"
 	// and is ready for status polling.
-	if operation.Status == arm.ProvisioningStateAccepted {
+	if operation.Status == coreapi.ProvisioningStateAccepted {
 		return false
 	}
 	return true
 }
 
-func (opsync *operationRevokeCredentials) nextOperationStatus(ctx context.Context, operation *api.Operation) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+func (opsync *operationRevokeCredentials) nextOperationStatus(ctx context.Context, operation *coreapi.Operation) (coreapi.ProvisioningState, *coreapi.CloudErrorBody, error) {
 	// XXX Error handling here is tricky. Since the operation applies to multiple
 	//     Cluster Service objects, we can find a mix of successes and failures.
 	//     And with only a Failed status for each object, it's difficult to make
@@ -115,7 +114,7 @@ func (opsync *operationRevokeCredentials) nextOperationStatus(ctx context.Contex
 		switch status := breakGlassCredential.Status(); status {
 		case cmv1.BreakGlassCredentialStatusAwaitingRevocation:
 			// Operation is non-terminal; no need to check the rest.
-			return arm.ProvisioningStateDeleting, nil, nil
+			return coreapi.ProvisioningStateDeleting, nil, nil
 		case cmv1.BreakGlassCredentialStatusRevoked:
 			// Successful revocation so far; continue looping.
 		case cmv1.BreakGlassCredentialStatusExpired:
@@ -123,11 +122,11 @@ func (opsync *operationRevokeCredentials) nextOperationStatus(ctx context.Contex
 		case cmv1.BreakGlassCredentialStatusFailed:
 			// XXX Cluster Service does not provide a reason for the failure,
 			//     so we have no choice but to use a generic error message.
-			opError := &arm.CloudErrorBody{
-				Code:    arm.CloudErrorCodeInternalServerError,
+			opError := &coreapi.CloudErrorBody{
+				Code:    coreapi.CloudErrorCodeInternalServerError,
 				Message: "Failed to revoke cluster credential",
 			}
-			return arm.ProvisioningStateFailed, opError, nil
+			return coreapi.ProvisioningStateFailed, opError, nil
 		case cmv1.BreakGlassCredentialStatusCreated,
 			cmv1.BreakGlassCredentialStatusIssued:
 			// These are valid statuses but we should not be seeing them
@@ -136,7 +135,7 @@ func (opsync *operationRevokeCredentials) nextOperationStatus(ctx context.Contex
 			logger.Info("unexpected BreakGlassCredentialStatus", "status", status)
 			// We may be in a stuck state here, but continue polling
 			// in hopes of the credential eventually getting revoked.
-			return arm.ProvisioningStateDeleting, nil, nil
+			return coreapi.ProvisioningStateDeleting, nil, nil
 		default:
 			return "", nil, fmt.Errorf("unhandled BreakGlassCredentialStatus '%s'", status)
 		}
@@ -147,7 +146,7 @@ func (opsync *operationRevokeCredentials) nextOperationStatus(ctx context.Contex
 		return "", nil, fmt.Errorf("error while paging through Cluster Service query results: %w", err)
 	}
 
-	return arm.ProvisioningStateSucceeded, nil, nil
+	return coreapi.ProvisioningStateSucceeded, nil, nil
 }
 
 func (opsync *operationRevokeCredentials) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {

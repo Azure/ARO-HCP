@@ -26,7 +26,8 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -155,7 +156,7 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 //  1. Queries existing upgrade policies from Cluster Service (sorted by creation_timestamp desc)
 //  2. Checks if the latest policy matches the desired version - returns nil if it does
 //  3. Otherwise, creates a new upgrade policy with the desired version
-func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, desiredVersion *semver.Version, clusterServiceID api.InternalID) error {
+func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, desiredVersion *semver.Version, clusterServiceID metadataapi.InternalID) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Query existing control plane upgrade policies from Cluster Service
@@ -201,7 +202,7 @@ func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx conte
 // Otherwise (cluster still young, Create in flight) we skip so a freshly
 // created cluster doesn't have a control plane upgrade policy posted while
 // creation is still in progress.
-func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Context, cluster *api.HCPOpenShiftCluster) (bool, error) {
+func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 	if c.clusterOlderThanGracePeriod(cluster) {
 		logger.Info("Cluster is older than grace period, skipping upgrade trigger", "cluster", cluster.Name)
@@ -223,7 +224,7 @@ func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Cont
 // is more than clusterCreateGracePeriod in the past. A missing CreatedAt is
 // treated as "old enough" so a malformed document does not pin the controller
 // in skip-forever mode.
-func (c *triggerControlPlaneUpgradeSyncer) clusterOlderThanGracePeriod(cluster *api.HCPOpenShiftCluster) bool {
+func (c *triggerControlPlaneUpgradeSyncer) clusterOlderThanGracePeriod(cluster *coreapi.HCPOpenShiftCluster) bool {
 	if cluster.SystemData == nil || cluster.SystemData.CreatedAt == nil {
 		return true
 	}
@@ -234,7 +235,7 @@ func (c *triggerControlPlaneUpgradeSyncer) clusterOlderThanGracePeriod(cluster *
 // Create operation whose ExternalID is the cluster itself. Operations on
 // child resources (node pools, external auths) under the cluster are
 // ignored on purpose: they don't gate control-plane upgrade triggering.
-func (c *triggerControlPlaneUpgradeSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *api.HCPOpenShiftCluster) (bool, error) {
+func (c *triggerControlPlaneUpgradeSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 	if len(cluster.ServiceProviderProperties.ActiveOperationID) == 0 {
 		logger.Info("Cluster has no active create operation", "cluster", cluster.Name)

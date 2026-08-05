@@ -38,9 +38,9 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
@@ -59,15 +59,15 @@ const (
 func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 	t.Helper()
 
-	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
-	subscription := &arm.Subscription{
-		CosmosMetadata: arm.CosmosMetadata{
+	subResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
+	subscription := &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   subResourceID,
 			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
 		},
 		ResourceID: subResourceID,
-		State:      arm.SubscriptionStateRegistered,
-		Properties: &arm.SubscriptionProperties{
+		State:      coreapi.SubscriptionStateRegistered,
+		Properties: &coreapi.SubscriptionProperties{
 			TenantId: ptr.To("test-tenant-id"),
 		},
 	}
@@ -79,14 +79,14 @@ func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBCl
 // HostedCluster ReadDesire associated with the test cluster.
 func hostedClusterReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
-	return api.Must(azcorearm.ParseResourceID(
-		kubeapplier.ToClusterScopedReadDesireResourceIDString(
+	return metadataapi.Must(azcorearm.ParseResourceID(
+		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)))
 }
 
 // newHostedClusterReadDesire builds a ReadDesire whose Status.KubeContent.Raw is
 // the serialized HostedCluster carrying the given Spec.ClusterID.
-func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.ReadDesire {
+func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplierapi.ReadDesire {
 	t.Helper()
 	hostedCluster := &v1beta1.HostedCluster{
 		TypeMeta: metav1.TypeMeta{
@@ -99,9 +99,9 @@ func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.Rea
 	}
 	raw, err := json.Marshal(hostedCluster)
 	require.NoError(t, err)
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: hostedClusterReadDesireResourceID(t)},
-		Status: kubeapplier.ReadDesireStatus{
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: hostedClusterReadDesireResourceID(t)},
+		Status: kubeapplierapi.ReadDesireStatus{
 			KubeContent: &kruntime.RawExtension{Raw: raw},
 		},
 	}
@@ -112,7 +112,7 @@ func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.Rea
 func newValidHostedClusterReadDesireLister(t *testing.T) kubeapplierlisters.ReadDesireLister {
 	t.Helper()
 	return &kubeapplierlistertesting.SliceReadDesireLister{
-		Desires: []*kubeapplier.ReadDesire{newHostedClusterReadDesire(t, testClusterExternalID)},
+		Desires: []*kubeapplierapi.ReadDesire{newHostedClusterReadDesire(t, testClusterExternalID)},
 	}
 }
 
@@ -136,15 +136,15 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 	clusterResourceID := "/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName
-	spClusterResourceID := clusterResourceID + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName
+	spClusterResourceID := clusterResourceID + "/" + coreapi.ServiceProviderClusterResourceTypeName + "/" + coreapi.ServiceProviderClusterResourceName
 
 	cpVersion := semver.MustParse(controlPlaneVersion)
 	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 
-	existing, getErr := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
+	existing, getErr := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if getErr == nil {
 		replacement := existing.DeepCopy()
-		replacement.Status.ControlPlaneVersion.ActiveVersions = []api.HCPClusterActiveVersion{
+		replacement.Status.ControlPlaneVersion.ActiveVersions = []coreapi.HCPClusterActiveVersion{
 			{Version: &cpVersion, State: configv1.CompletedUpdate},
 		}
 		_, err := spcCRUD.Replace(ctx, replacement, nil)
@@ -153,14 +153,14 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 	}
 	require.True(t, cosmosstorageutils.IsNotFoundError(getErr), "unexpected error reading SPC before seeding: %v", getErr)
 
-	spCluster := &api.ServiceProviderCluster{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID:   api.Must(azcorearm.ParseResourceID(spClusterResourceID)),
+	spCluster := &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(spClusterResourceID)),
 			PartitionKey: strings.ToLower(testSubscriptionID),
 		},
-		Status: api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []api.HCPClusterActiveVersion{
+		Status: coreapi.ServiceProviderClusterStatus{
+			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+				ActiveVersions: []coreapi.HCPClusterActiveVersion{
 					{Version: &cpVersion, State: configv1.CompletedUpdate},
 				},
 			},

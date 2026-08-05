@@ -33,8 +33,9 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -49,13 +50,13 @@ const (
 	testClusterServiceIDStr = "/api/aro_hcp/v1alpha1/clusters/abc123"
 	testTenantID            = "11111111-1111-1111-1111-111111111111"
 	testClusterUID          = "00000000-0000-0000-0000-000000000000"
-	// testManagedResourceGroup must match what api.MinimumValidClusterTestCase() sets.
+	// testManagedResourceGroup must match what coreapitesting.MinimumValidClusterTestCase() sets.
 	testManagedResourceGroup = "testManagedResourceGroup"
 )
 
 // testClusterResourceID builds the ARM resource ID for the test cluster.
 func testClusterResourceID() *azcorearm.ResourceID {
-	return api.Must(azcorearm.ParseResourceID(
+	return metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
@@ -66,10 +67,10 @@ func testClusterResourceID() *azcorearm.ResourceID {
 // test-constant IDs. Callers can further customize it via functional opts.
 // MinimumValidClusterTestCase is used as the base because createClusterServiceCluster
 // calls ocm.BuildCSCluster, which requires a fully-populated cluster (version, DNS, subnet, etc.).
-func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
+func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
 	rid := testClusterResourceID()
-	cluster := api.MinimumValidClusterTestCase()
-	cluster.CosmosMetadata = arm.CosmosMetadata{
+	cluster := coreapitesting.MinimumValidClusterTestCase()
+	cluster.CosmosMetadata = coreapi.CosmosMetadata{
 		ResourceID:   rid,
 		PartitionKey: strings.ToLower(rid.SubscriptionID),
 	}
@@ -86,29 +87,29 @@ func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftClu
 }
 
 // newTestSubscription returns a minimal Subscription with tenant ID set.
-func newTestSubscription() *arm.Subscription {
-	rid := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
-	return &arm.Subscription{
-		CosmosMetadata: api.CosmosMetadata{
+func newTestSubscription() *coreapi.Subscription {
+	rid := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
+	return &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   rid,
 			PartitionKey: strings.ToLower(rid.SubscriptionID),
 		},
 		ResourceID: rid,
-		Properties: &arm.SubscriptionProperties{TenantId: ptr.To(testTenantID)},
+		Properties: &coreapi.SubscriptionProperties{TenantId: ptr.To(testTenantID)},
 	}
 }
 
 // newTestSPC returns a ServiceProviderCluster for the test cluster.
 // Callers can customize it via functional opts.
-func newTestSPC(opts ...func(*api.ServiceProviderCluster)) *api.ServiceProviderCluster {
-	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+func newTestSPC(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceProviderCluster {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
 		testClusterResourceID().String(),
-		api.ServiceProviderClusterResourceTypeName,
-		api.ServiceProviderClusterResourceName,
+		coreapi.ServiceProviderClusterResourceTypeName,
+		coreapi.ServiceProviderClusterResourceName,
 	)))
-	spc := &api.ServiceProviderCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
-		Spec:           api.ServiceProviderClusterSpec{},
+	spc := &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
+		Spec:           coreapi.ServiceProviderClusterSpec{},
 	}
 	spc.SetPartitionKey(testSubscriptionID)
 	for _, opt := range opts {
@@ -119,27 +120,27 @@ func newTestSPC(opts ...func(*api.ServiceProviderCluster)) *api.ServiceProviderC
 
 func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 	desiredVersion := ptr.To(semver.MustParse("4.20.0"))
-	clusterInternalID := api.Must(api.NewInternalID(testClusterServiceIDStr))
-	pendingClusterServiceID := api.Must(api.NewInternalID(testClusterServiceIDStr))
+	clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
+	pendingClusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 
 	tests := []struct {
 		name                           string
-		listCluster                    *api.HCPOpenShiftCluster    // cluster seeded into the lister (nil = not found)
-		dbCluster                      *api.HCPOpenShiftCluster    // cluster stored in the DB
-		existingServiceProviderCluster *api.ServiceProviderCluster // nil = not pre-seeded; controller get-or-creates
+		listCluster                    *coreapi.HCPOpenShiftCluster    // cluster seeded into the lister (nil = not found)
+		dbCluster                      *coreapi.HCPOpenShiftCluster    // cluster stored in the DB
+		existingServiceProviderCluster *coreapi.ServiceProviderCluster // nil = not pre-seeded; controller get-or-creates
 		setupMockCS                    func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
 		expectError                    bool
 		verifyDB                       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name: "successful sync records cluster service ID on cluster",
-			listCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
-			dbCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
-			existingServiceProviderCluster: newTestSPC(func(spc *api.ServiceProviderCluster) {
+			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -172,10 +173,10 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "skip when cluster already has ClusterServiceID",
-			listCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
 			}),
-			dbCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -205,10 +206,10 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "desired version not set waits without dispatching",
-			listCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
-			dbCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -223,13 +224,13 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "adopts existing Cluster Service cluster for Azure resource",
-			listCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
-			dbCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
 			}),
-			existingServiceProviderCluster: newTestSPC(func(spc *api.ServiceProviderCluster) {
+			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -278,14 +279,14 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 
 			mockCS := tt.setupMockCS(ctrl)
 
-			var listerClusters []*api.HCPOpenShiftCluster
+			var listerClusters []*coreapi.HCPOpenShiftCluster
 			if tt.listCluster != nil {
-				listerClusters = []*api.HCPOpenShiftCluster{tt.listCluster}
+				listerClusters = []*coreapi.HCPOpenShiftCluster{tt.listCluster}
 			}
 			syncer := &clusterClusterServiceCreateSyncer{
 				resourcesDBClient:     mockDB,
 				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: listerClusters},
-				subscriptionLister:    &corelistertesting.SliceSubscriptionLister{Subscriptions: []*arm.Subscription{subscription}},
+				subscriptionLister:    &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
 				clustersServiceClient: mockCS,
 			}
 

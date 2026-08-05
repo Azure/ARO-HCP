@@ -25,7 +25,7 @@ import (
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -84,7 +84,7 @@ func TestStampGetHandler(t *testing.T) {
 
 			if len(tt.expectedError) > 0 {
 				require.Error(t, handlerErr)
-				var cloudErr *arm.CloudError
+				var cloudErr *coreapi.CloudError
 				require.True(t, errors.As(handlerErr, &cloudErr), "expected CloudError but got %T: %v", handlerErr, handlerErr)
 				require.Equal(t, tt.expectedStatusCode, cloudErr.StatusCode)
 				require.Contains(t, cloudErr.Error(), tt.expectedError)

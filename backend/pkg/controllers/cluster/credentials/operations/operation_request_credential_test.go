@@ -29,8 +29,7 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -40,23 +39,25 @@ import (
 func TestOperationRequestCredential_ShouldProcess(t *testing.T) {
 	tests := []struct {
 		name              string
-		operationOverride func(*api.Operation)
+		operationOverride func(*coreapi.Operation)
 		expectedResult    bool
 	}{
 		{
 			name:              "Accepted status should be processed",
-			operationOverride: func(o *api.Operation) { o.Status = arm.ProvisioningStateAccepted },
+			operationOverride: func(o *coreapi.Operation) { o.Status = coreapi.ProvisioningStateAccepted },
 			expectedResult:    true,
 		},
 		{
 			name:              "Terminal ProvisioningState should not be processed",
-			operationOverride: func(o *api.Operation) { o.Status = arm.ProvisioningStateSucceeded },
+			operationOverride: func(o *coreapi.Operation) { o.Status = coreapi.ProvisioningStateSucceeded },
 			expectedResult:    false,
 		},
 		{
-			name:              "Wrong operation request type should not be processed",
-			operationOverride: func(o *api.Operation) { o.Request = cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation },
-			expectedResult:    false,
+			name: "Wrong operation request type should not be processed",
+			operationOverride: func(o *coreapi.Operation) {
+				o.Request = cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation
+			},
+			expectedResult: false,
 		},
 	}
 
@@ -67,7 +68,7 @@ func TestOperationRequestCredential_ShouldProcess(t *testing.T) {
 
 			fixture := operationtesting.NewClusterTestFixture()
 			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestSystemAdminCredentialRequest)
-			operation.Status = arm.ProvisioningStateAccepted
+			operation.Status = coreapi.ProvisioningStateAccepted
 			if tt.operationOverride != nil {
 				tt.operationOverride(operation)
 			}
@@ -82,7 +83,7 @@ func TestOperationRequestCredential_ShouldProcess(t *testing.T) {
 func TestOperationRequestCredential_SynchronizeOperation(t *testing.T) {
 	tests := []struct {
 		name                       string
-		operationOverride          func(*api.Operation)
+		operationOverride          func(*coreapi.Operation)
 		breakGlassCredentialStatus cmv1.BreakGlassCredentialStatus
 		getBreakGlassCredentialErr error
 		expectError                bool
@@ -97,7 +98,7 @@ func TestOperationRequestCredential_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
 			},
 		},
 		{
@@ -108,8 +109,8 @@ func TestOperationRequestCredential_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
-				assert.Equal(t, arm.CloudErrorCodeInternalServerError, op.Error.Code)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
 			},
 		},
 		{
@@ -120,7 +121,7 @@ func TestOperationRequestCredential_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 			},
 		},
 		{
@@ -131,7 +132,7 @@ func TestOperationRequestCredential_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status) // no state change
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status) // no state change
 			},
 		},
 		{
@@ -143,18 +144,18 @@ func TestOperationRequestCredential_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status) // no state change
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status) // no state change
 			},
 		},
 		{
 			name:               "ShouldProcess returns false for terminal status and no state change occurs",
-			operationOverride:  func(o *api.Operation) { o.Status = arm.ProvisioningStateSucceeded },
+			operationOverride:  func(o *coreapi.Operation) { o.Status = coreapi.ProvisioningStateSucceeded },
 			expectError:        false,
 			expectCSMockCalled: false,
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status) // no state change
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status) // no state change
 			},
 		},
 	}

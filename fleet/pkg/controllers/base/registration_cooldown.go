@@ -21,7 +21,7 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 )
@@ -75,7 +75,7 @@ func (c *RegistrationAwareCooldown) CanSync(ctx context.Context, key any) bool {
 		return c.unregisteredTimer.CanSync(ctx, key)
 	}
 
-	if apimeta.IsStatusConditionTrue(managementCluster.Status.Conditions, string(fleet.ManagementClusterConditionReady)) {
+	if apimeta.IsStatusConditionTrue(managementCluster.Status.Conditions, string(fleetapi.ManagementClusterConditionReady)) {
 		return c.registeredTimer.CanSync(ctx, key)
 	}
 	return c.unregisteredTimer.CanSync(ctx, key)

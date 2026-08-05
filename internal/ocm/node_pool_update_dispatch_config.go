@@ -17,7 +17,7 @@ package ocm
 import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // nodePoolUpdateDispatchConfig is a dispatch-specific canonical model of the NodePool's
@@ -38,7 +38,7 @@ import (
 // Note: This does not include all fields updatable via the NodePool Cluster Service API, only
 // the subset that the node pool cluster service update dispatch controller considers.
 //
-// Note: Do not embed internal/api struct types (for example api.NodePoolAutoScaling)
+// Note: Do not embed internal/api struct types (for example coreapi.NodePoolAutoScaling)
 // in this struct or its nested field types. We want to make those internal/api struct types
 // independent of this so they can evolve independently. For example, if a field here referenced
 // an internal/api struct type directly, any new field added to that struct would be automatically
@@ -124,14 +124,14 @@ type nodePoolUpdateDispatchConfig struct {
 }
 
 // nodePoolUpdateDispatchConfigAutoScaling is the curated autoscaling subset used for
-// dispatch hash and sync. See nodePoolUpdateDispatchConfig: do not embed api.NodePoolAutoScaling.
+// dispatch hash and sync. See nodePoolUpdateDispatchConfig: do not embed coreapi.NodePoolAutoScaling.
 type nodePoolUpdateDispatchConfigAutoScaling struct {
 	Min int32 `json:"min,omitempty"`
 	Max int32 `json:"max,omitempty"`
 }
 
 // NodePoolUpdateDispatchConfigTaint is the curated taint subset used for dispatch
-// hash and sync. See nodePoolUpdateDispatchConfig: do not embed api.Taint.
+// hash and sync. See nodePoolUpdateDispatchConfig: do not embed coreapi.Taint.
 type NodePoolUpdateDispatchConfigTaint struct {
 	Effect string `json:"effect,omitempty"`
 	Key    string `json:"key,omitempty"`
@@ -140,7 +140,7 @@ type NodePoolUpdateDispatchConfigTaint struct {
 
 // NodePoolUpdateDispatchConfigDiffJSON returns canonical JSON for both sides of the
 // dispatch diff comparison, including drain-timeout normalization when RP has no override.
-func NodePoolUpdateDispatchConfigDiffJSON(nodePool *api.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (string, string, error) {
+func NodePoolUpdateDispatchConfigDiffJSON(nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (string, string, error) {
 	desiredConfig, actualConfig := nodePoolUpdateDispatchConfigsForDiff(nodePool, csNodePool)
 
 	desiredRaw, err := desiredConfig.canonicalJSON()
@@ -158,7 +158,7 @@ func NodePoolUpdateDispatchConfigDiffJSON(nodePool *api.HCPOpenShiftClusterNodeP
 // nodePoolUpdateDispatchConfigsForDiff builds RP and CS projections for diff comparison.
 // When RP has no drain-timeout override, the CS value is cleared from the actual side so
 // dispatch does not endlessly PATCH fields CS cannot change via omit/null.
-func nodePoolUpdateDispatchConfigsForDiff(nodePool *api.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (*nodePoolUpdateDispatchConfig, *nodePoolUpdateDispatchConfig) {
+func nodePoolUpdateDispatchConfigsForDiff(nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (*nodePoolUpdateDispatchConfig, *nodePoolUpdateDispatchConfig) {
 	desiredConfig := nodePoolUpdateDispatchConfigFromRP(nodePool)
 	actualConfig := nodePoolUpdateDispatchConfigFromCS(csNodePool)
 	// When RP has no drain-timeout override, CS PATCH cannot clear or re-inherit via omit/null.
@@ -171,7 +171,7 @@ func nodePoolUpdateDispatchConfigsForDiff(nodePool *api.HCPOpenShiftClusterNodeP
 
 // NodePoolUpdateDispatchConfigJSONFromRP returns the canonical JSON of the dispatch config
 // projected from RP desired state.
-func NodePoolUpdateDispatchConfigJSONFromRP(nodePool *api.HCPOpenShiftClusterNodePool) (string, error) {
+func NodePoolUpdateDispatchConfigJSONFromRP(nodePool *coreapi.HCPOpenShiftClusterNodePool) (string, error) {
 	raw, err := nodePoolUpdateDispatchConfigFromRP(nodePool).canonicalJSON()
 	if err != nil {
 		return "", err
@@ -190,7 +190,7 @@ func NodePoolUpdateDispatchConfigJSONFromCS(csNodePool *arohcpv1alpha1.NodePool)
 }
 
 // nodePoolUpdateDispatchConfigFromRP projects RP desired state into the dispatch canonical form.
-func nodePoolUpdateDispatchConfigFromRP(nodePool *api.HCPOpenShiftClusterNodePool) *nodePoolUpdateDispatchConfig {
+func nodePoolUpdateDispatchConfigFromRP(nodePool *coreapi.HCPOpenShiftClusterNodePool) *nodePoolUpdateDispatchConfig {
 	config := &nodePoolUpdateDispatchConfig{
 		Labels:                  nodePool.Properties.Labels,
 		Taints:                  NodePoolUpdateDispatchConfigTaintsFromRP(nodePool.Properties.Taints),
@@ -210,7 +210,7 @@ func nodePoolUpdateDispatchConfigFromRP(nodePool *api.HCPOpenShiftClusterNodePoo
 }
 
 // NodePoolUpdateDispatchConfigTaintsFromRP copies taints from RP into the dispatch canonical form.
-func NodePoolUpdateDispatchConfigTaintsFromRP(taints []api.Taint) []NodePoolUpdateDispatchConfigTaint {
+func NodePoolUpdateDispatchConfigTaintsFromRP(taints []coreapi.Taint) []NodePoolUpdateDispatchConfigTaint {
 	if len(taints) == 0 {
 		return nil
 	}
@@ -252,7 +252,7 @@ func nodePoolUpdateDispatchConfigFromCS(csNodePool *arohcpv1alpha1.NodePool) *no
 // Hypershift reconciliation should expect. When RP stores an explicit override, that
 // value is returned. When RP stores nil (no override), the live Cluster Service node pool
 // value is returned because CS PATCH omit/null cannot clear or re-inherit cluster default.
-func NodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(nodePool *api.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) *int32 {
+func NodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(nodePool *coreapi.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) *int32 {
 	if nodePool.Properties.NodeDrainTimeoutMinutes != nil {
 		return nodePool.Properties.NodeDrainTimeoutMinutes
 	}
@@ -301,7 +301,7 @@ func NodePoolUpdateDispatchConfigTaintsFromCS(csNodePool *arohcpv1alpha1.NodePoo
 // nodePoolUpdateDispatchConfigHash returns a SHA-256 hex digest of the dispatch config
 // projected from RP desired state. The digest is computed from canonical JSON (sorted object
 // keys at every level), not from a raw json.Marshal of the struct.
-func nodePoolUpdateDispatchConfigHash(nodePool *api.HCPOpenShiftClusterNodePool) (string, error) {
+func nodePoolUpdateDispatchConfigHash(nodePool *coreapi.HCPOpenShiftClusterNodePool) (string, error) {
 	return nodePoolUpdateDispatchConfigFromRP(nodePool).hash()
 }
 

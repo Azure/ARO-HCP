@@ -17,8 +17,7 @@ package validationutils
 import (
 	"context"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // NodePoolValidation represents a validation that can be performed on a node pool.
@@ -26,5 +25,5 @@ type NodePoolValidation interface {
 	// Name returns the name of the validation.
 	Name() string
 	// Validate validates the NodePool. It returns nil if the validation succeeds and an error otherwise.
-	Validate(ctx context.Context, cluster *api.HCPOpenShiftCluster, nodePoolSubscription *arm.Subscription, nodePool *api.HCPOpenShiftClusterNodePool) error
+	Validate(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, nodePoolSubscription *coreapi.Subscription, nodePool *coreapi.HCPOpenShiftClusterNodePool) error
 }

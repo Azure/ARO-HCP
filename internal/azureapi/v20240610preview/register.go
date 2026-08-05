@@ -18,7 +18,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 type version struct {
@@ -30,16 +31,16 @@ func NewVersion() version {
 
 // String returns the api-version parameter value for this API.
 func (v version) String() string {
-	return string(api.APIVersionV20240610Preview)
+	return string(metadataapi.APIVersionV20240610Preview)
 }
 
-func (v version) ValidationPathRewriter(internalObj any) (api.ValidationPathMapperFunc, error) {
+func (v version) ValidationPathRewriter(internalObj any) (coreapi.ValidationPathMapperFunc, error) {
 	switch internalObj.(type) {
-	case *api.HCPOpenShiftClusterNodePool:
+	case *coreapi.HCPOpenShiftClusterNodePool:
 		return nil, nil
-	case *api.HCPOpenShiftClusterExternalAuth:
+	case *coreapi.HCPOpenShiftClusterExternalAuth:
 		return nil, nil
-	case *api.HCPOpenShiftCluster:
+	case *coreapi.HCPOpenShiftCluster:
 		return propertiesReplacer.Replace, nil
 
 	default:
@@ -52,7 +53,7 @@ var (
 	propertiesReplacer = strings.NewReplacer("customerProperties", "properties", "serviceProviderProperties", "properties")
 )
 
-func RegisterVersion(apiRegistry api.APIRegistry) error {
+func RegisterVersion(apiRegistry coreapi.APIRegistry) error {
 	if err := apiRegistry.Register(versionedInterface); err != nil {
 		return err
 	}

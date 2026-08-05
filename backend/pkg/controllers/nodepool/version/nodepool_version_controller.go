@@ -31,7 +31,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -115,7 +116,7 @@ func NewNodePoolVersionController(
 //
 // Both arguments must be non-nil; SyncOnce gates the cache miss before calling
 // NeedsWork.
-func (c *nodePoolVersionSyncer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool, serviceProviderNodePool *api.ServiceProviderNodePool, serviceProviderCluster *api.ServiceProviderCluster) bool {
+func (c *nodePoolVersionSyncer) NeedsWork(nodePool *coreapi.HCPOpenShiftClusterNodePool, serviceProviderNodePool *coreapi.ServiceProviderNodePool, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
 	if len(nodePool.Properties.Version.ID) == 0 {
 		return false
 	}
@@ -221,7 +222,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 
 	// Validate the customer's desired version before setting it
 	err = c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, cachedServiceProviderNodePool, cachedServiceProviderCluster, cachedNodePool.Properties.Version.ChannelGroup, clusterUUID,
-		op.HasOption(api.FeatureExperimentalReleaseFeatures))
+		op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures))
 	if err != nil {
 		// Persist IntentFailed on the controller document for Cincinnati VersionNotFound or any non-Cincinnati resolution error.
 		// Other Cincinnati errors are treated as transient graph or transport issues.
@@ -232,11 +233,11 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 			controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 				NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName)
 			if writeErr := controllerutils.WriteController(ctx, controllerCRUD, NodepoolVersionControllerName, key.InitialController,
-				func(ctrl *api.Controller) {
+				func(ctrl *coreapi.Controller) {
 					apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
-						Type:    api.ControllerConditionTypeIntentFailed,
+						Type:    coreapi.ControllerConditionTypeIntentFailed,
 						Status:  metav1.ConditionTrue,
-						Reason:  api.VersionUpgradeNotAcceptedReason,
+						Reason:  coreapi.VersionUpgradeNotAcceptedReason,
 						Message: utils.ErrorMessageWithoutLineTracking(err),
 					})
 				}); writeErr != nil {
@@ -264,11 +265,11 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 		NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName)
 	if err = controllerutils.WriteController(ctx, controllerCRUD, NodepoolVersionControllerName, key.InitialController,
-		func(ctrl *api.Controller) {
+		func(ctrl *coreapi.Controller) {
 			apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
-				Type:    api.ControllerConditionTypeIntentFailed,
+				Type:    coreapi.ControllerConditionTypeIntentFailed,
 				Status:  metav1.ConditionFalse,
-				Reason:  api.ControllerConditionReasonAsExpected,
+				Reason:  coreapi.ControllerConditionReasonAsExpected,
 				Message: "",
 			})
 		}); err != nil {
@@ -291,7 +292,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 // See https://hypershift.pages.dev/reference/nodepool-rollouts/#upgrade-types
 //
 // Returns nil if the desired version is valid, or an error describing why it's invalid.
-func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(ctx context.Context, desiredVersion *semver.Version, spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster,
+func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(ctx context.Context, desiredVersion *semver.Version, spNodePool *coreapi.ServiceProviderNodePool, spCluster *coreapi.ServiceProviderCluster,
 	channelGroup string, clusterUUID uuid.UUID, allowExperimentalReleaseFeatures bool) error {
 	if desiredVersion == nil {
 		return fmt.Errorf("customerDesiredVersion is nil, cannot evaluate upgrade")

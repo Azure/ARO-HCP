@@ -33,8 +33,7 @@ import (
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -44,7 +43,7 @@ import (
 func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 	fixture := operationtesting.NewNodePoolTestFixture()
 
-	nodePoolPassingExtraReconcileGate := func() *api.HCPOpenShiftClusterNodePool {
+	nodePoolPassingExtraReconcileGate := func() *coreapi.HCPOpenShiftClusterNodePool {
 		now := time.Now()
 		np := fixture.NewNodePool()
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
@@ -54,7 +53,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name                    string
-		existingNodePool        *api.HCPOpenShiftClusterNodePool
+		existingNodePool        *coreapi.HCPOpenShiftClusterNodePool
 		wantErr                 bool
 		verifyDB                func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 		usesNewDeletionApproach bool
@@ -65,13 +64,13 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 			},
 			usesNewDeletionApproach: true,
 		},
 		{
 			name: "shouldReconcile gate not passed skips cluster service",
-			existingNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			existingNodePool: func() *coreapi.HCPOpenShiftClusterNodePool {
 				np := fixture.NewNodePool()
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				return np
@@ -79,7 +78,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 			usesNewDeletionApproach: true,
 		},
@@ -100,7 +99,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 			usesNewDeletionApproach: true,
 		},
@@ -121,7 +120,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateDeleting, op.Status)
 			},
 			usesNewDeletionApproach: true,
 		},
@@ -138,7 +137,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 			},
 			usesNewDeletionApproach: false,
 		},
@@ -158,7 +157,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 			usesNewDeletionApproach: false,
 		},

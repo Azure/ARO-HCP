@@ -31,8 +31,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -42,7 +42,7 @@ const controllerName = "union-kube-applier-informers-controller"
 
 // ManagementClusterKey identifies one management cluster for the controller's
 // workqueue. Today a stamp hosts a single management cluster (the "default"
-// singleton, see fleet.ManagementClusterResourceName), so StampIdentifier
+// singleton, see fleetapi.ManagementClusterResourceName), so StampIdentifier
 // alone is the identity in practice; ManagementClusterName is kept on the key
 // because the cosmos resourceID encodes both segments and we don't want
 // callers reaching into resourceID-string surgery. Together they reconstruct
@@ -56,9 +56,9 @@ type ManagementClusterKey struct {
 
 // GetResourceID returns the management-cluster resourceID for this key.
 func (k ManagementClusterKey) GetResourceID() *azcorearm.ResourceID {
-	return api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(
-		"/providers", fleet.StampResourceType.String(), k.StampIdentifier,
-		fleet.ManagementClusterResourceTypeName, k.ManagementClusterName,
+	return metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(
+		"/providers", fleetapi.StampResourceType.String(), k.StampIdentifier,
+		fleetapi.ManagementClusterResourceTypeName, k.ManagementClusterName,
 	))))
 }
 
@@ -245,7 +245,7 @@ func (c *UnionKubeApplierInformersController) SyncOnce(ctx context.Context, key 
 		return fmt.Errorf("listing management clusters for key %v: %w", key, err)
 	}
 
-	var found *fleet.ManagementCluster
+	var found *fleetapi.ManagementCluster
 	for _, mc := range mcs {
 		rid := managementClusterResourceID(mc)
 		if rid != nil && strings.EqualFold(rid.String(), wantKey) {
@@ -355,15 +355,15 @@ func (c *UnionKubeApplierInformersController) shutdownSubs(logger logr.Logger) {
 	}
 }
 
-// managementClusterFromEvent extracts a *fleet.ManagementCluster from an
+// managementClusterFromEvent extracts a *fleetapi.ManagementCluster from an
 // informer event payload, handling the DeletedFinalStateUnknown tombstone
 // that the cache layer may deliver on delete.
-func managementClusterFromEvent(obj any) *fleet.ManagementCluster {
-	if mc, ok := obj.(*fleet.ManagementCluster); ok {
+func managementClusterFromEvent(obj any) *fleetapi.ManagementCluster {
+	if mc, ok := obj.(*fleetapi.ManagementCluster); ok {
 		return mc
 	}
 	if tomb, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-		if mc, ok := tomb.Obj.(*fleet.ManagementCluster); ok {
+		if mc, ok := tomb.Obj.(*fleetapi.ManagementCluster); ok {
 			return mc
 		}
 	}
@@ -373,7 +373,7 @@ func managementClusterFromEvent(obj any) *fleet.ManagementCluster {
 // managementClusterResourceID returns the canonical resourceID for the
 // management cluster, preferring the top-level ResourceID and falling
 // back to the cosmos-metadata ResourceID. nil signals "no usable id".
-func managementClusterResourceID(mc *fleet.ManagementCluster) *azcorearm.ResourceID {
+func managementClusterResourceID(mc *fleetapi.ManagementCluster) *azcorearm.ResourceID {
 	if mc == nil {
 		return nil
 	}

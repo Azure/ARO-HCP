@@ -23,9 +23,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -43,10 +44,10 @@ const (
 // and is what callers pass to ListForManagementCluster; testMgmt is the
 // lowercased-string form used for string comparisons in test assertions.
 var (
-	testMgmtID = api.Must(azcorearm.ParseResourceID(
+	testMgmtID = metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
 	testMgmt        = strings.ToLower(testMgmtID.String())
-	testMgmtOtherID = api.Must(azcorearm.ParseResourceID(
+	testMgmtOtherID = metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-other"))
 )
 
@@ -62,28 +63,28 @@ func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
 func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 	ctx := context.Background()
 
-	clusterScoped := &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+	clusterScoped := &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 				testSub, testRG, testCluster, "cluster-d")),
 			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
-		Spec: kubeapplier.ApplyDesireSpec{
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: testMgmtID,
-			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
-			ServerSideApply:   &kubeapplier.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)}},
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			ServerSideApply:   &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)}},
 		},
 	}
-	nodePoolScoped := &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
+	nodePoolScoped := &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID: mustParseID(t, kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
 				testSub, testRG, testCluster, testNodePool, "np-d")),
 			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
-		Spec: kubeapplier.ApplyDesireSpec{
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: testMgmtID,
-			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
-			ServerSideApply:   &kubeapplier.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"Secret"}`)}},
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			ServerSideApply:   &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"Secret"}`)}},
 		},
 	}
 
@@ -97,8 +98,8 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 	clients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 	clients.Register(testMgmtID, mock)
 	lister := &fleetlistertesting.SliceManagementClusterLister{
-		ManagementClusters: []*fleet.ManagementCluster{
-			{CosmosMetadata: api.CosmosMetadata{ResourceID: testMgmtID}, ResourceID: testMgmtID},
+		ManagementClusters: []*fleetapi.ManagementCluster{
+			{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testMgmtID}, ResourceID: testMgmtID},
 		},
 	}
 	l := &kubeapplierlistertesting.DBApplyDesireLister{Clients: clients, Lister: lister}

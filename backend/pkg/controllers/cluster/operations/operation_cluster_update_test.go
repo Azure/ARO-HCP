@@ -38,9 +38,9 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -54,7 +54,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 	testClockNow := operationtesting.MustParseTime("2024-06-01T12:00:00Z")
 	fixture := operationtesting.NewClusterTestFixture()
 
-	newClusterWithCustomerVersion := func(versionID string, mutate ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
+	newClusterWithCustomerVersion := func(versionID string, mutate ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
 		cluster := fixture.NewCluster(nil)
 		cluster.CustomerProperties.Version.ID = versionID
 		for _, fn := range mutate {
@@ -92,49 +92,49 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		return csCluster
 	}
 
-	newOperationAccepted := func() *api.Operation {
+	newOperationAccepted := func() *coreapi.Operation {
 		return fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate)
 	}
 
-	newServiceProviderClusterWithSpecControlPlaneVersion := func(version string) *api.ServiceProviderCluster {
-		resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+	newServiceProviderClusterWithSpecControlPlaneVersion := func(version string) *coreapi.ServiceProviderCluster {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
 			fixture.ClusterResourceID.String(),
-			api.ServiceProviderClusterResourceTypeName,
-			api.ServiceProviderClusterResourceName,
+			coreapi.ServiceProviderClusterResourceTypeName,
+			coreapi.ServiceProviderClusterResourceName,
 		)))
 		parsedVersion, err := semver.ParseTolerant(version)
 		require.NoError(t, err)
-		activeVersions := []api.HCPClusterActiveVersion{{Version: ptr.To(parsedVersion)}}
-		return &api.ServiceProviderCluster{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
-			Spec: api.ServiceProviderClusterSpec{
-				ControlPlaneVersion: api.ServiceProviderClusterSpecVersion{
+		activeVersions := []coreapi.HCPClusterActiveVersion{{Version: ptr.To(parsedVersion)}}
+		return &coreapi.ServiceProviderCluster{
+			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
+			Spec: coreapi.ServiceProviderClusterSpec{
+				ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{
 					DesiredVersion: ptr.To(parsedVersion),
 				},
 			},
-			Status: api.ServiceProviderClusterStatus{
-				ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+			Status: coreapi.ServiceProviderClusterStatus{
+				ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
 					ActiveVersions: activeVersions,
 				},
 			},
 		}
 	}
-	newDefaultControlPlaneDesiredVersionController := func() *api.Controller {
-		resourceID := api.Must(azcorearm.ParseResourceID(fixture.ClusterResourceID.String() + "/hcpOpenShiftControllers/ControlPlaneDesiredVersion"))
-		return &api.Controller{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
+	newDefaultControlPlaneDesiredVersionController := func() *coreapi.Controller {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(fixture.ClusterResourceID.String() + "/hcpOpenShiftControllers/ControlPlaneDesiredVersion"))
+		return &coreapi.Controller{
+			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 			ExternalID:     fixture.ClusterResourceID,
-			Status:         api.ControllerStatus{},
+			Status:         coreapi.ControllerStatus{},
 		}
 	}
 
-	newControlPlaneDesiredVersionControllerWithConditions := func(conditions []metav1.Condition) *api.Controller {
+	newControlPlaneDesiredVersionControllerWithConditions := func(conditions []metav1.Condition) *coreapi.Controller {
 		controller := newDefaultControlPlaneDesiredVersionController()
 		controller.Status.Conditions = conditions
 		return controller
 	}
 
-	newPassingCachedHostedClusterReadDesire := func() *kubeapplier.ReadDesire {
+	newPassingCachedHostedClusterReadDesire := func() *kubeapplierapi.ReadDesire {
 		return operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 			Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
 		})
@@ -142,19 +142,19 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name            string
-		existingCluster *api.HCPOpenShiftCluster
+		existingCluster *coreapi.HCPOpenShiftCluster
 		// When not set, the controller uses a cluster lister that contains the existingCluster
 		clusterLister     corelisters.ClusterLister
-		existingOperation *api.Operation
+		existingOperation *coreapi.Operation
 		// When not set, the controller uses an active operations lister that contains the existingOperation
 		activeOperationsLister         corelisters.ActiveOperationLister
-		existingServiceProviderCluster *api.ServiceProviderCluster
+		existingServiceProviderCluster *coreapi.ServiceProviderCluster
 		// When not set, the controller uses a service provider cluster lister that contains the existingServiceProviderCluster
 		serviceProviderClusterLister                 corelisters.ServiceProviderClusterLister
-		existingControlPlaneDesiredVersionController *api.Controller
+		existingControlPlaneDesiredVersionController *coreapi.Controller
 		// When set, wires a ReadDesireLister containing this cached HostedCluster mirror.
-		cachedHostedClusterReadDesire                 *kubeapplier.ReadDesire
-		cachedControlPlaneClusterAutoscalerReadDesire *kubeapplier.ReadDesire
+		cachedHostedClusterReadDesire                 *kubeapplierapi.ReadDesire
+		cachedControlPlaneClusterAutoscalerReadDesire *kubeapplierapi.ReadDesire
 		seedMismatchFirstSeenAt                       time.Time
 		setupMockCSClient                             func(*ocm.MockClusterServiceClientSpec)
 		wantErr                                       bool
@@ -175,11 +175,11 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -197,11 +197,11 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, op.Status)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Equal(t, operationtesting.TestOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -219,12 +219,12 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				assert.NotNil(t, op.Error)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -242,7 +242,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -252,9 +252,9 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
 			existingControlPlaneDesiredVersionController: newControlPlaneDesiredVersionControllerWithConditions([]metav1.Condition{
 				{
-					Type:    api.ControllerConditionTypeIntentFailed,
+					Type:    coreapi.ControllerConditionTypeIntentFailed,
 					Status:  metav1.ConditionTrue,
-					Reason:  api.VersionUpgradeNotAcceptedReason,
+					Reason:  coreapi.VersionUpgradeNotAcceptedReason,
 					Message: "example intent failed message",
 				},
 			}),
@@ -267,14 +267,14 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, arm.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
 				assert.Contains(t, op.Error.Message, "example intent failed message")
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -292,7 +292,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 				assert.Nil(t, op.Error)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
@@ -316,7 +316,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 				assert.Nil(t, op.Error)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
@@ -340,9 +340,9 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, arm.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
@@ -352,32 +352,32 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				)
 				assert.Contains(t, op.Error.Message, wantMessageSubstr)
 
-				assert.Equal(t, arm.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
 		{
 			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.HCPOpenShiftCluster) {
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			existingOperation: newOperationAccepted(),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
 			name: "shouldReconcile gate not passed when cluster is deleting",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.HCPOpenShiftCluster) {
 				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: testClockNow}
 			}),
 			existingOperation: newOperationAccepted(),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -388,7 +388,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
@@ -398,7 +398,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "cs cluster ready with node drain spec mismatch keeps operation updating",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.HCPOpenShiftCluster) {
 				cluster.CustomerProperties.NodeDrainTimeoutMinutes = 60
 			}),
 			existingOperation:              newOperationAccepted(),
@@ -412,26 +412,26 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, op.Status)
 				assert.Nil(t, op.Error)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Equal(t, operationtesting.TestOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
 		{
 			name: "cs cluster ready with customerManaged KMS etcd key version match transitions operation to succeeded",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
-				cluster.CustomerProperties.Etcd = api.EtcdProfile{
-					DataEncryption: api.EtcdDataEncryptionProfile{
-						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-						CustomerManaged: &api.CustomerManagedEncryptionProfile{
-							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-							Kms: &api.KmsEncryptionProfile{
-								Visibility: api.KeyVaultVisibilityPublic,
-								ActiveKey: api.KmsKey{
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.HCPOpenShiftCluster) {
+				cluster.CustomerProperties.Etcd = coreapi.EtcdProfile{
+					DataEncryption: coreapi.EtcdDataEncryptionProfile{
+						KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+							EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+							Kms: &coreapi.KmsEncryptionProfile{
+								Visibility: metadataapi.KeyVaultVisibilityPublic,
+								ActiveKey: coreapi.KmsKey{
 									Name:      "test-key",
 									VaultName: "test-vault",
 									Version:   "v1",
@@ -467,20 +467,20 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 			},
 		},
 		{
 			name: "cs cluster ready with CMK KMS etcd key version mismatch keeps operation updating",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
-				cluster.CustomerProperties.Etcd = api.EtcdProfile{
-					DataEncryption: api.EtcdDataEncryptionProfile{
-						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-						CustomerManaged: &api.CustomerManagedEncryptionProfile{
-							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-							Kms: &api.KmsEncryptionProfile{
-								Visibility: api.KeyVaultVisibilityPublic,
-								ActiveKey: api.KmsKey{
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.HCPOpenShiftCluster) {
+				cluster.CustomerProperties.Etcd = coreapi.EtcdProfile{
+					DataEncryption: coreapi.EtcdDataEncryptionProfile{
+						KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+							EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+							Kms: &coreapi.KmsEncryptionProfile{
+								Visibility: metadataapi.KeyVaultVisibilityPublic,
+								ActiveKey: coreapi.KmsKey{
 									Name:      "test-key",
 									VaultName: "test-vault",
 									Version:   "v2",
@@ -516,18 +516,18 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, op.Status)
 				assert.Nil(t, op.Error)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Equal(t, operationtesting.TestOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
 		{
 			name: "cs cluster ready with hypershift autoscaling spec mismatch keeps operation updating",
-			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *coreapi.HCPOpenShiftCluster) {
 				cluster.CustomerProperties.Autoscaling.MaxNodesTotal = 10
 			}),
 			existingOperation:              newOperationAccepted(),
@@ -547,12 +547,12 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, op.Status)
 				assert.Nil(t, op.Error)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Equal(t, operationtesting.TestOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -570,12 +570,12 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, op.Status)
 				assert.Nil(t, op.Error)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Equal(t, operationtesting.TestOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -594,11 +594,11 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -626,7 +626,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			var readDesires []*kubeapplier.ReadDesire
+			var readDesires []*kubeapplierapi.ReadDesire
 			if tc.cachedHostedClusterReadDesire != nil {
 				readDesires = append(readDesires, tc.cachedHostedClusterReadDesire)
 			}

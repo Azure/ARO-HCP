@@ -33,7 +33,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 )
@@ -66,8 +66,8 @@ type UnionDesireLister[T any] struct {
 // Compile-time checks: the two concrete kubeapplierlisters.<Type>DesireLister
 // interfaces are each satisfied by *UnionDesireLister[<corresponding type>].
 var (
-	_ kubeapplierlisters.ApplyDesireLister = (*UnionDesireLister[kubeapplier.ApplyDesire])(nil)
-	_ kubeapplierlisters.ReadDesireLister  = (*UnionDesireLister[kubeapplier.ReadDesire])(nil)
+	_ kubeapplierlisters.ApplyDesireLister = (*UnionDesireLister[kubeapplierapi.ApplyDesire])(nil)
+	_ kubeapplierlisters.ReadDesireLister  = (*UnionDesireLister[kubeapplierapi.ReadDesire])(nil)
 )
 
 // NewUnionDesireLister returns an empty union; call Add to register

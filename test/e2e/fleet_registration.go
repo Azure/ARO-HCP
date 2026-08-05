@@ -26,7 +26,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -60,7 +60,7 @@ var _ = Describe("Fleet", func() {
 				for _, s := range stamps {
 					g.Expect(s.ResourceID).NotTo(BeEmpty(), "stamp resourceId must not be empty")
 
-					approvedCondition := apimeta.FindStatusCondition(s.Status.Conditions, string(fleet.StampConditionApproved))
+					approvedCondition := apimeta.FindStatusCondition(s.Status.Conditions, string(fleetapi.StampConditionApproved))
 					g.Expect(approvedCondition).NotTo(BeNil(), "stamp %s must have Approved condition", s.ResourceID)
 					g.Expect(approvedCondition.Status).To(Equal(metav1.ConditionTrue), "stamp %s must be approved", s.ResourceID)
 
@@ -68,12 +68,12 @@ var _ = Describe("Fleet", func() {
 					g.Expect(err).NotTo(HaveOccurred(), "failed to parse stamp resource ID %q", s.ResourceID)
 					stampIdentifier := stampResourceID.Name
 
-					managementCluster, err := tc.GetManagementCluster(ctx, stampIdentifier, fleet.ManagementClusterResourceName, currentIdentity)
+					managementCluster, err := tc.GetManagementCluster(ctx, stampIdentifier, fleetapi.ManagementClusterResourceName, currentIdentity)
 					g.Expect(err).NotTo(HaveOccurred(), "failed to get management cluster for stamp %s", stampIdentifier)
 
 					g.Expect(managementCluster.ResourceID).NotTo(BeEmpty(), "management cluster resourceId must not be empty")
 
-					readyCondition := apimeta.FindStatusCondition(managementCluster.Status.Conditions, string(fleet.ManagementClusterConditionReady))
+					readyCondition := apimeta.FindStatusCondition(managementCluster.Status.Conditions, string(fleetapi.ManagementClusterConditionReady))
 					g.Expect(readyCondition).NotTo(BeNil(), "management cluster %s must have Ready condition", stampIdentifier)
 					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionTrue), "management cluster %s must be ready", stampIdentifier)
 				}

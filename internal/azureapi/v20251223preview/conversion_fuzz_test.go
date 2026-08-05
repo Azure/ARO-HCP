@@ -26,25 +26,26 @@ import (
 
 	"sigs.k8s.io/randfill"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	apitesting "github.com/Azure/ARO-HCP/internal/api/testing"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
 
 func TestRoundTripInternalExternalInternal(t *testing.T) {
 	seed := rand.Int63()
 	t.Logf("seed: %d", seed)
 
-	fuzzer := apitesting.FuzzerFor(append(apitesting.CommonRoundTripFuzzFuncs(),
+	fuzzer := coreapitesting.FuzzerFor(append(coreapitesting.CommonRoundTripFuzzFuncs(),
 		// Ingress and CryptoRestrictions were added in v20260630preview and do not exist in v20251223preview.
-		func(j *api.HCPOpenShiftClusterCustomerProperties, c randfill.Continue) {
+		func(j *coreapi.HCPOpenShiftClusterCustomerProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
-			j.Ingress = api.CustomerIngressProfile{}
-			j.CryptoRestrictions = api.CryptoRestrictionsNone
+			j.Ingress = coreapi.CustomerIngressProfile{}
+			j.CryptoRestrictions = metadataapi.CryptoRestrictionsNone
 		},
 	), rand.NewSource(seed))
 
 	for i := 0; i < 200; i++ {
-		original := &api.HCPOpenShiftCluster{}
+		original := &coreapi.HCPOpenShiftCluster{}
 		fuzzer.Fill(original)
 		original.ResourceID = original.ID
 		original.InstanceVersion = 0
@@ -53,7 +54,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	}
 
 	for i := 0; i < 200; i++ {
-		original := &api.HCPOpenShiftClusterNodePool{}
+		original := &coreapi.HCPOpenShiftClusterNodePool{}
 		fuzzer.Fill(original)
 		original.ResourceID = original.ID
 		original.CosmosETag = ""
@@ -63,7 +64,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	}
 
 	for i := 0; i < 200; i++ {
-		original := &api.HCPOpenShiftClusterExternalAuth{}
+		original := &coreapi.HCPOpenShiftClusterExternalAuth{}
 		fuzzer.Fill(original)
 		original.ResourceID = original.ID
 		original.CosmosETag = ""
@@ -73,7 +74,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	}
 }
 
-func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
+func roundTripHCPCluster(t *testing.T, original *coreapi.HCPOpenShiftCluster) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftCluster(original)
 
@@ -85,11 +86,11 @@ func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
 		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
 		t.Logf("Original: %s\n\nIntermediate: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
-		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, api.CmpDiffOptions...))
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, coreapi.CmpDiffOptions...))
 	}
 }
 
-func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) {
+func roundTripNodePool(t *testing.T, original *coreapi.HCPOpenShiftClusterNodePool) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
 
@@ -101,11 +102,11 @@ func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) 
 		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
 		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
 		t.Logf("Original: %s\n\nIntermediate: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
-		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, api.CmpDiffOptions...))
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, coreapi.CmpDiffOptions...))
 	}
 }
 
-func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExternalAuth) {
+func roundTripExternalAuth(t *testing.T, original *coreapi.HCPOpenShiftClusterExternalAuth) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterExternalAuth(original)
 
@@ -117,6 +118,6 @@ func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExtern
 		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
 		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
 		t.Logf("Original: %s\n\nIntermediate: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
-		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, api.CmpDiffOptions...))
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, coreapi.CmpDiffOptions...))
 	}
 }

@@ -32,7 +32,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -78,7 +78,7 @@ type PerInstanceController interface {
 // constructs a ReadDesireKubernetesController via realPerInstanceFactory;
 // tests pass a recording fake.
 type PerInstanceFactory interface {
-	Build(key keys.ReadDesireKey, target kubeapplier.ResourceReference) (PerInstanceController, error)
+	Build(key keys.ReadDesireKey, target kubeapplierapi.ResourceReference) (PerInstanceController, error)
 }
 
 // ReadDesireInformerManagingController watches ReadDesires and manages the
@@ -96,7 +96,7 @@ type ReadDesireInformerManagingController struct {
 	readDesireInformer cache.SharedIndexInformer
 	fetcher            *readDesireFetcher
 	factory            PerInstanceFactory
-	writer             desirestatuswriter.StatusWriter[kubeapplier.ReadDesire, keys.ReadDesireKey]
+	writer             desirestatuswriter.StatusWriter[kubeapplierapi.ReadDesire, keys.ReadDesireKey]
 	queue              workqueue.TypedRateLimitingInterface[keys.ReadDesireKey]
 
 	cfg Config
@@ -111,7 +111,7 @@ type ReadDesireInformerManagingController struct {
 }
 
 type runningInstance struct {
-	target kubeapplier.ResourceReference
+	target kubeapplierapi.ResourceReference
 	cancel context.CancelFunc
 	done   chan struct{}
 }
@@ -145,7 +145,7 @@ func NewReadDesireInformerManagingController(
 			workqueue.DefaultTypedControllerRateLimiter[keys.ReadDesireKey](),
 			workqueue.TypedRateLimitingQueueConfig[keys.ReadDesireKey]{Name: ReadDesireInformerManagingControllerName},
 		),
-		writer: desirestatuswriter.New[kubeapplier.ReadDesire, keys.ReadDesireKey, *kubeapplier.ReadDesire](
+		writer: desirestatuswriter.New[kubeapplierapi.ReadDesire, keys.ReadDesireKey, *kubeapplierapi.ReadDesire](
 			fetcher,
 			&readDesireReplacer{crudByParent: crudByParent},
 		),
@@ -183,7 +183,7 @@ type realPerInstanceFactory struct {
 var _ PerInstanceFactory = &realPerInstanceFactory{}
 
 func (f *realPerInstanceFactory) Build(
-	key keys.ReadDesireKey, target kubeapplier.ResourceReference,
+	key keys.ReadDesireKey, target kubeapplierapi.ResourceReference,
 ) (PerInstanceController, error) {
 	return read_desire_kubernetes.NewReadDesireKubernetesController(key, target, f.dyn, f.crudByParent)
 }
@@ -213,7 +213,7 @@ func (c *ReadDesireInformerManagingController) Run(ctx context.Context, threadin
 
 // handleAdd queues every observed Add unconditionally.
 func (c *ReadDesireInformerManagingController) handleAdd(obj any) {
-	d, ok := obj.(*kubeapplier.ReadDesire)
+	d, ok := obj.(*kubeapplierapi.ReadDesire)
 	if !ok {
 		return
 	}
@@ -223,7 +223,7 @@ func (c *ReadDesireInformerManagingController) handleAdd(obj any) {
 // handleUpdate enqueues the key unconditionally. The informer's
 // ResyncPeriod controls how often unchanged items are re-delivered.
 func (c *ReadDesireInformerManagingController) handleUpdate(_, newObj any) {
-	newD, newOK := newObj.(*kubeapplier.ReadDesire)
+	newD, newOK := newObj.(*kubeapplierapi.ReadDesire)
 	if !newOK {
 		return
 	}
@@ -235,10 +235,10 @@ func (c *ReadDesireInformerManagingController) handleUpdate(_, newObj any) {
 // wrapper appears when the cache evicted the object before delivery, and
 // we still want to drive a stop in that case.
 func (c *ReadDesireInformerManagingController) handleDelete(obj any) {
-	d, ok := obj.(*kubeapplier.ReadDesire)
+	d, ok := obj.(*kubeapplierapi.ReadDesire)
 	if !ok {
 		if t, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-			d, _ = t.Obj.(*kubeapplier.ReadDesire)
+			d, _ = t.Obj.(*kubeapplierapi.ReadDesire)
 		}
 	}
 	if d == nil {
@@ -247,7 +247,7 @@ func (c *ReadDesireInformerManagingController) handleDelete(obj any) {
 	c.enqueue(d)
 }
 
-func (c *ReadDesireInformerManagingController) enqueue(d *kubeapplier.ReadDesire) {
+func (c *ReadDesireInformerManagingController) enqueue(d *kubeapplierapi.ReadDesire) {
 	key, err := keys.ReadDesireKeyFromResourceID(d.GetResourceID())
 	if err != nil {
 		utilruntime.HandleError(err)
@@ -312,7 +312,7 @@ func (c *ReadDesireInformerManagingController) SyncOnce(ctx context.Context, key
 	if err != nil {
 		// PreCheckError or any other construction failure: record it on status,
 		// don't enter a Running state.
-		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplier.ReadDesire) {
+		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ReadDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 		})
 	}
@@ -382,9 +382,9 @@ type readDesireFetcher struct {
 	crudByParent kubeappliercosmosstorage.KubeApplierReadDesireCRUD
 }
 
-var _ desirestatuswriter.Fetcher[kubeapplier.ReadDesire, keys.ReadDesireKey] = &readDesireFetcher{}
+var _ desirestatuswriter.Fetcher[kubeapplierapi.ReadDesire, keys.ReadDesireKey] = &readDesireFetcher{}
 
-func (f *readDesireFetcher) Fetch(ctx context.Context, key keys.ReadDesireKey) (*kubeapplier.ReadDesire, error) {
+func (f *readDesireFetcher) Fetch(ctx context.Context, key keys.ReadDesireKey) (*kubeapplierapi.ReadDesire, error) {
 	crud, err := key.CRUD(f.crudByParent)
 	if err != nil {
 		return nil, fmt.Errorf("crud for key %v: %w", key, err)
@@ -402,9 +402,9 @@ type readDesireReplacer struct {
 	crudByParent kubeappliercosmosstorage.KubeApplierReadDesireCRUD
 }
 
-var _ desirestatuswriter.Replacer[kubeapplier.ReadDesire] = &readDesireReplacer{}
+var _ desirestatuswriter.Replacer[kubeapplierapi.ReadDesire] = &readDesireReplacer{}
 
-func (r *readDesireReplacer) Replace(ctx context.Context, desired *kubeapplier.ReadDesire) error {
+func (r *readDesireReplacer) Replace(ctx context.Context, desired *kubeapplierapi.ReadDesire) error {
 	key, err := keys.ReadDesireKeyFromResourceID(desired.GetResourceID())
 	if err != nil {
 		return fmt.Errorf("derive key for replace: %w", err)

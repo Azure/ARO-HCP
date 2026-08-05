@@ -20,8 +20,7 @@ import (
 	"strings"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -44,7 +43,7 @@ func (v *AzureResourceProvidersRegistrationValidation) Name() string {
 }
 
 func (v *AzureResourceProvidersRegistrationValidation) Validate(
-	ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster,
+	ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster,
 ) error {
 	resourceProvidersToCheck := []string{
 		"Microsoft.Authorization",

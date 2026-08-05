@@ -33,8 +33,7 @@ import (
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -44,7 +43,7 @@ import (
 func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 	fixture := operationtesting.NewExternalAuthTestFixture()
 
-	externalAuthPassingExtraReconcileGate := func() *api.HCPOpenShiftClusterExternalAuth {
+	externalAuthPassingExtraReconcileGate := func() *coreapi.HCPOpenShiftClusterExternalAuth {
 		now := time.Now()
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
@@ -54,7 +53,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name                                string
-		existingExternalAuth                *api.HCPOpenShiftClusterExternalAuth
+		existingExternalAuth                *coreapi.HCPOpenShiftClusterExternalAuth
 		wantErr                             bool
 		verifyDB                            func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 		usesNewExternalAuthDeletionApproach bool
@@ -66,12 +65,12 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 			},
 		},
 		{
 			name: "shouldReconcile gate not passed skips cluster service",
-			existingExternalAuth: func() *api.HCPOpenShiftClusterExternalAuth {
+			existingExternalAuth: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				ea := fixture.NewExternalAuth()
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				return ea
@@ -80,12 +79,12 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
 			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
-			existingExternalAuth: func() *api.HCPOpenShiftClusterExternalAuth {
+			existingExternalAuth: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				ea := fixture.NewExternalAuth()
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: time.Now()}
@@ -96,7 +95,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -119,7 +118,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -142,7 +141,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateDeleting, op.Status)
 			},
 		},
 		{
@@ -166,7 +165,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				assert.NotNil(t, op.Error)
 				assert.Equal(t, "something went wrong", op.Error.Message)
 			},
@@ -186,7 +185,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -203,7 +202,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 
 				_, err = db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).ExternalAuth(operationtesting.TestClusterName).Get(ctx, operationtesting.TestExternalAuthName)
 				assert.Error(t, err, "external auth should have been deleted")
@@ -225,7 +224,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 	}

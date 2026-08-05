@@ -26,7 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -144,9 +144,9 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 // (https://github.com/openshift/enhancements/pull/1950), so we use it where available. Clusters below 4.22
 // still rely on status.version.history until Hypershift backports controlPlaneVersion; once that lands,
 // the same field will be used automatically when history is present.
-func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx context.Context, hostedCluster *hsv1beta1.HostedCluster) ([]api.HCPClusterActiveVersion, error) {
+func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx context.Context, hostedCluster *hsv1beta1.HostedCluster) ([]coreapi.HCPClusterActiveVersion, error) {
 	logger := utils.LoggerFromContext(ctx)
-	var activeVersions []api.HCPClusterActiveVersion
+	var activeVersions []coreapi.HCPClusterActiveVersion
 	// Prefer controlPlaneVersion.history when set.
 	// This is available on 4.22+ clusters,  older clusters once Hypershift backports it.
 	if len(hostedCluster.Status.ControlPlaneVersion.History) > 0 {
@@ -156,7 +156,7 @@ func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx con
 				logger.Error(err, "Skipping HostedCluster controlPlaneVersion history entry with unparseable version", "history", historyEntry)
 				continue
 			}
-			activeVersions = append(activeVersions, api.HCPClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
+			activeVersions = append(activeVersions, coreapi.HCPClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
 			if historyEntry.State == configv1.CompletedUpdate {
 				return activeVersions, nil
 			}
@@ -173,7 +173,7 @@ func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx con
 			logger.Error(err, "Skipping HostedCluster version history entry with unparseable version", "history", historyEntry)
 			continue
 		}
-		activeVersions = append(activeVersions, api.HCPClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
+		activeVersions = append(activeVersions, coreapi.HCPClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
 		if historyEntry.State == configv1.CompletedUpdate {
 			return activeVersions, nil
 		}

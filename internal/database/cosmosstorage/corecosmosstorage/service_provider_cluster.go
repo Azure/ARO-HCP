@@ -22,7 +22,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
@@ -32,10 +33,10 @@ import (
 // the given resource ID as its parent. The resource ID is assumed to be a
 // cluster resource ID.
 // The returned value can be used to consistently initialize a new ServiceProviderCluster
-func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *api.ServiceProviderCluster {
-	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", clusterResourceID.String(), api.ServiceProviderClusterResourceTypeName, api.ServiceProviderClusterResourceName)))
-	return &api.ServiceProviderCluster{
-		CosmosMetadata: api.CosmosMetadata{
+func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *coreapi.ServiceProviderCluster {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", clusterResourceID.String(), coreapi.ServiceProviderClusterResourceTypeName, coreapi.ServiceProviderClusterResourceName)))
+	return &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
@@ -48,9 +49,9 @@ func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *
 func GetOrCreateServiceProviderCluster(
 	ctx context.Context, dbClient ResourcesDBClient, clusterResourceID *azcorearm.ResourceID,
 	secondAttempt ...bool,
-) (*api.ServiceProviderCluster, error) {
-	if !armhelpers.ResourceTypeEqual(clusterResourceID.ResourceType, api.ClusterResourceType) {
-		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.ClusterResourceType, clusterResourceID.ResourceType))
+) (*coreapi.ServiceProviderCluster, error) {
+	if !armhelpers.ResourceTypeEqual(clusterResourceID.ResourceType, coreapi.ClusterResourceType) {
+		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", coreapi.ClusterResourceType, clusterResourceID.ResourceType))
 	}
 
 	serviceProviderClustersDBClient := dbClient.ServiceProviderClusters(
@@ -59,7 +60,7 @@ func GetOrCreateServiceProviderCluster(
 		clusterResourceID.Name,
 	)
 
-	existingServiceProviderCluster, err := serviceProviderClustersDBClient.Get(ctx, api.ServiceProviderClusterResourceName)
+	existingServiceProviderCluster, err := serviceProviderClustersDBClient.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	switch {
 	case err == nil:
 		return existingServiceProviderCluster, nil
@@ -80,7 +81,7 @@ func GetOrCreateServiceProviderCluster(
 		return nil, utils.TrackError(err)
 	}
 
-	existingServiceProviderCluster, err = serviceProviderClustersDBClient.Get(ctx, api.ServiceProviderClusterResourceName)
+	existingServiceProviderCluster, err = serviceProviderClustersDBClient.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	switch {
 	case err == nil:
 		return existingServiceProviderCluster, nil

@@ -32,8 +32,7 @@ import (
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -43,29 +42,29 @@ import (
 )
 
 func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
-	defaultNodePool := func(fixture *operationtesting.NodePoolTestFixture) *api.HCPOpenShiftClusterNodePool {
+	defaultNodePool := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
 		return fixture.NewNodePool()
 	}
 
-	nodePoolWithoutCSID := func(fixture *operationtesting.NodePoolTestFixture) *api.HCPOpenShiftClusterNodePool {
+	nodePoolWithoutCSID := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
 		np := fixture.NewNodePool()
 		np.ServiceProviderProperties.ClusterServiceID = nil
 		return np
 	}
 
-	nodePoolWithDeletionTimestamp := func(fixture *operationtesting.NodePoolTestFixture) *api.HCPOpenShiftClusterNodePool {
+	nodePoolWithDeletionTimestamp := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
 		np := fixture.NewNodePool()
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 		return np
 	}
 
-	nodePoolWithMismatchedActiveOperationID := func(fixture *operationtesting.NodePoolTestFixture) *api.HCPOpenShiftClusterNodePool {
+	nodePoolWithMismatchedActiveOperationID := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
 		np := fixture.NewNodePool()
 		np.ServiceProviderProperties.ActiveOperationID = "other-operation"
 		return np
 	}
 
-	nodePoolWithEmptyActiveOperationID := func(fixture *operationtesting.NodePoolTestFixture) *api.HCPOpenShiftClusterNodePool {
+	nodePoolWithEmptyActiveOperationID := func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
 		np := fixture.NewNodePool()
 		np.ServiceProviderProperties.ActiveOperationID = ""
 		return np
@@ -96,9 +95,9 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 	tests := []struct {
 		name              string
 		clock             utilsclock.PassiveClock
-		nodePool          func(fixture *operationtesting.NodePoolTestFixture) *api.HCPOpenShiftClusterNodePool
+		nodePool          func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool
 		setupCSMock       func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture)
-		existingOperation *api.Operation
+		existingOperation *coreapi.Operation
 		// When not set, the controller uses an active operations lister that contains the existingOperation
 		activeOperationsLister corelisters.ActiveOperationLister
 		expectError            bool
@@ -114,11 +113,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, nodePool.Properties.ProvisioningState)
 				assert.Empty(t, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -132,11 +131,11 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateProvisioning, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, nodePool.Properties.ProvisioningState)
 				assert.Equal(t, operationtesting.TestOperationName, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -150,13 +149,13 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				assert.NotNil(t, op.Error)
 				assert.Equal(t, "[clusterServiceNodePoolStatus] node pool creation failed", op.Error.Message)
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, nodePool.Properties.ProvisioningState)
 				assert.Empty(t, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -170,7 +169,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -183,7 +182,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -193,7 +192,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -203,7 +202,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -213,7 +212,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -223,13 +222,13 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
 			name:  "deadline exceeded marks operation as failed",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
-			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *api.HCPOpenShiftClusterNodePool {
+			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
 				np := fixture.NewNodePool()
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
 				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
@@ -242,15 +241,15 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, arm.CloudErrorCodeInternalServerError, op.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
 			},
 		},
 		{
 			name:  "deadline not yet exceeded continues with provisioning",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T11:00:00Z")),
-			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *api.HCPOpenShiftClusterNodePool {
+			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
 				np := fixture.NewNodePool()
 				deadline := metav1.NewTime(operationtesting.MustParseTime("2025-01-15T11:30:00Z"))
 				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
@@ -263,7 +262,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateProvisioning, op.Status)
 			},
 		},
 		{
@@ -271,7 +270,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			nodePool:          defaultNodePool,
 			existingOperation: preconditionExistingOperation,
 			activeOperationsLister: &corelistertesting.SliceActiveOperationLister{
-				Operations: []*api.Operation{preconditionListerOperation},
+				Operations: []*coreapi.Operation{preconditionListerOperation},
 			},
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(operationbase.NodePoolStateReady), "")
@@ -279,7 +278,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status, "operation should be unchanged after optimistic concurrency conflict")
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status, "operation should be unchanged after optimistic concurrency conflict")
 			},
 		},
 	}

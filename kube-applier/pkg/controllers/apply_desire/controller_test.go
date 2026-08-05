@@ -34,15 +34,16 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
 )
 
 // testMgmtClusterID is the resourceID stamped into Spec.ManagementCluster.
-var testMgmtClusterID = api.Must(azcorearm.ParseResourceID(
+var testMgmtClusterID = metadataapi.Must(azcorearm.ParseResourceID(
 	"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1"))
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -62,8 +63,8 @@ func fakeDynamic(t *testing.T, gvrToListKind map[schema.GroupVersionResource]str
 	return fake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrToListKind)
 }
 
-func configMapTarget(name string) kubeapplier.ResourceReference {
-	return kubeapplier.ResourceReference{
+func configMapTarget(name string) kubeapplierapi.ResourceReference {
+	return kubeapplierapi.ResourceReference{
 		Group: "", Version: "v1", Resource: "configmaps", Namespace: "default", Name: name,
 	}
 }
@@ -90,29 +91,29 @@ func newCadenceController(t *testing.T, cfg Config) *ApplyDesireController {
 // Used to drive processNext down the AddRateLimited path.
 type errFetcher struct{ err error }
 
-func (f *errFetcher) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplier.ApplyDesire, error) {
+func (f *errFetcher) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplierapi.ApplyDesire, error) {
 	return nil, f.err
 }
 
 // staticFetcher implements desirestatuswriter.Fetcher by returning a deep-copy
 // of the pre-loaded desire. Tests wire it into the controller so SyncOnce
 // always has an object to work with.
-type staticFetcher struct{ desire *kubeapplier.ApplyDesire }
+type staticFetcher struct{ desire *kubeapplierapi.ApplyDesire }
 
-func (f *staticFetcher) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplier.ApplyDesire, error) {
+func (f *staticFetcher) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplierapi.ApplyDesire, error) {
 	return f.desire.DeepCopy(), nil
 }
 
 // capturingReplacer implements desirestatuswriter.Replacer by storing the
 // latest status write so tests can assert on the resulting conditions.
-type capturingReplacer struct{ last *kubeapplier.ApplyDesire }
+type capturingReplacer struct{ last *kubeapplierapi.ApplyDesire }
 
-func (r *capturingReplacer) Replace(_ context.Context, d *kubeapplier.ApplyDesire) error {
+func (r *capturingReplacer) Replace(_ context.Context, d *kubeapplierapi.ApplyDesire) error {
 	r.last = d.DeepCopy()
 	return nil
 }
 
-func mustKey(t *testing.T, d *kubeapplier.ApplyDesire) keys.ApplyDesireKey {
+func mustKey(t *testing.T, d *kubeapplierapi.ApplyDesire) keys.ApplyDesireKey {
 	t.Helper()
 	key, err := keys.ApplyDesireKeyFromResourceID(d.GetResourceID())
 	if err != nil {
@@ -125,22 +126,22 @@ func mustKey(t *testing.T, d *kubeapplier.ApplyDesire) keys.ApplyDesireKey {
 // TargetItem and kubeContent JSON. Pass nil kubeContent to exercise the
 // empty-kubeContent PreCheck. Pass a partial target to exercise the
 // targetItem-validation PreChecks.
-func newApplyDesire(t *testing.T, name string, target kubeapplier.ResourceReference, kubeContent []byte) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, name string, target kubeapplierapi.ResourceReference, kubeContent []byte) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	d := &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+	d := &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 				"00000000-0000-0000-0000-000000000001", "rg", "cluster", name,
 			)),
 		},
-		Spec: kubeapplier.ApplyDesireSpec{
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: testMgmtClusterID,
-			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
 			TargetItem:        target,
 		},
 	}
 	if kubeContent != nil {
-		d.Spec.ServerSideApply = &kubeapplier.ServerSideApplyConfig{
+		d.Spec.ServerSideApply = &kubeapplierapi.ServerSideApplyConfig{
 			KubeContent: &runtime.RawExtension{Raw: kubeContent},
 		}
 	}
@@ -150,7 +151,7 @@ func newApplyDesire(t *testing.T, name string, target kubeapplier.ResourceRefere
 // withEtag is a tiny helper for cadence tests that need to construct
 // before/after pairs distinguishable by the change-detection signal the
 // controller uses (CosmosETag).
-func withEtag(d *kubeapplier.ApplyDesire, etag string) *kubeapplier.ApplyDesire {
+func withEtag(d *kubeapplierapi.ApplyDesire, etag string) *kubeapplierapi.ApplyDesire {
 	d.CosmosETag = azcore.ETag(etag)
 	return d
 }
@@ -222,19 +223,19 @@ func TestApplyDesired_PreCheckErrors(t *testing.T) {
 
 	cases := []struct {
 		name        string
-		target      kubeapplier.ResourceReference
+		target      kubeapplierapi.ResourceReference
 		kubeContent []byte
 		wantSubstr  string
 	}{
 		{
 			name:        "missing version in targetItem",
-			target:      kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"},
+			target:      kubeapplierapi.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"},
 			kubeContent: validKubeContent,
 			wantSubstr:  "version, resource, and name",
 		},
 		{
 			name:        "missing resource in targetItem",
-			target:      kubeapplier.ResourceReference{Version: "v1", Namespace: "default", Name: "x"},
+			target:      kubeapplierapi.ResourceReference{Version: "v1", Namespace: "default", Name: "x"},
 			kubeContent: validKubeContent,
 			wantSubstr:  "version, resource, and name",
 		},
@@ -373,7 +374,7 @@ func TestSyncOnce_AppliedKubeGenerationSetOnSuccess(t *testing.T) {
 	c := &ApplyDesireController{
 		dyn:     dyn,
 		fetcher: fetcher,
-		writer: desirestatuswriter.New[kubeapplier.ApplyDesire, keys.ApplyDesireKey, *kubeapplier.ApplyDesire](
+		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](
 			fetcher, replacer,
 		),
 	}
@@ -415,7 +416,7 @@ func TestSyncOnce_AppliedKubeGenerationNilOnFailure(t *testing.T) {
 	c := &ApplyDesireController{
 		dyn:     dyn,
 		fetcher: fetcher,
-		writer: desirestatuswriter.New[kubeapplier.ApplyDesire, keys.ApplyDesireKey, *kubeapplier.ApplyDesire](
+		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](
 			fetcher, replacer,
 		),
 	}
@@ -440,17 +441,17 @@ func TestSyncOnce_AppliedKubeGenerationNilOnFailure(t *testing.T) {
 
 // newDeleteDesire builds an ApplyDesire with Type=Delete and a populated
 // TargetItem. Used to exercise the evaluateDelete state machine.
-func newDeleteDesire(t *testing.T, name string, target kubeapplier.ResourceReference) *kubeapplier.ApplyDesire {
+func newDeleteDesire(t *testing.T, name string, target kubeapplierapi.ResourceReference) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 				"00000000-0000-0000-0000-000000000001", "rg", "cluster", name,
 			)),
 		},
-		Spec: kubeapplier.ApplyDesireSpec{
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: testMgmtClusterID,
-			Type:              kubeapplier.ApplyDesireTypeDelete,
+			Type:              kubeapplierapi.ApplyDesireTypeDelete,
 			TargetItem:        target,
 		},
 	}
@@ -488,12 +489,12 @@ func TestEvaluateDelete_TargetGoneIsSuccessful(t *testing.T) {
 	})
 	c := &ApplyDesireController{dyn: dyn}
 
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "missing",
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	if got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful); got == nil ||
+	if got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful); got == nil ||
 		got.Status != metav1.ConditionTrue {
 		t.Errorf("Successful=%v, want True (target absent)", got)
 	}
@@ -507,17 +508,17 @@ func TestEvaluateDelete_TargetWithDeletionTimestampWaits(t *testing.T) {
 		newConfigMap("doomed", "default", true))
 	c := &ApplyDesireController{dyn: dyn}
 
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "doomed",
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
 	if got == nil || got.Status != metav1.ConditionFalse {
 		t.Fatalf("Successful=%v, want False (waiting)", got)
 	}
-	if got.Reason != kubeapplier.ConditionReasonWaitingForDeletion {
-		t.Errorf("Reason = %q, want %q", got.Reason, kubeapplier.ConditionReasonWaitingForDeletion)
+	if got.Reason != kubeapplierapi.ConditionReasonWaitingForDeletion {
+		t.Errorf("Reason = %q, want %q", got.Reason, kubeapplierapi.ConditionReasonWaitingForDeletion)
 	}
 	if !strings.Contains(got.Message, "doomed-uid") {
 		t.Errorf("Message %q does not contain UID", got.Message)
@@ -559,13 +560,13 @@ func TestEvaluateDelete_PresentNoTSIssuesDelete_ThenWaitsForFinalizers(t *testin
 	})
 
 	c := &ApplyDesireController{dyn: dyn}
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "d1",
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
-	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplier.ConditionReasonWaitingForDeletion {
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplierapi.ConditionReasonWaitingForDeletion {
 		t.Errorf("Successful=%v, want False/WaitingForDeletion", got)
 	}
 }
@@ -581,13 +582,13 @@ func TestEvaluateDelete_DeleteAPIErrorClassifiesAsKubeAPIError(t *testing.T) {
 		return true, nil, apierrors.NewServiceUnavailable("apiserver unavailable")
 	})
 	c := &ApplyDesireController{dyn: dyn}
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "d2",
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
-	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplier.ConditionReasonKubeAPIError {
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplierapi.ConditionReasonKubeAPIError {
 		t.Errorf("Successful=%v, want False/KubeAPIError", got)
 	}
 }
@@ -595,13 +596,13 @@ func TestEvaluateDelete_DeleteAPIErrorClassifiesAsKubeAPIError(t *testing.T) {
 func TestEvaluateDelete_BadTargetIsPreCheckFailed(t *testing.T) {
 	dyn := fake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), nil)
 	c := &ApplyDesireController{dyn: dyn}
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		// Missing Resource and Name.
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
-	if got == nil || got.Reason != kubeapplier.ConditionReasonPreCheckFailed {
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	if got == nil || got.Reason != kubeapplierapi.ConditionReasonPreCheckFailed {
 		t.Errorf("Successful=%v, want PreCheckFailed", got)
 	}
 }

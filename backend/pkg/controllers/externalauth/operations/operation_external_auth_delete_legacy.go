@@ -23,25 +23,25 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func (c *operationExternalAuthDelete) legacyShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationExternalAuthDelete) legacyShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != cosmosstorageutils.OperationRequestDelete {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.ExternalAuthResourceType.String()) {
 		return false
 	}
 	return true
 }
 
-func (c *operationExternalAuthDelete) legacySynchronizeOperation(ctx context.Context, operation *api.Operation) error {
+func (c *operationExternalAuthDelete) legacySynchronizeOperation(ctx context.Context, operation *coreapi.Operation) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	if !c.legacyShouldProcess(ctx, operation) {

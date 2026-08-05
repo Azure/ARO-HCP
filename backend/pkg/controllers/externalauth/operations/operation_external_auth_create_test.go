@@ -31,8 +31,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -41,29 +40,29 @@ import (
 )
 
 func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
-	defaultExternalAuth := func(fixture *operationtesting.ExternalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth {
+	defaultExternalAuth := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.HCPOpenShiftClusterExternalAuth {
 		return fixture.NewExternalAuth()
 	}
 
-	externalAuthWithoutCSID := func(fixture *operationtesting.ExternalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth {
+	externalAuthWithoutCSID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.HCPOpenShiftClusterExternalAuth {
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.ClusterServiceID = nil
 		return ea
 	}
 
-	externalAuthWithDeletionTimestamp := func(fixture *operationtesting.ExternalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth {
+	externalAuthWithDeletionTimestamp := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.HCPOpenShiftClusterExternalAuth {
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 		return ea
 	}
 
-	externalAuthWithMismatchedActiveOperationID := func(fixture *operationtesting.ExternalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth {
+	externalAuthWithMismatchedActiveOperationID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.HCPOpenShiftClusterExternalAuth {
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.ActiveOperationID = "other-operation"
 		return ea
 	}
 
-	externalAuthWithEmptyActiveOperationID := func(fixture *operationtesting.ExternalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth {
+	externalAuthWithEmptyActiveOperationID := func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.HCPOpenShiftClusterExternalAuth {
 		ea := fixture.NewExternalAuth()
 		ea.ServiceProviderProperties.ActiveOperationID = ""
 		return ea
@@ -71,7 +70,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		externalAuth func(fixture *operationtesting.ExternalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth
+		externalAuth func(fixture *operationtesting.ExternalAuthTestFixture) *coreapi.HCPOpenShiftClusterExternalAuth
 		setupCSMock  func(ctrl *gomock.Controller, fixture *operationtesting.ExternalAuthTestFixture) ocm.ClusterServiceClientSpec
 		expectError  bool
 		verify       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture)
@@ -93,11 +92,11 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 
 				externalAuth, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).ExternalAuth(operationtesting.TestClusterName).Get(ctx, operationtesting.TestExternalAuthName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, externalAuth.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, externalAuth.Properties.ProvisioningState)
 				assert.Empty(t, externalAuth.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -120,7 +119,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -129,7 +128,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -138,7 +137,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -147,7 +146,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ExternalAuthTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 	}

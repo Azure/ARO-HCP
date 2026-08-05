@@ -22,24 +22,24 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	testclock "k8s.io/utils/clock/testing"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 type fakeManagementClusterLister struct {
-	clusters map[string]*fleet.ManagementCluster
+	clusters map[string]*fleetapi.ManagementCluster
 }
 
-func (f *fakeManagementClusterLister) List(_ context.Context) ([]*fleet.ManagementCluster, error) {
-	result := make([]*fleet.ManagementCluster, 0, len(f.clusters))
+func (f *fakeManagementClusterLister) List(_ context.Context) ([]*fleetapi.ManagementCluster, error) {
+	result := make([]*fleetapi.ManagementCluster, 0, len(f.clusters))
 	for _, managementCluster := range f.clusters {
 		result = append(result, managementCluster)
 	}
 	return result, nil
 }
 
-func (f *fakeManagementClusterLister) Get(_ context.Context, stampIdentifier string) (*fleet.ManagementCluster, error) {
+func (f *fakeManagementClusterLister) Get(_ context.Context, stampIdentifier string) (*fleetapi.ManagementCluster, error) {
 	managementCluster, ok := f.clusters[stampIdentifier]
 	if !ok {
 		return nil, cosmosstorageutils.NewNotFoundError()
@@ -47,16 +47,16 @@ func (f *fakeManagementClusterLister) Get(_ context.Context, stampIdentifier str
 	return managementCluster, nil
 }
 
-func (f *fakeManagementClusterLister) GetByCSProvisionShardID(_ context.Context, _ string) (*fleet.ManagementCluster, error) {
+func (f *fakeManagementClusterLister) GetByCSProvisionShardID(_ context.Context, _ string) (*fleetapi.ManagementCluster, error) {
 	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func boolPtr(b bool) *bool { return &b }
 
-func testManagementCluster(stampIdentifier string, ready *bool) *fleet.ManagementCluster {
-	resourceID, _ := fleet.ToManagementClusterResourceID(stampIdentifier)
-	managementCluster := &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+func testManagementCluster(stampIdentifier string, ready *bool) *fleetapi.ManagementCluster {
+	resourceID, _ := fleetapi.ToManagementClusterResourceID(stampIdentifier)
+	managementCluster := &fleetapi.ManagementCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID},
 	}
 	if ready != nil {
 		status := metav1.ConditionFalse
@@ -65,7 +65,7 @@ func testManagementCluster(stampIdentifier string, ready *bool) *fleet.Managemen
 		}
 		managementCluster.Status.Conditions = []metav1.Condition{
 			{
-				Type:   string(fleet.ManagementClusterConditionReady),
+				Type:   string(fleetapi.ManagementClusterConditionReady),
 				Status: status,
 			},
 		}
@@ -79,7 +79,7 @@ func TestRegistrationAwareCooldown(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		clusters   map[string]*fleet.ManagementCluster
+		clusters   map[string]*fleetapi.ManagementCluster
 		key        any
 		elapsed    time.Duration
 		wantFirst  bool
@@ -87,7 +87,7 @@ func TestRegistrationAwareCooldown(t *testing.T) {
 	}{
 		{
 			name: "ready cluster uses registered (slow) cooldown - blocked within window",
-			clusters: map[string]*fleet.ManagementCluster{
+			clusters: map[string]*fleetapi.ManagementCluster{
 				"ready-mc": testManagementCluster("ready-mc", boolPtr(true)),
 			},
 			key:        StampKey{StampIdentifier: "ready-mc"},
@@ -97,7 +97,7 @@ func TestRegistrationAwareCooldown(t *testing.T) {
 		},
 		{
 			name: "ready cluster uses registered (slow) cooldown - allowed after window",
-			clusters: map[string]*fleet.ManagementCluster{
+			clusters: map[string]*fleetapi.ManagementCluster{
 				"ready-mc": testManagementCluster("ready-mc", boolPtr(true)),
 			},
 			key:        StampKey{StampIdentifier: "ready-mc"},
@@ -107,7 +107,7 @@ func TestRegistrationAwareCooldown(t *testing.T) {
 		},
 		{
 			name: "not-ready cluster uses unregistered (fast) cooldown - blocked within window",
-			clusters: map[string]*fleet.ManagementCluster{
+			clusters: map[string]*fleetapi.ManagementCluster{
 				"pending-mc": testManagementCluster("pending-mc", boolPtr(false)),
 			},
 			key:        StampKey{StampIdentifier: "pending-mc"},
@@ -117,7 +117,7 @@ func TestRegistrationAwareCooldown(t *testing.T) {
 		},
 		{
 			name: "not-ready cluster uses unregistered (fast) cooldown - allowed after window",
-			clusters: map[string]*fleet.ManagementCluster{
+			clusters: map[string]*fleetapi.ManagementCluster{
 				"pending-mc": testManagementCluster("pending-mc", boolPtr(false)),
 			},
 			key:        StampKey{StampIdentifier: "pending-mc"},
@@ -127,7 +127,7 @@ func TestRegistrationAwareCooldown(t *testing.T) {
 		},
 		{
 			name: "missing Ready condition uses unregistered (fast) cooldown",
-			clusters: map[string]*fleet.ManagementCluster{
+			clusters: map[string]*fleetapi.ManagementCluster{
 				"no-condition-mc": testManagementCluster("no-condition-mc", nil),
 			},
 			key:        StampKey{StampIdentifier: "no-condition-mc"},
@@ -137,7 +137,7 @@ func TestRegistrationAwareCooldown(t *testing.T) {
 		},
 		{
 			name: "Ready=False uses unregistered (fast) cooldown",
-			clusters: map[string]*fleet.ManagementCluster{
+			clusters: map[string]*fleetapi.ManagementCluster{
 				"false-mc": testManagementCluster("false-mc", boolPtr(false)),
 			},
 			key:        StampKey{StampIdentifier: "false-mc"},
@@ -147,7 +147,7 @@ func TestRegistrationAwareCooldown(t *testing.T) {
 		},
 		{
 			name:       "unknown cluster uses unregistered (fast) cooldown",
-			clusters:   map[string]*fleet.ManagementCluster{},
+			clusters:   map[string]*fleetapi.ManagementCluster{},
 			key:        StampKey{StampIdentifier: "unknown-mc"},
 			elapsed:    unregisteredCooldown + time.Second,
 			wantFirst:  true,

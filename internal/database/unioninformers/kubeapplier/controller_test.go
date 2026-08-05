@@ -27,9 +27,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -172,13 +173,13 @@ func (s *stubFactory) runs() []*stubFactoryRun {
 // --- fixtures -------------------------------------------------------------
 
 // stamp identifiers and canonical management-cluster resourceIDs. The
-// SliceManagementClusterLister.Get uses fleet.ToManagementClusterResourceIDString,
+// SliceManagementClusterLister.Get uses fleetapi.ToManagementClusterResourceIDString,
 // so MCs registered with the lister must carry the matching canonical form.
 var (
 	ctlMgmtAStamp = "1"
 	ctlMgmtBStamp = "2"
-	ctlMgmtAID    = api.Must(fleet.ToManagementClusterResourceID(ctlMgmtAStamp))
-	ctlMgmtBID    = api.Must(fleet.ToManagementClusterResourceID(ctlMgmtBStamp))
+	ctlMgmtAID    = metadataapi.Must(fleetapi.ToManagementClusterResourceID(ctlMgmtAStamp))
+	ctlMgmtBID    = metadataapi.Must(fleetapi.ToManagementClusterResourceID(ctlMgmtBStamp))
 )
 
 const (
@@ -188,25 +189,25 @@ const (
 	ctlNodePool = "np"
 )
 
-func ctlNewApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplier.ApplyDesire {
+func ctlNewApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplierapi.ApplyDesire {
 	t.Helper()
 	id, err := azcorearm.ParseResourceID(idStr)
 	if err != nil {
 		t.Fatalf("parse %q: %v", idStr, err)
 	}
-	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: id, PartitionKey: strings.ToLower(mgmt.String())},
-		Spec: kubeapplier.ApplyDesireSpec{
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: id, PartitionKey: strings.ToLower(mgmt.String())},
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: mgmt,
-			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
-			ServerSideApply:   &kubeapplier.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)}},
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			ServerSideApply:   &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)}},
 		},
 	}
 }
 
-func ctlMC(rid *azcorearm.ResourceID) *fleet.ManagementCluster {
-	return &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.Name)},
+func ctlMC(rid *azcorearm.ResourceID) *fleetapi.ManagementCluster {
+	return &fleetapi.ManagementCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.Name)},
 		ResourceID:     rid,
 	}
 }
@@ -232,10 +233,10 @@ func TestController_AddRegistersSubInformer(t *testing.T) {
 
 	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
 			ctlMgmtAID),
 		ctlNewApplyDesire(t,
-			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, ctlNodePool, "a2"),
+			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, ctlNodePool, "a2"),
 			ctlMgmtAID),
 	})
 	if err != nil {
@@ -247,7 +248,7 @@ func TestController_AddRegistersSubInformer(t *testing.T) {
 
 	mcInformer := newFakeMCInformer()
 	mcLister := &fleetlistertesting.SliceManagementClusterLister{
-		ManagementClusters: []*fleet.ManagementCluster{ctlMC(ctlMgmtAID)},
+		ManagementClusters: []*fleetapi.ManagementCluster{ctlMC(ctlMgmtAID)},
 	}
 	ctl := unionkubeapplier.NewUnionKubeApplierInformersController(mcInformer, mcLister, factory)
 
@@ -281,10 +282,10 @@ func TestController_RemoveDropsSubInformer(t *testing.T) {
 
 	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
 			ctlMgmtAID),
 		ctlNewApplyDesire(t,
-			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, ctlNodePool, "a2"),
+			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, ctlNodePool, "a2"),
 			ctlMgmtAID),
 	})
 	if err != nil {
@@ -294,7 +295,7 @@ func TestController_RemoveDropsSubInformer(t *testing.T) {
 
 	mockB, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, "other-cluster", "b1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, "other-cluster", "b1"),
 			ctlMgmtBID),
 	})
 	if err != nil {
@@ -374,7 +375,7 @@ func TestController_FactoryNilSkipsRegistrationAndRetries(t *testing.T) {
 	// Wire up the factory and emit Update so the controller retries.
 	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
 			ctlMgmtAID),
 	})
 	if err != nil {
@@ -498,7 +499,7 @@ func TestController_SyncOnceDirect(t *testing.T) {
 	// Direct SyncOnce on a known MC adds it.
 	if err := ctl.SyncOnce(ctx, unionkubeapplier.ManagementClusterKey{
 		StampIdentifier:       ctlMgmtAStamp,
-		ManagementClusterName: fleet.ManagementClusterResourceName,
+		ManagementClusterName: fleetapi.ManagementClusterResourceName,
 	}); err != nil {
 		t.Fatalf("SyncOnce known: %v", err)
 	}
@@ -516,7 +517,7 @@ func TestController_SyncOnceDirect(t *testing.T) {
 	// to delete).
 	if err := ctl.SyncOnce(ctx, unionkubeapplier.ManagementClusterKey{
 		StampIdentifier:       "99",
-		ManagementClusterName: fleet.ManagementClusterResourceName,
+		ManagementClusterName: fleetapi.ManagementClusterResourceName,
 	}); err != nil {
 		t.Errorf("SyncOnce unknown: %v", err)
 	}
@@ -535,25 +536,25 @@ type mutableMCLister struct {
 	inner fleetlistertesting.SliceManagementClusterLister
 }
 
-func (m *mutableMCLister) set(mcs ...*fleet.ManagementCluster) {
+func (m *mutableMCLister) set(mcs ...*fleetapi.ManagementCluster) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.inner.ManagementClusters = append([]*fleet.ManagementCluster(nil), mcs...)
+	m.inner.ManagementClusters = append([]*fleetapi.ManagementCluster(nil), mcs...)
 }
 
-func (m *mutableMCLister) List(ctx context.Context) ([]*fleet.ManagementCluster, error) {
+func (m *mutableMCLister) List(ctx context.Context) ([]*fleetapi.ManagementCluster, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.inner.List(ctx)
 }
 
-func (m *mutableMCLister) Get(ctx context.Context, stampIdentifier string) (*fleet.ManagementCluster, error) {
+func (m *mutableMCLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.ManagementCluster, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.inner.Get(ctx, stampIdentifier)
 }
 
-func (m *mutableMCLister) GetByCSProvisionShardID(ctx context.Context, shardID string) (*fleet.ManagementCluster, error) {
+func (m *mutableMCLister) GetByCSProvisionShardID(ctx context.Context, shardID string) (*fleetapi.ManagementCluster, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.inner.GetByCSProvisionShardID(ctx, shardID)

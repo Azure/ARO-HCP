@@ -28,7 +28,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -44,7 +45,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		HCPClusterName:    testClusterName,
 	}
 
-	withDeletionStampsClusterOptsFunc := func(c *api.HCPOpenShiftCluster) {
+	withDeletionStampsClusterOptsFunc := func(c *coreapi.HCPOpenShiftCluster) {
 		c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 		c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 	}
@@ -60,7 +61,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		existingCluster   *api.HCPOpenShiftCluster
+		existingCluster   *coreapi.HCPOpenShiftCluster
 		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
 		wantErr           bool
 		wantErrContain    string
@@ -71,7 +72,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			existingCluster: newTestClusterWithNewDeletionApproach(t, withDeletionStampsClusterOptsFunc),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
-					GetClusterStatus(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+					GetClusterStatus(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
 					Return(nil, fakeOCMNotFoundError())
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
@@ -85,7 +86,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			existingCluster: newTestClusterWithNewDeletionApproach(t, withDeletionStampsClusterOptsFunc),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
-					GetClusterStatus(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+					GetClusterStatus(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
 					Return(nil, nil)
 			},
 			verifyDB: verifyClusterServiceIDUnchanged,
@@ -97,14 +98,14 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not yet -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			}),
 			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "ClusterServiceID already cleared -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				withDeletionStampsClusterOptsFunc(c)
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -119,7 +120,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			existingCluster: newTestClusterWithNewDeletionApproach(t, withDeletionStampsClusterOptsFunc),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
-					GetClusterStatus(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+					GetClusterStatus(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
 					Return(nil, errors.New("boom"))
 			},
 			wantErr:        true,
@@ -152,7 +153,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 				tc.setupMockCSClient(mockCSClient)
 			}
 
-			clustersForLister := []*api.HCPOpenShiftCluster{}
+			clustersForLister := []*coreapi.HCPOpenShiftCluster{}
 			if tc.existingCluster != nil {
 				clustersForLister = append(clustersForLister, tc.existingCluster)
 			}

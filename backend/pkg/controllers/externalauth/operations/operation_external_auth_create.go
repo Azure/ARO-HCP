@@ -28,8 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -92,14 +91,14 @@ func NewOperationExternalAuthCreateController(
 	return controller
 }
 
-func (c *operationExternalAuthCreate) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationExternalAuthCreate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != cosmosstorageutils.OperationRequestCreate {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.ExternalAuthResourceType.String()) {
 		return false
 	}
 	return true
@@ -143,13 +142,13 @@ func (c *operationExternalAuthCreate) SynchronizeOperation(ctx context.Context, 
 		return utils.TrackError(err)
 	}
 
-	var persistErr *arm.CloudErrorBody
-	if operationalState.ProvisioningState == arm.ProvisioningStateFailed {
-		persistErr = &arm.CloudErrorBody{
+	var persistErr *coreapi.CloudErrorBody
+	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
+		persistErr = &coreapi.CloudErrorBody{
 			// TODO for now we always set the error code to InternalServerError, but we should improve to be able
 			// to be more specific than that when we calculate operationalState. When work is done to improve on this, we
 			// should design it in a way where no internal details are exposed to the operation's error.
-			Code:    arm.CloudErrorCodeInternalServerError,
+			Code:    coreapi.CloudErrorCodeInternalServerError,
 			Message: operationalState.Message,
 		}
 	}
@@ -167,11 +166,11 @@ func (c *operationExternalAuthCreate) SynchronizeOperation(ctx context.Context, 
 	return nil
 }
 
-func (c *operationExternalAuthCreate) shouldReconcileOperationAndResourceStatus(externalAuth *api.HCPOpenShiftClusterExternalAuth) bool {
+func (c *operationExternalAuthCreate) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) bool {
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp == nil && externalAuth.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationExternalAuthCreate) determineOperationState(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
+func (c *operationExternalAuthCreate) determineOperationState(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	var errs []error
@@ -202,13 +201,13 @@ func (c *operationExternalAuthCreate) determineOperationState(ctx context.Contex
 	return picked, nil
 }
 
-func (c *operationExternalAuthCreate) externalAuthClusterServiceCreateOperationState(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
+func (c *operationExternalAuthCreate) externalAuthClusterServiceCreateOperationState(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 	_, err := c.clusterServiceClient.GetExternalAuth(ctx, *externalAuth.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
-	logger.Info("new status via cluster-service", "newStatus", arm.ProvisioningStateSucceeded)
-	return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	logger.Info("new status via cluster-service", "newStatus", coreapi.ProvisioningStateSucceeded)
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }

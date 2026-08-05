@@ -29,7 +29,7 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -99,7 +99,7 @@ func NewExternalAuthClusterServiceUpdateDispatchSyncer(
 	}
 }
 
-func needsWork(ea *api.HCPOpenShiftClusterExternalAuth) bool {
+func needsWork(ea *coreapi.HCPOpenShiftClusterExternalAuth) bool {
 	if ea.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
@@ -238,7 +238,7 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 }
 
 // marshalClusterServiceExternalAuthUpdatePayload serializes the external auth PATCH body for logging.
-func (c *externalAuthClusterServiceUpdateDispatchSyncer) marshalClusterServiceExternalAuthUpdatePayload(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth) (string, error) {
+func (c *externalAuthClusterServiceUpdateDispatchSyncer) marshalClusterServiceExternalAuthUpdatePayload(ctx context.Context, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) (string, error) {
 	builder, err := ocm.BuildCSExternalAuth(ctx, externalAuth, true)
 	if err != nil {
 		return "", err

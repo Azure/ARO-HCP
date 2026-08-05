@@ -21,7 +21,8 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // clusterUpdateDispatchConfig is a dispatch-specific canonical model of the Cluster's
@@ -42,14 +43,14 @@ import (
 // Note: This does not include all fields updatable via the Cluster's Cluster Service API, only
 // the subset that the cluster's cluster service update dispatch controller considers.
 //
-// Note: Do not embed internal/api struct types (for example api.ClusterAutoscalingProfile,
-// api.ImageDigestMirror, or api.ExperimentalFeatures) in this struct or its nested field types. We want to make
+// Note: Do not embed internal/api struct types (for example coreapi.ClusterAutoscalingProfile,
+// coreapi.ImageDigestMirror, or coreapi.ExperimentalFeatures) in this struct or its nested field types. We want to make
 // those internal/api struct types independent of this so they can evolve independently. For example, if a field here
 // referenced an internal/api struct type directly, any new field added to that struct would be automatically considered
 // as updatable automatically, but we might not want that field to be updatable and/or CS side doesn't really support
 // updating it. Instead, define curated local structs with only the fields that dispatch should
 // hash and sync, and copy values explicitly from api types at the conversion boundaries. Using api/internal enum or
-// scalar types for individual curated fields is fine (for example api.ControlPlaneAvailability). This is because
+// scalar types for individual curated fields is fine (for example coreapi.ControlPlaneAvailability). This is because
 // adding an enum/scalar field they do not pull extra fields, but adding struct types does.
 //
 // IMPORTANT: how to add a new dispatch-managed config field:
@@ -120,14 +121,14 @@ type clusterUpdateDispatchConfig struct {
 }
 
 // clusterUpdateDispatchConfigImageDigestMirror is the curated image mirror subset used for
-// dispatch hash and sync. See clusterUpdateDispatchConfig: do not embed api.ImageDigestMirror.
+// dispatch hash and sync. See clusterUpdateDispatchConfig: do not embed coreapi.ImageDigestMirror.
 type clusterUpdateDispatchConfigImageDigestMirror struct {
 	Source  string   `json:"source,omitempty"`
 	Mirrors []string `json:"mirrors,omitempty"`
 }
 
 // clusterUpdateDispatchConfigAutoscaling is the curated autoscaling subset used for dispatch
-// hash and sync. See clusterUpdateDispatchConfig: do not embed api.ClusterAutoscalingProfile.
+// hash and sync. See clusterUpdateDispatchConfig: do not embed coreapi.ClusterAutoscalingProfile.
 type clusterUpdateDispatchConfigAutoscaling struct {
 	MaxNodesTotal               int32 `json:"maxNodesTotal,omitempty"`
 	MaxPodGracePeriodSeconds    int32 `json:"maxPodGracePeriodSeconds,omitempty"`
@@ -136,15 +137,15 @@ type clusterUpdateDispatchConfigAutoscaling struct {
 }
 
 // clusterUpdateDispatchConfigExperimentalFeatures is the curated experimental subset used for
-// dispatch hash and sync. See clusterUpdateDispatchConfig: do not embed api.ExperimentalFeatures.
+// dispatch hash and sync. See clusterUpdateDispatchConfig: do not embed coreapi.ExperimentalFeatures.
 type clusterUpdateDispatchConfigExperimentalFeatures struct {
-	ControlPlaneAvailability  api.ControlPlaneAvailability `json:"controlPlaneAvailability,omitempty"`
-	ControlPlanePodSizing     api.ControlPlanePodSizing    `json:"controlPlanePodSizing,omitempty"`
-	ControlPlaneOperatorImage string                       `json:"controlPlaneOperatorImage,omitempty"`
+	ControlPlaneAvailability  coreapi.ControlPlaneAvailability `json:"controlPlaneAvailability,omitempty"`
+	ControlPlanePodSizing     coreapi.ControlPlanePodSizing    `json:"controlPlanePodSizing,omitempty"`
+	ControlPlaneOperatorImage string                           `json:"controlPlaneOperatorImage,omitempty"`
 }
 
 // clusterUpdateDispatchConfigServiceProviderClusterDispatch holds the dispatch-managed
-// subset of api.ServiceProviderCluster fields included in cluster update dispatch.
+// subset of coreapi.ServiceProviderCluster fields included in cluster update dispatch.
 type clusterUpdateDispatchConfigServiceProviderClusterDispatch struct {
 	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
 }
@@ -171,7 +172,7 @@ type clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey st
 
 // ClusterUpdateDispatchConfigJSONFromRP returns the canonical JSON of the dispatch config
 // projected from RP desired state.
-func ClusterUpdateDispatchConfigJSONFromRP(cluster *api.HCPOpenShiftCluster, serviceProviderCluster *api.ServiceProviderCluster) (string, error) {
+func ClusterUpdateDispatchConfigJSONFromRP(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (string, error) {
 	raw, err := clusterUpdateDispatchConfigFromRP(cluster, serviceProviderCluster).canonicalJSON()
 	if err != nil {
 		return "", err
@@ -194,7 +195,7 @@ func ClusterUpdateDispatchConfigJSONFromCS(csCluster *arohcpv1alpha1.Cluster) (s
 }
 
 // clusterUpdateDispatchConfigFromRP projects RP desired state into the dispatch canonical form.
-func clusterUpdateDispatchConfigFromRP(cluster *api.HCPOpenShiftCluster, serviceProviderCluster *api.ServiceProviderCluster) *clusterUpdateDispatchConfig {
+func clusterUpdateDispatchConfigFromRP(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) *clusterUpdateDispatchConfig {
 	res := &clusterUpdateDispatchConfig{
 		NodeDrainTimeoutMinutes:     cluster.CustomerProperties.NodeDrainTimeoutMinutes,
 		K8sAPIServerAuthorizedCIDRs: cluster.CustomerProperties.API.AuthorizedCIDRs,
@@ -218,13 +219,13 @@ func clusterUpdateDispatchConfigFromRP(cluster *api.HCPOpenShiftCluster, service
 
 // clusterUpdateDispatchEtcdFromRP copies kms active key version from RP etcd configuration into the
 // dispatch canonical form. Returns zero value when the cluster does not use customer-managed KMS.
-func clusterUpdateDispatchEtcdFromRP(etcd api.EtcdProfile) clusterUpdateDispatchConfigEtcd {
-	if etcd.DataEncryption.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
+func clusterUpdateDispatchEtcdFromRP(etcd coreapi.EtcdProfile) clusterUpdateDispatchConfigEtcd {
+	if etcd.DataEncryption.KeyManagementMode != metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
 		return clusterUpdateDispatchConfigEtcd{}
 	}
 
 	res := clusterUpdateDispatchConfigEtcd{}
-	if etcd.DataEncryption.CustomerManaged.EncryptionType == api.CustomerManagedEncryptionTypeKMS {
+	if etcd.DataEncryption.CustomerManaged.EncryptionType == metadataapi.CustomerManagedEncryptionTypeKMS {
 		res.DataEncryption.CustomerManaged = &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged{
 			Kms: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms{
 				ActiveKey: clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey{
@@ -239,7 +240,7 @@ func clusterUpdateDispatchEtcdFromRP(etcd api.EtcdProfile) clusterUpdateDispatch
 
 // clusterUpdateDispatchConfigImageDigestMirrorsFromRP copies image mirrors from RP into the
 // dispatch canonical form.
-func clusterUpdateDispatchConfigImageDigestMirrorsFromRP(mirrors []api.ImageDigestMirror) []clusterUpdateDispatchConfigImageDigestMirror {
+func clusterUpdateDispatchConfigImageDigestMirrorsFromRP(mirrors []coreapi.ImageDigestMirror) []clusterUpdateDispatchConfigImageDigestMirror {
 	if len(mirrors) == 0 {
 		return nil
 	}
@@ -256,7 +257,7 @@ func clusterUpdateDispatchConfigImageDigestMirrorsFromRP(mirrors []api.ImageDige
 
 // clusterUpdateDispatchConfigAutoscalingFromRP copies autoscaling settings from RP into the
 // dispatch canonical form.
-func clusterUpdateDispatchConfigAutoscalingFromRP(profile api.ClusterAutoscalingProfile) clusterUpdateDispatchConfigAutoscaling {
+func clusterUpdateDispatchConfigAutoscalingFromRP(profile coreapi.ClusterAutoscalingProfile) clusterUpdateDispatchConfigAutoscaling {
 	return clusterUpdateDispatchConfigAutoscaling{
 		MaxNodesTotal:               profile.MaxNodesTotal,
 		MaxPodGracePeriodSeconds:    profile.MaxPodGracePeriodSeconds,
@@ -360,15 +361,15 @@ func clusterUpdateDispatchConfigExperimentalFeaturesFromCS(in *arohcpv1alpha1.Cl
 		switch key {
 		case CSPropertySingleReplica:
 			if value == CSPropertyEnabled {
-				out.ControlPlaneAvailability = api.SingleReplicaControlPlane
+				out.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
 			}
 		case CSPropertySizeOverride:
 			// We only set the cluster level ControlPlanePodSizing attribute when
-			// the returned value from CS is one of the ones defined as a api.ControlPlanePodSizing.
+			// the returned value from CS is one of the ones defined as a coreapi.ControlPlanePodSizing.
 			// If it were to have a non empty value that is not among those, we consider it's a
 			// size specified via the ServiceProviderCluster's spec.
 			if value == CSPropertyE2EMinimalControlPlaneSize {
-				out.ControlPlanePodSizing = api.MinimalControlPlanePodSizing
+				out.ControlPlanePodSizing = coreapi.MinimalControlPlanePodSizing
 			}
 		case CSPropertyCPOImageOverride:
 			if value != "" {
@@ -398,13 +399,13 @@ func clusterUpdateDispatchConfigServiceProviderClusterDispatchDesiredHostedClust
 	}
 
 	// We do not set this attribute if the CS value matches any of the ones that match to a corresponding
-	// api.ControlPlanePodSizing.
+	// coreapi.ControlPlanePodSizing.
 	if property == CSPropertyE2EMinimalControlPlaneSize {
 		return nil
 	}
 
 	// When the property value does not match any of the ones any of the ones that match to a corresponding
-	// api.ControlPlanePodSizing then we assume that its value comes from having it being set beforehand through
+	// coreapi.ControlPlanePodSizing then we assume that its value comes from having it being set beforehand through
 	// ServiceProviderCluster's spec.
 	return ptr.To(property)
 }
@@ -488,7 +489,7 @@ func clusterUpdateDispatchConfigEtcdFromCS(in *arohcpv1alpha1.Azure) clusterUpda
 // clusterUpdateDispatchConfigHash returns a SHA-256 hex digest of the dispatch config
 // projected from RP desired state. The digest is computed from canonical JSON (sorted object
 // keys at every level), not from a raw json.Marshal of the struct.
-func clusterUpdateDispatchConfigHash(cluster *api.HCPOpenShiftCluster, serviceProviderCluster *api.ServiceProviderCluster) (string, error) {
+func clusterUpdateDispatchConfigHash(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) (string, error) {
 	return clusterUpdateDispatchConfigFromRP(cluster, serviceProviderCluster).hash()
 }
 
@@ -518,7 +519,7 @@ func (c *clusterUpdateDispatchConfig) applyToCSBuilders(clusterBuilder *arohcpv1
 		Unit(csNodeDrainGracePeriodUnit).
 		Value(float64(c.NodeDrainTimeoutMinutes)))
 
-	cidrBlockAccess, err := convertCIDRBlockAllowAccessRPToCS(api.CustomerAPIProfile{
+	cidrBlockAccess, err := convertCIDRBlockAllowAccessRPToCS(coreapi.CustomerAPIProfile{
 		AuthorizedCIDRs: c.K8sAPIServerAuthorizedCIDRs,
 	})
 	if err != nil {
@@ -540,7 +541,7 @@ func (c *clusterUpdateDispatchConfig) applyToCSBuilders(clusterBuilder *arohcpv1
 	}
 
 	experimentalFeatures := c.ExperimentalFeatures
-	if experimentalFeatures.ControlPlaneAvailability == api.SingleReplicaControlPlane {
+	if experimentalFeatures.ControlPlaneAvailability == coreapi.SingleReplicaControlPlane {
 		baseProperties[CSPropertySingleReplica] = CSPropertyEnabled
 	} else {
 		delete(baseProperties, CSPropertySingleReplica)
@@ -588,15 +589,15 @@ func (c *clusterUpdateDispatchConfig) applyToCSBuilders(clusterBuilder *arohcpv1
 }
 
 // clusterUpdateDispatchConfigImageDigestMirrorsToRP converts dispatch image mirrors into
-// api.ImageDigestMirror values for shared CS conversion helpers.
-func clusterUpdateDispatchConfigImageDigestMirrorsToRP(mirrors []clusterUpdateDispatchConfigImageDigestMirror) []api.ImageDigestMirror {
+// coreapi.ImageDigestMirror values for shared CS conversion helpers.
+func clusterUpdateDispatchConfigImageDigestMirrorsToRP(mirrors []clusterUpdateDispatchConfigImageDigestMirror) []coreapi.ImageDigestMirror {
 	if len(mirrors) == 0 {
 		return nil
 	}
 
-	out := make([]api.ImageDigestMirror, 0, len(mirrors))
+	out := make([]coreapi.ImageDigestMirror, 0, len(mirrors))
 	for _, mirror := range mirrors {
-		out = append(out, api.ImageDigestMirror{
+		out = append(out, coreapi.ImageDigestMirror{
 			Source:  mirror.Source,
 			Mirrors: append([]string(nil), mirror.Mirrors...),
 		})
@@ -605,9 +606,9 @@ func clusterUpdateDispatchConfigImageDigestMirrorsToRP(mirrors []clusterUpdateDi
 }
 
 // clusterUpdateDispatchConfigAutoscalingToRP converts dispatch autoscaling fields into
-// api.ClusterAutoscalingProfile for shared CS conversion helpers.
-func clusterUpdateDispatchConfigAutoscalingToRP(profile clusterUpdateDispatchConfigAutoscaling) api.ClusterAutoscalingProfile {
-	return api.ClusterAutoscalingProfile{
+// coreapi.ClusterAutoscalingProfile for shared CS conversion helpers.
+func clusterUpdateDispatchConfigAutoscalingToRP(profile clusterUpdateDispatchConfigAutoscaling) coreapi.ClusterAutoscalingProfile {
+	return coreapi.ClusterAutoscalingProfile{
 		MaxNodesTotal:               profile.MaxNodesTotal,
 		MaxPodGracePeriodSeconds:    profile.MaxPodGracePeriodSeconds,
 		MaxNodeProvisionTimeSeconds: profile.MaxNodeProvisionTimeSeconds,

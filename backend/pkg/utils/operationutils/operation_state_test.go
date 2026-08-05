@@ -19,7 +19,7 @@ import (
 
 	"github.com/tj/assert"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 func TestCompareOperationState(t *testing.T) {
@@ -39,25 +39,25 @@ func TestCompareOperationState(t *testing.T) {
 		{
 			name:     "lhs nil",
 			lhs:      nil,
-			rhs:      NewOperationState(arm.ProvisioningStateSucceeded, ""),
+			rhs:      NewOperationState(coreapi.ProvisioningStateSucceeded, ""),
 			expected: -1,
 		},
 		{
 			name:     "rhs nil",
-			lhs:      NewOperationState(arm.ProvisioningStateSucceeded, ""),
+			lhs:      NewOperationState(coreapi.ProvisioningStateSucceeded, ""),
 			rhs:      nil,
 			expected: 1,
 		},
 		{
 			name:     "Succeeded > Provisioning",
-			lhs:      NewOperationState(arm.ProvisioningStateSucceeded, ""),
-			rhs:      NewOperationState(arm.ProvisioningStateProvisioning, ""),
+			lhs:      NewOperationState(coreapi.ProvisioningStateSucceeded, ""),
+			rhs:      NewOperationState(coreapi.ProvisioningStateProvisioning, ""),
 			expected: 1,
 		},
 		{
 			name:     "Deleting < Provisioning",
-			lhs:      NewOperationState(arm.ProvisioningStateDeleting, ""),
-			rhs:      NewOperationState(arm.ProvisioningStateProvisioning, ""),
+			lhs:      NewOperationState(coreapi.ProvisioningStateDeleting, ""),
+			rhs:      NewOperationState(coreapi.ProvisioningStateProvisioning, ""),
 			expected: -1,
 		},
 	}
@@ -78,7 +78,7 @@ func TestPickWorstOperationState(t *testing.T) {
 		name        string
 		states      []*OperationState
 		wantErr     string
-		wantProv    arm.ProvisioningState
+		wantProv    coreapi.ProvisioningState
 		wantMessage string
 	}{
 		{
@@ -101,53 +101,53 @@ func TestPickWorstOperationState(t *testing.T) {
 		{
 			name: "single state without source",
 			states: []*OperationState{
-				NewOperationState(arm.ProvisioningStateFailed, "first failure"),
+				NewOperationState(coreapi.ProvisioningStateFailed, "first failure"),
 			},
-			wantProv:    arm.ProvisioningStateFailed,
+			wantProv:    coreapi.ProvisioningStateFailed,
 			wantMessage: "[<no_source>] first failure",
 		},
 		{
 			name: "single state with source",
 			states: []*OperationState{
-				NewOperationState(arm.ProvisioningStateFailed, "NotReady: cluster is not ready").WithSource("hypershiftHostedCluster"),
+				NewOperationState(coreapi.ProvisioningStateFailed, "NotReady: cluster is not ready").WithSource("hypershiftHostedCluster"),
 			},
-			wantProv:    arm.ProvisioningStateFailed,
+			wantProv:    coreapi.ProvisioningStateFailed,
 			wantMessage: "[hypershiftHostedCluster] NotReady: cluster is not ready",
 		},
 		{
 			name: "merges messages for consecutive same provisioning state",
 			states: []*OperationState{
-				NewOperationState(arm.ProvisioningStateFailed, "a"),
-				NewOperationState(arm.ProvisioningStateFailed, "b"),
-				NewOperationState(arm.ProvisioningStateFailed, "c"),
+				NewOperationState(coreapi.ProvisioningStateFailed, "a"),
+				NewOperationState(coreapi.ProvisioningStateFailed, "b"),
+				NewOperationState(coreapi.ProvisioningStateFailed, "c"),
 			},
-			wantProv:    arm.ProvisioningStateFailed,
+			wantProv:    coreapi.ProvisioningStateFailed,
 			wantMessage: "[<no_source>] a; [<no_source>] b; [<no_source>] c",
 		},
 		{
 			name: "merges messages with sources",
 			states: []*OperationState{
-				NewOperationState(arm.ProvisioningStateFailed, "a").WithSource("checkA"),
-				NewOperationState(arm.ProvisioningStateFailed, "b").WithSource("checkB"),
+				NewOperationState(coreapi.ProvisioningStateFailed, "a").WithSource("checkA"),
+				NewOperationState(coreapi.ProvisioningStateFailed, "b").WithSource("checkB"),
 			},
-			wantProv:    arm.ProvisioningStateFailed,
+			wantProv:    coreapi.ProvisioningStateFailed,
 			wantMessage: "[checkA] a; [checkB] b",
 		},
 		{
 			name: "stops merging when provisioning state changes",
 			states: []*OperationState{
-				NewOperationState(arm.ProvisioningStateFailed, "worst"),
-				NewOperationState(arm.ProvisioningStateSucceeded, "ignored"),
+				NewOperationState(coreapi.ProvisioningStateFailed, "worst"),
+				NewOperationState(coreapi.ProvisioningStateSucceeded, "ignored"),
 			},
-			wantProv:    arm.ProvisioningStateFailed,
+			wantProv:    coreapi.ProvisioningStateFailed,
 			wantMessage: "[<no_source>] worst",
 		},
 		{
 			name: "empty message uses placeholder",
 			states: []*OperationState{
-				NewOperationState(arm.ProvisioningStateFailed, "").WithSource("checkA"),
+				NewOperationState(coreapi.ProvisioningStateFailed, "").WithSource("checkA"),
 			},
-			wantProv:    arm.ProvisioningStateFailed,
+			wantProv:    coreapi.ProvisioningStateFailed,
 			wantMessage: "[checkA] <no_message>",
 		},
 	}

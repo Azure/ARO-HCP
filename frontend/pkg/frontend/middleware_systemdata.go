@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -27,15 +27,15 @@ func MiddlewareSystemData(w http.ResponseWriter, r *http.Request, next http.Hand
 	logger := utils.LoggerFromContext(ctx)
 
 	// See https://eng.ms/docs/products/arm/api_contracts/resourcesystemdata
-	data := r.Header.Get(arm.HeaderNameARMResourceSystemData)
+	data := r.Header.Get(coreapi.HeaderNameARMResourceSystemData)
 	if data != "" {
-		var systemData arm.SystemData
+		var systemData coreapi.SystemData
 		err := json.Unmarshal([]byte(data), &systemData)
 		if err == nil {
 			ctx = ContextWithSystemData(ctx, &systemData)
 			r = r.WithContext(ctx)
 		} else {
-			logger.Error(err, "Failed to parse system data header", "header", arm.HeaderNameARMResourceSystemData)
+			logger.Error(err, "Failed to parse system data header", "header", coreapi.HeaderNameARMResourceSystemData)
 		}
 	}
 

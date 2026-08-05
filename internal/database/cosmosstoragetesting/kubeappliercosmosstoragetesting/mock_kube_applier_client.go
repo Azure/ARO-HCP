@@ -25,8 +25,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -58,8 +58,8 @@ func NewMockKubeApplierDBClient() *MockKubeApplierDBClient {
 
 // NewMockKubeApplierDBClientWithResources creates a MockKubeApplierDBClient and
 // populates it with the given *Desire resources. Supported types:
-//   - *kubeapplier.ApplyDesire
-//   - *kubeapplier.ReadDesire
+//   - *kubeapplierapi.ApplyDesire
+//   - *kubeapplierapi.ReadDesire
 func NewMockKubeApplierDBClientWithResources(ctx context.Context, resources []any) (*MockKubeApplierDBClient, error) {
 	mock := NewMockKubeApplierDBClient()
 	for i, r := range resources {
@@ -136,97 +136,97 @@ var _ corecosmosstoragetesting.MockDocumentStore = &MockKubeApplierDBClient{}
 
 func (m *MockKubeApplierDBClient) ApplyDesiresForCluster(
 	subscriptionID, resourceGroupName, clusterName string,
-) (cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
-	parentID, err := api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
+	parentID, err := coreapi.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
 	if err != nil {
 		return nil, err
 	}
-	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplier.ApplyDesire]](
-		m, parentID, kubeapplier.ClusterScopedApplyDesireResourceType,
+	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
+		m, parentID, kubeapplierapi.ClusterScopedApplyDesireResourceType,
 	), nil
 }
 
 func (m *MockKubeApplierDBClient) ApplyDesiresForNodePool(
 	subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) (cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
-	parentID, err := api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
+	parentID, err := coreapi.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	if err != nil {
 		return nil, err
 	}
-	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplier.ApplyDesire]](
-		m, parentID, kubeapplier.NodePoolScopedApplyDesireResourceType,
+	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
+		m, parentID, kubeapplierapi.NodePoolScopedApplyDesireResourceType,
 	), nil
 }
 
 func (m *MockKubeApplierDBClient) ApplyDesiresForSystemAdminCredentialRequest(
 	subscriptionID, resourceGroupName, clusterName, credentialRequestName string,
-) (cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
-	parentID, err := api.ToSystemAdminCredentialRequestResourceID(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
+	parentID, err := coreapi.ToSystemAdminCredentialRequestResourceID(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
 	if err != nil {
 		return nil, err
 	}
-	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplier.ApplyDesire]](
-		m, parentID, kubeapplier.SystemAdminCredentialRequestScopedApplyDesireResourceType,
+	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
+		m, parentID, kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType,
 	), nil
 }
 
 func (m *MockKubeApplierDBClient) ApplyDesiresForSystemAdminCredentialRevocation(
 	subscriptionID, resourceGroupName, clusterName, revocationName string,
-) (cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
-	parentID, err := api.ToSystemAdminCredentialRevocationResourceID(subscriptionID, resourceGroupName, clusterName, revocationName)
+) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
+	parentID, err := coreapi.ToSystemAdminCredentialRevocationResourceID(subscriptionID, resourceGroupName, clusterName, revocationName)
 	if err != nil {
 		return nil, err
 	}
-	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplier.ApplyDesire]](
-		m, parentID, kubeapplier.SystemAdminCredentialRevocationScopedApplyDesireResourceType,
+	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
+		m, parentID, kubeapplierapi.SystemAdminCredentialRevocationScopedApplyDesireResourceType,
 	), nil
 }
 
 func (m *MockKubeApplierDBClient) ReadDesiresForCluster(
 	subscriptionID, resourceGroupName, clusterName string,
-) (cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
-	parentID, err := api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
+	parentID, err := coreapi.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
 	if err != nil {
 		return nil, err
 	}
-	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplier.ReadDesire]](
-		m, parentID, kubeapplier.ClusterScopedReadDesireResourceType,
+	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ReadDesire]](
+		m, parentID, kubeapplierapi.ClusterScopedReadDesireResourceType,
 	), nil
 }
 
 func (m *MockKubeApplierDBClient) ReadDesiresForNodePool(
 	subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) (cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
-	parentID, err := api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
+	parentID, err := coreapi.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	if err != nil {
 		return nil, err
 	}
-	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplier.ReadDesire]](
-		m, parentID, kubeapplier.NodePoolScopedReadDesireResourceType,
+	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ReadDesire]](
+		m, parentID, kubeapplierapi.NodePoolScopedReadDesireResourceType,
 	), nil
 }
 
 func (m *MockKubeApplierDBClient) ReadDesiresForSystemAdminCredentialRequest(
 	subscriptionID, resourceGroupName, clusterName, credentialRequestName string,
-) (cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
-	parentID, err := api.ToSystemAdminCredentialRequestResourceID(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
+	parentID, err := coreapi.ToSystemAdminCredentialRequestResourceID(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
 	if err != nil {
 		return nil, err
 	}
-	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplier.ReadDesire]](
-		m, parentID, kubeapplier.SystemAdminCredentialRequestScopedReadDesireResourceType,
+	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ReadDesire]](
+		m, parentID, kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType,
 	), nil
 }
 
 func (m *MockKubeApplierDBClient) ReadDesiresForSystemAdminCredentialRevocation(
 	subscriptionID, resourceGroupName, clusterName, revocationName string,
-) (cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
-	parentID, err := api.ToSystemAdminCredentialRevocationResourceID(subscriptionID, resourceGroupName, clusterName, revocationName)
+) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
+	parentID, err := coreapi.ToSystemAdminCredentialRevocationResourceID(subscriptionID, resourceGroupName, clusterName, revocationName)
 	if err != nil {
 		return nil, err
 	}
-	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplier.ReadDesire]](
-		m, parentID, kubeapplier.SystemAdminCredentialRevocationScopedReadDesireResourceType,
+	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ReadDesire]](
+		m, parentID, kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType,
 	), nil
 }
 
@@ -259,26 +259,26 @@ type mockKubeApplierListers struct {
 
 var _ kubeappliercosmosstorage.KubeApplierListers = &mockKubeApplierListers{}
 
-func (g *mockKubeApplierListers) ApplyDesires() cosmosstorageutils.GlobalLister[kubeapplier.ApplyDesire] {
-	return corecosmosstoragetesting.NewMockGlobalLister[kubeapplier.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplier.ApplyDesire]](
+func (g *mockKubeApplierListers) ApplyDesires() cosmosstorageutils.GlobalLister[kubeapplierapi.ApplyDesire] {
+	return corecosmosstoragetesting.NewMockGlobalLister[kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
 		g.store,
 		[]azcorearm.ResourceType{
-			kubeapplier.ClusterScopedApplyDesireResourceType,
-			kubeapplier.NodePoolScopedApplyDesireResourceType,
-			kubeapplier.SystemAdminCredentialRequestScopedApplyDesireResourceType,
-			kubeapplier.SystemAdminCredentialRevocationScopedApplyDesireResourceType,
+			kubeapplierapi.ClusterScopedApplyDesireResourceType,
+			kubeapplierapi.NodePoolScopedApplyDesireResourceType,
+			kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType,
+			kubeapplierapi.SystemAdminCredentialRevocationScopedApplyDesireResourceType,
 		},
 	)
 }
 
-func (g *mockKubeApplierListers) ReadDesires() cosmosstorageutils.GlobalLister[kubeapplier.ReadDesire] {
-	return corecosmosstoragetesting.NewMockGlobalLister[kubeapplier.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplier.ReadDesire]](
+func (g *mockKubeApplierListers) ReadDesires() cosmosstorageutils.GlobalLister[kubeapplierapi.ReadDesire] {
+	return corecosmosstoragetesting.NewMockGlobalLister[kubeapplierapi.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ReadDesire]](
 		g.store,
 		[]azcorearm.ResourceType{
-			kubeapplier.ClusterScopedReadDesireResourceType,
-			kubeapplier.NodePoolScopedReadDesireResourceType,
-			kubeapplier.SystemAdminCredentialRequestScopedReadDesireResourceType,
-			kubeapplier.SystemAdminCredentialRevocationScopedReadDesireResourceType,
+			kubeapplierapi.ClusterScopedReadDesireResourceType,
+			kubeapplierapi.NodePoolScopedReadDesireResourceType,
+			kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType,
+			kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType,
 		},
 	)
 }
@@ -360,9 +360,9 @@ func (k *mockKubeApplierUntypedCRUD) Child(resourceType azcorearm.ResourceType, 
 	parts := []string{k.parentResourceID.String()}
 	switch {
 	case strings.EqualFold(resourceType.Type, "resourcegroups"):
-	case resourceType.Namespace == api.ProviderNamespace && k.parentResourceID.ResourceType.Namespace != api.ProviderNamespace:
+	case resourceType.Namespace == coreapi.ProviderNamespace && k.parentResourceID.ResourceType.Namespace != coreapi.ProviderNamespace:
 		parts = append(parts, "providers", resourceType.Namespace)
-	case resourceType.Namespace != api.ProviderNamespace && k.parentResourceID.ResourceType.Namespace == api.ProviderNamespace:
+	case resourceType.Namespace != coreapi.ProviderNamespace && k.parentResourceID.ResourceType.Namespace == coreapi.ProviderNamespace:
 		return nil, fmt.Errorf("cannot switch to a non-RH provider: %q", resourceType.Namespace)
 	}
 	parts = append(parts, resourceType.Types[len(resourceType.Types)-1])
@@ -378,21 +378,21 @@ func (k *mockKubeApplierUntypedCRUD) Child(resourceType azcorearm.ResourceType, 
 
 func (m *MockKubeApplierDBClient) addResource(ctx context.Context, resource any) error {
 	switch r := resource.(type) {
-	case *kubeapplier.ApplyDesire:
+	case *kubeapplierapi.ApplyDesire:
 		return m.addApplyDesire(ctx, r)
-	case *kubeapplier.ReadDesire:
+	case *kubeapplierapi.ReadDesire:
 		return m.addReadDesire(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type for MockKubeApplierDBClient: %T", resource)
 	}
 }
 
-func (m *MockKubeApplierDBClient) addApplyDesire(ctx context.Context, d *kubeapplier.ApplyDesire) error {
+func (m *MockKubeApplierDBClient) addApplyDesire(ctx context.Context, d *kubeapplierapi.ApplyDesire) error {
 	scope, err := parentForKubeApplierDesire(d.GetResourceID())
 	if err != nil {
 		return err
 	}
-	var crud cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire]
+	var crud cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire]
 	switch {
 	case len(scope.nodePoolName) != 0:
 		crud, err = m.ApplyDesiresForNodePool(scope.subscriptionID, scope.resourceGroupName, scope.clusterName, scope.nodePoolName)
@@ -410,12 +410,12 @@ func (m *MockKubeApplierDBClient) addApplyDesire(ctx context.Context, d *kubeapp
 	return err
 }
 
-func (m *MockKubeApplierDBClient) addReadDesire(ctx context.Context, d *kubeapplier.ReadDesire) error {
+func (m *MockKubeApplierDBClient) addReadDesire(ctx context.Context, d *kubeapplierapi.ReadDesire) error {
 	scope, err := parentForKubeApplierDesire(d.GetResourceID())
 	if err != nil {
 		return err
 	}
-	var crud cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire]
+	var crud cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire]
 	switch {
 	case len(scope.nodePoolName) != 0:
 		crud, err = m.ReadDesiresForNodePool(scope.subscriptionID, scope.resourceGroupName, scope.clusterName, scope.nodePoolName)
@@ -457,13 +457,13 @@ func parentForKubeApplierDesire(resourceID *azcorearm.ResourceID) (kubeApplierDe
 	}
 	parentType := resourceID.Parent.ResourceType
 	switch {
-	case armhelpers.ResourceTypeEqual(parentType, api.ClusterResourceType):
+	case armhelpers.ResourceTypeEqual(parentType, coreapi.ClusterResourceType):
 		return kubeApplierDesireScope{
 			subscriptionID:    resourceID.SubscriptionID,
 			resourceGroupName: resourceID.ResourceGroupName,
 			clusterName:       resourceID.Parent.Name,
 		}, nil
-	case armhelpers.ResourceTypeEqual(parentType, api.NodePoolResourceType):
+	case armhelpers.ResourceTypeEqual(parentType, coreapi.NodePoolResourceType):
 		if resourceID.Parent.Parent == nil {
 			return kubeApplierDesireScope{}, fmt.Errorf(
 				"nodepool-scoped desire %q has no grandparent cluster", resourceID.String(),
@@ -475,7 +475,7 @@ func parentForKubeApplierDesire(resourceID *azcorearm.ResourceID) (kubeApplierDe
 			clusterName:       resourceID.Parent.Parent.Name,
 			nodePoolName:      resourceID.Parent.Name,
 		}, nil
-	case armhelpers.ResourceTypeEqual(parentType, api.SystemAdminCredentialRequestResourceType):
+	case armhelpers.ResourceTypeEqual(parentType, coreapi.SystemAdminCredentialRequestResourceType):
 		if resourceID.Parent.Parent == nil {
 			return kubeApplierDesireScope{}, fmt.Errorf(
 				"credential-request-scoped desire %q has no grandparent cluster", resourceID.String(),
@@ -487,7 +487,7 @@ func parentForKubeApplierDesire(resourceID *azcorearm.ResourceID) (kubeApplierDe
 			clusterName:           resourceID.Parent.Parent.Name,
 			credentialRequestName: resourceID.Parent.Name,
 		}, nil
-	case armhelpers.ResourceTypeEqual(parentType, api.SystemAdminCredentialRevocationResourceType):
+	case armhelpers.ResourceTypeEqual(parentType, coreapi.SystemAdminCredentialRevocationResourceType):
 		if resourceID.Parent.Parent == nil {
 			return kubeApplierDesireScope{}, fmt.Errorf(
 				"revocation-scoped desire %q has no grandparent cluster", resourceID.String(),

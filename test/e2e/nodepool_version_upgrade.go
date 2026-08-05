@@ -36,7 +36,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -49,8 +49,8 @@ var _ = Describe("Customer", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context, nodePoolMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
-			targetMinorVersion := api.Must(semver.ParseTolerant(targetMinor))
-			nodePoolMinorVersion := api.Must(semver.ParseTolerant(nodePoolMinor))
+			targetMinorVersion := metadataapi.Must(semver.ParseTolerant(targetMinor))
+			nodePoolMinorVersion := metadataapi.Must(semver.ParseTolerant(nodePoolMinor))
 
 			var (
 				nodePoolInitialVersion string
@@ -264,7 +264,7 @@ var _ = Describe("Customer", func() {
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to get latest version in minor %s", minor)
 
-			clusterVersion := api.Must(semver.ParseTolerant(clusterInstallVersion))
+			clusterVersion := metadataapi.Must(semver.ParseTolerant(clusterInstallVersion))
 			Expect(toVersion.LTE(clusterVersion)).To(BeTrue(),
 				"target version %s must not exceed control plane version %s", toVersion, clusterVersion)
 

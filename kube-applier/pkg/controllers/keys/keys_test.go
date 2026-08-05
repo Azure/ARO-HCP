@@ -23,8 +23,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 )
 
@@ -39,8 +39,8 @@ const (
 )
 
 func TestParseDesireParts_ClusterScoped(t *testing.T) {
-	idStr := kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testDesireName)
-	id := api.Must(azcorearm.ParseResourceID(idStr))
+	idStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testDesireName)
+	id := metadataapi.Must(azcorearm.ParseResourceID(idStr))
 
 	key, err := ApplyDesireKeyFromResourceID(id)
 	require.NoError(t, err)
@@ -53,8 +53,8 @@ func TestParseDesireParts_ClusterScoped(t *testing.T) {
 }
 
 func TestParseDesireParts_NodePoolScoped(t *testing.T) {
-	idStr := kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testNodePool, testDesireName)
-	id := api.Must(azcorearm.ParseResourceID(idStr))
+	idStr := kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testNodePool, testDesireName)
+	id := metadataapi.Must(azcorearm.ParseResourceID(idStr))
 
 	key, err := ApplyDesireKeyFromResourceID(id)
 	require.NoError(t, err)
@@ -65,8 +65,8 @@ func TestParseDesireParts_NodePoolScoped(t *testing.T) {
 }
 
 func TestParseDesireParts_SystemAdminCredentialRequestScoped(t *testing.T) {
-	idStr := kubeapplier.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testCredReq, testDesireName)
-	id := api.Must(azcorearm.ParseResourceID(idStr))
+	idStr := kubeapplierapi.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testCredReq, testDesireName)
+	id := metadataapi.Must(azcorearm.ParseResourceID(idStr))
 
 	key, err := ApplyDesireKeyFromResourceID(id)
 	require.NoError(t, err)
@@ -77,8 +77,8 @@ func TestParseDesireParts_SystemAdminCredentialRequestScoped(t *testing.T) {
 }
 
 func TestParseDesireParts_SystemAdminCredentialRevocationScoped(t *testing.T) {
-	idStr := kubeapplier.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName)
-	id := api.Must(azcorearm.ParseResourceID(idStr))
+	idStr := kubeapplierapi.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName)
+	id := metadataapi.Must(azcorearm.ParseResourceID(idStr))
 
 	key, err := ApplyDesireKeyFromResourceID(id)
 	require.NoError(t, err)
@@ -89,8 +89,8 @@ func TestParseDesireParts_SystemAdminCredentialRevocationScoped(t *testing.T) {
 }
 
 func TestParseDesireParts_ReadDesire(t *testing.T) {
-	idStr := kubeapplier.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testCredReq, testDesireName)
-	id := api.Must(azcorearm.ParseResourceID(idStr))
+	idStr := kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testCredReq, testDesireName)
+	id := metadataapi.Must(azcorearm.ParseResourceID(idStr))
 
 	key, err := ReadDesireKeyFromResourceID(id)
 	require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestParseDesireParts_ErrorCases(t *testing.T) {
 	})
 
 	t.Run("no parent", func(t *testing.T) {
-		id := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscription))
+		id := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscription))
 		_, err := ApplyDesireKeyFromResourceID(id)
 		require.Error(t, err)
 	})
@@ -120,25 +120,25 @@ func TestGetResourceID_RoundTrips(t *testing.T) {
 	}{
 		{
 			name:  "cluster-scoped apply desire",
-			idStr: kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testDesireName),
+			idStr: kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testDesireName),
 		},
 		{
 			name:  "nodepool-scoped apply desire",
-			idStr: kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testNodePool, testDesireName),
+			idStr: kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testNodePool, testDesireName),
 		},
 		{
 			name:  "credential-request-scoped apply desire",
-			idStr: kubeapplier.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testCredReq, testDesireName),
+			idStr: kubeapplierapi.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testCredReq, testDesireName),
 		},
 		{
 			name:  "revocation-scoped apply desire",
-			idStr: kubeapplier.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName),
+			idStr: kubeapplierapi.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			id := api.Must(azcorearm.ParseResourceID(tt.idStr))
+			id := metadataapi.Must(azcorearm.ParseResourceID(tt.idStr))
 			key, err := ApplyDesireKeyFromResourceID(id)
 			require.NoError(t, err)
 
@@ -155,25 +155,25 @@ func TestGetResourceID_ReadDesireRoundTrips(t *testing.T) {
 	}{
 		{
 			name:  "cluster-scoped read desire",
-			idStr: kubeapplier.ToClusterScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testDesireName),
+			idStr: kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testDesireName),
 		},
 		{
 			name:  "nodepool-scoped read desire",
-			idStr: kubeapplier.ToNodePoolScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testNodePool, testDesireName),
+			idStr: kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testNodePool, testDesireName),
 		},
 		{
 			name:  "credential-request-scoped read desire",
-			idStr: kubeapplier.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testCredReq, testDesireName),
+			idStr: kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testCredReq, testDesireName),
 		},
 		{
 			name:  "revocation-scoped read desire",
-			idStr: kubeapplier.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName),
+			idStr: kubeapplierapi.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			id := api.Must(azcorearm.ParseResourceID(tt.idStr))
+			id := metadataapi.Must(azcorearm.ParseResourceID(tt.idStr))
 			key, err := ReadDesireKeyFromResourceID(id)
 			require.NoError(t, err)
 
@@ -193,25 +193,25 @@ func TestApplyDesireKey_CRUD_DispatchesCorrectly(t *testing.T) {
 	}{
 		{
 			name:  "cluster-scoped",
-			idStr: kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testDesireName),
+			idStr: kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testDesireName),
 		},
 		{
 			name:  "nodepool-scoped",
-			idStr: kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testNodePool, testDesireName),
+			idStr: kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testNodePool, testDesireName),
 		},
 		{
 			name:  "credential-request-scoped",
-			idStr: kubeapplier.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testCredReq, testDesireName),
+			idStr: kubeapplierapi.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testCredReq, testDesireName),
 		},
 		{
 			name:  "revocation-scoped",
-			idStr: kubeapplier.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName),
+			idStr: kubeapplierapi.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			id := api.Must(azcorearm.ParseResourceID(tt.idStr))
+			id := metadataapi.Must(azcorearm.ParseResourceID(tt.idStr))
 			key, err := ApplyDesireKeyFromResourceID(id)
 			require.NoError(t, err)
 
@@ -219,7 +219,7 @@ func TestApplyDesireKey_CRUD_DispatchesCorrectly(t *testing.T) {
 			require.NoError(t, err, "CRUD dispatch should succeed")
 			require.NotNil(t, crud, "CRUD should return a non-nil value")
 
-			desire := &kubeapplier.ApplyDesire{}
+			desire := &kubeapplierapi.ApplyDesire{}
 			desire.ResourceID = id
 			desire.PartitionKey = testSubscription
 
@@ -240,25 +240,25 @@ func TestReadDesireKey_CRUD_DispatchesCorrectly(t *testing.T) {
 	}{
 		{
 			name:  "cluster-scoped",
-			idStr: kubeapplier.ToClusterScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testDesireName),
+			idStr: kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testDesireName),
 		},
 		{
 			name:  "nodepool-scoped",
-			idStr: kubeapplier.ToNodePoolScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testNodePool, testDesireName),
+			idStr: kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testNodePool, testDesireName),
 		},
 		{
 			name:  "credential-request-scoped",
-			idStr: kubeapplier.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testCredReq, testDesireName),
+			idStr: kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testCredReq, testDesireName),
 		},
 		{
 			name:  "revocation-scoped",
-			idStr: kubeapplier.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName),
+			idStr: kubeapplierapi.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			id := api.Must(azcorearm.ParseResourceID(tt.idStr))
+			id := metadataapi.Must(azcorearm.ParseResourceID(tt.idStr))
 			key, err := ReadDesireKeyFromResourceID(id)
 			require.NoError(t, err)
 
@@ -266,7 +266,7 @@ func TestReadDesireKey_CRUD_DispatchesCorrectly(t *testing.T) {
 			require.NoError(t, err, "CRUD dispatch should succeed")
 			require.NotNil(t, crud, "CRUD should return a non-nil value")
 
-			desire := &kubeapplier.ReadDesire{}
+			desire := &kubeapplierapi.ReadDesire{}
 			desire.ResourceID = id
 			desire.PartitionKey = testSubscription
 

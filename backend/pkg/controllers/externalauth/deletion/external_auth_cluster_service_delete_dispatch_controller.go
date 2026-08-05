@@ -29,7 +29,7 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -94,7 +94,7 @@ func NewExternalAuthClusterServiceDeleteDispatchController(
 // NeedsWork reports whether the deleter has unfinished business for the given
 // ExternalAuth: DeletionTimestamp must be set and ClusterServiceDeletionTimestamp
 // must not yet be set.
-func (c *externalAuthClusterServiceDeleteDispatchSyncer) NeedsWork(externalAuth *api.HCPOpenShiftClusterExternalAuth) bool {
+func (c *externalAuthClusterServiceDeleteDispatchSyncer) NeedsWork(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) bool {
 	// TODO temporary check to skip the new deletion approach for ExternalAuths that were created before the new approach was implemented.
 	// This will be removed once all externalauths whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.

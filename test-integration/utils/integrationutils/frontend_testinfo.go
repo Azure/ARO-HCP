@@ -28,8 +28,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -83,7 +84,7 @@ func Get20240610ClientFactory(frontendURL string, subscriptionID string) *hcpsdk
 	clientOpts.PerCallPolicies = []policy.Policy{
 		emptySystemData{},
 	}
-	return api.Must(
+	return metadataapi.Must(
 		hcpsdk20240610preview.NewClientFactory(subscriptionID, nil,
 			&azcorearm.ClientOptions{
 				ClientOptions: clientOpts,
@@ -96,7 +97,7 @@ var (
 	// clusterCreateOrUpdatePathRegex matches the pattern (case-insensitive):
 	// /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}
 	clusterCreateOrUpdatePathRegex = regexp.MustCompile(
-		`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/` + regexp.QuoteMeta(api.ClusterResourceType.String()) + `/[^/]+$`,
+		`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/` + regexp.QuoteMeta(coreapi.ClusterResourceType.String()) + `/[^/]+$`,
 	)
 )
 
@@ -104,15 +105,15 @@ var (
 type emptySystemData struct{}
 
 func (d emptySystemData) Do(req *policy.Request) (*http.Response, error) {
-	req.Raw().Header.Set(arm.HeaderNameARMResourceSystemData, "{}")
-	req.Raw().Header.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
+	req.Raw().Header.Set(coreapi.HeaderNameARMResourceSystemData, "{}")
+	req.Raw().Header.Set(coreapi.HeaderNameHomeTenantID, coreapitesting.TestTenantID)
 
 	// Only set X-Ms-Identity-Url header for cluster create/update requests:
 	// In AME environments, ARM sets the header but not for all resource types nor actions.
 	// We need to set the headers because in test-integration tests there's no ARM running to set them.
 	// We attempt to approximate what ARM does by checking if the request is a cluster create/update request.
 	if d.isClusterCreateOrUpdateRequest(req) {
-		req.Raw().Header.Set(arm.HeaderNameIdentityURL, api.TestManagedIdentitiesDataPlaneIdentityURL)
+		req.Raw().Header.Set(coreapi.HeaderNameIdentityURL, coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL)
 	}
 
 	return req.Next()

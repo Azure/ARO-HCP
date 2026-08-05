@@ -29,16 +29,16 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
-	largeStr := string(api.HostedClusterControlPlaneSizeLarge)
-	mediumStr := string(api.HostedClusterControlPlaneSizeMedium)
+	largeStr := string(coreapi.HostedClusterControlPlaneSizeLarge)
+	mediumStr := string(coreapi.HostedClusterControlPlaneSizeMedium)
 	// CS stores the size override in lowercase (ocm.ConvertHostedClusterSizeOverrideToCS
 	// normalizes it), so anything we seed into or expect from CS uses the
 	// lowercased form even though the API surface uses the capitalized enum.
@@ -48,7 +48,7 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 	type setup struct {
 		specSize                   *string
 		statusSize                 *string
-		cluster                    *api.HCPOpenShiftCluster
+		cluster                    *coreapi.HCPOpenShiftCluster
 		seedServiceProviderCluster bool
 		csProperties               map[string]string
 		csGetErr                   error
@@ -100,7 +100,7 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 			setup: setup{
 				seedServiceProviderCluster: true,
 				specSize:                   &largeStr,
-				cluster: newTestCluster(testClusterName, func(c *api.HCPOpenShiftCluster) {
+				cluster: newTestCluster(testClusterName, func(c *coreapi.HCPOpenShiftCluster) {
 					c.ServiceProviderProperties.ClusterServiceID = nil
 				}),
 			},
@@ -195,8 +195,8 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 				seedServiceProviderCluster: true,
 				specSize:                   nil,
 				statusSize:                 &largeStr,
-				cluster: newTestCluster(testClusterName, func(c *api.HCPOpenShiftCluster) {
-					c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = api.MinimalControlPlanePodSizing
+				cluster: newTestCluster(testClusterName, func(c *coreapi.HCPOpenShiftCluster) {
+					c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = coreapi.MinimalControlPlanePodSizing
 				}),
 				csProperties: map[string]string{
 					ocm.CSPropertySizeOverride: ocm.CSPropertyE2EMinimalControlPlaneSize,
@@ -227,9 +227,9 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 
 			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
-			var seededServiceProviderCluster *api.ServiceProviderCluster
+			var seededServiceProviderCluster *coreapi.ServiceProviderCluster
 			if tc.seedServiceProviderCluster {
-				clusterResourceID := api.Must(azcorearm.ParseResourceID(
+				clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 					"/subscriptions/" + testSubscriptionID +
 						"/resourceGroups/" + testResourceGroupName +
 						"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
@@ -248,17 +248,17 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 
 			serviceProviderClusterListerStub := &corelistertesting.SliceServiceProviderClusterLister{}
 			if seededServiceProviderCluster != nil {
-				serviceProviderClusterListerStub.ServiceProviderClusters = []*api.ServiceProviderCluster{seededServiceProviderCluster}
+				serviceProviderClusterListerStub.ServiceProviderClusters = []*coreapi.ServiceProviderCluster{seededServiceProviderCluster}
 			}
 			clusterLister := &corelistertesting.SliceClusterLister{}
 			if tc.cluster != nil {
-				clusterLister.Clusters = []*api.HCPOpenShiftCluster{tc.cluster}
+				clusterLister.Clusters = []*coreapi.HCPOpenShiftCluster{tc.cluster}
 			}
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			if tc.expectCSGet {
 				mockCSClient.EXPECT().
-					GetCluster(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+					GetCluster(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
 					Return(buildBareCSCluster(t, tc.csProperties), tc.csGetErr)
 			}
 
@@ -288,7 +288,7 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 			}
 			liveServiceProviderCluster, err := mockResourcesDBClient.
 				ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).
-				Get(ctx, api.ServiceProviderClusterResourceName)
+				Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
 			if tc.expectedStatusSize == nil {
 				assert.Nil(t, liveServiceProviderCluster.Status.DesiredHostedClusterControlPlaneSize)
@@ -300,23 +300,23 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 	}
 }
 
-func newTestServiceProviderCluster(hcpClusterName string, specSize, statusSize *string) *api.ServiceProviderCluster {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestServiceProviderCluster(hcpClusterName string, specSize, statusSize *string) *coreapi.ServiceProviderCluster {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + hcpClusterName +
-			"/" + api.ServiceProviderClusterResourceTypeName +
-			"/" + api.ServiceProviderClusterResourceName,
+			"/" + coreapi.ServiceProviderClusterResourceTypeName +
+			"/" + coreapi.ServiceProviderClusterResourceName,
 	))
-	return &api.ServiceProviderCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		Spec: api.ServiceProviderClusterSpec{
+		Spec: coreapi.ServiceProviderClusterSpec{
 			DesiredHostedClusterControlPlaneSize: specSize,
 		},
-		Status: api.ServiceProviderClusterStatus{
+		Status: coreapi.ServiceProviderClusterStatus{
 			DesiredHostedClusterControlPlaneSize: statusSize,
 		},
 	}

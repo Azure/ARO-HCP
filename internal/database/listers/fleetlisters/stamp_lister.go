@@ -19,14 +19,14 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // StampLister lists and gets stamps from an informer's indexer.
 type StampLister interface {
-	List(ctx context.Context) ([]*fleet.Stamp, error)
-	Get(ctx context.Context, stampIdentifier string) (*fleet.Stamp, error)
+	List(ctx context.Context) ([]*fleetapi.Stamp, error)
+	Get(ctx context.Context, stampIdentifier string) (*fleetapi.Stamp, error)
 }
 
 type informerBasedStampLister struct {
@@ -40,11 +40,11 @@ func NewStampLister(indexer cache.Indexer) StampLister {
 	}
 }
 
-func (l *informerBasedStampLister) List(ctx context.Context) ([]*fleet.Stamp, error) {
-	return listerutils.ListAll[fleet.Stamp](l.indexer)
+func (l *informerBasedStampLister) List(ctx context.Context) ([]*fleetapi.Stamp, error) {
+	return listerutils.ListAll[fleetapi.Stamp](l.indexer)
 }
 
-func (l *informerBasedStampLister) Get(ctx context.Context, stampIdentifier string) (*fleet.Stamp, error) {
-	key := fleet.ToStampResourceIDString(stampIdentifier)
-	return listerutils.GetByKey[fleet.Stamp](l.indexer, key)
+func (l *informerBasedStampLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.Stamp, error) {
+	key := fleetapi.ToStampResourceIDString(stampIdentifier)
+	return listerutils.GetByKey[fleetapi.Stamp](l.indexer, key)
 }

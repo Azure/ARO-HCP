@@ -39,8 +39,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -48,28 +49,28 @@ import (
 )
 
 func newClusterResourceID(t *testing.T) *azcorearm.ResourceID {
-	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
+	resourceID, err := azcorearm.ParseResourceID(coreapitesting.TestClusterResourceID)
 	require.NoError(t, err)
 	return resourceID
 }
 
 func newClusterInternalID(t *testing.T) ocm.InternalID {
-	internalID, err := api.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("myCluster"))
+	internalID, err := metadataapi.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("myCluster"))
 	require.NoError(t, err)
 	return internalID
 }
 
 // newTestSubscription creates a properly-formed subscription with CosmosMetadata set
-func newTestSubscription(subscriptionID string, state arm.SubscriptionState, props *arm.SubscriptionProperties) *arm.Subscription {
-	resourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
-	return &arm.Subscription{
-		CosmosMetadata: arm.CosmosMetadata{
+func newTestSubscription(subscriptionID string, state coreapi.SubscriptionState, props *coreapi.SubscriptionProperties) *coreapi.Subscription {
+	resourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+	return &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ResourceID:       resourceID,
 		State:            state,
-		RegistrationDate: api.Ptr(time.Now().String()),
+		RegistrationDate: metadataapi.Ptr(time.Now().String()),
 		Properties:       props,
 	}
 }
@@ -78,7 +79,7 @@ func TestOperationsList(t *testing.T) {
 	// Required operations for all resource providers.
 	// https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/proxy-api-reference.md#required-operations
 	requiredOperations := sets.New[string](
-		path.Join(api.ProviderNamespace, "register", arm.NamespaceOperationAction),
+		path.Join(coreapi.ProviderNamespace, "register", coreapi.NamespaceOperationAction),
 	)
 
 	reg := prometheus.NewRegistry()
@@ -93,7 +94,7 @@ func TestOperationsList(t *testing.T) {
 		mockResourcesDBClient,
 		nil,
 		newNoopAuditClient(t),
-		api.TestLocation,
+		coreapitesting.TestLocation,
 		true,
 	)
 
@@ -101,7 +102,7 @@ func TestOperationsList(t *testing.T) {
 	ts := newHTTPServer(ctx, f, nil, nil)
 
 	// Use a bogus API version. Frontend should disregard it.
-	resp, err := ts.Client().Get(ts.URL + "/providers/" + api.ProviderNamespace + "/operations?api-version=1999-12-31")
+	resp, err := ts.Client().Get(ts.URL + "/providers/" + coreapi.ProviderNamespace + "/operations?api-version=1999-12-31")
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -110,7 +111,7 @@ func TestOperationsList(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	var pagedResponse arm.PagedResponse
+	var pagedResponse coreapi.PagedResponse
 	err = json.Unmarshal(body, &pagedResponse)
 	require.NoError(t, err)
 
@@ -129,8 +130,8 @@ func TestOperationsList(t *testing.T) {
 			// Validate operation name.
 			nameSegments := strings.Split(name, "/")
 			assert.NotEmpty(t, nameSegments)
-			assert.Equal(t, api.ProviderNamespace, nameSegments[0])
-			assert.Contains(t, arm.ValidNamespaceOperations, nameSegments[len(nameSegments)-1])
+			assert.Equal(t, coreapi.ProviderNamespace, nameSegments[0])
+			assert.Contains(t, coreapi.ValidNamespaceOperations, nameSegments[len(nameSegments)-1])
 		}
 		if assert.Contains(t, operation, "display") {
 			display := operation["display"].(map[string]any)
@@ -157,7 +158,7 @@ func TestOperationsList(t *testing.T) {
 		if origin, ok := operation["origin"]; ok {
 			originStr, ok := origin.(string)
 			require.True(t, ok)
-			assert.Contains(t, arm.ValidNamespaceOperationOrigins, arm.NamespaceOperationOrigin(originStr))
+			assert.Contains(t, coreapi.ValidNamespaceOperationOrigins, coreapi.NamespaceOperationOrigin(originStr))
 		}
 	}
 
@@ -167,12 +168,12 @@ func TestOperationsList(t *testing.T) {
 func TestSubscriptionsGET(t *testing.T) {
 	tests := []struct {
 		name               string
-		subDoc             *arm.Subscription
+		subDoc             *coreapi.Subscription
 		expectedStatusCode int
 	}{
 		{
 			name:               "GET Subscription - Doc Exists",
-			subDoc:             newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
+			subDoc:             newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
 			expectedStatusCode: http.StatusOK,
 		},
 		{
@@ -196,19 +197,19 @@ func TestSubscriptionsGET(t *testing.T) {
 				mockResourcesDBClient,
 				nil,
 				newNoopAuditClient(t),
-				api.TestLocation,
+				coreapitesting.TestLocation,
 				true,
 			)
 
 			// Pre-populate subscription in the mock database
-			subs := make(map[string]*arm.Subscription)
+			subs := make(map[string]*coreapi.Subscription)
 			if test.subDoc != nil {
-				subs[api.TestSubscriptionID] = test.subDoc
+				subs[coreapitesting.TestSubscriptionID] = test.subDoc
 			}
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
 
-			rs, err := ts.Client().Get(ts.URL + api.TestSubscriptionResourceID + "?api-version=" + arm.SubscriptionAPIVersion)
+			rs, err := ts.Client().Get(ts.URL + coreapitesting.TestSubscriptionResourceID + "?api-version=" + coreapi.SubscriptionAPIVersion)
 			require.NoError(t, err)
 
 			assert.Equal(t, test.expectedStatusCode, rs.StatusCode)
@@ -223,20 +224,20 @@ func TestSubscriptionsPUT(t *testing.T) {
 	tests := []struct {
 		name               string
 		urlPath            string
-		subscription       *arm.Subscription
-		subDoc             *arm.Subscription
+		subscription       *coreapi.Subscription
+		subDoc             *coreapi.Subscription
 		expectUpdated      bool
 		expectedStatusCode int
 	}{
 		{
 			name:    "PUT Subscription - Doc does not exist",
-			urlPath: api.TestSubscriptionResourceID,
-			subscription: &arm.Subscription{
-				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
-				State:            arm.SubscriptionStateRegistered,
-				RegistrationDate: api.Ptr(time.Now().String()),
-				Properties: &arm.SubscriptionProperties{
-					TenantId: api.Ptr("12345678-1234-1234-1234-123456789abc"),
+			urlPath: coreapitesting.TestSubscriptionResourceID,
+			subscription: &coreapi.Subscription{
+				ResourceID:       metadataapi.Must(coreapi.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID)),
+				State:            coreapi.SubscriptionStateRegistered,
+				RegistrationDate: metadataapi.Ptr(time.Now().String()),
+				Properties: &coreapi.SubscriptionProperties{
+					TenantId: metadataapi.Ptr("12345678-1234-1234-1234-123456789abc"),
 					AdditionalProperties: &map[string]any{
 						"foo": "bar",
 						"baz": []int{1, 2, 3, 4},
@@ -256,43 +257,43 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Update with no changes",
-			urlPath: api.TestSubscriptionResourceID,
-			subscription: &arm.Subscription{
-				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
-				State:            arm.SubscriptionStateRegistered,
-				RegistrationDate: api.Ptr(time.Now().String()),
+			urlPath: coreapitesting.TestSubscriptionResourceID,
+			subscription: &coreapi.Subscription{
+				ResourceID:       metadataapi.Must(coreapi.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID)),
+				State:            coreapi.SubscriptionStateRegistered,
+				RegistrationDate: metadataapi.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
-			subDoc:             newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
+			subDoc:             newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
 			expectUpdated:      false,
 			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:    "PUT Subscription - Update registered features",
-			urlPath: api.TestSubscriptionResourceID,
-			subscription: &arm.Subscription{
-				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
-				State:            arm.SubscriptionStateRegistered,
-				RegistrationDate: api.Ptr(time.Now().String()),
-				Properties: &arm.SubscriptionProperties{
-					RegisteredFeatures: &[]arm.Feature{
+			urlPath: coreapitesting.TestSubscriptionResourceID,
+			subscription: &coreapi.Subscription{
+				ResourceID:       metadataapi.Must(coreapi.ToSubscriptionResourceID(coreapitesting.TestSubscriptionID)),
+				State:            coreapi.SubscriptionStateRegistered,
+				RegistrationDate: metadataapi.Ptr(time.Now().String()),
+				Properties: &coreapi.SubscriptionProperties{
+					RegisteredFeatures: &[]coreapi.Feature{
 						{
-							Name:  api.Ptr("Microsoft.RedHatOpenShift/TestFeature"),
-							State: api.Ptr("Registered"),
+							Name:  metadataapi.Ptr("Microsoft.RedHatOpenShift/TestFeature"),
+							State: metadataapi.Ptr("Registered"),
 						},
 					},
 				},
 			},
-			subDoc:             newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
+			subDoc:             newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
 			expectUpdated:      true,
 			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:    "PUT Subscription - Invalid Subscription",
 			urlPath: "/subscriptions/oopsie-i-no-good0",
-			subscription: &arm.Subscription{
-				State:            arm.SubscriptionStateRegistered,
-				RegistrationDate: api.Ptr(time.Now().String()),
+			subscription: &coreapi.Subscription{
+				State:            coreapi.SubscriptionStateRegistered,
+				RegistrationDate: metadataapi.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
 			subDoc:             nil,
@@ -300,9 +301,9 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Missing State",
-			urlPath: api.TestSubscriptionResourceID,
-			subscription: &arm.Subscription{
-				RegistrationDate: api.Ptr(time.Now().String()),
+			urlPath: coreapitesting.TestSubscriptionResourceID,
+			subscription: &coreapi.Subscription{
+				RegistrationDate: metadataapi.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
 			subDoc:             nil,
@@ -310,10 +311,10 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Invalid State",
-			urlPath: api.TestSubscriptionResourceID,
-			subscription: &arm.Subscription{
+			urlPath: coreapitesting.TestSubscriptionResourceID,
+			subscription: &coreapi.Subscription{
 				State:            "Bogus",
-				RegistrationDate: api.Ptr(time.Now().String()),
+				RegistrationDate: metadataapi.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
 			subDoc:             nil,
@@ -321,9 +322,9 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Missing RegistrationDate",
-			urlPath: api.TestSubscriptionResourceID,
-			subscription: &arm.Subscription{
-				State:      arm.SubscriptionStateRegistered,
+			urlPath: coreapitesting.TestSubscriptionResourceID,
+			subscription: &coreapi.Subscription{
+				State:      coreapi.SubscriptionStateRegistered,
 				Properties: nil,
 			},
 			subDoc:             nil,
@@ -345,21 +346,21 @@ func TestSubscriptionsPUT(t *testing.T) {
 				mockResourcesDBClient,
 				nil,
 				newNoopAuditClient(t),
-				api.TestLocation,
+				coreapitesting.TestLocation,
 				true,
 			)
 
 			body, err := json.Marshal(&test.subscription)
 			require.NoError(t, err)
 
-			subs := make(map[string]*arm.Subscription)
+			subs := make(map[string]*coreapi.Subscription)
 			if test.subDoc != nil {
-				subs[api.TestSubscriptionID] = test.subDoc
+				subs[coreapitesting.TestSubscriptionID] = test.subDoc
 			}
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
 
-			urlPath := test.urlPath + "?api-version=" + arm.SubscriptionAPIVersion
+			urlPath := test.urlPath + "?api-version=" + coreapi.SubscriptionAPIVersion
 			req, err := http.NewRequest(http.MethodPut, ts.URL+urlPath, bytes.NewReader(body))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
@@ -386,7 +387,7 @@ func TestDeploymentPreflight(t *testing.T) {
 	tests := []struct {
 		name         string
 		resource     map[string]any
-		expectStatus arm.DeploymentPreflightStatus
+		expectStatus coreapi.DeploymentPreflightStatus
 		expectErrors []expectedPreflightError
 	}{
 		{
@@ -397,25 +398,25 @@ func TestDeploymentPreflight(t *testing.T) {
 				"location":   "eastus",
 				"apiVersion": "2024-07-01",
 			},
-			expectStatus: arm.DeploymentPreflightStatusSucceeded,
+			expectStatus: coreapi.DeploymentPreflightStatusSucceeded,
 		},
 		{
 			name: "Unrecognized API version returns no error",
 			resource: map[string]any{
 				"name":       "my-hcp-cluster",
-				"type":       api.ClusterResourceType.String(),
+				"type":       coreapi.ClusterResourceType.String(),
 				"location":   "eastus",
 				"apiVersion": "1980-01-01",
 			},
-			expectStatus: arm.DeploymentPreflightStatusSucceeded,
+			expectStatus: coreapi.DeploymentPreflightStatusSucceeded,
 		},
 		{
 			name: "Well-formed cluster resource returns no error",
 			resource: map[string]any{
 				"name":       "my-hcp-cluster",
-				"type":       api.ClusterResourceType.String(),
+				"type":       coreapi.ClusterResourceType.String(),
 				"location":   "eastus",
-				"apiVersion": api.TestAPIVersion,
+				"apiVersion": coreapitesting.TestAPIVersion,
 				"systemData": map[string]any{
 					"createdBy":     "test-user",
 					"createdByType": "User",
@@ -430,8 +431,8 @@ func TestDeploymentPreflight(t *testing.T) {
 						"visibility": "Public",
 					},
 					"platform": map[string]any{
-						"subnetId":               api.TestSubnetResourceID,
-						"networkSecurityGroupId": api.TestNetworkSecurityGroupResourceID,
+						"subnetId":               coreapitesting.TestSubnetResourceID,
+						"networkSecurityGroupId": coreapitesting.TestNetworkSecurityGroupResourceID,
 					},
 					"etcd": map[string]any{
 						"dataEncryption": map[string]any{
@@ -451,15 +452,15 @@ func TestDeploymentPreflight(t *testing.T) {
 					},
 				},
 			},
-			expectStatus: arm.DeploymentPreflightStatusSucceeded,
+			expectStatus: coreapi.DeploymentPreflightStatusSucceeded,
 		},
 		{
 			name: "Preflight catches cluster resource with invalid fields",
 			resource: map[string]any{
 				"name":       "my-hcp-cluster",
-				"type":       api.ClusterResourceType.String(),
+				"type":       coreapi.ClusterResourceType.String(),
 				"location":   "eastus",
-				"apiVersion": api.TestAPIVersion,
+				"apiVersion": coreapitesting.TestAPIVersion,
 				"systemData": map[string]any{
 					"createdBy":     "test-user",
 					"createdByType": "User",
@@ -482,7 +483,7 @@ func TestDeploymentPreflight(t *testing.T) {
 					},
 				},
 			},
-			expectStatus: arm.DeploymentPreflightStatusFailed,
+			expectStatus: coreapi.DeploymentPreflightStatusFailed,
 			expectErrors: []expectedPreflightError{
 				{message: "Required value", target: "properties.version.id"},
 				{message: "Invalid value: \"invalidCidr\": invalid CIDR address: invalidCidr", target: "properties.network.podCidr"},
@@ -498,9 +499,9 @@ func TestDeploymentPreflight(t *testing.T) {
 			name: "Well-formed node pool resource returns no error",
 			resource: map[string]any{
 				"name":       "my-node-pool",
-				"type":       api.NodePoolResourceType.String(),
+				"type":       coreapi.NodePoolResourceType.String(),
 				"location":   "eastus",
-				"apiVersion": api.TestAPIVersion,
+				"apiVersion": coreapitesting.TestAPIVersion,
 				"systemData": map[string]any{
 					"createdBy":     "test-user",
 					"createdByType": "User",
@@ -516,15 +517,15 @@ func TestDeploymentPreflight(t *testing.T) {
 					},
 				},
 			},
-			expectStatus: arm.DeploymentPreflightStatusSucceeded,
+			expectStatus: coreapi.DeploymentPreflightStatusSucceeded,
 		},
 		{
 			name: "Preflight catches node pool resource with invalid fields",
 			resource: map[string]any{
 				"name":       "my-node-pool",
-				"type":       api.NodePoolResourceType.String(),
+				"type":       coreapi.NodePoolResourceType.String(),
 				"location":   "eastus",
-				"apiVersion": api.TestAPIVersion,
+				"apiVersion": coreapitesting.TestAPIVersion,
 				"systemData": map[string]any{
 					"createdBy":     "test-user",
 					"createdByType": "User",
@@ -555,7 +556,7 @@ func TestDeploymentPreflight(t *testing.T) {
 					},
 				},
 			},
-			expectStatus: arm.DeploymentPreflightStatusFailed,
+			expectStatus: coreapi.DeploymentPreflightStatusFailed,
 			expectErrors: []expectedPreflightError{
 				{message: "Invalid value: -1: must be greater than or equal to 64", target: "properties.platform.osDisk.sizeGiB"},
 				{message: "Invalid value: 1: must be greater than or equal to 3", target: "properties.autoScaling.max"},
@@ -569,7 +570,7 @@ func TestDeploymentPreflight(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			preflightPath := path.Join(api.TestDeploymentResourceID, "preflight")
+			preflightPath := path.Join(coreapitesting.TestDeploymentResourceID, "preflight")
 
 			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 			reg := prometheus.NewRegistry()
@@ -583,19 +584,19 @@ func TestDeploymentPreflight(t *testing.T) {
 				mockResourcesDBClient,
 				nil,
 				newNoopAuditClient(t),
-				api.TestLocation,
+				coreapitesting.TestLocation,
 				true,
 			)
 
-			subs := map[string]*arm.Subscription{
-				api.TestSubscriptionID: newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
+			subs := map[string]*coreapi.Subscription{
+				coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
 			}
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
 
 			resource, err := json.Marshal(&test.resource)
 			require.NoError(t, err)
-			preflightReq := arm.DeploymentPreflight{
+			preflightReq := coreapi.DeploymentPreflight{
 				Resources: []json.RawMessage{resource},
 			}
 			body, err := json.Marshal(&preflightReq)
@@ -614,7 +615,7 @@ func TestDeploymentPreflight(t *testing.T) {
 			body, err = io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
-			var preflightResp arm.DeploymentPreflightResponse
+			var preflightResp coreapi.DeploymentPreflightResponse
 			err = json.Unmarshal(body, &preflightResp)
 			require.NoError(t, err)
 
@@ -661,7 +662,7 @@ func TestDeploymentPreflight(t *testing.T) {
 func TestRequestAdminCredential(t *testing.T) {
 	type testCase struct {
 		name                         string
-		clusterProvisioningState     arm.ProvisioningState
+		clusterProvisioningState     coreapi.ProvisioningState
 		revokeCredentialsOperationID string
 		statusCode                   int
 	}
@@ -669,13 +670,13 @@ func TestRequestAdminCredential(t *testing.T) {
 	tests := []testCase{
 		{
 			name:                         "Request conflict: credentials revoking",
-			clusterProvisioningState:     arm.ProvisioningStateSucceeded,
+			clusterProvisioningState:     coreapi.ProvisioningStateSucceeded,
 			revokeCredentialsOperationID: "revocation-in-progress",
 			statusCode:                   http.StatusConflict,
 		},
 	}
 
-	for clusterProvisioningState := range arm.ListProvisioningStates() {
+	for clusterProvisioningState := range coreapi.ListProvisioningStates() {
 		test := testCase{
 			clusterProvisioningState: clusterProvisioningState,
 		}
@@ -708,24 +709,24 @@ func TestRequestAdminCredential(t *testing.T) {
 				mockResourcesDBClient,
 				nil,
 				newNoopAuditClient(t),
-				api.TestLocation,
+				coreapitesting.TestLocation,
 				true,
 			)
 
 			// Pre-populate the mock database with cluster and subscription
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 
-			cluster := &api.HCPOpenShiftCluster{
-				CosmosMetadata: arm.CosmosMetadata{
+			cluster := &coreapi.HCPOpenShiftCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   clusterResourceID,
 					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 				},
-				TrackedResource: arm.TrackedResource{
-					Resource: arm.Resource{
+				TrackedResource: coreapi.TrackedResource{
+					Resource: coreapi.Resource{
 						ID: clusterResourceID,
 					},
 				},
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 					ProvisioningState:            test.clusterProvisioningState,
 					ClusterServiceID:             &clusterInternalID,
 					RevokeCredentialsOperationID: test.revokeCredentialsOperationID,
@@ -736,10 +737,10 @@ func TestRequestAdminCredential(t *testing.T) {
 
 			// Add active revoke operation if needed
 			if test.clusterProvisioningState.IsTerminal() && len(test.revokeCredentialsOperationID) > 0 {
-				operationID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/locations/" + api.TestLocation + "/" + api.OperationStatusResourceTypeName + "/" + uuid.New().String()))
-				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
-				revokeOp := &api.Operation{
-					CosmosMetadata: api.CosmosMetadata{
+				operationID := metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestSubscriptionResourceID + "/providers/" + coreapi.ProviderNamespace + "/locations/" + coreapitesting.TestLocation + "/" + coreapi.OperationStatusResourceTypeName + "/" + uuid.New().String()))
+				resourceID := metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestSubscriptionResourceID + "/providers/" + coreapi.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
+				revokeOp := &coreapi.Operation{
+					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   resourceID,
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
@@ -747,18 +748,18 @@ func TestRequestAdminCredential(t *testing.T) {
 					Request:     cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation,
 					ExternalID:  clusterResourceID,
 					InternalID:  clusterInternalID,
-					Status:      arm.ProvisioningStateDeleting,
+					Status:      coreapi.ProvisioningStateDeleting,
 				}
 				_, err := mockResourcesDBClient.Operations(clusterResourceID.SubscriptionID).Create(ctx, revokeOp, nil)
 				require.NoError(t, err)
 			}
 
-			subs := map[string]*arm.Subscription{
-				api.TestSubscriptionID: newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
+			subs := map[string]*coreapi.Subscription{
+				coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
 			}
 			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
 
-			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
+			url := ts.URL + requestPath + "?api-version=" + coreapitesting.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
 			require.NoError(t, err)
 
@@ -775,7 +776,7 @@ func TestRequestAdminCredential(t *testing.T) {
 func TestRevokeCredentials(t *testing.T) {
 	type testCase struct {
 		name                         string
-		clusterProvisioningState     arm.ProvisioningState
+		clusterProvisioningState     coreapi.ProvisioningState
 		revokeCredentialsOperationID string
 		statusCode                   int
 	}
@@ -783,13 +784,13 @@ func TestRevokeCredentials(t *testing.T) {
 	tests := []testCase{
 		{
 			name:                         "Request conflict: credentials revoking",
-			clusterProvisioningState:     arm.ProvisioningStateSucceeded,
+			clusterProvisioningState:     coreapi.ProvisioningStateSucceeded,
 			revokeCredentialsOperationID: "revocation-in-progress",
 			statusCode:                   http.StatusConflict,
 		},
 	}
 
-	for clusterProvisioningState := range arm.ListProvisioningStates() {
+	for clusterProvisioningState := range coreapi.ListProvisioningStates() {
 		test := testCase{
 			clusterProvisioningState: clusterProvisioningState,
 		}
@@ -822,24 +823,24 @@ func TestRevokeCredentials(t *testing.T) {
 				mockResourcesDBClient,
 				nil,
 				newNoopAuditClient(t),
-				api.TestLocation,
+				coreapitesting.TestLocation,
 				true,
 			)
 
 			// Pre-populate the mock database with cluster
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 
-			cluster := &api.HCPOpenShiftCluster{
-				CosmosMetadata: arm.CosmosMetadata{
+			cluster := &coreapi.HCPOpenShiftCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   clusterResourceID,
 					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 				},
-				TrackedResource: arm.TrackedResource{
-					Resource: arm.Resource{
+				TrackedResource: coreapi.TrackedResource{
+					Resource: coreapi.Resource{
 						ID: clusterResourceID,
 					},
 				},
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 					ProvisioningState:            test.clusterProvisioningState,
 					ClusterServiceID:             &clusterInternalID,
 					RevokeCredentialsOperationID: test.revokeCredentialsOperationID,
@@ -850,10 +851,10 @@ func TestRevokeCredentials(t *testing.T) {
 
 			// Add active revoke operation if needed
 			if test.clusterProvisioningState.IsTerminal() && len(test.revokeCredentialsOperationID) > 0 {
-				operationID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/locations/" + api.TestLocation + "/" + api.OperationStatusResourceTypeName + "/" + uuid.New().String()))
-				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
-				revokeOp := &api.Operation{
-					CosmosMetadata: api.CosmosMetadata{
+				operationID := metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestSubscriptionResourceID + "/providers/" + coreapi.ProviderNamespace + "/locations/" + coreapitesting.TestLocation + "/" + coreapi.OperationStatusResourceTypeName + "/" + uuid.New().String()))
+				resourceID := metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestSubscriptionResourceID + "/providers/" + coreapi.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
+				revokeOp := &coreapi.Operation{
+					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   resourceID,
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
@@ -861,7 +862,7 @@ func TestRevokeCredentials(t *testing.T) {
 					Request:     cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation,
 					ExternalID:  clusterResourceID,
 					InternalID:  clusterInternalID,
-					Status:      arm.ProvisioningStateDeleting,
+					Status:      coreapi.ProvisioningStateDeleting,
 				}
 				_, err := mockResourcesDBClient.Operations(clusterResourceID.SubscriptionID).Create(ctx, revokeOp, nil)
 				require.NoError(t, err)
@@ -869,10 +870,10 @@ func TestRevokeCredentials(t *testing.T) {
 
 			// Add active request credential operation (will be cancelled) for success case
 			if test.clusterProvisioningState.IsTerminal() && len(test.revokeCredentialsOperationID) == 0 {
-				operationID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/locations/" + api.TestLocation + "/" + api.OperationStatusResourceTypeName + "/" + uuid.New().String()))
-				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
-				requestOp := &api.Operation{
-					CosmosMetadata: api.CosmosMetadata{
+				operationID := metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestSubscriptionResourceID + "/providers/" + coreapi.ProviderNamespace + "/locations/" + coreapitesting.TestLocation + "/" + coreapi.OperationStatusResourceTypeName + "/" + uuid.New().String()))
+				resourceID := metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestSubscriptionResourceID + "/providers/" + coreapi.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
+				requestOp := &coreapi.Operation{
+					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   resourceID,
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
@@ -880,18 +881,18 @@ func TestRevokeCredentials(t *testing.T) {
 					Request:     cosmosstorageutils.OperationRequestSystemAdminCredentialRequest,
 					ExternalID:  clusterResourceID,
 					InternalID:  clusterInternalID,
-					Status:      arm.ProvisioningStateProvisioning,
+					Status:      coreapi.ProvisioningStateProvisioning,
 				}
 				_, err := mockResourcesDBClient.Operations(clusterResourceID.SubscriptionID).Create(ctx, requestOp, nil)
 				require.NoError(t, err)
 			}
 
-			subs := map[string]*arm.Subscription{
-				api.TestSubscriptionID: newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
+			subs := map[string]*coreapi.Subscription{
+				coreapitesting.TestSubscriptionID: newTestSubscription(coreapitesting.TestSubscriptionID, coreapi.SubscriptionStateRegistered, nil),
 			}
 			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
 
-			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
+			url := ts.URL + requestPath + "?api-version=" + coreapitesting.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
 			require.NoError(t, err)
 
@@ -917,7 +918,7 @@ func lintMetrics(t *testing.T, r prometheus.Gatherer) {
 }
 
 // assertHTTPMetrics ensures that HTTP metrics have been recorded.
-func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Subscription) {
+func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *coreapi.Subscription) {
 	t.Helper()
 
 	metrics, err := r.Gather()
@@ -976,7 +977,7 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 // newHTTPServer returns a test HTTP server. The mock DB client will be
 // bootstrapped with the provided subscription documents for the
 // subscription collector.
-func newHTTPServer(ctx context.Context, f *Frontend, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, subs map[string]*arm.Subscription) *httptest.Server {
+func newHTTPServer(ctx context.Context, f *Frontend, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, subs map[string]*coreapi.Subscription) *httptest.Server {
 	ts := httptest.NewUnstartedServer(f.server.Handler)
 	ts.Config.BaseContext = f.server.BaseContext
 	ts.Start()

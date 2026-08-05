@@ -23,7 +23,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -71,7 +71,7 @@ func NewClusterWatchingController(
 		resourcesDBClient: resourcesDBClient,
 		syncer:            syncer,
 	}
-	clusterController := newGenericWatchingController(name, api.ClusterResourceType, controller)
+	clusterController := newGenericWatchingController(name, coreapi.ClusterResourceType, controller)
 
 	clusterInformer, clusterLister := informers.Clusters()
 	serviceProviderInformer, _ := informers.ServiceProviderClusters()
