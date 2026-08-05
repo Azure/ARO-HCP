@@ -161,6 +161,24 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
+	// Precondition: all credential request Cosmos docs must be deleted
+	preconditionMet, err = deletePreconditionAllCredentialRequestsDeleted(ctx, c.resourcesDBClient, key)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
+	}
+	if !preconditionMet {
+		return nil
+	}
+
+	// Precondition: all credential revocation Cosmos docs must be deleted
+	preconditionMet, err = deletePreconditionAllCredentialRevocationsDeleted(ctx, c.resourcesDBClient, key)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
+	}
+	if !preconditionMet {
+		return nil
+	}
+
 	// Precondition: all Cosmos child resources must be deleted (except controllers)
 	preconditionMet, err = c.deletePreconditionCosmosChildResourcesDeleted(ctx, key)
 	if err != nil {
@@ -232,6 +250,8 @@ func (c *clusterDeletionController) deletePreconditionCosmosChildResourcesDelete
 	skipSubtreeTypes := []azcorearm.ResourceType{
 		coreapi.NodePoolResourceType,
 		coreapi.ExternalAuthResourceType,
+		coreapi.SystemAdminCredentialRequestResourceType,
+		coreapi.SystemAdminCredentialRevocationResourceType,
 	}
 
 	clusterResourceID := cluster.ID
