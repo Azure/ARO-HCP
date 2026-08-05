@@ -73,10 +73,11 @@ func (d signatureDetector) Applies(node *corev1.Node) bool {
 	return d.appliesTo == nil || d.appliesTo(node)
 }
 
-// Evaluate reads the failure signal for this detector from the node's Events and
-// Pods within the detector window. Every number it returns comes from live Pod
-// state; Events only classify which pods are failing. The success signal is not
-// read here (see Decide and the controller's recorded success history).
+// Evaluate reads both the failure and the success signal for this detector from
+// the node's Events and Pods within the detector window. Every number it returns
+// comes from live Pod state; Events only classify which pods are failing. Both
+// signals are derived from the Pods passed in, so the whole evaluation is a pure
+// function of what a LIST returns and nothing has to be remembered between calls.
 func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, now time.Time) Snapshot {
 	windowStart := now.Add(-d.window)
 	snap := Snapshot{DetectorName: d.name, Window: d.window}
@@ -118,7 +119,16 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 	sigCounts := make([]int, len(d.signatures))
 
 	for _, p := range pods {
-		if p == nil || p.DeletionTimestamp != nil {
+		if p == nil {
+			continue
+		}
+		// Success is read from every pod the LIST returns, including one that is
+		// terminating: a pod that got a sandbox proves the node could build one,
+		// and that stays true while it is being torn down.
+		if at, ok := SuccessAt(p); ok && now.Sub(at).Abs() < d.window {
+			snap.RecentSuccess = true
+		}
+		if p.DeletionTimestamp != nil {
 			continue
 		}
 		// Floor and dwell are per pod. A pod counts toward the floor only once it
@@ -158,27 +168,19 @@ func (d signatureDetector) Evaluate(events []*corev1.Event, pods []*corev1.Pod, 
 }
 
 // MeetsThreshold reports whether the threshold is met: the floor of pods that
-// have each individually been stuck for at least the dwell, with no recorded
-// success in the window (when required and observable). A cold view that has not
-// yet watched a full window can never meet the threshold, so an unobserved
-// success signal is treated as indeterminate, never as zero.
-func (d signatureDetector) MeetsThreshold(snap Snapshot, now, observedSince time.Time) bool {
+// have each individually been stuck for at least the dwell, with no success in
+// the window (when required). It is a pure predicate over the snapshot, which is
+// itself a pure function of the Pods and Events a LIST returns, so a restarted
+// controller reaches the same verdict as one that has been running for hours.
+func (d signatureDetector) MeetsThreshold(snap Snapshot, now time.Time) bool {
 	// The floor counts pods each sustained past the dwell (computed in Evaluate),
 	// so meeting it already proves the storm held continuously; there is no
 	// separate oldest-pod dwell check.
 	if snap.SustainedCount < d.failuresFloor {
 		return false
 	}
-	if d.requireZeroSuccess {
-		// The success signal is only trustworthy once a full window has been
-		// observed since the controller began observing; before that, treat it as
-		// indeterminate and do not fire.
-		if observedSince.IsZero() || now.Sub(observedSince) < d.window {
-			return false
-		}
-		if snap.RecentSuccess {
-			return false
-		}
+	if d.requireZeroSuccess && snap.RecentSuccess {
+		return false
 	}
 	return true
 }
@@ -235,23 +237,72 @@ func stuckSince(p *corev1.Pod) (time.Time, bool) {
 	return cond.LastTransitionTime.Time, true
 }
 
-// SuccessAt reports whether a non-host-network pod currently shows a fresh
-// sandbox (PodReadyToStartContainers=True) and, if so, when that condition last
-// transitioned to True: proof the pod's sandbox and its SWIFT network were
-// created, which a hard-wedge cannot do. Host-network pods are excluded, since
-// they reach the condition without a delegated NIC. Keying on the transition, not
-// pod age, means a container restart inside an existing sandbox is not counted as
-// success. The controller uses this to record a durable per-node lastSuccessAt,
-// so a success survives even after its short-lived pod is deleted.
+// SuccessAt reports whether a pod proves the node built it a sandbox and, if so,
+// when: proof the pod's SWIFT network was created, which a hard-wedge cannot do.
+// Host-network pods are excluded, since they reach a running state without a
+// delegated NIC.
+//
+// Two shapes count, and both are read straight off the Pod, so the signal is
+// fully reconstructible from a LIST:
+//
+//   - A live pod showing PodReadyToStartContainers=True, timed by the condition's
+//     transition. Keying on the transition, not pod age, means a container
+//     restart inside an existing sandbox is not counted: the sandbox is what
+//     needs the network, and restarting a container in one proves nothing.
+//   - A pod that has reached a terminal phase with a container that ran exactly
+//     once, timed by that container's start. A finished pod drops
+//     PodReadyToStartContainers back to False as a matter of course, so without
+//     this a node whose recent traffic was short-lived Job and CronJob pods would
+//     read as having had no success at all. A container can only start inside a
+//     sandbox, so a first start is proof the sandbox was built, and this cannot be
+//     reached by a pod that failed to get a network.
 func SuccessAt(p *corev1.Pod) (time.Time, bool) {
 	if p == nil || p.Spec.HostNetwork {
 		return time.Time{}, false
+	}
+	if p.Status.Phase == corev1.PodSucceeded || p.Status.Phase == corev1.PodFailed {
+		return firstRunStart(p)
 	}
 	cond := podReadyToStartCondition(p)
 	if cond == nil || cond.Status != corev1.ConditionTrue {
 		return time.Time{}, false
 	}
 	return cond.LastTransitionTime.Time, true
+}
+
+// firstRunStart returns the most recent start among a terminal pod's containers
+// that ran exactly once and terminated.
+//
+// The restart count is the load-bearing part. A container's terminated state
+// describes its latest run, so on a container that restarted, StartedAt is the
+// start of a run inside the sandbox the pod already had. An established sandbox
+// survives the VF teardown, so that run needs no working network and proves
+// nothing: counting it would let a wedged node suppress its own detection, the
+// same reason kubelet Started events are unusable here. A restart count of zero
+// means the terminated state is the container's one and only run, which can only
+// have followed a sandbox the node built. Containers that did restart are simply
+// not evidence, in either direction.
+//
+// Only the terminated state is read: a waiting container never got as far as
+// needing a sandbox. Taking the latest qualifying start keeps the timestamp as
+// close as possible to when the node last demonstrably had working networking.
+func firstRunStart(p *corev1.Pod) (time.Time, bool) {
+	var latest time.Time
+	for _, css := range [][]corev1.ContainerStatus{p.Status.InitContainerStatuses, p.Status.ContainerStatuses} {
+		for _, cs := range css {
+			if cs.RestartCount != 0 {
+				continue
+			}
+			t := cs.State.Terminated
+			if t == nil || t.StartedAt.IsZero() {
+				continue
+			}
+			if latest.IsZero() || t.StartedAt.After(latest) {
+				latest = t.StartedAt.Time
+			}
+		}
+	}
+	return latest, !latest.IsZero()
 }
 
 // eventLastTime returns the latest activity time of a (possibly aggregated)

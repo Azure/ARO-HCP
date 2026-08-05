@@ -21,7 +21,6 @@ package detectors
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -34,8 +33,9 @@ type Decision int
 const (
 	// DecisionUnknown means the evidence is insufficient to make a call: leave
 	// the node's label exactly as it is. This covers a NotReady node (deferred to
-	// node lifecycle) and the cold view just after a controller restart, so an
-	// existing wedged label is retained until recovery is positively observed.
+	// node lifecycle) and a quiet node showing neither a sustained failure storm
+	// nor a success in the window, so an existing wedged label is retained until
+	// recovery is positively observed.
 	DecisionUnknown Decision = iota
 	// DecisionHealthy means recovery is confirmed (pods starting again): ensure
 	// the node is not labeled.
@@ -82,19 +82,16 @@ type Detector interface {
 	// detector, independent of any node, so callers that only need the window do
 	// not have to evaluate the detector to learn it.
 	Window() time.Duration
-	// Evaluate reads the detector's failure signals for the node from the Events
-	// and Pods currently held for it. The success signal is not read here: it is
-	// a recorded per-node history the controller passes into Decide, since a
-	// point-in-time scan cannot see a success whose Pod was already deleted.
+	// Evaluate reads the detector's signals for the node from the Events and Pods
+	// currently held for it. Both the failure and the success signal come out of
+	// the Pods passed in, so the result depends on nothing but what a LIST
+	// returns.
 	Evaluate(events []*corev1.Event, pods []*corev1.Pod, now time.Time) Snapshot
 	// MeetsThreshold reports whether the evidence already gathered from the
 	// informers meets this detector's threshold. It is a pure predicate over that
 	// evidence, not an edge trigger: the reconcile is level-driven, so this is
-	// asked again on every pass from the current state. observedSince is when the
-	// controller began observing (caches synced, or the last disabled->enabled
-	// transition); the threshold is not met until a full window has been watched,
-	// so a cold view is never misread as zero successes.
-	MeetsThreshold(snap Snapshot, now, observedSince time.Time) bool
+	// asked again on every pass from the current state.
+	MeetsThreshold(snap Snapshot, now time.Time) bool
 }
 
 // registry is the hard-coded set of detectors. A new fault family is a new
@@ -117,22 +114,6 @@ func AnyApplies(node *corev1.Node) bool {
 	return false
 }
 
-// MaxWindow returns the longest evaluation window across all detectors. The
-// controller uses it to bound its recorded per-node success history: a success
-// older than the widest window can never affect any detector, so it can be
-// pruned. The registry is hard-coded and the windows are fixed, so the result is
-// computed once: the controller calls this on every reconcile while holding the
-// observation lock.
-var MaxWindow = sync.OnceValue(func() time.Duration {
-	var max time.Duration
-	for _, d := range registry {
-		if w := d.Window(); w > max {
-			max = w
-		}
-	}
-	return max
-})
-
 // Snapshot is the read-only evidence a detector evaluated for a node, retained
 // for logging, the reason annotation, and the firing decision. Its fields are
 // exported so the controller and labeler can render them.
@@ -154,11 +135,9 @@ type Snapshot struct {
 	// tested against, so the floor means "this many pods each stuck past the
 	// dwell", not "this many stuck right now with only the oldest one aged".
 	SustainedCount int
-	// RecentSuccess reports whether the controller has a recorded per-node success
-	// (a non-host-network PodReadyToStartContainers=True transition) inside the
-	// window. It is set by Decide from the recorded lastSuccessAt, not from a scan
-	// of the pods passed in, so a success whose Pod was already deleted still
-	// counts.
+	// RecentSuccess reports whether any pod on the node proves a sandbox was built
+	// inside the window (see SuccessAt). It is read from the same Pods the failure
+	// signal is read from, so it needs no history and survives a restart.
 	RecentSuccess bool
 	// StuckSince is the oldest PodReadyToStartContainers=False lastTransitionTime
 	// among the node's currently-stuck failing pods, a GC-independent dwell signal
@@ -185,10 +164,11 @@ func (s Snapshot) ReasonString() string {
 }
 
 // Decide is the pure core of the controller: given a node, the Events and Pods
-// currently held for it, a clock, the time the controller began observing, and
-// the node's recorded last success time, it returns the desired health state. It
-// performs no I/O and is exhaustively table-tested.
-func Decide(node *corev1.Node, events []*corev1.Event, pods []*corev1.Pod, now, observedSince, lastSuccessAt time.Time) (Decision, Snapshot) {
+// currently held for it, and a clock, it returns the desired health state. It
+// performs no I/O, keeps no state between calls, and is exhaustively
+// table-tested. Every input is something a LIST can hand back, so a controller
+// that has just restarted decides exactly what a long-running one would.
+func Decide(node *corev1.Node, events []*corev1.Event, pods []*corev1.Pod, now time.Time) (Decision, Snapshot) {
 	if node == nil {
 		return DecisionUnknown, Snapshot{}
 	}
@@ -211,27 +191,19 @@ func Decide(node *corev1.Node, events []*corev1.Event, pods []*corev1.Pod, now, 
 			continue
 		}
 		snap := d.Evaluate(events, pods, now)
-		// A recorded success counts when it falls inside this detector's window.
-		// The distance is measured in absolute terms: the timestamp comes from a
-		// Pod condition stamped by the kubelet's clock, so skew can place it in the
-		// future, and a signed comparison would read any future timestamp as an
-		// arbitrarily fresh success and suppress detection until the wall clock
-		// caught up. Skew inside the window is benign, beyond it the timestamp is
-		// not usable evidence either way.
-		if !lastSuccessAt.IsZero() && now.Sub(lastSuccessAt).Abs() < snap.Window {
-			snap.RecentSuccess = true
+		if snap.RecentSuccess {
 			sawSuccess = true
 		}
-		if d.MeetsThreshold(snap, now, observedSince) {
+		if d.MeetsThreshold(snap, now) {
 			snap.Reason = d.Reason()
 			return DecisionWedged, snap
 		}
 	}
 
-	// No detector fired. Only declare recovery on positive evidence (a recorded
-	// success in the window). An empty/insufficient view stays Unknown so an
-	// existing wedged label is retained across a restart until recovery is
-	// observed.
+	// No detector fired. Only declare recovery on positive evidence (a success in
+	// the window). An empty view stays Unknown so an existing wedged label is
+	// retained until recovery is actually observed, rather than being dropped
+	// because the node happens to be quiet.
 	if sawSuccess {
 		return DecisionHealthy, Snapshot{}
 	}

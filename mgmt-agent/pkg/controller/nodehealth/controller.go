@@ -17,7 +17,6 @@ package nodehealth
 import (
 	"context"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -63,22 +62,6 @@ type Controller struct {
 	eventIndexer cache.Indexer
 	hasSynced    []cache.InformerSynced
 
-	// obsMu guards observedSince and successAt, which are read by the workers and
-	// written by the pod handlers and the config-informer thread (on a
-	// disabled->enabled transition).
-	obsMu sync.Mutex
-	// observedSince is the clock time the controller began observing: cache sync
-	// on start, or a disabled->enabled transition. Detection treats the success
-	// signal as indeterminate until a full window has elapsed since then, so a
-	// cold view after a restart or a hot enable is never misread as no-success.
-	observedSince time.Time
-	// successAt records, per node name, the most recent time the controller saw a
-	// non-host-network PodReadyToStartContainers=True transition. It is advanced
-	// from pod add/update/delete so a success survives its short-lived pod being
-	// deleted, and is pruned by window when read. It is cleared whenever
-	// observation (re)starts.
-	successAt map[string]time.Time
-
 	labeler *labeler
 	clock   func() time.Time
 
@@ -121,9 +104,8 @@ func NewController(
 			podInformer.Informer().HasSynced,
 			eventInformer.Informer().HasSynced,
 		},
-		labeler:   newLabeler(kubeClientset, recorder, clock),
-		clock:     clock,
-		successAt: make(map[string]time.Time),
+		labeler: newLabeler(kubeClientset, recorder, clock),
+		clock:   clock,
 		workqueue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{Name: ControllerName},
@@ -138,9 +120,9 @@ func NewController(
 		return nil, fmt.Errorf("failed to add node event handler: %w", err)
 	}
 	if _, err := podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(obj interface{}) { c.recordPodSuccess(obj); c.enqueuePodObject(obj) },
-		UpdateFunc: func(_, newObj interface{}) { c.recordPodSuccess(newObj); c.enqueuePodObject(newObj) },
-		DeleteFunc: func(obj interface{}) { c.recordPodSuccess(obj); c.enqueuePodObject(obj) },
+		AddFunc:    func(obj interface{}) { c.enqueuePodObject(obj) },
+		UpdateFunc: func(_, newObj interface{}) { c.enqueuePodObject(newObj) },
+		DeleteFunc: func(obj interface{}) { c.enqueuePodObject(obj) },
 	}); err != nil {
 		return nil, fmt.Errorf("failed to add pod event handler: %w", err)
 	}
@@ -179,13 +161,11 @@ func (c *Controller) OnConfigMap(cm *corev1.ConfigMap, key string) {
 	klog.InfoS("node-health config reloaded", "configmap", cm.Name, "enabled", cfg.Enabled)
 	wasEnabled := c.config.Load().Enabled
 	c.SetConfig(cfg)
-	// A disabled->enabled transition restarts observation: the success map is
-	// discarded and the observedSince warm-up begins now, so the success signal
-	// is treated as indeterminate until a full window has been watched under the
-	// enabled controller.
-	if cfg.Enabled && !wasEnabled {
-		c.beginObserving(c.clock())
-	}
+	// A disabled->enabled transition needs no handling here: detection reads both
+	// its failure and its success signal out of the informer caches, so the first
+	// reconcile after the flip sees the same evidence a controller that had been
+	// enabled all along would.
+
 	// A hot enabled->disabled flip stops all reconciles, so the gauge would
 	// otherwise freeze at its last value. Zero it immediately so a disabled
 	// controller reads zero wedged nodes rather than a stale count.
@@ -242,66 +222,6 @@ func (c *Controller) enqueueEventObject(obj interface{}) {
 	}
 }
 
-// beginObserving (re)starts the observation warm-up: it stamps observedSince to
-// now and clears any recorded success history so a fresh full window must be
-// watched before the success signal is trusted. Called after cache sync in Run
-// and on a disabled->enabled transition.
-func (c *Controller) beginObserving(now time.Time) {
-	c.obsMu.Lock()
-	defer c.obsMu.Unlock()
-	c.observedSince = now
-	c.successAt = make(map[string]time.Time)
-}
-
-// recordPodSuccess advances the per-node success timestamp when a pod shows a
-// fresh sandbox (non-host-network PodReadyToStartContainers=True). It is called
-// from the pod add/update/delete handlers, so a success is captured from the
-// pod's last-seen state even as the short-lived pod is being deleted. A disabled
-// controller records nothing: beginObserving discards the map on startup and on
-// every disabled->enabled transition, so anything recorded while off could never
-// be read, and keeping it would grow the map for every node name ever seen.
-func (c *Controller) recordPodSuccess(obj interface{}) {
-	if !c.config.Load().Enabled {
-		return
-	}
-	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-		obj = tombstone.Obj
-	}
-	pod, ok := obj.(*corev1.Pod)
-	if !ok || pod.Spec.NodeName == "" {
-		return
-	}
-	at, ok := detectors.SuccessAt(pod)
-	if !ok {
-		return
-	}
-	c.obsMu.Lock()
-	defer c.obsMu.Unlock()
-	if prev, exists := c.successAt[pod.Spec.NodeName]; !exists || at.After(prev) {
-		c.successAt[pod.Spec.NodeName] = at
-	}
-}
-
-// observation returns the node's warm-up start and its most recent recorded
-// success, pruning any success older than the widest detector window so the map
-// does not grow without bound.
-func (c *Controller) observation(node string) (observedSince, lastSuccessAt time.Time) {
-	c.obsMu.Lock()
-	defer c.obsMu.Unlock()
-	observedSince = c.observedSince
-	at, ok := c.successAt[node]
-	if !ok {
-		return observedSince, time.Time{}
-	}
-	// Measured in absolute terms so a future-dated timestamp (kubelet clock skew)
-	// is pruned rather than retained forever by a negative age.
-	if c.clock().Sub(at).Abs() >= detectors.MaxWindow() {
-		delete(c.successAt, node)
-		return observedSince, time.Time{}
-	}
-	return observedSince, at
-}
-
 // Run starts the controller workers and blocks until the context is cancelled.
 func (c *Controller) Run(ctx context.Context, workers int) error {
 	defer utilruntime.HandleCrash()
@@ -314,11 +234,10 @@ func (c *Controller) Run(ctx context.Context, workers int) error {
 	if ok := cache.WaitForCacheSync(ctx.Done(), c.hasSynced...); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
-	// Record when the controller begins observing. Until a full detector window
-	// has elapsed past this point, detection treats the success signal as
-	// indeterminate so a cold view is never misread as no-success. This also
-	// clears any success history carried across the cache resync.
-	c.beginObserving(c.clock())
+	// No warm-up follows the sync. Detection reads every signal it uses, failures
+	// and successes alike, out of the synced caches, so once the LIST has landed
+	// the controller knows everything a long-running one would and can decide
+	// immediately.
 
 	logger.Info("Starting workers", "count", workers)
 	for i := 0; i < workers; i++ {
@@ -461,8 +380,7 @@ func (c *Controller) syncHandler(ctx context.Context, name string) error {
 		return err
 	}
 
-	observedSince, lastSuccessAt := c.observation(name)
-	decision, snap := detectors.Decide(node, events, pods, c.clock(), observedSince, lastSuccessAt)
+	decision, snap := detectors.Decide(node, events, pods, c.clock())
 	switch decision {
 	case detectors.DecisionWedged:
 		changed, err := c.labeler.label(ctx, node, snap.DetectorName, snap)

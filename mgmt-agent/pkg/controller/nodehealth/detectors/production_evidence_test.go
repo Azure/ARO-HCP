@@ -166,8 +166,7 @@ func TestProductionCompletedPodsDoNotCount(t *testing.T) {
 	}
 
 	// The node must not be declared wedged on completed-pod turnover alone.
-	observedSince := now.Add(-1 * time.Hour)
-	if got, _ := Decide(productionWedgedNode(), events, pods, now, observedSince, time.Time{}); got == DecisionWedged {
+	if got, _ := Decide(productionWedgedNode(), events, pods, now); got == DecisionWedged {
 		t.Error("completed Job and CronJob turnover must not produce a wedge")
 	}
 }
@@ -221,12 +220,12 @@ func TestProductionStaleSuccessesDoNotSuppressDetection(t *testing.T) {
 	now := time.Date(2026, 7, 27, 9, 0, 43, 0, time.UTC)
 	node := productionWedgedNode()
 	events, pods := productionWedgeEvidence(now)
-	observedSince := now.Add(-1 * time.Hour)
 
 	// Freshest success actually observed on the captured node: 500.6 minutes old,
-	// far outside the 10 minute window.
+	// far outside the 10 minute window. It is still sitting in the LIST, exactly
+	// as it was on the real node, because the pod is still running.
 	staleSuccess := now.Add(-500*time.Minute - 36*time.Second)
-	got, snap := Decide(node, events, pods, now, observedSince, staleSuccess)
+	got, snap := Decide(node, events, append(pods, startedPod("long-running", staleSuccess, false)), now)
 	if got != DecisionWedged {
 		t.Fatalf("stale success suppressed detection of the real wedge: Decide = %v (%s)", got, snap.ReasonString())
 	}
@@ -239,7 +238,7 @@ func TestProductionStaleSuccessesDoNotSuppressDetection(t *testing.T) {
 	// as Healthy and returns an empty snapshot on that path, so the decision is
 	// the assertion here.
 	freshSuccess := now.Add(-2 * time.Minute)
-	if got, _ = Decide(node, events, pods, now, observedSince, freshSuccess); got != DecisionHealthy {
+	if got, _ = Decide(node, events, append(pods, startedPod("just-started", freshSuccess, false)), now); got != DecisionHealthy {
 		t.Errorf("a success inside the window must rule out a hard wedge: Decide = %v, want %v", got, DecisionHealthy)
 	}
 }
@@ -259,12 +258,11 @@ func TestFutureDatedSuccessDoesNotSuppressDetection(t *testing.T) {
 	now := time.Date(2026, 7, 27, 9, 0, 43, 0, time.UTC)
 	node := productionWedgedNode()
 	events, pods := productionWedgeEvidence(now)
-	observedSince := now.Add(-1 * time.Hour)
 
 	// A success stamped an hour into the future by a skewed kubelet clock. It is
 	// not evidence the node can attach a NIC now, so it must not rule out a wedge.
 	future := now.Add(1 * time.Hour)
-	if got, _ := Decide(node, events, pods, now, observedSince, future); got != DecisionWedged {
+	if got, _ := Decide(node, events, append(pods, startedPod("skewed", future, false)), now); got != DecisionWedged {
 		t.Errorf("a future-dated success suppressed detection of a real wedge: Decide = %v, want %v", got, DecisionWedged)
 	}
 }
