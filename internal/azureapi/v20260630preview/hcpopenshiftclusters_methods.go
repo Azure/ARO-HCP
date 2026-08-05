@@ -544,9 +544,10 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 }
 
 // preserveUnknownClusterFields copies customer-facing fields from existing that
-// this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20260630preview.
+// this API version doesn't expose, so round-trips via older versions don't
+// silently drop data set by newer API versions.
 func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
+	to.CustomerProperties.NodeSshPublicKeys = from.CustomerProperties.NodeSshPublicKeys
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {

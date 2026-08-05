@@ -35,12 +35,13 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	t.Logf("seed: %d", seed)
 
 	fuzzer := apitesting.FuzzerFor(append(apitesting.CommonRoundTripFuzzFuncs(),
-		// ImageDigestMirrors, Ingress, and CryptoRestrictions do not exist in v20240610preview.
+		// ImageDigestMirrors, Ingress, CryptoRestrictions, and NodeSshPublicKeys do not exist in v20240610preview.
 		func(j *api.HCPOpenShiftClusterCustomerProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			j.ImageDigestMirrors = nil
 			j.Ingress = api.CustomerIngressProfile{}
 			j.CryptoRestrictions = api.CryptoRestrictionsNone
+			j.NodeSshPublicKeys = nil
 		},
 		// VnetIntegrationSubnetID was added in v20251223preview and does not exist in v20240610preview.
 		func(j *api.CustomerPlatformProfile, c randfill.Continue) {

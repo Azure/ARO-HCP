@@ -587,6 +587,11 @@ func (in *HCPOpenShiftClusterCustomerProperties) DeepCopyInto(out *HCPOpenShiftC
 	out.Ingress = in.Ingress
 	in.Platform.DeepCopyInto(&out.Platform)
 	out.Autoscaling = in.Autoscaling
+	if in.NodeSshPublicKeys != nil {
+		in, out := &in.NodeSshPublicKeys, &out.NodeSshPublicKeys
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	in.Etcd.DeepCopyInto(&out.Etcd)
 	out.ClusterImageRegistry = in.ClusterImageRegistry
 	if in.ImageDigestMirrors != nil {

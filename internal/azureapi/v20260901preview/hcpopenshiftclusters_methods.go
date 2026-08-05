@@ -376,6 +376,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Autoscaling:       api.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
 				// Use Ptr (not PtrOrNil) to ensure int32 zero value is preserved in JSON response.
 				NodeDrainTimeoutMinutes: api.Ptr(from.CustomerProperties.NodeDrainTimeoutMinutes),
+				NodeSSHPublicKeys:       api.StringSliceToStringPtrSlice(from.CustomerProperties.NodeSshPublicKeys),
 				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
 				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
@@ -501,6 +502,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 			normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
 		}
 		out.CustomerProperties.NodeDrainTimeoutMinutes = api.Deref(c.Properties.NodeDrainTimeoutMinutes)
+		out.CustomerProperties.NodeSshPublicKeys = api.StringPtrSliceToStringSlice(c.Properties.NodeSSHPublicKeys)
 		if c.Properties.ClusterImageRegistry != nil {
 			normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
 		}
@@ -523,9 +525,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 }
 
 // preserveUnknownClusterFields copies customer-facing fields from existing that
-// this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20260630preview.
-func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
+// this API version doesn't know about.
+func preserveUnknownClusterFields(_, _ *api.HCPOpenShiftCluster) {
+	// All fields introduced up to v2026_06_30_preview are known to this version.
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {
