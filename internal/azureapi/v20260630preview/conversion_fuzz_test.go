@@ -24,6 +24,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
+	"sigs.k8s.io/randfill"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
@@ -32,10 +34,13 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	seed := rand.Int63()
 	t.Logf("seed: %d", seed)
 
-	fuzzer := coreapitesting.FuzzerFor(
-		coreapitesting.CommonRoundTripFuzzFuncs(),
-		rand.NewSource(seed),
-	)
+	fuzzer := coreapitesting.FuzzerFor(append(coreapitesting.CommonRoundTripFuzzFuncs(),
+		// NodeSshPublicKeys was added in v20260901preview and does not exist in v20260630preview.
+		func(j *coreapi.HCPOpenShiftClusterCustomerProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.NodeSshPublicKeys = nil
+		},
+	), rand.NewSource(seed))
 
 	for i := 0; i < 200; i++ {
 		original := &coreapi.HCPOpenShiftCluster{}

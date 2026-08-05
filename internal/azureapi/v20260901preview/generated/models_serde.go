@@ -1018,6 +1018,7 @@ func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "ingress", h.Ingress)
 	populate(objectMap, "network", h.Network)
 	populate(objectMap, "nodeDrainTimeoutMinutes", h.NodeDrainTimeoutMinutes)
+	populate(objectMap, "nodeSshPublicKeys", h.NodeSSHPublicKeys)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "provisioningState", h.ProvisioningState)
 	populate(objectMap, "status", h.Status)
@@ -1067,6 +1068,9 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 		case "nodeDrainTimeoutMinutes":
 			err = unpopulate(val, "NodeDrainTimeoutMinutes", &h.NodeDrainTimeoutMinutes)
 			delete(rawMsg, key)
+		case "nodeSshPublicKeys":
+			err = unpopulate(val, "NodeSSHPublicKeys", &h.NodeSSHPublicKeys)
+			delete(rawMsg, key)
 		case "platform":
 			err = unpopulate(val, "Platform", &h.Platform)
 			delete(rawMsg, key)
@@ -1096,6 +1100,7 @@ func (h HcpOpenShiftClusterPropertiesUpdate) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "etcd", h.Etcd)
 	populate(objectMap, "imageDigestMirrors", h.ImageDigestMirrors)
 	populate(objectMap, "nodeDrainTimeoutMinutes", h.NodeDrainTimeoutMinutes)
+	populate(objectMap, "nodeSshPublicKeys", h.NodeSSHPublicKeys)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "version", h.Version)
 	return json.Marshal(objectMap)
@@ -1121,6 +1126,9 @@ func (h *HcpOpenShiftClusterPropertiesUpdate) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "nodeDrainTimeoutMinutes":
 			err = unpopulate(val, "NodeDrainTimeoutMinutes", &h.NodeDrainTimeoutMinutes)
+			delete(rawMsg, key)
+		case "nodeSshPublicKeys":
+			err = unpopulate(val, "NodeSSHPublicKeys", &h.NodeSSHPublicKeys)
 			delete(rawMsg, key)
 		case "platform":
 			err = unpopulate(val, "Platform", &h.Platform)
@@ -1468,6 +1476,39 @@ func (i *IngressProfile) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "type":
 			err = unpopulate(val, "Type", &i.Type)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", i, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", i, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type InlineSSHPublicKey.
+func (i InlineSSHPublicKey) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "key", i.Key)
+	objectMap["kind"] = "inline"
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type InlineSSHPublicKey.
+func (i *InlineSSHPublicKey) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", i, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "key":
+			err = unpopulate(val, "Key", &i.Key)
+			delete(rawMsg, key)
+		case "kind":
+			err = unpopulate(val, "Kind", &i.Kind)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", i, key)

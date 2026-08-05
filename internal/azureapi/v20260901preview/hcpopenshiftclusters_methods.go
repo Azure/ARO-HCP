@@ -302,6 +302,58 @@ func newClusterImageRegistryProfile(from *coreapi.ClusterImageRegistryProfile) g
 	}
 }
 
+// sshPublicKeyKindInline is the only supported discriminator value for the
+// nodeSshPublicKeys union.
+const sshPublicKeyKindInline = "inline"
+
+// newSSHPublicKeys converts the internal SSH public keys to the generated
+// discriminated form. Only the inline variant is supported. Kind is set
+// explicitly so the in-memory value carries the discriminator (the generated
+// MarshalJSON only stamps it during JSON serialization) and round-trips
+// through ConvertToInternal, which enforces it. Key is always emitted because
+// it is required by the schema.
+func newSSHPublicKeys(from []coreapi.SshPublicKey) []*generated.InlineSSHPublicKey {
+	if from == nil {
+		return nil
+	}
+	out := make([]*generated.InlineSSHPublicKey, 0, len(from))
+	for _, item := range from {
+		out = append(out, &generated.InlineSSHPublicKey{
+			Kind: metadataapi.Ptr(sshPublicKeyKindInline),
+			Key:  metadataapi.Ptr(item.Key),
+		})
+	}
+	return out
+}
+
+// normalizeSSHPublicKeys converts the generated discriminated SSH public keys
+// back to the internal form. Only the inline variant is supported: each entry
+// must be non-null and carry kind == "inline". A null entry is rejected (the
+// schema marks items as non-nullable) rather than dropped, so it cannot slip
+// past the item-count limit enforced on the normalized slice.
+func normalizeSSHPublicKeys(fldPath *field.Path, p []*generated.InlineSSHPublicKey, out *[]coreapi.SshPublicKey) field.ErrorList {
+	if p == nil {
+		*out = nil
+		return nil
+	}
+	var errs field.ErrorList
+	slice := make([]coreapi.SshPublicKey, 0, len(p))
+	for i, item := range p {
+		switch {
+		case item == nil:
+			errs = append(errs, field.Required(fldPath.Index(i), "SSH public key entry must not be null"))
+		case item.Kind == nil:
+			errs = append(errs, field.Required(fldPath.Index(i).Child("kind"), "kind is required"))
+		case *item.Kind != sshPublicKeyKindInline:
+			errs = append(errs, field.NotSupported(fldPath.Index(i).Child("kind"), *item.Kind, []string{sshPublicKeyKindInline}))
+		default:
+			slice = append(slice, coreapi.SshPublicKey{Key: metadataapi.Deref(item.Key)})
+		}
+	}
+	*out = slice
+	return errs
+}
+
 func newImageDigestMirrors(from []coreapi.ImageDigestMirror) []*generated.ImageDigestMirror {
 	if from == nil {
 		return nil
@@ -397,6 +449,7 @@ func (v version) NewHCPOpenShiftCluster(from *coreapi.HCPOpenShiftCluster) corea
 				Autoscaling:       metadataapi.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
 				// Use Ptr (not PtrOrNil) to ensure int32 zero value is preserved in JSON response.
 				NodeDrainTimeoutMinutes: metadataapi.Ptr(from.CustomerProperties.NodeDrainTimeoutMinutes),
+				NodeSSHPublicKeys:       newSSHPublicKeys(from.CustomerProperties.NodeSshPublicKeys),
 				ClusterImageRegistry:    metadataapi.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
 				Etcd:                    metadataapi.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
@@ -522,6 +575,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.HCPOpenShiftCl
 			normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
 		}
 		out.CustomerProperties.NodeDrainTimeoutMinutes = metadataapi.Deref(c.Properties.NodeDrainTimeoutMinutes)
+		errs = append(errs, normalizeSSHPublicKeys(field.NewPath("properties", "nodeSshPublicKeys"), c.Properties.NodeSSHPublicKeys, &out.CustomerProperties.NodeSshPublicKeys)...)
 		if c.Properties.ClusterImageRegistry != nil {
 			normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
 		}
@@ -544,9 +598,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.HCPOpenShiftCl
 }
 
 // preserveUnknownClusterFields copies customer-facing fields from existing that
-// this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20260630preview.
-func preserveUnknownClusterFields(from, to *coreapi.HCPOpenShiftCluster) {
+// this API version doesn't know about.
+func preserveUnknownClusterFields(_, _ *coreapi.HCPOpenShiftCluster) {
+	// All fields introduced up to v2026_06_30_preview are known to this version.
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *coreapi.ManagedServiceIdentity {

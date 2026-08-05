@@ -137,6 +137,22 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   clusterImageRegistry?: ClusterImageRegistryProfile;
 
+  /** One or more SSH public keys used for secure access to worker nodes. When set,
+   * these keys are distributed to all nodes, enabling SSH access for debugging
+   * and maintenance purposes. If changed, all keys previously set will be replaced.
+   *
+   * WARNING: Setting or changing this field currently causes the recreation of all worker nodes.
+   * This behavior is subject to change in a future OpenShift release.
+   *
+   * SSH public key format: <algorithm> <base64-encoded-key> [comment]
+   * Key constraints: algorithm + space + base64 blob required; comment optional; no newlines within key.
+   */
+  @clientName("nodeSSHPublicKeys")
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @added(Versions.v2026_09_01_preview)
+  @removed(Versions.v2026_10_01_preview)
+  nodeSshPublicKeys?: SshPublicKey[];
+
   /** Status of the cluster resource */
   @visibility(Lifecycle.Read)
   @added(Versions.v2026_06_30_preview)
@@ -153,6 +169,37 @@ model HcpOpenShiftClusterProperties {
   @added(Versions.v2026_06_30_preview)
   @visibility(Lifecycle.Read, Lifecycle.Create)
   cryptoRestrictions?: CryptoRestrictions = CryptoRestrictions.None;
+}
+
+/** An SSH public key used for secure access to worker nodes.
+ *
+ * This is a discriminated type: the `kind` property selects the form in which
+ * the key is provided. Currently only the `inline` form is supported.
+ */
+@clientName("SSHPublicKey")
+@added(Versions.v2026_09_01_preview)
+@removed(Versions.v2026_10_01_preview)
+@discriminated(#{ envelope: "none" })
+union SshPublicKey {
+  /** The SSH public key material is provided directly in the request. */
+  inline: InlineSshPublicKey,
+}
+
+/** An SSH public key provided inline. */
+@clientName("InlineSSHPublicKey")
+@added(Versions.v2026_09_01_preview)
+@removed(Versions.v2026_10_01_preview)
+model InlineSshPublicKey {
+  /** Discriminator identifying the inline form. */
+  kind: "inline";
+
+  /** The SSH public key material.
+   *
+   * SSH public key format: <algorithm> <base64-encoded-key> [comment]
+   * Key constraints: algorithm + space + base64 blob required; comment optional; no newlines within key.
+   */
+  #suppress "@azure-tools/typespec-azure-resource-manager/secret-prop" "SSH public keys are public material, not secrets."
+  key: string;
 }
 
 /** The resource provisioning state. */
