@@ -21,7 +21,7 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/internal/api/v20251223preview/generated"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview/generated"
 )
 
 // TestClusterConvertToInternal_RejectsNullOnRequiredFields verifies that

@@ -30,7 +30,7 @@ These are the global settings for generating server-side models.
 
 ``` yaml
 namespace: redhatopenshift
-project-folder: ../internal/api
+project-folder: ../internal/azureapi
 output-folder: $(project-folder)/$(tag)/generated
 
 go:

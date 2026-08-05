@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package v20240610preview
+package v20260901preview
 
 import (
 	"reflect"
@@ -29,7 +29,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview/generated"
 )
 
 func TestSizeGiBRoundTrip(t *testing.T) {
@@ -107,6 +107,7 @@ func TestSetDefaultValuesNodePool(t *testing.T) {
 							OSDisk: &generated.OsDiskProfile{
 								SizeGiB:                ptr.To(int32(64)),
 								DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypePremiumLRS),
+								DiskType:               ptr.To(generated.OsDiskTypeManaged),
 							},
 						},
 						AutoRepair: ptr.To(true),
@@ -137,6 +138,7 @@ func TestSetDefaultValuesNodePool(t *testing.T) {
 							OSDisk: &generated.OsDiskProfile{
 								SizeGiB:                ptr.To(int32(128)),
 								DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypePremiumLRS),
+								DiskType:               ptr.To(generated.OsDiskTypeManaged),
 							},
 						},
 						AutoRepair: ptr.To(true),
@@ -165,6 +167,7 @@ func TestSetDefaultValuesNodePool(t *testing.T) {
 							OSDisk: &generated.OsDiskProfile{
 								SizeGiB:                ptr.To(int32(64)),
 								DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypePremiumLRS),
+								DiskType:               ptr.To(generated.OsDiskTypeManaged),
 							},
 						},
 						AutoRepair: ptr.To(true),
@@ -185,6 +188,7 @@ func TestSetDefaultValuesNodePool(t *testing.T) {
 							OSDisk: &generated.OsDiskProfile{
 								SizeGiB:                ptr.To(int32(64)),
 								DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypePremiumLRS),
+								DiskType:               ptr.To(generated.OsDiskTypeManaged),
 							},
 						},
 						AutoRepair: ptr.To(true),
@@ -212,7 +216,7 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 		expected *api.OSDiskProfile
 	}{
 		{
-			name: "nil SizeGiB should not overwrite existing value",
+			name: "nil SizeGiB writes nil (unconditional write)",
 			input: &generated.OsDiskProfile{
 				SizeGiB:                nil,
 				DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypeStandardSSDLRS),
@@ -222,7 +226,7 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
 			},
 			expected: &api.OSDiskProfile{
-				SizeGiB:                ptr.To(int32(128)),
+				SizeGiB:                nil,
 				DiskStorageAccountType: api.DiskStorageAccountTypeStandardSSD_LRS,
 			},
 		},
@@ -257,7 +261,7 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 			},
 		},
 		{
-			name: "all nil input should preserve existing values",
+			name: "all nil input writes zero values (unconditional write)",
 			input: &generated.OsDiskProfile{
 				SizeGiB:                nil,
 				DiskStorageAccountType: nil,
@@ -269,9 +273,9 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 				EncryptionSetID:        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
 			},
 			expected: &api.OSDiskProfile{
-				SizeGiB:                ptr.To(int32(100)),
-				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
-				EncryptionSetID:        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
+				SizeGiB:                nil,
+				DiskStorageAccountType: "",
+				EncryptionSetID:        nil,
 			},
 		},
 	}
@@ -279,10 +283,53 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := *tt.existing
-			require.Len(t, normalizeOSDiskProfile(field.NewPath("test"), tt.input, &result), 0)
+			require.Len(t, normalizeOSDiskProfile(field.NewPath("t"), tt.input, &result), 0)
 			if !reflect.DeepEqual(&result, tt.expected) {
 				t.Errorf("normalizeOSDiskProfile() mismatch:\n%s", cmp.Diff(tt.expected, &result))
 			}
+		})
+	}
+}
+
+func TestNormalizeOSDiskProfile_DiskType(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        *generated.OsDiskProfile
+		existing     *api.OSDiskProfile
+		expectedType api.OsDiskType
+	}{
+		{
+			name: "Ephemeral input maps to OsDiskTypeEphemeral",
+			input: &generated.OsDiskProfile{
+				DiskType: ptr.To(generated.OsDiskTypeEphemeral),
+			},
+			existing:     &api.OSDiskProfile{},
+			expectedType: api.OsDiskTypeEphemeral,
+		},
+		{
+			name: "Managed input maps to OsDiskTypeManaged",
+			input: &generated.OsDiskProfile{
+				DiskType: ptr.To(generated.OsDiskTypeManaged),
+			},
+			existing:     &api.OSDiskProfile{},
+			expectedType: api.OsDiskTypeManaged,
+		},
+		{
+			name: "nil DiskType writes zero value (SetDefaultValuesNodePool guarantees non-nil on write path)",
+			input: &generated.OsDiskProfile{
+				DiskType: nil,
+			},
+			existing:     &api.OSDiskProfile{DiskType: api.OsDiskTypeEphemeral},
+			expectedType: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := *tt.existing
+			errs := normalizeOSDiskProfile(field.NewPath("platform", "osDisk"), tt.input, &result)
+			require.Len(t, errs, 0)
+			require.Equal(t, tt.expectedType, result.DiskType)
 		})
 	}
 }
@@ -298,11 +345,13 @@ func TestNewOSDiskProfile(t *testing.T) {
 			input: &api.OSDiskProfile{
 				SizeGiB:                nil,
 				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+				DiskType:               api.OsDiskTypeManaged,
 				EncryptionSetID:        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
 			},
 			expected: generated.OsDiskProfile{
 				SizeGiB:                nil,
 				DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypePremiumLRS),
+				DiskType:               ptr.To(generated.OsDiskTypeManaged),
 				EncryptionSetID:        ptr.To("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption"),
 			},
 		},
@@ -311,11 +360,13 @@ func TestNewOSDiskProfile(t *testing.T) {
 			input: &api.OSDiskProfile{
 				SizeGiB:                ptr.To(int32(128)),
 				DiskStorageAccountType: api.DiskStorageAccountTypeStandardSSD_LRS,
+				DiskType:               api.OsDiskTypeEphemeral,
 				EncryptionSetID:        nil,
 			},
 			expected: generated.OsDiskProfile{
 				SizeGiB:                ptr.To(int32(128)),
 				DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypeStandardSSDLRS),
+				DiskType:               ptr.To(generated.OsDiskTypeEphemeral),
 				EncryptionSetID:        nil,
 			},
 		},

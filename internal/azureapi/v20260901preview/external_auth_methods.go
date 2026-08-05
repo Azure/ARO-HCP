@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package v20260630preview
+package v20260901preview
 
 import (
 	"strings"
@@ -23,7 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/v20260630preview/generated"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview/generated"
 )
 
 type ExternalAuth struct {
@@ -304,7 +304,7 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),
 			Properties: &generated.ExternalAuthProperties{
 				ProvisioningState: api.PtrOrNil(generated.ExternalAuthProvisioningState(from.Properties.ProvisioningState)),
-				Status:            api.PtrOrNil(newExternalAuthResourceStatus(&from.Status)),
+				Status:            newResourceStatus(from.Status.Conditions),
 				Issuer:            api.PtrOrNil(newTokenIssuerProfile(&from.Properties.Issuer)),
 				Claim:             api.PtrOrNil(newExternalAuthClaimProfile(&from.Properties.Claim)),
 			},
@@ -320,13 +320,4 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 		})
 	}
 	return out
-}
-
-func newExternalAuthResourceStatus(from *api.HCPOpenShiftClusterExternalAuthStatus) generated.ResourceStatus {
-	if from == nil {
-		return generated.ResourceStatus{}
-	}
-	return generated.ResourceStatus{
-		Conditions: newConditions(from.UserFacingConditions),
-	}
 }

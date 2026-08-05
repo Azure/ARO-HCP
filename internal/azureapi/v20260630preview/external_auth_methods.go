@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package v20251223preview
+package v20260630preview
 
 import (
 	"strings"
@@ -23,7 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/v20251223preview/generated"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview/generated"
 )
 
 type ExternalAuth struct {
@@ -117,7 +117,7 @@ func (h *ExternalAuth) ConvertToInternal(existing *api.HCPOpenShiftClusterExtern
 
 // preserveUnknownExternalAuthFields copies customer-facing fields from existing that
 // this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20251223preview.
+// customer fields exist yet between v20240610preview and v20260630preview.
 func preserveUnknownExternalAuthFields(from, to *api.HCPOpenShiftClusterExternalAuth) {
 }
 
@@ -304,6 +304,7 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),
 			Properties: &generated.ExternalAuthProperties{
 				ProvisioningState: api.PtrOrNil(generated.ExternalAuthProvisioningState(from.Properties.ProvisioningState)),
+				Status:            api.PtrOrNil(newExternalAuthResourceStatus(&from.Status)),
 				Issuer:            api.PtrOrNil(newTokenIssuerProfile(&from.Properties.Issuer)),
 				Claim:             api.PtrOrNil(newExternalAuthClaimProfile(&from.Properties.Claim)),
 			},
@@ -319,4 +320,13 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 		})
 	}
 	return out
+}
+
+func newExternalAuthResourceStatus(from *api.HCPOpenShiftClusterExternalAuthStatus) generated.ResourceStatus {
+	if from == nil {
+		return generated.ResourceStatus{}
+	}
+	return generated.ResourceStatus{
+		Conditions: newConditions(from.UserFacingConditions),
+	}
 }
