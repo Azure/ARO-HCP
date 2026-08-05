@@ -137,16 +137,23 @@ At `AddAfterAll`, once the whole suite has finished, the accumulated failures an
 
 ### 2. Writing the retry facts (ARO-HCP)
 
-Once the suite finishes, the catcher always merges two keys into `$ARTIFACT_DIR/metadata.json` - even when nothing failed, in which case both are empty lists:
+Once the suite finishes, the catcher always merges these keys into `$ARTIFACT_DIR/metadata.json` - even when nothing failed, in which case the two lists are empty:
 
 ```json
 {
   "ev2-failed-tests": ["spec name 1", "spec name 2"],
-  "ev2-allow-retry-tests": ["spec name 1"]
+  "ev2-allow-retry-tests": ["spec name 1"],
+  "ev2-tests-total": 42,
+  "ev2-tests-passed": 40,
+  "ev2-tests-failed": 2,
+  "ev2-tests-skipped": 0,
+  "ev2-suite-duration-seconds": 187.3
 }
 ```
 
 `ev2-failed-tests` is every spec that failed; `ev2-allow-retry-tests` is the subset of those that carried `labels.AllowRetry`. aro-hcp-tests reports only these raw facts - it does not decide whether the run qualifies for an automatic retry. That decision is policy (how many failures are tolerable, etc.) that belongs to prow-job-executor (see [Consuming the signal](#3-consuming-the-signal-aro-tools) below), which can evolve independently of an ARO-HCP release.
+
+The remaining `ev2-tests-*`/`ev2-suite-duration-seconds` keys aren't read by the retry decision either. They exist so anyone triaging a gating run from `finished.json` alone (a human, or a future dashboard) can see the run's basic shape (how many specs ran, how many of each result, how long the suite took wall-clock) without opening the Prow job UI.
 
 Writing unconditionally, rather than only when a run happens to qualify, removes an ambiguity the original design had: with a conditional write, an absent key could mean either "nothing failed" or "failures happened but didn't qualify" - both looked identical from the consuming side, which caused confusion more than once while verifying this against real Prow runs. Now the keys' presence means the step ran at all; their content is the whole picture.
 
@@ -155,7 +162,7 @@ Writing unconditionally, rather than only when a run happens to qualify, removes
 - **A custom `finished.json` "result" value** (e.g. `RETRIABLE_FAILURE`) isn't possible - `result` is hardcoded by Prow's sidecar to `SUCCESS`/`FAILURE`/`ABORTED` based on the container exit code, and isn't something test code or ci-operator config can influence.
 - **Grepping a marker line out of `build-log.txt`** (the original design) works but is fragile: risk of truncation on multi-MB logs, needs a tail-range fetch and a chunked scan, and matches on unstructured text instead of a typed value. `metadata.json` avoids all of that.
 
-The write is merge-safe: if some other step already wrote `$ARTIFACT_DIR/metadata.json` (nothing does today, but a future step might), the existing content is read first and only the `ev2-failed-tests`/`ev2-allow-retry-tests` keys are added or overwritten. `ARTIFACT_DIR` being unset (e.g. a local, non-Prow run) is not an error - the write is simply skipped.
+The write is merge-safe: if some other step already wrote `$ARTIFACT_DIR/metadata.json` (nothing does today, but a future step might), the existing content is read first and only the `ev2-*` keys above are added or overwritten. `ARTIFACT_DIR` being unset (e.g. a local, non-Prow run) is not an error - the write is simply skipped.
 
 ### 3. Consuming the signal (ARO-Tools)
 
