@@ -45,12 +45,12 @@ Check the full file list and diffs for the following. If any are found, flag the
   - `.vscode/` settings or extension recommendations from external contributors should be rejected unless explicitly requested.
 
 - **CI/CD and pipeline configuration changes:**
-  - `.github/workflows/` (GitHub Actions)
-  - `Makefile` or `Makefile.*`
-  - `*pipeline.yaml` (deployment pipelines)
-  - `Dockerfile` or container build files
-  - Scripts in `hack/`, `tooling/`, or `test/` invoked by CI
-  - Look for: new external downloads, encoded payloads, or command injection patterns.
+  - Look for new external downloads, encoded payloads, or command injection patterns, particularly in the following CI/CD and pipeline-related paths or files:
+    - `.github/workflows/` (GitHub Actions)
+    - `Makefile` or `Makefile.*`
+    - `*pipeline.yaml` (deployment pipelines)
+    - `Dockerfile` or container build files
+    - Scripts in `hack/`, `tooling/`, or `test/` invoked by CI
 
 - **New executable scripts in config directories:**
   - If a PR adds new `.sh`, `.mjs`, `.py`, or other executable scripts to configuration or tooling directories, flag them for manual human review — even if the content appears benign.
