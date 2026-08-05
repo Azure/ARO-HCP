@@ -70,7 +70,9 @@ var _ = Describe("Customer", func() {
 				}
 				originalMI := *cpOps[name]
 				cpOps[name] = sharedMI
-				delete(clusterParams.Identity.UserAssignedIdentities, originalMI)
+				if originalMI != *sharedMI {
+					delete(clusterParams.Identity.UserAssignedIdentities, originalMI)
+				}
 			}
 
 			By("creating a cluster with reused managed identity among all control plane operators")
