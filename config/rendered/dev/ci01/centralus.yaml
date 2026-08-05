@@ -904,6 +904,7 @@ quotaizer:
     artifactName: empty-sentinel
     buildId: 0
   managedIdentityName: aro-quotaizer
+  managedIdentitySubscriptionKey: hcp-global
   quotaGroup:
     displayName: HCP - ci01 centralus
     id: aro-ci01-centralus

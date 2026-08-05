@@ -902,6 +902,7 @@ quotaizer:
     artifactName: empty-sentinel
     buildId: 0
   managedIdentityName: aro-quotaizer
+  managedIdentitySubscriptionKey: hcp-global
   quotaGroup:
     displayName: HCP - perf westus3
     id: aro-perf-westus3

@@ -3173,6 +3173,10 @@
         "managedIdentityName": {
           "type": "string"
         },
+        "managedIdentitySubscriptionKey": {
+          "type": "string",
+          "description": "The ev2 subscription key for the MSI that will be used by quotaizer"
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
