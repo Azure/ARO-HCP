@@ -38,7 +38,28 @@ param requiredResourceAccess array = []
 var hasExplicitOwners = !empty(ownerIds)
 var ownerIdArray = hasExplicitOwners ? csvToArray(ownerIds) : []
 
-resource entraApp 'Microsoft.Graph/applications@beta' = {
+// The Graph extension treats keyCredentials: null as an explicit invalid value,
+// not as an omitted property. Keep separate conditional resources so callers
+// that do not manage credentials leave the property out of the request entirely.
+resource entraAppWithoutKeyCredentials 'Microsoft.Graph/applications@beta' = if (empty(keyCredentials)) {
+  displayName: applicationName
+  isFallbackPublicClient: isFallbackPublicClient
+  signInAudience: 'AzureADMyOrg'
+  uniqueName: uniqueName
+  requiredResourceAccess: requiredResourceAccess
+  serviceManagementReference: !empty(serviceManagementReference) ? serviceManagementReference : null
+  api: {
+    requestedAccessTokenVersion: requestedAccessTokenVersion
+  }
+  trustedSubjectNameAndIssuers: trustedSubjectNameAndIssuers
+  owners: hasExplicitOwners
+    ? {
+        relationships: ownerIdArray
+      }
+    : null
+}
+
+resource entraAppWithKeyCredentials 'Microsoft.Graph/applications@beta' = if (!empty(keyCredentials)) {
   displayName: applicationName
   isFallbackPublicClient: isFallbackPublicClient
   signInAudience: 'AzureADMyOrg'
@@ -58,7 +79,8 @@ resource entraApp 'Microsoft.Graph/applications@beta' = {
 }
 
 resource servicePrincipal 'Microsoft.Graph/servicePrincipals@beta' = if (manageSp) {
-  appId: entraApp.appId
+  #disable-next-line BCP318
+  appId: empty(keyCredentials) ? entraAppWithoutKeyCredentials.appId : entraAppWithKeyCredentials.appId
   owners: hasExplicitOwners
     ? {
         relationships: ownerIdArray
@@ -67,10 +89,12 @@ resource servicePrincipal 'Microsoft.Graph/servicePrincipals@beta' = if (manageS
 }
 
 @description('The application (client) ID')
-output appId string = entraApp.appId
+#disable-next-line BCP318
+output appId string = empty(keyCredentials) ? entraAppWithoutKeyCredentials.appId : entraAppWithKeyCredentials.appId
 
 @description('The application object ID (used for Graph API calls like addPassword)')
-output appObjectId string = entraApp.id
+#disable-next-line BCP318
+output appObjectId string = empty(keyCredentials) ? entraAppWithoutKeyCredentials.id : entraAppWithKeyCredentials.id
 
 @description('The service principal object ID (empty string when manageSp is false)')
 #disable-next-line BCP318

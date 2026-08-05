@@ -1,20 +1,24 @@
-// Creates the mock identity Entra applications and their service principals and
-// configures them for Subject Name and Issuer (SNI) certificate authentication
-// via ../modules/entra/app.bicep (trustedSubjectNameAndIssuers).
+// Creates the mock identity Entra applications and their service principals via
+// ../modules/entra/app.bicep. It does NOT configure any authentication mechanism
+// on the apps — that is done out of band by pinning the certificate (see below).
 //
-// CERTIFICATE CREATION (separate step, not this template):
-// This template does NOT create or rotate the certificates themselves — it only
-// declares which subject name (certDns) each app trusts. Bicep cannot create Key
-// Vault certificates, so they are created out of band by `make
-// create-mock-identity-certs` (DEV) / `make create-int-mock-identity-certs`
-// (INT), which call scripts/create-kv-cert.sh (idempotent az keyvault
-// certificate create) into the environment Key Vault (aro-hcp-dev-svc-kv for
-// DEV, aro-hcp-int-kv for INT). SNI validates the presented certificate's
-// subject name and issuer rather than pinning a specific public key, so
-// certificate rotation works without redeploying this template as long as the
-// new certificate keeps the same subject (certDns).
-// For a fresh bootstrap or a subject-name change, run the cert target first (see
-// docs/ci/dev-mock-identities.md), then deploy this template.
+// AUTHENTICATION: PINNED CERTIFICATE (keyCredentials)
+// The mock identities authenticate with self-signed Key Vault certificates.
+// Each app's certificate public key is registered as a pinned
+// `keyCredential` (AsymmetricX509Cert / Verify) by the privileged dev-ci
+// pipeline's Shell steps, which invoke `tooling/entra-app-credentials` to read
+// or create the cert in Key Vault (Bicep cannot manage Key Vault certificate
+// material) and PATCH it onto the app via Microsoft Graph. Entra then
+// authenticates by matching the presented leaf's thumbprint against the pinned
+// keyCredentials. This module passes no trusted subject name and issuer pairs
+// and deliberately does not manage `keyCredentials`, so redeploying this
+// template does not wipe the pinned certificates.
+//
+// CERTIFICATE LIFECYCLE:
+// The privileged pipeline creates missing certificates after deploying these
+// apps and before applying RBAC. Rotation is intentionally excluded from the
+// pipeline and requires an explicitly confirmed CLI invocation; see
+// docs/ci/dev-mock-identities.md.
 @description('Shared mock identity definitions: array of {applicationName, certDns}')
 param identities array
 
@@ -25,11 +29,12 @@ param poolSize int = 0
 @minLength(1)
 param poolAppBaseName string
 
-@description('Base certificate DNS for pooled identities (e.g. msimockpool.hcp.osadev.cloud)')
-@minLength(1)
-param poolCertBaseDns string
+@description('Number of pooled ARM helper identities to create')
+param armHelperPoolSize int = 0
 
-var selfSignedAuthorityId = '00000000-0000-0000-0000-000000000001'
+@description('Base application name for pooled ARM helper identities')
+@minLength(1)
+param armHelperPoolAppBaseName string = 'unused'
 
 module sharedApps '../modules/entra/app.bicep' = [
   for identity in identities: {
@@ -38,12 +43,6 @@ module sharedApps '../modules/entra/app.bicep' = [
       applicationName: identity.applicationName
       uniqueName: toLower(replace(identity.applicationName, ' ', '-'))
       manageSp: true
-      trustedSubjectNameAndIssuers: [
-        {
-          authorityId: selfSignedAuthorityId
-          subjectName: identity.certDns
-        }
-      ]
     }
   }
 ]
@@ -55,12 +54,17 @@ module poolApps '../modules/entra/app.bicep' = [
       applicationName: '${poolAppBaseName}-${i}'
       uniqueName: toLower(replace('${poolAppBaseName}-${i}', ' ', '-'))
       manageSp: true
-      trustedSubjectNameAndIssuers: [
-        {
-          authorityId: selfSignedAuthorityId
-          subjectName: '${i}.${poolCertBaseDns}'
-        }
-      ]
+    }
+  }
+]
+
+module armHelperPoolApps '../modules/entra/app.bicep' = [
+  for i in range(0, armHelperPoolSize): {
+    name: 'mock-app-arm-helper-pool-${i}'
+    params: {
+      applicationName: '${armHelperPoolAppBaseName}-${i}'
+      uniqueName: toLower(replace('${armHelperPoolAppBaseName}-${i}', ' ', '-'))
+      manageSp: true
     }
   }
 ]

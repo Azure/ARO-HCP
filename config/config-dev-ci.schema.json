@@ -438,11 +438,18 @@
       "type": "object",
       "description": "Mock identity Entra app definitions for non-production environments; principalIds are resolved at deployment time via Graph lookup",
       "properties": {
+        "vaultUrl": {
+          "type": "string",
+          "description": "Key Vault data-plane URL containing the mock identity certificates"
+        },
         "firstParty": {
           "$ref": "#/$defs/MockIdentityApp"
         },
         "armHelper": {
           "$ref": "#/$defs/MockIdentityApp"
+        },
+        "armHelperPool": {
+          "$ref": "#/$defs/MockIdentityPool"
         },
         "msiMock": {
           "$ref": "#/$defs/MockIdentityApp"
@@ -451,7 +458,7 @@
           "$ref": "#/$defs/MockIdentityPool"
         }
       },
-      "required": ["firstParty", "armHelper", "msiMock", "pool"]
+      "required": ["vaultUrl", "firstParty", "armHelper", "msiMock", "pool"]
     },
     "MockIdentityApp": {
       "type": "object",
@@ -461,20 +468,28 @@
           "type": "string",
           "description": "Entra application display name; the Graph uniqueName is derived from it (lowercased, spaces replaced with dashes)"
         },
+        "certName": {
+          "type": "string",
+          "description": "Key Vault certificate name"
+        },
         "certDns": {
           "type": "string",
-          "description": "Certificate DNS name for SNI authentication"
+          "description": "DNS name placed on the mock identity certificate"
         }
       },
-      "required": ["applicationName", "certDns"]
+      "required": ["applicationName", "certName", "certDns"]
     },
     "MockIdentityPool": {
       "type": "object",
-      "description": "Pool of MSI mock identities for throttle distribution",
+      "description": "Pool of mock identities for throttle distribution",
       "properties": {
         "appBaseName": {
           "type": "string",
           "description": "Base application name; pool members are named {appBaseName}-{index}"
+        },
+        "certBaseName": {
+          "type": "string",
+          "description": "Base Key Vault certificate name; pool members are named {certBaseName}-{index}"
         },
         "certBaseDns": {
           "type": "string",
@@ -486,7 +501,7 @@
           "minimum": 0
         }
       },
-      "required": ["appBaseName", "certBaseDns", "size"]
+      "required": ["appBaseName", "certBaseName", "certBaseDns", "size"]
     },
     "SubscriptionReference": {
       "type": "object",
