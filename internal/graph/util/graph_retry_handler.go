@@ -113,6 +113,12 @@ func (h *graphRetryHandler) isRetriableStatusCode(code int, req *nethttp.Request
 		// retry to that endpoint so genuinely bad requests elsewhere stay
 		// fatal instead of being delayed by up to graphRetryMaxCumulativeDelay.
 		return req.Method == nethttp.MethodPost && path.Base(req.URL.Path) == "servicePrincipals"
+	case nethttp.StatusForbidden:
+		// Graph returns 403 Authorization_RequestDenied with "backing
+		// application must be in the local tenant" on POST /servicePrincipals
+		// when the app has not replicated — same eventual-consistency race as
+		// the 400 case above (Azure CLI #18610, Vault #49, Terraform #992).
+		return req.Method == nethttp.MethodPost && path.Base(req.URL.Path) == "servicePrincipals"
 	default:
 		return false
 	}
