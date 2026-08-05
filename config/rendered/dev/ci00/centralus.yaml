@@ -12,7 +12,7 @@ acm:
 acr:
   ocp:
     name: arohcpocpdev
-    regionEndpointDisabledRegions: eastus2euap
+    replicationState: true
     untaggedImagesRetention:
       days: 90
       enabled: true
@@ -120,7 +120,7 @@ backend:
         memory: unlimited
       requests:
         cpu: 100m
-        memory: 500Mi
+        memory: 1Gi
     serviceAccountName: backend
   logVerbosity: 4
   maestro:
@@ -754,6 +754,10 @@ mgmtAgent:
   k8s:
     namespace: mgmt-agent
     replicas: 2
+    resources:
+      requests:
+        cpu: 50m
+        memory: 768Mi
     serviceAccountName: mgmt-agent
   managedIdentityName: mgmt-agent
 mgmtKeyVault:
@@ -958,7 +962,6 @@ stgGlobalV2:
   frontDoorName: empty-sentinel
   genevaKeyVaultName: empty-sentinel
   globalKeyVaultName: empty-sentinel
-  grafanaMajorVersion: empty-sentinel
   grafanaName: empty-sentinel
   grafanaRoles: ""
   kustoName: empty-sentinel
@@ -1089,6 +1092,8 @@ svc:
         - name: IstioNativeSidecarModePreview
           poll: true
         - name: ManagedGatewayAPIPreview
+          poll: true
+        - name: IdentityBindingPreview
           poll: true
         poll: true
       Microsoft.Dashboard:

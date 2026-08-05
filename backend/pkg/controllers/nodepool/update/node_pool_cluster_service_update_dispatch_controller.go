@@ -28,12 +28,12 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -51,7 +51,7 @@ import (
 // verifies propagation before the ARM node pool update operation succeeds.
 type nodePoolClusterServiceUpdateDispatchSyncer struct {
 	cooldownChecker      controllerutil.CooldownChecker
-	nodePoolLister       listers.NodePoolLister
+	nodePoolLister       corelisters.NodePoolLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
@@ -65,8 +65,8 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolClusterServiceUpdateDispatchSyn
 func NewNodePoolClusterServiceUpdateDispatchController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	informers informers.BackendInformers,
+	activeOperationLister corelisters.ActiveOperationLister,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	syncer := NewNodePoolClusterServiceUpdateDispatchSyncer(
@@ -89,8 +89,8 @@ func NewNodePoolClusterServiceUpdateDispatchController(
 func NewNodePoolClusterServiceUpdateDispatchSyncer(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	nodePoolLister listers.NodePoolLister,
+	activeOperationLister corelisters.ActiveOperationLister,
+	nodePoolLister corelisters.NodePoolLister,
 ) controllerutils.NodePoolSyncer {
 	return &nodePoolClusterServiceUpdateDispatchSyncer{
 		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),

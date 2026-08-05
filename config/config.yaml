@@ -101,13 +101,13 @@ defaults:
       untaggedImagesRetention:
         enabled: true
         days: 90
-      # Space-separated list of replication regions whose regional data endpoint
-      # must stay disabled. A canary/EUAP replica (e.g. eastus2euap) can otherwise
-      # serve co-located prod pulls; a degraded such replica caused a ~100% HCP
-      # install outage (AROSLSRE-1592). Keeping its regional endpoint disabled
-      # stops the replica from serving neighbouring-region traffic and ensures the
-      # manual mitigation persists across rollouts.
-      regionEndpointDisabledRegions: 'eastus2euap'
+      # Whether this replica's regional data endpoint should be enabled. A
+      # canary/EUAP replica (e.g. eastus2euap) can otherwise serve co-located
+      # prod pulls; a degraded such replica caused a ~100% HCP install outage
+      # (AROSLSRE-1592). Per-region override (see config.msft.clouds-overlay.yaml)
+      # keeps eastus2euap's regional endpoint disabled so the manual mitigation
+      # persists across rollouts; every other region defaults to enabled.
+      replicationState: true
   # TRANSIENT — STG-global "V2" migration scaffolding. Every pipeline (including
   # the stg-only V2 copies) is preprocessed by helmtest against the dev render
   # and by EV2 manifest generation for all public envs, and the renderer uses
@@ -133,7 +133,6 @@ defaults:
     # monitoring.grafanaRoles so assigning a role on arohcp-stg2 never touches
     # the shared arohcp-stg (which already holds the grant manually).
     grafanaRoles: ""
-    grafanaMajorVersion: "empty-sentinel"
     billingKustoName: "empty-sentinel"
     billingKustoSku: "empty-sentinel"
   # Image Registry Policy
@@ -221,6 +220,10 @@ defaults:
       namespace: mgmt-agent
       serviceAccountName: mgmt-agent
       replicas: 2
+      resources:
+        requests:
+          cpu: 50m
+          memory: 768Mi
   # Kube Applier Controller
   kubeApplier:
     image:
@@ -504,6 +507,8 @@ defaults:
             poll: true
           - name: ManagedGatewayAPIPreview
             poll: true
+          - name: IdentityBindingPreview
+            poll: true
         'Microsoft.DbForPostgreSQL':
           poll: true
         'Microsoft.Kusto':
@@ -769,7 +774,7 @@ defaults:
       resources:
         requests:
           cpu: 100m
-          memory: 500Mi
+          memory: 1Gi
         limits:
           memory: unlimited
     azureRuntimeConfig:

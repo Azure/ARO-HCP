@@ -22,12 +22,12 @@ import (
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -39,11 +39,11 @@ import (
 //
 // Replaces createNodePoolScopedMaestroReadonlyBundlesSyncer.
 type createNodePoolScopedReadDesiresSyncer struct {
-	activeOperationLister listers.ActiveOperationLister
+	activeOperationLister corelisters.ActiveOperationLister
 
 	resourcesDBClient            database.ResourcesDBClient
 	kubeApplierDBClients         database.KubeApplierDBClients
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 
 	hostedClusterNamespaceEnvIdentifier string
 }
@@ -51,11 +51,11 @@ type createNodePoolScopedReadDesiresSyncer struct {
 var _ controllerutils.NodePoolSyncer = (*createNodePoolScopedReadDesiresSyncer)(nil)
 
 func NewCreateNodePoolScopedReadDesiresController(
-	activeOperationLister listers.ActiveOperationLister,
+	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
-	serviceProviderClusterLister listers.ServiceProviderClusterLister,
-	informers informers.BackendInformers,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	syncer := &createNodePoolScopedReadDesiresSyncer{

@@ -21,7 +21,7 @@ Today `topology-dev-ci.yaml`'s `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entr
 - `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged`
   - Deploys shared dev/CI network resources, the `opstool` AKS cluster, and the shared Prometheus monitoring stack.
 - `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota`
-  - Deploys the `tenant-quota-collector` workload that monitors Azure quotas relevant to CI capacity.
+  - Deploys the historically named `tenant-quota-collector`, the extensible DEV CI telemetry exporter.
 - `Microsoft.Azure.ARO.HCP.DevCI.Gateway`
   - Deploys the shared Istio gateway and DNS wiring for `opstool`.
 - `Microsoft.Azure.ARO.HCP.DevCI.CertManager`
@@ -109,8 +109,8 @@ When you need to change or debug the standalone `dev-ci` topology, start here:
 - `dev-infrastructure/Makefile`
 - `dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh`
 - [CI Identity Leasing](identity-leasing.md)
-- [CI Quota Monitoring](quota-monitoring.md)
-- [Opstool Cluster Guide](../ops/opstool-cluster-guide.md)
+- [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
+- [Opstool CI Platform](opstool.md)
 
 ## See Also
 

@@ -26,13 +26,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,8 +40,8 @@ import (
 type operationNodePoolCreate struct {
 	clock                  utilsclock.PassiveClock
 	resourcesDBClient      database.ResourcesDBClient
-	activeOperationsLister listers.ActiveOperationLister
-	nodePoolLister         listers.NodePoolLister
+	activeOperationsLister corelisters.ActiveOperationLister
+	nodePoolLister         corelisters.NodePoolLister
 	clusterServiceClient   ocm.ClusterServiceClientSpec
 	notificationClient     *http.Client
 }
@@ -66,7 +66,7 @@ func NewOperationNodePoolCreateController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
-	backendInformers informers.BackendInformers,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := backendInformers.NodePools()
 	_, activeOperationsLister := backendInformers.ActiveOperations()
@@ -80,7 +80,7 @@ func NewOperationNodePoolCreateController(
 		notificationClient:     notificationClient,
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"OperationNodePoolCreate",
 		syncer,
 		10*time.Second,

@@ -26,14 +26,14 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -42,9 +42,9 @@ type operationExternalAuthUpdate struct {
 	clock                  utilsclock.PassiveClock
 	resourcesDBClient      database.ResourcesDBClient
 	clusterServiceClient   ocm.ClusterServiceClientSpec
-	externalAuthLister     listers.ExternalAuthLister
-	readDesireLister       dblisters.ReadDesireLister
-	activeOperationsLister listers.ActiveOperationLister
+	externalAuthLister     corelisters.ExternalAuthLister
+	readDesireLister       kubeapplierlisters.ReadDesireLister
+	activeOperationsLister corelisters.ActiveOperationLister
 	notificationClient     *http.Client
 }
 
@@ -66,10 +66,10 @@ func NewOperationExternalAuthUpdateController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
-	backendInformers informers.BackendInformers,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := backendInformers.ExternalAuths()
 	_, activeOperationsLister := backendInformers.ActiveOperations()
@@ -84,7 +84,7 @@ func NewOperationExternalAuthUpdateController(
 		notificationClient:     notificationClient,
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"OperationExternalAuthUpdate",
 		syncer,
 		10*time.Second,

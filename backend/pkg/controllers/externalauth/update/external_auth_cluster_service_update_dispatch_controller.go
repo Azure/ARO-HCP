@@ -28,12 +28,12 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -51,7 +51,7 @@ import (
 // verifies propagation before the ARM external auth update operation succeeds.
 type externalAuthClusterServiceUpdateDispatchSyncer struct {
 	cooldownChecker      controllerutil.CooldownChecker
-	externalAuthLister   listers.ExternalAuthLister
+	externalAuthLister   corelisters.ExternalAuthLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
@@ -65,8 +65,8 @@ var _ controllerutils.ExternalAuthSyncer = (*externalAuthClusterServiceUpdateDis
 func NewExternalAuthClusterServiceUpdateDispatchController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	backendInformers informers.BackendInformers,
+	activeOperationLister corelisters.ActiveOperationLister,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := backendInformers.ExternalAuths()
 	syncer := NewExternalAuthClusterServiceUpdateDispatchSyncer(
@@ -88,8 +88,8 @@ func NewExternalAuthClusterServiceUpdateDispatchController(
 func NewExternalAuthClusterServiceUpdateDispatchSyncer(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	externalAuthLister listers.ExternalAuthLister,
+	activeOperationLister corelisters.ActiveOperationLister,
+	externalAuthLister corelisters.ExternalAuthLister,
 ) controllerutils.ExternalAuthSyncer {
 	return &externalAuthClusterServiceUpdateDispatchSyncer{
 		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),

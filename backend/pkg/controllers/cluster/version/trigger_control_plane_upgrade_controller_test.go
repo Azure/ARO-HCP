@@ -32,10 +32,10 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -210,7 +210,7 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 		name           string
 		cluster        *api.HCPOpenShiftCluster
 		seedOperation  bool
-		opLister       func(mockDB *databasetesting.MockResourcesDBClient) listers.ActiveOperationLister
+		opLister       func(mockDB *databasetesting.MockResourcesDBClient) corelisters.ActiveOperationLister
 		wantShouldRun  bool
 		wantErrContain string
 	}{
@@ -252,7 +252,7 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 			name:          "active operation lister error is propagated and fails open to shouldRun=true",
 			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), "op-broken"),
 			seedOperation: false,
-			opLister: func(_ *databasetesting.MockResourcesDBClient) listers.ActiveOperationLister {
+			opLister: func(_ *databasetesting.MockResourcesDBClient) corelisters.ActiveOperationLister {
 				return &boomActiveOperationLister{err: listerBoom}
 			},
 			wantShouldRun:  true,
@@ -268,11 +268,11 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 			if tt.seedOperation {
 				seedClusterCreateOperation(t, ctx, mockDB, clusterResourceID, "op-create-1")
 			}
-			var opLister listers.ActiveOperationLister
+			var opLister corelisters.ActiveOperationLister
 			if tt.opLister != nil {
 				opLister = tt.opLister(mockDB)
 			} else {
-				opLister = &listertesting.DBActiveOperationLister{ResourcesDBClient: mockDB}
+				opLister = &corelistertesting.DBActiveOperationLister{ResourcesDBClient: mockDB}
 			}
 			syncer := &triggerControlPlaneUpgradeSyncer{
 				clock:                 clocktesting.NewFakePassiveClock(now),

@@ -33,12 +33,12 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -93,7 +93,7 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 		existingNodePool   *api.HCPOpenShiftClusterNodePool
 		existingCSNodePool *arohcpv1alpha1.NodePool
 		// When not set, the syncer uses a node pool lister backed by the seeded Cosmos resources.
-		nodePoolLister                      listers.NodePoolLister
+		nodePoolLister                      corelisters.NodePoolLister
 		setupMockCSClient                   func(mock *ocm.MockClusterServiceClientSpec)
 		minimumReconcileTimeCooldownChecker controllerutil.CooldownChecker
 		wantErr                             bool
@@ -233,7 +233,7 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 
 			nodePoolLister := tc.nodePoolLister
 			if nodePoolLister == nil {
-				nodePoolLister = &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDB}
+				nodePoolLister = &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDB}
 			}
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)

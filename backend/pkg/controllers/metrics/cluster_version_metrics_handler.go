@@ -24,19 +24,19 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type clusterVersionMetricsHandler struct {
 	clusterVersionInfo *prometheus.GaugeVec
-	readDesireLister   dblisters.ReadDesireLister
+	readDesireLister   kubeapplierlisters.ReadDesireLister
 }
 
 // NewClusterVersionMetricsHandler creates a metrics handler for cluster version metrics.
 func NewClusterVersionMetricsHandler(
 	prometheusRegisterer prometheus.Registerer,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) Handler[*api.ServiceProviderCluster] {
 	metricsHandler := &clusterVersionMetricsHandler{
 		readDesireLister: readDesireLister,

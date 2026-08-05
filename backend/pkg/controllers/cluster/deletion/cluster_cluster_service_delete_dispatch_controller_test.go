@@ -35,10 +35,10 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -269,7 +269,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 
 			syncer := &clusterClusterServiceDeleteDispatchSyncer{
 				clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-				clusterLister:                   &listertesting.SliceClusterLister{Clusters: clustersForLister},
+				clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:               mockResourcesDBClient,
 				clusterServiceClient:            mockCSClient,
 				firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
@@ -308,7 +308,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircuit(t 
 
 	syncer := &clusterClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		clusterLister:                   &listertesting.SliceClusterLister{Clusters: []*api.HCPOpenShiftCluster{cachedCluster}},
+		clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*api.HCPOpenShiftCluster{cachedCluster}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
 		firstSeenDeletionTimestampCache: lru.New(10),
@@ -342,7 +342,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 	firstSeenDeletionTimestampCache := lru.New(10)
 	syncer := &clusterClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		clusterLister:                   &listertesting.SliceClusterLister{Clusters: []*api.HCPOpenShiftCluster{cluster}},
+		clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*api.HCPOpenShiftCluster{cluster}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
 		firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
@@ -384,7 +384,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 
 	syncer := &clusterClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		clusterLister:                   &listertesting.SliceClusterLister{Clusters: []*api.HCPOpenShiftCluster{cluster}},
+		clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*api.HCPOpenShiftCluster{cluster}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            mockCSClient,
 		firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,

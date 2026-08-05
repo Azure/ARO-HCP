@@ -33,14 +33,14 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -49,10 +49,10 @@ type operationClusterUpdate struct {
 	clock                           utilsclock.PassiveClock
 	resourcesDBClient               database.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
-	clusterLister                   listers.ClusterLister
-	serviceProviderClusterLister    listers.ServiceProviderClusterLister
-	readDesireLister                dblisters.ReadDesireLister
-	activeOperationsLister          listers.ActiveOperationLister
+	clusterLister                   corelisters.ClusterLister
+	serviceProviderClusterLister    corelisters.ServiceProviderClusterLister
+	readDesireLister                kubeapplierlisters.ReadDesireLister
+	activeOperationsLister          corelisters.ActiveOperationLister
 	notificationClient              *http.Client
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
@@ -75,10 +75,10 @@ func NewOperationClusterUpdateController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
-	backendInformers informers.BackendInformers,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
@@ -96,7 +96,7 @@ func NewOperationClusterUpdateController(
 		desiredVersionMismatchFirstSeen: lru.New(100000),
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"OperationClusterUpdate",
 		syncer,
 		10*time.Second,

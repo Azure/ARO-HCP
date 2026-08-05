@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/json"
 
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -37,7 +37,7 @@ const ReadDesireNameServingCA = "systemadmincredential-serving-ca"
 //     the target (Status.KubeContent is nil or empty).
 func GetCachedServingCASecretForCluster(
 	ctx context.Context,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	subscriptionName, resourceGroupName, clusterName string,
 ) (*corev1.Secret, error) {
 	readDesire, err := readDesireLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, ReadDesireNameServingCA)

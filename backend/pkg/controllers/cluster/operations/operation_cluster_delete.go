@@ -16,9 +16,11 @@ package operations
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,10 +30,14 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,6 +46,8 @@ type operationClusterDelete struct {
 	clock                utilsclock.PassiveClock
 	resourcesDBClient    database.ResourcesDBClient
 	billingDBClient      database.BillingDBClient
+	kubeApplierDBClients database.KubeApplierDBClients
+	readDesireLister     kubeapplierlisters.ReadDesireLister
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
 }
@@ -71,6 +79,8 @@ func NewOperationClusterDeleteController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	billingDBClient database.BillingDBClient,
+	kubeApplierDBClients database.KubeApplierDBClients,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
@@ -79,11 +89,13 @@ func NewOperationClusterDeleteController(
 		clock:                clock,
 		resourcesDBClient:    resourcesDBClient,
 		billingDBClient:      billingDBClient,
+		kubeApplierDBClients: kubeApplierDBClients,
+		readDesireLister:     readDesireLister,
 		clusterServiceClient: clusterServiceClient,
 		notificationClient:   notificationClient,
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"OperationClusterDelete",
 		syncer,
 		10*time.Second,
@@ -144,6 +156,27 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
 
+	if cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline != nil &&
+		c.clock.Now().After(cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline.Time) {
+
+		message := c.buildDeletionTimeoutMessage(ctx, operation, cluster)
+		logger.Info("delete operation deadline exceeded, marking as failed",
+			"deadline", cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline.Time,
+			"message", message)
+		persistErr := &arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInternalServerError,
+			Message: message,
+		}
+		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, arm.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		if database.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		return nil
+	}
+
 	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
 		return nil
 	}
@@ -195,4 +228,176 @@ func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context
 	}
 
 	return nil
+}
+
+func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context, _ *api.Operation, cluster *api.HCPOpenShiftCluster) string {
+	logger := utils.LoggerFromContext(ctx)
+
+	errs := []error{}
+	states := []*operationbase.OperationState{}
+
+	if currState, err := clusterServiceDeletionStatus(cluster); err != nil {
+		errs = append(errs, err)
+	} else {
+		states = append(states, currState.WithSource("clusterServiceDeletion"))
+	}
+
+	if currState, err := c.clusterServiceStatusForDeletion(ctx, cluster); err != nil {
+		errs = append(errs, err)
+	} else {
+		states = append(states, currState.WithSource("clusterServiceStatus"))
+	}
+
+	if currState, err := c.remainingDescendantResources(ctx, cluster); err != nil {
+		errs = append(errs, err)
+	} else {
+		states = append(states, currState.WithSource("descendantResources"))
+	}
+
+	if currState, err := c.hostedClusterDeletionStatus(ctx, cluster); err != nil {
+		errs = append(errs, err)
+	} else {
+		states = append(states, currState.WithSource("hostedCluster"))
+	}
+
+	if err := errors.Join(errs...); err != nil {
+		logger.Error(err, "errors building deletion timeout message")
+	}
+	if len(states) == 0 {
+		return "cluster deletion did not complete before the deadline"
+	}
+	slices.SortStableFunc(states, operationbase.CompareOperationState)
+
+	picked, err := operationbase.PickWorstOperationState(states)
+	if err != nil {
+		logger.Error(err, "failed to pick worst deletion state")
+		return "cluster deletion did not complete before the deadline"
+	}
+
+	message := picked.Message
+	if len(message) == 0 {
+		return "cluster deletion did not complete before the deadline"
+	}
+	return fmt.Sprintf("cluster deletion did not complete before the deadline; %s", message)
+}
+
+// TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
+func clusterServiceDeletionStatus(cluster *api.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+		return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	}
+	if cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil {
+		return operationbase.NewOperationState(arm.ProvisioningStateDeleting, "ClusterService deletion not yet dispatched"), nil
+	}
+	return operationbase.NewOperationState(arm.ProvisioningStateDeleting, fmt.Sprintf("ClusterService cluster %s still exists (deletion dispatched at %s)",
+		cluster.ServiceProviderProperties.ClusterServiceID,
+		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Format(time.RFC3339))), nil
+}
+
+// TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
+func (c *operationClusterDelete) clusterServiceStatusForDeletion(ctx context.Context, cluster *api.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+		return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	}
+
+	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, *cluster.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		var ocmError *ocmerrors.Error
+		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
+			return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+		}
+		return nil, fmt.Errorf("failed to get ClusterService status: %w", err)
+	}
+
+	return operationbase.NewOperationState(arm.ProvisioningStateDeleting, fmt.Sprintf("ClusterService state is %q", csClusterStatus.State())), nil
+}
+
+func (c *operationClusterDelete) shouldCountChild(child *database.TypedDocument) bool {
+	lowered := strings.ToLower(child.ResourceType)
+	if strings.Contains(lowered, strings.ToLower(api.ControllerResourceTypeName)) {
+		return false
+	}
+	if strings.Contains(lowered, strings.ToLower(api.ManagementClusterContentResourceTypeName)) {
+		return false
+	}
+	if strings.Contains(lowered, strings.ToLower(kubeapplier.ReadDesireResourceTypeName)) {
+		return false
+	}
+	if strings.Contains(lowered, strings.ToLower(kubeapplier.ApplyDesireResourceTypeName)) {
+		var partial struct {
+			Spec struct {
+				Type kubeapplier.ApplyDesireType `json:"type"`
+			} `json:"spec"`
+		}
+		if json.Unmarshal(child.Properties, &partial) == nil && partial.Spec.Type == kubeapplier.ApplyDesireTypeDelete {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *operationClusterDelete) remainingDescendantResources(ctx context.Context, cluster *api.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+	logger := utils.LoggerFromContext(ctx)
+	typeCounts := map[string]int{}
+
+	resourcesCRUD, err := c.resourcesDBClient.UntypedCRUD(*cluster.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create untyped CRUD: %w", err)
+	}
+	if err := countDescendants(ctx, resourcesCRUD, c.shouldCountChild, typeCounts); err != nil {
+		return nil, err
+	}
+
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	if err != nil && !database.IsNotFoundError(err) {
+		logger.Error(err, "failed to get ServiceProviderCluster for kube-applier resource count")
+	}
+	if spc != nil && spc.Status.ManagementClusterResourceID != nil {
+		kaClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+		kaCRUD, kaErr := kaClient.UntypedCRUD(*cluster.ID)
+		if kaErr != nil {
+			logger.Error(kaErr, "failed to create kube-applier untyped CRUD")
+		} else if err := countDescendants(ctx, kaCRUD, c.shouldCountChild, typeCounts); err != nil {
+			logger.Error(err, "failed to count kube-applier descendant resources")
+		}
+	}
+
+	if len(typeCounts) == 0 {
+		return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	}
+
+	var parts []string
+	for resourceType, count := range typeCounts {
+		parts = append(parts, fmt.Sprintf("%d %s", count, resourceType))
+	}
+	slices.Sort(parts)
+	return operationbase.NewOperationState(arm.ProvisioningStateDeleting, fmt.Sprintf("remaining resources: %s", strings.Join(parts, ", "))), nil
+}
+
+func countDescendants(ctx context.Context, crud database.UntypedResourceCRUD, shouldCount func(*database.TypedDocument) bool, typeCounts map[string]int) error {
+	childIterator, err := crud.ListRecursive(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to list descendant resources: %w", err)
+	}
+	for _, child := range childIterator.Items(ctx) {
+		if !shouldCount(child) {
+			continue
+		}
+		typeCounts[child.ResourceType]++
+	}
+	if err := childIterator.GetError(); err != nil {
+		return fmt.Errorf("error iterating descendant resources: %w", err)
+	}
+	return nil
+}
+
+func (c *operationClusterDelete) hostedClusterDeletionStatus(ctx context.Context, cluster *api.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cached HostedCluster: %w", err)
+	}
+	if hostedCluster == nil {
+		return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	}
+	return operationbase.NewOperationState(arm.ProvisioningStateDeleting, "HostedCluster still exists"), nil
 }

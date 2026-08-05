@@ -503,8 +503,8 @@ resourceGroups:
       step: cluster
   - name: cs-postgres-access
     action: Shell
-    command: ./scripts/postgres-access/postgres-access
-    workingDir: .
+    command: ./postgres-access
+    workingDir: ./scripts/postgres-access
     shellIdentity:
       input:
         resourceGroup: global
@@ -537,8 +537,8 @@ resourceGroups:
       step: subscription-output
   - name: maestro-postgres-access
     action: Shell
-    command: ./scripts/postgres-access/postgres-access
-    workingDir: .
+    command: ./postgres-access
+    workingDir: ./scripts/postgres-access
     shellIdentity:
       input:
         resourceGroup: global

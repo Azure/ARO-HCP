@@ -47,7 +47,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/apply_desire"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/read_desire_manager"
@@ -235,8 +235,8 @@ func startControllers(parent context.Context, t *testing.T, kac database.KubeApp
 
 	listers := kac.Listers()
 
-	applyInformer := informers.NewApplyDesireInformerWithRelistDuration(listers.ApplyDesires(), kac, fastRelist)
-	readInformer := informers.NewReadDesireInformerWithRelistDuration(listers.ReadDesires(), kac, fastRelist)
+	applyInformer := kubeapplierinformers.NewApplyDesireInformerWithRelistDuration(listers.ApplyDesires(), kac, fastRelist)
+	readInformer := kubeapplierinformers.NewReadDesireInformerWithRelistDuration(listers.ReadDesires(), kac, fastRelist)
 
 	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, dyn, kac, apply_desire.Config{})
 	require.NoError(t, err)

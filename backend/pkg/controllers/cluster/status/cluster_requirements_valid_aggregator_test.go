@@ -28,11 +28,11 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
@@ -150,8 +150,8 @@ func TestClusterRequirementsValidAggregator_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			syncer := &clusterRequirementsValidAggregator{
-				clusterLister:                &listertesting.DBClusterLister{ResourcesDBClient: mockDB},
-				serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
+				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
+				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
 				resourcesDBClient:            mockDB,
 			}
 

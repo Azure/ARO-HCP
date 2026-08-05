@@ -27,11 +27,11 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation/operationtesting"
+	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -178,7 +178,7 @@ func TestHypershiftHostedClusterExternalAuthOperationState(t *testing.T) {
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
 			controller := &operationExternalAuthUpdate{
-				readDesireLister: &internallistertesting.SliceReadDesireLister{
+				readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 					Desires: tt.readDesires,
 				},
 			}

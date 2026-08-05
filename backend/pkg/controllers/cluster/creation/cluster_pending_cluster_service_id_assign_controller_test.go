@@ -25,9 +25,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -130,7 +130,7 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			}
 			syncer := &clusterPendingClusterServiceIDAssignSyncer{
 				resourcesDBClient: mockDB,
-				clusterLister:     &listertesting.SliceClusterLister{Clusters: listerClusters},
+				clusterLister:     &corelistertesting.SliceClusterLister{Clusters: listerClusters},
 			}
 
 			key := controllerutils.HCPClusterKey{

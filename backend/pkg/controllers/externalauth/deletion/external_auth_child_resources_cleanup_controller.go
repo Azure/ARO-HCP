@@ -22,11 +22,11 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -38,7 +38,7 @@ import (
 // scraper handles those after the ExternalAuth document itself is
 // removed.
 type externalAuthChildResourcesCleanupController struct {
-	externalAuthLister listers.ExternalAuthLister
+	externalAuthLister corelisters.ExternalAuthLister
 	resourcesDBClient  database.ResourcesDBClient
 }
 
@@ -46,7 +46,7 @@ var _ controllerutils.ExternalAuthSyncer = (*externalAuthChildResourcesCleanupCo
 
 func NewExternalAuthChildResourcesCleanupController(
 	resourcesDBClient database.ResourcesDBClient,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := informers.ExternalAuths()
 	syncer := &externalAuthChildResourcesCleanupController{

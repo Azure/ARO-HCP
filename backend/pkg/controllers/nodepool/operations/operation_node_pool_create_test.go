@@ -30,13 +30,13 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
-	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation/operationtesting"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
+	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -100,7 +100,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		setupCSMock       func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture)
 		existingOperation *api.Operation
 		// When not set, the controller uses an active operations lister that contains the existingOperation
-		activeOperationsLister listers.ActiveOperationLister
+		activeOperationsLister corelisters.ActiveOperationLister
 		expectError            bool
 		verifyDB               func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
@@ -270,7 +270,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			name:              "precondition failed on status update is ignored",
 			nodePool:          defaultNodePool,
 			existingOperation: preconditionExistingOperation,
-			activeOperationsLister: &listertesting.SliceActiveOperationLister{
+			activeOperationsLister: &corelistertesting.SliceActiveOperationLister{
 				Operations: []*api.Operation{preconditionListerOperation},
 			},
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *operationtesting.NodePoolTestFixture) {
@@ -300,7 +300,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 
 			activeOperationsLister := tt.activeOperationsLister
 			if activeOperationsLister == nil {
-				activeOperationsLister = &listertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
+				activeOperationsLister = &corelistertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
 			}
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -316,7 +316,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				clock:                  testClock,
 				resourcesDBClient:      mockResourcesDBClient,
 				activeOperationsLister: activeOperationsLister,
-				nodePoolLister:         &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				nodePoolLister:         &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 				clusterServiceClient:   mockCSClient,
 				notificationClient:     nil,
 			}

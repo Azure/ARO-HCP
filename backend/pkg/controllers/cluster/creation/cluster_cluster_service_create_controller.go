@@ -22,12 +22,12 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -35,8 +35,8 @@ import (
 type clusterClusterServiceCreateSyncer struct {
 	cooldownChecker       controllerutil.CooldownChecker
 	resourcesDBClient     database.ResourcesDBClient
-	clusterLister         listers.ClusterLister
-	subscriptionLister    listers.SubscriptionLister
+	clusterLister         corelisters.ClusterLister
+	subscriptionLister    corelisters.SubscriptionLister
 	clustersServiceClient ocm.ClusterServiceClientSpec
 }
 
@@ -45,8 +45,8 @@ var _ controllerutils.ClusterSyncer = (*clusterClusterServiceCreateSyncer)(nil)
 func NewClusterClusterServiceCreateController(
 	resourcesDBClient database.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	backendInformers informers.BackendInformers,
+	activeOperationLister corelisters.ActiveOperationLister,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, subscriptionLister := backendInformers.Subscriptions()

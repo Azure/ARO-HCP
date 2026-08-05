@@ -95,13 +95,22 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Lease Configuration](identity-leasing.md#lease-configuration)
 - [Where To Look](identity-leasing.md#where-to-look)
 
-### [CI Quota Monitoring](quota-monitoring.md)
+### [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
 
-- [Why Quota Monitoring Matters For CI](quota-monitoring.md#why-quota-monitoring-matters-for-ci)
-- [What tenant-quota Monitors](quota-monitoring.md#what-tenant-quota-monitors)
-- [Where It Runs](quota-monitoring.md#where-it-runs)
-- [Azure Dashboard](quota-monitoring.md#azure-dashboard)
-- [When Quota Is Tight](quota-monitoring.md#when-quota-is-tight)
+- [At A Glance](dev-ci-monitoring.md#at-a-glance)
+- [Architecture](dev-ci-monitoring.md#architecture)
+- [Alert Response Workflow](dev-ci-monitoring.md#alert-response-workflow)
+- [Exporter Health Checks](dev-ci-monitoring.md#exporter-health-checks)
+- [Troubleshooting by Category](dev-ci-monitoring.md#troubleshooting-by-category)
+- [Maintenance](dev-ci-monitoring.md#maintenance)
+- [Validation](dev-ci-monitoring.md#validation)
+- [Sources of Truth](dev-ci-monitoring.md#sources-of-truth)
+
+### [Opstool CI Platform](opstool.md)
+
+- Standalone AKS architecture and rollout model
+- Shared Prometheus, Azure Monitor, identity, and secret infrastructure
+- Workload onboarding pattern for DEV CI tools
 
 ### [CI EV2 Integration](ev2-integration.md)
 
@@ -189,7 +198,8 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [DEV Mock Identities](dev-mock-identities.md) explains what each DEV mock identity (first-party, ARM helper, MSI mock and its pool) stands in for and why it needs each role it is granted, given the absence of a real FPA and Managed Identities Data Plane.
 - [CI Image Lifecycle](image-lifecycle.md) explains the shared CI build root, job-local image graph, local E2E image injection, and the difference between CI promotion and ACR mirroring.
 - [CI Identity Leasing](identity-leasing.md) explains the managed identity container pool, the MSI mock SP pool, and the current staged model: slot-manager for DEV `e2e-parallel`, legacy ci-operator identity-container leases elsewhere.
-- [CI Quota Monitoring](quota-monitoring.md) explains how Azure quotas that constrain CI are monitored and where to check current usage.
+- [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md) is the canonical Slack and PagerDuty runbook for DEV CI telemetry, alert response, exporter checks, and routing maintenance.
+- [Opstool CI Platform](opstool.md) explains the standalone AKS platform, shared monitoring infrastructure, and workload rollout model that host DEV CI tools.
 - [CI EV2 Integration](ev2-integration.md) explains how EV2 selects Prow jobs, authenticates to Gangway, and pins runs to the exact rollout commit.
 - [CI Cleanup](cleanup.md) explains why cleanup is intentionally split across strict per-test teardown, targeted environment teardown, and background hygiene.
 - [E2E Testing In CI](e2e-testing.md) explains how to trigger E2E jobs from PRs and how to narrow test selection safely.

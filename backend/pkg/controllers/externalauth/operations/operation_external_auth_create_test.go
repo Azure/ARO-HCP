@@ -30,11 +30,11 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation/operationtesting"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -179,8 +179,8 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 			controller := &operationExternalAuthCreate{
 				clock:                  utilsclock.RealClock{},
 				resourcesDBClient:      mockResourcesDBClient,
-				activeOperationsLister: &listertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient},
-				externalAuthLister:     &listertesting.DBExternalAuthLister{ResourcesDBClient: mockResourcesDBClient},
+				activeOperationsLister: &corelistertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient},
+				externalAuthLister:     &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockResourcesDBClient},
 				clusterServiceClient:   mockCSClient,
 				notificationClient:     nil,
 			}

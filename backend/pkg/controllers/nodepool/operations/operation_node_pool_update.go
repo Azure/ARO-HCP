@@ -33,15 +33,15 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -50,10 +50,10 @@ type operationNodePoolUpdate struct {
 	clock                           utilsclock.PassiveClock
 	resourcesDBClient               database.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
-	nodePoolLister                  listers.NodePoolLister
-	serviceProviderNodePoolLister   listers.ServiceProviderNodePoolLister
-	readDesireLister                dblisters.ReadDesireLister
-	activeOperationsLister          listers.ActiveOperationLister
+	nodePoolLister                  corelisters.NodePoolLister
+	serviceProviderNodePoolLister   corelisters.ServiceProviderNodePoolLister
+	readDesireLister                kubeapplierlisters.ReadDesireLister
+	activeOperationsLister          corelisters.ActiveOperationLister
 	notificationClient              *http.Client
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
@@ -76,10 +76,10 @@ func NewOperationNodePoolUpdateController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
-	backendInformers informers.BackendInformers,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := backendInformers.NodePools()
 	_, serviceProviderNodePoolLister := backendInformers.ServiceProviderNodePools()
@@ -97,7 +97,7 @@ func NewOperationNodePoolUpdateController(
 		desiredVersionMismatchFirstSeen: lru.New(100000),
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"OperationNodePoolUpdate",
 		syncer,
 		10*time.Second,
@@ -284,7 +284,7 @@ func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx con
 	// for this version. Stay Accepted while resolution runs; fail once elapsed exceeds
 	// 129s from the first time this process observed the mismatch for this operation.
 	// This avoids immediately failing long-running operations after controller restarts
-	// and is double the relistDuration of the nodepool and serviceProviderNodePool informers.
+	// and is double the relistDuration of the nodepool and serviceProviderNodePool coreinformers.
 	// This will not solve all the edge cases, but it will give enough time to the other controllers to act.
 	if intentFailedCondition.Status != metav1.ConditionTrue || intentFailedCondition.Reason != api.VersionUpgradeNotAcceptedReason {
 		pending := operationbase.NewOperationState(arm.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")

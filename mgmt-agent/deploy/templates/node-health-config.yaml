@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.nodeHealth.configMapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+data:
+  {{ .Values.nodeHealth.configKey }}: |
+{{ toYaml .Values.nodeHealth.config | indent 4 }}

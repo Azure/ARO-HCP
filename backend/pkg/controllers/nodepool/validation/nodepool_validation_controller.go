@@ -22,12 +22,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -36,7 +36,7 @@ import (
 // validation.
 type nodePoolValidationSyncer struct {
 	resourcesDBClient             database.ResourcesDBClient
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 
 	// validation is the validation to perform on the node pool.
 	validation validationutils.NodePoolValidation
@@ -48,10 +48,10 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolValidationSyncer)(nil)
 // executes the provided NodePool validation on each node pool.
 func NewNodePoolValidationController(
 	validation validationutils.NodePoolValidation,
-	activeOperationLister listers.ActiveOperationLister,
+	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
-	informers informers.BackendInformers,
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 

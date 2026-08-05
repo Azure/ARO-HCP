@@ -19,17 +19,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type clusterPendingClusterServiceIDAssignSyncer struct {
-	clusterLister     listers.ClusterLister
+	clusterLister     corelisters.ClusterLister
 	resourcesDBClient database.ResourcesDBClient
 }
 
@@ -37,7 +37,7 @@ var _ controllerutils.ClusterSyncer = (*clusterPendingClusterServiceIDAssignSync
 
 const ClusterPendingClusterServiceIDAssignControllerName = "ClusterPendingClusterServiceIDAssign"
 
-func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient database.ResourcesDBClient, backendInformers informers.BackendInformers) controllerutils.Controller {
+func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient database.ResourcesDBClient, backendInformers coreinformers.BackendInformers) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	syncer := &clusterPendingClusterServiceIDAssignSyncer{
 		clusterLister:     clusterLister,

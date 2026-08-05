@@ -23,13 +23,13 @@ import (
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -43,11 +43,11 @@ import (
 // Replaces createClusterScopedMaestroReadonlyBundlesSyncer, which used
 // Maestro to mirror the same content.
 type createClusterScopedReadDesiresSyncer struct {
-	activeOperationLister listers.ActiveOperationLister
+	activeOperationLister corelisters.ActiveOperationLister
 
 	resourcesDBClient            database.ResourcesDBClient
 	kubeApplierDBClients         database.KubeApplierDBClients
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 
 	// hostedClusterNamespaceEnvIdentifier is the "envName" segment of the
 	// CDNamespace (ocm-<envName>-<csClusterID>). Historically the maestro
@@ -63,11 +63,11 @@ var _ controllerutils.ClusterSyncer = (*createClusterScopedReadDesiresSyncer)(ni
 // (informer relist + cooldown) matches the rest of the cluster-scoped
 // pipeline.
 func NewCreateClusterScopedReadDesiresController(
-	activeOperationLister listers.ActiveOperationLister,
+	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
-	serviceProviderClusterLister listers.ServiceProviderClusterLister,
-	informers informers.BackendInformers,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	syncer := &createClusterScopedReadDesiresSyncer{

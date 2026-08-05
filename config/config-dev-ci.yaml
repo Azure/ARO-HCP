@@ -161,7 +161,7 @@ clouds:
           image:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "tenant-quota-collector"
-            tag: "latest"
+            digest: "sha256:e550b375a6110ec600fa8fa097cffe05de8a53f3e8f4d8452232116baa8fbc56"
           tenants:
           - tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
             tenantName: "RedHat0"

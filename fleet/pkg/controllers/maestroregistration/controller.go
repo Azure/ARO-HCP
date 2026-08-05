@@ -27,14 +27,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type maestroRegistrationSyncer struct {
 	fleetDBClient                database.FleetDBClient
 	maestroConsumerClientFactory MaestroConsumerClientFactory
-	stampLister                  listers.StampLister
+	stampLister                  fleetlisters.StampLister
 }
 
 func NewMaestroRegistrationController(
@@ -42,7 +42,7 @@ func NewMaestroRegistrationController(
 	stampInformer cache.SharedIndexInformer,
 	fleetDBClient database.FleetDBClient,
 	maestroConsumerClientFactory MaestroConsumerClientFactory,
-	stampLister listers.StampLister,
+	stampLister fleetlisters.StampLister,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
 ) *fleetcontrollers.StampWatchingController {
 	syncer := &maestroRegistrationSyncer{

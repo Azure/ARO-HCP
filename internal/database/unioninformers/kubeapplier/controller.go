@@ -33,8 +33,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database/informers"
-	"github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -64,7 +64,7 @@ func (k ManagementClusterKey) GetResourceID() *azcorearm.ResourceID {
 
 // AddLoggerValues enriches logger with the standard resource-id key/value
 // pairs derived from this management cluster's resourceID. Matches the
-// shape of the other controller keys in backend/pkg/controllers/controllerutils
+// shape of the other controller keys in backend/pkg/utils/controllerutils
 // (HCPClusterKey, HCPNodePoolKey, etc.).
 func (k ManagementClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 	return logger.WithValues(
@@ -83,7 +83,7 @@ func (k ManagementClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 // controller silently skips this sync and waits for the next event for
 // that MC.
 type PerMCKubeApplierInformerFactory interface {
-	NewKubeApplierInformers(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) informers.KubeApplierInformers
+	NewKubeApplierInformers(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) kubeapplierinformers.KubeApplierInformers
 }
 
 // UnionKubeApplierInformersController owns a UnionKubeApplierInformers and
@@ -104,7 +104,7 @@ type PerMCKubeApplierInformerFactory interface {
 type UnionKubeApplierInformersController struct {
 	union      *UnionKubeApplierInformers
 	mcInformer cache.SharedIndexInformer
-	mcLister   listers.ManagementClusterLister
+	mcLister   fleetlisters.ManagementClusterLister
 	factory    PerMCKubeApplierInformerFactory
 	queue      workqueue.TypedRateLimitingInterface[ManagementClusterKey]
 
@@ -115,7 +115,7 @@ type UnionKubeApplierInformersController struct {
 // controllerSubEntry tracks one per-MC informer the controller started so
 // it can be cancelled and joined on remove or shutdown.
 type controllerSubEntry struct {
-	sub    informers.KubeApplierInformers
+	sub    kubeapplierinformers.KubeApplierInformers
 	cancel context.CancelFunc
 	done   chan struct{}
 }
@@ -125,7 +125,7 @@ type controllerSubEntry struct {
 // per-MC sub-informers.
 func NewUnionKubeApplierInformersController(
 	mcInformer cache.SharedIndexInformer,
-	mcLister listers.ManagementClusterLister,
+	mcLister fleetlisters.ManagementClusterLister,
 	factory PerMCKubeApplierInformerFactory,
 ) *UnionKubeApplierInformersController {
 	return &UnionKubeApplierInformersController{

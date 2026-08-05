@@ -15,6 +15,8 @@
 package api
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -164,6 +166,20 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// The operation cluster create controller uses this value to decide about marking the install as failed.
 	// The e2e tests set this value to one minute less than the default timeout.
 	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
+
+	// DeleteOperationCompletionTimeout is the duration after which a cluster deletion operation will be
+	// marked as failed with a message listing the remaining cosmos resources preventing deletion.
+	// Set by admission on CREATE and UPDATE from the TagClusterMaxDeletionDuration tag.
+	// Nil when the tag is absent or the ExperimentalReleaseFeatures AFEC is not registered.
+	// The frontend DELETE handler computes the deadline as DeletionTimestamp + this duration.
+	// Written by: Frontend PUT/PATCH Cluster (via admission)
+	DeleteOperationCompletionTimeout *time.Duration `json:"deleteOperationCompletionTimeout,omitempty"`
+
+	// DeleteOperationCompletionDeadline is the absolute time by which the cluster deletion operation
+	// must complete. Computed by the frontend DELETE handler as DeletionTimestamp + DeleteOperationCompletionTimeout
+	// (or DeletionTimestamp + 12h when DeleteOperationCompletionTimeout is nil).
+	// Written by: Frontend DELETE Cluster
+	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.

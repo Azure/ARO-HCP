@@ -24,14 +24,14 @@ import (
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -44,9 +44,9 @@ const NodePoolActiveVersionsControllerName = "NodePoolActiveVersions"
 // management cluster's Hypershift NodePool object). Reading from the cached
 // NodePool CR replaces the previous round-trip through Cluster Service.
 type nodePoolActiveVersionSyncer struct {
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 	resourcesDBClient             database.ResourcesDBClient
-	readDesireLister              dblisters.ReadDesireLister
+	readDesireLister              kubeapplierlisters.ReadDesireLister
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolActiveVersionSyncer)(nil)
@@ -56,9 +56,9 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolActiveVersionSyncer)(nil)
 // per-node-pool ReadDesire's observed Hypershift NodePool.
 func NewNodePoolActiveVersionController(
 	resourcesDBClient database.ResourcesDBClient,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {
 	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
 	syncer := &nodePoolActiveVersionSyncer{

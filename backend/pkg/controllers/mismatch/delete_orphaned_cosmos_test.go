@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database/listertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -197,7 +197,7 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 				name:                    "DeleteOrphanedCosmosResources",
 				resourcesDBClient:       resourcesClient,
 				kubeApplierDBClients:    kubeApplierClients,
-				managementClusterLister: &listertesting.SliceManagementClusterLister{ManagementClusters: mcFleet},
+				managementClusterLister: &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: mcFleet},
 			}
 
 			require.NoError(t, c.synchronizeSubscription(ctx, testSubscriptionID))

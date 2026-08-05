@@ -32,15 +32,15 @@ import (
 
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -61,13 +61,13 @@ const controlPlaneDesiredVersionControllerName = "ControlPlaneDesiredVersion"
 // version upgrades by selecting the appropriate z-stream within the user-desired minor version.
 type controlPlaneDesiredVersionSyncer struct {
 	clock                         utilsclock.PassiveClock
-	readDesireLister              dblisters.ReadDesireLister
+	readDesireLister              kubeapplierlisters.ReadDesireLister
 	resourcesDBClient             database.ResourcesDBClient
 	clusterServiceClient          ocm.ClusterServiceClientSpec
-	subscriptionLister            listers.SubscriptionLister
-	activeOperationLister         listers.ActiveOperationLister
-	serviceProviderClusterLister  listers.ServiceProviderClusterLister
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	subscriptionLister            corelisters.SubscriptionLister
+	activeOperationLister         corelisters.ActiveOperationLister
+	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 
 	cincinnatiClientCache cincinnati.ClientCache
 	graphClient           cincinnati.GraphClient
@@ -82,13 +82,13 @@ func NewControlPlaneDesiredVersionController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	serviceProviderClusterLister listers.ServiceProviderClusterLister,
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
-	informers informers.BackendInformers,
+	activeOperationLister corelisters.ActiveOperationLister,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
-	readDesireLister dblisters.ReadDesireLister,
-	subscriptionLister listers.SubscriptionLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
+	subscriptionLister corelisters.SubscriptionLister,
 ) controllerutils.Controller {
 	syncer := &controlPlaneDesiredVersionSyncer{
 		clock:                         clock,

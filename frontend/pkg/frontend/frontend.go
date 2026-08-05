@@ -43,11 +43,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
-	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
-	"github.com/Azure/ARO-HCP/internal/api/v20260630preview"
-	"github.com/Azure/ARO-HCP/internal/api/v20260901preview"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -410,25 +410,6 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
-	}
-
-	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, clusterResourceID.SubscriptionID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	if !subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
-		logger.Info("admin credential revocation denied: AFEC feature not registered",
-			"subscriptionId", clusterResourceID.SubscriptionID,
-			"requiredFeature", api.FeatureExperimentalReleaseFeatures,
-		)
-		return utils.TrackError(
-			arm.NewCloudError(
-				http.StatusForbidden,
-				arm.CloudErrorCodeFeatureNotEnabled,
-				clusterResourceID.String(),
-				"Admin credential revocation not enabled for this subscription."),
-		)
 	}
 
 	// Credential revocation cannot be requested while another revocation is in progress.

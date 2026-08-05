@@ -24,6 +24,18 @@ metadata:
   name: mgmt-agent
   namespace: mgmt-agent
 ---
+# Source: mgmt-agent/templates/node-health-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mgmt-agent-node-health
+  namespace: mgmt-agent
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+data:
+  config.yaml: |
+    enabled: false
+---
 # Source: mgmt-agent/templates/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -40,11 +52,29 @@ rules:
   - get
   - list
   - watch
+  - patch
 - apiGroups:
   - ""
   resources:
   - nodes/status
   verbs:
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - list
+  - watch
+  - create
   - patch
   - update
 - apiGroups:
@@ -212,6 +242,8 @@ spec:
         - "--health-address=:8080"
         - "--ksm-image=mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics@sha256:1234567890"
         - "--log-verbosity=2"
+        - "--node-health-configmap=mgmt-agent-node-health"
+        - "--node-health-config-key=config.yaml"
         image: "arohcpsvcdev.azurecr.io/mgmt-agent@sha256:1234567890"
         name: mgmt-agent-controller
         env:
@@ -251,10 +283,11 @@ spec:
         resources:
           requests:
             cpu: 50m
-            memory: 64Mi
+            memory: 768Mi
         volumeMounts: []
       volumes: []
       serviceAccountName: mgmt-agent
+      priorityClassName: service-lifecycle-critical
       terminationGracePeriodSeconds: 10
       nodeSelector:
 ---

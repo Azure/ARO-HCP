@@ -1,6 +1,6 @@
 # Introduce New Services
 
-To introduce new services into the ARO HCP architecture, follow the steps outlines below.
+To introduce new services into the ARO HCP architecture, follow the steps outlined below.
 
 ## Infrastructure
 

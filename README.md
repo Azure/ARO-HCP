@@ -20,7 +20,7 @@ For instructions on building and testing Frontend -- Check out Frontend's [READM
 
 The setup is based on VSCode Remote Containers. See [here](https://code.visualstudio.com/docs/remote/containers) for more information.
 
-VSCode should be installed from the [offical downloads page](https://code.visualstudio.com/download) (as opposed to other sources, like flatpak). This is to avoid potential docker compatibility issues with the required extensions mentioned below.
+VSCode should be installed from the [official downloads page](https://code.visualstudio.com/download) (as opposed to other sources, like flatpak). This is to avoid potential docker compatibility issues with the required extensions mentioned below.
 
 The predefined container is in `.devcontainer` with a custom `postCreate.sh`.
 To use it, please install the [Remote - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension in VSCode.

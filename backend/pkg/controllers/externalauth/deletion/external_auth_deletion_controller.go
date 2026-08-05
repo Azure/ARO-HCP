@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -33,7 +33,7 @@ import (
 // ClusterServiceDeletionTimestamp set and their ClusterServiceID
 // cleared, once all child resources have been cleaned up.
 type externalAuthDeletionController struct {
-	externalAuthLister listers.ExternalAuthLister
+	externalAuthLister corelisters.ExternalAuthLister
 	resourcesDBClient  database.ResourcesDBClient
 }
 
@@ -41,7 +41,7 @@ var _ controllerutils.ExternalAuthSyncer = (*externalAuthDeletionController)(nil
 
 func NewExternalAuthDeletionController(
 	resourcesDBClient database.ResourcesDBClient,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := informers.ExternalAuths()
 	syncer := &externalAuthDeletionController{

@@ -887,14 +887,7 @@ func TestRevokeCredentials(t *testing.T) {
 			}
 
 			subs := map[string]*arm.Subscription{
-				api.TestSubscriptionID: newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, &arm.SubscriptionProperties{
-					RegisteredFeatures: &[]arm.Feature{
-						{
-							Name:  api.Ptr(api.FeatureExperimentalReleaseFeatures),
-							State: api.Ptr("Registered"),
-						},
-					},
-				}),
+				api.TestSubscriptionID: newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
 			}
 			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
 
