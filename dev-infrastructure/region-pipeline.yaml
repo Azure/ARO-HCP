@@ -101,6 +101,20 @@ resourceGroups:
     dependsOn:
     - resourceGroup: regional
       step: rpRegistration
+    # On a first-time region rollout this deploys shortly after the geography
+    # pipeline creates the Kusto cluster/database it targets (they are separate
+    # service groups with no cross-pipeline dependsOn), so it can race ahead of
+    # ARM RP propagation and fail with a transient Internal Server Error (the
+    # observed failure was error.code=BadInput with that message text, already
+    # covered by the patterns below without a separate BadInput matcher).
+    # See AROSLSRE-1707.
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      - "500 Internal Server Error"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
     variables:
     - name: auditLogsEventHubId
       input:
@@ -115,6 +129,14 @@ resourceGroups:
     dependsOn:
     - resourceGroup: regional
       step: rpRegistration
+    # Same transient-failure risk as kustoDataConnection above. See AROSLSRE-1707.
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      - "500 Internal Server Error"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
     variables:
     - name: alertEventsEventHubId
       input:
@@ -159,9 +181,16 @@ resourceGroups:
     template: templates/region.bicep
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    # errorContainsAny is widened beyond "Internal error" because on a
+    # first-time region rollout this can also fail with the ARM RP
+    # propagation-lag variants seen elsewhere in this repo (e.g. shortly after
+    # rpRegistration completes for a brand new subscription). See AROSLSRE-1708.
     automatedRetry:
       errorContainsAny:
       - "Internal error"
+      - "InternalServerError"
+      - "Internal server error"
+      - "500 Internal Server Error"
       maximumRetryCount: 4
       durationBetweenRetries: 2m
     variables:
