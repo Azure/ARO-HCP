@@ -225,12 +225,16 @@ func registerEV2RetryCatcher(specs et.ExtensionTestSpecs) {
 		// the emitted metadata is stable between runs of the same failure set.
 		sort.Strings(failedNames)
 		sort.Strings(allowRetryFailedNames)
+		var durationSeconds float64
+		if !suiteStart.IsZero() {
+			durationSeconds = roundToDecisecond(time.Since(suiteStart))
+		}
 		summary := ev2SuiteSummary{
 			Total:           passedCount + failedCount + skippedCount,
 			Passed:          passedCount,
 			Failed:          failedCount,
 			Skipped:         skippedCount,
-			DurationSeconds: roundToDecisecond(time.Since(suiteStart)),
+			DurationSeconds: durationSeconds,
 		}
 		artifactDir := os.Getenv("ARTIFACT_DIR")
 		verb, destination := "writing", filepath.Join(artifactDir, ev2RetryMetadataFile)
