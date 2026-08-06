@@ -3,6 +3,8 @@
 This document describes the design behind automatically retrying an EV2 gating E2E run when it fails on a small, deliberately labeled set of known-issue tests.
 
 > **Status (as of 2026-08-06):** the code referenced below (`labels.AllowRetry`, `registerEV2RetryCatcher`, `writeEV2RetryMetadata`, and the ARO-Tools `prowjob` changes) is not yet merged to `main`. It lives in the implementation PRs linked in [Where to look](#where-to-look). This doc describes the design those PRs implement.
+>
+> The retry mechanism itself changed after the first round of this design: rather than `prow-job-executor` resubmitting the job internally through Gangway, it now fails with a distinctly matchable error and lets EV2's own `automatedRetry` step property redrive the whole gating step. See [Consuming the signal](#3-consuming-the-signal-aro-tools) and [Retrying via EV2's automatedRetry](#4-retrying-via-ev2s-automatedretry-sdp-pipelines--aro-hcp) below.
 
 ## Problem
 
@@ -36,6 +38,7 @@ flowchart LR
         label["allow-retry label\non known-issue tests"]
         catcher["registerEV2RetryCatcher\n(test/cmd/aro-hcp-tests)"]
         artifact["$ARTIFACT_DIR/metadata.json\nev2-failed-tests, ev2-allow-retry-tests"]
+        pipeline["regionalGating step\n(test/e2e-pipeline.yaml)\nautomatedRetry.errorContainsAny"]
   end
  subgraph prow["Prow"]
         job["E2E gating job"]
@@ -45,7 +48,10 @@ flowchart LR
  subgraph aro_tools["ARO-Tools"]
         executor["prow-job-executor\n(ev2RetryEligible)"]
         monitor["prowjob.Monitor"]
-        retry["single retry\n(allowEV2Retry=false)"]
+        marker["EV2RetryableError\n(ev2-retryable-known-issue-failure)"]
+  end
+ subgraph ev2["EV2"]
+        retry["automatedRetry\n(errorContainsAny match)"]
   end
   label --> catcher
   job -- runs --> catcher
@@ -54,8 +60,10 @@ flowchart LR
   sidecar -- merges into --> finished
   executor --> monitor
   monitor -- "job failed" --> finished
-  finished -- "eligible per ev2RetryEligible" --> retry
-  retry -- resubmit once --> job
+  finished -- "eligible per ev2RetryEligible" --> marker
+  marker -- "step stdout contains marker" --> retry
+  pipeline -. "configures errorContainsAny" .-> retry
+  retry -- redrives the step --> job
 ```
 
 ### End-to-end flow
@@ -85,19 +93,22 @@ sequenceDiagram
     gcs-->>executor: finished.json content
     executor->>executor: ev2RetryEligible(metadata["ev2-failed-tests"], metadata["ev2-allow-retry-tests"])
     alt eligible
-        executor->>gangway: SubmitJob again (retryMonitor, allowEV2Retry=false)
+        executor-->>EV2: fail step, stdout/error contains ev2-retryable-known-issue-failure
+        EV2->>EV2: automatedRetry.errorContainsAny matches, redrives the step
+        EV2->>executor: execute --gate-promotion --allow-ev2-retry (retry attempt)
+        executor->>gangway: SubmitJob (retry)
         gangway->>job: start retry job
         job-->>executor: ProwJobStatus = success/failure
-        executor-->>EV2: final result (no further retry either way)
+        executor-->>EV2: final result (EV2's maximumRetryCount caps further retries)
     else not eligible, or ErrorState/AbortedState
-        executor-->>EV2: fail the gate immediately
+        executor-->>EV2: fail the gate immediately, no marker in the error
     end
 ```
 
 Two properties fall out of this directly:
 
 - **Only `FailureState` is inspected.** `ErrorState` (infra/tooling error) and `AbortedState` (cancellation/timeout) go straight to failing the gate; `finished.json` is never fetched for those, since they are not the class of failure this mechanism is meant to catch.
-- **The retry is unconditional once triggered.** Whatever the retried run's outcome is (pass or fail), the executor does not evaluate the metadata again and does not resubmit again - the shallow-copied `Monitor` used for the retry has `allowEV2Retry` hardcoded to `false`, so there is no code path back into the retry branch.
+- **`prow-job-executor` never resubmits the job itself.** On an eligible failure it returns a wrapped `EV2RetryableError`, whose `Error()` string always contains the literal marker `ev2-retryable-known-issue-failure`. The step then fails as usual; the retry is entirely EV2's doing, driven by the `automatedRetry.errorContainsAny` list configured directly on the `regionalGating` step in `test/e2e-pipeline.yaml` (see [Retrying via EV2's automatedRetry](#4-retrying-via-ev2s-automatedretry-sdp-pipelines--aro-hcp) below). How many times EV2 retries, and how long it waits between attempts, is controlled entirely by that step's `maximumRetryCount`/`durationBetweenRetries`, not by anything in `prow-job-executor`.
 
 ### 1. E2E tagging (ARO-HCP)
 
@@ -168,22 +179,41 @@ The write is merge-safe: if some other step already wrote `$ARTIFACT_DIR/metadat
 
 ### 3. Consuming the signal (ARO-Tools)
 
-`prow-job-executor`'s `prowjob.Monitor` gets an `allowEV2Retry bool` field (set from the `--allow-ev2-retry` CLI flag) and a `maxAutoRetryFailures int` field (set from `--max-ev2-auto-retry-failures`, default `prowjob.DefaultMaxEV2AutoRetryFailures = 2`), plus a dedicated `JobFailedError` type that carries the `ProwExecutionID` and `Status.URL` of a job that ended in `FailureState`. This type only exists so `ExecuteAndWait` can distinguish "the job ran and a test failed" from any other error via `errors.As`.
+`prow-job-executor`'s `prowjob.Monitor` gets an `allowEV2Retry bool` field (set from the `--allow-ev2-retry` CLI flag). `ExecuteAndWait` submits the job through Gangway exactly once and polls `GetJobStatus` until a terminal state, same as before. The change is entirely in what happens after a `FailureState`:
 
-`ExecuteAndWait` is split into a public wrapper and a private `executeAndWaitOnce`:
-
-- `executeAndWaitOnce` is the original submit-and-poll logic, unchanged: submit through Gangway, poll `GetJobStatus` until a terminal state, return `nil`/error accordingly.
-- `ExecuteAndWait` calls `executeAndWaitOnce` once. If it returns a `JobFailedError` and `allowEV2Retry` is set, it:
-  1. converts the job's Prow "view" status URL (`https://<prow-host>/view/gs/<bucket>/<path>`) into its GCS `finished.json` URL (`https://storage.googleapis.com/<bucket>/<path>/finished.json`), via `finishedJSONURLFromViewURL`,
-  2. fetches that file (bounded by a byte cap and a fetch timeout) and reads its top-level `metadata` object's `ev2-failed-tests`/`ev2-allow-retry-tests` lists, via `jobAllowsEV2Retry` / `fetchFinishedJSONAllowsRetry`,
-  3. evaluates `ev2RetryEligible(failed, allowRetry, maxAutoRetryFailures)`: the run qualifies only when it failed at all, no more than `maxAutoRetryFailures` tests failed, and every one of them appears in the allow-retry list,
-  4. on a positive match, builds a shallow copy of the `Monitor` (`retryMonitor := *m; retryMonitor.allowEV2Retry = false`) and calls `executeAndWaitOnce` again on that copy.
+1. it fetches `finished.json` from GCS (via `finishedJSONURLFromViewURL`, bounded by a byte cap and a fetch timeout) and reads its top-level `metadata` object's `ev2-failed-tests`/`ev2-allow-retry-tests` lists, via `jobAllowsEV2Retry` / `fetchFinishedJSONAllowsRetry`,
+2. it evaluates `ev2RetryEligible(failed, allowRetry, maxAutoRetryFailures)`: the run qualifies only when it failed at all, no more than `maxAutoRetryFailures` tests failed, and every one of them appears in the allow-retry list (`maxAutoRetryFailures` is set from `--max-ev2-auto-retry-failures`, default `prowjob.DefaultMaxEV2AutoRetryFailures = 2`),
+3. on a positive match, it returns `&EV2RetryableError{Cause: err}` instead of the original error. `EV2RetryableError.Error()` always contains the literal `EV2RetryableMarker` constant (`ev2-retryable-known-issue-failure`), so the step's stdout/failure output substring-matches EV2's `automatedRetry.errorContainsAny` (see [Retrying via EV2's automatedRetry](#4-retrying-via-ev2s-automatedretry-sdp-pipelines--aro-hcp) below). `EV2RetryableError` wraps the original cause via `Unwrap()`, so callers using `errors.Is`/`errors.As` on the underlying failure still work.
+4. on a non-match (ineligible failure, or `ErrorState`/`AbortedState`), the original error is returned unchanged - no marker, so EV2's `automatedRetry` condition never matches and the gate fails immediately.
 
 Keeping the eligibility check (`ev2RetryEligible`) here, rather than in ARO-HCP, means the failure-count threshold can be tuned via `--max-ev2-auto-retry-failures` without an ARO-HCP rebuild, and any future policy change (e.g. weighting by which tests failed) only touches this one function.
 
-The shallow copy is what makes "exactly one retry" a structural guarantee rather than a counter that could be bypassed: the copy's `allowEV2Retry` is always `false`, so even if the retried run also fails with an eligible shape, there is no code path that resubmits a third time. The `client *Client` field is a pointer, so the copy safely shares the same HTTP client/backoff state as the original.
+`prow-job-executor` itself never resubmits anything - the earlier design (an internal Gangway resubmit with a shallow-copied `Monitor` guarded by `allowEV2Retry=false`) was replaced with this fail-with-a-marker approach specifically so the number of retry attempts, the backoff between them, and the actual redrive mechanism are all owned by EV2's own step configuration, not duplicated in ARO-Tools.
 
-`--allow-ev2-retry` and `--max-ev2-auto-retry-failures` are only wired into the `execute` subcommand's options (`RawExecuteOptions` / `completedExecuteOptions` in `options.go`); the separate read-only `monitor` subcommand always passes `false`/the default cap to `NewMonitor`, since it observes a job it didn't submit and has no meaningful way to resubmit it.
+`--allow-ev2-retry` and `--max-ev2-auto-retry-failures` are only wired into the `execute` subcommand's options (`RawExecuteOptions` / `completedExecuteOptions` in `options.go`); the separate read-only `monitor` subcommand always passes `false`/the default cap to `NewMonitor`, since it observes a job it didn't submit and has no meaningful way to trigger a retry for it.
+
+### 4. Retrying via EV2's automatedRetry (sdp-pipelines / ARO-HCP)
+
+The actual retry is driven entirely by EV2's native step-level `automatedRetry` property, set directly on the `regionalGating` `ProwJob` validation step in `test/e2e-pipeline.yaml`:
+
+```yaml
+automatedRetry:
+  errorContainsAny:
+  - "failed to establish a new connection"
+  - "failed to get token"
+  - "Failed to connect to MSI"
+  - "ev2-retryable-known-issue-failure"
+  maximumRetryCount: 1
+  durationBetweenRetries: 1m
+```
+
+EV2 substring-scans the step's output for any of the `errorContainsAny` strings and, on a match, redrives the whole step up to `maximumRetryCount` times, waiting `durationBetweenRetries` in between. Setting `automatedRetry` explicitly on a step **replaces** sdp-pipelines' default retry policy for that step (which only covers the three MSI/connection-failure phrases above) rather than extending it - so the three default phrases have to be repeated here alongside the new marker, or the gate would lose its existing infra-retry behavior.
+
+`sdp-pipelines`'s `tooling/pkg/types/pipeline/prow.go` passes `--allow-ev2-retry` to every generated `ProwJob` step's command unconditionally; this is safe because the flag is inert unless `gate-promotion` is also set on the step, which is only true for the Stage/Prod EV2 gating steps and never for periodic or pre-merge jobs.
+
+**This currently only takes effect in prod.** `stg` and `int` both set `useExclusiveLocks: true` in sdp-pipelines' `hcp/stages.yaml`, which makes the generator treat those stages as fail-fast. `orchestratedStepFor` (`tooling/pkg/ev2/manifests/generate/graph_step.go`) ignores any explicit `automatedRetry` whenever a stage is fail-fast, falling back to the default MSI-only policy instead - so today, a stage gating run still needs a manual retry. Extending the generator to honor a custom `automatedRetry` even under fail-fast (while still forcing `FallbackToManualMitigation: false`, preserving the "don't hold the exclusive lock for a week" intent behind fail-fast) is a shared code path used by roughly 30 other pipelines and is tracked as a separate follow-up in AROSLSRE-1764, rather than bundled into this change.
+
+> ⚠️ Do not reproduce the literal string `ev2-retryable-known-issue-failure` anywhere else that could end up in a gating step's stdout (comments in `common.sh`, other steps' `automatedRetry` lists, etc.). EV2's substring scan is applied to the whole step output, and a stray match would cause a genuinely failed, non-eligible run to be spuriously retried - exactly the class of bug described in AROSLSRE-1292.
 
 ## Expiration configuration
 
@@ -208,15 +238,19 @@ The label and signal names went through some discussion (`flaky`, `retry-during-
 - `test/util/labels/labels.go` - `AllowRetry` label definition
 - `test/cmd/aro-hcp-tests/main.go` - `registerEV2RetryCatcher`, `writeEV2RetryMetadata`
 - `test/e2e/README.md` - test-author-facing documentation of the label
-- ARO-Tools `tools/prow-job-executor/prowjob/monitor.go` - `JobFailedError`, `Monitor.allowEV2Retry`, `Monitor.maxAutoRetryFailures`, single-retry `ExecuteAndWait`/`executeAndWaitOnce`
+- `test/e2e-pipeline.yaml` - `regionalGating` step's `automatedRetry` configuration
+- ARO-Tools `tools/prow-job-executor/prowjob/monitor.go` - `EV2RetryableError`, `EV2RetryableMarker`, `Monitor.allowEV2Retry`, `Monitor.maxAutoRetryFailures`, `ExecuteAndWait`
 - ARO-Tools `tools/prow-job-executor/prowjob/retrymarker.go` - `finishedJSONURLFromViewURL`, `jobAllowsEV2Retry`, `fetchFinishedJSONAllowsRetry`, `ev2RetryEligible`
 - ARO-Tools `tools/prow-job-executor/options.go` - `--allow-ev2-retry`/`--max-ev2-auto-retry-failures` flags, `AllowEV2Retry`/`MaxEV2AutoRetryFailures` option wiring
+- sdp-pipelines `tooling/pkg/types/pipeline/prow.go` - `--allow-ev2-retry` wired into the generated `ProwJob` step command
+- sdp-pipelines `tooling/pkg/ev2/manifests/generate/graph_step.go` - `orchestratedStepFor`/`buildOnFailure`, how `automatedRetry` becomes EV2's `onFailure.retry`
 - [Azure/ARO-HCP#6409](https://github.com/Azure/ARO-HCP/pull/6409) - label + metadata.json signal implementation
-- [Azure/ARO-Tools#282](https://github.com/Azure/ARO-Tools/pull/282) - retry-catcher implementation
+- [Azure/ARO-HCP#6464](https://github.com/Azure/ARO-HCP/pull/6464) - `regionalGating` `automatedRetry` step configuration
+- [Azure/ARO-Tools#282](https://github.com/Azure/ARO-Tools/pull/282) - retry-catcher implementation (fail-with-marker design)
 
 ## Follow-ups
 
-- Wire `--allow-ev2-retry=true` into the actual EV2 pipeline step definitions (`sdp-pipelines` / `openshift/release` step registry) for the environments that should use it.
+- Extend EV2 automated retry to `stg`/`int`: today it only takes effect in prod, since those stages fail fast and the generator ignores custom `automatedRetry` in that mode. Tracked in AROSLSRE-1764.
 - Pick and implement one of the [expiration configuration](#expiration-configuration) options above so the TTL/timebomb intent is enforced rather than just documented.
 
 ## See also
