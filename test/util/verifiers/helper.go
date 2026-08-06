@@ -32,7 +32,6 @@ func createArbitraryResource(ctx context.Context, dynamicClient dynamic.Interfac
 	if err := yaml.Unmarshal(resourceBytes, desiredObj); err != nil {
 		return nil, err
 	}
-	desiredObj.SetNamespace(namespace)
 
 	// Apply any caller-provided mutations (e.g. rewriting cluster-scoped
 	// resource names or references) before the resource is created.
@@ -48,9 +47,14 @@ func createArbitraryResource(ctx context.Context, dynamicClient dynamic.Interfac
 	}
 
 	if restMapping.Scope.Name() == meta.RESTScopeNameRoot {
+		// Cluster-scoped resources (e.g. SecurityContextConstraints) must not
+		// carry metadata.namespace; the API server rejects namespaced objects
+		// on root-scoped endpoints.
+		desiredObj.SetNamespace("")
 		return dynamicClient.Resource(restMapping.Resource).Create(ctx, desiredObj, metav1.CreateOptions{})
 	}
 
+	desiredObj.SetNamespace(namespace)
 	return dynamicClient.Resource(restMapping.Resource).Namespace(namespace).Create(ctx, desiredObj, metav1.CreateOptions{})
 }
 
