@@ -61,7 +61,7 @@ steps:
     uses: actions/setup-go@v5
     with:
       go-version-file: go.work
-      check-latest: true          # match the repo CI (verify uses check-latest), so the agent's `make all-tidy` output is identical and the PR passes the go-modules check
+      check-latest: true          # install the newest patch of the go.work-declared Go version instead of a possibly-older cached toolchain, so the agent's `make all-tidy` output is reproducible and the PR passes the go-modules check
   - name: Set up Node
     uses: actions/setup-node@v4
     with:
@@ -113,8 +113,13 @@ steps:
           # only report "passing" when we actually saw a non-failing check-run or a
           # successful commit status. If both signals are empty (no CI yet, or an API
           # read failed) fall through to "pending", never "passing", so a red PR is
-          # never mistaken for healthy.
-          ci=$(printf '%s' "$checks" | jq -r --arg ss "$ss" --arg sc "$sc" 'if any(.[]; . == "failure" or . == "timed_out" or . == "cancelled" or . == "action_required") or ($sc != "0" and $ss == "failure") then "failing" elif any(.[]; . == null) or ($sc != "0" and $ss == "pending") then "pending" elif (length > 0) or ($sc != "0" and $ss == "success") then "passing" else "pending" end')
+          # never mistaken for healthy. Classify explicitly: a fixed set of bad
+          # conclusions (failure/timed_out/cancelled/action_required/startup_failure)
+          # is "failing"; only the known-good conclusions (success/neutral/skipped)
+          # count toward "passing"; anything else (null/in-progress, "stale", or any
+          # unknown conclusion) is treated as "pending" so it is never mistaken for
+          # healthy.
+          ci=$(printf '%s' "$checks" | jq -r --arg ss "$ss" --arg sc "$sc" 'def bad: (. == "failure" or . == "timed_out" or . == "cancelled" or . == "action_required" or . == "startup_failure"); def good: (. == "success" or . == "neutral" or . == "skipped"); if any(.[]; bad) or ($sc != "0" and $ss == "failure") then "failing" elif any(.[]; . == null or ((good or bad) | not)) or ($sc != "0" and $ss == "pending") then "pending" elif ((length > 0) and all(.[]; good)) or ($sc != "0" and $ss == "success") then "passing" else "pending" end')
         else
           ms="n/a"; ci="n/a"
         fi
