@@ -291,8 +291,29 @@ func writeEV2RetryMetadata(artifactDir string, failedNames, allowRetryFailedName
 	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create %s: %w", artifactDir, err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write %s: %w", path, err)
+	// Write atomically: this file is an external signal consumed by prow-job-executor for
+	// EV2 gating, so a crash or interruption mid-write must never leave a truncated or
+	// invalid metadata.json behind for it to read.
+	tmp, err := os.CreateTemp(artifactDir, filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file for %s: %w", path, err)
+	}
+	defer os.Remove(tmp.Name())
+	if n, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return fmt.Errorf("failed to write temp file for %s: %w", path, err)
+	} else if n != len(data) {
+		tmp.Close()
+		return fmt.Errorf("short write to temp file for %s: wrote %d of %d bytes", path, n, len(data))
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file for %s: %w", path, err)
+	}
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		return fmt.Errorf("failed to chmod temp file for %s: %w", path, err)
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("failed to rename temp file to %s: %w", path, err)
 	}
 	return nil
 }
