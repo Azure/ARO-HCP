@@ -212,16 +212,17 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 	return nil
 }
 
-// handleRequeue updates the retry cooldown and schedules a delayed re-enqueue for key based solely on result.EarliestRetryAfter.
-// If EarliestRetryAfter is nil, there is no retry backoff to apply; the informer may eventually see an update and trigger again.
+// handleRequeue sets the earliest-retry gate and, for Failed/Unknown outcomes, schedules a
+// delayed workqueue requeue. Passed and Skipped outcomes set only the gate (no requeue).
+// See EarliestRetryAfter on ValidationResult for the full semantics.
 func (c *nodePoolValidationSyncer) handleRequeue(key controllerutils.HCPNodePoolKey, result validationutils.ValidationResult) {
 	if result.EarliestRetryAfter == nil {
 		return
 	}
 
 	c.retryCooldownChecker.SetCooldown(key, *result.EarliestRetryAfter)
-	if c.enqueueAfter != nil {
-		// Add a one-second buffer so the requeue lands strictly after the cooldown expires, avoiding a race where the item fires just before CanSync flips to true.
+
+	if c.enqueueAfter != nil && (result.Outcome.Type == validationutils.OutcomeTypeFailed || result.Outcome.Type == validationutils.OutcomeTypeUnknown) {
 		c.enqueueAfter.EnqueueAfter(key, *result.EarliestRetryAfter+time.Second)
 	}
 }

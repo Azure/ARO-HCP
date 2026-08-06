@@ -65,16 +65,30 @@ const (
 type ValidationResult struct {
 	// Outcome is exactly one of Passed, Failed, Unknown, or Skipped, as indicated by its Type.
 	Outcome outcome
-	// EarliestRetryAfter controls whether, and how soon, the controller explicitly requeues this
-	// resource after handling the result (see handleRequeue in each controller): it sets both the
-	// retry cooldown, via SettableCooldownChecker, and the delay before AfterEnqueuer re-adds the key
-	// to the workqueue.
-	//   - nil means no explicit requeue is scheduled at all; the resource is only revisited whenever
-	//     the informer next sees an update (e.g. a periodic resync or an external change), which may
-	//     take an arbitrary amount of time.
-	//   - 0 means requeue as soon as possible, with no artificial backoff.
-	//   - A positive duration delays the requeue by that amount, e.g. to back off after a Failed or
-	//     Unknown result instead of immediately re-running a validation likely to fail again.
+	// EarliestRetryAfter is an optional retry throttle for this validation result.
+	//
+	// It affects the validation controller in two ways:
+	//  1. Earliest-retry gate: when a sync event arrives, the controller skips the
+	//     actual validation work until EarliestRetryAfter has elapsed since the
+	//     previous attempt.
+	//  2. Workqueue requeue: whether the reconciled key is re-added to the workqueue
+	//     after a delay, so a retry is scheduled without waiting for an external event.
+	//
+	// Semantics:
+	//
+	//   - nil: neither the earliest-retry gate nor a workqueue requeue is applied.
+	//
+	//   - non-nil, Outcome Passed or Skipped:
+	//       - earliest-retry gate uses EarliestRetryAfter
+	//       - key is not requeued
+	//
+	//   - non-nil, Outcome Failed or Unknown:
+	//       - earliest-retry gate uses EarliestRetryAfter
+	//       - key is requeued after EarliestRetryAfter + 1s.
+	//         The extra 1s is only on the workqueue delay, not the gate. It avoids
+	//         landing on the gate boundary: duration+1s makes the next attempt
+	//         run strictly after the gate opens. Otherwise the sync could occur
+	//         too early, become a no-op, and never schedule another attempt.
 	EarliestRetryAfter *time.Duration
 }
 

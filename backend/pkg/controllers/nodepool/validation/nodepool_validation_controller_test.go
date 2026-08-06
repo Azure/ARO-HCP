@@ -196,11 +196,11 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			validation: NewMockNodePoolValidation(testValidationName),
 		},
 		{
-			name:          "validation passes -- condition set to True",
+			name:          "validation passes -- condition set to True, no requeue",
 			setupDB:       defaultSetupDB,
 			validation:    NewMockNodePoolValidation(testValidationName).WithPassed(),
 			wantCondition: &metav1.Condition{Status: metav1.ConditionTrue, Reason: "AsExpected", Message: "As expected."},
-			wantEnqueue:   true,
+			wantEnqueue:   false,
 		},
 		{
 			name:    "validation fails -- condition set to False, requeue scheduled",
@@ -245,16 +245,16 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			wantEnqueue:   true,
 		},
 		{
-			name:    "validation skipped with no prior condition -- no condition persisted",
+			name:    "validation skipped with no prior condition -- no condition persisted, no requeue",
 			setupDB: defaultSetupDB,
 			validation: NewMockNodePoolValidation(testValidationName).WithSkipped(
 				"NotApplicable", "node pool does not need this check", "Not applicable.",
 			),
 			wantConditionAbsent: true,
-			wantEnqueue:         true,
+			wantEnqueue:         false,
 		},
 		{
-			name: "validation skipped with prior condition -- condition removed",
+			name: "validation skipped with prior condition -- condition removed, no requeue",
 			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				defaultSetupDB(t, ctx, mockDB)
@@ -276,7 +276,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				"NotApplicable", "node pool does not need this check", "Not applicable.",
 			),
 			wantConditionAbsent: true,
-			wantEnqueue:         true,
+			wantEnqueue:         false,
 		},
 		{
 			name: "already-succeeded validation -- skipped",

@@ -165,11 +165,11 @@ func TestClusterValidationSyncer_SyncOnce(t *testing.T) {
 			validation: NewMockClusterValidation(testValidationName),
 		},
 		{
-			name:          "validation passes -- condition set to True",
+			name:          "validation passes -- condition set to True, no requeue",
 			setupDB:       defaultSetupDB,
 			validation:    NewMockClusterValidation(testValidationName).WithPassed(),
 			wantCondition: &metav1.Condition{Status: metav1.ConditionTrue, Reason: "AsExpected", Message: "As expected."},
-			wantEnqueue:   true,
+			wantEnqueue:   false,
 		},
 		{
 			name:    "validation fails -- condition set to False, requeue scheduled",
@@ -214,16 +214,16 @@ func TestClusterValidationSyncer_SyncOnce(t *testing.T) {
 			wantEnqueue:   true,
 		},
 		{
-			name:    "validation skipped with no prior condition -- no condition persisted",
+			name:    "validation skipped with no prior condition -- no condition persisted, no requeue",
 			setupDB: defaultSetupDB,
 			validation: NewMockClusterValidation(testValidationName).WithSkipped(
 				"NotApplicable", "cluster does not need this check", "Not applicable.",
 			),
 			wantConditionAbsent: true,
-			wantEnqueue:         true,
+			wantEnqueue:         false,
 		},
 		{
-			name: "validation skipped with prior condition -- condition removed",
+			name: "validation skipped with prior condition -- condition removed, no requeue",
 			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				defaultSetupDB(t, ctx, mockDB)
@@ -245,7 +245,7 @@ func TestClusterValidationSyncer_SyncOnce(t *testing.T) {
 				"NotApplicable", "cluster does not need this check", "Not applicable.",
 			),
 			wantConditionAbsent: true,
-			wantEnqueue:         true,
+			wantEnqueue:         false,
 		},
 		{
 			name: "already-succeeded validation -- skipped",
