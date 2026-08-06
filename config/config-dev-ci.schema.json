@@ -268,6 +268,7 @@
               "description": "Tenant quota collector configuration",
               "properties": {
                 "image": { "$ref": "#/$defs/Image" },
+                "prow": { "$ref": "#/$defs/ProwMetricsConfig" },
                 "tenants": {
                   "type": "array",
                   "description": "List of Azure AD tenants to monitor for directory and subscription quota",
@@ -549,6 +550,30 @@
         }
       },
       "required": ["tenantId", "tenantName", "servicePrincipalClientId", "keyVaultSecretName"]
+    },
+    "ProwMetricsConfig": {
+      "type": "object",
+      "description": "Configuration for collecting ARO-HCP Prow job metrics",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "baseURL": { "type": "string", "format": "uri" },
+        "interval": { "type": "string", "description": "Prow polling interval as a Go duration" },
+        "retention": { "type": "string", "description": "How long completed runs remain exposed as active metrics" },
+        "repository": {
+          "type": "object",
+          "properties": {
+            "org": { "type": "string" },
+            "name": { "type": "string" }
+          },
+          "required": ["org", "name"]
+        },
+        "excludeJobs": {
+          "type": "array",
+          "description": "Exact Prow job names to exclude",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["enabled", "baseURL", "interval", "retention", "repository", "excludeJobs"]
     },
     "SubscriptionQuotaConfig": {
       "type": "object",

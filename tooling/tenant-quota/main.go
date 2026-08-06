@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/azutils/subscriptions"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/credentials"
+	prowmetrics "github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/prow"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/resourcegroups"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/subscriptionquota"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/tenantquota"
@@ -95,6 +96,12 @@ func run(logger *slog.Logger) error {
 		e2eRGCollector := resourcegroups.NewCollector(resourcegroups.E2ECollectorConfig, cfg, logger, credProvider)
 		registry.MustRegister(e2eRGCollector)
 		go e2eRGCollector.Start(ctx)
+	}
+
+	if cfg.Prow.Enabled {
+		prowCollector := prowmetrics.NewCollector(cfg, logger)
+		registry.MustRegister(prowCollector)
+		go prowCollector.Start(ctx)
 	}
 
 	mux := http.NewServeMux()

@@ -3,4 +3,4 @@ name: tenant-quota-collector
 version: 0.1.0
 appVersion: 0.1.0
 kubeVersion: ">=1.27.0"
-description: Tenant Quota Collector - collects Azure AD tenant quota metrics from Microsoft Graph API.
+description: Collects Azure quota and ARO HCP Prow CI metrics.
