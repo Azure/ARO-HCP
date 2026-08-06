@@ -214,6 +214,10 @@ var _ = Describe("Customer", func() {
 				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", customerClusterName)
+			// This test runs many parallel Kubernetes clients/verifiers; raise the client-go
+			// defaults (QPS=5, Burst=10) so API calls are not artificially throttled.
+			adminRESTConfig.QPS = 50
+			adminRESTConfig.Burst = 100
 			adminKubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to generate admin kubeconfig for Helm installation")
 
