@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Istio upgrade verification — captures mesh state snapshots and compares before/after.
 #
+# Default modes (before/after/now) are READ-ONLY: kubectl get/logs only.
+# --live is the ONLY path that mutates the cluster (creates a temporary pod).
+#
 # Usage:
 #   ./hack/istio-verify-state.sh before          # snapshot only
 #   ./hack/istio-verify-state.sh after           # snapshot + compare with before
@@ -152,23 +155,34 @@ capture_state() {
     echo ""
 
     echo "--- CONFIGMAP CONTENT (ext-authz providers) ---"
-    for cm in $(kubectl get configmaps -n aks-istio-system -l istio.io/rev --no-headers -o custom-columns='NAME:.metadata.name' 2>/dev/null); do
-        local mesh_data
-        mesh_data=$(kubectl get configmap "$cm" -n aks-istio-system -o jsonpath='{.data.mesh}' 2>/dev/null || true)
-        if echo "$mesh_data" | grep -q "extensionProviders" 2>/dev/null; then
-            echo "  $cm: ext-authz configured"
-        else
-            echo "  $cm: no ext-authz"
-        fi
-    done
+    local cms
+    cms=$(kubectl get configmaps -n aks-istio-system -l istio.io/rev --no-headers -o custom-columns='NAME:.metadata.name' 2>/dev/null)
+    if [ -z "$cms" ]; then
+        echo "  (none)"
+    else
+        for cm in $cms; do
+            local mesh_data
+            mesh_data=$(kubectl get configmap "$cm" -n aks-istio-system -o jsonpath='{.data.mesh}' 2>/dev/null || true)
+            if echo "$mesh_data" | grep -q "extensionProviders" 2>/dev/null; then
+                echo "  $cm: ext-authz configured"
+            else
+                echo "  $cm: no ext-authz"
+            fi
+        done
+    fi
     echo ""
 
     echo "--- CONFIGMAP LABELS ---"
-    for cm in $(kubectl get configmaps -n aks-istio-system -l istio.io/rev --no-headers -o custom-columns='NAME:.metadata.name' 2>/dev/null); do
-        local rev_label
-        rev_label=$(kubectl get configmap "$cm" -n aks-istio-system -o jsonpath='{.metadata.labels.istio\.io/rev}' 2>/dev/null)
-        echo "  $cm: istio.io/rev=${rev_label:-MISSING}"
-    done
+    cms=$(kubectl get configmaps -n aks-istio-system -l istio.io/rev --no-headers -o custom-columns='NAME:.metadata.name' 2>/dev/null)
+    if [ -z "$cms" ]; then
+        echo "  (none)"
+    else
+        for cm in $cms; do
+            local rev_label
+            rev_label=$(kubectl get configmap "$cm" -n aks-istio-system -o jsonpath='{.metadata.labels.istio\.io/rev}' 2>/dev/null)
+            echo "  $cm: istio.io/rev=${rev_label:-MISSING}"
+        done
+    fi
     echo ""
 
     echo "--- INGRESS GATEWAYS ---"
@@ -177,15 +191,21 @@ capture_state() {
     echo ""
 
     echo "--- INGRESS PIP PINNING (azure-pip-name annotations) ---"
-    for svc in $(kubectl get svc -n aks-istio-ingress --no-headers -o custom-columns='NAME:.metadata.name' 2>/dev/null); do
-        local pip_name
-        pip_name=$(kubectl get svc "$svc" -n aks-istio-ingress \
-            -o jsonpath='{.metadata.annotations.service\.beta\.kubernetes\.io/azure-pip-name}' 2>/dev/null)
-        local rg_name
-        rg_name=$(kubectl get svc "$svc" -n aks-istio-ingress \
-            -o jsonpath='{.metadata.annotations.service\.beta\.kubernetes\.io/azure-load-balancer-resource-group}' 2>/dev/null)
-        echo "  $svc: pip=${pip_name:-none} rg=${rg_name:-none}"
-    done
+    local ingress_svcs
+    ingress_svcs=$(kubectl get svc -n aks-istio-ingress --no-headers -o custom-columns='NAME:.metadata.name' 2>/dev/null)
+    if [ -z "$ingress_svcs" ]; then
+        echo "  (none)"
+    else
+        for svc in $ingress_svcs; do
+            local pip_name
+            pip_name=$(kubectl get svc "$svc" -n aks-istio-ingress \
+                -o jsonpath='{.metadata.annotations.service\.beta\.kubernetes\.io/azure-pip-name}' 2>/dev/null)
+            local rg_name
+            rg_name=$(kubectl get svc "$svc" -n aks-istio-ingress \
+                -o jsonpath='{.metadata.annotations.service\.beta\.kubernetes\.io/azure-load-balancer-resource-group}' 2>/dev/null)
+            echo "  $svc: pip=${pip_name:-none} rg=${rg_name:-none}"
+        done
+    fi
     echo ""
 
     echo "--- POD SIDECAR REVISIONS (all pods with istio-proxy) ---"
