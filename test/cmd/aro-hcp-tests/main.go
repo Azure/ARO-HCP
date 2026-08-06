@@ -220,6 +220,11 @@ func registerEV2RetryCatcher(specs et.ExtensionTestSpecs) {
 	specs.AddAfterAll(func() {
 		mu.Lock()
 		defer mu.Unlock()
+		// Specs run in parallel, so failedNames/allowRetryFailedNames are accumulated in
+		// nondeterministic completion order. Sort before logging/writing metadata.json so
+		// the emitted metadata is stable between runs of the same failure set.
+		sort.Strings(failedNames)
+		sort.Strings(allowRetryFailedNames)
 		summary := ev2SuiteSummary{
 			Total:           passedCount + failedCount + skippedCount,
 			Passed:          passedCount,
