@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: azure-cns
+  name: azure-cns
+  namespace: kube-system
+spec:
+  podMetricsEndpoints:
+  - port: metrics
+    path: /metrics
+  selector:
+    matchLabels:
+      k8s-app: azure-cns

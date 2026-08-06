@@ -1,0 +1,75 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: swift-networking-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  # ========================================
+  # SWIFT Networking SLO Recording Rules
+  # ========================================
+  # These rules implement the journey-level SLI for the SWIFT Networking
+  # user journey: router pod startup latency p99.
+  #
+  # SLI: p99 duration a router pod spends in ContainerCreating/Pending state.
+  # A router pod stuck > 300s indicates a SWIFT secondary NIC assignment failure.
+  #
+  # Source: kube-state-metrics on management cluster.
+  # Router pods are identified by their ReplicaSet owner (always "router-*"),
+  # created by the HyperShift CPO router Deployment.
+  #
+  # Design: absence of series = healthy (no router pods stuck = no latency to measure).
+  # The alert correctly does not fire when the recording rule produces no series.
+  - name: arohcp_swift_networking_slo_recording_rules
+    interval: 1m
+    rules:
+    # Per-pod ContainerCreating duration for all pending router pods.
+    # No series when healthy (no pods stuck).
+    - record: router:startup_latency:seconds
+      expr: |
+        (time() - kube_pod_created{namespace=~"ocm-.*"})
+        * on(namespace, pod) kube_pod_owner{owner_kind="ReplicaSet", owner_name=~"router-.*"}
+        * on(namespace, pod) (kube_pod_status_phase{phase="Pending"} == 1)
+
+    # p99 across all stuck router pods.
+    # No series when no router pods are stuck — alert does not fire.
+    - record: router:startup_latency:p99
+      expr: quantile(0.99, router:startup_latency:seconds)
+
+    # Window averages for multi-window multi-burn-rate alert expressions.
+    # Thresholds live only in the alert expressions, not here.
+    - record: router:startup_latency:p99_avg_5m
+      expr: avg_over_time(router:startup_latency:p99[5m])
+
+    - record: router:startup_latency:p99_avg_30m
+      expr: avg_over_time(router:startup_latency:p99[30m])
+
+    - record: router:startup_latency:p99_avg_1h
+      expr: avg_over_time(router:startup_latency:p99[1h])
+
+    - record: router:startup_latency:p99_avg_6h
+      expr: avg_over_time(router:startup_latency:p99[6h])
+
+  # ========================================
+  # CNS IP Assignment Latency Recording Rules
+  # ========================================
+  # SLI: p99 latency of CNS IP assignment (ip_assignment_latency_seconds histogram).
+  # SLO: <= 10s p99 over 28 days.
+  # Source: CNS PodMonitor on management cluster.
+  - name: arohcp_swift_cns_latency_recording_rules
+    interval: 1m
+    rules:
+    - record: cns:ip_assignment_latency:p99
+      expr: histogram_quantile(0.99, sum(rate(ip_assignment_latency_seconds_bucket[5m])) by (le))
+
+    - record: cns:ip_assignment_latency:p99_avg_5m
+      expr: avg_over_time(cns:ip_assignment_latency:p99[5m])
+
+    - record: cns:ip_assignment_latency:p99_avg_30m
+      expr: avg_over_time(cns:ip_assignment_latency:p99[30m])
+
+    - record: cns:ip_assignment_latency:p99_avg_1h
+      expr: avg_over_time(cns:ip_assignment_latency:p99[1h])
+
+    - record: cns:ip_assignment_latency:p99_avg_6h
+      expr: avg_over_time(cns:ip_assignment_latency:p99[6h])
