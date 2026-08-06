@@ -1125,6 +1125,8 @@ defaults:
   armHelperFPAPrincipalId: ""
   armHelperTenantId: ""
   armHelperCertName: ""
+  clustersServiceArmHelperClientId: ""
+  clustersServiceArmHelperCertName: ""
   # OIDC
   oidc:
     storageAccount:
@@ -1256,6 +1258,8 @@ clouds:
       armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
       armHelperTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
       armHelperCertName: armHelperCert2
+      clustersServiceArmHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
+      clustersServiceArmHelperCertName: armHelperCert2
       # OIDC
       oidc:
         storageAccount:

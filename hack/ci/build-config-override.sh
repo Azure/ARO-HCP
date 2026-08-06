@@ -9,7 +9,7 @@
 # Optional env vars consumed:
 #   *_IMAGE (BACKEND_IMAGE, FRONTEND_IMAGE, etc.) — digest-based image refs
 #   LEASED_MSI_MOCK_SP      — MSI mock SP lease name
-#   LEASED_ARM_HELPER_SP    — ARM helper SP lease name
+#   LEASED_ARM_HELPER_SP    — one or two whitespace-separated ARM helper SP lease names
 #   LEASED_MSI_CONTAINERS   — MSI identity container lease (controls MGMT sizing)
 #
 # Outputs:
@@ -124,23 +124,55 @@ fi
 # remains unchanged: it identifies the mock first-party principal that receives
 # the simulated FPA grant, not the ARM helper that authenticates this client.
 if [[ -n "${LEASED_ARM_HELPER_SP:-}" ]]; then
-  ARM_HELPER_CLIENT_ID=$(yq ".armHelperPool.\"${LEASED_ARM_HELPER_SP}\".clientId" "${ARM_HELPER_POOL_CATALOG}")
-  ARM_HELPER_PRINCIPAL_ID=$(yq ".armHelperPool.\"${LEASED_ARM_HELPER_SP}\".principalId" "${ARM_HELPER_POOL_CATALOG}")
-  ARM_HELPER_CERT_NAME=$(yq ".armHelperPool.\"${LEASED_ARM_HELPER_SP}\".certName" "${ARM_HELPER_POOL_CATALOG}")
-  if [[ -z "${ARM_HELPER_CLIENT_ID}" || "${ARM_HELPER_CLIENT_ID}" == "null" || \
-        -z "${ARM_HELPER_PRINCIPAL_ID}" || "${ARM_HELPER_PRINCIPAL_ID}" == "null" || \
-        -z "${ARM_HELPER_CERT_NAME}" || "${ARM_HELPER_CERT_NAME}" == "null" ]]; then
-    echo "ERROR: LEASED_ARM_HELPER_SP='${LEASED_ARM_HELPER_SP}' not found or incomplete in ${ARM_HELPER_POOL_CATALOG}"
+  read -r -a ARM_HELPER_LEASES <<< "${LEASED_ARM_HELPER_SP}"
+  if [[ ${#ARM_HELPER_LEASES[@]} -gt 2 ]]; then
+    echo "ERROR: LEASED_ARM_HELPER_SP must contain at most two lease names, got ${#ARM_HELPER_LEASES[@]}"
     exit 1
   fi
-  echo "ARM helper SP override: ${LEASED_ARM_HELPER_SP} -> clientId=${ARM_HELPER_CLIENT_ID}"
-  export _YQ_ARM_HELPER_CID="${ARM_HELPER_CLIENT_ID}"
-  export _YQ_ARM_HELPER_CERT="${ARM_HELPER_CERT_NAME}"
+
+  BACKEND_ARM_HELPER_LEASE="${ARM_HELPER_LEASES[0]}"
+  BACKEND_ARM_HELPER_CLIENT_ID=$(yq ".armHelperPool.\"${BACKEND_ARM_HELPER_LEASE}\".clientId" "${ARM_HELPER_POOL_CATALOG}")
+  BACKEND_ARM_HELPER_PRINCIPAL_ID=$(yq ".armHelperPool.\"${BACKEND_ARM_HELPER_LEASE}\".principalId" "${ARM_HELPER_POOL_CATALOG}")
+  BACKEND_ARM_HELPER_CERT_NAME=$(yq ".armHelperPool.\"${BACKEND_ARM_HELPER_LEASE}\".certName" "${ARM_HELPER_POOL_CATALOG}")
+  if [[ -z "${BACKEND_ARM_HELPER_CLIENT_ID}" || "${BACKEND_ARM_HELPER_CLIENT_ID}" == "null" || \
+        -z "${BACKEND_ARM_HELPER_PRINCIPAL_ID}" || "${BACKEND_ARM_HELPER_PRINCIPAL_ID}" == "null" || \
+        -z "${BACKEND_ARM_HELPER_CERT_NAME}" || "${BACKEND_ARM_HELPER_CERT_NAME}" == "null" ]]; then
+    echo "ERROR: Backend ARM helper lease '${BACKEND_ARM_HELPER_LEASE}' not found or incomplete in ${ARM_HELPER_POOL_CATALOG}"
+    exit 1
+  fi
+
+  echo "Backend ARM helper SP override: ${BACKEND_ARM_HELPER_LEASE} -> clientId=${BACKEND_ARM_HELPER_CLIENT_ID}"
+  export _YQ_ARM_HELPER_CID="${BACKEND_ARM_HELPER_CLIENT_ID}"
+  export _YQ_ARM_HELPER_CERT="${BACKEND_ARM_HELPER_CERT_NAME}"
   yq -i "
     .clouds.dev.environments.${DEPLOY_ENV}.defaults.armHelperClientId = strenv(_YQ_ARM_HELPER_CID) |
     .clouds.dev.environments.${DEPLOY_ENV}.defaults.armHelperCertName = strenv(_YQ_ARM_HELPER_CERT)
   " "${OVERRIDE_CONFIG_FILE}"
   unset _YQ_ARM_HELPER_CID _YQ_ARM_HELPER_CERT
+
+  if [[ ${#ARM_HELPER_LEASES[@]} -eq 2 ]]; then
+    CLUSTERS_SERVICE_ARM_HELPER_LEASE="${ARM_HELPER_LEASES[1]}"
+    CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID=$(yq ".armHelperPool.\"${CLUSTERS_SERVICE_ARM_HELPER_LEASE}\".clientId" "${ARM_HELPER_POOL_CATALOG}")
+    CLUSTERS_SERVICE_ARM_HELPER_PRINCIPAL_ID=$(yq ".armHelperPool.\"${CLUSTERS_SERVICE_ARM_HELPER_LEASE}\".principalId" "${ARM_HELPER_POOL_CATALOG}")
+    CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME=$(yq ".armHelperPool.\"${CLUSTERS_SERVICE_ARM_HELPER_LEASE}\".certName" "${ARM_HELPER_POOL_CATALOG}")
+    if [[ -z "${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}" || "${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}" == "null" || \
+          -z "${CLUSTERS_SERVICE_ARM_HELPER_PRINCIPAL_ID}" || "${CLUSTERS_SERVICE_ARM_HELPER_PRINCIPAL_ID}" == "null" || \
+          -z "${CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME}" || "${CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME}" == "null" ]]; then
+      echo "ERROR: Clusters Service ARM helper lease '${CLUSTERS_SERVICE_ARM_HELPER_LEASE}' not found or incomplete in ${ARM_HELPER_POOL_CATALOG}"
+      exit 1
+    fi
+
+    echo "Clusters Service ARM helper SP override: ${CLUSTERS_SERVICE_ARM_HELPER_LEASE} -> clientId=${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}"
+    export _YQ_CS_ARM_HELPER_CID="${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}"
+    export _YQ_CS_ARM_HELPER_CERT="${CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME}"
+    yq -i "
+      .clouds.dev.environments.${DEPLOY_ENV}.defaults.clustersServiceArmHelperClientId = strenv(_YQ_CS_ARM_HELPER_CID) |
+      .clouds.dev.environments.${DEPLOY_ENV}.defaults.clustersServiceArmHelperCertName = strenv(_YQ_CS_ARM_HELPER_CERT)
+    " "${OVERRIDE_CONFIG_FILE}"
+    unset _YQ_CS_ARM_HELPER_CID _YQ_CS_ARM_HELPER_CERT
+  else
+    echo "No Clusters Service ARM helper SP lease provided, preserving its configured defaults"
+  fi
 else
   echo "No ARM helper SP lease provided, skipping ARM helper overrides"
 fi

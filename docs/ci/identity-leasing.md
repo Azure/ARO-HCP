@@ -362,15 +362,19 @@ Maintainer flow:
    the desired size directly from `config/config-dev-ci.yaml`.
 5. Add or update the `aro-hcp-arm-helper-sp-dev` Boskos inventory in
    `openshift/release`;
-   after that inventory has rolled out, request one lease as
+   after that inventory has rolled out, request two leases as
    `LEASED_ARM_HELPER_SP`.
 
 The runtime catalog is
 `dev-infrastructure/openshift-ci/arm-helper-pool.yaml`. An unknown or incomplete
-lease entry fails provisioning. A missing lease preserves the shared
-`armHelperClientId` and `armHelperCertName` defaults. The lease does **not**
-override `armHelperFPAPrincipalId`, which is the shared mock first-party
-principal rather than the authenticating ARM helper.
+lease entry fails provisioning. The first whitespace-separated lease configures
+Backend through `armHelperClientId` and `armHelperCertName`; the second configures
+Clusters Service through `clustersServiceArmHelperClientId` and
+`clustersServiceArmHelperCertName`. A single lease remains supported during the
+transition to the shared `hack/ci` provisioning scripts and leaves the Clusters
+Service defaults unchanged. A missing lease preserves all configured defaults.
+Neither lease overrides `armHelperFPAPrincipalId`, which is the shared mock
+first-party principal rather than an authenticating ARM helper.
 
 ## Where To Look
 
