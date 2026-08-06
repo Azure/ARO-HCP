@@ -143,17 +143,19 @@ Once the suite finishes, the catcher always merges these keys into `$ARTIFACT_DI
 {
   "ev2-failed-tests": ["spec name 1", "spec name 2"],
   "ev2-allow-retry-tests": ["spec name 1"],
-  "ev2-tests-total": 42,
-  "ev2-tests-passed": 40,
-  "ev2-tests-failed": 2,
-  "ev2-tests-skipped": 0,
-  "ev2-suite-duration-seconds": 187.3
+  "ev2-suite-summary": {
+    "total": 42,
+    "passed": 40,
+    "failed": 2,
+    "skipped": 0,
+    "duration-seconds": 187.3
+  }
 }
 ```
 
 `ev2-failed-tests` is every spec that failed; `ev2-allow-retry-tests` is the subset of those that carried `labels.AllowRetry`. aro-hcp-tests reports only these raw facts - it does not decide whether the run qualifies for an automatic retry. That decision is policy (how many failures are tolerable, etc.) that belongs to prow-job-executor (see [Consuming the signal](#3-consuming-the-signal-aro-tools) below), which can evolve independently of an ARO-HCP release.
 
-The remaining `ev2-tests-*`/`ev2-suite-duration-seconds` keys aren't read by the retry decision either. They exist so anyone triaging a gating run from `finished.json` alone (a human, or a future dashboard) can see the run's basic shape (how many specs ran, how many of each result, how long the suite took wall-clock) without opening the Prow job UI.
+`ev2-suite-summary` isn't read by the retry decision either. It exists so anyone triaging a gating run from `finished.json` alone (a human, or a future dashboard) can see the run's basic shape (how many specs ran, how many of each result, how long the suite took wall-clock) without opening the Prow job UI. It's a nested object rather than more flat `ev2-*` keys so its field names don't read as confusingly similar to `ev2-failed-tests` (a name list, not a count); `duration-seconds` is rounded to one decisecond since a suite-level duration doesn't need nanosecond precision.
 
 Writing unconditionally, rather than only when a run happens to qualify, removes an ambiguity the original design had: with a conditional write, an absent key could mean either "nothing failed" or "failures happened but didn't qualify" - both looked identical from the consuming side, which caused confusion more than once while verifying this against real Prow runs. Now the keys' presence means the step ran at all; their content is the whole picture.
 
