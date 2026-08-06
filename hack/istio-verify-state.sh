@@ -62,19 +62,6 @@ reset_counters() {
     FAIL_MESSAGES=()
 }
 
-check_connectivity() {
-    if ! kubectl cluster-info &>/dev/null; then
-        echo "ERROR: Cannot reach Kubernetes API server"
-        echo ""
-        echo "Fix: run 'az aks get-credentials' for your target cluster:"
-        echo "  az aks get-credentials -g <resource-group> -n <cluster-name> --overwrite-existing"
-        echo ""
-        echo "Example for pers-usw3trwi-svc:"
-        echo "  az aks get-credentials -g hcp-underlay-pers-usw3trwi-svc -n pers-usw3trwi-svc --overwrite-existing"
-        exit 1
-    fi
-}
-
 capture_state() {
     echo "=== MESH STATE SNAPSHOT — $(date -u '+%Y-%m-%dT%H:%M:%SZ') ==="
     echo ""
@@ -637,7 +624,6 @@ run_verification() {
 
 case "$PHASE" in
     before)
-        check_connectivity
         echo "Capturing BEFORE state..."
         capture_state | tee "$BEFORE_FILE"
         echo ""
@@ -651,7 +637,6 @@ case "$PHASE" in
         fi
         ;;
     after)
-        check_connectivity
         echo "Capturing AFTER state..."
         capture_state | tee "$AFTER_FILE"
         echo ""
@@ -674,7 +659,6 @@ case "$PHASE" in
         fi
         ;;
     now)
-        check_connectivity
         now_file="/tmp/istio-verify-now.txt"
         capture_state | tee "$now_file"
         echo ""
