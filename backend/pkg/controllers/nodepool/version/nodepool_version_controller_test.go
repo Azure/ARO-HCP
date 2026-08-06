@@ -742,7 +742,7 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			activeVersions:       []string{"5.0.1"},
 			controlPlaneVersions: []string{"5.0.1"},
 			expectError:          true,
-			errorContains:        "major version changes are not supported",
+			errorContains:        "node pool version changes are not supported while the control plane is on a different major version (node pool major version 4 vs control plane major version 5)",
 		},
 		{
 			name:                 "valid major downgrade 5.0 to 4.22",

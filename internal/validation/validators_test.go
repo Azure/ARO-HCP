@@ -390,7 +390,7 @@ func TestValidateNodePoolVersionChange(t *testing.T) {
 			highestCP:      "5.0.0",
 			allowMajor:     false,
 			expectError:    true,
-			errContains:    "major version changes are not supported",
+			errContains:    "node pool version changes are not supported while the control plane is on a different major version (node pool major version 4 vs control plane major version 5)",
 		},
 		{
 			// 4.20 is not in AllowControlPlaneNodePoolMajorVersionSkew, so it
