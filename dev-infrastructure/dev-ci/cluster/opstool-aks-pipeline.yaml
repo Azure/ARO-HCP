@@ -25,6 +25,39 @@ resourceGroups:
     dependsOn:
     - resourceGroup: opstool
       step: network
+  # User and infra node pools live in their own Deployment Stack so that pools
+  # removed from the template are pruned automatically (actionOnUnmanage: delete)
+  # without giving the stack prune rights over the rest of the cluster template.
+  - name: nodepools
+    action: ARMStack
+    template: ../../templates/aks-nodepools.bicep
+    parameters: ../../configurations/opstool-cluster-nodepools.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
+    bypassStackOutOfSyncError: false
+    variables:
+    - name: aksClusterName
+      input:
+        resourceGroup: opstool
+        step: cluster
+        name: aksClusterName
+    - name: nodeSubnetId
+      input:
+        resourceGroup: opstool
+        step: cluster
+        name: nodeSubnetId
+    - name: podSubnetId
+      input:
+        resourceGroup: opstool
+        step: cluster
+        name: podSubnetId
+    automatedRetry:
+      errorContainsAny:
+      - "DeploymentStackInNonTerminalState"
+      - "Internal server error"
+      - "Resource is in Updating state"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
   # Upgrade the AKS control plane and node pools to the configured Kubernetes
   # version. The `cluster` ARM step only moves the control plane; node pools
   # keep their orchestrator version on a managedCluster PUT, so an explicit
@@ -47,7 +80,7 @@ resourceGroups:
       configRef: opstool.aks.kubernetesVersion
     dependsOn:
     - resourceGroup: opstool
-      step: cluster
+      step: nodepools
     - resourceGroup: global
       step: global-identity
   - name: cluster-output

@@ -21,22 +21,6 @@ param systemAgentPoolZones = '{{ .svc.aks.systemAgentPool.zones }}'
 param systemAgentVMSize = '{{ .svc.aks.systemAgentPool.vmSize }}'
 param systemZoneRedundantMode = '{{ .svc.aks.systemAgentPool.zoneRedundantMode }}'
 param aksSystemOsDiskSizeGB = {{ .svc.aks.systemAgentPool.osDiskSizeGB }}
-param userAgentPoolName = '{{ .svc.aks.userAgentPool.name }}'
-param userAgentMinCount = {{ .svc.aks.userAgentPool.minCount }}
-param userAgentMaxCount = {{ .svc.aks.userAgentPool.maxCount }}
-param userAgentVMSize = '{{ .svc.aks.userAgentPool.vmSize }}'
-param userAgentPoolCount = {{ .svc.aks.userAgentPool.poolCount }}
-param userAgentPoolZones = '{{ .svc.aks.userAgentPool.zones }}'
-param userZoneRedundantMode = '{{ .svc.aks.userAgentPool.zoneRedundantMode }}'
-param infraAgentPoolName = '{{ .svc.aks.infraAgentPool.name }}'
-param infraAgentMinCount = {{ .svc.aks.infraAgentPool.minCount }}
-param infraAgentMaxCount = {{ .svc.aks.infraAgentPool.maxCount }}
-param infraAgentVMSize = '{{ .svc.aks.infraAgentPool.vmSize }}'
-param infraAgentPoolCount = {{ .svc.aks.infraAgentPool.poolCount }}
-param infraAgentPoolZones = '{{ .svc.aks.infraAgentPool.zones }}'
-param infraZoneRedundantMode = '{{ .svc.aks.infraAgentPool.zoneRedundantMode }}'
-param infraOsDiskSizeGB = {{ .svc.aks.infraAgentPool.osDiskSizeGB }}
-param userOsDiskSizeGB = {{ .svc.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressIPTags }}'
 // istioVersions intentionally not passed — mesh revisions are managed by the
 // IstioUpgrade pipeline step, not baked into the ARM template. Passing them

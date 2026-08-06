@@ -427,6 +427,39 @@ resourceGroups:
       - "DeploymentScriptExceededMaxAllowedTime"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
+  # User and infra node pools live in their own Deployment Stack so that pools
+  # removed from the template are pruned automatically (actionOnUnmanage: delete)
+  # without giving the stack prune rights over the rest of the cluster template.
+  - name: nodepools
+    action: ARMStack
+    template: templates/aks-nodepools.bicep
+    parameters: configurations/mgmt-cluster-nodepools.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
+    bypassStackOutOfSyncError: false
+    variables:
+    - name: aksClusterName
+      input:
+        resourceGroup: management
+        step: cluster
+        name: aksClusterName
+    - name: nodeSubnetId
+      input:
+        resourceGroup: management
+        step: cluster
+        name: nodeSubnetId
+    - name: podSubnetId
+      input:
+        resourceGroup: management
+        step: cluster
+        name: podSubnetId
+    automatedRetry:
+      errorContainsAny:
+      - "DeploymentStackInNonTerminalState"
+      - "Internal server error"
+      - "Resource is in Updating state"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
   - name: svc-mgmt-aks-permissions
     action: ARM
     omitFromServiceGroupCompletion: true
@@ -479,7 +512,7 @@ resourceGroups:
       configRef: mgmt.aks.kubernetesVersion
     dependsOn:
     - resourceGroup: management
-      step: cluster
+      step: nodepools
   - name: nsp
     action: ARM
     omitFromServiceGroupCompletion: true
@@ -780,7 +813,7 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
-      step: cluster
+      step: nodepools
     identityFrom:
       resourceGroup: global
       step: output
