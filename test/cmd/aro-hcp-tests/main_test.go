@@ -15,7 +15,9 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Azure/ARO-HCP/test/util/testutil"
@@ -67,4 +69,112 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 
 		})
 	}
+}
+
+func TestWriteEV2RetryMetadata(t *testing.T) {
+	sampleSummary := ev2SuiteSummary{Total: 3, Passed: 1, Failed: 2, Skipped: 0, DurationSeconds: 12.5}
+
+	t.Run("empty artifact dir is skipped without error", func(t *testing.T) {
+		if err := writeEV2RetryMetadata("", []string{"spec A"}, []string{"spec A"}, sampleSummary); err != nil {
+			t.Fatalf("expected no error when ARTIFACT_DIR is unset, got %v", err)
+		}
+	})
+
+	t.Run("writes a fresh metadata.json", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := writeEV2RetryMetadata(dir, []string{"spec A", "spec B"}, []string{"spec A"}, sampleSummary); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got := readMetadataFile(t, dir)
+		failed, ok := got[ev2FailedTestsKey].([]interface{})
+		if !ok || len(failed) != 2 {
+			t.Fatalf("expected 2 failed test names recorded, got %v", got[ev2FailedTestsKey])
+		}
+		allowRetry, ok := got[ev2AllowRetryTestsKey].([]interface{})
+		if !ok || len(allowRetry) != 1 {
+			t.Fatalf("expected 1 allow-retry test name recorded, got %v", got[ev2AllowRetryTestsKey])
+		}
+		summary, ok := got[ev2SuiteSummaryKey].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected %s to be an object, got %v", ev2SuiteSummaryKey, got[ev2SuiteSummaryKey])
+		}
+		if summary["total"] != float64(3) {
+			t.Fatalf("expected total=3, got %v", summary["total"])
+		}
+		if summary["passed"] != float64(1) {
+			t.Fatalf("expected passed=1, got %v", summary["passed"])
+		}
+		if summary["failed"] != float64(2) {
+			t.Fatalf("expected failed=2, got %v", summary["failed"])
+		}
+		if summary["skipped"] != float64(0) {
+			t.Fatalf("expected skipped=0, got %v", summary["skipped"])
+		}
+		if summary["duration-seconds"] != 12.5 {
+			t.Fatalf("expected duration-seconds=12.5, got %v", summary["duration-seconds"])
+		}
+	})
+
+	t.Run("writes empty lists when nothing failed, so the keys are always present", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := writeEV2RetryMetadata(dir, nil, nil, ev2SuiteSummary{Total: 5, Passed: 5}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got := readMetadataFile(t, dir)
+		failed, ok := got[ev2FailedTestsKey].([]interface{})
+		if !ok || len(failed) != 0 {
+			t.Fatalf("expected an empty failed-tests list, got %v", got[ev2FailedTestsKey])
+		}
+		allowRetry, ok := got[ev2AllowRetryTestsKey].([]interface{})
+		if !ok || len(allowRetry) != 0 {
+			t.Fatalf("expected an empty allow-retry-tests list, got %v", got[ev2AllowRetryTestsKey])
+		}
+		summary, ok := got[ev2SuiteSummaryKey].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected %s to be an object, got %v", ev2SuiteSummaryKey, got[ev2SuiteSummaryKey])
+		}
+		if summary["total"] != float64(5) {
+			t.Fatalf("expected total=5, got %v", summary["total"])
+		}
+	})
+
+	t.Run("merges into an existing metadata.json without clobbering other keys", func(t *testing.T) {
+		dir := t.TempDir()
+		existing := map[string]interface{}{"some-other-step": "wrote-this"}
+		data, err := json.Marshal(existing)
+		if err != nil {
+			t.Fatalf("failed to marshal fixture: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, ev2RetryMetadataFile), data, 0o644); err != nil {
+			t.Fatalf("failed to write fixture: %v", err)
+		}
+
+		if err := writeEV2RetryMetadata(dir, []string{"spec A"}, []string{"spec A"}, sampleSummary); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got := readMetadataFile(t, dir)
+		if got["some-other-step"] != "wrote-this" {
+			t.Fatalf("expected pre-existing key to survive the merge, got %v", got)
+		}
+		failed, ok := got[ev2FailedTestsKey].([]interface{})
+		if !ok || len(failed) != 1 {
+			t.Fatalf("expected 1 failed test name recorded, got %v", got[ev2FailedTestsKey])
+		}
+	})
+}
+
+func readMetadataFile(t *testing.T, dir string) map[string]interface{} {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, ev2RetryMetadataFile))
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", ev2RetryMetadataFile, err)
+	}
+	var got map[string]interface{}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("failed to parse %s: %v", ev2RetryMetadataFile, err)
+	}
+	return got
 }
