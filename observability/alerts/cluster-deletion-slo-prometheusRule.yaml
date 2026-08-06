@@ -258,7 +258,7 @@ spec:
   # ========================================
   # Cluster Deletion Saturation Alerts — Saturation
   # ========================================
-    - name: arohcp_cluster_deletion_saturation_alerts
+  - name: arohcp_cluster_deletion_saturation_alerts
     rules:
     # Queue depth: cluster deletion controller workqueue accumulating work
     - alert: userJourneyClusterDeletionQueueDepth
