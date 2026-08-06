@@ -242,7 +242,6 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolClusterServiceUpdateDispatchSyncer{
-				cooldownChecker:                     &alwaysSyncCooldownChecker{},
 				minimumReconcileTimeCooldownChecker: tc.minimumReconcileTimeCooldownChecker,
 				nodePoolLister:                      nodePoolLister,
 				resourcesDBClient:                   mockResourcesDB,

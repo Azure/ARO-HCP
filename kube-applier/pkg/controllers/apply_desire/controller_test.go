@@ -30,14 +30,12 @@ import (
 	"k8s.io/client-go/dynamic/fake"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/util/workqueue"
-	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
@@ -71,27 +69,20 @@ func configMapTarget(name string) kubeapplier.ResourceReference {
 }
 
 // newCadenceController builds a controller wired only with the fields the
-// cadence tests touch: a real workqueue, the supplied cfg (defaults
-// applied), and a TimeBasedChecker fed by cfg.Clock. dyn/informer/writer
-// stay nil because these tests never reach SyncOnce far enough to need
-// them — except the error-requeue test, which substitutes its own erroring
-// fetcher.
+// cadence tests touch: a real workqueue and the supplied cfg (defaults
+// applied). dyn/informer/writer stay nil because these tests never reach
+// SyncOnce far enough to need them — except the error-requeue test, which
+// substitutes its own erroring fetcher.
 func newCadenceController(t *testing.T, cfg Config) *ApplyDesireController {
 	t.Helper()
 	cfg = cfg.withDefaults()
-	checker := controllerutils.NewTimeBasedCooldownChecker(cfg.CooldownPeriod)
-	checker.SetClock(cfg.Clock)
-	deleteChecker := controllerutils.NewTimeBasedCooldownChecker(cfg.DeleteCooldownPeriod)
-	deleteChecker.SetClock(cfg.Clock)
 	return &ApplyDesireController{
 		name: "ApplyDesireController",
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[keys.ApplyDesireKey](),
 			workqueue.TypedRateLimitingQueueConfig[keys.ApplyDesireKey]{Name: "test"},
 		),
-		cfg:            cfg,
-		cooldown:       checker,
-		deleteCooldown: deleteChecker,
+		cfg: cfg,
 	}
 }
 
@@ -276,10 +267,8 @@ func TestApplyDesired_PreCheckErrors(t *testing.T) {
 	}
 }
 
-// TestHandleAdd_QueuesImmediately covers bot-directive case 1: a brand-new
-// ApplyDesire bypasses the cooldown gate and goes onto the workqueue right
-// away, even though Add events with the same key arriving back-to-back
-// could in principle be spammed.
+// TestHandleAdd_QueuesImmediately verifies that a brand-new ApplyDesire
+// goes onto the workqueue immediately.
 func TestHandleAdd_QueuesImmediately(t *testing.T) {
 	c := newCadenceController(t, Config{})
 	desire := newApplyDesire(t, "ok", configMapTarget("hello"), nil)
@@ -295,15 +284,9 @@ func TestHandleAdd_QueuesImmediately(t *testing.T) {
 	}
 }
 
-// TestHandleUpdate_EtagChangeQueuesImmediately covers bot-directive case 2:
-// when Cosmos etag differs between the previous and current snapshots, the
-// controller treats the update as a real content change and queues
-// immediately — bypassing the cooldown gate so users see their content
-// reflected fast.
-//
-// Etag (rather than spec deep-equals) is the right signal because Cosmos
-// bumps it on every mutation, and the backend's GenericWatchingController
-// uses the same convention.
+// TestHandleUpdate_EtagChangeQueuesImmediately verifies that when Cosmos
+// etag differs, the controller treats the update as a content change and
+// queues immediately.
 func TestHandleUpdate_EtagChangeQueuesImmediately(t *testing.T) {
 	c := newCadenceController(t, Config{})
 
@@ -320,9 +303,8 @@ func TestHandleUpdate_EtagChangeQueuesImmediately(t *testing.T) {
 	}
 }
 
-// TestProcessNext_ErrorRequeues covers bot-directive case 3: when SyncOnce
-// returns an error, processNext rate-limits a requeue. The rate limiter
-// (not the cooldown gate) drives retry timing, so retries happen quickly.
+// TestProcessNext_ErrorRequeues verifies that when SyncOnce returns an
+// error, processNext rate-limits a requeue.
 func TestProcessNext_ErrorRequeues(t *testing.T) {
 	c := newCadenceController(t, Config{})
 	c.fetcher = &errFetcher{err: errors.New("cosmos boom")}
@@ -340,69 +322,23 @@ func TestProcessNext_ErrorRequeues(t *testing.T) {
 	}
 }
 
-// TestHandleUpdate_UnchangedEtagGatedByCooldown covers bot-directive case 4:
-// when etag is unchanged (the informer's resync, or our own status write
-// fed back), handleUpdate consults the cooldown gate. The first call passes
-// through (no prior record); subsequent calls within the configured window
-// are dropped; once the clock advances past the window, the gate reopens.
-//
-// In production this is what makes "unchanged content reconciles slowly"
-// — the informer fires resyncs frequently, but only one in CooldownPeriod
-// makes it onto the workqueue.
-func TestHandleUpdate_UnchangedEtagGatedByCooldown(t *testing.T) {
-	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	fc := clocktesting.NewFakePassiveClock(t0)
-
-	c := newCadenceController(t, Config{
-		CooldownPeriod: 2 * time.Second,
-		Clock:          fc,
-	})
+// TestHandleUpdate_UnchangedEtagQueues verifies that unchanged-etag updates
+// (informer resyncs) still enqueue the key. The informer's ResyncPeriod
+// controls how often these fire; the controller does not gate them further.
+func TestHandleUpdate_UnchangedEtagQueues(t *testing.T) {
+	c := newCadenceController(t, Config{})
 
 	oldDesire := withEtag(newApplyDesire(t, "ok", configMapTarget("hello"), nil), "v1")
 	newDesire := withEtag(newApplyDesire(t, "ok", configMapTarget("hello"), nil), "v1")
 	key := mustKey(t, newDesire)
 
-	// drain consumes everything currently on the queue and returns the keys
-	// in order, so each phase of the test starts from an empty queue.
-	drain := func() []keys.ApplyDesireKey {
-		var got []keys.ApplyDesireKey
-		for c.queue.Len() > 0 {
-			k, shut := c.queue.Get()
-			if shut {
-				t.Fatalf("queue shut down unexpectedly")
-			}
-			got = append(got, k)
-			c.queue.Done(k)
-			c.queue.Forget(k)
-		}
-		return got
-	}
-
-	// First unchanged-etag update: no prior record, gate allows.
 	c.handleUpdate(oldDesire, newDesire)
-	if got := drain(); len(got) != 1 || got[0] != key {
-		t.Fatalf("first unchanged-etag update queued %v, want [%v]", got, key)
+	if got := c.queue.Len(); got != 1 {
+		t.Fatalf("queue.Len after unchanged-etag update = %d, want 1", got)
 	}
-
-	// 1.5s later: still inside the 2s cooldown. Gate denies.
-	fc.SetTime(t0.Add(1500 * time.Millisecond))
-	c.handleUpdate(oldDesire, newDesire)
-	if got := drain(); len(got) != 0 {
-		t.Errorf("at 1.5s (cooldown=2s) drained %v, want none", got)
-	}
-
-	// 2.1s later (past cooldown): gate reopens.
-	fc.SetTime(t0.Add(2100 * time.Millisecond))
-	c.handleUpdate(oldDesire, newDesire)
-	if got := drain(); len(got) != 1 || got[0] != key {
-		t.Fatalf("at 2.1s (past cooldown) drained %v, want [%v]", got, key)
-	}
-
-	// Immediately after the gate just fired, the next window starts from
-	// 2.1s and the gate is closed again until 4.1s.
-	c.handleUpdate(oldDesire, newDesire)
-	if got := drain(); len(got) != 0 {
-		t.Errorf("immediately after pass-through drained %v, want none", got)
+	gotKey, _ := c.queue.Get()
+	if gotKey != key {
+		t.Errorf("queued key = %v, want %v", gotKey, key)
 	}
 }
 
