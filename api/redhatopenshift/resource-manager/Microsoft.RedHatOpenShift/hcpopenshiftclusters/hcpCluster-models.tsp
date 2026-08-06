@@ -34,6 +34,7 @@ model HcpOpenShiftCluster is TrackedResource<HcpOpenShiftClusterProperties> {
 // - deleted when resource group is deleted
 // - allow cascade delete
 // more: https://armwiki.azurewebsites.net/rp_onboarding/tracked_vs_proxy_resources.html
+/** NodePool resource */
 @parentResource(HcpOpenShiftCluster)
 model NodePool is TrackedResource<NodePoolProperties> {
   ...ResourceNameParameter<
@@ -50,6 +51,47 @@ model ExternalAuth is ProxyResource<ExternalAuthProperties> {
     ExternalAuth,
     NamePattern = "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
   >;
+}
+
+/** Managed service identity (system assigned and/or user assigned identities) */
+// Copied from CommonTypes (v6), omitting the read-only principalId and tenantId fields.
+model ManagedServiceIdentityUpdate {
+  /** The type of managed identity assigned to this resource. */
+  type?: Azure.ResourceManager.CommonTypes.ManagedServiceIdentityType;
+
+  /** The identities assigned to this resource by the user. */
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "copied from CommonTypes"
+  userAssignedIdentities?: Record<
+    | Azure.ResourceManager.CommonTypes.UserAssignedIdentity
+    | null>;
+}
+
+/** HCP cluster resource */
+model HcpOpenShiftClusterUpdate {
+  /** The resource-specific properties for this resource. */
+  properties?: HcpOpenShiftClusterPropertiesUpdate;
+
+  /** The managed service identities assigned to this resource. */
+  identity?: ManagedServiceIdentityUpdate;
+
+  ...Azure.ResourceManager.Foundations.ArmTagsProperty;
+}
+
+/** NodePool resource */
+model NodePoolUpdate {
+  /** The resource-specific properties for this resource. */
+  properties?: NodePoolPropertiesUpdate;
+
+  /** The managed service identities assigned to this resource. */
+  identity?: ManagedServiceIdentityUpdate;
+
+  ...Azure.ResourceManager.Foundations.ArmTagsProperty;
+}
+
+/** ExternalAuth resource */
+model ExternalAuthUpdate {
+  /** The resource-specific properties for this resource. */
+  properties?: ExternalAuthPropertiesUpdate;
 }
 
 /** HCP cluster properties */
@@ -148,6 +190,60 @@ model HcpOpenShiftClusterProperties {
   cryptoRestrictions?: CryptoRestrictions = CryptoRestrictions.None;
 }
 
+/** HCP cluster properties */
+model HcpOpenShiftClusterPropertiesUpdate {
+  /** Version of the control plane components */
+  @removed(Versions.v2025_12_23_preview)
+  @renamedFrom(Versions.v2025_12_23_preview, "version")
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  versionNoUpdate?: VersionProfile;
+
+  /** Version of the control plane components */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  version?: VersionProfileUpdate;
+
+  /** Azure platform configuration */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  platform?: PlatformProfileUpdate;
+
+  /** Configure ClusterAutoscaling . */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  autoscaling?: ClusterAutoscalingProfile;
+
+  /** Configure ETCD. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  etcd?: EtcdProfileUpdate;
+
+  /** imageDigestMirrors is a set of rules to allow pulling images from a
+   * mirrored registry by using digest specifications.
+   *
+   * WARNING: Updating this array will redeploy all node pools in the cluster.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @added(Versions.v2025_12_23_preview)
+  @identifiers(#["source"])
+  @maxItems(240)
+  imageDigestMirrors?: ImageDigestMirror[];
+
+  /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
+   * respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption
+   * Budgets that have not been successfully drained from a node will be forcibly evicted. This is
+   * especially relevant to cluster upgrades.
+   *
+   * Valid values are in minutes and from 0 to 10080 minutes (1 week).
+   * 0 means that the MachinePool can be drained without any time limitation.
+   *
+   * This is the value is used a default for all NodePools. It can be overridden
+   * by specifying nodeDrainTimeoutMinutes for a given NodePool
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @maxValue(10080)
+  @minValue(0)
+  nodeDrainTimeoutMinutes?: int32;
+}
+
 /** The resource provisioning state. */
 @lroStatus
 union ProvisioningState {
@@ -202,6 +298,26 @@ model VersionProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @madeRequired(Versions.v2025_12_23_preview)
   id: string;
+
+  /** ChannelGroup is the name of the set to which this version belongs.
+   *  Each version belongs to only a single set.
+   *
+   *  If not specified, the default value is 'stable'.
+   */
+  //  Note: The default value is not declared in the API specification because
+  //        of a TypeSpec bug with updatable fields. The default value will be
+  //        declared in a future API version once the TypeSpec bug is fixed.
+  //        https://github.com/Azure/typespec-azure/issues/1586
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  channelGroup?: string;
+}
+
+/** Versions represents an OpenShift version. */
+model VersionProfileUpdate {
+  /** ID is the desired X.Y version of the cluster control plane. */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  id?: string;
 
   /** ChannelGroup is the name of the set to which this version belongs.
    *  Each version belongs to only a single set.
@@ -383,6 +499,13 @@ model PlatformProfile {
   issuerUrl: url;
 }
 
+/** Azure specific configuration */
+model PlatformProfileUpdate {
+  /** The configuration that the operators of the cluster have to authenticate to Azure */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  operatorsAuthentication?: OperatorsAuthenticationProfileUpdate;
+}
+
 /** ClusterAutoscaling specifies auto-scaling behavior that
  *  applies to all NodePools associated with a control plane. */
 model ClusterAutoscalingProfile {
@@ -531,6 +654,13 @@ model OperatorsAuthenticationProfile {
   userAssignedIdentities: UserAssignedIdentitiesProfile;
 }
 
+/** The configuration that the operators of the cluster have to authenticate to Azure. */
+model OperatorsAuthenticationProfileUpdate {
+  /** Represents the information related to Azure User-Assigned managed identities needed
+   * to perform Operators authentication based on Azure User-Assigned Managed Identities */
+  userAssignedIdentities?: UserAssignedIdentitiesProfileUpdate;
+}
+
 /** Represents the information related to Azure User-Assigned managed identities needed
  * to perform Operators authentication based on Azure User-Assigned Managed Identities */
 model UserAssignedIdentitiesProfile {
@@ -552,6 +682,29 @@ model UserAssignedIdentitiesProfile {
    * purpose is to perform service level actions. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   serviceManagedIdentity: UserAssignedIdentityResourceId;
+}
+
+/** Represents the information related to Azure User-Assigned managed identities needed
+ * to perform Operators authentication based on Azure User-Assigned Managed Identities */
+model UserAssignedIdentitiesProfileUpdate {
+  /** The set of Azure User-Assigned Managed Identities leveraged for the Control Plane
+   * operators of the cluster. The set of required managed identities is dependent on the
+   * Cluster's OpenShift version. */
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  controlPlaneOperators?: Record<UserAssignedIdentityResourceId>;
+
+  /** The set of Azure User-Assigned Managed Identities leveraged for the Data Plane
+   * operators of the cluster. The set of required managed identities is dependent on the
+   * Cluster's OpenShift version. */
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  dataPlaneOperators?: Record<UserAssignedIdentityResourceId>;
+
+  /** Represents the information associated to an Azure User-Assigned Managed Identity whose
+   * purpose is to perform service level actions. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  serviceManagedIdentity?: UserAssignedIdentityResourceId;
 }
 
 scalar UserAssignedIdentityResourceId
@@ -590,6 +743,28 @@ model KmsKey {
   version: string;
 }
 
+/** A representation of a KeyVault Secret. */
+model KmsKeyUpdate {
+  /** vaultName is the name of the keyvault that contains the secret. */
+  @maxLength(255)
+  @minLength(1)
+  @removed(Versions.v2025_12_23_preview)
+  vaultName?: string;
+
+  /** name is the name of the keyvault key used for encryption/decryption. */
+  @maxLength(255)
+  @minLength(1)
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "name")
+  nameImplicitVisibility?: string;
+
+  /** version contains the version of the key to use. */
+  @maxLength(255)
+  @minLength(1)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  version?: string;
+}
+
 /** The internet visibility of a keyvault resource */
 union KeyVaultVisibility {
   string,
@@ -617,6 +792,16 @@ model EtcdProfile {
   @added(Versions.v2026_06_30_preview)
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   dataEncryption?: EtcdDataEncryptionProfile;
+}
+
+/** The ETCD settings and configuration options. */
+model EtcdProfileUpdate {
+  /** ETCD Data Encryption settings.
+   * If not specified platform managed keys are used.
+   */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  dataEncryption?: EtcdDataEncryptionProfileUpdate;
 }
 
 /** The ETCD data encryption settings. */
@@ -650,6 +835,16 @@ model EtcdDataEncryptionProfile {
   customerManaged?: CustomerManagedEncryptionProfile;
 }
 
+/** The ETCD data encryption settings. */
+model EtcdDataEncryptionProfileUpdate {
+  /** Specify customer managed encryption key details.
+   * Required when keyManagementMode is "CustomerManaged".
+   */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  customerManaged?: CustomerManagedEncryptionProfileUpdate;
+}
+
 /** Customer managed encryption key profile. */
 model CustomerManagedEncryptionProfile {
   /** The encryption type used.
@@ -674,6 +869,17 @@ model CustomerManagedEncryptionProfile {
   @added(Versions.v2026_06_30_preview)
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   kms?: KmsEncryptionProfile;
+}
+
+/** Customer managed encryption key profile. */
+model CustomerManagedEncryptionProfileUpdate {
+  /** The Key Management Service (KMS) encryption key details.
+   *
+   * Required when encryptionType is "KMS".
+   */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  kms?: KmsEncryptionProfileUpdate;
 }
 
 /** Configure etcd encryption Key Management Service (KMS) key.
@@ -703,6 +909,17 @@ model KmsEncryptionProfile {
   @added(Versions.v2026_06_30_preview)
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   activeKey: KmsKey;
+}
+
+/** Configure etcd encryption Key Management Service (KMS) key.
+ * Your Microsoft Entra application used to create the cluster must be authorized to access this keyvault,
+ * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`
+ */
+model KmsEncryptionProfileUpdate {
+  /** The details of the active key. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  activeKey?: KmsKeyUpdate;
 }
 
 /** The encryption types supported for a customer managed key. */
@@ -802,6 +1019,61 @@ model NodePoolProperties {
   status?: ResourceStatus;
 }
 
+/** Represents the node pool properties */
+model NodePoolPropertiesUpdate {
+  /** OpenShift version for the nodepool */
+  @removed(Versions.v2025_12_23_preview)
+  @renamedFrom(Versions.v2025_12_23_preview, "version")
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  versionNoUpdate?: NodePoolVersionProfile;
+
+  /** OpenShift version for the nodepool */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  version?: NodePoolVersionProfileUpdate;
+
+  /**
+   * The number of worker nodes, it cannot be used together with autoscaling.
+   * Validation:
+   * - Minimum: 0
+   * - Maximum: 200 (only when availabilityZone is not specified)
+   * - No maximum when availabilityZone is specified
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @minValue(0)
+  replicas?: int32;
+
+  /** Representation of a autoscaling in a node pool. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  autoScaling?: NodePoolAutoScaling;
+
+  /** Kubernetes labels to propagate to the NodePool Nodes
+   * Note that when the labels are updated this is only applied to newly
+   * create nodes in the Nodepool, existing node labels remain unchanged.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @identifiers(#["key", "value"])
+  labels?: Label[];
+
+  /** Taints for the nodes */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @identifiers(#["key", "value", "effect"])
+  taints?: Taint[];
+
+  /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
+   * respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption
+   * Budgets that have not been successfully drained from a node will be forcibly evicted. This is
+   * especially relevant to cluster upgrades.
+   *
+   * Valid values are from 0 to 10080 minutes (1 week) .
+   * 0 means that the NodePool can be drained without any time limitation.
+   *
+   * If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  nodeDrainTimeoutMinutes?: int32;
+}
+
 /** The taint effect the same as in Kubernetes */
 union Effect {
   string,
@@ -856,6 +1128,25 @@ model NodePoolVersionProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @madeRequired(Versions.v2025_12_23_preview)
   id: string;
+
+  /** ChannelGroup is the name of the set to which this version belongs.
+   *  Each version belongs to only a single set.
+   *
+   *  If not specified, the default value is 'stable'.
+   */
+  // Note: The default value is not declared in the API specification because
+  //       of a TypeSpec bug with updatable fields. The default value will be
+  //       declared in a future API version once the TypeSpec bug is fixed.
+  //       https://github.com/Azure/typespec-azure/issues/1586
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  channelGroup?: string;
+}
+
+/** Versions represents an OpenShift version. */
+model NodePoolVersionProfileUpdate {
+  /** ID is the unique identifier of the version. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  id?: string;
 
   /** ChannelGroup is the name of the set to which this version belongs.
    *  Each version belongs to only a single set.
@@ -1086,6 +1377,24 @@ model ExternalAuthProperties {
   claim: ExternalAuthClaimProfile;
 }
 
+/** External Auth profile */
+model ExternalAuthPropertiesUpdate {
+  /** Token Issuer profile */
+  issuer?: TokenIssuerProfileUpdate;
+
+  /** External Auth OIDC clients
+   * There must not be more than 20 entries and entries must have unique namespace/name pairs.
+   */
+  @maxItems(20)
+  @identifiers(#["component", "clientId", "extraScopes"])
+  clients?: ExternalAuthClientProfile[];
+
+  /** External Auth claim
+   * This configures how claims are validated and applied.
+   */
+  claim?: ExternalAuthClaimProfileUpdate;
+}
+
 /** ResourceStatus represents the observed status of the resource. */
 @added(Versions.v2026_06_30_preview)
 model ResourceStatus {
@@ -1238,6 +1547,38 @@ model TokenIssuerProfile {
   ca?: string;
 }
 
+/** Token issuer profile
+ * This configures how the platform interacts with the identity provider and
+ * how tokens issued from the identity provider are evaluated by the Kubernetes API server.
+ */
+model TokenIssuerProfileUpdate {
+  /** This configures the URL used to issue tokens by the identity provider.
+   * The Kubernetes API server determines how authentication tokens should be handled
+   * by matching the 'iss' claim in the JWT to the issuerURL of configured identity providers.
+   *
+   * issuerURL must use the 'https' scheme.
+   * */
+  url?: url;
+
+  /** This configures the acceptable audiences the JWT token, issued by the identity
+   * provider, must be issued to. At least one of the entries must match the
+   * 'aud' claim in the JWT token.
+   *
+   * audiences must contain at least one entry and must not exceed ten entries.
+   */
+  @minItems(1)
+  @maxItems(10)
+  audiences?: string[];
+
+  /** The issuer of the token
+   *
+   * Certificate bundle to use to validate server certificates for the configured URL.
+   * It must be PEM encoded and when not specified, the system trust is used.
+   */
+  @clientName("CA")
+  ca?: string;
+}
+
 /** External Auth client profile
  * This configures how on-cluster, platform clients should request tokens from the identity provider.
  */
@@ -1314,6 +1655,16 @@ model ExternalAuthClaimProfile {
   validationRules?: TokenClaimValidationRule[];
 }
 
+/** External Auth claim profile */
+model ExternalAuthClaimProfileUpdate {
+  /** The claim mappings */
+  mappings?: TokenClaimMappingsProfileUpdate;
+
+  /** The claim validation rules */
+  @identifiers(#["type", "requiredClaim"])
+  validationRules?: TokenClaimValidationRule[];
+}
+
 /** External Auth claim mappings profile.
  * At a minimum username or groups must be defined.
  */
@@ -1323,6 +1674,17 @@ model TokenClaimMappingsProfile {
 
   /** The claim mappings groups. */
   groups?: GroupClaimProfile;
+}
+
+/** External Auth claim mappings profile.
+ * At a minimum username or groups must be defined.
+ */
+model TokenClaimMappingsProfileUpdate {
+  /** The claim mappings username. */
+  username?: UsernameClaimProfileUpdate;
+
+  /** The claim mappings groups. */
+  groups?: GroupClaimProfileUpdate;
 }
 
 /** External Auth claim profile
@@ -1346,6 +1708,26 @@ model GroupClaimProfile {
 }
 
 /** External Auth claim profile
+ * This configures how the groups of a cluster identity should be constructed
+ * from the claims in a JWT token issued by the identity provider. When
+ * referencing a claim, if the claim is present in the JWT token, its value
+ * must be a list of groups separated by a comma (',').
+ *
+ * For example - '"example"' and '"exampleOne", "exampleTwo", "exampleThree"' are valid claim values.
+ */
+model GroupClaimProfileUpdate {
+  /** Claim name of the external profile */
+  @minLength(1)
+  @maxLength(256)
+  claim?: string;
+
+  /** Prefix for the claim external profile
+   * If this is specified prefixPolicy will be set to "Prefix" by default
+   */
+  prefix?: string;
+}
+
+/** External Auth claim profile
  * This configures how the username of a cluster identity should be constructed
  * from the claims in a JWT token issued by the identity provider.
  */
@@ -1354,6 +1736,53 @@ model UsernameClaimProfile {
   @minLength(1)
   @maxLength(256)
   claim: string;
+
+  /** Prefix for the claim external profile
+   * Must be set when the prefixPolicy field is set to 'Prefix' and must be unset
+   * otherwise.
+   */
+  prefix?: string;
+
+  /** Prefix policy is an optional field that configures how a prefix should be
+   * applied to the value of the JWT claim specified in the 'claim' field.
+   *
+   * Allowed values are 'Prefix', 'NoPrefix', and 'None'. If not specified, the
+   * default policy is 'None'.
+   *
+   * When set to 'Prefix', the value specified in the prefix field will be
+   * prepended to the value of the JWT claim.
+   * The prefix field must be set when prefixPolicy is 'Prefix'.
+   *
+   * When set to 'NoPrefix', no prefix will be prepended to the value
+   * of the JWT claim.
+   *
+   * When set to 'None', this means no opinion and the platform is left to choose
+   * any prefixes that are applied which is subject to change over time.
+   * Currently, the platform prepends `{issuerURL}#` to the value of the JWT claim
+   * when the claim is not 'email'.
+   * As an example, consider the following scenario:
+   *    `prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,
+   *    the JWT claims include "username":"userA" and "email":"userA@myoidc.tld",
+   *    and `claim` is set to:
+   *    - "username": the mapped value will be "https://myoidc.tld#userA"
+   *    - "email": the mapped value will be "userA@myoidc.tld"
+   */
+  // Note: The default value is not declared in the API specification because
+  //       of a TypeSpec bug with updatable fields. The default value will be
+  //       declared in a future API version once the TypeSpec bug is fixed.
+  //       https://github.com/Azure/typespec-azure/issues/1586
+  prefixPolicy?: UsernameClaimPrefixPolicy;
+}
+
+/** External Auth claim profile
+ * This configures how the username of a cluster identity should be constructed
+ * from the claims in a JWT token issued by the identity provider.
+ */
+model UsernameClaimProfileUpdate {
+  /** Claim name of the external profile */
+  @minLength(1)
+  @maxLength(256)
+  claim?: string;
 
   /** Prefix for the claim external profile
    * Must be set when the prefixPolicy field is set to 'Prefix' and must be unset
