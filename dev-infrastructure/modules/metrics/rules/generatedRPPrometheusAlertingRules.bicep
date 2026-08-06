@@ -649,9 +649,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         enabled: true
         labels: {
           component: 'slo'
-          long_window: '1h'
           severity: '3'
-          short_window: '5m'
           slo: 'cluster-deletion-errors'
         }
         annotations: {
@@ -678,9 +676,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         enabled: true
         labels: {
           component: 'slo'
-          long_window: '6h'
           severity: '3'
-          short_window: '30m'
           slo: 'cluster-deletion-errors'
         }
         annotations: {
@@ -707,7 +703,6 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         enabled: true
         labels: {
           component: 'slo'
-          long_window: '3d'
           severity: '3'
           slo: 'cluster-deletion-errors'
         }
@@ -762,9 +757,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         enabled: true
         labels: {
           component: 'slo'
-          long_window: '1h'
           severity: '3'
-          short_window: '5m'
           slo: 'cluster-deletion-timeliness'
         }
         annotations: {
@@ -775,7 +768,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
           summary: '{{ $labels.cluster }}: Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)'
           title: '{{ $labels.cluster }}: Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)'
         }
-        expression: 'errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.72'
+        expression: 'errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.72 and clamp_min(count by (cluster) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded"}) or vector(0), 0) >= 5'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -791,9 +784,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         enabled: true
         labels: {
           component: 'slo'
-          long_window: '6h'
           severity: '3'
-          short_window: '30m'
           slo: 'cluster-deletion-timeliness'
         }
         annotations: {
@@ -804,7 +795,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
           summary: '{{ $labels.cluster }}: Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)'
           title: '{{ $labels.cluster }}: Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)'
         }
-        expression: 'errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.3'
+        expression: 'errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.3 and clamp_min(count by (cluster) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded"}) or vector(0), 0) >= 5'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -820,7 +811,6 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         enabled: true
         labels: {
           component: 'slo'
-          long_window: '3d'
           severity: '3'
           slo: 'cluster-deletion-timeliness'
         }
@@ -832,7 +822,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
           summary: '{{ $labels.cluster }}: Cluster deletion Timeliness SLO slow burn (>5% slow for 6h)'
           title: '{{ $labels.cluster }}: Cluster deletion Timeliness SLO slow burn (>5% slow for 6h)'
         }
-        expression: 'errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.05'
+        expression: 'errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.05 and clamp_min(count by (cluster) (backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded"}) or vector(0), 0) >= 5'
         for: 'PT6H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
