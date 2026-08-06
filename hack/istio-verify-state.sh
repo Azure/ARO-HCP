@@ -30,6 +30,51 @@ done
 BEFORE_FILE="/tmp/istio-verify-before.txt"
 AFTER_FILE="/tmp/istio-verify-after.txt"
 
+PASS_COUNT=0
+FAIL_COUNT=0
+WARN_COUNT=0
+FAIL_MESSAGES=()
+
+record_pass() { echo "PASS: $*"; PASS_COUNT=$((PASS_COUNT + 1)); }
+record_fail() { echo "FAIL: $*"; FAIL_COUNT=$((FAIL_COUNT + 1)); FAIL_MESSAGES+=("$*"); }
+record_warn() { echo "WARN: $*"; WARN_COUNT=$((WARN_COUNT + 1)); }
+
+print_summary() {
+    echo "=========================================="
+    echo "  SUMMARY"
+    echo "=========================================="
+    echo "$PASS_COUNT pass, $FAIL_COUNT fail, $WARN_COUNT warn"
+    if [ "$FAIL_COUNT" -gt 0 ]; then
+        echo ""
+        echo "Failures:"
+        local msg
+        for msg in "${FAIL_MESSAGES[@]}"; do
+            echo "  - $msg"
+        done
+    fi
+    echo ""
+}
+
+reset_counters() {
+    PASS_COUNT=0
+    FAIL_COUNT=0
+    WARN_COUNT=0
+    FAIL_MESSAGES=()
+}
+
+check_connectivity() {
+    if ! kubectl cluster-info &>/dev/null; then
+        echo "ERROR: Cannot reach Kubernetes API server"
+        echo ""
+        echo "Fix: run 'az aks get-credentials' for your target cluster:"
+        echo "  az aks get-credentials -g <resource-group> -n <cluster-name> --overwrite-existing"
+        echo ""
+        echo "Example for pers-usw3trwi-svc:"
+        echo "  az aks get-credentials -g hcp-underlay-pers-usw3trwi-svc -n pers-usw3trwi-svc --overwrite-existing"
+        exit 1
+    fi
+}
+
 capture_state() {
     echo "=== MESH STATE SNAPSHOT — $(date -u '+%Y-%m-%dT%H:%M:%SZ') ==="
     echo ""
@@ -393,6 +438,8 @@ run_live_checks() {
 }
 
 run_verification() {
+    reset_counters
+
     echo "=========================================="
     echo "  SNAPSHOT VERIFICATION"
     echo "=========================================="
@@ -403,11 +450,11 @@ run_verification() {
     local revisions
     revisions=$(sed -n '/POD SIDECAR REVISIONS/,/^$/p' "$file" | grep "mcr.microsoft.com" | awk '{print $NF}' | sort -u | wc -l | tr -d ' ')
     if [ "$revisions" -eq 0 ]; then
-        echo "WARN: No sidecar pods found"
+        record_warn "No sidecar pods found"
     elif [ "$revisions" -eq 1 ]; then
-        echo "PASS: All sidecar images on single revision"
+        record_pass "All sidecar images on single revision"
     else
-        echo "FAIL: Multiple sidecar revisions detected — check for orphans"
+        record_fail "Multiple sidecar revisions detected — check for orphans"
     fi
 
     # Check 2: No stale pods in mesh namespaces
@@ -422,27 +469,27 @@ run_verification() {
         mesh_stale=$((mesh_stale + ns_stale))
     done
     if [ "$mesh_stale" -eq 0 ]; then
-        echo "PASS: No stale sidecar pods in mesh namespaces"
+        record_pass "No stale sidecar pods in mesh namespaces"
     else
-        echo "FAIL: $mesh_stale stale sidecar pod(s) in mesh namespaces"
+        record_fail "$mesh_stale stale sidecar pod(s) in mesh namespaces"
     fi
 
     # Check 3: Control planes healthy
     local unhealthy
     unhealthy=$(sed -n '/CONTROL PLANES/,/^$/p' "$file" | grep -c "False" || true)
     if [ "$unhealthy" -eq 0 ]; then
-        echo "PASS: All control plane pods ready"
+        record_pass "All control plane pods ready"
     else
-        echo "FAIL: $unhealthy control plane pod(s) not ready"
+        record_fail "$unhealthy control plane pod(s) not ready"
     fi
 
     # Check 4: Namespace labels all use tag (not direct revision)
     if grep -q "tag-based (all namespaces)" "$file" 2>/dev/null; then
-        echo "PASS: All namespaces use tag-based injection"
+        record_pass "All namespaces use tag-based injection"
     else
         local direct_count
         direct_count=$(grep -c "(direct)" "$file" || true)
-        echo "FAIL: $direct_count namespace(s) have direct revision labels"
+        record_fail "$direct_count namespace(s) have direct revision labels"
     fi
 
     # Check 5: Tag webhook points at correct istiod
@@ -451,23 +498,23 @@ run_verification() {
     local tag_ca
     tag_ca=$(sed -n '/TAG WEBHOOK VALIDATION/,/^$/p' "$file" | grep "CA bundle:" | awk '{print $3}' 2>/dev/null || echo "")
     if [ -n "$tag_target" ] && [ "$tag_ca" = "present" ]; then
-        echo "PASS: Tag webhook configured (target: $tag_target, CA: present)"
+        record_pass "Tag webhook configured (target: $tag_target, CA: present)"
     elif [ -z "$tag_target" ]; then
-        echo "WARN: Tag webhook not found"
+        record_warn "Tag webhook not found"
     else
-        echo "FAIL: Tag webhook CA bundle missing"
+        record_fail "Tag webhook CA bundle missing"
     fi
 
     # Check 6: ConfigMap ext-authz providers
     local cm_issues=0
     while IFS= read -r line; do
         if echo "$line" | grep -q "no ext-authz"; then
-            echo "FAIL: ConfigMap missing ext-authz: $line"
+            record_fail "ConfigMap missing ext-authz: $line"
             cm_issues=$((cm_issues + 1))
         fi
     done < <(sed -n '/CONFIGMAP CONTENT/,/^$/p' "$file" | grep "istio-shared-configmap")
     if [ "$cm_issues" -eq 0 ]; then
-        echo "PASS: All ConfigMaps have ext-authz configured"
+        record_pass "All ConfigMaps have ext-authz configured"
     fi
 
     # Check 7: ConfigMap labels preserved (istio.io/rev present, no label stripping)
@@ -478,39 +525,39 @@ run_verification() {
         local labels
         labels=$(echo "$line" | cut -d: -f2-)
         if echo "$labels" | grep -q "MISSING" || ! echo "$labels" | grep -q "istio.io/rev"; then
-            echo "FAIL: ConfigMap $cm_name missing istio.io/rev label"
+            record_fail "ConfigMap $cm_name missing istio.io/rev label"
             label_issues=$((label_issues + 1))
         fi
     done < <(sed -n '/CONFIGMAP LABELS/,/^$/p' "$file" | grep "istio-shared-configmap")
     if [ "$label_issues" -eq 0 ]; then
-        echo "PASS: All ConfigMaps have istio.io/rev label"
+        record_pass "All ConfigMaps have istio.io/rev label"
     fi
 
     # Check 8: Fleet namespace has istio label
     local fleet_label_status
     fleet_label_status=$(sed -n '/FLEET MESH STATUS/,/^$/p' "$file" | grep "Namespace label:" || true)
     if echo "$fleet_label_status" | grep -q "istio.io/rev="; then
-        echo "PASS: Fleet namespace has istio.io/rev label"
+        record_pass "Fleet namespace has istio.io/rev label"
     else
-        echo "WARN: Fleet namespace missing istio.io/rev label (topology ordering gap)"
+        record_warn "Fleet namespace missing istio.io/rev label (topology ordering gap)"
     fi
 
     # Check 9: Fleet pods on current sidecar revision
     local fleet_stale
     fleet_stale=$(sed -n '/FLEET MESH STATUS/,/^$/p' "$file" | grep "WARN.*istio-proxy errors" || true)
     if [ -n "$fleet_stale" ]; then
-        echo "WARN: Fleet istio-proxy has connectivity errors (stale sidecar?)"
+        record_warn "Fleet istio-proxy has connectivity errors (stale sidecar?)"
     else
-        echo "PASS: Fleet istio-proxy healthy"
+        record_pass "Fleet istio-proxy healthy"
     fi
 
     # Check 10: Deployments fully rolled out (skip 0-replica and <none> deployments)
     local not_ready
     not_ready=$(sed -n '/DEPLOYMENT ROLLOUT STATUS/,/^$/p' "$file" | grep -v "^\[" | grep -v "^---" | grep -v "^$" | grep -v "^NAME" | awk '{gsub(/<none>/, "0")} $3 != 0 && ($2 != $3 || $3 != $4) {print}' 2>/dev/null || true)
     if [ -z "$not_ready" ]; then
-        echo "PASS: All deployments fully rolled out"
+        record_pass "All deployments fully rolled out"
     else
-        echo "FAIL: Some deployments not fully rolled out:"
+        record_fail "Some deployments not fully rolled out:"
         echo "$not_ready" | sed 's/^/  /'
     fi
 
@@ -518,12 +565,12 @@ run_verification() {
     local pip_issues=0
     while IFS= read -r line; do
         if echo "$line" | grep -q "pip=none"; then
-            echo "FAIL: Ingress service missing PIP annotation: $line"
+            record_fail "Ingress service missing PIP annotation: $line"
             pip_issues=$((pip_issues + 1))
         fi
     done < <(sed -n '/INGRESS PIP PINNING/,/^$/p' "$file" | grep "^  ")
     if [ "$pip_issues" -eq 0 ]; then
-        echo "PASS: All ingress services have PIP pinned"
+        record_pass "All ingress services have PIP pinned"
     fi
 
     # Check 12: Sidecar injection — all pods in mesh namespaces should have istio-proxy
@@ -536,21 +583,21 @@ run_verification() {
         local inj_ns
         inj_ns=$(echo "$line" | awk -F: '{print $1}' | tr -d ' ')
         if [ -n "$total_pods" ] && [ "$total_pods" -gt 0 ] && [ "$injected" != "$total_pods" ]; then
-            echo "FAIL: $inj_ns has $injected/$total_pods pods injected"
+            record_fail "$inj_ns has $injected/$total_pods pods injected"
             injection_issues=$((injection_issues + 1))
         fi
     done < <(sed -n '/SIDECAR INJECTION STATUS/,/^$/p' "$file" | grep "pods injected")
     if [ "$injection_issues" -eq 0 ]; then
-        echo "PASS: All pods in mesh namespaces have sidecar injected"
+        record_pass "All pods in mesh namespaces have sidecar injected"
     fi
 
     # Check 13: mTLS STRICT enforced mesh-wide
     local strict_policy
     strict_policy=$(sed -n '/MTLS POLICY/,/^$/p' "$file" | grep "aks-istio-system.*STRICT" || true)
     if [ -n "$strict_policy" ]; then
-        echo "PASS: mTLS STRICT enforced in aks-istio-system (mesh-wide)"
+        record_pass "mTLS STRICT enforced in aks-istio-system (mesh-wide)"
     else
-        echo "WARN: No STRICT mTLS policy found in aks-istio-system"
+        record_warn "No STRICT mTLS policy found in aks-istio-system"
     fi
 
     # Check 14: AuthorizationPolicies — zero-trust baseline
@@ -562,11 +609,11 @@ run_verification() {
     authz_deny="${authz_deny:-0}"
     authz_allow="${authz_allow:-0}"
     if [ "$authz_deny" -gt 0 ] && [ "$authz_allow" -gt 0 ]; then
-        echo "PASS: Zero-trust AuthorizationPolicies in place (deny-all=$authz_deny, ALLOW=$authz_allow)"
+        record_pass "Zero-trust AuthorizationPolicies in place (deny-all=$authz_deny, ALLOW=$authz_allow)"
     elif [ "$authz_deny" -eq 0 ] && [ "$authz_allow" -eq 0 ]; then
-        echo "WARN: No AuthorizationPolicies found"
+        record_warn "No AuthorizationPolicies found"
     else
-        echo "WARN: AuthorizationPolicies incomplete (deny-all=$authz_deny, ALLOW=$authz_allow)"
+        record_warn "AuthorizationPolicies incomplete (deny-all=$authz_deny, ALLOW=$authz_allow)"
     fi
 
     # Check 15: Orphaned leases — upstream AKS bug, not blocking
@@ -578,17 +625,19 @@ run_verification() {
         orphan_lease_count=$(echo "$orphan_leases" | wc -l | tr -d ' ')
     fi
     if [ "$orphan_lease_count" -eq 0 ]; then
-        echo "PASS: No orphaned leases in aks-istio-system"
+        record_pass "No orphaned leases in aks-istio-system"
     else
-        echo "WARN: $orphan_lease_count orphaned lease(s) in aks-istio-system (https://github.com/Azure/AKS/issues/5862)"
+        record_warn "$orphan_lease_count orphaned lease(s) in aks-istio-system (https://github.com/Azure/AKS/issues/5862)"
         echo "$orphan_leases" | sed 's/^/  /'
     fi
 
     echo ""
+    print_summary
 }
 
 case "$PHASE" in
     before)
+        check_connectivity
         echo "Capturing BEFORE state..."
         capture_state | tee "$BEFORE_FILE"
         echo ""
@@ -597,8 +646,12 @@ case "$PHASE" in
         run_verification "$BEFORE_FILE"
         if $LIVE; then run_live_checks; fi
         echo "Run the pipeline, then: $0 after"
+        if [ "$FAIL_COUNT" -gt 0 ]; then
+            exit 1
+        fi
         ;;
     after)
+        check_connectivity
         echo "Capturing AFTER state..."
         capture_state | tee "$AFTER_FILE"
         echo ""
@@ -616,8 +669,12 @@ case "$PHASE" in
         run_verification "$AFTER_FILE"
 
         if $LIVE; then run_live_checks; fi
+        if [ "$FAIL_COUNT" -gt 0 ]; then
+            exit 1
+        fi
         ;;
     now)
+        check_connectivity
         now_file="/tmp/istio-verify-now.txt"
         capture_state | tee "$now_file"
         echo ""
@@ -625,6 +682,9 @@ case "$PHASE" in
         if $LIVE; then run_live_checks; fi
         echo ""
         echo "Snapshot saved: $now_file"
+        if [ "$FAIL_COUNT" -gt 0 ]; then
+            exit 1
+        fi
         ;;
     *)
         echo "Usage: $0 {before|after|now}"
