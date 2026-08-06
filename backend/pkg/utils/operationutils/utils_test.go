@@ -20,7 +20,6 @@ import (
 
 	"github.com/go-logr/logr/testr"
 	"github.com/tj/assert"
-
 	"go.uber.org/mock/gomock"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
