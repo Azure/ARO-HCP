@@ -27,12 +27,20 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func createArbitraryResource(ctx context.Context, dynamicClient dynamic.Interface, namespace string, resourceBytes []byte) (*unstructured.Unstructured, error) {
+func createArbitraryResource(ctx context.Context, dynamicClient dynamic.Interface, namespace string, resourceBytes []byte, mutators ...func(*unstructured.Unstructured) error) (*unstructured.Unstructured, error) {
 	desiredObj := &unstructured.Unstructured{}
 	if err := yaml.Unmarshal(resourceBytes, desiredObj); err != nil {
 		return nil, err
 	}
 	desiredObj.SetNamespace(namespace)
+
+	// Apply any caller-provided mutations (e.g. rewriting cluster-scoped
+	// resource names or references) before the resource is created.
+	for _, mutate := range mutators {
+		if err := mutate(desiredObj); err != nil {
+			return nil, err
+		}
+	}
 
 	restMapping, err := localRESTMapper.RESTMapping(desiredObj.GroupVersionKind().GroupKind(), desiredObj.GroupVersionKind().Version)
 	if err != nil {
