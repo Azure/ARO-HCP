@@ -19,17 +19,8 @@ param aksClusterName string = 'aro-hcp-aks'
 @description('Name of the system agent pool')
 param systemAgentPoolName string
 
-@description('Name of the user agent pool')
-param userAgentPoolName string
-
-@description('Name of the infra agent pool')
-param infraAgentPoolName string
-
 @description('Disk size for the AKS system nodes')
 param systemOsDiskSizeGB int
-
-@description('Disk size for the AKS user nodes')
-param userOsDiskSizeGB int
 
 @description('The resource ID of the OCP ACR')
 param ocpAcrResourceId string
@@ -42,48 +33,6 @@ param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
 
 @description('VNET address prefix')
 param vnetAddressPrefix string
-
-@description('Min replicas for the worker nodes')
-param userAgentMinCount int = 1
-
-@description('Max replicas for the worker nodes')
-param userAgentMaxCount int = 3
-
-@description('VM instance type for the worker nodes')
-param userAgentVMSize string = 'Standard_D2s_v3'
-
-@description('Number of pools to create for user nodes')
-param userAgentPoolCount int
-
-@description('Zones to use for the user nodes')
-param userAgentPoolZones string
-
-@description('Zone redundant mode for the user nodes')
-param userZoneRedundantMode string
-
-@description('Secondary NIC count for the user nodes')
-param userSecondaryNicCount int
-
-@description('Min replicas for the infra worker nodes')
-param infraAgentMinCount int
-
-@description('Max replicas for the infra worker nodes')
-param infraAgentMaxCount int
-
-@description('VM instance type for the infra worker nodes')
-param infraAgentVMSize string
-
-@description('Number of pools to create for infra nodes')
-param infraAgentPoolCount int
-
-@description('Zones to use for the infra nodes')
-param infraAgentPoolZones string
-
-@description('Disk size for the AKS infra nodes')
-param infraOsDiskSizeGB int
-
-@description('Zone redundant mode for the infra nodes')
-param infraZoneRedundantMode string
 
 @description('Min replicas for the system nodes')
 param systemAgentMinCount int = 2
@@ -130,12 +79,6 @@ param aksEtcdKVEnableSoftDelete bool = true
 
 @description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
 param aksClusterOutboundIPAddressIPTags string = ''
-
-@description('Maximum surge for AKS node pool upgrades')
-param aksUpgradeSettingsMaxSurge string
-
-@description('Maximum unavailable for AKS node pool upgrades')
-param aksUpgradeSettingsMaxUnavailable string
 
 @description('The name of the maestro consumer.')
 param maestroConsumerName string
@@ -384,33 +327,10 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
       : locationAvailabilityZoneList
     systemOsDiskSizeGB: systemOsDiskSizeGB
     systemZoneRedundantMode: systemZoneRedundantMode
-    userOsDiskSizeGB: userOsDiskSizeGB
-    userAgentPoolName: userAgentPoolName
-    userAgentMinCount: userAgentMinCount
-    userAgentMaxCount: userAgentMaxCount
-    userAgentVMSize: userAgentVMSize
-    userAgentPoolCount: userAgentPoolCount
-    userAgentPoolZones: length(csvToArray(userAgentPoolZones)) > 0
-      ? csvToArray(userAgentPoolZones)
-      : locationAvailabilityZoneList
-    userZoneRedundantMode: userZoneRedundantMode
-    userSecondaryNicCount: userSecondaryNicCount
-    infraAgentPoolName: infraAgentPoolName
-    infraAgentMinCount: infraAgentMinCount
-    infraAgentMaxCount: infraAgentMaxCount
-    infraAgentVMSize: infraAgentVMSize
-    infraAgentPoolCount: infraAgentPoolCount
-    infraAgentPoolZones: length(csvToArray(infraAgentPoolZones)) > 0
-      ? csvToArray(infraAgentPoolZones)
-      : locationAvailabilityZoneList
-    infraZoneRedundantMode: infraZoneRedundantMode
-    infraOsDiskSizeGB: infraOsDiskSizeGB
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: true
-    upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
-    upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
     aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
   dependsOn: [
@@ -419,6 +339,8 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
 }
 
 output aksClusterName string = mgmtCluster.outputs.aksClusterName
+output nodeSubnetId string = nodeSubnetCreation.outputs.subnetId
+output podSubnetId string = mgmtCluster.outputs.podSubnetId
 
 //
 // M E T R I C S
