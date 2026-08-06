@@ -512,32 +512,67 @@ run_verification() {
         record_fail "Tag webhook CA bundle missing"
     fi
 
-    # Check 6: ConfigMap ext-authz providers
-    local cm_issues=0
-    while IFS= read -r line; do
-        if echo "$line" | grep -q "no ext-authz"; then
-            record_fail "ConfigMap missing ext-authz: $line"
-            cm_issues=$((cm_issues + 1))
+    # Derive istiod revisions to know which shared ConfigMaps we expect to exist.
+    # Prefer the REVISION column from the CONFIGMAPS listing; fall back to parsing
+    # istio-shared-configmap-* names if the listing lacks a usable revision column.
+    local cm_revisions
+    cm_revisions=$(sed -n '/CONFIGMAPS (aks-istio-system)/,/^$/p' "$file" | grep -oE 'asm-[A-Za-z0-9._-]+' | sort -u)
+    if [ -z "$cm_revisions" ]; then
+        cm_revisions=$(sed -n '/CONFIGMAPS (aks-istio-system)/,/^$/p' "$file" | grep -oE 'istio-shared-configmap-[A-Za-z0-9._-]+' | sed 's/^istio-shared-configmap-//' | sort -u)
+    fi
+    local cp_pod_count
+    cp_pod_count=$(sed -n '/CONTROL PLANES/,/^$/p' "$file" | grep -c "istiod" || true)
+
+    # Check 6: ConfigMap ext-authz providers (presence + quality, not just absence of "no ext-authz")
+    if [ -z "$cm_revisions" ]; then
+        if [ "$cp_pod_count" -gt 0 ]; then
+            record_fail "unable to derive istiod revisions for shared ConfigMap check"
+        else
+            record_warn "No istiod revisions found — skipping shared ConfigMap ext-authz check"
         fi
-    done < <(sed -n '/CONFIGMAP CONTENT/,/^$/p' "$file" | grep "istio-shared-configmap")
-    if [ "$cm_issues" -eq 0 ]; then
-        record_pass "All ConfigMaps have ext-authz configured"
+    else
+        local cm_issues=0
+        local rev cm_name content_line
+        for rev in $cm_revisions; do
+            cm_name="istio-shared-configmap-${rev}"
+            content_line=$(sed -n '/CONFIGMAP CONTENT/,/^$/p' "$file" | grep "^  ${cm_name}:")
+            if [ -z "$content_line" ]; then
+                record_fail "Shared ConfigMap $cm_name not found (expected for revision $rev)"
+                cm_issues=$((cm_issues + 1))
+            elif ! echo "$content_line" | grep -q "ext-authz configured"; then
+                record_fail "ConfigMap missing ext-authz: $content_line"
+                cm_issues=$((cm_issues + 1))
+            fi
+        done
+        if [ "$cm_issues" -eq 0 ]; then
+            record_pass "All expected shared ConfigMaps present with ext-authz configured"
+        fi
     fi
 
     # Check 7: ConfigMap labels preserved (istio.io/rev present, no label stripping)
-    local label_issues=0
-    while IFS= read -r line; do
-        local cm_name
-        cm_name=$(echo "$line" | awk '{print $1}' | sed 's/://')
-        local labels
-        labels=$(echo "$line" | cut -d: -f2-)
-        if echo "$labels" | grep -q "MISSING" || ! echo "$labels" | grep -q "istio.io/rev"; then
-            record_fail "ConfigMap $cm_name missing istio.io/rev label"
-            label_issues=$((label_issues + 1))
+    if [ -z "$cm_revisions" ]; then
+        if [ "$cp_pod_count" -gt 0 ]; then
+            record_fail "unable to derive istiod revisions for shared ConfigMap check"
+        else
+            record_warn "No istiod revisions found — skipping shared ConfigMap label check"
         fi
-    done < <(sed -n '/CONFIGMAP LABELS/,/^$/p' "$file" | grep "istio-shared-configmap")
-    if [ "$label_issues" -eq 0 ]; then
-        record_pass "All ConfigMaps have istio.io/rev label"
+    else
+        local label_issues=0
+        local rev cm_name label_line
+        for rev in $cm_revisions; do
+            cm_name="istio-shared-configmap-${rev}"
+            label_line=$(sed -n '/CONFIGMAP LABELS/,/^$/p' "$file" | grep "^  ${cm_name}:")
+            if [ -z "$label_line" ]; then
+                record_fail "Shared ConfigMap $cm_name not found in label listing (expected for revision $rev)"
+                label_issues=$((label_issues + 1))
+            elif echo "$label_line" | grep -q "MISSING" || ! echo "$label_line" | grep -q "istio.io/rev="; then
+                record_fail "ConfigMap $cm_name missing istio.io/rev label"
+                label_issues=$((label_issues + 1))
+            fi
+        done
+        if [ "$label_issues" -eq 0 ]; then
+            record_pass "All expected shared ConfigMaps have istio.io/rev label"
+        fi
     fi
 
     # Check 8: Fleet namespace has istio label
