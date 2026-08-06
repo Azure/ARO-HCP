@@ -30,7 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -41,7 +41,7 @@ func testContext(t *testing.T) context.Context {
 	return utils.ContextWithLogger(t.Context(), logr.Discard())
 }
 
-func validRegisterOptions(t *testing.T, fleetDBClient *databasetesting.MockFleetDBClient) *RegisterOptions {
+func validRegisterOptions(t *testing.T, fleetDBClient *fleetcosmosstoragetesting.MockFleetDBClient) *RegisterOptions {
 	t.Helper()
 	return &RegisterOptions{
 		registerOptions: &registerOptions{
@@ -70,13 +70,13 @@ func TestRun(t *testing.T) {
 		name      string
 		modify    func(t *testing.T, opts *RegisterOptions)
 		seed      func(t *testing.T) []any
-		verify    func(t *testing.T, client *databasetesting.MockFleetDBClient)
+		verify    func(t *testing.T, client *fleetcosmosstoragetesting.MockFleetDBClient)
 		expectErr string
 	}{
 		{
 			name:   "create stamp and management cluster",
 			modify: func(t *testing.T, opts *RegisterOptions) {},
-			verify: func(t *testing.T, client *databasetesting.MockFleetDBClient) {
+			verify: func(t *testing.T, client *fleetcosmosstoragetesting.MockFleetDBClient) {
 				ctx := testContext(t)
 				stamp, err := client.Stamps().Get(ctx, testStampIdentifier)
 				require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestRun(t *testing.T) {
 			modify: func(t *testing.T, opts *RegisterOptions) {
 				opts.autoApprove = true
 			},
-			verify: func(t *testing.T, client *databasetesting.MockFleetDBClient) {
+			verify: func(t *testing.T, client *fleetcosmosstoragetesting.MockFleetDBClient) {
 				ctx := testContext(t)
 				stamp, err := client.Stamps().Get(ctx, testStampIdentifier)
 				require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestRun(t *testing.T) {
 			modify: func(t *testing.T, opts *RegisterOptions) {
 				opts.autoApprove = false
 			},
-			verify: func(t *testing.T, client *databasetesting.MockFleetDBClient) {
+			verify: func(t *testing.T, client *fleetcosmosstoragetesting.MockFleetDBClient) {
 				ctx := testContext(t)
 				stamp, err := client.Stamps().Get(ctx, testStampIdentifier)
 				require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestRun(t *testing.T) {
 			modify: func(t *testing.T, opts *RegisterOptions) {
 				opts.autoApprove = false
 			},
-			verify: func(t *testing.T, client *databasetesting.MockFleetDBClient) {
+			verify: func(t *testing.T, client *fleetcosmosstoragetesting.MockFleetDBClient) {
 				ctx := testContext(t)
 				stamp, err := client.Stamps().Get(ctx, testStampIdentifier)
 				require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestRun(t *testing.T) {
 				return []any{stamp, managementCluster}
 			},
 			modify: func(t *testing.T, opts *RegisterOptions) {},
-			verify: func(t *testing.T, client *databasetesting.MockFleetDBClient) {
+			verify: func(t *testing.T, client *fleetcosmosstoragetesting.MockFleetDBClient) {
 				ctx := testContext(t)
 				managementCluster, err := client.Stamps().ManagementClusters(testStampIdentifier).Get(ctx, fleet.ManagementClusterResourceName)
 				require.NoError(t, err)
@@ -246,7 +246,7 @@ func TestRun(t *testing.T) {
 			modify: func(t *testing.T, opts *RegisterOptions) {
 				opts.schedulingPolicy = fleet.ManagementClusterSchedulingPolicyUnschedulable
 			},
-			verify: func(t *testing.T, client *databasetesting.MockFleetDBClient) {
+			verify: func(t *testing.T, client *fleetcosmosstoragetesting.MockFleetDBClient) {
 				ctx := testContext(t)
 				managementCluster, err := client.Stamps().ManagementClusters(testStampIdentifier).Get(ctx, fleet.ManagementClusterResourceName)
 				require.NoError(t, err)
@@ -260,13 +260,13 @@ func TestRun(t *testing.T) {
 			t.Parallel()
 			ctx := testContext(t)
 
-			var client *databasetesting.MockFleetDBClient
+			var client *fleetcosmosstoragetesting.MockFleetDBClient
 			var err error
 			if tt.seed != nil {
-				client, err = databasetesting.NewMockFleetDBClientWithResources(ctx, tt.seed(t))
+				client, err = fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, tt.seed(t))
 				require.NoError(t, err)
 			} else {
-				client = databasetesting.NewMockFleetDBClient()
+				client = fleetcosmosstoragetesting.NewMockFleetDBClient()
 			}
 
 			opts := validRegisterOptions(t, client)

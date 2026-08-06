@@ -392,9 +392,9 @@
           ],
           "additionalProperties": false
         },
-        "regionEndpointDisabledRegions": {
-          "type": "string",
-          "description": "Space-separated list of replication regions whose regional data endpoint must be kept disabled, e.g. the eastus2euap canary replica. Optional; defaults to none."
+        "replicationState": {
+          "type": "boolean",
+          "description": "Whether this region's replica should have its regional data endpoint enabled. False for a canary/EUAP replica (e.g. eastus2euap) that must be kept disabled, see config.msft.clouds-overlay.yaml. Defaults to true (enabled)."
         }
       },
       "additionalProperties": false,
@@ -1453,13 +1453,25 @@
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by the mgmt-agent to interact with Azure"
+        },
+        "nodeHealth": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether the mgmt-agent node-health detection controller is enabled. On by default. It only labels and annotates a node it believes is wedged and emits a metric; set this to false per environment to opt out."
+            }
+          },
+          "additionalProperties": false,
+          "required": ["enabled"]
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
         "k8s",
-        "managedIdentityName"
+        "managedIdentityName",
+        "nodeHealth"
       ]
     },
     "kubeApplier": {
@@ -3557,9 +3569,6 @@
           "description": "A space-separated list of Service Principals IDs, Types and their desired grafana roles The format is: <principalId>/<principalType>/<role>, e.g. 12345678-1234-1234-1234-123456789012/Group/Admin",
           "pattern": "^$|^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\/(Group|ServicePrincipal|User)\\/(Contributor|Admin|Viewer)\\s*)+$"
         },
-        "grafanaMajorVersion": {
-          "type": "string"
-        },
         "billingKustoName": {
           "type": "string"
         },
@@ -3581,7 +3590,6 @@
         "kustoName",
         "grafanaName",
         "grafanaRoles",
-        "grafanaMajorVersion",
         "billingKustoName",
         "billingKustoSku"
       ]

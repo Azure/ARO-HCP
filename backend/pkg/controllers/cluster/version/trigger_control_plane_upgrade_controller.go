@@ -25,11 +25,12 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -38,10 +39,10 @@ import (
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
 	clock                        utilsclock.PassiveClock
-	resourcesDBClient            database.ResourcesDBClient
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterServiceClient         ocm.ClusterServiceClientSpec
-	activeOperationLister        listers.ActiveOperationLister
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	activeOperationLister        corelisters.ActiveOperationLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 }
 
 var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
@@ -55,11 +56,11 @@ var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
 //   - Otherwise: Initiate the upgrade to desiredVersion
 func NewTriggerControlPlaneUpgradeController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	serviceProviderClusterLister listers.ServiceProviderClusterLister,
-	informers informers.BackendInformers,
+	activeOperationLister corelisters.ActiveOperationLister,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
@@ -92,7 +93,7 @@ func NewTriggerControlPlaneUpgradeController(
 func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
@@ -107,7 +108,7 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
 		return nil
 	}
@@ -243,7 +244,7 @@ func (c *triggerControlPlaneUpgradeSyncer) clusterHasActiveCreateOperation(ctx c
 	if err != nil {
 		return false, fmt.Errorf("failed to get operations %q for cluster: %w", cluster.ServiceProviderProperties.ActiveOperationID, err)
 	}
-	if operation.Request != database.OperationRequestCreate {
+	if operation.Request != cosmosstorageutils.OperationRequestCreate {
 		logger.Info("Cluster has active create operation but it is not a create operation", "cluster", cluster.Name, "operation", operation.Request)
 		return false, nil
 	}

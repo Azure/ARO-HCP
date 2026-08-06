@@ -30,7 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -68,7 +68,7 @@ func TestStampApprovalHandler(t *testing.T) {
 		setupResources     []any
 		expectedStatusCode int
 		expectedError      string
-		verifyState        func(*testing.T, *databasetesting.MockFleetDBClient)
+		verifyState        func(*testing.T, *fleetcosmosstoragetesting.MockFleetDBClient)
 	}{
 		{
 			name:               "approve stamp",
@@ -76,7 +76,7 @@ func TestStampApprovalHandler(t *testing.T) {
 			body:               `{"approved":true,"reason":"ManuallyApproved","message":"Approved by SRE"}`,
 			setupResources:     []any{newStamp("a1")},
 			expectedStatusCode: http.StatusNoContent,
-			verifyState: func(t *testing.T, mock *databasetesting.MockFleetDBClient) {
+			verifyState: func(t *testing.T, mock *fleetcosmosstoragetesting.MockFleetDBClient) {
 				ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 				stamp, err := mock.Stamps().Get(ctx, "a1")
 				require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestStampApprovalHandler(t *testing.T) {
 				}),
 			},
 			expectedStatusCode: http.StatusNoContent,
-			verifyState: func(t *testing.T, mock *databasetesting.MockFleetDBClient) {
+			verifyState: func(t *testing.T, mock *fleetcosmosstoragetesting.MockFleetDBClient) {
 				ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 				stamp, err := mock.Stamps().Get(ctx, "a1")
 				require.NoError(t, err)
@@ -181,13 +181,13 @@ func TestStampApprovalHandler(t *testing.T) {
 			t.Parallel()
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-			var mockFleetDB *databasetesting.MockFleetDBClient
+			var mockFleetDB *fleetcosmosstoragetesting.MockFleetDBClient
 			var err error
 			if len(tt.setupResources) > 0 {
-				mockFleetDB, err = databasetesting.NewMockFleetDBClientWithResources(ctx, tt.setupResources)
+				mockFleetDB, err = fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, tt.setupResources)
 				require.NoError(t, err)
 			} else {
-				mockFleetDB = databasetesting.NewMockFleetDBClient()
+				mockFleetDB = fleetcosmosstoragetesting.NewMockFleetDBClient()
 			}
 
 			handler := NewStampApprovalHandler(mockFleetDB)

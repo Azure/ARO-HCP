@@ -31,12 +31,12 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
-	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation/operationtesting"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
+	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -56,13 +56,13 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 		name                    string
 		existingNodePool        *api.HCPOpenShiftClusterNodePool
 		wantErr                 bool
-		verifyDB                func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB                func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 		usesNewDeletionApproach bool
 		setupCSMock             func(ctrl *gomock.Controller, fixture *operationtesting.NodePoolTestFixture) ocm.ClusterServiceClientSpec
 	}{
 		{
 			name: "node pool document gone completes operation",
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -76,7 +76,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				return np
 			}(),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -97,7 +97,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 					Return(nodePoolStatus, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -118,7 +118,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 					Return(nodePoolStatus, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
@@ -135,7 +135,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 					Return(nil, notFoundErr)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -155,7 +155,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 					Return(nodePoolStatus, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -170,7 +170,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			operation := fixture.NewOperation(database.OperationRequestDelete)
+			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestDelete)
 			// TODO remove this once the new deletion approach is fully rolled out in all ARO-HCP permanent environments, for all regions.
 			operation.UsesNewNodePoolDeletionApproach = tc.usesNewDeletionApproach
 
@@ -179,7 +179,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 				resources = append(resources, tc.existingNodePool)
 			}
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			var mockCSClient ocm.ClusterServiceClientSpec

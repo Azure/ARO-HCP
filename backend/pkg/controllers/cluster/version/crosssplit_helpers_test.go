@@ -41,10 +41,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
 
 const (
@@ -56,7 +56,7 @@ const (
 )
 
 // createTestSubscription creates a subscription in the mock database.
-func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 	t.Helper()
 
 	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
@@ -109,9 +109,9 @@ func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.Rea
 
 // newValidHostedClusterReadDesireLister returns a lister with a HostedCluster
 // ReadDesire carrying the canonical test UUID.
-func newValidHostedClusterReadDesireLister(t *testing.T) dblisters.ReadDesireLister {
+func newValidHostedClusterReadDesireLister(t *testing.T) kubeapplierlisters.ReadDesireLister {
 	t.Helper()
-	return &internallistertesting.SliceReadDesireLister{
+	return &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplier.ReadDesire{newHostedClusterReadDesire(t, testClusterExternalID)},
 	}
 }
@@ -130,7 +130,7 @@ func assertSyncResult(t *testing.T, err error, expectedError bool, expectedError
 // createServiceProviderClusterWithVersion ensures a ServiceProviderCluster
 // exists with the given control plane active version, creating or replacing as
 // needed.
-func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, controlPlaneVersion string) {
+func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, controlPlaneVersion string) {
 	t.Helper()
 
 	clusterResourceID := "/subscriptions/" + testSubscriptionID +
@@ -151,7 +151,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 		require.NoError(t, err)
 		return
 	}
-	require.True(t, database.IsNotFoundError(getErr), "unexpected error reading SPC before seeding: %v", getErr)
+	require.True(t, cosmosstorageutils.IsNotFoundError(getErr), "unexpected error reading SPC before seeding: %v", getErr)
 
 	spCluster := &api.ServiceProviderCluster{
 		CosmosMetadata: api.CosmosMetadata{

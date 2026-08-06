@@ -24,12 +24,13 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -41,9 +42,9 @@ import (
 //   - ServiceProviderProperties.API.URL
 //   - ServiceProviderProperties.Platform.IssuerURL
 type clusterPropertiesSyncer struct {
-	clusterLister     listers.ClusterLister
-	resourcesDBClient database.ResourcesDBClient
-	readDesireLister  dblisters.ReadDesireLister
+	clusterLister     corelisters.ClusterLister
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
+	readDesireLister  kubeapplierlisters.ReadDesireLister
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterPropertiesSyncer)(nil)
@@ -51,10 +52,10 @@ var _ controllerutils.ClusterSyncer = (*clusterPropertiesSyncer)(nil)
 // NewClusterPropertiesSyncController creates a controller that synchronizes
 // cluster properties from the HostedCluster ReadDesire mirror to Cosmos DB.
 func NewClusterPropertiesSyncController(
-	resourcesDBClient database.ResourcesDBClient,
-	informers informers.BackendInformers,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 
@@ -78,7 +79,7 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 	logger := utils.LoggerFromContext(ctx)
 
 	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -120,7 +121,7 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	if _, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, replacement, nil); database.IsPreconditionFailedError(err) {
+	if _, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 		// there is no need to report an error since the retry will happen when the reflector sees the update and puts an Update into the informer.
 		return nil

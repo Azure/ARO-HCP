@@ -33,11 +33,11 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -45,17 +45,17 @@ import (
 func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name   string
-		seedDB func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient)
+		seedDB func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name: "node pool not found in cosmos returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 			},
 		},
 		{
 			name: "node pool with deletion timestamp returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
 
@@ -71,7 +71,7 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "missing NodePool ClusterServiceID returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 
 				nodePoolResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
@@ -101,7 +101,7 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no desired version on ServiceProviderNodePool returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
@@ -109,7 +109,7 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no active versions during installation returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
 				createServiceProviderNodePoolWithActiveAndDesiredVersion(
@@ -119,7 +119,7 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "desired version matches latest actual version returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
 				createServiceProviderNodePoolWithActiveAndDesiredVersion(
@@ -135,12 +135,12 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 			t.Parallel()
 
 			runCtx := utils.ContextWithLogger(context.Background(), logr.Discard())
-			mockDB := databasetesting.NewMockResourcesDBClient()
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tt.seedDB(t, runCtx, mockDB)
 
 			syncer := &triggerNodePoolUpgradeSyncer{
 				resourcesDBClient:             mockDB,
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 			}
 
 			err := syncer.SyncOnce(runCtx, controllerutils.HCPNodePoolKey{
@@ -298,7 +298,7 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 func createServiceProviderNodePoolWithActiveAndDesiredVersion(
 	t *testing.T,
 	ctx context.Context,
-	mockResourcesDBClient *databasetesting.MockResourcesDBClient,
+	mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient,
 	desiredVersion *semver.Version,
 	activeVersions ...string,
 ) {

@@ -25,17 +25,18 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type doNothingExample struct {
 	name string
 
-	subscriptionLister listers.SubscriptionLister
-	resourcesDBClient  database.ResourcesDBClient
+	subscriptionLister corelisters.SubscriptionLister
+	resourcesDBClient  corecosmosstorage.ResourcesDBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -45,7 +46,7 @@ type doNothingExample struct {
 }
 
 // NewDoNothingExampleController periodically lists all clusters and for each out when the cluster was created and its state.
-func NewDoNothingExampleController(resourcesDBClient database.ResourcesDBClient, subscriptionLister listers.SubscriptionLister) controllerutils.Controller {
+func NewDoNothingExampleController(resourcesDBClient corecosmosstorage.ResourcesDBClient, subscriptionLister corelisters.SubscriptionLister) controllerutils.Controller {
 	c := &doNothingExample{
 		name:               "DoNothingExample",
 		subscriptionLister: subscriptionLister,
@@ -65,7 +66,7 @@ func (c *doNothingExample) synchronizeHCPCluster(ctx context.Context, key contro
 	logger := utils.LoggerFromContext(ctx)
 
 	cosmosHCPCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // no work to do
 	}
 	if err != nil {
@@ -76,7 +77,7 @@ func (c *doNothingExample) synchronizeHCPCluster(ctx context.Context, key contro
 	// but this is slightly less desireable and you should always force a recheck of the actual state of the world after
 	// a certain staleness.
 	existingController, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName).Get(ctx, c.name)
-	if err != nil && !database.IsNotFoundError(err) {
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return fmt.Errorf("failed to get existing controller state: %w", err)
 	}
 

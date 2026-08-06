@@ -24,9 +24,10 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -34,9 +35,9 @@ type orphanedBillingCleanup struct {
 	name string
 
 	clock           utilsclock.PassiveClock
-	clusterLister   listers.ClusterLister
-	billingLister   listers.BillingLister
-	billingDBClient database.BillingDBClient
+	clusterLister   corelisters.ClusterLister
+	billingLister   corelisters.BillingLister
+	billingDBClient billingcosmosstorage.BillingDBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -45,7 +46,7 @@ type orphanedBillingCleanup struct {
 
 // NewOrphanedBillingCleanupController creates a controller that marks billing documents
 // as deleted when their corresponding cluster no longer exists in Cosmos DB.
-func NewOrphanedBillingCleanupController(clock utilsclock.PassiveClock, billingDBClient database.BillingDBClient, clusterLister listers.ClusterLister, billingLister listers.BillingLister) controllerutils.Controller {
+func NewOrphanedBillingCleanupController(clock utilsclock.PassiveClock, billingDBClient billingcosmosstorage.BillingDBClient, clusterLister corelisters.ClusterLister, billingLister corelisters.BillingLister) controllerutils.Controller {
 	c := &orphanedBillingCleanup{
 		name:            "OrphanedBillingCleanup",
 		clock:           clock,
@@ -89,7 +90,7 @@ func (c *orphanedBillingCleanup) synchronizeAllBillingDocs(ctx context.Context) 
 
 		clusterExists := true
 		_, err := c.clusterLister.Get(ctx, resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name)
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			clusterExists = false
 		} else if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
@@ -100,7 +101,7 @@ func (c *orphanedBillingCleanup) synchronizeAllBillingDocs(ctx context.Context) 
 		}
 
 		deletionTime := c.clock.Now()
-		var patchOperations database.BillingDocumentPatchOperations
+		var patchOperations billingcosmosstorage.BillingDocumentPatchOperations
 		patchOperations.SetDeletionTime(deletionTime)
 		err = c.billingDBClient.BillingDocs(doc.SubscriptionID).PatchByID(ctx, doc.ID, patchOperations)
 		if err != nil {

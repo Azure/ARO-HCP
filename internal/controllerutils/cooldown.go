@@ -17,7 +17,7 @@
 // controllers and want consistent cadence/gating behavior.
 //
 // The cooldown gate exposed here was originally
-// backend/pkg/controllers/controllerutils' TimeBasedCooldownChecker; it
+// backend/pkg/utils/controllerutils' TimeBasedCooldownChecker; it
 // lives in internal/ so kube-applier can use the same implementation
 // without re-importing the backend module.
 package controllerutils

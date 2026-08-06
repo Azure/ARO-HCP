@@ -23,11 +23,12 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -39,17 +40,17 @@ import (
 // Cluster and, on 404, zero out the stored ClusterServiceID so downstream
 // code knows the CS resource is fully gone.
 type clusterClusterServiceIDClearer struct {
-	clusterLister        listers.ClusterLister
-	resourcesDBClient    database.ResourcesDBClient
+	clusterLister        corelisters.ClusterLister
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceIDClearer)(nil)
 
 func NewClusterClusterServiceIDClearerController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &clusterClusterServiceIDClearer{
@@ -91,7 +92,7 @@ func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key contr
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -103,7 +104,7 @@ func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key contr
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	cluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -124,7 +125,7 @@ func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key contr
 		logger.Info("cluster-service Cluster gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())
 		cluster.ServiceProviderProperties.ClusterServiceID = nil
 		_, err = clusterCRUD.Replace(ctx, cluster, nil)
-		if database.IsPreconditionFailedError(err) {
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
 			// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 			return nil
 		}

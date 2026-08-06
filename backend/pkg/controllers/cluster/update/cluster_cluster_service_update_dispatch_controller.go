@@ -28,12 +28,13 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -51,9 +52,9 @@ import (
 // verifies propagation before the ARM cluster update operation succeeds.
 type clusterClusterServiceUpdateDispatchSyncer struct {
 	cooldownChecker      controllerutil.CooldownChecker
-	clusterLister        listers.ClusterLister
-	subscriptionLister   listers.SubscriptionLister
-	resourcesDBClient    database.ResourcesDBClient
+	clusterLister        corelisters.ClusterLister
+	subscriptionLister   corelisters.SubscriptionLister
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
 	// minimumReconcileTimeCooldownChecker ensures we don't hotloop from any source,
@@ -64,10 +65,10 @@ type clusterClusterServiceUpdateDispatchSyncer struct {
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceUpdateDispatchSyncer)(nil)
 
 func NewClusterClusterServiceUpdateDispatchController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	informers informers.BackendInformers,
+	activeOperationLister corelisters.ActiveOperationLister,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, subscriptionLister := informers.Subscriptions()
@@ -90,11 +91,11 @@ func NewClusterClusterServiceUpdateDispatchController(
 }
 
 func NewClusterClusterServiceUpdateDispatchSyncer(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	clusterLister listers.ClusterLister,
-	subscriptionLister listers.SubscriptionLister,
+	activeOperationLister corelisters.ActiveOperationLister,
+	clusterLister corelisters.ClusterLister,
+	subscriptionLister corelisters.SubscriptionLister,
 ) controllerutils.ClusterSyncer {
 	return &clusterClusterServiceUpdateDispatchSyncer{
 		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
@@ -138,7 +139,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	}
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -150,7 +151,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	cluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -161,7 +162,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	}
 
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -173,7 +174,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 
 	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
 	serviceProviderCluster, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// We expect the service provider cluster to be created when the cluster exists. If it doesn't exist, we wait for the next sync.
 		logger.Info("service provider cluster not found, waiting")
 		return nil

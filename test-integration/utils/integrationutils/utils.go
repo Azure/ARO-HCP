@@ -35,15 +35,15 @@ import (
 	"k8s.io/utils/set"
 
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
-	operationcontrollers "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
+	operationcontrollers "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
-	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
-	"github.com/Azure/ARO-HCP/internal/api/v20260630preview"
-	"github.com/Azure/ARO-HCP/internal/api/v20260901preview"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
+	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -181,7 +181,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	return testInfo, nil
 }
 
-func MarkOperationsCompleteForName(ctx context.Context, resourcesDBClient database.ResourcesDBClient, subscriptionID, resourceName string) error {
+func MarkOperationsCompleteForName(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, subscriptionID, resourceName string) error {
 	operationsIterator := resourcesDBClient.Operations(subscriptionID).ListActiveOperations(nil)
 	for _, operation := range operationsIterator.Items(ctx) {
 		if operation.ExternalID.Name != resourceName {

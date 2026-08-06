@@ -23,13 +23,15 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -38,8 +40,8 @@ import (
 // watching controller that processes each subscription exactly once per process
 // lifetime.
 type cosmosMigrationController struct {
-	resourcesDBClient    database.ResourcesDBClient
-	kubeApplierDBClients database.KubeApplierDBClients
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients
 
 	// completedSubscriptions tracks subscription IDs that have been fully
 	// migrated. Each subscription is processed at most once per process lifetime.
@@ -53,9 +55,9 @@ type cosmosMigrationController struct {
 // and the per-management-cluster kube-applier containers, performing a read/write
 // cycle to force Cosmos DB re-serialization.
 func NewCosmosMigrationController(
-	resourcesDBClient database.ResourcesDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
-	backendInformers informers.BackendInformers,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	backendInformers coreinformers.BackendInformers,
 	resyncDuration time.Duration,
 ) controllerutils.Controller {
 	syncer := &cosmosMigrationController{
@@ -80,7 +82,7 @@ func (c *cosmosMigrationController) CooldownChecker() controllerutil.CooldownChe
 // unrecoverable error. It is intended for integration-test setup where the
 // long-running subscription-watching controller is not wired in; production
 // migration runs as the controller returned by NewCosmosMigrationController.
-func MigrateAllSubscriptionsOrDie(ctx context.Context, resourcesDBClient database.ResourcesDBClient, kubeApplierDBClients database.KubeApplierDBClients) {
+func MigrateAllSubscriptionsOrDie(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients) {
 	logger := utils.LoggerFromContext(ctx)
 	c := &cosmosMigrationController{
 		resourcesDBClient:    resourcesDBClient,
@@ -278,7 +280,7 @@ func (c *cosmosMigrationController) migrateServiceProviderClusters(ctx context.C
 }
 
 // migrateNodePools migrates node pool documents and their nested resources under a cluster.
-func (c *cosmosMigrationController) migrateNodePools(ctx context.Context, logger logr.Logger, subscriptionID, resourceGroupName, clusterName string, kubeApplierClient database.KubeApplierDBClient) error {
+func (c *cosmosMigrationController) migrateNodePools(ctx context.Context, logger logr.Logger, subscriptionID, resourceGroupName, clusterName string, kubeApplierClient kubeappliercosmosstorage.KubeApplierDBClient) error {
 	nodePoolListCRUD := c.resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName)
 	nodePoolIterator, err := nodePoolListCRUD.List(ctx, nil)
 	if err != nil {
@@ -401,9 +403,9 @@ func (c *cosmosMigrationController) migrateExternalAuths(ctx context.Context, lo
 // given HCP cluster and returns the corresponding kube-applier DB client.
 // Returns nil if no ServiceProviderCluster exists, the management cluster is not
 // yet resolved, or the kube-applier client is unavailable.
-func (c *cosmosMigrationController) resolveKubeApplierClient(ctx context.Context, logger logr.Logger, subscriptionID, resourceGroupName, clusterName string) database.KubeApplierDBClient {
+func (c *cosmosMigrationController) resolveKubeApplierClient(ctx context.Context, logger logr.Logger, subscriptionID, resourceGroupName, clusterName string) kubeappliercosmosstorage.KubeApplierDBClient {
 	serviceProviderCluster, err := c.resourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName).Get(ctx, api.ServiceProviderClusterResourceName)
-	if err != nil && !database.IsNotFoundError(err) {
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		logger.Error(err, "failed to get service provider cluster for kube-applier migration")
 	}
 	if err != nil {
@@ -426,7 +428,7 @@ func (c *cosmosMigrationController) resolveKubeApplierClient(ctx context.Context
 
 // migrateClusterDesires migrates kube-applier desire types (ApplyDesire,
 // ReadDesire) for a cluster scope.
-func migrateClusterDesires(ctx context.Context, logger logr.Logger, kubeApplierClient database.KubeApplierDBClient, subscriptionID, resourceGroupName, clusterName string) error {
+func migrateClusterDesires(ctx context.Context, logger logr.Logger, kubeApplierClient kubeappliercosmosstorage.KubeApplierDBClient, subscriptionID, resourceGroupName, clusterName string) error {
 	var migrationErrors []error
 
 	applyCRUD, err := kubeApplierClient.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
@@ -448,7 +450,7 @@ func migrateClusterDesires(ctx context.Context, logger logr.Logger, kubeApplierC
 
 // migrateNodePoolDesires migrates kube-applier desire types (ApplyDesire,
 // ReadDesire) for a node pool scope.
-func migrateNodePoolDesires(ctx context.Context, logger logr.Logger, kubeApplierClient database.KubeApplierDBClient, subscriptionID, resourceGroupName, clusterName, nodePoolName string) error {
+func migrateNodePoolDesires(ctx context.Context, logger logr.Logger, kubeApplierClient kubeappliercosmosstorage.KubeApplierDBClient, subscriptionID, resourceGroupName, clusterName, nodePoolName string) error {
 	var migrationErrors []error
 
 	applyCRUD, err := kubeApplierClient.ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
@@ -487,7 +489,7 @@ func readDesireName(d *kubeapplier.ReadDesire) string {
 // migrateDesireDocuments lists and migrates all documents from a pre-constructed
 // desire CRUD. The getName function extracts the document name used for the
 // Get+Replace cycle; it returns empty string to skip items (e.g. nil ResourceID).
-func migrateDesireDocuments[T any, TPointer arm.CosmosMetadataAccessorPtr[T]](ctx context.Context, logger logr.Logger, crud database.ResourceCRUD[T, TPointer], resourceDesc string, getName func(*T) string) error {
+func migrateDesireDocuments[T any, TPointer arm.CosmosMetadataAccessorPtr[T]](ctx context.Context, logger logr.Logger, crud cosmosstorageutils.ResourceCRUD[T, TPointer], resourceDesc string, getName func(*T) string) error {
 	iter, err := crud.List(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list %ss: %w", resourceDesc, err)
@@ -517,7 +519,7 @@ func migrateDesireDocuments[T any, TPointer arm.CosmosMetadataAccessorPtr[T]](ct
 }
 
 // migrateControllers lists and migrates all controller documents under a given scope.
-func migrateControllers(ctx context.Context, logger logr.Logger, controllerCRUD database.ResourceCRUD[api.Controller, *api.Controller], resourceDesc string) error {
+func migrateControllers(ctx context.Context, logger logr.Logger, controllerCRUD cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller], resourceDesc string) error {
 	controllersIterator, err := controllerCRUD.List(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list %ss: %w", resourceDesc, err)
@@ -541,7 +543,7 @@ func migrateControllers(ctx context.Context, logger logr.Logger, controllerCRUD 
 }
 
 // migrateManagementClusterContents lists and migrates all management cluster content documents under a given scope.
-func migrateManagementClusterContents(ctx context.Context, logger logr.Logger, managementClusterContentCRUD database.ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent], resourceDesc string) error {
+func migrateManagementClusterContents(ctx context.Context, logger logr.Logger, managementClusterContentCRUD cosmosstorageutils.ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent], resourceDesc string) error {
 	managementClusterContentIterator, err := managementClusterContentCRUD.List(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list %ss: %w", resourceDesc, err)
@@ -566,12 +568,12 @@ func migrateManagementClusterContents(ctx context.Context, logger logr.Logger, m
 
 // replaceWithRetry performs a Get+Replace cycle on a single document.
 // On conflict errors (HTTP 409 or 412), it retries the full cycle up to maxRetries attempts.
-func replaceWithRetry[T any, TPointer arm.CosmosMetadataAccessorPtr[T]](ctx context.Context, logger logr.Logger, crud database.ResourceCRUD[T, TPointer], name string, resourceDesc string) error {
+func replaceWithRetry[T any, TPointer arm.CosmosMetadataAccessorPtr[T]](ctx context.Context, logger logr.Logger, crud cosmosstorageutils.ResourceCRUD[T, TPointer], name string, resourceDesc string) error {
 	const maxRetries = 3
 	var lastErr error
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		curr, err := crud.Get(ctx, name)
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			// Document was deleted between list and get; skip it.
 			return nil
 		}
@@ -582,7 +584,7 @@ func replaceWithRetry[T any, TPointer arm.CosmosMetadataAccessorPtr[T]](ctx cont
 		if err == nil {
 			return nil
 		}
-		if !database.IsConflictError(err) && !database.IsPreconditionFailedError(err) {
+		if !cosmosstorageutils.IsConflictError(err) && !cosmosstorageutils.IsPreconditionFailedError(err) {
 			return fmt.Errorf("failed to replace %s %q: %w", resourceDesc, name, err)
 		}
 		lastErr = err

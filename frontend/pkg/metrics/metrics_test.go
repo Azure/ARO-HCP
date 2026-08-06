@@ -28,7 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -49,7 +49,7 @@ func TestSubscriptionCollector(t *testing.T) {
 	}
 
 	t.Run("no subscription", func(t *testing.T) {
-		mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+		mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 		r := prometheus.NewPedanticRegistry()
 		collector := NewSubscriptionCollector(r, mockResourcesDBClient, "test")
 
@@ -69,7 +69,7 @@ frontend_subscription_collector_last_sync 1
 	})
 
 	t.Run("refresh with 1 subscription", func(t *testing.T) {
-		mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+		mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 		r := prometheus.NewPedanticRegistry()
 		collector := NewSubscriptionCollector(r, mockResourcesDBClient, "test")
 

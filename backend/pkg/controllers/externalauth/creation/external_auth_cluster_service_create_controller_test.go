@@ -33,11 +33,11 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -68,7 +68,7 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 	clusterCSInternalID := api.Must(api.NewInternalID(testClusterServiceIDStr))
 	externalAuthCSInternalID := api.Must(api.NewInternalID(testExternalAuthCSIDStr))
 
-	verifyClusterServiceIDIsNil := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyClusterServiceIDIsNil := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
 			ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
@@ -76,7 +76,7 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 		assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID)
 	}
 
-	verifyClusterServiceIDIsSet := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyClusterServiceIDIsSet := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
 			ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
@@ -93,7 +93,7 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 		setupMockCSClient    func(mock *ocm.MockClusterServiceClientSpec)
 		wantErr              bool
 		wantErrContain       string
-		verifyDB             func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB             func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:          "when ClusterServiceID is already set no-op is performed",
@@ -251,7 +251,7 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 			if tc.existingExternalAuth != nil {
 				resources = append(resources, tc.existingExternalAuth)
 			}
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -275,8 +275,8 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 
 			syncer := &externalAuthClusterServiceCreateSyncer{
 				cooldownChecker:       &alwaysSyncCooldownChecker{},
-				externalAuthLister:    &listertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
-				clusterLister:         &listertesting.SliceClusterLister{Clusters: clustersForLister},
+				externalAuthLister:    &corelistertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
+				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:     mockResourcesDBClient,
 				clustersServiceClient: mockCSClient,
 			}

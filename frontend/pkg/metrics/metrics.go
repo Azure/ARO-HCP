@@ -24,7 +24,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -35,7 +35,7 @@ type subscription struct {
 }
 
 type SubscriptionCollector struct {
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 	location          string
 
 	errCounter               prometheus.Counter
@@ -58,7 +58,7 @@ const (
 	subscriptionLastUpdatedName  = "frontend_lifecycle_last_update_timestamp_seconds"
 )
 
-func NewSubscriptionCollector(r prometheus.Registerer, resourcesDBClient database.ResourcesDBClient, location string) *SubscriptionCollector {
+func NewSubscriptionCollector(r prometheus.Registerer, resourcesDBClient corecosmosstorage.ResourcesDBClient, location string) *SubscriptionCollector {
 	sc := &SubscriptionCollector{
 		resourcesDBClient: resourcesDBClient,
 		location:          location,

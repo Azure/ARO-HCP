@@ -19,27 +19,27 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dbinformers "github.com/Azure/ARO-HCP/internal/database/informers"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type managementClusterDataDump struct {
 	cooldownChecker         controllerutil.CooldownChecker
-	managementClusterLister dblisters.ManagementClusterLister
+	managementClusterLister fleetlisters.ManagementClusterLister
 
 	nextDataDumpChecker controllerutil.CooldownChecker
 }
 
 // NewManagementClusterDataDumpController periodically dumps management cluster data.
 func NewManagementClusterDataDumpController(
-	fleetDBClient database.FleetDBClient,
-	managementClusterLister dblisters.ManagementClusterLister,
-	fleetInformers dbinformers.FleetInformers,
+	fleetDBClient fleetcosmosstorage.FleetDBClient,
+	managementClusterLister fleetlisters.ManagementClusterLister,
+	fleetInformers fleetinformers.FleetInformers,
 ) controllerutils.Controller {
 	syncer := &managementClusterDataDump{
 		cooldownChecker:         controllerutil.NewTimeBasedCooldownChecker(4 * time.Minute),

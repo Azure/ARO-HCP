@@ -32,15 +32,15 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation/operationtesting"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -60,11 +60,11 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 	}
 
 	newOperationAccepted := func() *api.Operation {
-		return fixture.NewOperation(database.OperationRequestUpdate)
+		return fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate)
 	}
 
-	preconditionExistingOperation := fixture.NewOperation(database.OperationRequestUpdate)
-	preconditionListerOperation := fixture.NewOperation(database.OperationRequestUpdate)
+	preconditionExistingOperation := fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate)
+	preconditionListerOperation := fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate)
 	preconditionListerOperation.CosmosETag = "stale-etag"
 	// Not seeded to Cosmos, so PrepareForCreate never runs. operationbase.UpdateOperationStatus still
 	// requires a non-zero InstanceVersion before it will attempt the etag-checked replace.
@@ -89,7 +89,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 		return operationtesting.NewExternalAuthUpdateTestExternalAuth(mutate...)
 	}
 
-	verifyOperationAndExternalAuthUpdating := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyOperationAndExternalAuthUpdating := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 		require.NoError(t, err)
@@ -106,12 +106,12 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 		name                          string
 		existingExternalAuth          *api.HCPOpenShiftClusterExternalAuth
 		existingOperation             *api.Operation
-		externalAuthLister            listers.ExternalAuthLister
-		activeOperationsLister        listers.ActiveOperationLister
+		externalAuthLister            corelisters.ExternalAuthLister
+		activeOperationsLister        corelisters.ActiveOperationLister
 		cachedHostedClusterReadDesire *kubeapplier.ReadDesire
 		setupMockCSClient             func(*ocm.MockClusterServiceClientSpec)
 		wantErr                       bool
-		verifyDB                      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB                      func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:                          "external auth update succeeds when CS and hypershift specs match desired",
@@ -124,7 +124,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 					GetExternalAuth(gomock.Any(), fixture.ExternalAuthInternalID).
 					Return(newPassingCSExternalAuth(t, passingExternalAuth), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -199,8 +199,8 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 			name:                 "external auth not in lister cache leaves operation unchanged",
 			existingExternalAuth: newExternalAuth(),
 			existingOperation:    newOperationAccepted(),
-			externalAuthLister:   &listertesting.SliceExternalAuthLister{},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			externalAuthLister:   &corelistertesting.SliceExternalAuthLister{},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -217,7 +217,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 				ea.ServiceProviderProperties.ActiveOperationID = "other-operation"
 			}),
 			existingOperation: newOperationAccepted(),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -229,7 +229,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 				ea.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			existingOperation: newOperationAccepted(),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -241,7 +241,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: testClockNow}
 			}),
 			existingOperation: newOperationAccepted(),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -252,7 +252,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 			existingExternalAuth:          newPassingExternalAuth(),
 			existingOperation:             preconditionExistingOperation,
 			cachedHostedClusterReadDesire: newPassingCachedHostedClusterReadDesire(),
-			activeOperationsLister: &listertesting.SliceActiveOperationLister{
+			activeOperationsLister: &corelistertesting.SliceActiveOperationLister{
 				Operations: []*api.Operation{preconditionListerOperation},
 			},
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -261,7 +261,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 					GetExternalAuth(gomock.Any(), fixture.ExternalAuthInternalID).
 					Return(newPassingCSExternalAuth(t, passingExternalAuth), nil)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status, "operation should be unchanged after optimistic concurrency conflict")
@@ -282,23 +282,23 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 				resources = append(resources, tc.existingOperation)
 			}
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			var readDesireLister internallistertesting.SliceReadDesireLister
+			var readDesireLister kubeapplierlistertesting.SliceReadDesireLister
 			if tc.cachedHostedClusterReadDesire != nil {
-				readDesireLister = internallistertesting.SliceReadDesireLister{
+				readDesireLister = kubeapplierlistertesting.SliceReadDesireLister{
 					Desires: []*kubeapplier.ReadDesire{tc.cachedHostedClusterReadDesire},
 				}
 			}
 
 			externalAuthLister := tc.externalAuthLister
 			if externalAuthLister == nil {
-				externalAuthLister = &listertesting.DBExternalAuthLister{ResourcesDBClient: mockResourcesDBClient}
+				externalAuthLister = &corelistertesting.DBExternalAuthLister{ResourcesDBClient: mockResourcesDBClient}
 			}
 			activeOperationsLister := tc.activeOperationsLister
 			if activeOperationsLister == nil {
-				activeOperationsLister = &listertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
+				activeOperationsLister = &corelistertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
 			}
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)

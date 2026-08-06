@@ -22,12 +22,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -45,9 +46,9 @@ const (
 // messages aggregated in the same "Source: message" form used by the Degraded
 // aggregator. When every validation is True (or none exist) the condition is True/Valid.
 type clusterRequirementsValidAggregator struct {
-	clusterLister                listers.ClusterLister
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
-	resourcesDBClient            database.ResourcesDBClient
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterRequirementsValidAggregator)(nil)
@@ -56,10 +57,10 @@ var _ controllerutils.ClusterSyncer = (*clusterRequirementsValidAggregator)(nil)
 // aggregates ServiceProviderCluster validations onto the cluster's
 // Status.UserFacingConditions as RequirementsValid.
 func NewClusterRequirementsValidAggregatorController(
-	resourcesDBClient database.ResourcesDBClient,
-	clusterLister listers.ClusterLister,
-	serviceProviderClusterLister listers.ServiceProviderClusterLister,
-	informers informers.BackendInformers,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	clusterLister corelisters.ClusterLister,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &clusterRequirementsValidAggregator{
 		clusterLister:                clusterLister,
@@ -78,7 +79,7 @@ func NewClusterRequirementsValidAggregatorController(
 
 func (c *clusterRequirementsValidAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	existing, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -89,7 +90,7 @@ func (c *clusterRequirementsValidAggregator) SyncOnce(ctx context.Context, key c
 	}
 
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will populate it. We'll be re-enqueued via the ServiceProviderCluster informer.
 		return nil
 	}
@@ -107,7 +108,7 @@ func (c *clusterRequirementsValidAggregator) SyncOnce(ctx context.Context, key c
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	_, err = clusterCRUD.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
 	if err != nil {

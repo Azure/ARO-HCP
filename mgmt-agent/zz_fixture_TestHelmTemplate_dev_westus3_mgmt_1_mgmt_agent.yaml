@@ -34,7 +34,7 @@ metadata:
     app.kubernetes.io/name: mgmt-agent
 data:
   config.yaml: |
-    enabled: false
+    enabled: true
 ---
 # Source: mgmt-agent/templates/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -283,10 +283,11 @@ spec:
         resources:
           requests:
             cpu: 50m
-            memory: 64Mi
+            memory: 768Mi
         volumeMounts: []
       volumes: []
       serviceAccountName: mgmt-agent
+      priorityClassName: service-lifecycle-critical
       terminationGracePeriodSeconds: 10
       nodeSelector:
 ---

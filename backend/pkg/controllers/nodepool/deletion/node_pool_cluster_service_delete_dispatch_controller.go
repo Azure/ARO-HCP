@@ -28,11 +28,12 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -59,8 +60,8 @@ const missingClusterServiceIDTimeout = 120 * time.Second
 // some reason until some time afterwards.
 type nodePoolClusterServiceDeleteDispatchSyncer struct {
 	clock                utilsclock.PassiveClock
-	nodePoolLister       listers.NodePoolLister
-	resourcesDBClient    database.ResourcesDBClient
+	nodePoolLister       corelisters.NodePoolLister
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	// firstSeenDeletionTimestampCache is a cache that contains the time the controller
 	// has first seen the serviceProviderProperties.deletionTimestamp being set
@@ -73,9 +74,9 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolClusterServiceDeleteDispatchSyn
 
 func NewNodePoolClusterServiceDeleteDispatchController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
@@ -124,7 +125,7 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -139,7 +140,7 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 	// ClusterServiceDeletionTimestamp.
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	nodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -206,7 +207,7 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 	replacement := nodePool.DeepCopy()
 	replacement.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: c.clock.Now().UTC()}
 	_, err = nodePoolCRUD.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 		return nil
 	}

@@ -39,7 +39,9 @@ import (
 	stamphandlers "github.com/Azure/ARO-HCP/admin/server/handlers/stamp"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/audit"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/errorutils"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -50,8 +52,8 @@ import (
 
 type AdminAPI struct {
 	clustersServiceClient  ocm.ClusterServiceClientSpec
-	resourcesDBClient      database.ResourcesDBClient
-	fleetDBClient          database.FleetDBClient
+	resourcesDBClient      corecosmosstorage.ResourcesDBClient
+	fleetDBClient          fleetcosmosstorage.FleetDBClient
 	kustoClient            *kusto.Client
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
 
@@ -68,9 +70,9 @@ func NewAdminAPI(
 	location string,
 	listener net.Listener,
 	metricsListener net.Listener,
-	resourcesDBClient database.ResourcesDBClient,
-	billingDBClient database.BillingDBClient,
-	fleetDBClient database.FleetDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	billingDBClient billingcosmosstorage.BillingDBClient,
+	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	kustoClient *kusto.Client,
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,

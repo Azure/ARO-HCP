@@ -35,16 +35,16 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation/operationtesting"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -77,15 +77,15 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		clock             utilsclock.PassiveClock
 		existingCluster   *api.HCPOpenShiftCluster
 		existingOperation *api.Operation
-		readDesireLister  dblisters.ReadDesireLister
+		readDesireLister  kubeapplierlisters.ReadDesireLister
 		setupCSMock       func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
 		wantErr           bool
-		verifyDB          func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB          func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:              "successful create updates operation to succeeded",
 			existingCluster:   newClusterWithAPIURL("https://api.example.com", &createdAt),
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
@@ -97,7 +97,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 					Return(clusterStatus, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -106,7 +106,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		{
 			name:              "non-terminal cluster state updates to provisioning",
 			existingCluster:   newClusterWithAPIURL("https://api.example.com", nil),
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
@@ -118,7 +118,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 					Return(clusterStatus, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
@@ -128,7 +128,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			name:            "polls cluster service when operation InternalID is empty",
 			existingCluster: newClusterWithAPIURL("https://api.example.com", &createdAt),
 			existingOperation: func() *api.Operation {
-				op := fixture.NewOperation(database.OperationRequestCreate)
+				op := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 				op.InternalID = api.InternalID{}
 				return op
 			}(),
@@ -143,7 +143,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 					Return(clusterStatus, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -156,11 +156,11 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				cluster.ServiceProviderProperties.ClusterServiceID = nil
 				return cluster
 			}(),
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(ctrl *gomock.Controller, _ *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -173,11 +173,11 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				cluster.ServiceProviderProperties.ActiveOperationID = "other-operation"
 				return cluster
 			}(),
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(ctrl *gomock.Controller, _ *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -192,7 +192,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
 				return cluster
 			}(),
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
@@ -204,7 +204,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 					Return(clusterStatus, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -221,8 +221,8 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
 				return cluster
 			}(),
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
-			readDesireLister:  &internallistertesting.SliceReadDesireLister{},
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
+			readDesireLister:  &kubeapplierlistertesting.SliceReadDesireLister{},
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
@@ -234,7 +234,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 					Return(clusterStatus, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -251,7 +251,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
 				return cluster
 			}(),
-			existingOperation: fixture.NewOperation(database.OperationRequestCreate),
+			existingOperation: fixture.NewOperation(cosmosstorageutils.OperationRequestCreate),
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
@@ -263,7 +263,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 					Return(clusterStatus, nil)
 				return mockCSClient
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
@@ -277,7 +277,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 			ctrl := gomock.NewController(t)
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster, tc.existingOperation})
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster, tc.existingOperation})
 			require.NoError(t, err)
 
 			listerOperation, err := mockResourcesDBClient.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
@@ -291,16 +291,16 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			}
 			controller := &operationClusterCreate{
 				clock: testClock,
-				activeOperationLister: &listertesting.SliceActiveOperationLister{
+				activeOperationLister: &corelistertesting.SliceActiveOperationLister{
 					Operations: []*api.Operation{listerOperation},
 				},
 				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,
-				clusterLister: &listertesting.SliceClusterLister{
+				clusterLister: &corelistertesting.SliceClusterLister{
 					Clusters: []*api.HCPOpenShiftCluster{tc.existingCluster},
 				},
-				serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
 					ServiceProviderClusters: []*api.ServiceProviderCluster{
 						{
 							CosmosMetadata: api.CosmosMetadata{
@@ -315,11 +315,11 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 						},
 					},
 				},
-				readDesireLister: func() dblisters.ReadDesireLister {
+				readDesireLister: func() kubeapplierlisters.ReadDesireLister {
 					if tc.readDesireLister != nil {
 						return tc.readDesireLister
 					}
-					return &internallistertesting.SliceReadDesireLister{
+					return &kubeapplierlistertesting.SliceReadDesireLister{
 						Desires: []*kubeapplier.ReadDesire{succeededDesire(t)},
 					}
 				}(),
@@ -393,7 +393,7 @@ func newClusterWithAPIURL(url string, createdAt *time.Time) *api.HCPOpenShiftClu
 
 func TestDetermineOperationState(t *testing.T) {
 	fixture := operationtesting.NewClusterTestFixture()
-	operation := fixture.NewOperation(database.OperationRequestCreate)
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 	cluster := newClusterWithAPIURL("https://api.example.com", nil)
 
 	readyClusterServiceMock := func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -411,8 +411,8 @@ func TestDetermineOperationState(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		clusterLister     listers.ClusterLister
-		readDesireLister  dblisters.ReadDesireLister
+		clusterLister     corelisters.ClusterLister
+		readDesireLister  kubeapplierlisters.ReadDesireLister
 		setupCSMock       func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
 		expectedState     arm.ProvisioningState
 		wantMessageSubstr string
@@ -421,11 +421,11 @@ func TestDetermineOperationState(t *testing.T) {
 	}{
 		{
 			name: "both checks succeed → Succeeded",
-			clusterLister: &listertesting.SliceClusterLister{
+			clusterLister: &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -450,11 +450,11 @@ func TestDetermineOperationState(t *testing.T) {
 		},
 		{
 			name: "cluster API URL empty → Provisioning (lowest priority wins)",
-			clusterLister: &listertesting.SliceClusterLister{
+			clusterLister: &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -479,18 +479,18 @@ func TestDetermineOperationState(t *testing.T) {
 		},
 		{
 			name: "hosted cluster not found → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
+			clusterLister: &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock:      readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{},
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{},
 			expectedState:    arm.ProvisioningStateProvisioning,
 		},
 		{
 			name:          "cluster lister error → error propagated",
 			clusterLister: &errorClusterLister{err: fmt.Errorf("cosmos error")},
 			setupCSMock:   readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -515,7 +515,7 @@ func TestDetermineOperationState(t *testing.T) {
 		},
 		{
 			name: "read desire lister non-404 error → error propagated",
-			clusterLister: &listertesting.SliceClusterLister{
+			clusterLister: &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock:      readyClusterServiceMock,
@@ -533,11 +533,11 @@ func TestDetermineOperationState(t *testing.T) {
 		},
 		{
 			name: "read desire not yet successful → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
+			clusterLister: &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{},
 						metav1.Condition{Type: kubeapplier.ConditionTypeSuccessful, Status: metav1.ConditionFalse, Reason: kubeapplier.ConditionReasonKubeAPIError, Message: "boom"}),
@@ -548,11 +548,11 @@ func TestDetermineOperationState(t *testing.T) {
 		},
 		{
 			name: "hosted cluster not available → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
+			clusterLister: &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -573,11 +573,11 @@ func TestDetermineOperationState(t *testing.T) {
 		},
 		{
 			name: "no control plane endpoint host → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
+			clusterLister: &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -598,11 +598,11 @@ func TestDetermineOperationState(t *testing.T) {
 		},
 		{
 			name: "no control plane endpoint port → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
+			clusterLister: &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -626,11 +626,11 @@ func TestDetermineOperationState(t *testing.T) {
 		},
 		{
 			name: "version with valid success condition but not installed → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
+			clusterLister: &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -655,11 +655,11 @@ func TestDetermineOperationState(t *testing.T) {
 		},
 		{
 			name: "cluster-service succeeded but cosmos not ready → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
+			clusterLister: &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("", nil)},
 			},
 			setupCSMock: readyClusterServiceMock,
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -684,7 +684,7 @@ func TestDetermineOperationState(t *testing.T) {
 		},
 		{
 			name: "cluster-service still installing → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
+			clusterLister: &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
 			setupCSMock: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
@@ -698,7 +698,7 @@ func TestDetermineOperationState(t *testing.T) {
 					Return(clusterStatus, nil)
 				return mockCSClient
 			},
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
+			readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
@@ -736,7 +736,7 @@ func TestDetermineOperationState(t *testing.T) {
 				clusterLister:        tt.clusterLister,
 				readDesireLister:     tt.readDesireLister,
 				clusterServiceClient: setupCSMock(ctrl),
-				serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{
 					ServiceProviderClusters: []*api.ServiceProviderCluster{
 						{
 							CosmosMetadata: api.CosmosMetadata{
@@ -775,10 +775,10 @@ func TestDetermineOperationState(t *testing.T) {
 
 func TestServingCABundleOperationStatus(t *testing.T) {
 	fixture := operationtesting.NewClusterTestFixture()
-	operation := fixture.NewOperation(database.OperationRequestCreate)
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
 
-	spcLister := func(bundle string) listers.ServiceProviderClusterLister {
-		return &listertesting.SliceServiceProviderClusterLister{
+	spcLister := func(bundle string) corelisters.ServiceProviderClusterLister {
+		return &corelistertesting.SliceServiceProviderClusterLister{
 			ServiceProviderClusters: []*api.ServiceProviderCluster{
 				{
 					CosmosMetadata: api.CosmosMetadata{
@@ -797,7 +797,7 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		spcLister     listers.ServiceProviderClusterLister
+		spcLister     corelisters.ServiceProviderClusterLister
 		expectedState arm.ProvisioningState
 		wantMsgSubstr string
 	}{

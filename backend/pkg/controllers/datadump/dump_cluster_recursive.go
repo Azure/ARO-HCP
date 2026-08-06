@@ -18,21 +18,22 @@ import (
 	"context"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type clusterRecursiveDataDump struct {
-	resourcesDBClient       database.ResourcesDBClient
-	kubeApplierDBClients    database.KubeApplierDBClients
-	managementClusterLister dblisters.ManagementClusterLister
+	resourcesDBClient       corecosmosstorage.ResourcesDBClient
+	kubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
+	managementClusterLister fleetlisters.ManagementClusterLister
 
 	// nextDataDumpChecker ensures we don't hotloop from any source.
 	nextDataDumpChecker controllerutil.CooldownChecker
@@ -40,11 +41,11 @@ type clusterRecursiveDataDump struct {
 
 // NewClusterRecursiveDataDumpController periodically lists all clusters and logs when the cluster was created and its state.
 func NewClusterRecursiveDataDumpController(
-	resourcesDBClient database.ResourcesDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
-	managementClusterLister dblisters.ManagementClusterLister,
-	activeOperationLister listers.ActiveOperationLister,
-	backendInformers informers.BackendInformers,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	managementClusterLister fleetlisters.ManagementClusterLister,
+	activeOperationLister corelisters.ActiveOperationLister,
+	backendInformers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &clusterRecursiveDataDump{

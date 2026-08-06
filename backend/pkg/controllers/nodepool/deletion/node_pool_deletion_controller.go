@@ -20,11 +20,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -35,16 +36,16 @@ import (
 // have been deleted from the ServiceProviderNodePool, and all nodepool-scoped kube-applier
 // *Desire documents have been deleted.
 type nodePoolDeletionController struct {
-	nodePoolLister                listers.NodePoolLister
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
-	resourcesDBClient             database.ResourcesDBClient
+	nodePoolLister                corelisters.NodePoolLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+	resourcesDBClient             corecosmosstorage.ResourcesDBClient
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDeletionController)(nil)
 
 func NewNodePoolDeletionController(
-	resourcesDBClient database.ResourcesDBClient,
-	informers informers.BackendInformers,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
@@ -91,7 +92,7 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -112,7 +113,7 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 	// modified one of the NeedsWork conditions.
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	nodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -157,7 +158,7 @@ func (c *nodePoolDeletionController) deletePreconditionAllMaestroNodePoolScopedR
 
 	spnpCRUD := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	spnp, spnpErr := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
-	if spnpErr != nil && !database.IsNotFoundError(spnpErr) {
+	if spnpErr != nil && !cosmosstorageutils.IsNotFoundError(spnpErr) {
 		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", spnpErr))
 	}
 	if spnp != nil && len(spnp.Status.MaestroReadonlyBundles) > 0 {

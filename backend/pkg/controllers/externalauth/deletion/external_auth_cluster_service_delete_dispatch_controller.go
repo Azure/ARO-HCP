@@ -28,11 +28,12 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -54,8 +55,8 @@ const missingClusterServiceIDTimeout = 120 * time.Second
 // the delete on subsequent syncs.
 type externalAuthClusterServiceDeleteDispatchSyncer struct {
 	clock                utilsclock.PassiveClock
-	externalAuthLister   listers.ExternalAuthLister
-	resourcesDBClient    database.ResourcesDBClient
+	externalAuthLister   corelisters.ExternalAuthLister
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	// firstSeenDeletionTimestampCache contains the time the controller
 	// first saw the serviceProviderProperties.deletionTimestamp being set
@@ -68,9 +69,9 @@ var _ controllerutils.ExternalAuthSyncer = (*externalAuthClusterServiceDeleteDis
 
 func NewExternalAuthClusterServiceDeleteDispatchController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := informers.ExternalAuths()
 	syncer := &externalAuthClusterServiceDeleteDispatchSyncer{
@@ -120,7 +121,7 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedExternalAuth, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -132,7 +133,7 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 
 	externalAuthCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName)
 	externalAuth, err := externalAuthCRUD.Get(ctx, key.HCPExternalAuthName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -197,7 +198,7 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 	replacement := externalAuth.DeepCopy()
 	replacement.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: c.clock.Now().UTC()}
 	_, err = externalAuthCRUD.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 		return nil
 	}

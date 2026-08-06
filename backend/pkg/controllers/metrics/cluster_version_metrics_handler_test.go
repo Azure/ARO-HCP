@@ -40,8 +40,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
 
 func expectedBackendClusterVersionInfoMetricHeader() string {
@@ -50,15 +50,15 @@ func expectedBackendClusterVersionInfoMetricHeader() string {
 `
 }
 
-func newTestClusterVersionMetricsHandler(t *testing.T, prometheusRegistry *prometheus.Registry, readDesireLister dblisters.ReadDesireLister) Handler[*api.ServiceProviderCluster] {
+func newTestClusterVersionMetricsHandler(t *testing.T, prometheusRegistry *prometheus.Registry, readDesireLister kubeapplierlisters.ReadDesireLister) Handler[*api.ServiceProviderCluster] {
 	t.Helper()
 	if readDesireLister == nil {
-		readDesireLister = &internallistertesting.SliceReadDesireLister{}
+		readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{}
 	}
 	return NewClusterVersionMetricsHandler(prometheusRegistry, readDesireLister)
 }
 
-func newTestHostedClusterReadDesireLister(t *testing.T, clusterUUID string) dblisters.ReadDesireLister {
+func newTestHostedClusterReadDesireLister(t *testing.T, clusterUUID string) kubeapplierlisters.ReadDesireLister {
 	t.Helper()
 
 	hostedCluster := &v1beta1.HostedCluster{
@@ -79,7 +79,7 @@ func newTestHostedClusterReadDesireLister(t *testing.T, clusterUUID string) dbli
 		),
 	))
 
-	return &internallistertesting.SliceReadDesireLister{
+	return &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplier.ReadDesire{
 			{
 				CosmosMetadata: api.CosmosMetadata{ResourceID: readDesireResourceID},

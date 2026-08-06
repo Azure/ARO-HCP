@@ -32,8 +32,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -124,13 +124,13 @@ func TestDesiredControlPlaneSizeHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 			resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 			require.NoError(t, err)
 
 			if tt.existingSize != nil {
-				existing, err := database.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, resourceID)
+				existing, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, resourceID)
 				require.NoError(t, err)
 				existing.Spec.DesiredHostedClusterControlPlaneSize = tt.existingSize
 				_, err = mockResourcesDBClient.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Replace(ctx, existing, nil)
@@ -202,13 +202,13 @@ func TestDesiredControlPlaneSizeHandler(t *testing.T) {
 
 func TestDesiredControlPlaneSizeHandler_PreservesOtherFields(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 
 	// Seed an SPC with a populated Status to confirm the handler does not stomp it.
-	existing, err := database.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, resourceID)
+	existing, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, resourceID)
 	require.NoError(t, err)
 	mgmtResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + api.TestSubscriptionID + "/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"))
 	existing.Status.ManagementClusterResourceID = mgmtResourceID

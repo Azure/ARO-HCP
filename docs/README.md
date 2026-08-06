@@ -106,9 +106,11 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [CI Identity Leasing](ci/identity-leasing.md)
   - Managed identity container pool and MSI mock SP pool deep dive
   - Release-side lease contract, pool sizing, and troubleshooting
-- [CI Quota Monitoring](ci/quota-monitoring.md)
-  - How Azure quotas that constrain CI are monitored via `tenant-quota`
-  - Azure dashboard for real-time quota usage
+- [DEV CI Monitoring and Alert Response](ci/dev-ci-monitoring.md)
+  - Canonical Slack and PagerDuty runbook for DEV CI alerts
+  - Exporter checks, durable troubleshooting paths, routing maintenance, and validation
+- [Opstool CI Platform](ci/opstool.md)
+  - Standalone cluster architecture, rollout model, shared resource wiring, and workload patterns
 - [CI EV2 Integration](ci/ev2-integration.md)
   - How EV2 selects Prow jobs and authenticates through Gangway
   - Commit pinning, rollout metadata, and promotion gating
@@ -145,8 +147,6 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - How to bump service component image digests in RH and MSFT environments
 - [High Level HCP Creation Flow](ops/hcp-cluster-creation-flow.md)
   - Walkthrough of an HCP cluster creation process through all the service layers of ARO HCP
-- [Opstool Cluster Guide](ops/opstool-cluster-guide.md)
-  - Standalone cluster architecture, rollout model, shared resource wiring, and workload patterns for `opstool`
 - [Resource Creation Diagram](resource-creation.md)
   - Detailed diagram of the resource creation flow (frontend, backend, Cluster Service, Maestro)
   - Covers HCPOpenShiftCluster, NodePool, and ExternalAuth resource types
@@ -160,11 +160,14 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Procedure for manually cleaning up clusters stuck on deletion
 - [Fix Maestro Stale Resource Bundle](ops/fix-maestro-stale-resource-bundle.md)
   - How to resolve Maestro resource bundle staleness issues
+- [Node Health](controllers/node-health.md)
+  - Design for detecting "Ready but broken" management-cluster nodes from kubelet Events
+  - Detection and labeling only, hard-coded detectors, and safety guards
 - [Node Rollout Pre-Merge Check](node-rollout-premerge-check.md)
   - Pre-merge check procedure to avoid unexpected node rollouts in production
-- [Tenant Quota Collector](../tooling/tenant-quota/README.md)
-  - Tool-local deployment, configuration, and troubleshooting reference for `tenant-quota`
-  - For CI relevance, see [CI Quota Monitoring](ci/quota-monitoring.md)
+- [DEV CI Telemetry Exporter (`tenant-quota`)](../tooling/tenant-quota/README.md)
+  - Tool-local runtime, deployment, credentials, and management reference
+  - For alert response and maintenance, see [DEV CI Monitoring and Alert Response](ci/dev-ci-monitoring.md)
 
 ### SOPs
 

@@ -24,10 +24,10 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -74,14 +74,14 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mockResourcesDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster})
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster})
 			require.NoError(t, err)
 
 			cachedCluster := tc.cachedCluster
 			if cachedCluster == nil {
 				cachedCluster = tc.existingCluster
 			}
-			clusterLister := &listertesting.SliceClusterLister{
+			clusterLister := &corelistertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{cachedCluster},
 			}
 

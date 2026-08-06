@@ -990,7 +990,12 @@ func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions
 
 	lowest, highest := apihelpers.FindLowestAndHighestNodePoolVersion(activeVersions)
 
-	if desiredVersion.GT(*lowestCPVersion) {
+	// Only the node pool's major.minor must not exceed the lowest control
+	// plane version; a higher patch (z-stream) is allowed. Compare
+	// major.minor instead of the full semantic version so that e.g. NP
+	// 4.22.8 is permitted with CP 4.22.7.
+	if desiredVersion.Major > lowestCPVersion.Major ||
+		(desiredVersion.Major == lowestCPVersion.Major && desiredVersion.Minor > lowestCPVersion.Minor) {
 		return fmt.Errorf(
 			"invalid node pool version %s: cannot exceed control plane version %s",
 			desiredVersion.String(), lowestCPVersion.String(),

@@ -27,10 +27,10 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -49,7 +49,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 	}
 
-	verifyClusterServiceIDUnchanged := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyClusterServiceIDUnchanged := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 		require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
 		wantErr           bool
 		wantErrContain    string
-		verifyDB          func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB          func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:            "when CS returns 404 ClusterServiceID is cleared",
@@ -74,7 +74,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 					GetClusterStatus(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
 					Return(nil, fakeOCMNotFoundError())
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID)
@@ -108,7 +108,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 				withDeletionStampsClusterOptsFunc(c)
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "ClusterServiceID should remain nil")
@@ -144,7 +144,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			if tc.existingCluster != nil {
 				resources = append(resources, tc.existingCluster)
 			}
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -158,7 +158,7 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &clusterClusterServiceIDClearer{
-				clusterLister:        &listertesting.SliceClusterLister{Clusters: clustersForLister},
+				clusterLister:        &corelistertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
 			}

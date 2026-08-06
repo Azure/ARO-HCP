@@ -37,12 +37,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -67,7 +67,7 @@ var (
 type cleanOrphanedClusterManagedResourceGroup struct {
 	location              string
 	cooldownChecker       controllerutil.CooldownChecker
-	resourcesDBClient     database.ResourcesDBClient
+	resourcesDBClient     corecosmosstorage.ResourcesDBClient
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
 }
 
@@ -75,10 +75,10 @@ type cleanOrphanedClusterManagedResourceGroup struct {
 // that are not referenced by any HCPOpenShiftCluster in the database and cleans them up.
 func NewCleanOrphanedClusterManagedResourceGroupController(
 	location string,
-	activeOperationLister listers.ActiveOperationLister,
-	resourcesDBClient database.ResourcesDBClient,
+	activeOperationLister corelisters.ActiveOperationLister,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
-	backendInformers informers.BackendInformers,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &cleanOrphanedClusterManagedResourceGroup{
 		location:              location,

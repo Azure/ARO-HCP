@@ -22,9 +22,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
 
 func TestBillingDumpController_SyncOnce(t *testing.T) {
@@ -33,9 +34,9 @@ func TestBillingDumpController_SyncOnce(t *testing.T) {
 	clusterResourceID, err := azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")
 	require.NoError(t, err)
 
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
-	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+	mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 	syncer := &billingDump{
 		resourcesDBClient: mockResourcesDBClient,
 		billingDBClient:   mockBillingDBClient,
@@ -69,11 +70,11 @@ func TestBillingDumpController_SyncOnce_WithBillingDoc(t *testing.T) {
 	clusterResourceID, err := azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")
 	require.NoError(t, err)
 
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
+	mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 
 	// Create billing document
-	billingDoc := database.NewBillingDocument("billing-doc-1", clusterResourceID)
+	billingDoc := billingcosmosstorage.NewBillingDocument("billing-doc-1", clusterResourceID)
 	err = mockBillingDBClient.BillingDocs(clusterResourceID.SubscriptionID).Create(ctx, billingDoc)
 	require.NoError(t, err)
 
@@ -100,7 +101,7 @@ func TestBillingDumpController_CooldownRespected(t *testing.T) {
 	clusterResourceID, err := azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")
 	require.NoError(t, err)
 
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	// neverSyncChecker prevents sync
 	neverSyncChecker := cooldownCheckerFunc(func(ctx context.Context, key any) bool {
@@ -108,7 +109,7 @@ func TestBillingDumpController_CooldownRespected(t *testing.T) {
 	})
 
 	// Test that cooldown prevents sync
-	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+	mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 	syncer := &billingDump{
 		resourcesDBClient: mockResourcesDBClient,
 		billingDBClient:   mockBillingDBClient,

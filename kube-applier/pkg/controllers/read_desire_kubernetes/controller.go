@@ -39,7 +39,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
@@ -102,7 +103,7 @@ func NewReadDesireKubernetesController(
 	key keys.ReadDesireKey,
 	target kubeapplier.ResourceReference,
 	dyn dynamic.Interface,
-	crudByParent database.KubeApplierReadDesireCRUD,
+	crudByParent kubeappliercosmosstorage.KubeApplierReadDesireCRUD,
 ) (*ReadDesireKubernetesController, error) {
 	if len(target.Resource) == 0 || len(target.Version) == 0 || len(target.Name) == 0 {
 		return nil, conditions.NewPreCheckError(errors.New("spec.targetItem requires version, resource, and name"))
@@ -123,7 +124,7 @@ func NewReadDesireKubernetesController(
 			workqueue.TypedRateLimitingQueueConfig[keys.ReadDesireKey]{
 				// Underscores rather than slashes: this name surfaces as a
 				// Prometheus label and slashes complicate downstream tooling.
-				Name: fmt.Sprintf("%s_%s_%s_%s", ReadDesireKubernetesControllerName, key.ClusterName, key.NodePoolName, key.Name),
+				Name: fmt.Sprintf("%s_%s_%s_%s_%s", ReadDesireKubernetesControllerName, key.ClusterName, key.SubResourceType, key.SubResourceName, key.Name),
 			},
 		),
 		writer: desirestatuswriter.New[kubeapplier.ReadDesire, keys.ReadDesireKey, *kubeapplier.ReadDesire](
@@ -263,7 +264,7 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 	}
 
 	desire, err := c.fetcher.Fetch(ctx, c.key)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -371,7 +372,7 @@ func (c *ReadDesireKubernetesController) singleObjectListWatch() *cache.ListWatc
 // live Cosmos client per call. See the apply_desire counterpart for why
 // the lister cache is the wrong source here.
 type readDesireFetcher struct {
-	crudByParent database.KubeApplierReadDesireCRUD
+	crudByParent kubeappliercosmosstorage.KubeApplierReadDesireCRUD
 }
 
 var _ desirestatuswriter.Fetcher[kubeapplier.ReadDesire, keys.ReadDesireKey] = &readDesireFetcher{}
@@ -388,7 +389,7 @@ func (f *readDesireFetcher) Fetch(ctx context.Context, key keys.ReadDesireKey) (
 // KubeApplierReadDesireCRUD. See the apply_desire counterpart for why
 // the parent must be derived per-call instead of fixed at construction.
 type readDesireReplacer struct {
-	crudByParent database.KubeApplierReadDesireCRUD
+	crudByParent kubeappliercosmosstorage.KubeApplierReadDesireCRUD
 }
 
 var _ desirestatuswriter.Replacer[kubeapplier.ReadDesire] = &readDesireReplacer{}

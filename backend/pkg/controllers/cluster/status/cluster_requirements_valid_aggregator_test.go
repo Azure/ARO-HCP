@@ -28,12 +28,12 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
 
 // newTestValidationCondition builds a validation condition with a stable
@@ -146,12 +146,12 @@ func TestClusterRequirementsValidAggregator_SyncOnce(t *testing.T) {
 				seed = append(seed, tc.existingServiceProviderCluster)
 			}
 
-			mockDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, seed)
+			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, seed)
 			require.NoError(t, err)
 
 			syncer := &clusterRequirementsValidAggregator{
-				clusterLister:                &listertesting.DBClusterLister{ResourcesDBClient: mockDB},
-				serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
+				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
+				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
 				resourcesDBClient:            mockDB,
 			}
 

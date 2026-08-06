@@ -12,19 +12,18 @@ synthetic Events and Pods, no cluster required.
 
 ## The decision
 
-`Decide(node, events, pods, now, observedSince, lastSuccessAt) (Decision, Snapshot)`
+`Decide(node, events, pods, now) (Decision, Snapshot)`
 returns one of:
 
 - `DecisionWedged`: a detector fired. The controller ensures the node carries the
   wedged label.
-- `DecisionHealthy`: recovery is positively observed (a recorded per-node success
-  falls within the window). The controller ensures the node is not labeled.
+- `DecisionHealthy`: recovery is positively observed (a pod on the node got a
+  sandbox inside the window). The controller ensures the node is not labeled.
 - `DecisionUnknown`: the evidence is insufficient, so leave the label exactly as it
-  is. This covers a `NotReady` node (deferred to node lifecycle) and the cold view
-  before a full window has been observed since observation began
-  (`observedSince`). Because `Unknown` never removes a label, an existing wedged
-  label survives a restart until recovery is actually seen, and a cold view never
-  invents a fresh wedge.
+  is. This covers a `NotReady` node (deferred to node lifecycle) and a node that is
+  simply quiet: no storm and no success either. Because `Unknown` never removes a
+  label, an existing wedged label survives a restart until recovery is actually
+  seen.
 - `DecisionNotApplicable`: no detector applies to the node, so none can ever mark
   it wedged. The controller ensures the node is not labeled. This is a definitive
   statement about ownership, unlike `Unknown` which is a statement about evidence,
@@ -34,9 +33,10 @@ returns one of:
   Ready or not.
 
 `Decide` short-circuits on a wedge, only reports `Healthy` on positive success
-evidence, and otherwise stays `Unknown`. It is a pure function of the node's
-observed state and the controller's recorded per-node success history: same
-inputs, same output.
+evidence, and otherwise stays `Unknown`. It is a pure function of the node and the
+Events and Pods held for it: same inputs, same output, and nothing is carried
+between calls. Every input is something a `LIST` returns, so a controller that has
+just started decides exactly what one running for hours would, with no warm-up.
 
 ## How a detector is structured
 
@@ -57,7 +57,7 @@ is adding code in its own file, never editing the engine:
 
 `Decide` walks `registry`. For each detector it calls `Applies(node)` (skip if the
 node can't exhibit the fault), then `Evaluate(...)` to gather the evidence
-`Snapshot`, then `MeetsThreshold(snap, now, observedSince)`. The first detector that fires
+`Snapshot`, then `MeetsThreshold(snap, now)`. The first detector that fires
 wins and the node is `Wedged`; if none fires but some success was seen, the node is
 `Healthy`; otherwise `Unknown`.
 
@@ -79,8 +79,7 @@ constants, never config):
 | `requireZeroSuccess` | when true, firing requires zero fresh sandbox successes in the window |
 
 `MeetsThreshold` is: `SustainedCount >= failuresFloor` (stuck pods that have each been stuck
-at least `dwell`) **and** (`RecentSuccess == false` when `requireZeroSuccess`, and
-only once a full `window` has elapsed since `observedSince`).
+at least `dwell`) **and** `RecentSuccess == false` when `requireZeroSuccess`.
 
 Three details that matter, all of them chosen so no signal depends on Events or
 Pods that the apiserver garbage-collects:
@@ -96,21 +95,35 @@ Pods that the apiserver garbage-collects:
   only to classify which pods are failing (looked up per node by `Event.Source.Host`,
   which is deletion-safe, and correlated to a specific Pod by `InvolvedObject.UID` so
   a recycled name cannot inherit a deleted Pod's Events); they are never counted.
-- **Success presence is load-bearing, and it is a recorded history, not a scan.**
+- **Success presence is load-bearing, and it is read from the same Pods.**
   `requireZeroSuccess` is what separates a hard wedge (VF gone, no fresh sandboxes)
-  from a flap (some pods still starting). A success is a non-host-network pod whose
-  `PodReadyToStartContainers` condition transitioned to `True`; host-network pods
-  are excluded, since they reach the condition without a delegated NIC. The
-  controller records the most recent such transition per node (`SuccessAt` feeds a
-  bounded `lastSuccessAt`), advanced from pod add/update **and** the last-seen state
-  of a deleted pod, so a short-lived success survives its Pod being garbage
-  collected. `Decide` sets `RecentSuccess` when `lastSuccessAt` falls inside the
-  window; it never scans the passed-in Pods for success.
-- **No recorded success is `Unknown`, never a wedge, until the controller has
-  watched a full window.** Just after a restart or a disabled→enabled transition
-  the recorded history starts empty, so a detector does not fire until
-  `now - observedSince >= window`; before that, an empty success history is treated
-  as indeterminate, not as proof of a wedge.
+  from a flap (some pods still starting). `Evaluate` scans the node's Pods with
+  `SuccessAt` and sets `RecentSuccess` when one lands inside the window. Two shapes
+  count, and host-network pods are excluded from both since they reach a running
+  state without a delegated NIC:
+  - a live pod whose `PodReadyToStartContainers` condition transitioned to `True`,
+    timed by that transition. Keying on the transition rather than pod age means a
+    container restarting inside an existing sandbox is not mistaken for success:
+    the sandbox is what needs the network.
+  - a pod that reached a terminal phase with a container that ran exactly once,
+    timed by that container's start. A finished pod drops the condition back to
+    `False` as a matter of course, so without this a node whose recent traffic was
+    short-lived Job and CronJob pods would read as having had no success at all.
+    The restart count matters: a terminated state describes the container's latest
+    run, so on a restarted container the start time belongs to a run inside the
+    sandbox the pod already had, which proves nothing. Those containers are not
+    evidence in either direction.
+  The window comparison is absolute, so a timestamp dated ahead by kubelet clock
+  skew is measured by its distance from now rather than its sign. Skew inside the
+  window still counts as a success, which is harmless, and anything further out is
+  discarded rather than read as an arbitrarily fresh success.
+- **Nothing is remembered between reconciles.** Both signals come out of the
+  informer caches, which is the whole point: the only state the controller keeps is
+  state a `LIST` can rebuild. There is no success map to lose on restart and so no
+  warm-up window during which a genuinely wedged node goes unreported. The
+  trade-off is deliberate: a success is only visible while its Pod is still in the
+  cache, which is why the terminal-pod shape above is counted rather than relying on
+  a pod still being alive at reconcile time.
 
 ## The one detector today: `swift-vf-teardown`
 

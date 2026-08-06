@@ -21,7 +21,7 @@ Today `topology-dev-ci.yaml`'s `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entr
 - `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged`
   - Deploys shared dev/CI network resources, the `opstool` AKS cluster, and the shared Prometheus monitoring stack.
 - `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota`
-  - Deploys the `tenant-quota-collector` workload that monitors Azure quotas relevant to CI capacity.
+  - Deploys the historically named `tenant-quota-collector`, the extensible DEV CI telemetry exporter.
 - `Microsoft.Azure.ARO.HCP.DevCI.Gateway`
   - Deploys the shared Istio gateway and DNS wiring for `opstool`.
 - `Microsoft.Azure.ARO.HCP.DevCI.CertManager`
@@ -56,33 +56,52 @@ The current `dev-ci` topology intentionally does not own several adjacent pieces
 
 - Prow jobs, ci-operator configuration, step-registry workflows, and Boskos inventory remain in `openshift/release`.
 - The on-demand DEV RP footprint created during local E2E jobs is still provisioned by the release-side workflow, not by `topology-dev-ci.yaml`.
-- Static consumer artifacts such as `dev-infrastructure/openshift-ci/msi-mock-pool.yaml` are still generated separately.
-- The Key Vault **certificates** backing the mock identities are created by a separate `make create-mock-identity-certs` step, not by the Bicep templates (the Entra apps trust them via SNI but cannot create them — Bicep cannot create Key Vault certificates).
+- Static consumer artifacts such as `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`
+  and `arm-helper-pool.yaml` are still generated separately.
 
 For the runtime lease model itself, see [CI Identity Leasing](identity-leasing.md).
 
 ## The Current Mixed-Management Boundary
 
-The DEV MSI mock service-principal pool used by local E2E jobs is now managed declaratively, with only two narrow hand-offs left.
+The DEV MSI mock and ARM helper service-principal pools used by local E2E jobs
+are managed declaratively on the Azure side, with only the release-side consumer
+artifacts left outside the rollout.
 
 - The `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint owns the pool end to end on the Azure side:
-  - `dev-infrastructure/templates/mock-identity-apps.bicep` creates/updates the pooled Entra apps and service principals (looping `.ci.dev.mockIdentities.pool.size` times) with SNI certificate auth.
-  - `dev-infrastructure/templates/mock-identity-rbac.bicep` resolves each principal's object ID via Microsoft Graph and applies the home- and E2E-subscription grants. Principal IDs are no longer stored in `config/config-dev-ci.yaml`. Because those grants require subscription Owner, they are applied on demand rather than by the postsubmit (see [The Privileged Entrypoint](#the-privileged-entrypoint)).
+  - `dev-infrastructure/templates/mock-identity-apps.bicep` creates/updates both
+    pooled Entra app families from `.ci.dev.mockIdentities.pool` and
+    `.ci.dev.mockIdentities.armHelperPool`. It configures no auth on the apps.
+  - The DEV `pin-mock-certs` and INT `pin-mock-certs-int` Shell steps run
+    `tooling/entra-app-credentials` immediately after the corresponding app
+    deployment. They create missing certificates and register each current
+    Key Vault certificate as a pinned `keyCredential`; existing certificates and
+    policies remain untouched. The DEV step uses separate CLI invocations for
+    the named identities, MSI mock pool, and ARM helper pool.
+    Templatize runs these steps with the invoking OWNERS member's Azure CLI
+    credentials.
+  - `dev-infrastructure/templates/mock-identity-rbac.bicep` resolves each
+    principal's object ID via Microsoft Graph and applies the home- and
+    E2E-subscription grants. Both pools receive DEV home-subscription grants so
+    their members can be tested in personal development environments. Principal
+    IDs are no longer stored in `config/config-dev-ci.yaml`. Because those grants
+    require subscription Owner, they are applied on demand rather than by the
+    postsubmit (see [The Privileged Entrypoint](#the-privileged-entrypoint)).
 - What remains outside the rollout:
-  - The Key Vault **certificates** the apps trust are created by `make create-mock-identity-certs`, which calls `dev-infrastructure/scripts/create-kv-cert.sh` (`az keyvault certificate create`). Bicep cannot create Key Vault certificates, so this is a separate idempotent step rather than part of the template — SNI trust is declared in `mock-identity-apps.bicep`, the certs are created here (see [DEV Mock Identities → Certificates](dev-mock-identities.md#certificates)).
-  - `make populate-msi-mock-pool` performs live Entra lookups and writes the static `dev-infrastructure/openshift-ci/msi-mock-pool.yaml` catalog that release-side jobs consume.
-  - `openshift/release` still owns the Boskos inventory and lease contract for the `aro-hcp-msi-mock-cs-sp-dev` resource type.
+  - `make populate-msi-mock-pool` and `make populate-arm-helper-pool` perform live
+    Entra lookups and write the static catalogs consumed by release-side jobs.
+  - `openshift/release` still owns the Boskos inventories and lease contracts.
 
-So the Entra objects and their RBAC are single-sourced in the topology; the remaining spread is limited to the certificate step and the release-side Boskos/catalog wiring.
+So the Entra objects, certificates, certificate pinning, and RBAC are
+single-sourced in the topology; the remaining spread is limited to
+release-side Boskos/catalog wiring.
 
 ## Long-Term Direction
 
-The Entra-object and RBAC half of the intended end state is now in place — a single declarative producer (`mock-identity-apps.bicep` + `mock-identity-rbac.bicep`) owns the pool lifecycle on the Azure side, driven by one source of truth in `config/config-dev-ci.yaml`. The remaining work to close the loop:
+The Azure-side intended state is now in place: a single privileged rollout owns
+the app/SP, certificate, pinning, and RBAC lifecycle, driven by one source of
+truth in `config/config-dev-ci.yaml`. The remaining work to close the loop:
 
 - generate downstream consumer artifacts (the static pool catalog and the release-side Boskos inventory) from that same source instead of updating them separately
-- fold certificate provisioning into the rollout itself, so operators don't run a separate `make create-mock-identity-certs` step (Bicep can't create Key Vault certificates today, so cert creation lives in that idempotent script)
-
-Until those are designed and validated, the certificate and release-side hand-offs above remain the supported operating model.
 
 ## Operator Entry Points
 
@@ -93,7 +112,7 @@ make dev-ci-local-run
 make dev-ci-privileged-local-run
 ```
 
-Use the first command for the standalone `dev-ci` postsubmit surface (shared network, `opstool` AKS, monitoring, gateway, cert-manager, CIHealth, quota) — it no longer touches the CI bot identities. Use the second — **an Owner-only, on-demand run performed by an OWNERS-group member** — when the CI bot Entra identities need to be created/reconciled or their secrets rotated, or when the subscription-scoped custom roles and role assignments need to be applied; that entrypoint does both, in order.
+Use the first command for the standalone `dev-ci` postsubmit surface (shared network, `opstool` AKS, monitoring, gateway, cert-manager, CIHealth, quota) — it no longer touches the CI bot identities. Use the second — **an Owner-only, on-demand run performed by an OWNERS-group member** — when mock Entra applications, certificates, pinned credentials, or subscription-scoped RBAC need to be created or reconciled. Certificate rotation is a separate, explicitly disruptive CLI procedure.
 
 ## Where To Look
 
@@ -107,10 +126,10 @@ When you need to change or debug the standalone `dev-ci` topology, start here:
 - `dev-infrastructure/configurations/mock-identity-apps.tmpl.bicepparam`
 - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
 - `dev-infrastructure/Makefile`
-- `dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh`
+- `dev-infrastructure/openshift-ci/populate-mock-identity-pool.sh`
 - [CI Identity Leasing](identity-leasing.md)
-- [CI Quota Monitoring](quota-monitoring.md)
-- [Opstool Cluster Guide](../ops/opstool-cluster-guide.md)
+- [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
+- [Opstool CI Platform](opstool.md)
 
 ## See Also
 

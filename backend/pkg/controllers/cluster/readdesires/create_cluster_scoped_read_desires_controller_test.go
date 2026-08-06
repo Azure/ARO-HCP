@@ -27,13 +27,14 @@ import (
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -126,7 +127,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 		cachedServiceProviderCluster *api.ServiceProviderCluster
 		kubeApplierDesires           []any
 		wantErr                      bool
-		verifyDB                     func(t *testing.T, ctx context.Context, kaClient *databasetesting.MockKubeApplierDBClient)
+		verifyDB                     func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient)
 	}{
 		{
 			name: "creates HostedCluster and cluster-autoscaler ReadDesires",
@@ -134,7 +135,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 				newTestCluster(),
 			},
 			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID),
-			verifyDB: func(t *testing.T, ctx context.Context, kaClient *databasetesting.MockKubeApplierDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 				t.Helper()
 				crud, err := kaClient.ReadDesiresForCluster(readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName)
 				require.NoError(t, err)
@@ -161,7 +162,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID, func(spc *api.ServiceProviderCluster) {
 				spc.Status.ControlPlaneNamespace = readDesireTestControlPlaneNS
 			}),
-			verifyDB: func(t *testing.T, ctx context.Context, kaClient *databasetesting.MockKubeApplierDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 				t.Helper()
 				crud, err := kaClient.ReadDesiresForCluster(readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName)
 				require.NoError(t, err)
@@ -187,7 +188,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID, func(spc *api.ServiceProviderCluster) {
 				spc.Status.ControlPlaneNamespace = readDesireTestControlPlaneNS
 			}),
-			verifyDB: func(t *testing.T, ctx context.Context, kaClient *databasetesting.MockKubeApplierDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 				t.Helper()
 				crud, err := kaClient.ReadDesiresForCluster(readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName)
 				require.NoError(t, err)
@@ -210,7 +211,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 				newTestCluster(), // no ControlPlaneNamespace on SPC
 			},
 			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID),
-			verifyDB: func(t *testing.T, ctx context.Context, kaClient *databasetesting.MockKubeApplierDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 				t.Helper()
 				crud, err := kaClient.ReadDesiresForCluster(readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName)
 				require.NoError(t, err)
@@ -227,7 +228,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 				}),
 			},
 			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID),
-			verifyDB: func(t *testing.T, ctx context.Context, kaClient *databasetesting.MockKubeApplierDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 				t.Helper()
 				crud, err := kaClient.ReadDesiresForCluster(readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName)
 				require.NoError(t, err)
@@ -240,7 +241,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			resources: []any{
 				newTestCluster(),
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, kaClient *databasetesting.MockKubeApplierDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 				t.Helper()
 				crud, err := kaClient.ReadDesiresForCluster(readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName)
 				require.NoError(t, err)
@@ -262,7 +263,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 					clusterAutoscalerTarget(readDesireTestEnvIdentifier, "abc123", "old-prefix"),
 				),
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, kaClient *databasetesting.MockKubeApplierDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, kaClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 				t.Helper()
 				crud, err := kaClient.ReadDesiresForCluster(readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName)
 				require.NoError(t, err)
@@ -278,15 +279,15 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			t.Parallel()
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tt.resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tt.resources)
 			require.NoError(t, err)
 
-			mockKubeApplierDBClients := databasetesting.NewMockKubeApplierDBClients()
-			mockKubeApplierClient, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, tt.kubeApplierDesires)
+			mockKubeApplierDBClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+			mockKubeApplierClient, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, tt.kubeApplierDesires)
 			require.NoError(t, err)
 			mockKubeApplierDBClients.Register(readDesireTestManagementClusterResourceID, mockKubeApplierClient)
 
-			serviceProviderClusterListerStub := &listertesting.SliceServiceProviderClusterLister{}
+			serviceProviderClusterListerStub := &corelistertesting.SliceServiceProviderClusterLister{}
 			if tt.cachedServiceProviderCluster != nil {
 				serviceProviderClusterListerStub.ServiceProviderClusters = []*api.ServiceProviderCluster{tt.cachedServiceProviderCluster}
 			}

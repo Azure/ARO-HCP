@@ -23,12 +23,14 @@ import (
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,15 +38,15 @@ type createBillingDoc struct {
 	clock             utilsclock.PassiveClock
 	cooldownChecker   controllerutil.CooldownChecker
 	azureLocation     string
-	clusterLister     listers.ClusterLister
-	billingLister     listers.BillingLister
-	resourcesDBClient database.ResourcesDBClient
-	billingDBClient   database.BillingDBClient
+	clusterLister     corelisters.ClusterLister
+	billingLister     corelisters.BillingLister
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
+	billingDBClient   billingcosmosstorage.BillingDBClient
 }
 
 // NewCreateBillingDocController creates a controller that ensures a billing document
 // exists for clusters that have a ClusterUID and are in the Succeeded provisioning state.
-func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation string, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterLister listers.ClusterLister, billingLister listers.BillingLister) controllerutils.ClusterSyncer {
+func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation string, resourcesDBClient corecosmosstorage.ResourcesDBClient, billingDBClient billingcosmosstorage.BillingDBClient, clusterLister corelisters.ClusterLister, billingLister corelisters.BillingLister) controllerutils.ClusterSyncer {
 	return &createBillingDoc{
 		clock:             clock,
 		cooldownChecker:   controllerutil.NewTimeBasedCooldownChecker(60 * time.Second),
@@ -80,7 +82,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 	logger := keyObj.AddLoggerValues(utils.LoggerFromContext(ctx))
 
 	cachedCluster, err := c.clusterLister.Get(ctx, keyObj.SubscriptionID, keyObj.ResourceGroupName, keyObj.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -94,7 +96,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, keyObj.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -114,14 +116,14 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 
 	// Try cache first
 	doc, err := c.billingLister.GetByID(ctx, clusterUID)
-	if err != nil && !database.IsNotFoundError(err) {
+	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get billing document from cache: %w", err))
 	}
 
 	// If not in cache, check database
 	if doc == nil {
 		doc, err = billingDocCRUD.GetByID(ctx, clusterUID)
-		if err != nil && !database.IsNotFoundError(err) {
+		if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 			return utils.TrackError(fmt.Errorf("failed to get billing document from database: %w", err))
 		}
 	}
@@ -140,7 +142,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 			return utils.TrackError(errors.New("cluster creation time is zero"))
 		}
 
-		doc = database.NewBillingDocument(clusterUID, existingCluster.ID)
+		doc = billingcosmosstorage.NewBillingDocument(clusterUID, existingCluster.ID)
 		doc.CreationTime = creationTime
 		doc.Location = c.azureLocation
 		if subscription.Properties != nil {

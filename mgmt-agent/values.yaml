@@ -9,8 +9,8 @@ ksmImage:
 deployment:
   replicas: "{{ .mgmtAgent.k8s.replicas }}"
   requests:
-    cpu: 50m
-    memory: 64Mi
+    cpu: "{{ .mgmtAgent.k8s.resources.requests.cpu }}"
+    memory: "{{ .mgmtAgent.k8s.resources.requests.memory }}"
 logVerbosity: 2
 health:
   port: 8080
@@ -19,15 +19,17 @@ nodeHealth:
   configKey: config.yaml
   # Rendered into the ConfigMap the controller watches. Detection logic,
   # thresholds, and the SWIFT-v2 node scoping are hard-coded; the only runtime
-  # config is this switch.
+  # config is this switch, and its value comes from
+  # config/config.yaml (mgmtAgent.nodeHealth.enabled), which defaults to true.
+  # An environment that wants the controller off overrides the key to false.
   #
-  # This file is the authoritative source for the ConfigMap's contents. The
-  # controller hot-reloads a live edit to the ConfigMap within one resync, which
-  # makes `kubectl edit` a valid break-glass to switch the controller off during
-  # an incident, but that edit is not durable: the next mgmt-agent rollout runs
-  # helm and restores the value from here. A change meant to stick goes in git.
+  # The controller hot-reloads a live edit to the ConfigMap within one resync,
+  # which makes `kubectl edit` a valid break-glass to switch the controller off
+  # during an incident, but that edit is not durable: the next mgmt-agent
+  # rollout runs helm and restores the rendered value. A change meant to stick
+  # goes in git.
   config:
-    enabled: false
+    enabled: {{ .mgmtAgent.nodeHealth.enabled }}
 nodeSelector: {}
 tolerations: []
 affinity: {}

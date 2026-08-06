@@ -25,11 +25,11 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -41,18 +41,18 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 		np.ServiceProviderProperties.ClusterServiceID = nil
 	}
 
-	verifyNodePoolStillExists := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyNodePoolStillExists := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		_, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
 			NodePools(testClusterName).Get(ctx, testNodePoolName)
 		require.NoError(t, err, "expected nodepool to still exist in Cosmos")
 	}
 
-	verifyNodePoolDeleted := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+	verifyNodePoolDeleted := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
 		_, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
 			NodePools(testClusterName).Get(ctx, testNodePoolName)
-		assert.True(t, database.IsNotFoundError(err), "expected nodepool to be deleted from Cosmos")
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err), "expected nodepool to be deleted from Cosmos")
 	}
 
 	testCases := []struct {
@@ -60,7 +60,7 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 		existingNodePool *api.HCPOpenShiftClusterNodePool
 		childResources   []any
 		wantErr          bool
-		verifyDB         func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB         func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:             "no DeletionTimestamp -- no-op",
@@ -133,7 +133,7 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 				resources = append(resources, tc.existingNodePool)
 			}
 			resources = append(resources, tc.childResources...)
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			nodePoolsForLister := []*api.HCPOpenShiftClusterNodePool{}
@@ -148,8 +148,8 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolDeletionController{
-				nodePoolLister:                &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
-				serviceProviderNodePoolLister: &listertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: spnpForLister},
+				nodePoolLister:                &corelistertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
+				serviceProviderNodePoolLister: &corelistertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: spnpForLister},
 				resourcesDBClient:             mockResourcesDBClient,
 			}
 

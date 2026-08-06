@@ -11,17 +11,17 @@ The individual components are described in the [service components overview](../
 2. ExternalAuthorizer rules apply to all requests that hit the istio gateway, and are redirected to MISE to ensure the request comes from ARM
 3. On success, the request is routed to the RP frontend
 4. The frontend conducts a preflight check towards Clusters Service and then issues a request to Clusters Service to create the cluster. It then stores both an Operation record and an HCPOpenShiftCluster record in CosmosDB on success. The frontend returns a 201 response to ARM and a reference to the long-running operation.
-    - (Async) From this point forward, Backend sees the CosmosDB Operation record and asyncronously calls CS to determine current provisioning state and updates the HCPOpenShiftCluster so the customer has live feedback on status of the long-running request.
+    - (Async) From this point forward, Backend sees the CosmosDB Operation record and asynchronously calls CS to determine current provisioning state and updates the HCPOpenShiftCluster so the customer has live feedback on status of the long-running request.
     - (Async) At the same time, ARM will automatically issue polling GET requests to the OperationStatus resources on the customer's behalf (to the Frontend) so they see this status in live time.
 5. Clusters Service prepares a managed resource group in the customers subscription and creates the cloud resources for the cluster
-6. Clusters Service posts `ManifestWork` containing `HosterCluster` Hypershift CRs and other supporting resources to the Maestro Server
+6. Clusters Service posts `ManifestWork` containing `HostedCluster` Hypershift CRs and other supporting resources to the Maestro Server
 7. The Maestro Server posts transfers the `ManifestWork` to the Maestro Agent via Eventgrid Namespaces MQTT
 8. The Maestro Agent applies the `ManifestWork`, creating the `ocm-xxx-${CLUSTER_ID}` namespace, the Hypershift `HostedCluster` CR, supporting secrets and configmaps as well as the `ManagedCluster` MCE CR.
 9. The Hypershift operator picks up on the `HostedCluster` CR, creates the `ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}` namespace, the control plane deployments within it and supporting cloud resources in the managed resource group of the customer
 10. MCE picks up on the finished `HostedCluster` provisioning and updates the `ManagedCluster` CR.
 11. The Maestro Agent transfers all status updates from `HostedCluster`, `ManagedCluster` and other `ManifestWork` resources back to the Maestro Server via Eventgrid Namespaces MQTT
 12. CS notices the status updates and updates the cluster records
-13. The Backend ultimately reports the updated CS status and completes the asyncronous Operation. ARM reports the Operation as successful and returns the OperationResult. The RP frontend now reports the cluster as `Provisioned` to ARM for all future requests.
+13. The Backend ultimately reports the updated CS status and completes the asynchronous Operation. ARM reports the Operation as successful and returns the OperationResult. The RP frontend now reports the cluster as `Provisioned` to ARM for all future requests.
 
 ```mermaid
 ---

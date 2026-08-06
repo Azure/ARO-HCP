@@ -25,9 +25,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/listers"
-	"github.com/Azure/ARO-HCP/internal/database/listertesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unionlisters/kubeapplier"
 )
 
@@ -68,9 +68,9 @@ func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kub
 
 // applySublisters returns two SliceApplyDesireListers, one per MC, populated
 // with disjoint fixtures so test assertions can tell them apart.
-func applySublisters(t *testing.T) (a, b *listertesting.SliceApplyDesireLister) {
+func applySublisters(t *testing.T) (a, b *kubeapplierlistertesting.SliceApplyDesireLister) {
 	t.Helper()
-	a = &listertesting.SliceApplyDesireLister{
+	a = &kubeapplierlistertesting.SliceApplyDesireLister{
 		Desires: []*kubeapplier.ApplyDesire{
 			newApplyDesire(t,
 				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
@@ -80,7 +80,7 @@ func applySublisters(t *testing.T) (a, b *listertesting.SliceApplyDesireLister) 
 				mgmtAID),
 		},
 	}
-	b = &listertesting.SliceApplyDesireLister{
+	b = &kubeapplierlistertesting.SliceApplyDesireLister{
 		Desires: []*kubeapplier.ApplyDesire{
 			newApplyDesire(t,
 				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
@@ -100,9 +100,9 @@ func newReadDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kube
 	}
 }
 
-func readSublisters(t *testing.T) (a, b *listertesting.SliceReadDesireLister) {
+func readSublisters(t *testing.T) (a, b *kubeapplierlistertesting.SliceReadDesireLister) {
 	t.Helper()
-	a = &listertesting.SliceReadDesireLister{
+	a = &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplier.ReadDesire{
 			newReadDesire(t,
 				kubeapplier.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, "a1"),
@@ -112,7 +112,7 @@ func readSublisters(t *testing.T) (a, b *listertesting.SliceReadDesireLister) {
 				mgmtAID),
 		},
 	}
-	b = &listertesting.SliceReadDesireLister{
+	b = &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplier.ReadDesire{
 			newReadDesire(t,
 				kubeapplier.ToClusterScopedReadDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
@@ -133,10 +133,10 @@ func TestUnionApplyDesireLister_EmptyUnion(t *testing.T) {
 	if got, err := u.List(ctx); err != nil || len(got) != 0 {
 		t.Errorf("empty List: got (%v, %v), want (empty, nil)", got, err)
 	}
-	if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "a1"); !database.IsNotFoundError(err) {
+	if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "a1"); !cosmosstorageutils.IsNotFoundError(err) {
 		t.Errorf("empty GetForCluster: want NotFound, got %v", err)
 	}
-	if _, err := u.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "a2"); !database.IsNotFoundError(err) {
+	if _, err := u.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "a2"); !cosmosstorageutils.IsNotFoundError(err) {
 		t.Errorf("empty GetForNodePool: want NotFound, got %v", err)
 	}
 	if got, err := u.ListForManagementCluster(ctx, mgmtAID); err != nil || got != nil {
@@ -235,7 +235,7 @@ func TestUnionApplyDesireLister_GetForCluster_FirstHitWins(t *testing.T) {
 	}
 
 	// Nowhere — NotFound (both sublisters reported NotFound, union folds them).
-	if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "missing"); !database.IsNotFoundError(err) {
+	if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "missing"); !cosmosstorageutils.IsNotFoundError(err) {
 		t.Errorf("GetForCluster missing: want NotFound, got %v", err)
 	}
 }
@@ -289,7 +289,7 @@ func TestUnionApplyDesireLister_RemoveDropsSublister(t *testing.T) {
 func TestUnionApplyDesireLister_AddReplaces(t *testing.T) {
 	ctx := context.Background()
 	a1, _ := applySublisters(t)
-	a2 := &listertesting.SliceApplyDesireLister{
+	a2 := &kubeapplierlistertesting.SliceApplyDesireLister{
 		Desires: []*kubeapplier.ApplyDesire{
 			newApplyDesire(t,
 				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "replacement"),
@@ -382,7 +382,7 @@ func TestUnionReadDesireLister(t *testing.T) {
 		if _, err := u.GetForCluster(ctx, testSub, testRG, "other-cluster", "b1"); err != nil {
 			t.Errorf("GetForCluster b1: %v", err)
 		}
-		if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "missing"); !database.IsNotFoundError(err) {
+		if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "missing"); !cosmosstorageutils.IsNotFoundError(err) {
 			t.Errorf("GetForCluster missing: want NotFound, got %v", err)
 		}
 	})
@@ -391,7 +391,7 @@ func TestUnionReadDesireLister(t *testing.T) {
 		if _, err := u.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "a2"); err != nil {
 			t.Errorf("GetForNodePool a2: %v", err)
 		}
-		if _, err := u.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "missing"); !database.IsNotFoundError(err) {
+		if _, err := u.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "missing"); !cosmosstorageutils.IsNotFoundError(err) {
 			t.Errorf("GetForNodePool missing: want NotFound, got %v", err)
 		}
 	})
@@ -429,7 +429,7 @@ type erroringApplyLister struct {
 	err error
 }
 
-var _ listers.ApplyDesireLister = &erroringApplyLister{}
+var _ kubeapplierlisters.ApplyDesireLister = &erroringApplyLister{}
 
 func (e *erroringApplyLister) List(ctx context.Context) ([]*kubeapplier.ApplyDesire, error) {
 	return nil, e.err

@@ -33,27 +33,28 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type operationNodePoolUpdate struct {
 	clock                           utilsclock.PassiveClock
-	resourcesDBClient               database.ResourcesDBClient
+	resourcesDBClient               corecosmosstorage.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
-	nodePoolLister                  listers.NodePoolLister
-	serviceProviderNodePoolLister   listers.ServiceProviderNodePoolLister
-	readDesireLister                dblisters.ReadDesireLister
-	activeOperationsLister          listers.ActiveOperationLister
+	nodePoolLister                  corelisters.NodePoolLister
+	serviceProviderNodePoolLister   corelisters.ServiceProviderNodePoolLister
+	readDesireLister                kubeapplierlisters.ReadDesireLister
+	activeOperationsLister          corelisters.ActiveOperationLister
 	notificationClient              *http.Client
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
@@ -74,12 +75,12 @@ type operationNodePoolUpdate struct {
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationNodePoolUpdateController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
-	backendInformers informers.BackendInformers,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := backendInformers.NodePools()
 	_, serviceProviderNodePoolLister := backendInformers.ServiceProviderNodePools()
@@ -97,7 +98,7 @@ func NewOperationNodePoolUpdateController(
 		desiredVersionMismatchFirstSeen: lru.New(100000),
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"OperationNodePoolUpdate",
 		syncer,
 		10*time.Second,
@@ -112,7 +113,7 @@ func (c *operationNodePoolUpdate) ShouldProcess(ctx context.Context, operation *
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestUpdate {
+	if operation.Request != cosmosstorageutils.OperationRequestUpdate {
 		return false
 	}
 	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()) {
@@ -126,7 +127,7 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 	logger.Info("checking operation")
 
 	operation, err := c.activeOperationsLister.Get(ctx, key.SubscriptionID, key.OperationName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // no work to do
 	}
 	if err != nil {
@@ -137,7 +138,7 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 	}
 
 	existingNodePool, err := c.nodePoolLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Parent.Name, operation.ExternalID.Name)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.Info("node pool not found in cache, waiting")
 		return nil // no work to do
 	}
@@ -169,7 +170,7 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 
 	logger.Info("updating status")
 	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 		return nil
 	}
@@ -284,7 +285,7 @@ func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx con
 	// for this version. Stay Accepted while resolution runs; fail once elapsed exceeds
 	// 129s from the first time this process observed the mismatch for this operation.
 	// This avoids immediately failing long-running operations after controller restarts
-	// and is double the relistDuration of the nodepool and serviceProviderNodePool informers.
+	// and is double the relistDuration of the nodepool and serviceProviderNodePool coreinformers.
 	// This will not solve all the edge cases, but it will give enough time to the other controllers to act.
 	if intentFailedCondition.Status != metav1.ConditionTrue || intentFailedCondition.Reason != api.VersionUpgradeNotAcceptedReason {
 		pending := operationbase.NewOperationState(arm.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")

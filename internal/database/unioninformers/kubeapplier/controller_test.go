@@ -30,10 +30,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database/informers"
-	"github.com/Azure/ARO-HCP/internal/database/listertesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
 // --- fake informer --------------------------------------------------------
@@ -113,7 +113,7 @@ func (f *fakeMCInformer) emitUpdate(oldObj, newObj any) {
 
 // --- stub factory ---------------------------------------------------------
 
-// stubFactory builds an informers.KubeApplierInformers per call by wiring
+// stubFactory builds an kubeapplierinformers.KubeApplierInformers per call by wiring
 // up the per-MC mock DB client registered for the given resourceID. Calls
 // for unregistered resourceIDs return nil and bump a counter so tests can
 // assert "factory had nothing to give yet".
@@ -121,22 +121,22 @@ type stubFactory struct {
 	relist time.Duration
 
 	mu       sync.Mutex
-	clients  map[string]*databasetesting.MockKubeApplierDBClient // keyed by lower(rid.String())
+	clients  map[string]*kubeappliercosmosstoragetesting.MockKubeApplierDBClient // keyed by lower(rid.String())
 	started  []*stubFactoryRun
 	missCntr atomic.Int32
 }
 
 type stubFactoryRun struct {
 	rid *azcorearm.ResourceID
-	inf informers.KubeApplierInformers
+	inf kubeapplierinformers.KubeApplierInformers
 }
 
 func newStubFactory(relist time.Duration) *stubFactory {
-	return &stubFactory{relist: relist, clients: map[string]*databasetesting.MockKubeApplierDBClient{}}
+	return &stubFactory{relist: relist, clients: map[string]*kubeappliercosmosstoragetesting.MockKubeApplierDBClient{}}
 }
 
 // register associates a mock per-MC client with the given resourceID.
-func (s *stubFactory) register(rid *azcorearm.ResourceID, mock *databasetesting.MockKubeApplierDBClient) {
+func (s *stubFactory) register(rid *azcorearm.ResourceID, mock *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.clients[strings.ToLower(rid.String())] = mock
@@ -144,7 +144,7 @@ func (s *stubFactory) register(rid *azcorearm.ResourceID, mock *databasetesting.
 
 func (s *stubFactory) NewKubeApplierInformers(
 	ctx context.Context, rid *azcorearm.ResourceID,
-) informers.KubeApplierInformers {
+) kubeapplierinformers.KubeApplierInformers {
 	s.mu.Lock()
 	mock, ok := s.clients[strings.ToLower(rid.String())]
 	s.mu.Unlock()
@@ -152,7 +152,7 @@ func (s *stubFactory) NewKubeApplierInformers(
 		s.missCntr.Add(1)
 		return nil
 	}
-	inf := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &s.relist)
+	inf := kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &s.relist)
 	s.mu.Lock()
 	s.started = append(s.started, &stubFactoryRun{rid: rid, inf: inf})
 	s.mu.Unlock()
@@ -230,7 +230,7 @@ func TestController_AddRegistersSubInformer(t *testing.T) {
 
 	relist := 100 * time.Millisecond
 
-	mockA, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
+	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
 			ctlMgmtAID),
@@ -246,7 +246,7 @@ func TestController_AddRegistersSubInformer(t *testing.T) {
 	factory.register(ctlMgmtAID, mockA)
 
 	mcInformer := newFakeMCInformer()
-	mcLister := &listertesting.SliceManagementClusterLister{
+	mcLister := &fleetlistertesting.SliceManagementClusterLister{
 		ManagementClusters: []*fleet.ManagementCluster{ctlMC(ctlMgmtAID)},
 	}
 	ctl := unionkubeapplier.NewUnionKubeApplierInformersController(mcInformer, mcLister, factory)
@@ -279,7 +279,7 @@ func TestController_RemoveDropsSubInformer(t *testing.T) {
 	relist := 100 * time.Millisecond
 	factory := newStubFactory(relist)
 
-	mockA, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
+	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
 			ctlMgmtAID),
@@ -292,7 +292,7 @@ func TestController_RemoveDropsSubInformer(t *testing.T) {
 	}
 	factory.register(ctlMgmtAID, mockA)
 
-	mockB, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
+	mockB, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, "other-cluster", "b1"),
 			ctlMgmtBID),
@@ -372,7 +372,7 @@ func TestController_FactoryNilSkipsRegistrationAndRetries(t *testing.T) {
 	}
 
 	// Wire up the factory and emit Update so the controller retries.
-	mockA, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
+	mockA, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		ctlNewApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(ctlSub, ctlRG, ctlCluster, "a1"),
 			ctlMgmtAID),
@@ -408,7 +408,7 @@ func TestController_ContextCancelStopsAllSubs(t *testing.T) {
 	factory := newStubFactory(relist)
 
 	for _, rid := range []*azcorearm.ResourceID{ctlMgmtAID, ctlMgmtBID} {
-		factory.register(rid, databasetesting.NewMockKubeApplierDBClient())
+		factory.register(rid, kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient())
 	}
 
 	mcInformer := newFakeMCInformer()
@@ -449,7 +449,7 @@ func TestController_DuplicateAddIsIdempotent(t *testing.T) {
 
 	relist := 100 * time.Millisecond
 	factory := newStubFactory(relist)
-	factory.register(ctlMgmtAID, databasetesting.NewMockKubeApplierDBClient())
+	factory.register(ctlMgmtAID, kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient())
 
 	mcInformer := newFakeMCInformer()
 	mcLister := &mutableMCLister{}
@@ -486,7 +486,7 @@ func TestController_SyncOnceDirect(t *testing.T) {
 
 	relist := 100 * time.Millisecond
 	factory := newStubFactory(relist)
-	factory.register(ctlMgmtAID, databasetesting.NewMockKubeApplierDBClient())
+	factory.register(ctlMgmtAID, kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient())
 
 	mcInformer := newFakeMCInformer()
 	mcLister := &mutableMCLister{}
@@ -527,12 +527,12 @@ func TestController_SyncOnceDirect(t *testing.T) {
 
 // --- mutable lister -------------------------------------------------------
 
-// mutableMCLister is a small extension of listertesting.SliceManagementClusterLister
+// mutableMCLister is a small extension of fleetlistertesting.SliceManagementClusterLister
 // whose contents can be mutated by tests during a run. We compose rather
 // than redeclare to keep delegating List/Get/GetByCSProvisionShardID.
 type mutableMCLister struct {
 	mu    sync.Mutex
-	inner listertesting.SliceManagementClusterLister
+	inner fleetlistertesting.SliceManagementClusterLister
 }
 
 func (m *mutableMCLister) set(mcs ...*fleet.ManagementCluster) {

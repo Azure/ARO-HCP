@@ -30,12 +30,12 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
 
 // newTestClusterForAggregator builds a minimal HCPOpenShiftCluster suitable
@@ -259,13 +259,13 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			for _, ctrl := range tc.controllers {
 				seed = append(seed, ctrl)
 			}
-			mockDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, seed)
+			mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, seed)
 			require.NoError(t, err)
 
 			clock := clocktesting.NewFakePassiveClock(statusutils.FixedNow)
 			syncer := &clusterDegradedAggregator{
-				clusterLister:     &listertesting.DBClusterLister{ResourcesDBClient: mockDB},
-				controllerLister:  &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
+				clusterLister:     &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
+				controllerLister:  &corelistertesting.DBControllerLister{ResourcesDBClient: mockDB},
 				resourcesDBClient: mockDB,
 				inertia:           tc.inertia,
 				clock:             clock,
@@ -320,13 +320,13 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 	}
 
 	existing := newTestClusterForAggregator()
-	mockDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{existing, quietController})
+	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{existing, quietController})
 	require.NoError(t, err)
 
 	clock := clocktesting.NewFakePassiveClock(statusutils.FixedNow)
 	syncer := &clusterDegradedAggregator{
-		clusterLister:     &listertesting.DBClusterLister{ResourcesDBClient: mockDB},
-		controllerLister:  &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
+		clusterLister:     &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
+		controllerLister:  &corelistertesting.DBControllerLister{ResourcesDBClient: mockDB},
 		resourcesDBClient: mockDB,
 		inertia:           statusutils.MustNewInertia(statusutils.DefaultInertia).Inertia,
 		clock:             clock,

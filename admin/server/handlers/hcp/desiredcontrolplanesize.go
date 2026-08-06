@@ -21,7 +21,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -31,10 +31,10 @@ import (
 // is left as-is — so SRE callers can adjust the sizing tier without touching
 // anything else on the document.
 type HCPDesiredControlPlaneSizeHandler struct {
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
-func NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient database.ResourcesDBClient) *HCPDesiredControlPlaneSizeHandler {
+func NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient corecosmosstorage.ResourcesDBClient) *HCPDesiredControlPlaneSizeHandler {
 	return &HCPDesiredControlPlaneSizeHandler{resourcesDBClient: resourcesDBClient}
 }
 
@@ -68,7 +68,7 @@ func (h *HCPDesiredControlPlaneSizeHandler) ServeHTTP(writer http.ResponseWriter
 		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "size %q must be one of Small, Medium, Large, Xlarge, XXlarge", *body.Size)
 	}
 
-	existing, err := database.GetOrCreateServiceProviderCluster(request.Context(), h.resourcesDBClient, resourceID)
+	existing, err := corecosmosstorage.GetOrCreateServiceProviderCluster(request.Context(), h.resourcesDBClient, resourceID)
 	if err != nil {
 		return fmt.Errorf("failed to get ServiceProviderCluster: %w", err)
 	}

@@ -23,11 +23,12 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,17 +41,17 @@ import (
 // NodePool and, on 404, zero out the stored ClusterServiceID so downstream
 // code knows the CS resource is fully gone.
 type nodePoolClusterServiceIDClearer struct {
-	nodePoolLister       listers.NodePoolLister
-	resourcesDBClient    database.ResourcesDBClient
+	nodePoolLister       corelisters.NodePoolLister
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolClusterServiceIDClearer)(nil)
 
 func NewNodePoolClusterServiceIDClearerController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
@@ -95,7 +96,7 @@ func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key cont
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -107,7 +108,7 @@ func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key cont
 
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	nodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -129,7 +130,7 @@ func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key cont
 		replacement := nodePool.DeepCopy()
 		replacement.ServiceProviderProperties.ClusterServiceID = nil
 		_, err = nodePoolCRUD.Replace(ctx, replacement, nil)
-		if database.IsPreconditionFailedError(err) {
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
 			// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 			return nil
 		}

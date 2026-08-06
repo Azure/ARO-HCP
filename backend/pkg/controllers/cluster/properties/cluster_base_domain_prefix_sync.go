@@ -21,11 +21,12 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -34,8 +35,8 @@ import (
 // clusterBaseDomainPrefixSyncer synchronizes CustomerProperties.DNS.BaseDomainPrefix from
 // Cluster Service to Cosmos DB when the field is unset.
 type clusterBaseDomainPrefixSyncer struct {
-	clusterLister        listers.ClusterLister
-	resourcesDBClient    database.ResourcesDBClient
+	clusterLister        corelisters.ClusterLister
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
@@ -44,9 +45,9 @@ var _ controllerutils.ClusterSyncer = (*clusterBaseDomainPrefixSyncer)(nil)
 // NewClusterBaseDomainPrefixSyncController creates a controller that synchronizes
 // CustomerProperties.DNS.BaseDomainPrefix from Cluster Service to Cosmos DB.
 func NewClusterBaseDomainPrefixSyncController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
@@ -80,7 +81,7 @@ func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key contro
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -92,7 +93,7 @@ func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key contro
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -115,7 +116,7 @@ func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key contro
 	}
 
 	_, err = clusterCRUD.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 		return nil
 	}

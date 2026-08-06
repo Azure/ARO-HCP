@@ -22,20 +22,21 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // clusterValidationSyncer is a Cluster syncer that performs a Cluster
 // validation.
 type clusterValidationSyncer struct {
-	resourcesDBClient            database.ResourcesDBClient
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 
 	// validation is the validation to perform on the cluster.
 	validation validationutils.ClusterValidation
@@ -47,9 +48,9 @@ var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
 // executes the provided Cluster validation on each cluster.
 func NewClusterValidationController(
 	validation validationutils.ClusterValidation,
-	resourcesDBClient database.ResourcesDBClient,
-	serviceProviderClusterLister listers.ServiceProviderClusterLister,
-	informers informers.BackendInformers,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 
 	syncer := &clusterValidationSyncer{
@@ -72,7 +73,7 @@ func NewClusterValidationController(
 
 func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
@@ -83,7 +84,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
 		return nil
 	}
@@ -124,7 +125,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 
 	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 		return nil
 	}

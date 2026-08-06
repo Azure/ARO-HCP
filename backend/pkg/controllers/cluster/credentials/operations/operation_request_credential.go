@@ -25,18 +25,19 @@ import (
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type operationRequestCredential struct {
 	clock                 utilsclock.PassiveClock
-	resourcesDBClient     database.ResourcesDBClient
+	resourcesDBClient     corecosmosstorage.ResourcesDBClient
 	clustersServiceClient ocm.ClusterServiceClientSpec
 	notificationClient    *http.Client
 }
@@ -58,7 +59,7 @@ type operationRequestCredential struct {
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationRequestCredentialController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
@@ -70,7 +71,7 @@ func NewOperationRequestCredentialController(
 		notificationClient:    notificationClient,
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"OperationRequestCredential",
 		syncer,
 		10*time.Second,
@@ -85,7 +86,7 @@ func (opsync *operationRequestCredential) ShouldProcess(ctx context.Context, ope
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestSystemAdminCredentialRequest {
+	if operation.Request != cosmosstorageutils.OperationRequestSystemAdminCredentialRequest {
 		return false
 	}
 	if len(operation.InternalID.String()) == 0 {
@@ -99,7 +100,7 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 	logger.Info("checking operation")
 
 	oldOperation, err := opsync.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // no work to do
 	}
 	if err != nil {

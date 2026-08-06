@@ -25,11 +25,13 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -39,10 +41,10 @@ import (
 // have been deleted from the ServiceProviderCluster, and all child NodePool and
 // ExternalAuth Cosmos documents have been deleted.
 type clusterDeletionController struct {
-	clusterLister                listers.ClusterLister
-	serviceProviderClusterLister listers.ServiceProviderClusterLister
-	resourcesDBClient            database.ResourcesDBClient
-	billingDBClient              database.BillingDBClient
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	billingDBClient              billingcosmosstorage.BillingDBClient
 	passiveClock                 utilsclock.PassiveClock
 }
 
@@ -50,9 +52,9 @@ var _ controllerutils.ClusterSyncer = (*clusterDeletionController)(nil)
 
 func NewClusterDeletionController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
-	billingDBClient database.BillingDBClient,
-	informers informers.BackendInformers,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	billingDBClient billingcosmosstorage.BillingDBClient,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
@@ -103,7 +105,7 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -122,7 +124,7 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 	// Confirm against the live document.
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	cluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -174,7 +176,7 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 	// ErrAmbiguousResult (multiple billing docs for one cluster) is a data
 	// integrity issue that retrying won't fix, so we log and continue.
 	err = controllerutils.MarkBillingDocumentDeleted(ctx, c.billingDBClient, cluster.ID, c.passiveClock.Now())
-	if errors.Is(err, database.ErrAmbiguousResult) {
+	if errors.Is(err, cosmosstorageutils.ErrAmbiguousResult) {
 		logger.Error(err, "Failed to mark CosmosDB billing record for deletion")
 	} else if err != nil {
 		return utils.TrackError(err)
@@ -197,7 +199,7 @@ func (c *clusterDeletionController) deletePreconditionAllMaestroClusterScopedRea
 
 	spcCRUD := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	spc, spcErr := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
-	if spcErr != nil && !database.IsNotFoundError(spcErr) {
+	if spcErr != nil && !cosmosstorageutils.IsNotFoundError(spcErr) {
 		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", spcErr))
 	}
 	if spc != nil && len(spc.Status.MaestroReadonlyBundles) > 0 {
@@ -217,7 +219,7 @@ func (c *clusterDeletionController) deletePreconditionCosmosChildResourcesDelete
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	cluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return false, nil
 	}
 	if err != nil {

@@ -25,7 +25,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,10 +37,10 @@ type stampApprovalRequest struct {
 }
 
 type StampApprovalHandler struct {
-	fleetDBClient database.FleetDBClient
+	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
 
-func NewStampApprovalHandler(fleetDBClient database.FleetDBClient) *StampApprovalHandler {
+func NewStampApprovalHandler(fleetDBClient fleetcosmosstorage.FleetDBClient) *StampApprovalHandler {
 	return &StampApprovalHandler{
 		fleetDBClient: fleetDBClient,
 	}
@@ -69,7 +70,7 @@ func (h *StampApprovalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	stampsCRUD := h.fleetDBClient.Stamps()
 	existing, err := stampsCRUD.Get(ctx, stampIdentifier)
 	if err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			return arm.NewCloudError(http.StatusNotFound, arm.CloudErrorCodeNotFound, "", "Stamp %q not found", stampIdentifier)
 		}
 		return utils.TrackError(fmt.Errorf("failed to get stamp: %w", err))
@@ -100,7 +101,7 @@ func (h *StampApprovalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	})
 
 	if _, err := stampsCRUD.Replace(ctx, updated, existing, nil); err != nil {
-		if database.IsPreconditionFailedError(err) {
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
 			return arm.NewCloudError(http.StatusConflict, arm.CloudErrorCodeConflict, "", "ETag conflict, retry the operation")
 		}
 		return utils.TrackError(err)

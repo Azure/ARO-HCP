@@ -22,7 +22,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -92,10 +93,10 @@ func toManagementClusterStatus(status fleet.ManagementClusterStatus) (Management
 
 // ManagementClusterGetHandler handles GET /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}.
 type ManagementClusterGetHandler struct {
-	fleetDBClient database.FleetDBClient
+	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
 
-func NewManagementClusterGetHandler(fleetDBClient database.FleetDBClient) *ManagementClusterGetHandler {
+func NewManagementClusterGetHandler(fleetDBClient fleetcosmosstorage.FleetDBClient) *ManagementClusterGetHandler {
 	return &ManagementClusterGetHandler{
 		fleetDBClient: fleetDBClient,
 	}
@@ -112,7 +113,7 @@ func (h *ManagementClusterGetHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 
 	managementCluster, err := h.fleetDBClient.Stamps().ManagementClusters(stampIdentifier).Get(ctx, managementClusterName)
 	if err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			return arm.NewCloudError(http.StatusNotFound, arm.CloudErrorCodeNotFound, "",
 				"Management cluster %q not found for stamp %q", managementClusterName, stampIdentifier)
 		}

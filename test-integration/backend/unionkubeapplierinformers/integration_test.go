@@ -33,10 +33,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dbinformers "github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -115,7 +119,7 @@ func TestUnionKubeApplierInformersController_E2E(t *testing.T) {
 			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName, "initial-b"),
 			managementClusterResourceID)
 
-		mockKubeApplierClient, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
+		mockKubeApplierClient, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 			initialClusterScopedApply, initialNodePoolScopedApply,
 		})
 		require.NoError(t, err, "pre-load ApplyDesires")
@@ -123,7 +127,7 @@ func TestUnionKubeApplierInformersController_E2E(t *testing.T) {
 		// MockKubeApplierDBClients is the registry the factory consults; we
 		// register the per-MC client up front so it's ready when the
 		// controller calls For() after the management cluster appears.
-		kubeApplierClients := databasetesting.NewMockKubeApplierDBClients()
+		kubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 		kubeApplierClients.Register(managementClusterResourceID, mockKubeApplierClient)
 
 		// --- step 2: set up fleet informers + listener ----------------------
@@ -131,10 +135,10 @@ func TestUnionKubeApplierInformersController_E2E(t *testing.T) {
 		// Pre-create the stamp; we add the management cluster itself only
 		// after the controller is running, so we can observe the reactor's
 		// Add path.
-		fleetClient := databasetesting.NewMockFleetDBClient()
+		fleetClient := fleetcosmosstoragetesting.NewMockFleetDBClient()
 		require.NoError(t, createStamp(ctx, fleetClient, stampIdentifier))
 
-		fleetInformers := dbinformers.NewFleetInformers(ctx, fleetClient.GlobalListers(), fleetClient)
+		fleetInformers := fleetinformers.NewFleetInformers(ctx, fleetClient.GlobalListers(), fleetClient)
 		managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 
 		// Factory bridges the controller to the kube-applier registry.
@@ -205,24 +209,24 @@ func TestUnionKubeApplierInformersController_E2E(t *testing.T) {
 
 // --- helpers ------------------------------------------------------------------
 
-// cosmosKubeApplierFactory adapts a database.KubeApplierDBClients into the
+// cosmosKubeApplierFactory adapts a kubeappliercosmosstorage.KubeApplierDBClients into the
 // controller's PerMCKubeApplierInformerFactory shape. Production code can
 // use exactly this construction; we keep it inside the test to avoid
 // committing to a package-level helper before the backend's wiring layer
 // has settled.
 type cosmosKubeApplierFactory struct {
-	kubeApplierClients database.KubeApplierDBClients
+	kubeApplierClients kubeappliercosmosstorage.KubeApplierDBClients
 	relistDuration     time.Duration
 }
 
 func (factory *cosmosKubeApplierFactory) NewKubeApplierInformers(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
-) dbinformers.KubeApplierInformers {
+) kubeapplierinformers.KubeApplierInformers {
 	client := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
 	if client == nil {
 		return nil
 	}
-	return dbinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, &factory.relistDuration)
+	return kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, &factory.relistDuration)
 }
 
 // applyDesireRecorder records the ApplyDesires that arrive through the
@@ -279,7 +283,7 @@ func newApplyDesire(t *testing.T, resourceIDString string, managementClusterReso
 	}
 }
 
-func createStamp(ctx context.Context, fleetClient database.FleetDBClient, stampIdentifier string) error {
+func createStamp(ctx context.Context, fleetClient fleetcosmosstorage.FleetDBClient, stampIdentifier string) error {
 	stampResourceID := api.Must(fleet.ToStampResourceID(stampIdentifier))
 	stamp := &fleet.Stamp{
 		CosmosMetadata: api.CosmosMetadata{ResourceID: stampResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
@@ -289,7 +293,7 @@ func createStamp(ctx context.Context, fleetClient database.FleetDBClient, stampI
 	return err
 }
 
-func createManagementCluster(ctx context.Context, fleetClient database.FleetDBClient, stampIdentifier string) error {
+func createManagementCluster(ctx context.Context, fleetClient fleetcosmosstorage.FleetDBClient, stampIdentifier string) error {
 	managementClusterResourceID := api.Must(fleet.ToManagementClusterResourceID(stampIdentifier))
 	aksResourceID := api.Must(azcorearm.ParseResourceID(
 		fmt.Sprintf("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-%s", stampIdentifier)))
@@ -322,13 +326,13 @@ func createManagementCluster(ctx context.Context, fleetClient database.FleetDBCl
 
 // createApplyDesire writes a new ApplyDesire to a per-MC kube-applier mock
 // using the desire's parent resource hierarchy.
-func createApplyDesire(ctx context.Context, mockClient *databasetesting.MockKubeApplierDBClient, desire *kubeapplier.ApplyDesire) error {
+func createApplyDesire(ctx context.Context, mockClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, desire *kubeapplier.ApplyDesire) error {
 	id := desire.GetResourceID()
 	if id == nil || id.Parent == nil {
 		return fmt.Errorf("desire %v has no parent in its resource ID", id)
 	}
 	parentType := id.Parent.ResourceType
-	var applyDesireCRUD database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire]
+	var applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire]
 	var err error
 	switch {
 	case armhelpers.ResourceTypeEqual(parentType, api.ClusterResourceType):

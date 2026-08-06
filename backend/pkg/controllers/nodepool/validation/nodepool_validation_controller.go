@@ -22,12 +22,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -35,8 +36,8 @@ import (
 // nodePoolValidationSyncer is a NodePool syncer that performs a NodePool
 // validation.
 type nodePoolValidationSyncer struct {
-	resourcesDBClient             database.ResourcesDBClient
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	resourcesDBClient             corecosmosstorage.ResourcesDBClient
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 
 	// validation is the validation to perform on the node pool.
 	validation validationutils.NodePoolValidation
@@ -48,10 +49,10 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolValidationSyncer)(nil)
 // executes the provided NodePool validation on each node pool.
 func NewNodePoolValidationController(
 	validation validationutils.NodePoolValidation,
-	activeOperationLister listers.ActiveOperationLister,
-	resourcesDBClient database.ResourcesDBClient,
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
-	informers informers.BackendInformers,
+	activeOperationLister corelisters.ActiveOperationLister,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 
@@ -75,7 +76,7 @@ func NewNodePoolValidationController(
 
 func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
@@ -86,7 +87,7 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 	}
 
 	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // node pool doesn't exist, no work to do
 	}
 	if err != nil {
@@ -97,7 +98,7 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 	}
 
 	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderNodePool will populate it; we'll be re-enqueued via the ServiceProviderNodePool informer.
 		return nil
 	}
@@ -137,7 +138,7 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 
 	serviceProviderNodePoolsCosmosClient := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	_, err = serviceProviderNodePoolsCosmosClient.Replace(ctx, existingServiceProviderNodePool, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 		return nil
 	}

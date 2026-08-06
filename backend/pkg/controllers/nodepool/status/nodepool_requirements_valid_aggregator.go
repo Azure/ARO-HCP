@@ -22,12 +22,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statusutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -45,9 +46,9 @@ const (
 // messages aggregated in the same "Source: message" form used by the Degraded
 // aggregator. When every validation is True (or none exist) the condition is True/Valid.
 type nodePoolRequirementsValidAggregator struct {
-	nodePoolLister                listers.NodePoolLister
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
-	resourcesDBClient             database.ResourcesDBClient
+	nodePoolLister                corelisters.NodePoolLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+	resourcesDBClient             corecosmosstorage.ResourcesDBClient
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolRequirementsValidAggregator)(nil)
@@ -56,10 +57,10 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolRequirementsValidAggregator)(ni
 // aggregates ServiceProviderNodePool validations onto the node pool's
 // Status.UserFacingConditions as RequirementsValid.
 func NewNodePoolRequirementsValidAggregatorController(
-	resourcesDBClient database.ResourcesDBClient,
-	nodePoolLister listers.NodePoolLister,
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
-	informers informers.BackendInformers,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	nodePoolLister corelisters.NodePoolLister,
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &nodePoolRequirementsValidAggregator{
 		nodePoolLister:                nodePoolLister,
@@ -78,7 +79,7 @@ func NewNodePoolRequirementsValidAggregatorController(
 
 func (c *nodePoolRequirementsValidAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	existing, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -89,7 +90,7 @@ func (c *nodePoolRequirementsValidAggregator) SyncOnce(ctx context.Context, key 
 	}
 
 	serviceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderNodePool will populate it. We'll be re-enqueued via the ServiceProviderNodePool informer.
 		return nil
 	}
@@ -107,7 +108,7 @@ func (c *nodePoolRequirementsValidAggregator) SyncOnce(ctx context.Context, key 
 
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	_, err = nodePoolCRUD.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	}
 	if err != nil {

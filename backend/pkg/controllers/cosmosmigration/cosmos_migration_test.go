@@ -28,10 +28,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
 
 // stubDoc is a trivial document type used to instantiate replaceWithRetry[T].
@@ -41,7 +41,7 @@ type stubDoc struct {
 	Name string
 }
 
-// stubCRUD implements database.ResourceCRUD[stubDoc, *stubDoc] just enough for
+// stubCRUD implements cosmosstorageutils.ResourceCRUD[stubDoc, *stubDoc] just enough for
 // replaceWithRetry tests. Only Get and Replace are exercised; all other
 // methods panic.
 type stubCRUD struct {
@@ -61,7 +61,7 @@ func (s *stubCRUD) GetByID(context.Context, string) (*stubDoc, error) {
 	panic("not implemented")
 }
 
-func (s *stubCRUD) List(context.Context, *database.DBClientListResourceDocsOptions) (database.DBClientIterator[stubDoc], error) {
+func (s *stubCRUD) List(context.Context, *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[stubDoc], error) {
 	panic("not implemented")
 }
 
@@ -73,11 +73,11 @@ func (s *stubCRUD) Delete(context.Context, string) error {
 	panic("not implemented")
 }
 
-func (s *stubCRUD) AddCreateToTransaction(context.Context, database.DBTransaction, *stubDoc, *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (s *stubCRUD) AddCreateToTransaction(context.Context, cosmosstorageutils.DBTransaction, *stubDoc, *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	panic("not implemented")
 }
 
-func (s *stubCRUD) AddReplaceToTransaction(context.Context, database.DBTransaction, *stubDoc, *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (s *stubCRUD) AddReplaceToTransaction(context.Context, cosmosstorageutils.DBTransaction, *stubDoc, *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	panic("not implemented")
 }
 
@@ -124,7 +124,7 @@ func TestReplaceWithRetry(t *testing.T) {
 			name: "not found is silently skipped",
 			crud: &stubCRUD{
 				getFunc: func(_ context.Context, _ string) (*stubDoc, error) {
-					return nil, database.NewNotFoundError()
+					return nil, cosmosstorageutils.NewNotFoundError()
 				},
 				replaceFunc: func(_ context.Context, _ *stubDoc, _ *azcosmos.ItemOptions) (*stubDoc, error) {
 					panic("replace should not be called when Get returns not found")
@@ -252,7 +252,7 @@ func TestSyncOnceMarksSubscriptionComplete(t *testing.T) {
 	// SyncOnce is called and is NOT marked complete when SyncOnce returns an error.
 	controller := &cosmosMigrationController{
 		resourcesDBClient: &errorResourcesDBClient{
-			MockResourcesDBClient: databasetesting.NewMockResourcesDBClient(),
+			MockResourcesDBClient: corecosmosstoragetesting.NewMockResourcesDBClient(),
 		},
 	}
 
@@ -302,10 +302,10 @@ func TestSyncOnceConcurrentSkip(t *testing.T) {
 // Subscriptions() to return a CRUD that always errors on Get. This
 // forces SyncOnce to return an error without relying on nil-pointer panics.
 type errorResourcesDBClient struct {
-	*databasetesting.MockResourcesDBClient
+	*corecosmosstoragetesting.MockResourcesDBClient
 }
 
-func (e *errorResourcesDBClient) Subscriptions() database.ResourceCRUD[arm.Subscription, *arm.Subscription] {
+func (e *errorResourcesDBClient) Subscriptions() cosmosstorageutils.ResourceCRUD[arm.Subscription, *arm.Subscription] {
 	return &errorSubscriptionCRUD{}
 }
 
@@ -321,7 +321,7 @@ func (e *errorSubscriptionCRUD) GetByID(context.Context, string) (*arm.Subscript
 	panic("not implemented")
 }
 
-func (e *errorSubscriptionCRUD) List(context.Context, *database.DBClientListResourceDocsOptions) (database.DBClientIterator[arm.Subscription], error) {
+func (e *errorSubscriptionCRUD) List(context.Context, *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[arm.Subscription], error) {
 	panic("not implemented")
 }
 
@@ -337,10 +337,10 @@ func (e *errorSubscriptionCRUD) Delete(context.Context, string) error {
 	panic("not implemented")
 }
 
-func (e *errorSubscriptionCRUD) AddCreateToTransaction(context.Context, database.DBTransaction, *arm.Subscription, *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (e *errorSubscriptionCRUD) AddCreateToTransaction(context.Context, cosmosstorageutils.DBTransaction, *arm.Subscription, *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	panic("not implemented")
 }
 
-func (e *errorSubscriptionCRUD) AddReplaceToTransaction(context.Context, database.DBTransaction, *arm.Subscription, *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (e *errorSubscriptionCRUD) AddReplaceToTransaction(context.Context, cosmosstorageutils.DBTransaction, *arm.Subscription, *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	panic("not implemented")
 }

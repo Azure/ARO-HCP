@@ -28,12 +28,13 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -51,8 +52,8 @@ import (
 // verifies propagation before the ARM node pool update operation succeeds.
 type nodePoolClusterServiceUpdateDispatchSyncer struct {
 	cooldownChecker      controllerutil.CooldownChecker
-	nodePoolLister       listers.NodePoolLister
-	resourcesDBClient    database.ResourcesDBClient
+	nodePoolLister       corelisters.NodePoolLister
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
 	// minimumReconcileTimeCooldownChecker ensures we don't hotloop from any source,
@@ -63,10 +64,10 @@ type nodePoolClusterServiceUpdateDispatchSyncer struct {
 var _ controllerutils.NodePoolSyncer = (*nodePoolClusterServiceUpdateDispatchSyncer)(nil)
 
 func NewNodePoolClusterServiceUpdateDispatchController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	informers informers.BackendInformers,
+	activeOperationLister corelisters.ActiveOperationLister,
+	informers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	syncer := NewNodePoolClusterServiceUpdateDispatchSyncer(
@@ -87,10 +88,10 @@ func NewNodePoolClusterServiceUpdateDispatchController(
 }
 
 func NewNodePoolClusterServiceUpdateDispatchSyncer(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
-	nodePoolLister listers.NodePoolLister,
+	activeOperationLister corelisters.ActiveOperationLister,
+	nodePoolLister corelisters.NodePoolLister,
 ) controllerutils.NodePoolSyncer {
 	return &nodePoolClusterServiceUpdateDispatchSyncer{
 		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
@@ -133,7 +134,7 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 	}
 
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -145,7 +146,7 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	nodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {

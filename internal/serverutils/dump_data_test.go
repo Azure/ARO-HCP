@@ -24,7 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
@@ -32,13 +32,13 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 		name         string
 		resourceID   string
 		resourceType string
-		newDocument  func() (any, *database.TypedDocument)
+		newDocument  func() (any, *cosmosstorageutils.TypedDocument)
 	}{
 		{
 			name:         "cluster",
 			resourceID:   api.TestClusterResourceID,
 			resourceType: api.ClusterResourceType.String(),
-			newDocument: func() (any, *database.TypedDocument) {
+			newDocument: func() (any, *cosmosstorageutils.TypedDocument) {
 				resourceID := mustParseResourceID(t, api.TestClusterResourceID)
 				createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 				obj := &api.HCPOpenShiftCluster{
@@ -62,7 +62,7 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 			name:         "nodepool",
 			resourceID:   api.TestNodePoolResourceID,
 			resourceType: api.NodePoolResourceType.String(),
-			newDocument: func() (any, *database.TypedDocument) {
+			newDocument: func() (any, *cosmosstorageutils.TypedDocument) {
 				resourceID := mustParseResourceID(t, api.TestNodePoolResourceID)
 				createdAt := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 				obj := &api.HCPOpenShiftClusterNodePool{
@@ -86,7 +86,7 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 			name:         "external-auth",
 			resourceID:   api.TestExternalAuthResourceID,
 			resourceType: api.ExternalAuthResourceType.String(),
-			newDocument: func() (any, *database.TypedDocument) {
+			newDocument: func() (any, *cosmosstorageutils.TypedDocument) {
 				resourceID := mustParseResourceID(t, api.TestExternalAuthResourceID)
 				createdAt := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
 				obj := &api.HCPOpenShiftClusterExternalAuth{
@@ -157,8 +157,8 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 
 func TestRedactTypedDocument_ReturnsNestedFieldTypeError(t *testing.T) {
 	resourceID := mustParseResourceID(t, api.TestClusterResourceID)
-	doc := &database.TypedDocument{
-		BaseDocument: database.BaseDocument{
+	doc := &cosmosstorageutils.TypedDocument{
+		BaseDocument: cosmosstorageutils.BaseDocument{
 			ID: resourceID.Name,
 		},
 		PartitionKey: resourceID.SubscriptionID,
@@ -179,7 +179,7 @@ func TestRedactTypedDocument_ReturnsNestedFieldTypeError(t *testing.T) {
 	}
 }
 
-func newTypedDocument(t *testing.T, resourceID *azcorearm.ResourceID, resourceType string, properties any) *database.TypedDocument {
+func newTypedDocument(t *testing.T, resourceID *azcorearm.ResourceID, resourceType string, properties any) *cosmosstorageutils.TypedDocument {
 	t.Helper()
 
 	propertiesBytes, err := json.Marshal(properties)
@@ -187,8 +187,8 @@ func newTypedDocument(t *testing.T, resourceID *azcorearm.ResourceID, resourceTy
 		t.Fatalf("marshal properties: %v", err)
 	}
 
-	return &database.TypedDocument{
-		BaseDocument: database.BaseDocument{
+	return &cosmosstorageutils.TypedDocument{
+		BaseDocument: cosmosstorageutils.BaseDocument{
 			ID: resourceID.Name,
 		},
 		PartitionKey: resourceID.SubscriptionID,

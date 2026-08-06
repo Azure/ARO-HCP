@@ -48,7 +48,6 @@ import (
 	clusterupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/update"
 	clustervalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/validation"
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cosmosmigration"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadump"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/example"
@@ -65,12 +64,17 @@ import (
 	nodepoolreaddesires "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/readdesires"
 	nodepoolstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/status"
 	nodepoolupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/update"
+	nodepoolvalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/validation"
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dbinformers "github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -87,10 +91,10 @@ type BackendOptions struct {
 	AppVersion                         string
 	AzureLocation                      string
 	LeaderElectionLock                 resourcelock.Interface
-	ResourcesDBClient                  database.ResourcesDBClient
-	BillingDBClient                    database.BillingDBClient
-	FleetDBClient                      database.FleetDBClient
-	KubeApplierDBClients               database.KubeApplierDBClients
+	ResourcesDBClient                  corecosmosstorage.ResourcesDBClient
+	BillingDBClient                    billingcosmosstorage.BillingDBClient
+	FleetDBClient                      fleetcosmosstorage.FleetDBClient
+	KubeApplierDBClients               kubeappliercosmosstorage.KubeApplierDBClients
 	ClustersServiceClient              ocm.ClusterServiceClientSpec
 	MetricsRegisterer                  prometheus.Registerer
 	MetricsGatherer                    prometheus.Gatherer
@@ -383,7 +387,7 @@ func shutdownHTTPServer(ctx context.Context, server *http.Server, name string) e
 func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	backendInformers := informers.NewBackendInformers(ctx,
+	backendInformers := coreinformers.NewBackendInformers(ctx,
 		b.options.ResourcesDBClient.ResourcesGlobalListers(),
 		b.options.ResourcesDBClient,
 		b.options.BillingDBClient.BillingGlobalListers(),
@@ -396,11 +400,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	operationPhaseMetricsController := metrics.NewController(
 		"OperationPhaseMetrics", backendInformers.AllOperations(), operationPhaseHandler)
 
-	fleetInformers := dbinformers.NewFleetInformers(ctx, b.options.FleetDBClient.GlobalListers(), b.options.FleetDBClient)
+	fleetInformers := fleetinformers.NewFleetInformers(ctx, b.options.FleetDBClient.GlobalListers(), b.options.FleetDBClient)
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 
 	// Union kube-applier informers: one aggregator surface that fans out
-	// across every management cluster's per-MC kube-applier informers.
+	// across every management cluster's per-MC kube-applier coreinformers.
 	// The controller watches the fleet management-cluster informer/lister
 	// and adds/removes per-MC sub-informers as MCs come and go. Pass nil
 	// for the relist duration to use the package defaults.
@@ -479,6 +483,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.BillingDBClient,
+		b.options.KubeApplierDBClients,
+		unionReadDesireLister,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
@@ -698,6 +704,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	virtualMachineResourceSKUsCachedReaderController := cachedreader.NewFPAVirtualMachineResourceSKUsCachedReaderController(
+		b.options.FPAClientBuilder,
+		b.options.AzureLocation,
+	)
+
 	azureRPRegistrationValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
 		b.options.ResourcesDBClient,
@@ -715,6 +726,22 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
+	)
+	azureVMSizeSupportsEphemeralOSDiskValidationController := nodepoolvalidation.NewNodePoolValidationController(
+		validationutils.NewAzureVMSizeSupportsEphemeralOSDiskValidation(virtualMachineResourceSKUsCachedReaderController),
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	azureNodePoolVMQuotaValidationController := nodepoolvalidation.NewNodePoolValidationController(
+		validationutils.NewAzureNodePoolVMQuotaValidation(virtualMachineResourceSKUsCachedReaderController, b.options.FPAClientBuilder),
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		backendInformers,
+		unionKubeApplierInformers,
 	)
 	nodePoolVersionController := nodepoolversion.NewNodePoolVersionController(
 		b.options.ResourcesDBClient,
@@ -928,6 +955,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
+				go azureVMSizeSupportsEphemeralOSDiskValidationController.Run(ctx, 20)
+				go azureNodePoolVMQuotaValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
@@ -958,6 +987,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
 				go cosmosMigrationController.Run(ctx, 5)
+				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

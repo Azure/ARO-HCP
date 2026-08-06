@@ -28,11 +28,11 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -225,7 +225,7 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 			var seededServiceProviderCluster *api.ServiceProviderCluster
 			if tc.seedServiceProviderCluster {
@@ -246,11 +246,11 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 				seededServiceProviderCluster = created
 			}
 
-			serviceProviderClusterListerStub := &listertesting.SliceServiceProviderClusterLister{}
+			serviceProviderClusterListerStub := &corelistertesting.SliceServiceProviderClusterLister{}
 			if seededServiceProviderCluster != nil {
 				serviceProviderClusterListerStub.ServiceProviderClusters = []*api.ServiceProviderCluster{seededServiceProviderCluster}
 			}
-			clusterLister := &listertesting.SliceClusterLister{}
+			clusterLister := &corelistertesting.SliceClusterLister{}
 			if tc.cluster != nil {
 				clusterLister.Clusters = []*api.HCPOpenShiftCluster{tc.cluster}
 			}

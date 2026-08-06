@@ -25,11 +25,12 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -38,16 +39,16 @@ import (
 const NodePoolClusterServiceCreateControllerName = "NodePoolClusterServiceCreate"
 
 type nodePoolClusterServiceCreateSyncer struct {
-	resourcesDBClient     database.ResourcesDBClient
-	nodePoolLister        listers.NodePoolLister
-	clusterLister         listers.ClusterLister
+	resourcesDBClient     corecosmosstorage.ResourcesDBClient
+	nodePoolLister        corelisters.NodePoolLister
+	clusterLister         corelisters.ClusterLister
 	clustersServiceClient ocm.ClusterServiceClientSpec
 }
 
 func NewNodePoolClusterServiceCreateController(
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
-	informers informers.BackendInformers,
+	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
@@ -78,7 +79,7 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 	logger := utils.LoggerFromContext(ctx)
 
 	nodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -91,7 +92,7 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 
 	// For the NodePool, we retrieve from the actual database because we are about to use its data to interact with cluster-service.
 	nodePool, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -147,7 +148,7 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 	replacement := nodePool.DeepCopy()
 	replacement.ServiceProviderProperties.ClusterServiceID = nodePoolCSInternalID.DeepCopy() // DeepCopy() to avoid referencing the original pointer
 	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 		return nil
 	}

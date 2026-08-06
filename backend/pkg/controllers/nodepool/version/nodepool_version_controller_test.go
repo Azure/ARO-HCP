@@ -37,17 +37,17 @@ import (
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -62,7 +62,7 @@ const (
 )
 
 // createTestSubscription creates a subscription in the mock database.
-func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 	t.Helper()
 
 	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
@@ -82,7 +82,7 @@ func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBCl
 }
 
 // createTestNodePoolWithVersion creates a parent cluster and a node pool in the mock database.
-func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, desiredVersion string) {
+func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, desiredVersion string) {
 	t.Helper()
 
 	// Create subscription first
@@ -186,9 +186,9 @@ func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.Rea
 // newValidHostedClusterReadDesireLister returns a lister with a HostedCluster
 // ReadDesire carrying the canonical test UUID. Tests that don't care about
 // the new error paths get a working lister this way.
-func newValidHostedClusterReadDesireLister(t *testing.T) dblisters.ReadDesireLister {
+func newValidHostedClusterReadDesireLister(t *testing.T) kubeapplierlisters.ReadDesireLister {
 	t.Helper()
-	return &internallistertesting.SliceReadDesireLister{
+	return &kubeapplierlistertesting.SliceReadDesireLister{
 		Desires: []*kubeapplier.ReadDesire{newHostedClusterReadDesire(t, testClusterExternalID)},
 	}
 }
@@ -203,14 +203,14 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name                  string
-		seedDB                func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient)
-		readDesireLister      func(t *testing.T) dblisters.ReadDesireLister
+		seedDB                func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient)
+		readDesireLister      func(t *testing.T) kubeapplierlisters.ReadDesireLister
 		expectedError         bool
 		expectedErrorContains string
 	}{
 		{
 			name: "nodepool not found in cosmos returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				// Don't seed any node pool - Get will fail with not found.
 			},
@@ -218,7 +218,7 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "missing NodePool's ClusterServiceID returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				// SyncOnce only runs Cosmos NodePools.Get in this case
 				nodePoolResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
@@ -253,7 +253,7 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 			ctx := context.Background()
 			ctrl := gomock.NewController(t)
 
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 			mockClientCache := cincinnati.NewMockClientCache(ctrl)
 			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(cincinnati.NewMockClient(ctrl)).AnyTimes()
 
@@ -265,10 +265,10 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolVersionSyncer{
-				nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-				subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 				readDesireLister:              contentLister,
 				resourcesDBClient:             mockResourcesDBClient,
 				cincinnatiClientCache:         mockClientCache,
@@ -294,7 +294,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 
 	stableURI := api.Must(cincinnati.GetCincinnatiURI("stable"))
 
-	verifyDesiredVersion := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, wantVersion *semver.Version) {
+	verifyDesiredVersion := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, wantVersion *semver.Version) {
 		t.Helper()
 		spNodePool, err := db.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
 			Get(ctx, api.ServiceProviderNodePoolResourceName)
@@ -308,12 +308,12 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 		}
 	}
 
-	verifyIntentFailed := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, want *metav1.Condition) {
+	verifyIntentFailed := func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, want *metav1.Condition) {
 		t.Helper()
 		nodePoolVersionControllerDoc, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
 			NodePools(testClusterName).Controllers(testNodePoolName).Get(ctx, NodepoolVersionControllerName)
 		if want == nil {
-			assert.True(t, database.IsNotFoundError(err), "controller document should not exist for transient errors")
+			assert.True(t, cosmosstorageutils.IsNotFoundError(err), "controller document should not exist for transient errors")
 			return
 		}
 		require.NoError(t, err)
@@ -337,7 +337,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 		setupCincinnati     func(*cincinnati.MockClient)
 		wantSyncErr         bool
 		wantErrContains     string
-		verifyDB            func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB            func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:                "successful resolution persists desired version and sets IntentFailed False",
@@ -352,7 +352,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 					nil,
 				).Times(1)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				verifyDesiredVersion(t, ctx, db, ptr.To(semver.MustParse("4.19.20")))
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status: metav1.ConditionFalse,
@@ -373,7 +373,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 					nil,
 				).Times(1)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				verifyDesiredVersion(t, ctx, db, ptr.To(semver.MustParse("4.19.5")))
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status: metav1.ConditionFalse,
@@ -387,7 +387,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 			nodePoolVersion:     "4.20.10",
 			controlPlaneVersion: "4.22.0",
 			setupCincinnati:     func(mc *cincinnati.MockClient) {},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				verifyDesiredVersion(t, ctx, db, nil)
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status:  metav1.ConditionTrue,
@@ -406,7 +406,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 					configv1.Release{}, nil, nil, &cvocincinnati.Error{Reason: "VersionNotFound"},
 				).Times(1)
 			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				verifyDesiredVersion(t, ctx, db, nil)
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status:  metav1.ConditionTrue,
@@ -427,23 +427,25 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 			},
 			wantSyncErr:     true,
 			wantErrContains: "503 Service Unavailable",
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				verifyDesiredVersion(t, ctx, db, nil)
 				verifyIntentFailed(t, ctx, db, nil)
 			},
 		},
 		{
+			// A higher minor than the control plane genuinely exceeds it and
+			// must persist IntentFailed (a higher patch would now be allowed).
 			name:                "desired version exceeds control plane persists IntentFailed",
-			customerVersion:     "4.19.20",
+			customerVersion:     "4.20.0",
 			nodePoolVersion:     "4.19.15",
 			controlPlaneVersion: "4.19.15",
 			setupCincinnati:     func(mc *cincinnati.MockClient) {},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				verifyDesiredVersion(t, ctx, db, nil)
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status:  metav1.ConditionTrue,
 					Reason:  api.VersionUpgradeNotAcceptedReason,
-					Message: "invalid node pool version 4.19.20: cannot exceed control plane version 4.19.15",
+					Message: "invalid node pool version 4.20.0: cannot exceed control plane version 4.19.15",
 				})
 			},
 		},
@@ -453,7 +455,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 			nodePoolVersion:     "4.18.15",
 			controlPlaneVersion: "4.21.1",
 			setupCincinnati:     func(mc *cincinnati.MockClient) {},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				verifyDesiredVersion(t, ctx, db, nil)
 				verifyIntentFailed(t, ctx, db, &metav1.Condition{
 					Status:  metav1.ConditionTrue,
@@ -470,7 +472,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 
 			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
 			ctrl := gomock.NewController(t)
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 			createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, tt.customerVersion)
 			createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, tt.nodePoolVersion)
@@ -483,9 +485,9 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 			syncer := &nodePoolVersionSyncer{
-				nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 				subscriptionLister:            subscriptionLister,
 				readDesireLister:              newValidHostedClusterReadDesireLister(t),
 				resourcesDBClient:             mockResourcesDBClient,
@@ -594,12 +596,13 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			errorContains:        "cannot exceed control plane version",
 		},
 		{
-			name:                 "desired same minor higher patch than control plane - fail",
+			// Same minor, higher patch (z-stream) than the control plane is
+			// allowed: only major.minor must not exceed the control plane.
+			name:                 "desired same minor higher patch than control plane - pass",
 			desiredVersion:       "4.19.15",
 			activeVersions:       []string{"4.19.5"},
 			controlPlaneVersions: []string{"4.19.10"},
-			expectError:          true,
-			errorContains:        "cannot exceed control plane version",
+			expectError:          false,
 		},
 		// Minor version skipping tests
 		{
@@ -974,12 +977,12 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testi
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	mockClientCache := cincinnati.NewMockClientCache(ctrl)
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(cincinnati.NewMockClient(ctrl)).AnyTimes()
 
-	// Create node pool with desired version 4.19.15 (exceeds control plane 4.19.10)
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
+	// Create node pool with desired version 4.20.0 (exceeds control plane 4.19.10 by minor)
+	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
 
 	// Create ServiceProviderCluster with control plane at 4.19.10 (lower than desired)
 	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.19.10")
@@ -988,10 +991,10 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testi
 	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.5")
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1020,7 +1023,7 @@ func TestNodePoolVersionSyncer_SyncOnce_SucceedsWithoutCincinnatiEdge(t *testing
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	mockCincinnati := cincinnati.NewMockClient(ctrl)
 
 	// Create node pool with desired version 4.19.10
@@ -1046,10 +1049,10 @@ func TestNodePoolVersionSyncer_SyncOnce_SucceedsWithoutCincinnatiEdge(t *testing
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1081,7 +1084,7 @@ func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	mockCincinnati := cincinnati.NewMockClient(ctrl)
 
 	// Create node pool with desired version 4.19.99 (does not exist in Cincinnati)
@@ -1107,10 +1110,10 @@ func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1139,7 +1142,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	mockCincinnati := cincinnati.NewMockClient(ctrl)
 
 	// Create node pool with desired version 4.19.99 (does not exist in Cincinnati)
@@ -1165,10 +1168,10 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1197,7 +1200,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeWithinSkewSucceeds(t *testing.T
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	mockCincinnati := cincinnati.NewMockClient(ctrl)
 
 	// Create node pool with desired version 4.19.5 (z-stream downgrade from 4.19.10)
@@ -1223,10 +1226,10 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeWithinSkewSucceeds(t *testing.T
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1258,7 +1261,7 @@ func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	mockCincinnati := cincinnati.NewMockClient(ctrl)
 
 	// Create node pool with desired version 4.19.15 (valid upgrade from 4.19.10)
@@ -1284,10 +1287,10 @@ func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1320,7 +1323,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	// Seed the database with a node pool
 	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
@@ -1343,10 +1346,10 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).Times(1)
 
 	syncer := &nodePoolVersionSyncer{
-		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		subscriptionLister:            &corelistertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
 		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
 		cincinnatiClientCache:         mockClientCache,
@@ -1475,7 +1478,7 @@ func assertSyncResult(t *testing.T, err error, expectedError bool, expectedError
 // (e.g. createTestHCPCluster) has already seeded an empty SPC via
 // GetOrCreateServiceProviderCluster, this updates that document in place via
 // Replace; otherwise it creates a new one.
-func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, controlPlaneVersion string) {
+func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, controlPlaneVersion string) {
 	t.Helper()
 
 	clusterResourceID := "/subscriptions/" + testSubscriptionID +
@@ -1497,7 +1500,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 		require.NoError(t, err)
 		return
 	}
-	require.True(t, database.IsNotFoundError(getErr), "unexpected error reading SPC before seeding: %v", getErr)
+	require.True(t, cosmosstorageutils.IsNotFoundError(getErr), "unexpected error reading SPC before seeding: %v", getErr)
 
 	spCluster := &api.ServiceProviderCluster{
 		CosmosMetadata: api.CosmosMetadata{
@@ -1517,7 +1520,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 }
 
 // createServiceProviderNodePoolWithVersion creates a ServiceProviderNodePool with the given active version.
-func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, activeVersion string) {
+func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, activeVersion string) {
 	t.Helper()
 
 	nodePoolResourceID := "/subscriptions/" + testSubscriptionID +
@@ -1545,9 +1548,9 @@ func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context,
 	require.NoError(t, err)
 }
 
-func newTestSubscriptionLister() *listertesting.SliceSubscriptionLister {
+func newTestSubscriptionLister() *corelistertesting.SliceSubscriptionLister {
 	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
-	return &listertesting.SliceSubscriptionLister{
+	return &corelistertesting.SliceSubscriptionLister{
 		Subscriptions: []*arm.Subscription{{
 			CosmosMetadata: arm.CosmosMetadata{ResourceID: subResourceID},
 			ResourceID:     subResourceID,

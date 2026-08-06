@@ -31,13 +31,13 @@ import (
 
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -104,16 +104,16 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name                  string
-		seedDB                func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient)
+		seedDB                func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient)
 		desires               func(t *testing.T) []*kubeapplier.ReadDesire
 		expectedError         bool
 		expectedErrorContains string
 		// validateAfter inspects the SPNP after sync. nil means "no SPNP write expected".
-		validateAfter func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient)
+		validateAfter func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name: "ServiceProviderNodePool not in cache returns nil",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				// Seed only the NodePool — the cached SPNP lookup will miss
 				// and NeedsWork should short-circuit before we touch the
@@ -126,12 +126,12 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "ReadDesire absent leaves existing SPNP untouched",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
 			},
-			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			validateAfter: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				spnp, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
 					Get(ctx, api.ServiceProviderNodePoolResourceName)
@@ -142,7 +142,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "ReadDesire without kubeContent leaves existing SPNP untouched",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
@@ -153,7 +153,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "empty NodeVersions leaves existing SPNP untouched",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
@@ -164,7 +164,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "NodeVersions entries all empty/unparseable leaves SPNP untouched",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
@@ -175,7 +175,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "version unchanged: no rewrite, active versions stable",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
@@ -183,7 +183,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.7")}
 			},
-			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			validateAfter: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				spnp, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
 					Get(ctx, api.ServiceProviderNodePoolResourceName)
@@ -194,7 +194,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "single new version replaces the previous one",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
@@ -202,7 +202,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.15")}
 			},
-			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			validateAfter: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				spnp, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
 					Get(ctx, api.ServiceProviderNodePoolResourceName)
@@ -213,7 +213,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "in-progress upgrade: both versions surfaced, newest first",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
@@ -221,7 +221,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.7", "4.19.15")}
 			},
-			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			validateAfter: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				spnp, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
 					Get(ctx, api.ServiceProviderNodePoolResourceName)
@@ -233,7 +233,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "duplicate OCPVersion entries are deduped",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
@@ -243,7 +243,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 				// KubeletVersion in real life) must collapse to one entry.
 				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.15", "4.19.15")}
 			},
-			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			validateAfter: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				spnp, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
 					Get(ctx, api.ServiceProviderNodePoolResourceName)
@@ -254,7 +254,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "unparseable entries are skipped, parseable ones still recorded",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
@@ -262,7 +262,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.15", "not-a-semver")}
 			},
-			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			validateAfter: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				spnp, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
 					Get(ctx, api.ServiceProviderNodePoolResourceName)
@@ -273,7 +273,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "ParseTolerant accepts non-strict semver from hypershift",
-			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
@@ -282,7 +282,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 				// hypershift sometimes reports versions like "4.19" (no patch)
 				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19")}
 			},
-			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+			validateAfter: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				spnp, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
 					Get(ctx, api.ServiceProviderNodePoolResourceName)
@@ -297,7 +297,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			runCtx := utils.ContextWithLogger(context.Background(), logr.Discard())
-			mockDB := databasetesting.NewMockResourcesDBClient()
+			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tt.seedDB(t, runCtx, mockDB)
 
 			var desires []*kubeapplier.ReadDesire
@@ -306,9 +306,9 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolActiveVersionSyncer{
-				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 				resourcesDBClient:             mockDB,
-				readDesireLister:              &internallistertesting.SliceReadDesireLister{Desires: desires},
+				readDesireLister:              &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
 			}
 
 			err := syncer.SyncOnce(runCtx, testKey)
@@ -326,7 +326,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 // when nothing has changed — preserves the existing _etag.
 func TestNodePoolActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testing.T) {
 	runCtx := utils.ContextWithLogger(context.Background(), logr.Discard())
-	mockDB := databasetesting.NewMockResourcesDBClient()
+	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 	createTestNodePoolWithVersion(t, runCtx, mockDB, "4.19.15")
 	createServiceProviderNodePoolWithVersion(t, runCtx, mockDB, "4.19.7")
@@ -337,9 +337,9 @@ func TestNodePoolActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testing.T
 	beforeETag := before.CosmosETag
 
 	syncer := &nodePoolActiveVersionSyncer{
-		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 		resourcesDBClient:             mockDB,
-		readDesireLister: &internallistertesting.SliceReadDesireLister{
+		readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 			Desires: []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.7")},
 		},
 	}

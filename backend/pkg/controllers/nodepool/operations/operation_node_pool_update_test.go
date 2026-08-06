@@ -40,18 +40,18 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
-	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation/operationtesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
+	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
-	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -72,7 +72,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 	}
 
 	newOperationAccepted := func() *api.Operation {
-		return fixture.NewOperation(database.OperationRequestUpdate)
+		return fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate)
 	}
 
 	newServiceProviderNodePoolWithDesiredVersion := func(version string) *api.ServiceProviderNodePool {
@@ -136,20 +136,20 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		name             string
 		existingNodePool *api.HCPOpenShiftClusterNodePool
 		// When not set, the controller uses a node pool lister that contains the existingNodePool.
-		nodePoolLister    listers.NodePoolLister
+		nodePoolLister    corelisters.NodePoolLister
 		existingOperation *api.Operation
 		// When not set, the controller uses an active operations lister that contains the existingOperation.
-		activeOperationsLister          listers.ActiveOperationLister
+		activeOperationsLister          corelisters.ActiveOperationLister
 		existingServiceProviderNodePool *api.ServiceProviderNodePool
 		// When not set, the controller uses a service provider node pool lister that contains the existingServiceProviderNodePool.
-		serviceProviderNodePoolLister     listers.ServiceProviderNodePoolLister
+		serviceProviderNodePoolLister     corelisters.ServiceProviderNodePoolLister
 		existingNodePoolVersionController *api.Controller
 		// When set, wires a ReadDesireLister containing this cached Hypershift NodePool mirror.
 		cachedNodePoolReadDesire *kubeapplier.ReadDesire
 		seedMismatchFirstSeenAt  time.Time
 		setupMockCSClient        func(*ocm.MockClusterServiceClientSpec)
 		wantErr                  bool
-		verifyDB                 func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		verifyDB                 func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
 			name:                            "cs node pool ready transitions operation to succeeded",
@@ -158,7 +158,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
 			cachedNodePoolReadDesire:        newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.19.0")),
 			setupMockCSClient:               setupMockCSClientForNodePoolState(operationbase.NodePoolStateReady),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -176,7 +176,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
 			cachedNodePoolReadDesire:        newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.19.0")),
 			setupMockCSClient:               setupMockCSClientForNodePoolState(operationbase.NodePoolStateUpdating),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
@@ -194,7 +194,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
 			cachedNodePoolReadDesire:        newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.19.0")),
 			setupMockCSClient:               setupMockCSClientForNodePoolState(operationbase.NodePoolStateValidatingUpdate),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -207,7 +207,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
 			cachedNodePoolReadDesire:        newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.19.0")),
 			setupMockCSClient:               setupMockCSClientForNodePoolState(operationbase.NodePoolStatePendingUpdate),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -220,7 +220,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
 			cachedNodePoolReadDesire:        newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.19.0")),
 			setupMockCSClient:               setupMockCSClientForNodePoolState(operationbase.NodePoolStateRecoverableError, "temporary error occurred"),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -243,7 +243,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			}),
 			cachedNodePoolReadDesire: newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.21.5")),
 			setupMockCSClient:        setupMockCSClientForNodePoolState(operationbase.NodePoolStateReady),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -265,7 +265,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			existingNodePoolVersionController: newDefaultNodePoolVersionController(),
 			cachedNodePoolReadDesire:          newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.20.5")),
 			setupMockCSClient:                 setupMockCSClientForNodePoolState(operationbase.NodePoolStateReady),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -287,7 +287,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			cachedNodePoolReadDesire: newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.20.5")),
 			seedMismatchFirstSeenAt:  testClockNow.Add(-120 * time.Second),
 			setupMockCSClient:        setupMockCSClientForNodePoolState(operationbase.NodePoolStateReady),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -309,7 +309,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			cachedNodePoolReadDesire: newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.20.5")),
 			seedMismatchFirstSeenAt:  testClockNow.Add(-130 * time.Second),
 			setupMockCSClient:        setupMockCSClientForNodePoolState(operationbase.NodePoolStateReady),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -335,7 +335,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.20.5"),
 			cachedNodePoolReadDesire:        newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.20.5")),
 			setupMockCSClient:               setupMockCSClientForNodePoolState(operationbase.NodePoolStateUpdating),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
@@ -355,7 +355,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.19.0"),
 			cachedNodePoolReadDesire:        newHypershiftNodePoolReadDesire(t, testNodePoolUpdateMatchingHypershiftNodePool(30)),
 			setupMockCSClient:               setupMockCSClientForNodePoolReadyWithSpec(0, 60),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
@@ -381,7 +381,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				return np
 			}()),
 			setupMockCSClient: setupMockCSClientForNodePoolReadyWithSpec(3, 0),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
@@ -399,7 +399,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				nodePool.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			existingOperation: newOperationAccepted(),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -411,7 +411,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: testClockNow}
 			}),
 			existingOperation: newOperationAccepted(),
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -421,8 +421,8 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			name:              "node pool not in lister cache leaves operation unchanged",
 			existingNodePool:  newNodePoolWithVersion("4.19.0"),
 			existingOperation: newOperationAccepted(),
-			nodePoolLister:    &listertesting.SliceNodePoolLister{},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+			nodePoolLister:    &corelistertesting.SliceNodePoolLister{},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -454,27 +454,27 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				resources = append(resources, tc.existingNodePoolVersionController)
 			}
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			var readDesireLister dblisters.ReadDesireLister
+			var readDesireLister kubeapplierlisters.ReadDesireLister
 			if tc.cachedNodePoolReadDesire != nil {
-				readDesireLister = &internallistertesting.SliceReadDesireLister{
+				readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{
 					Desires: []*kubeapplier.ReadDesire{tc.cachedNodePoolReadDesire},
 				}
 			}
 
 			nodePoolLister := tc.nodePoolLister
 			if nodePoolLister == nil {
-				nodePoolLister = &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient}
+				nodePoolLister = &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient}
 			}
 			activeOperationsLister := tc.activeOperationsLister
 			if activeOperationsLister == nil {
-				activeOperationsLister = &listertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
+				activeOperationsLister = &corelistertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
 			}
 			serviceProviderNodePoolLister := tc.serviceProviderNodePoolLister
 			if serviceProviderNodePoolLister == nil {
-				serviceProviderNodePoolLister = &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient}
+				serviceProviderNodePoolLister = &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient}
 			}
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)

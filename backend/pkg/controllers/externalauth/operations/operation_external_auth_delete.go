@@ -27,17 +27,18 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	operationbase "github.com/Azure/ARO-HCP/backend/pkg/controllers/operation"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type operationExternalAuthDelete struct {
 	clock                utilsclock.PassiveClock
-	resourcesDBClient    database.ResourcesDBClient
+	resourcesDBClient    corecosmosstorage.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
 }
@@ -68,7 +69,7 @@ type operationExternalAuthDelete struct {
 //	      Status: any non-terminal value
 func NewOperationExternalAuthDeleteController(
 	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
@@ -80,7 +81,7 @@ func NewOperationExternalAuthDeleteController(
 		notificationClient:   notificationClient,
 	}
 
-	controller := operationbase.NewGenericOperationController(
+	controller := controllerutils.NewGenericOperationController(
 		"OperationExternalAuthDelete",
 		syncer,
 		10*time.Second,
@@ -95,7 +96,7 @@ func (c *operationExternalAuthDelete) ShouldProcess(ctx context.Context, operati
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestDelete {
+	if operation.Request != cosmosstorageutils.OperationRequestDelete {
 		return false
 	}
 	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()) {
@@ -109,7 +110,7 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 	logger.Info("checking operation")
 
 	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // no work to do
 	}
 	if err != nil {
@@ -129,7 +130,7 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 
 	externalAuthCRUD := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).ExternalAuth(operation.ExternalID.Parent.Name)
 	externalAuth, err := externalAuthCRUD.Get(ctx, operation.ExternalID.Name)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.Info("external auth document deleted - completing operation")
 		err = operationbase.SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, operationbase.PostAsyncNotificationFn(c.notificationClient))
 		if err != nil {

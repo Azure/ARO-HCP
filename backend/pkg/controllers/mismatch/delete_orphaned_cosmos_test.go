@@ -31,8 +31,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database/listertesting"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -168,19 +169,19 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			resourcesClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tt.buildResources(t))
+			resourcesClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tt.buildResources(t))
 			require.NoError(t, err)
 
 			mcs := tt.buildMCs(t)
-			kubeApplierClients := databasetesting.NewMockKubeApplierDBClients()
-			mockByMC := map[string]*databasetesting.MockKubeApplierDBClient{}
+			kubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+			mockByMC := map[string]*kubeappliercosmosstoragetesting.MockKubeApplierDBClient{}
 			var mcFleet []*fleet.ManagementCluster
 			for _, m := range mcs {
 				docs := make([]any, 0, len(m.desires))
 				for _, d := range m.desires {
 					docs = append(docs, d)
 				}
-				mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, docs)
+				mock, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, docs)
 				require.NoError(t, err)
 				for _, r := range m.raw {
 					mock.StoreDocument(r.cosmosID, r.json)
@@ -197,7 +198,7 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 				name:                    "DeleteOrphanedCosmosResources",
 				resourcesDBClient:       resourcesClient,
 				kubeApplierDBClients:    kubeApplierClients,
-				managementClusterLister: &listertesting.SliceManagementClusterLister{ManagementClusters: mcFleet},
+				managementClusterLister: &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: mcFleet},
 			}
 
 			require.NoError(t, c.synchronizeSubscription(ctx, testSubscriptionID))

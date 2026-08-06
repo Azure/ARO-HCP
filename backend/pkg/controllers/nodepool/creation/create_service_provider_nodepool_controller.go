@@ -19,10 +19,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -32,13 +33,13 @@ import (
 // cached lister and bail out when it is missing; this syncer is the single
 // place in backend controllers that actually creates the document, so the
 // GetOrCreate pattern stays in one well-known location. The frontend
-// admission path still calls database.GetOrCreateServiceProviderNodePool
+// admission path still calls corecosmosstorage.GetOrCreateServiceProviderNodePool
 // directly because admission must have the document in hand to validate the
 // request before any controller has a chance to run.
 type createServiceProviderNodePoolSyncer struct {
-	resourcesDBClient             database.ResourcesDBClient
-	nodePoolLister                listers.NodePoolLister
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	resourcesDBClient             corecosmosstorage.ResourcesDBClient
+	nodePoolLister                corelisters.NodePoolLister
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
 }
 
 var _ controllerutils.NodePoolSyncer = (*createServiceProviderNodePoolSyncer)(nil)
@@ -46,10 +47,10 @@ var _ controllerutils.NodePoolSyncer = (*createServiceProviderNodePoolSyncer)(ni
 // NewCreateServiceProviderNodePoolController wires the controller that creates
 // missing ServiceProviderNodePool documents.
 func NewCreateServiceProviderNodePoolController(
-	resourcesDBClient database.ResourcesDBClient,
-	nodePoolLister listers.NodePoolLister,
-	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
-	backendInformers informers.BackendInformers,
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	nodePoolLister corelisters.NodePoolLister,
+	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister,
+	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &createServiceProviderNodePoolSyncer{
 		resourcesDBClient:             resourcesDBClient,
@@ -78,7 +79,7 @@ func NewCreateServiceProviderNodePoolController(
 // short-circuit.
 func (c *createServiceProviderNodePoolSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	existingNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -92,11 +93,11 @@ func (c *createServiceProviderNodePoolSyncer) SyncOnce(ctx context.Context, key 
 	if err == nil {
 		return nil
 	}
-	if !database.IsNotFoundError(err) {
+	if !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from lister: %w", err))
 	}
 
-	if _, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID()); err != nil {
+	if _, err := corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID()); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to create ServiceProviderNodePool: %w", err))
 	}
 

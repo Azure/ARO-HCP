@@ -32,13 +32,13 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -84,7 +84,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 		existingServiceProviderCluster *api.ServiceProviderCluster
 		existingCSCluster              *arohcpv1alpha1.Cluster
 		// When not set, the syncer uses a cluster lister backed by the seeded Cosmos resources.
-		clusterLister                       listers.ClusterLister
+		clusterLister                       corelisters.ClusterLister
 		setupMockCSClient                   func(mock *ocm.MockClusterServiceClientSpec)
 		minimumReconcileTimeCooldownChecker controllerutil.CooldownChecker
 		wantErr                             bool
@@ -238,17 +238,17 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 				seedResources = append(seedResources, tc.existingServiceProviderCluster)
 			}
 
-			mockResourcesDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, seedResources)
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, seedResources)
 			require.NoError(t, err)
 
 			clusterLister := tc.clusterLister
 			if clusterLister == nil {
-				clusterLister = &listertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB}
+				clusterLister = &corelistertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB}
 			}
 
-			var subscriptionLister listers.SubscriptionLister
+			var subscriptionLister corelisters.SubscriptionLister
 			if tc.existingSubscription != nil {
-				subscriptionLister = &listertesting.SliceSubscriptionLister{
+				subscriptionLister = &corelistertesting.SliceSubscriptionLister{
 					Subscriptions: []*arm.Subscription{tc.existingSubscription},
 				}
 			}
