@@ -2,6 +2,7 @@ continue_on_error: true
 match_type: doublestar
 exclude:
 - '**/zz_fixture_*.yaml'
+- '.github/workflows/*.lock.yml'
 - 'frontend/deploy/templates/frontend.deployment.yaml'
 - 'image-registry-policy/values.yaml'
 - 'image-registry-policy/deploy/templates/validatingadmissionpolicybinding.yaml'
