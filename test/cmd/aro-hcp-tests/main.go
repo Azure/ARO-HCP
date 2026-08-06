@@ -232,10 +232,15 @@ func registerEV2RetryCatcher(specs et.ExtensionTestSpecs) {
 			Skipped:         skippedCount,
 			DurationSeconds: roundToDecisecond(time.Since(suiteStart)),
 		}
-		fmt.Fprintf(os.Stderr, "%d test(s) failed (%d labeled %q) out of %d total, suite took %.1fs: writing %s/%s/%s to %s: failed=%v allow-retry=%v\n",
+		artifactDir := os.Getenv("ARTIFACT_DIR")
+		verb, destination := "writing", filepath.Join(artifactDir, ev2RetryMetadataFile)
+		if artifactDir == "" {
+			verb, destination = "skipping", ev2RetryMetadataFile+" (ARTIFACT_DIR not set)"
+		}
+		fmt.Fprintf(os.Stderr, "%d test(s) failed (%d labeled %q) out of %d total, suite took %.1fs: %s %s/%s/%s to %s: failed=%v allow-retry=%v\n",
 			summary.Failed, len(allowRetryFailedNames), labels.AllowRetry[0], summary.Total, summary.DurationSeconds,
-			ev2FailedTestsKey, ev2AllowRetryTestsKey, ev2SuiteSummaryKey, ev2RetryMetadataFile, failedNames, allowRetryFailedNames)
-		if err := writeEV2RetryMetadata(os.Getenv("ARTIFACT_DIR"), failedNames, allowRetryFailedNames, summary); err != nil {
+			verb, ev2FailedTestsKey, ev2AllowRetryTestsKey, ev2SuiteSummaryKey, destination, failedNames, allowRetryFailedNames)
+		if err := writeEV2RetryMetadata(artifactDir, failedNames, allowRetryFailedNames, summary); err != nil {
 			fmt.Fprintf(os.Stderr, "WARNING: failed to write EV2 retry metadata: %v\n", err)
 		}
 	})
