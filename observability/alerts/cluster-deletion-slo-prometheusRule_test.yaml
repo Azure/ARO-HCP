@@ -10,7 +10,7 @@
 #   This matters for the stuck-operations alert which compares time() to
 #   last_transition_time_seconds.
 rule_files:
-- HCPClusterDeletion-prometheusRule.yaml
+- cluster-deletion-slo-prometheusRule.yaml
 - cluster-deletion-slo-recordingRule.yaml
 evaluation_interval: 1m
 tests:
@@ -54,8 +54,6 @@ tests:
         cluster: svc-1
         severity: "3"
         slo: cluster-deletion-errors
-        short_window: 5m
-        long_window: 1h
         component: slo
       exp_annotations:
         title: "Cluster deletion operation error rate high (>72%)"
@@ -140,8 +138,6 @@ tests:
         cluster: svc-1
         severity: "3"
         slo: cluster-deletion-errors
-        short_window: 30m
-        long_window: 6h
         component: slo
       exp_annotations:
         title: "Cluster deletion operation error rate elevated (>30%) for 30+ minutes"
@@ -247,7 +243,6 @@ tests:
         cluster: svc-1
         severity: "3"
         slo: cluster-deletion-errors
-        long_window: 3d
         component: slo
       exp_annotations:
         title: "Cluster deletion operation error rate exceeds SLO target (>5%) for 6+ hours"
@@ -444,8 +439,6 @@ tests:
         cluster: svc-1
         severity: "3"
         slo: cluster-deletion-timeliness
-        short_window: 5m
-        long_window: 1h
         component: slo
       exp_annotations:
         title: "Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)"
@@ -474,7 +467,8 @@ tests:
     values: "0+0x40"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="slow2",subscription_id="sub1", cluster="svc-1"}'
     values: "1900+0x40"
-  # 2 fast operations: last_transition - start = 600 - 0 = 600s (10 min < 30 min)
+  # 3 fast operations: last_transition - start = 600 - 0 = 600s (10 min < 30 min)
+  # Total: 2 slow + 3 fast = 5 ops >= 5 guard; rate = 2/5 = 40% > 30% threshold
   - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast1",subscription_id="sub1", cluster="svc-1"}'
     values: "1+0x40"
   - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast1",subscription_id="sub1", cluster="svc-1"}'
@@ -487,6 +481,12 @@ tests:
     values: "0+0x40"
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast2",subscription_id="sub1", cluster="svc-1"}'
     values: "600+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast3",subscription_id="sub1", cluster="svc-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast3",subscription_id="sub1", cluster="svc-1"}'
+    values: "0+0x40"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast3",subscription_id="sub1", cluster="svc-1"}'
+    values: "600+0x40"
   alert_rule_test:
   - eval_time: 35m
     alertname: userJourneyClusterDeletionLatency6h30m
@@ -495,8 +495,6 @@ tests:
         cluster: svc-1
         severity: "3"
         slo: cluster-deletion-timeliness
-        short_window: 30m
-        long_window: 6h
         component: slo
       exp_annotations:
         title: "Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)"
@@ -655,13 +653,6 @@ tests:
     alertname: userJourneyClusterDeletionRetryHotLoop
     exp_alerts: []
 # ─────────────────────────────────────────────────────────────────────────────
-# RECORDING RULE VALIDATION
-# These tests verify recording rule intermediate values directly using
-# promql_expr_test, independent of alert thresholds.
-# Mirrors the nodepool test approach for completeness.
-# ─────────────────────────────────────────────────────────────────────────────
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Combined healthy baseline
 # All succeeded, no failures, all fast operations.
 # Verifies:
@@ -670,6 +661,13 @@ tests:
 #   - Every SLO and component alert is silent
 # ─────────────────────────────────────────────────────────────────────────────
 - name: all_clear_healthy_baseline
+  # ─────────────────────────────────────────────────────────────────────────────
+  # RECORDING RULE VALIDATION
+  # These tests verify recording rule intermediate values directly using
+  # promql_expr_test, independent of alert thresholds.
+  # Mirrors the nodepool test approach for completeness.
+  # ─────────────────────────────────────────────────────────────────────────────
+
   interval: 1m
   input_series:
   # 5 successful fast operations — all three metrics provided so both
