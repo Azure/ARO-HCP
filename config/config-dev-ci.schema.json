@@ -448,6 +448,9 @@
         "armHelper": {
           "$ref": "#/$defs/MockIdentityApp"
         },
+        "clustersServiceArmHelper": {
+          "$ref": "#/$defs/MockIdentityApp"
+        },
         "armHelperPool": {
           "$ref": "#/$defs/MockIdentityPool"
         },
