@@ -51,6 +51,7 @@ var _ = Describe("Customer", func() {
 			labels.Critical,
 			labels.Positive,
 			labels.AroRpApiCompatible,
+			labels.AllowRetry, // owner: @sjante, tracking: ARO-21125. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
 			labels.MIContainers(1),
 			func(ctx context.Context) {
 				const (
