@@ -45,8 +45,6 @@ spec:
       labels:
         severity: "3"
         slo: cluster-deletion-errors
-        short_window: 5m
-        long_window: 1h
         component: slo
       annotations:
         title: "Cluster deletion operation error rate high (>72%)"
@@ -75,8 +73,6 @@ spec:
       labels:
         severity: "3"
         slo: cluster-deletion-errors
-        short_window: 30m
-        long_window: 6h
         component: slo
       annotations:
         title: "Cluster deletion operation error rate elevated (>30%) for 30+ minutes"
@@ -85,9 +81,8 @@ spec:
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
         correlationId: "userJourneyClusterDeletionErrors6h30m/{{ $labels.cluster }}"
     # ----------------------------------------
-    # Slow Burn Alert (info — creates Jira ticket, no page)
+    # Slow Burn Alert (info)
     # ----------------------------------------
-    # Slow burn alerts generate Jira ticket for investigation.
     # 1x burn rate → >5% failure rate sustained for 6 hours
     # Would exhaust 7-day error budget in ~7 days
     - alert: userJourneyClusterDeletionErrors3d
@@ -106,7 +101,6 @@ spec:
       labels:
         severity: "3"
         slo: cluster-deletion-errors
-        long_window: 3d
         component: slo
       annotations:
         title: "Cluster deletion operation error rate exceeds SLO target (>5%) for 6+ hours"
@@ -149,12 +143,19 @@ spec:
     - alert: userJourneyClusterDeletionLatency1h5m
       expr: |
         errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.72
+        and
+        clamp_min(
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="delete",
+            phase="succeeded"
+          }) or vector(0),
+          0
+        ) >= 5
       for: 5m
       labels:
         severity: "3"
         slo: cluster-deletion-timeliness
-        short_window: 5m
-        long_window: 1h
         component: slo
       annotations:
         title: "Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)"
@@ -169,12 +170,19 @@ spec:
     - alert: userJourneyClusterDeletionLatency6h30m
       expr: |
         errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.30
+        and
+        clamp_min(
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="delete",
+            phase="succeeded"
+          }) or vector(0),
+          0
+        ) >= 5
       for: 30m
       labels:
         severity: "3"
         slo: cluster-deletion-timeliness
-        short_window: 30m
-        long_window: 6h
         component: slo
       annotations:
         title: "Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)"
@@ -189,11 +197,19 @@ spec:
     - alert: userJourneyClusterDeletionLatency3d
       expr: |
         errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.05
+        and
+        clamp_min(
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="delete",
+            phase="succeeded"
+          }) or vector(0),
+          0
+        ) >= 5
       for: 6h
       labels:
         severity: "3"
         slo: cluster-deletion-timeliness
-        long_window: 3d
         component: slo
       annotations:
         title: "Cluster deletion Timeliness SLO slow burn (>5% slow for 6h)"
@@ -204,10 +220,6 @@ spec:
     # ----------------------------------------
     # Stuck Operations Alert (info)
     # ----------------------------------------
-    # Operations stuck in non-terminal phases are invisible to success/failure SLIs.
-    # Uses last_transition_time_seconds (time in current phase) to match the dashboard
-    # panel exactly and avoid premature firing when earlier phases are still in progress.
-    #
     # This alert fires when time in the CURRENT phase
     #     (last_transition_time_seconds) > 1h, monitors all 5 active phases.
     # 
@@ -246,8 +258,7 @@ spec:
   # ========================================
   # Cluster Deletion Saturation Alerts — Saturation
   # ========================================
-  # Threshold-based alerting for component-level metrics per ADR.
-  - name: arohcp_cluster_deletion_saturation_alerts
+    - name: arohcp_cluster_deletion_saturation_alerts
     rules:
     # Queue depth: cluster deletion controller workqueue accumulating work
     - alert: userJourneyClusterDeletionQueueDepth
