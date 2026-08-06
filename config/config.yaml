@@ -1111,7 +1111,7 @@ defaults:
         repository: image-sync/oc-mirror
         digest: sha256:81441ace3a179898bb1a5eb9012a76f552e6e5b9107005d5e17aba0c186d88c1 # 4f421a9 (2026-08-05 04:58)
       pullSecretName: ocmirror-pull-secret
-      operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
+      operatorVersionsToMirror: "4.18,4.20,4.21,4.22"
   # Automation Account
   automationDryRun: true
   # Entra Application Owner IDs (replaces nested ownerIds in entraApplication objects)
