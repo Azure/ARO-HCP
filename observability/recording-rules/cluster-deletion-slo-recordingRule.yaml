@@ -24,7 +24,6 @@ spec:
     interval: 1m
     rules:
     # Instantaneous error rate: fraction of terminal operations that failed or were canceled.
-    # Uses count by (cluster) to preserve the cluster label per nodepool production pattern.
     # The "or 0 * count by (cluster)" fallback returns zero with the cluster label when
     # there are no failures, avoiding lost label context (vs "or vector(0)").
     - record: errors:backend_cluster_deletion_operation:error_rate

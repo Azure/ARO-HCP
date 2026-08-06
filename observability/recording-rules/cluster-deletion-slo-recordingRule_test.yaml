@@ -11,8 +11,6 @@ tests:
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Zero-fallback: all succeeded → error_rate = 0 with cluster label preserved.
-# Exercises the "or 0 *" branch: no failed/canceled series, so the main
-# numerator arm is empty and the fallback produces 0 * 5 = 0.
 - name: error_rate_zero_when_all_succeeded
   interval: 1m
   input_series:
@@ -83,18 +81,18 @@ tests:
     exp_samples:
     - labels: 'errors:backend_cluster_deletion_operation:error_rate{cluster="svc-1"}'
       value: 0.6
-# ─────────────────────────────────────────────────────────────────────────────
-# errors:backend_cluster_deletion_operation:timeliness_error_rate
-#
-# Rule: count(succeeded where duration >= 1800s) / clamp_min(count(succeeded), 1)
-# Duration = last_transition_time_seconds - start_time_seconds.
-# The "or 0 * count(...)" fallback preserves the cluster label when all
-# operations are fast, producing 0 rather than an empty result set.
-# ─────────────────────────────────────────────────────────────────────────────
-
 # Zero-fallback: all fast (600s < 1800s) → timeliness_error_rate = 0 with
 # cluster label preserved.
 - name: timeliness_error_rate_zero_when_all_fast
+  # ─────────────────────────────────────────────────────────────────────────────
+  # errors:backend_cluster_deletion_operation:timeliness_error_rate
+  #
+  # Rule: count(succeeded where duration >= 1800s) / clamp_min(count(succeeded), 1)
+  # Duration = last_transition_time_seconds - start_time_seconds.
+  # The "or 0 * count(...)" fallback preserves the cluster label when all
+  # operations are fast, producing 0 rather than an empty result set.
+  # ─────────────────────────────────────────────────────────────────────────────
+
   interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="f1",subscription_id="sub1",cluster="svc-1"}'
