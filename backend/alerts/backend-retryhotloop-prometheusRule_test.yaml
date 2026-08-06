@@ -33,3 +33,25 @@ tests:
   - eval_time: 20m
     alertname: BackendControllerRetryHotLoop
     exp_alerts: []
+# Test: BackendControllerRetryHotLoop does not fire for ClusterValidation controllers
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{name="clustervalidationazureresourceprovidersregistrationvalidation", namespace="aro-hcp"}'
+    values: "0+80x25" # 80 retries per minute
+  - series: 'workqueue_adds_total{name="clustervalidationazureresourceprovidersregistrationvalidation", namespace="aro-hcp"}'
+    values: "0+100x25" # 100 adds per minute → retry ratio = 80%
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendControllerRetryHotLoop
+    exp_alerts: []
+# Test: BackendControllerRetryHotLoop does not fire for NodePoolValidation controllers
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{name="nodepoolvalidationquotacheck", namespace="aro-hcp"}'
+    values: "0+80x25" # 80 retries per minute
+  - series: 'workqueue_adds_total{name="nodepoolvalidationquotacheck", namespace="aro-hcp"}'
+    values: "0+100x25" # 100 adds per minute → retry ratio = 80%
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendControllerRetryHotLoop
+    exp_alerts: []
