@@ -29,10 +29,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/onsi/ginkgo/v2"
 	"golang.org/x/crypto/ssh"
 
 	corev1 "k8s.io/api/core/v1"
