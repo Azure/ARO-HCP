@@ -21,6 +21,9 @@ param armHelperPoolAppBaseName string = 'unused'
 @description('Number of pooled ARM helper identities')
 param armHelperPoolSize int = 0
 
+@description('Application name for the Clusters Service ARM helper identity')
+param clustersServiceArmHelperAppName string = ''
+
 @description('Subscription IDs that should receive mock identity role assignments')
 param e2eSubscriptionIds array = []
 
@@ -88,6 +91,15 @@ module armHelperPoolLookups './entra-app-lookup.bicep' = [
   }
 ]
 
+module clustersServiceArmHelperLookup './entra-app-lookup.bicep' = if (!empty(clustersServiceArmHelperAppName)) {
+  name: 'lookup-clusters-service-arm-helper'
+  params: {
+    applicationName: toLower(replace(clustersServiceArmHelperAppName, ' ', '-'))
+    manage: true
+    lookupSp: true
+  }
+}
+
 module homeSubscriptionRbac './e2e-subscription-rbac-assignment-subscription.bicep' = if (grantHomeSubscription) {
   name: 'mock-rbac-home'
   scope: subscription()
@@ -107,6 +119,9 @@ module homeSubscriptionRbac './e2e-subscription-rbac-assignment-subscription.bic
         principalId: armHelperPoolLookups[i].outputs.principalId
       }
     ]
+    clustersServiceArmHelperPrincipalId: empty(clustersServiceArmHelperAppName)
+      ? ''
+      : clustersServiceArmHelperLookup!.outputs.principalId
     firstPartyRoleName: firstPartyRoleName
     msiMockRoleName: msiMockRoleName
   }
@@ -132,6 +147,9 @@ module e2eSubscriptionRbac './e2e-subscription-rbac-assignment-subscription.bice
           principalId: armHelperPoolLookups[i].outputs.principalId
         }
       ]
+      clustersServiceArmHelperPrincipalId: empty(clustersServiceArmHelperAppName)
+        ? ''
+        : clustersServiceArmHelperLookup!.outputs.principalId
       firstPartyRoleName: firstPartyRoleName
       msiMockRoleName: msiMockRoleName
     }

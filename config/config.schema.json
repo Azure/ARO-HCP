@@ -1319,6 +1319,12 @@
     "armHelperTenantId": {
       "type": "string"
     },
+    "clustersServiceArmHelperClientId": {
+      "type": "string"
+    },
+    "clustersServiceArmHelperCertName": {
+      "type": "string"
+    },
     "backend": {
       "type": "object",
       "properties": {

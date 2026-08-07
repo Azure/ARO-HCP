@@ -58,6 +58,9 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
     armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
     armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
     armHelperCertName: intArmHelperCert
+    # Cluster Service ARM Helper - from RH Tenant
+    clustersServiceArmHelperClientId: <aro-hcp-int-cs-arm-helper application ID>
+    clustersServiceArmHelperCertName: intCsArmHelperCert
    ```
 
 1. **Download** the certificates from the `aro-hcp-int-kv`
@@ -74,6 +77,9 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
    # Download the certificate bundles
    az keyvault secret download --vault-name aro-hcp-int-kv --name intArmHelperCert --file intArmHelperCert
    cat intArmHelperCert | base64 -d > intArmHelperCert.pfx
+
+   az keyvault secret download --vault-name aro-hcp-int-kv --name intCsArmHelperCert --file intCsArmHelperCert
+   cat intCsArmHelperCert | base64 -d > intCsArmHelperCert.pfx
 
    az keyvault secret download --vault-name aro-hcp-int-kv --name intFirstPartyCert --file intFirstPartyCert
    cat intFirstPartyCert | base64 -d > intFirstPartyCert.pfx
@@ -92,6 +98,7 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
 
    ```bash
    az keyvault certificate import --vault-name arohcpint-svc-ln --name intArmHelperCert --file intArmHelperCert.pfx
+   az keyvault certificate import --vault-name arohcpint-svc-ln --name intCsArmHelperCert --file intCsArmHelperCert.pfx
    az keyvault certificate import --vault-name arohcpint-svc-ln --name intFirstPartyCert --file intFirstPartyCert.pfx
    az keyvault certificate import --vault-name arohcpint-svc-ln --name intMsiMockCert --file intMsiMockCert.pfx
    ```

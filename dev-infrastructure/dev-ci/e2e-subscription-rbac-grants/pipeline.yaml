@@ -170,6 +170,7 @@ resourceGroups:
         --vault-url "${VAULT_URL}" \
         --mapping "${FIRST_PARTY_APP_NAME};${FIRST_PARTY_CERT_NAME};${FIRST_PARTY_CERT_DNS}" \
         --mapping "${ARM_HELPER_APP_NAME};${ARM_HELPER_CERT_NAME};${ARM_HELPER_CERT_DNS}" \
+        --mapping "${CS_ARM_HELPER_APP_NAME};${CS_ARM_HELPER_CERT_NAME};${CS_ARM_HELPER_CERT_DNS}" \
         --mapping "${MSI_MOCK_APP_NAME};${MSI_MOCK_CERT_NAME};${MSI_MOCK_CERT_DNS}" \
         --create-missing
     workingDir: ../../..
@@ -192,6 +193,12 @@ resourceGroups:
       configRef: ci.int.mockIdentities.armHelper.certName
     - name: ARM_HELPER_CERT_DNS
       configRef: ci.int.mockIdentities.armHelper.certDns
+    - name: CS_ARM_HELPER_APP_NAME
+      configRef: ci.int.mockIdentities.clustersServiceArmHelper.applicationName
+    - name: CS_ARM_HELPER_CERT_NAME
+      configRef: ci.int.mockIdentities.clustersServiceArmHelper.certName
+    - name: CS_ARM_HELPER_CERT_DNS
+      configRef: ci.int.mockIdentities.clustersServiceArmHelper.certDns
     - name: MSI_MOCK_APP_NAME
       configRef: ci.int.mockIdentities.msiMock.applicationName
     - name: MSI_MOCK_CERT_NAME

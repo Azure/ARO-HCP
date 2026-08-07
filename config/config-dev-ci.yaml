@@ -308,6 +308,10 @@ clouds:
               applicationName: "aro-hcp-int-arm-helper"
               certName: "intArmHelperCert"
               certDns: "intarmhelper.hcp.osadev.cloud"
+            clustersServiceArmHelper:
+              applicationName: "aro-hcp-int-cs-arm-helper"
+              certName: "intCsArmHelperCert"
+              certDns: "intcsarmhelper.hcp.osadev.cloud"
             msiMock:
               applicationName: "aro-hcp-int-msi-mock"
               certName: "intMsiMockCert"

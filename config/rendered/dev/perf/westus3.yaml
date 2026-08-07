@@ -212,6 +212,8 @@ clustersService:
   tracing:
     address: ""
     exporter: ""
+clustersServiceArmHelperCertName: armHelperCert2
+clustersServiceArmHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
 customExporter:
   clusterNameFilter: ""
   clusterTypes: svc-cluster,mgmt-cluster

@@ -81,10 +81,18 @@ backend-local limiter. Leasing one clone per environment prevents those
 independent backends from aggregating their CheckAccess requests through
 `aro-dev-arm-helper2`.
 
-At runtime a lease overrides `armHelperClientId` and `armHelperCertName` only.
+At runtime the first lease overrides `armHelperClientId` and
+`armHelperCertName` for Backend. The second lease overrides
+`clustersServiceArmHelperClientId` and `clustersServiceArmHelperCertName`.
 `armHelperFPAPrincipalId` remains the shared first-party mock principal: despite
 its similar name, it identifies the principal that receives the simulated FPA
 grant, not the ARM helper authenticating the request.
+
+INT uses named ARM helper identities rather than the DEV lease pool. Backend
+uses `armHelperClientId` and `armHelperCertName`; Clusters Service can use the
+independent `clustersServiceArmHelperClientId` and
+`clustersServiceArmHelperCertName` values. If the Clusters Service-specific
+values are empty, its chart falls back to the shared Backend values.
 
 ## MSI Mock — `aro-dev-msi-mock2` and the pool
 
