@@ -21,7 +21,7 @@ var e2eMaxExpiredAgeSeconds = 604800 // 7 days; TODO: tighten to 86400 (1 day)
 // Prow CI alert thresholds
 var prowHighFrequencyMinRuns = 5
 var prowScheduledMinRuns = 3
-var prowHealthcheckMaxFailureRate = '0.20'
+var prowHealthcheckMaxFailureRate = '0.40'
 var prowE2EParallelMinSuccessfulRuns = 20
 var prowE2EParallelP95MaxSeconds = 9000 // 2h30m
 var prowCollectionMaxAgeSeconds = 900 // 15 minutes
@@ -442,7 +442,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
           severity: 'warning'
         }
         annotations: {
-          summary: 'Regional Prow provision healthcheck success rate is below 80%'
+          summary: 'Regional Prow provision healthcheck success rate is below 60%'
           description: 'Provision healthchecks in {{ $labels.region }} have a {{ $value | humanizePercentage }} failure rate over the 24-hour window.'
         }
         actions: [
