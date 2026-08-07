@@ -117,6 +117,12 @@ var _ = Describe("FIPS Mode Support", func() {
 					clusterResource,
 					framework.ClusterCreationTimeout,
 				)
+				if isAPINotDeployedError(err) {
+					if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
+						Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
+					}
+					Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
+				}
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with cryptoRestrictions set to FIPS", customerClusterName)
 
 				By("creating the node pool with FIPS enabled machines")
