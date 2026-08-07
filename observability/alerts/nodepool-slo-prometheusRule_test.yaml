@@ -196,6 +196,7 @@ tests:
         resource_id: "/sub/3/np/stuck"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        exclude_internal_subscriptions: "true"
         subscription_id: "sub-3"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation for /sub/3/np/stuck stuck in updating for over 2 hours"
@@ -358,6 +359,7 @@ tests:
         resource_id: "/sub/7/np/stuck-del"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        exclude_internal_subscriptions: "true"
         subscription_id: "sub-7"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation for /sub/7/np/stuck-del stuck in deleting for over 2 hours"
@@ -395,6 +397,7 @@ tests:
         resource_id: "/sub/8/np/flap-del"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
@@ -413,6 +416,7 @@ tests:
         resource_id: "/sub/8/np/flap-del"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
@@ -430,6 +434,7 @@ tests:
         resource_id: "/sub/8/np/flap-del"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        exclude_internal_subscriptions: "true"
         subscription_id: "sub-8"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation for /sub/8/np/flap-del stuck in deleting for over 2 hours"
@@ -461,6 +466,7 @@ tests:
         resource_id: "/sub/9/np/done-del"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        exclude_internal_subscriptions: "true"
         subscription_id: "sub-9"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation for /sub/9/np/done-del stuck in deleting for over 2 hours"
@@ -470,19 +476,37 @@ tests:
   - eval_time: 520m
     alertname: UJNodePoolStuckOperation
 # ========================================
-# Test 15: Stuck operation does not fire for e2e subscription
+# Test 15: Stuck operation fires for all subscriptions at YAML level
 # ========================================
-# Same pattern as Test 4 but with an e2e subscription_id that should be excluded.
+# Filtering of internal subscriptions happens in the generated bicep (via
+# the generator-injected `unless` clause), not in the source YAML. This test
+# confirms the source expression fires for an e2e subscription, proving that
+# promtool validates the unfiltered logic correctly.
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/np/stuck", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/np/stuck", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
     values: "0+0x155"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/np/stuck", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/np/stuck", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
     values: "1+0x155"
   alert_rule_test:
   - eval_time: 150m
     alertname: UJNodePoolStuckOperation
-    exp_alerts: []
+    exp_alerts:
+    - exp_labels:
+        alertname: UJNodePoolStuckOperation
+        resource_id: /sub/e2e/np/stuck
+        subscription_id: "00000000-0000-0000-0000-000000000001"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        operation_type: update
+        phase: updating
+        cluster: mgmt-1
+        severity: info
+        component: slo
+        exclude_internal_subscriptions: "true"
+      exp_annotations:
+        summary: "mgmt-1: Node Pool operation for /sub/e2e/np/stuck stuck in updating for over 2 hours"
+        description: "Node pool operation for /sub/e2e/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 16: Duplicate stuck series across a volatile label collapse into one alert
 # ========================================
@@ -519,6 +543,7 @@ tests:
         resource_id: "/sub/10/np/dup"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        exclude_internal_subscriptions: "true"
         subscription_id: "sub-10"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation for /sub/10/np/dup stuck in updating for over 2 hours"

@@ -20,6 +20,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "create"
         phase: "provisioning"
         resource_id: "/sub/1/cluster/a"
@@ -72,6 +73,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "create"
         phase: "provisioning"
         resource_id: "/sub/1/cluster/d"
@@ -101,6 +103,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "update"
         phase: "updating"
         resource_id: "/sub/2/cluster/a"
@@ -141,6 +144,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "delete"
         phase: "deleting"
         resource_id: "/sub/3/cluster/a"
@@ -181,6 +185,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "requestcredential"
         phase: "provisioning"
         resource_id: "/sub/4/cluster/a"
@@ -221,6 +226,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "requestcredential"
         phase: "provisioning"
         resource_id: "/sub/4/cluster/c"
@@ -250,6 +256,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "revokecredentials"
         phase: "deleting"
         resource_id: "/sub/5/cluster/a"
@@ -289,6 +296,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "create"
         phase: "provisioning"
         resource_id: "/sub/6/np/a"
@@ -329,6 +337,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "create"
         phase: "provisioning"
         resource_id: "/sub/6/np/c"
@@ -357,6 +366,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "update"
         phase: "updating"
         resource_id: "/sub/7/np/a"
@@ -396,6 +406,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "delete"
         phase: "deleting"
         resource_id: "/sub/8/np/a"
@@ -436,6 +447,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "create"
         phase: "awaitingsecret"
         resource_id: "/sub/9/ea/a"
@@ -476,6 +488,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "create"
         phase: "awaitingsecret"
         resource_id: "/sub/9/ea/c"
@@ -505,6 +518,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "update"
         phase: "updating"
         resource_id: "/sub/10/ea/a"
@@ -545,6 +559,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "delete"
         phase: "deleting"
         resource_id: "/sub/11/ea/a"
@@ -585,6 +600,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "create"
         phase: "provisioning"
         resource_id: "/sub/12/cluster/a"
@@ -625,6 +641,7 @@ tests:
     - exp_labels:
         cluster: "mgmt-1"
         component: backend
+        exclude_internal_subscriptions: "true"
         operation_type: "create"
         phase: "provisioning"
         resource_id: "/sub/12/cluster/d"
@@ -647,25 +664,61 @@ tests:
   - eval_time: 61m
     alertname: BackendAsyncOperationStuck
     exp_alerts: []
-# Test: does not fire for e2e subscription (excluded by subscription_id filter)
+# Test: e2e subscription is no longer filtered at the YAML level.
+# The exclude_internal_subscriptions label tells the generator to append
+# an `unless on(subscription_id) internal_subscription:info` clause to
+# the generated bicep. At the YAML level (promtool tests), these alerts
+# fire for all subscriptions. The recording rule filters them at runtime.
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/a", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/a", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "0+0x25"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/a", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/a", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "1+0x25"
   alert_rule_test:
   - eval_time: 21m
     alertname: BackendAsyncOperationClusterCreateStuck
-    exp_alerts: []
-# Test: backstop does not fire for e2e subscription
+    exp_alerts:
+    - exp_labels:
+        alertname: BackendAsyncOperationClusterCreateStuck
+        resource_id: /sub/e2e/cluster/a
+        subscription_id: "00000000-0000-0000-0000-000000000001"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: create
+        phase: provisioning
+        cluster: mgmt-1
+        severity: "3"
+        component: backend
+        exclude_internal_subscriptions: "true"
+      exp_annotations:
+        summary: "Cluster create for /sub/e2e/cluster/a stuck in provisioning"
+        description: "Cluster create operation for /sub/e2e/cluster/a has been running for over 20 minutes and is currently in provisioning phase (e2e timeout: ClusterCreationTimeout)."
+        runbook_url: TBD
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/e2e/cluster/a'
+# Test: backstop fires for e2e subscription (filtering is at generator level, not YAML)
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/b", subscription_id="8d696692-794f-4cdb-ba25-9250c9e9ec4c", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/b", subscription_id="00000000-0000-0000-0000-000000000007", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "0+0x65"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/b", subscription_id="8d696692-794f-4cdb-ba25-9250c9e9ec4c", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/b", subscription_id="00000000-0000-0000-0000-000000000007", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
     values: "1+0x65"
   alert_rule_test:
   - eval_time: 61m
     alertname: BackendAsyncOperationStuck
-    exp_alerts: []
+    exp_alerts:
+    - exp_labels:
+        alertname: BackendAsyncOperationStuck
+        resource_id: /sub/e2e/cluster/b
+        subscription_id: "00000000-0000-0000-0000-000000000007"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: create
+        phase: provisioning
+        cluster: mgmt-1
+        severity: "3"
+        component: backend
+        exclude_internal_subscriptions: "true"
+      exp_annotations:
+        summary: "create microsoft.redhatopenshift/hcpopenshiftclusters operation for /sub/e2e/cluster/b stuck in provisioning"
+        description: "Async create operation for /sub/e2e/cluster/b (microsoft.redhatopenshift/hcpopenshiftclusters) has been running for over 60 minutes and is currently in provisioning phase."
+        runbook_url: TBD
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/e2e/cluster/b'
