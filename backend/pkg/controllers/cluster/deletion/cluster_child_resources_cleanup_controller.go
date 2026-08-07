@@ -134,6 +134,24 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 		return nil
 	}
 
+	allCredentialRequestsGone, err := deletePreconditionAllCredentialRequestsDeleted(ctx, c.resourcesDBClient, key)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to check credential request precondition: %w", err))
+	}
+	if !allCredentialRequestsGone {
+		logger.Info("waiting for all credential requests to be deleted before cleaning up cluster child resources")
+		return nil
+	}
+
+	allCredentialRevocationsGone, err := deletePreconditionAllCredentialRevocationsDeleted(ctx, c.resourcesDBClient, key)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to check credential revocation precondition: %w", err))
+	}
+	if !allCredentialRevocationsGone {
+		logger.Info("waiting for all credential revocations to be deleted before cleaning up cluster child resources")
+		return nil
+	}
+
 	clusterResourceID := cluster.ID
 
 	// skipSubtreeTypes lists resource types whose entire subtrees are skipped.
@@ -142,6 +160,8 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 	skipSubtreeTypes := []azcorearm.ResourceType{
 		api.NodePoolResourceType,
 		api.ExternalAuthResourceType,
+		api.SystemAdminCredentialRequestResourceType,
+		api.SystemAdminCredentialRevocationResourceType,
 	}
 
 	// extraDeleteGates contains per-resource-type conditional logic for
@@ -389,6 +409,34 @@ func deletePreconditionAllExternalAuthsDeleted(ctx context.Context, dbClient cor
 	}
 	if err := externalAuthIterator.GetError(); err != nil {
 		return false, utils.TrackError(fmt.Errorf("error iterating external auths: %w", err))
+	}
+	return true, nil
+}
+
+func deletePreconditionAllCredentialRequestsDeleted(ctx context.Context, dbClient corecosmosstorage.ResourcesDBClient, key controllerutils.HCPClusterKey) (bool, error) {
+	credIterator, err := dbClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRequests(key.HCPClusterName).List(ctx, nil)
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to list credential requests: %w", err))
+	}
+	for range credIterator.Items(ctx) {
+		return false, nil
+	}
+	if err := credIterator.GetError(); err != nil {
+		return false, utils.TrackError(fmt.Errorf("error iterating credential requests: %w", err))
+	}
+	return true, nil
+}
+
+func deletePreconditionAllCredentialRevocationsDeleted(ctx context.Context, dbClient corecosmosstorage.ResourcesDBClient, key controllerutils.HCPClusterKey) (bool, error) {
+	revocationIterator, err := dbClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentialRevocations(key.HCPClusterName).List(ctx, nil)
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to list credential revocations: %w", err))
+	}
+	for range revocationIterator.Items(ctx) {
+		return false, nil
+	}
+	if err := revocationIterator.GetError(); err != nil {
+		return false, utils.TrackError(fmt.Errorf("error iterating credential revocations: %w", err))
 	}
 	return true, nil
 }

@@ -34,6 +34,8 @@ import (
 //   - *arm.Subscription
 //   - *api.Controller
 //   - *api.ManagementClusterContent
+//   - *api.SystemAdminCredentialRequest
+//   - *api.SystemAdminCredentialRevocation
 //
 // Returns an error if any resource cannot be created or if an unsupported type is encountered.
 func NewMockResourcesDBClientWithResources(ctx context.Context, resources []any) (*MockResourcesDBClient, error) {
@@ -69,6 +71,10 @@ func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) e
 		return m.addController(ctx, r)
 	case *api.ManagementClusterContent:
 		return m.addManagementClusterContent(ctx, r)
+	case *api.SystemAdminCredentialRequest:
+		return m.addSystemAdminCredentialRequest(ctx, r)
+	case *api.SystemAdminCredentialRevocation:
+		return m.addSystemAdminCredentialRevocation(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type: %T", resource)
 	}
@@ -193,8 +199,54 @@ func (m *MockResourcesDBClient) addController(ctx context.Context, controller *a
 		controllerCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(clusterName).Controllers(externalAuthName)
 		_, err := controllerCRUD.Create(ctx, controller, nil)
 		return err
+	case armhelpers.ResourceTypeEqual(parentType, api.SystemAdminCredentialRequestResourceType):
+		if resourceID.Parent.Parent == nil {
+			return fmt.Errorf("credential request controller is missing grandparent cluster ID")
+		}
+		clusterName := resourceID.Parent.Parent.Name
+		credentialName := resourceID.Parent.Name
+		controllerCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).SystemAdminCredentialRequests(clusterName).Controllers(credentialName)
+		_, err := controllerCRUD.Create(ctx, controller, nil)
+		return err
+	case armhelpers.ResourceTypeEqual(parentType, api.SystemAdminCredentialRevocationResourceType):
+		if resourceID.Parent.Parent == nil {
+			return fmt.Errorf("credential revocation controller is missing grandparent cluster ID")
+		}
+		clusterName := resourceID.Parent.Parent.Name
+		revocationName := resourceID.Parent.Name
+		controllerCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).SystemAdminCredentialRevocations(clusterName).Controllers(revocationName)
+		_, err := controllerCRUD.Create(ctx, controller, nil)
+		return err
 	}
 	return fmt.Errorf("unsupported parent resource type: %s", parentType)
+}
+
+func (m *MockResourcesDBClient) addSystemAdminCredentialRequest(ctx context.Context, cred *api.SystemAdminCredentialRequest) error {
+	resourceID := cred.GetResourceID()
+	if resourceID == nil {
+		return fmt.Errorf("credential request is missing resource ID")
+	}
+	if resourceID.Parent == nil {
+		return fmt.Errorf("credential request is missing parent cluster ID")
+	}
+	clusterName := resourceID.Parent.Name
+	credCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).SystemAdminCredentialRequests(clusterName)
+	_, err := credCRUD.Create(ctx, cred, nil)
+	return err
+}
+
+func (m *MockResourcesDBClient) addSystemAdminCredentialRevocation(ctx context.Context, revocation *api.SystemAdminCredentialRevocation) error {
+	resourceID := revocation.GetResourceID()
+	if resourceID == nil {
+		return fmt.Errorf("credential revocation is missing resource ID")
+	}
+	if resourceID.Parent == nil {
+		return fmt.Errorf("credential revocation is missing parent cluster ID")
+	}
+	clusterName := resourceID.Parent.Name
+	revocationCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).SystemAdminCredentialRevocations(clusterName)
+	_, err := revocationCRUD.Create(ctx, revocation, nil)
+	return err
 }
 
 func (m *MockResourcesDBClient) addManagementClusterContent(ctx context.Context, mcc *api.ManagementClusterContent) error {
