@@ -40,6 +40,7 @@ import (
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
 	credentialsoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentials/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
@@ -888,6 +889,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	fetchDataPlaneOperatorsManagedIdentitiesInfoController := clusteridentity.NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.SMIClientBuilder,
+	)
+
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
@@ -984,6 +992,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go placementSyncController.Run(ctx, 20)
 				go cosmosMigrationController.Run(ctx, 5)
 				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
+				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.
