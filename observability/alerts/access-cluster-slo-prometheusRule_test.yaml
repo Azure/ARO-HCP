@@ -446,6 +446,6 @@ tests:
         component: slo
         exclude_internal_subscriptions: "true"
       exp_annotations:
-        summary: "mgmt-1: Credential operation for /sub/e2e/cluster/stuck stuck in accepted for over 1 hour"
+        summary: "Credential operation for /sub/e2e/cluster/stuck stuck in accepted for over 1 hour"
         description: "Credential operation for /sub/e2e/cluster/stuck has been in accepted phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
-        runbook_url: aka.ms/arohcp-runbook-access-cluster
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
