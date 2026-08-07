@@ -21,7 +21,6 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // AzureClusterResourceGroupExistenceValidation validates that the Azure Resource
@@ -44,22 +43,40 @@ func (a *AzureClusterResourceGroupExistenceValidation) Name() string {
 
 func (a *AzureClusterResourceGroupExistenceValidation) Validate(
 	ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster,
-) error {
+) ValidationResult {
+	// Full resource ID of the cluster's resource group. Falls back to just the name if Parent is nil.
+	clusterResourceGroupStr := cluster.ID.ResourceGroupName
+	if cluster.ID.Parent != nil {
+		clusterResourceGroupStr = cluster.ID.Parent.String()
+	}
+
 	rgClient, err := a.azureFPAClientBuilder.ResourceGroupsClient(
 		*clusterSubscription.Properties.TenantId,
 		cluster.ID.SubscriptionID,
 	)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get resource groups client: %w", err))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify cluster's resource group existence.",
+			fmt.Sprintf("failed to get resource groups client: %s", err),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 
 	_, err = rgClient.Get(ctx, cluster.ID.ResourceGroupName, nil)
 	if azureclient.IsResourceGroupNotFoundErr(err) {
-		return utils.TrackError(fmt.Errorf("resource group does not exist: %w", err))
+		internalAndUserMsg := fmt.Sprintf("Resource group %q does not exist.", clusterResourceGroupStr)
+		return FailedValidation("ResourceGroupNotFound", internalAndUserMsg, internalAndUserMsg)
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get resource group: %w", err))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify cluster's resource group existence.",
+			fmt.Sprintf("failed to get resource group: %s", err),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 
-	return nil
+	internalAndUserMsg := fmt.Sprintf("Resource group %q exists.", clusterResourceGroupStr)
+	return PassedValidation(api.ControllerConditionReasonAsExpected, internalAndUserMsg, internalAndUserMsg)
 }

@@ -551,6 +551,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		http.DefaultClient,
 		activeOperationInformer,
 	)
+
 	clusterServiceMatchingClusterController := mismatch.NewClusterServiceClusterMatchingController(b.options.ResourcesDBClient, subscriptionLister, b.options.ClustersServiceClient)
 	alwaysSuccessClusterValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewAlwaysSuccessValidation(),
@@ -715,12 +716,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		serviceProviderClusterLister,
 		backendInformers,
 	)
+
 	azureClusterResourceGroupExistenceValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewAzureClusterResourceGroupExistenceValidation(b.options.FPAClientBuilder),
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
 	)
+
 	azureClusterManagedIdentitiesExistenceValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewAzureClusterManagedIdentitiesExistenceValidation(b.options.SMIClientBuilder),
 		b.options.ResourcesDBClient,
@@ -729,7 +732,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	azureVMSizeSupportsEphemeralOSDiskValidationController := nodepoolvalidation.NewNodePoolValidationController(
 		validationutils.NewAzureVMSizeSupportsEphemeralOSDiskValidation(virtualMachineResourceSKUsCachedReaderController),
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		serviceProviderNodePoolLister,
 		backendInformers,
@@ -737,7 +739,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	azureNodePoolVMQuotaValidationController := nodepoolvalidation.NewNodePoolValidationController(
 		validationutils.NewAzureNodePoolVMQuotaValidation(virtualMachineResourceSKUsCachedReaderController, b.options.FPAClientBuilder),
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		serviceProviderNodePoolLister,
 		backendInformers,

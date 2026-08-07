@@ -46,7 +46,6 @@ const (
 	testSubscriptionID = "00000000-0000-0000-0000-000000000000"
 	testResourceGroup  = "test-rg"
 	testClusterName    = "test-cluster"
-	testNodePoolName   = "test-nodepool"
 	testValidationName = "TestValidation"
 )
 
@@ -62,12 +61,11 @@ func (f *fakeAfterEnqueuer) EnqueueAfter(keyObj any, duration time.Duration) {
 	f.enqueuedDurations = append(f.enqueuedDurations, duration)
 }
 
-func newTestNodePoolKey() controllerutils.HCPNodePoolKey {
-	return controllerutils.HCPNodePoolKey{
+func newTestClusterKey() controllerutils.HCPClusterKey {
+	return controllerutils.HCPClusterKey{
 		SubscriptionID:    testSubscriptionID,
 		ResourceGroupName: testResourceGroup,
 		HCPClusterName:    testClusterName,
-		HCPNodePoolName:   testNodePoolName,
 	}
 }
 
@@ -93,29 +91,6 @@ func newTestCluster(t *testing.T) *api.HCPOpenShiftCluster {
 	}
 }
 
-func newTestNodePool(t *testing.T) *api.HCPOpenShiftClusterNodePool {
-	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + testSubscriptionID +
-			"/resourceGroups/" + testResourceGroup +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
-			"/nodePools/" + testNodePoolName))
-	return &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID:   resourceID,
-			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
-		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
-				ID:   resourceID,
-				Name: testNodePoolName,
-				Type: api.NodePoolResourceType.String(),
-			},
-			Location: "eastus",
-		},
-	}
-}
-
 func newTestSubscription() *arm.Subscription {
 	subResourceID := api.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID))
@@ -129,42 +104,38 @@ func newTestSubscription() *arm.Subscription {
 	}
 }
 
-func newTestSyncer(mockDB *corecosmosstoragetesting.MockResourcesDBClient, validation validationutils.NodePoolValidation, fakeClock *clocktesting.FakePassiveClock) (*nodePoolValidationSyncer, *fakeAfterEnqueuer) {
+func newTestSyncer(mockDB *corecosmosstoragetesting.MockResourcesDBClient, validation validationutils.ClusterValidation, fakeClock *clocktesting.FakePassiveClock) (*clusterValidationSyncer, *fakeAfterEnqueuer) {
 	retryCooldown := controllerutil.NewSettableCooldownChecker()
 	retryCooldown.SetClock(fakeClock)
 	enqueuer := &fakeAfterEnqueuer{}
-	syncer := &nodePoolValidationSyncer{
-		retryCooldownChecker:          retryCooldown,
-		enqueueAfter:                  enqueuer,
-		resourcesDBClient:             mockDB,
-		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
-		validation:                    validation,
-		consecutiveUnknownCounts:      lru.New(consecutiveUnknownCountsCacheCapacity),
+	syncer := &clusterValidationSyncer{
+		retryCooldownChecker:         retryCooldown,
+		enqueueAfter:                 enqueuer,
+		resourcesDBClient:            mockDB,
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
+		validation:                   validation,
+		consecutiveUnknownCounts:     lru.New(consecutiveUnknownCountsCacheCapacity),
 	}
 	return syncer, enqueuer
 }
 
-func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
+func TestClusterValidationSyncer_SyncOnce(t *testing.T) {
 
 	defaultSetupDB := func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 		t.Helper()
-		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
-		require.NoError(t, err)
-		nodePool := newTestNodePool(t)
-		_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName).Create(ctx, nodePool, nil)
+		cluster := newTestCluster(t)
+		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
 		require.NoError(t, err)
 		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
 		require.NoError(t, err)
-		// Seed an empty ServiceProviderNodePool the way the production creator
-		// controller would have populated it by the time the syncer runs.
-		_, err = corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, mockDB, nodePool.ID)
+		_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
 		require.NoError(t, err)
 	}
 
 	testCases := []struct {
 		name       string
 		setupDB    func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient)
-		validation validationutils.NodePoolValidation
+		validation validationutils.ClusterValidation
 		wantErr    bool
 		// wantCondition, if non-nil, asserts that the stored validation condition's Status/Reason/Message
 		// match (Type and LastTransitionTime are not compared).
@@ -177,15 +148,13 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			name: "cluster not found -- no-op",
 			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
-				_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName).Create(ctx, newTestNodePool(t), nil)
-				require.NoError(t, err)
-				_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+				_, err := mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
 				require.NoError(t, err)
 			},
-			validation: NewMockNodePoolValidation(testValidationName),
+			validation: NewMockClusterValidation(testValidationName),
 		},
 		{
-			name: "node pool not found -- no-op",
+			name: "service provider cluster not found -- no-op",
 			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
@@ -193,19 +162,19 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
 				require.NoError(t, err)
 			},
-			validation: NewMockNodePoolValidation(testValidationName),
+			validation: NewMockClusterValidation(testValidationName),
 		},
 		{
 			name:          "validation passes -- condition set to True",
 			setupDB:       defaultSetupDB,
-			validation:    NewMockNodePoolValidation(testValidationName).WithPassed(),
+			validation:    NewMockClusterValidation(testValidationName).WithPassed(),
 			wantCondition: &metav1.Condition{Status: metav1.ConditionTrue, Reason: "AsExpected", Message: "As expected."},
 			wantEnqueue:   true,
 		},
 		{
 			name:    "validation fails -- condition set to False, requeue scheduled",
 			setupDB: defaultSetupDB,
-			validation: NewMockNodePoolValidation(testValidationName).WithFailed(
+			validation: NewMockClusterValidation(testValidationName).WithFailed(
 				"QuotaExceeded", "quota exceeded", "Quota exceeded for this subscription.",
 			),
 			wantCondition: &metav1.Condition{Status: metav1.ConditionFalse, Reason: "QuotaExceeded", Message: "Quota exceeded for this subscription."},
@@ -213,11 +182,11 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			// Covers the "last step of SyncOnce" reporting-policy branch that turns an Unknown result into
-			// an error return; see TestNodePoolValidationSyncer_SyncOnce's sibling case below for the
+			// an error return; see TestClusterValidationSyncer_SyncOnce's sibling case below for the
 			// LogOnly branch of the same decision.
 			name:    "validation unknown with ReportError -- condition set to Unknown, requeue scheduled, error returned",
 			setupDB: defaultSetupDB,
-			validation: NewMockNodePoolValidation(testValidationName).WithUnknownReportError(
+			validation: NewMockClusterValidation(testValidationName).WithUnknownReportError(
 				"InternalError", "failed to reach Azure", "Unable to verify.",
 			),
 			wantErr:       true,
@@ -229,7 +198,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			// without otherwise affecting the condition write.
 			name:    "validation fails with nil EarliestRetryAfter -- condition still set, no cooldown or requeue scheduled",
 			setupDB: defaultSetupDB,
-			validation: NewMockNodePoolValidation(testValidationName).WithFailed(
+			validation: NewMockClusterValidation(testValidationName).WithFailed(
 				"QuotaExceeded", "quota exceeded", "Quota exceeded for this subscription.",
 			).WithEarliestRetryAfter(nil),
 			wantCondition: &metav1.Condition{Status: metav1.ConditionFalse, Reason: "QuotaExceeded", Message: "Quota exceeded for this subscription."},
@@ -238,7 +207,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 		{
 			name:    "validation unknown with LogOnly -- condition set to Unknown, requeue still scheduled, no error returned",
 			setupDB: defaultSetupDB,
-			validation: NewMockNodePoolValidation(testValidationName).WithUnknownLogOnly(
+			validation: NewMockClusterValidation(testValidationName).WithUnknownLogOnly(
 				"TransientIssue", "temporary network blip", "Temporarily unable to verify.",
 			),
 			wantCondition: &metav1.Condition{Status: metav1.ConditionUnknown, Reason: "TransientIssue", Message: "Temporarily unable to verify."},
@@ -247,8 +216,8 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 		{
 			name:    "validation skipped with no prior condition -- no condition persisted",
 			setupDB: defaultSetupDB,
-			validation: NewMockNodePoolValidation(testValidationName).WithSkipped(
-				"NotApplicable", "node pool does not need this check", "Not applicable.",
+			validation: NewMockClusterValidation(testValidationName).WithSkipped(
+				"NotApplicable", "cluster does not need this check", "Not applicable.",
 			),
 			wantConditionAbsent: true,
 			wantEnqueue:         true,
@@ -258,10 +227,10 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				defaultSetupDB(t, ctx, mockDB)
-				spnpCRUD := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName)
-				spnp, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+				spc, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				spnp.Status.Validations = []metav1.Condition{
+				spc.Status.Validations = []metav1.Condition{
 					{
 						Type:    testValidationName,
 						Status:  metav1.ConditionFalse,
@@ -269,11 +238,11 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 						Message: "previously failed",
 					},
 				}
-				_, err = spnpCRUD.Replace(ctx, spnp, nil)
+				_, err = spcCRUD.Replace(ctx, spc, nil)
 				require.NoError(t, err)
 			},
-			validation: NewMockNodePoolValidation(testValidationName).WithSkipped(
-				"NotApplicable", "node pool does not need this check", "Not applicable.",
+			validation: NewMockClusterValidation(testValidationName).WithSkipped(
+				"NotApplicable", "cluster does not need this check", "Not applicable.",
 			),
 			wantConditionAbsent: true,
 			wantEnqueue:         true,
@@ -283,20 +252,20 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			setupDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 				defaultSetupDB(t, ctx, mockDB)
-				spnpCRUD := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName)
-				spnp, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+				spc, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				spnp.Status.Validations = []metav1.Condition{
+				spc.Status.Validations = []metav1.Condition{
 					{
 						Type:   testValidationName,
 						Status: metav1.ConditionTrue,
 						Reason: "AsExpected",
 					},
 				}
-				_, err = spnpCRUD.Replace(ctx, spnp, nil)
+				_, err = spcCRUD.Replace(ctx, spc, nil)
 				require.NoError(t, err)
 			},
-			validation: NewMockNodePoolValidation(testValidationName).WithFailed(
+			validation: NewMockClusterValidation(testValidationName).WithFailed(
 				"NoLongerValid", "no longer valid", "No longer valid.",
 			),
 			wantCondition: &metav1.Condition{Status: metav1.ConditionFalse, Reason: "NoLongerValid", Message: "No longer valid."},
@@ -316,7 +285,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
 			syncer, enqueuer := newTestSyncer(mockDB, tc.validation, fakeClock)
 
-			err := syncer.SyncOnce(ctx, newTestNodePoolKey())
+			err := syncer.SyncOnce(ctx, newTestClusterKey())
 			if tc.wantErr {
 				require.Error(t, err)
 			} else {
@@ -330,22 +299,22 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			}
 
 			if tc.wantConditionAbsent {
-				spnp, spnpErr := mockDB.ServiceProviderNodePools(
-					testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName,
-				).Get(ctx, api.ServiceProviderNodePoolResourceName)
-				require.NoError(t, spnpErr)
+				spc, spcErr := mockDB.ServiceProviderClusters(
+					testSubscriptionID, testResourceGroup, testClusterName,
+				).Get(ctx, api.ServiceProviderClusterResourceName)
+				require.NoError(t, spcErr)
 
-				cond := meta.FindStatusCondition(spnp.Status.Validations, testValidationName)
+				cond := meta.FindStatusCondition(spc.Status.Validations, testValidationName)
 				assert.Nil(t, cond, "expected validation condition to be absent")
 			}
 
 			if tc.wantCondition != nil {
-				spnp, spnpErr := mockDB.ServiceProviderNodePools(
-					testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName,
-				).Get(ctx, api.ServiceProviderNodePoolResourceName)
-				require.NoError(t, spnpErr)
+				spc, spcErr := mockDB.ServiceProviderClusters(
+					testSubscriptionID, testResourceGroup, testClusterName,
+				).Get(ctx, api.ServiceProviderClusterResourceName)
+				require.NoError(t, spcErr)
 
-				cond := meta.FindStatusCondition(spnp.Status.Validations, testValidationName)
+				cond := meta.FindStatusCondition(spc.Status.Validations, testValidationName)
 				require.NotNil(t, cond, "expected validation condition to be set")
 				assert.Equal(t, tc.wantCondition.Status, cond.Status)
 				assert.Equal(t, tc.wantCondition.Reason, cond.Reason)
@@ -355,74 +324,85 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 	}
 }
 
-// TestNodePoolValidationSyncer_ShouldWriteCondition unit-tests the suppression decision in isolation from
+// TestClusterValidationSyncer_ShouldWriteCondition unit-tests the suppression decision in isolation from
 // Cosmos/DB plumbing, covering the boundary cases around maxConsecutiveUnknownsBeforeWrite.
-func TestNodePoolValidationSyncer_ShouldWriteCondition(t *testing.T) {
-	// shouldWriteCondition only checks previousCondition's nilness, not its Status, so the Status value
-	// here is just fixture data.
-	storedCondition := &metav1.Condition{Type: testValidationName, Status: metav1.ConditionUnknown}
+func TestClusterValidationSyncer_ShouldWriteCondition(t *testing.T) {
+	syncer := &clusterValidationSyncer{}
 
-	testCases := []struct {
+	t.Run("no previously stored condition -- always write, even mid-streak", func(t *testing.T) {
+		assert.True(t, syncer.shouldWriteCondition(nil, 5))
+	})
+
+	// shouldWriteCondition only checks previousCondition's nilness, not its Status. Vary Status here to
+	// lock that contract: suppression depends solely on consecutiveUnknowns.
+	previousConditionFixtures := []struct {
+		name      string
+		condition *metav1.Condition
+	}{
+		{
+			name:      "Unknown",
+			condition: &metav1.Condition{Type: testValidationName, Status: metav1.ConditionUnknown},
+		},
+		{
+			name:      "Failed",
+			condition: &metav1.Condition{Type: testValidationName, Status: metav1.ConditionFalse, Reason: "PreviouslyFailed"},
+		},
+		{
+			name:      "Passed",
+			condition: &metav1.Condition{Type: testValidationName, Status: metav1.ConditionTrue, Reason: "AsExpected"},
+		},
+	}
+
+	scenarios := []struct {
 		name                string
-		previousCondition   *metav1.Condition
 		consecutiveUnknowns int
 		want                bool
 	}{
 		{
-			name:                "no previously stored condition -- always write, even mid-streak",
-			previousCondition:   nil,
-			consecutiveUnknowns: 5,
-			want:                true,
-		},
-		{
-			name:                "previously stored condition, non-Unknown result (streak reset to 0) -- write",
-			previousCondition:   storedCondition,
+			name:                "non-Unknown result (streak reset to 0) -- write",
 			consecutiveUnknowns: 0,
 			want:                true,
 		},
 		{
-			name:                "previously stored condition, first Unknown in streak -- suppress",
-			previousCondition:   storedCondition,
+			name:                "first Unknown in streak -- suppress",
 			consecutiveUnknowns: 1,
 			want:                false,
 		},
 		{
-			name:                "previously stored condition, streak exactly at threshold -- suppress (boundary)",
-			previousCondition:   storedCondition,
+			name:                "streak exactly at threshold -- suppress (boundary)",
 			consecutiveUnknowns: maxConsecutiveUnknownsBeforeWrite,
 			want:                false,
 		},
 		{
-			name:                "previously stored condition, streak one past threshold -- write (boundary)",
-			previousCondition:   storedCondition,
+			name:                "streak one past threshold -- write (boundary)",
 			consecutiveUnknowns: maxConsecutiveUnknownsBeforeWrite + 1,
 			want:                true,
 		},
 	}
 
-	syncer := &nodePoolValidationSyncer{}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, syncer.shouldWriteCondition(tc.previousCondition, tc.consecutiveUnknowns))
-		})
+	for _, fixture := range previousConditionFixtures {
+		for _, scenario := range scenarios {
+			t.Run(fixture.name+" prior, "+scenario.name, func(t *testing.T) {
+				assert.Equal(t, scenario.want, syncer.shouldWriteCondition(fixture.condition, scenario.consecutiveUnknowns))
+			})
+		}
 	}
 }
 
-// TestNodePoolValidationSyncer_TrackConsecutiveUnknowns unit-tests the per-key streak bookkeeping in
+// TestClusterValidationSyncer_TrackConsecutiveUnknowns unit-tests the per-key streak bookkeeping in
 // isolation: incrementing across consecutive Unknown results, resetting on a non-Unknown result, and
-// tracking each HCPNodePoolKey independently. Each test case is a sequence of steps run against a single
+// tracking each HCPClusterKey independently. Each test case is a sequence of steps run against a single
 // fresh syncer, asserting the returned count after every step.
-func TestNodePoolValidationSyncer_TrackConsecutiveUnknowns(t *testing.T) {
-	keyA := newTestNodePoolKey()
-	keyB := controllerutils.HCPNodePoolKey{
+func TestClusterValidationSyncer_TrackConsecutiveUnknowns(t *testing.T) {
+	keyA := newTestClusterKey()
+	keyB := controllerutils.HCPClusterKey{
 		SubscriptionID:    testSubscriptionID,
 		ResourceGroupName: testResourceGroup,
-		HCPClusterName:    testClusterName,
-		HCPNodePoolName:   "other-nodepool",
+		HCPClusterName:    "other-cluster",
 	}
 
 	type step struct {
-		key    controllerutils.HCPNodePoolKey
+		key    controllerutils.HCPClusterKey
 		status metav1.ConditionStatus
 		want   int
 	}
@@ -475,39 +455,37 @@ func TestNodePoolValidationSyncer_TrackConsecutiveUnknowns(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			syncer := &nodePoolValidationSyncer{consecutiveUnknownCounts: lru.New(consecutiveUnknownCountsCacheCapacity)}
+			syncer := &clusterValidationSyncer{consecutiveUnknownCounts: lru.New(consecutiveUnknownCountsCacheCapacity)}
 			for i, s := range tc.steps {
 				condition := metav1.Condition{Type: testValidationName, Status: s.status}
 				got := syncer.trackConsecutiveUnknowns(s.key, condition)
-				assert.Equalf(t, s.want, got, "step %d: key=%s, status=%s", i, s.key.HCPNodePoolName, s.status)
+				assert.Equalf(t, s.want, got, "step %d: key=%s, status=%s", i, s.key.HCPClusterName, s.status)
 			}
 		})
 	}
 }
 
-// TestNodePoolValidationSyncer_ConsecutiveUnknownSuppression exercises the consecutive-Unknown suppression
+// TestClusterValidationSyncer_ConsecutiveUnknownSuppression exercises the consecutive-Unknown suppression
 // policy end-to-end across repeated SyncOnce calls: a previously stored Failed condition should survive the
 // first maxConsecutiveUnknownsBeforeWrite consecutive Unknown results untouched (and skip the Cosmos write
 // each time, per the equality.Semantic.DeepEqual guard), then get overwritten with Unknown once the streak
 // persists past the threshold.
-func TestNodePoolValidationSyncer_ConsecutiveUnknownSuppression(t *testing.T) {
+func TestClusterValidationSyncer_ConsecutiveUnknownSuppression(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
-	require.NoError(t, err)
-	nodePool := newTestNodePool(t)
-	_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName).Create(ctx, nodePool, nil)
+	cluster := newTestCluster(t)
+	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
 	require.NoError(t, err)
 	_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
 	require.NoError(t, err)
-	_, err = corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, mockDB, nodePool.ID)
+	_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
 	require.NoError(t, err)
 
-	spnpCRUD := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName)
-	spnp, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+	spcCRUD := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroup, testClusterName)
+	spc, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	spnp.Status.Validations = []metav1.Condition{
+	spc.Status.Validations = []metav1.Condition{
 		{
 			Type:    testValidationName,
 			Status:  metav1.ConditionFalse,
@@ -515,10 +493,10 @@ func TestNodePoolValidationSyncer_ConsecutiveUnknownSuppression(t *testing.T) {
 			Message: "previously failed",
 		},
 	}
-	_, err = spnpCRUD.Replace(ctx, spnp, nil)
+	_, err = spcCRUD.Replace(ctx, spc, nil)
 	require.NoError(t, err)
 
-	validation := NewMockNodePoolValidation(testValidationName).WithUnknownLogOnly(
+	validation := NewMockClusterValidation(testValidationName).WithUnknownLogOnly(
 		"InternalError", "failed to reach Azure", "Unable to verify.",
 	)
 
@@ -526,16 +504,14 @@ func TestNodePoolValidationSyncer_ConsecutiveUnknownSuppression(t *testing.T) {
 	syncer, _ := newTestSyncer(mockDB, validation, fakeClock)
 
 	for i := 1; i <= maxConsecutiveUnknownsBeforeWrite; i++ {
-		// Advance the clock past the previous attempt's EarliestRetryAfter deadline so SyncOnce doesn't
-		// short-circuit on the retryCooldownChecker suppression.
 		fakeClock.SetTime(fakeClock.Now().Add(time.Hour))
 
-		before, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+		before, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
 		require.NoError(t, err)
 
-		require.NoError(t, syncer.SyncOnce(ctx, newTestNodePoolKey()))
+		require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
 
-		after, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+		after, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
 		require.NoError(t, err)
 
 		cond := meta.FindStatusCondition(after.Status.Validations, testValidationName)
@@ -548,12 +524,12 @@ func TestNodePoolValidationSyncer_ConsecutiveUnknownSuppression(t *testing.T) {
 	// The next attempt exceeds the threshold, so the Unknown condition finally overwrites the stored one.
 	fakeClock.SetTime(fakeClock.Now().Add(time.Hour))
 
-	before, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+	before, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 
-	require.NoError(t, syncer.SyncOnce(ctx, newTestNodePoolKey()))
+	require.NoError(t, syncer.SyncOnce(ctx, newTestClusterKey()))
 
-	after, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+	after, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 
 	cond := meta.FindStatusCondition(after.Status.Validations, testValidationName)
@@ -563,31 +539,29 @@ func TestNodePoolValidationSyncer_ConsecutiveUnknownSuppression(t *testing.T) {
 	assert.NotEqual(t, before.CosmosETag, after.CosmosETag, "expected a Cosmos write once the suppression threshold was exceeded")
 }
 
-// TestNodePoolValidationSyncer_CooldownSuppression verifies that when the
+// TestClusterValidationSyncer_CooldownSuppression verifies that when the
 // retryCooldownChecker's cooldown is active for a key, SyncOnce returns
 // immediately without performing validation, and schedules a re-enqueue.
-func TestNodePoolValidationSyncer_CooldownSuppression(t *testing.T) {
+func TestClusterValidationSyncer_CooldownSuppression(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 	mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
-	require.NoError(t, err)
-	nodePool := newTestNodePool(t)
-	_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName).Create(ctx, nodePool, nil)
+	cluster := newTestCluster(t)
+	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, cluster, nil)
 	require.NoError(t, err)
 	_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
 	require.NoError(t, err)
-	_, err = corecosmosstorage.GetOrCreateServiceProviderNodePool(ctx, mockDB, nodePool.ID)
+	_, err = corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, cluster.ID)
 	require.NoError(t, err)
 
-	validation := NewMockNodePoolValidation(testValidationName).WithFailed(
+	validation := NewMockClusterValidation(testValidationName).WithFailed(
 		"ShouldNotRun", "should not run", "should not run",
 	)
 
 	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
 	syncer, enqueuer := newTestSyncer(mockDB, validation, fakeClock)
 
-	key := newTestNodePoolKey()
+	key := newTestClusterKey()
 	syncer.retryCooldownChecker.SetCooldown(key, 60*time.Second)
 
 	err = syncer.SyncOnce(ctx, key)

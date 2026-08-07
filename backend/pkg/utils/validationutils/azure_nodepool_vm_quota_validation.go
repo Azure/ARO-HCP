@@ -16,7 +16,6 @@ package validationutils
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -53,14 +52,23 @@ func (v *AzureNodePoolVMQuotaValidation) Name() string {
 	return "AzureNodePoolVMQuotaValidation"
 }
 
-func (v *AzureNodePoolVMQuotaValidation) Validate(ctx context.Context, _ *api.HCPOpenShiftCluster, nodePoolSubscription *arm.Subscription, nodePool *api.HCPOpenShiftClusterNodePool) error {
+func (v *AzureNodePoolVMQuotaValidation) Validate(ctx context.Context, _ *api.HCPOpenShiftCluster, nodePoolSubscription *arm.Subscription, nodePool *api.HCPOpenShiftClusterNodePool) ValidationResult {
 	instanceCount := v.requiredInstanceCount(nodePool)
 	if instanceCount <= 0 {
-		return nil
+		return SkippedValidation(
+			"NotApplicable",
+			"Node pool has no instances to validate quota for.",
+			"Node pool has zero replicas and is not configured for autoscaling.",
+		)
 	}
 
 	if nodePoolSubscription.Properties == nil || nodePoolSubscription.Properties.TenantId == nil || *nodePoolSubscription.Properties.TenantId == "" {
-		return utils.TrackError(fmt.Errorf("subscription is missing tenant ID"))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify VM quota.",
+			"subscription is missing tenant ID",
+			ControllerReportingPolicyTypeError,
+		)
 	}
 	tenantID := *nodePoolSubscription.Properties.TenantId
 
@@ -69,31 +77,61 @@ func (v *AzureNodePoolVMQuotaValidation) Validate(ctx context.Context, _ *api.HC
 
 	sku, err := v.resourceSKUsCachedReader.GetVirtualMachineSKU(ctx, tenantID, subscriptionID, nodePool.Location, vmSize)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get resource SKU for VM size %q: %w", vmSize, err))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify VM quota.",
+			fmt.Sprintf("failed to get resource SKU for VM size %q: %s", vmSize, err),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 	if sku.Family == nil || *sku.Family == "" {
-		return utils.TrackError(fmt.Errorf("resource SKU for VM size %q is missing family", vmSize))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify VM quota.",
+			fmt.Sprintf("resource SKU for VM size %q is missing family", vmSize),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 	family := *sku.Family
 
 	vcpusPerInstance, ok := lookupCapabilityVCPUs(sku)
 	if !ok {
-		return utils.TrackError(fmt.Errorf("resource SKU for VM size %q is missing %s capability", vmSize, computeResourceSKUCapabilityNameVCPUs))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify VM quota.",
+			fmt.Sprintf("resource SKU for VM size %q is missing %s capability", vmSize, computeResourceSKUCapabilityNameVCPUs),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 	if vcpusPerInstance <= 0 {
-		return utils.TrackError(fmt.Errorf("resource SKU for VM size %q has unexpected %s capability value %d", vmSize, computeResourceSKUCapabilityNameVCPUs, vcpusPerInstance))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify VM quota.",
+			fmt.Sprintf("resource SKU for VM size %q has unexpected %s capability value %d", vmSize, computeResourceSKUCapabilityNameVCPUs, vcpusPerInstance),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 
 	requiredVCPUs := int64(instanceCount) * int64(vcpusPerInstance)
 
 	usageClient, err := v.azureFPAClientBuilder.UsageClient(tenantID, subscriptionID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to create usage client: %w", err))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify VM quota.",
+			fmt.Sprintf("failed to create usage client: %s", err),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 
 	familyUsage, regionalUsage, err := v.lookupFamilyAndRegionalVCPUUsages(ctx, usageClient, nodePool.Location, family)
 	if err != nil {
-		return err
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify VM quota.",
+			err.Error(),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 
 	// Limit 0 means creation is not allowed, independently of CurrentValue
@@ -101,16 +139,22 @@ func (v *AzureNodePoolVMQuotaValidation) Validate(ctx context.Context, _ *api.HC
 	familyRemaining := *familyUsage.Limit - int64(*familyUsage.CurrentValue)
 	regionalRemaining := *regionalUsage.Limit - int64(*regionalUsage.CurrentValue)
 
-	var errs []error
+	var failureMessages []string
 	if requiredVCPUs > familyRemaining {
-		errs = append(errs, utils.TrackError(fmt.Errorf("insufficient quota for VM size %q family %q: need %d vCPUs, have %d remaining for %q (current %d, limit %d)",
-			vmSize, family, requiredVCPUs, familyRemaining, localizedNameFromComputeUsage(familyUsage), *familyUsage.CurrentValue, *familyUsage.Limit)))
+		failureMessages = append(failureMessages, fmt.Sprintf("insufficient quota for VM size %q family %q: need %d vCPUs, have %d remaining for %q (current %d, limit %d)",
+			vmSize, family, requiredVCPUs, familyRemaining, localizedNameFromComputeUsage(familyUsage), *familyUsage.CurrentValue, *familyUsage.Limit))
 	}
 	if requiredVCPUs > regionalRemaining {
-		errs = append(errs, utils.TrackError(fmt.Errorf("insufficient total regional vCPU quota for VM size %q: need %d vCPUs, have %d remaining for %q (current %d, limit %d)",
-			vmSize, requiredVCPUs, regionalRemaining, localizedNameFromComputeUsage(regionalUsage), *regionalUsage.CurrentValue, *regionalUsage.Limit)))
+		failureMessages = append(failureMessages, fmt.Sprintf("insufficient total regional vCPU quota for VM size %q: need %d vCPUs, have %d remaining for %q (current %d, limit %d)",
+			vmSize, requiredVCPUs, regionalRemaining, localizedNameFromComputeUsage(regionalUsage), *regionalUsage.CurrentValue, *regionalUsage.Limit))
 	}
-	return errors.Join(errs...)
+	if len(failureMessages) > 0 {
+		combined := strings.Join(failureMessages, "; ")
+		return FailedValidation("InsufficientVMQuota", combined, combined)
+	}
+
+	internalMsg := fmt.Sprintf("Sufficient VM quota for VM size %q in location %q.", vmSize, nodePool.Location)
+	return PassedValidation(api.ControllerConditionReasonAsExpected, internalMsg, internalMsg)
 }
 
 // requiredInstanceCount returns the peak number of VMs the node pool may run.
