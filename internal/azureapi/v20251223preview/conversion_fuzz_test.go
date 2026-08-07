@@ -35,11 +35,12 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	t.Logf("seed: %d", seed)
 
 	fuzzer := apitesting.FuzzerFor(append(apitesting.CommonRoundTripFuzzFuncs(),
-		// Ingress and CryptoRestrictions were added in v20260630preview and do not exist in v20251223preview.
+		// Ingress, CryptoRestrictions, and NodeSshPublicKeys were added after v20251223preview.
 		func(j *api.HCPOpenShiftClusterCustomerProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			j.Ingress = api.CustomerIngressProfile{}
 			j.CryptoRestrictions = api.CryptoRestrictionsNone
+			j.NodeSshPublicKeys = nil
 		},
 	), rand.NewSource(seed))
 

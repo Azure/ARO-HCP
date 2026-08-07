@@ -1282,6 +1282,16 @@ Each entry links to every actor that writes the field.
 | [Frontend: PUT Cluster (Create)](#put-cluster-create) | Sets from request body |
 | [ClusterBaseDomainPrefixSync](#clusterbasedomainprefixsync) | Backfills from CS if empty |
 
+### `HCPOpenShiftCluster.CustomerProperties.NodeSshPublicKeys`
+
+| Actor | When |
+|-------|------|
+| [Frontend: PUT Cluster (Create)](#put-cluster-create) | Sets from request body (requires API version `2026-09-01-preview` or later) |
+| [Frontend: PUT Cluster (Update)](#put-cluster-update) | Replaces from request body; older API versions preserve existing value via `preserveUnknownClusterFields` |
+| [Frontend: PATCH Cluster (Update)](#patch-cluster-update) | Merged from PATCH body; older API versions preserve existing value via `preserveUnknownClusterFields` |
+
+Single writer (frontend only). Stored in Cosmos but not dispatched to Cluster Service — no backend controller forwards this field. Exposed only in API version `2026-09-01-preview` and later.
+
 ### `HCPOpenShiftCluster.Identity.UserAssignedIdentities`
 
 | Actor | When |
