@@ -208,7 +208,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
-      digest: sha256:335a5217890f8137c8bce97c212762dcf584ffb8d5c193499880dcbb4acd4673 # b559012 (2026-06-12 19:17)
+      digest: sha256:2c563a09781ae5c9c54ef23d4cd51be452e9f39a4c9bb0d5d9b041c869189f32 # 0767d80 (2026-08-07 05:30)
   # Mgmt Agent Controller
   mgmtAgent:
     managedIdentityName: mgmt-agent

@@ -154,6 +154,16 @@ images:
     targets:
     - jsonPath: defaults.imageSync.ocMirror.image.digest
       filePath: ../../config/config.yaml
+  # ARO HCP Exporter (custom metrics) image
+  aro-hcp-exporter:
+    group: aro-deps
+    source:
+      image: arohcpsvcdev.azurecr.io/arohcpmetrics
+      tagPattern: "^[a-f0-9]{7}$"
+      useAuth: true
+    targets:
+    - jsonPath: defaults.customExporter.image.digest
+      filePath: ../../config/config.yaml
   # Tenant Quota Collector image
   tenant-quota:
     group: aro-ci-images

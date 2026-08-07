@@ -219,7 +219,7 @@ customExporter:
   clusterTypes: svc-cluster,mgmt-cluster
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
-    digest: sha256:335a5217890f8137c8bce97c212762dcf584ffb8d5c193499880dcbb4acd4673
+    digest: sha256:2c563a09781ae5c9c54ef23d4cd51be452e9f39a4c9bb0d5d9b041c869189f32
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
