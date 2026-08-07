@@ -124,6 +124,19 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Promotion Gating](ev2-integration.md#promotion-gating)
 - [Where To Look](ev2-integration.md#where-to-look)
 
+### [EV2 Retry Catcher](ev2-retry-catcher.md)
+
+- [Problem](ev2-retry-catcher.md#problem)
+- [Goal](ev2-retry-catcher.md#goal)
+- [Non-goals](ev2-retry-catcher.md#non-goals)
+- [Design](ev2-retry-catcher.md#design)
+- [End-To-End Flow](ev2-retry-catcher.md#end-to-end-flow)
+- [E2E Tagging (ARO-HCP)](ev2-retry-catcher.md#1-e2e-tagging-aro-hcp)
+- [Writing The Retry Facts (ARO-HCP)](ev2-retry-catcher.md#2-writing-the-retry-facts-aro-hcp)
+- [Consuming The Signal (ARO-Tools)](ev2-retry-catcher.md#3-consuming-the-signal-aro-tools)
+- [Expiration Configuration](ev2-retry-catcher.md#expiration-configuration)
+- [Where To Look](ev2-retry-catcher.md#where-to-look)
+
 ### [CI Cleanup](cleanup.md)
 
 - [The Three Cleanup Modes](cleanup.md#the-three-cleanup-modes)
@@ -201,6 +214,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md) is the canonical Slack and PagerDuty runbook for DEV CI telemetry, alert response, exporter checks, and routing maintenance.
 - [Opstool CI Platform](opstool.md) explains the standalone AKS platform, shared monitoring infrastructure, and workload rollout model that host DEV CI tools.
 - [CI EV2 Integration](ev2-integration.md) explains how EV2 selects Prow jobs, authenticates to Gangway, and pins runs to the exact rollout commit.
+- [EV2 Retry Catcher](ev2-retry-catcher.md) explains how a narrow, deliberately labeled set of known-issue test failures triggers an automatic single retry of an EV2 gating run instead of a manual retrigger.
 - [CI Cleanup](cleanup.md) explains why cleanup is intentionally split across strict per-test teardown, targeted environment teardown, and background hygiene.
 - [E2E Testing In CI](e2e-testing.md) explains how to trigger E2E jobs from PRs and how to narrow test selection safely.
 - [Upgrade-Path Presubmit](upgrade-path-presubmit.md) explains the optional `upgrade-e2e-parallel` job that validates main-to-PR infrastructure upgrades, including how to trigger it, interpret failures, and understand its image resolution strategy.

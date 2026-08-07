@@ -154,5 +154,6 @@ When you need to change or debug EV2-to-Prow integration, start here:
 
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
+- [EV2 Retry Catcher](ev2-retry-catcher.md)
 - [CI Operations](operations.md)
 - [Renew the Prow Token](../sops/renew-prow-token.md)
