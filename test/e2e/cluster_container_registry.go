@@ -307,7 +307,7 @@ var _ = Describe("Container Registry Pull Credentials", func() {
 							{
 								Name:            "acr-pull-test",
 								Image:           testImage,
-								Command:         []string{"true"},
+								Command:         []string{"/bin/sh", "-c", "exit 0"},
 								ImagePullPolicy: corev1.PullAlways,
 								SecurityContext: &corev1.SecurityContext{
 									AllowPrivilegeEscalation: to.Ptr(false),
