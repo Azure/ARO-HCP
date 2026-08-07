@@ -53,6 +53,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 				j.NetworkSecurityGroupID = coreapitesting.FuzzArmResourceID("Microsoft.Network/networkSecurityGroups", coreapitesting.GenName(c))
 			}
 			j.VnetIntegrationSubnetID = nil
+			j.ContainerRegistryPullManagedIdentity = nil
 		},
 		// DiskType was added in v20251223preview and does not exist in v20240610preview.
 		func(j *coreapi.OSDiskProfile, c randfill.Continue) {

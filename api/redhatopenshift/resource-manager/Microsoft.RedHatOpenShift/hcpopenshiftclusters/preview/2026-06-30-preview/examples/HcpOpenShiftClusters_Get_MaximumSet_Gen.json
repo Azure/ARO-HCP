@@ -50,7 +50,10 @@
                 "serviceManagedIdentity": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/serviceMI"
               }
             },
-            "issuerUrl": "https://oidc.contoso.com"
+            "issuerUrl": "https://oidc.contoso.com",
+            "containerRegistry": {
+              "managedIdentity": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/myAcrPullIdentity"
+            }
           },
           "provisioningState": "Succeeded",
           "console": {
