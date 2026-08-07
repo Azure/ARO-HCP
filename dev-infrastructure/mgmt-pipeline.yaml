@@ -356,6 +356,8 @@ resourceGroups:
       errorContainsAny:
       - "ContainerGroupDeploymentNotReady"
       - "Timed out"
+      - "dns readiness (login.microsoftonline.com): giving up"
+      - "az login (globalMSI): giving up"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: cluster
