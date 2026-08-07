@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -500,7 +501,114 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 		errs = append(errs, field.Invalid(versionPath, newObj.ID, npErr.Error()))
 	}
 
+	// Reject the version change if the requested update channel has no reachable
+	// upgrade edge for this cluster. This only fires once the backend has
+	// mirrored a non-empty channel list onto the ServiceProviderCluster; until
+	// then it fails open (see admitClusterVersionID).
+	errs = append(errs, admitClusterVersionID(ctx, admissionContext, op, fldPath, newObj, oldObj)...)
+
 	return errs
+}
+
+// versionMajorMinor extracts the "<major>.<minor>" release line from an
+// OpenShift version ID. Update channels are always named
+// "<channelGroup>-<major>.<minor>" (e.g. "stable-4.20") — never with a patch or
+// pre-release suffix — so channel lookups must use the major.minor of the
+// requested version rather than its raw ID. Examples: "4.20" -> "4.20",
+// "4.20.8" -> "4.20", "5.0.0-0.nightly-2026-08-05-123456" -> "5.0",
+// "4.21.0-rc.1" -> "4.21". It returns an error when the ID cannot be parsed as
+// a (tolerant) semantic version.
+func versionMajorMinor(id string) (string, error) {
+	v, err := semver.ParseTolerant(id)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d.%d", v.Major, v.Minor), nil
+}
+
+// admitClusterVersionID verifies that, when the cluster's target version.id
+// changes, an OpenShift update channel named "<channelGroup>-<major>.<minor>"
+// (e.g. "stable-4.20") is present in the associated HostedCluster's observed
+// status.version.desired.channels. The requested version's major.minor is
+// derived with versionMajorMinor, so patch ("4.20.8"), nightly
+// ("5.0.0-0.nightly-...") and pre-release ("4.21.0-rc.1") IDs all resolve to the
+// correct release-line channel.
+//
+// Admission never reaches the management cluster (or the DB) for this data: the
+// backend observes the HostedCluster and mirrors its
+// status.version.desired.channels onto ServiceProviderCluster.Status.
+// DesiredVersionChannels, which the frontend prefetches into the admission
+// context. See internal/admission/CLAUDE.md.
+//
+// Semantics of the channel list: a channel only appears in
+// status.version.desired.channels when the cluster's current version has a valid
+// upgrade edge to a release served by that channel. Therefore, once the list is
+// populated, a requested "<channelGroup>-<major>.<minor>" channel that is absent
+// means there is no supported upgrade path to that version line and the update is
+// rejected.
+//
+// Fail-open until synced: DesiredVersionChannels is populated asynchronously by
+// the backend and is empty on freshly created clusters and until the first sync
+// completes. When the list is not yet available we cannot validate the requested
+// channel, so we must NOT block the update — we skip the check and let the
+// backend converge. Enforcing against an empty list would reject every version
+// change until the mirror is populated, which is incorrect. This check therefore
+// only rejects when the backend has published a non-empty channel list that
+// genuinely lacks the requested channel.
+func admitClusterVersionID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.VersionProfile) field.ErrorList {
+	// Only enforce on UPDATE, and only when the customer is actually changing
+	// version.id. On CREATE there is no prior version, and an unchanged version
+	// need not be re-validated against the current channel list.
+	if op.Type != operation.Update || oldObj == nil {
+		return nil
+	}
+	if len(newObj.ID) == 0 || oldObj.ID == newObj.ID {
+		return nil
+	}
+
+	// Without a channel group we cannot construct a channel name to look for, so
+	// there is nothing to validate here. This mirrors the desired-version
+	// controller, which also terminates version resolution when the channel
+	// group is empty.
+	if len(newObj.ChannelGroup) == 0 {
+		return nil
+	}
+
+	// No channel data yet: fail open (see the doc comment above). A genuinely
+	// missing ServiceProviderCluster prefetch is still surfaced as an
+	// InternalError by the version-skew check in admitClusterVersionProfile, so
+	// we do not duplicate that here.
+	if admissionContext.ServiceProviderCluster == nil {
+		return nil
+	}
+	availableChannels := admissionContext.ServiceProviderCluster.Status.DesiredVersionChannels
+	if len(availableChannels) == 0 {
+		return nil
+	}
+
+	// Channels are keyed by release line ("<channelGroup>-<major>.<minor>"), so
+	// compare against the major.minor of the requested version rather than its
+	// raw ID (which may carry a patch or pre-release suffix).
+	majorMinor, err := versionMajorMinor(newObj.ID)
+	if err != nil {
+		// The version ID failed to parse. admitClusterVersionProfile already
+		// reports the parse failure as a field error, so skip the channel check
+		// here rather than surfacing a duplicate error.
+		return nil
+	}
+	expectedChannel := fmt.Sprintf("%s-%s", newObj.ChannelGroup, majorMinor)
+	if slices.Contains(availableChannels, expectedChannel) {
+		return nil
+	}
+
+	versionPath := fldPath.Child("id")
+	return field.ErrorList{field.Invalid(
+		versionPath,
+		newObj.ID,
+		fmt.Sprintf("no upgrade path to update channel %q is currently available for this cluster; "+
+			"a channel appears in the cluster's desired version channels only when an upgrade edge to a "+
+			"release in that channel exists", expectedChannel),
+	)}
 }
 
 // minKmsKeyVersionRotationVersion is the minimum OCP version whose CPO

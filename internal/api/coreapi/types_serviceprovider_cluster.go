@@ -148,6 +148,24 @@ type ServiceProviderClusterStatus struct {
 	// }
 	ControlPlaneVersion ServiceProviderClusterStatusVersion `json:"control_plane_version,omitempty"`
 
+	// DesiredVersionChannels mirrors the observed HostedCluster's
+	// status.version.desired.channels (see hypershift ClusterVersionStatus ->
+	// configv1.Release.Channels). Each entry is an OpenShift update channel name
+	// such as "stable-4.19" or "candidate-4.20".
+	//
+	// A channel only appears in status.version.desired.channels when the
+	// cluster's current desired release has a valid upgrade edge to a release
+	// served by that channel. In other words, this is the set of channels the
+	// cluster can currently move along; a channel being absent means there is no
+	// supported upgrade path to that channel's release line yet.
+	//
+	// This list is mirrored here by the backend (which alone can observe the
+	// HostedCluster) so that DB-free cluster admission can reject a version.id
+	// change whose target channel ("<channelGroup>-<id>") is not reachable,
+	// without the frontend ever needing access to the management cluster.
+	// Written by: ControlPlaneActiveVersions
+	DesiredVersionChannels []string `json:"desiredVersionChannels,omitempty"`
+
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
 	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
