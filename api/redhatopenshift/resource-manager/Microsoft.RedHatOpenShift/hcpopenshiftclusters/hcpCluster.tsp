@@ -16,10 +16,7 @@ namespace Microsoft.RedHatOpenShift;
 interface HcpOpenShiftClusters {
   get is ArmResourceRead<HcpOpenShiftCluster>;
   createOrUpdate is ArmResourceCreateOrReplaceAsync<HcpOpenShiftCluster>;
-  update is ArmResourcePatchAsync<
-    HcpOpenShiftCluster,
-    HcpOpenShiftClusterProperties
-  >;
+  update is ArmCustomPatchAsync<HcpOpenShiftCluster, HcpOpenShiftClusterUpdate>;
   delete is ArmResourceDeleteWithoutOkAsync<HcpOpenShiftCluster>;
   listByResourceGroup is ArmResourceListByParent<HcpOpenShiftCluster>;
   listBySubscription is ArmListBySubscription<HcpOpenShiftCluster>;
@@ -53,7 +50,7 @@ interface HcpOpenShiftClusters {
 interface NodePools {
   get is ArmResourceRead<NodePool>;
   createOrUpdate is ArmResourceCreateOrReplaceAsync<NodePool>;
-  update is ArmResourcePatchAsync<NodePool, NodePoolProperties>;
+  update is ArmCustomPatchAsync<NodePool, NodePoolUpdate>;
   delete is ArmResourceDeleteWithoutOkAsync<NodePool>;
   listByParent is ArmResourceListByParent<NodePool>;
 }
@@ -63,7 +60,7 @@ interface NodePools {
 interface ExternalAuths {
   get is ArmResourceRead<ExternalAuth>;
   createOrUpdate is ArmResourceCreateOrReplaceAsync<ExternalAuth>;
-  update is ArmResourcePatchAsync<ExternalAuth, ExternalAuthProperties>;
+  update is ArmCustomPatchAsync<ExternalAuth, ExternalAuthUpdate>;
   delete is ArmResourceDeleteWithoutOkAsync<ExternalAuth>;
   listByParent is ArmResourceListByParent<ExternalAuth>;
 }

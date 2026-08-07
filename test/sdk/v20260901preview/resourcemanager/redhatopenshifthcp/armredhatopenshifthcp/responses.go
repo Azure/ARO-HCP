@@ -107,7 +107,7 @@ type HcpOperatorIdentityRoleSetsClientListResponse struct {
 
 // NodePoolsClientCreateOrUpdateResponse contains the response from method NodePoolsClient.BeginCreateOrUpdate.
 type NodePoolsClientCreateOrUpdateResponse struct {
-	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
+	// NodePool resource
 	NodePool
 }
 
@@ -118,7 +118,7 @@ type NodePoolsClientDeleteResponse struct {
 
 // NodePoolsClientGetResponse contains the response from method NodePoolsClient.Get.
 type NodePoolsClientGetResponse struct {
-	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
+	// NodePool resource
 	NodePool
 }
 
@@ -130,7 +130,7 @@ type NodePoolsClientListByParentResponse struct {
 
 // NodePoolsClientUpdateResponse contains the response from method NodePoolsClient.BeginUpdate.
 type NodePoolsClientUpdateResponse struct {
-	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
+	// NodePool resource
 	NodePool
 }
 

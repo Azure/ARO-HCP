@@ -18,24 +18,11 @@ type APIProfile struct {
 	AuthorizedCIDRs []*string
 }
 
-// AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
-// identities)
-type AzureResourceManagerCommonTypesManagedServiceIdentityUpdate struct {
-	// The type of managed identity assigned to this resource.
-	Type *ManagedServiceIdentityType
-
-	// The identities assigned to this resource by the user.
-	UserAssignedIdentities map[string]*UserAssignedIdentity
-}
-
 // ClusterAutoscalingProfile - ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated
 // with a control plane.
 type ClusterAutoscalingProfile struct {
 	// maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the provisioning to be
 	// unsuccessful. The default is 900 seconds, or 15 minutes.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxNodeProvisionTimeSeconds *int32
 
 	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
@@ -45,17 +32,11 @@ type ClusterAutoscalingProfile struct {
 
 	// maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool. The default
 	// is 600 seconds.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxPodGracePeriodSeconds *int32
 
 	// podPriorityThreshold enables users to schedule "best-effort" pods, which shouldn't trigger autoscaler actions, but only
 	// run when there are spare resources available. The default is -10. See the
 	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	PodPriorityThreshold *int32
 }
 
@@ -257,18 +238,6 @@ type ExternalAuthPropertiesUpdate struct {
 type ExternalAuthUpdate struct {
 	// The resource-specific properties for this resource.
 	Properties *ExternalAuthPropertiesUpdate
-
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
 }
 
 // GroupClaimProfile - External Auth claim profile This configures how the groups of a cluster identity should be constructed
@@ -434,25 +403,13 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 // HcpOpenShiftClusterUpdate - HCP cluster resource
 type HcpOpenShiftClusterUpdate struct {
 	// The managed service identities assigned to this resource.
-	Identity *AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
+	Identity *ManagedServiceIdentityUpdate
 
 	// The resource-specific properties for this resource.
 	Properties *HcpOpenShiftClusterPropertiesUpdate
 
 	// Resource tags.
 	Tags map[string]*string
-
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
 }
 
 // HcpOpenShiftVersion represents a location based available HCP OpenShift version
@@ -636,6 +593,15 @@ type ManagedServiceIdentity struct {
 	TenantID *string
 }
 
+// ManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned identities)
+type ManagedServiceIdentityUpdate struct {
+	// The type of managed identity assigned to this resource.
+	Type *ManagedServiceIdentityType
+
+	// The identities assigned to this resource by the user.
+	UserAssignedIdentities map[string]*UserAssignedIdentity
+}
+
 // NetworkProfile - OpenShift networking configuration
 type NetworkProfile struct {
 	// Network host prefix
@@ -654,7 +620,7 @@ type NetworkProfile struct {
 	ServiceCIDR *string
 }
 
-// NodePool - Concrete tracked resource types can be created by aliasing this type using a specific property type.
+// NodePool resource
 type NodePool struct {
 	// REQUIRED; The geo-location where the resource lives
 	Location *string
@@ -799,28 +765,16 @@ type NodePoolPropertiesUpdate struct {
 	Version *NodePoolVersionProfileUpdate
 }
 
-// NodePoolUpdate - Concrete tracked resource types can be created by aliasing this type using a specific property type.
+// NodePoolUpdate - NodePool resource
 type NodePoolUpdate struct {
 	// The managed service identities assigned to this resource.
-	Identity *AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
+	Identity *ManagedServiceIdentityUpdate
 
 	// The resource-specific properties for this resource.
 	Properties *NodePoolPropertiesUpdate
 
 	// Resource tags.
 	Tags map[string]*string
-
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
 }
 
 // NodePoolVersionProfile - Versions represents an OpenShift version.
@@ -830,9 +784,6 @@ type NodePoolVersionProfile struct {
 
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 }
 
@@ -840,9 +791,6 @@ type NodePoolVersionProfile struct {
 type NodePoolVersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 
 	// ID is the unique identifier of the version.
@@ -1205,9 +1153,6 @@ type VersionProfile struct {
 
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 }
 
@@ -1215,9 +1160,6 @@ type VersionProfile struct {
 type VersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
-	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
-	// value will be declared in a future API version once the TypeSpec bug is
-	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 
 	// ID is the desired X.Y version of the cluster control plane.

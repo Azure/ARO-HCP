@@ -16,7 +16,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"testing"
 )
@@ -24,9 +23,6 @@ import (
 // TestTypeSpecDefaultsConsistency verifies that default values declared in the
 // generated OpenAPI spec (from TypeSpec) match the canonical Go constants
 // defined in defaults.go and enums.go.
-//
-// Several fields lack "default" annotations in the OpenAPI spec due to a
-// TypeSpec bug (typespec-azure#1586). These are skipped with a comment.
 func TestTypeSpecDefaultsConsistency(t *testing.T) {
 	specPath := "../../api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2026-09-01-preview/openapi.json"
 	specData, err := os.ReadFile(specPath)
@@ -73,9 +69,13 @@ func TestTypeSpecDefaultsConsistency(t *testing.T) {
 		{"OutboundType", "PlatformProfile", "outboundType", string(OutboundTypeLoadBalancer)},
 		{"DiskStorageAccountType", "OsDiskProfile", "diskStorageAccountType", string(DiskStorageAccountTypePremium_LRS)},
 		{"ClusterImageRegistryState", "ClusterImageRegistryProfile", "state", string(ClusterImageRegistryStateEnabled)},
+		{"ChannelGroup", "VersionProfile", "channelGroup", "stable"},
 		// Numeric defaults
 		{"HostPrefix", "NetworkProfile", "hostPrefix", DefaultClusterNetworkHostPrefix},
 		{"OSDiskSizeGiB", "OsDiskProfile", "sizeGiB", DefaultNodePoolOSDiskSizeGiB},
+		{"MaxPodGracePeriodSeconds", "ClusterAutoscalingProfile", "maxPodGracePeriodSeconds", DefaultClusterMaxPodGracePeriodSeconds},
+		{"MaxNodeProvisionTimeSeconds", "ClusterAutoscalingProfile", "maxNodeProvisionTimeSeconds", DefaultClusterMaxNodeProvisionTimeSeconds},
+		{"PodPriorityThreshold", "ClusterAutoscalingProfile", "podPriorityThreshold", DefaultClusterPodPriorityThreshold},
 		// Boolean defaults
 		{"AutoRepair", "NodePoolProperties", "autoRepair", true},
 	}
@@ -115,27 +115,6 @@ func TestTypeSpecDefaultsConsistency(t *testing.T) {
 				}
 			default:
 				t.Fatalf("unsupported goDefault type %T for %s", tc.goDefault, tc.name)
-			}
-		})
-	}
-
-	// Fields that SHOULD have TypeSpec defaults but don't due to
-	// typespec-azure#1586. This list documents the gap explicitly.
-	missingAnnotations := []struct {
-		definition string
-		property   string
-	}{
-		{"VersionProfile", "channelGroup"},
-		{"ClusterAutoscalingProfile", "maxPodGracePeriodSeconds"},
-		{"ClusterAutoscalingProfile", "maxNodeProvisionTimeSeconds"},
-		{"ClusterAutoscalingProfile", "podPriorityThreshold"},
-	}
-	for _, m := range missingAnnotations {
-		t.Run(fmt.Sprintf("Missing_%s_%s", m.definition, m.property), func(t *testing.T) {
-			_, ok := getDefault(m.definition, m.property)
-			if ok {
-				t.Errorf("TypeSpec bug may be fixed: %s.%s now has a default annotation — "+
-					"add a consistency check above and remove this entry", m.definition, m.property)
 			}
 		})
 	}
