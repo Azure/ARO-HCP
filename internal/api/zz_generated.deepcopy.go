@@ -1719,6 +1719,20 @@ func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderCluster
 		**out = **in
 	}
 	in.AzureResources.DeepCopyInto(&out.AzureResources)
+	if in.ControllerEarliestRecheckTimes != nil {
+		in, out := &in.ControllerEarliestRecheckTimes, &out.ControllerEarliestRecheckTimes
+		*out = make(map[string]*v1.Time, len(*in))
+		for key, val := range *in {
+			var outVal *v1.Time
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = (*in).DeepCopy()
+			}
+			(*out)[key] = outVal
+		}
+	}
 	return
 }
 

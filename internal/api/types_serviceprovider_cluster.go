@@ -201,6 +201,24 @@ type ServiceProviderClusterStatus struct {
 	// AzureResources tracks the lifecycle of Azure resources associated with
 	// the cluster, including deny assignments and the managed resource group.
 	AzureResources AzureResources `json:"azureResources,omitempty"`
+
+	// ControllerEarliestRecheckTimes is a map of Cosmos controller names to their intended earliest recheck times.
+	// The key is the name of the controller. If a controller name is not present as a map key, it means recheck immediately.
+	// This gates work after a reconcile is already triggered. It does not replace or interact with changefeed delivery,
+	// informer resync, or controller ResyncPeriod: those still enqueue. This field decides whether SyncOnce should
+	// skip work until the stored time.
+	// The value is the earliest time at which the controller should re-check. Nil means recheck immediately.
+	// When interacting with this map, it can be nil. In that case, it means recheck immediately too. To add elements to it,
+	// it must be initialized first.
+	// This allows for controllers to avoid repeatedly doing the same work before a certain amount of time has passed.
+	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% on top of the base
+	// recheck time is considered normal so that any storms are quickly dissipated. For example, if the base recheck time is 12 hours,
+	// the resulting range with 50% jitter would be between 12 and 18 hours.
+	// Additionally, long recheck times are recommended for controllers outside of their active phases. Order of at least
+	// six hours is, with durations up to 24 hours considered normal.
+	// This gates work after a reconcile is triggered. It does not replace or interact with changefeed delivery,
+	// informer resync, or controller ResyncPeriod.
+	ControllerEarliestRecheckTimes map[string]*metav1.Time `json:"controllerEarliestRecheckTimes,omitempty"`
 }
 
 // AzureResources groups the Azure resource references associated with a cluster.
