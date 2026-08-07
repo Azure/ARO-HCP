@@ -168,9 +168,9 @@ tlsCertificatesEnabled: true
 # Temporary deny assignment feature flag
 denyAssignments: "{{ .clustersService.denyAssignments }}"
 # The client id of the service principal that represents the ARM Helper Identity.
-azureArmHelperIdentityClientId: "{{ if .clustersServiceArmHelperClientId }}{{ .clustersServiceArmHelperClientId }}{{ else }}{{ .armHelperClientId }}{{ end }}"
+azureArmHelperIdentityClientId: "{{ .armHelperClientId }}"
 # The name of the secret that contains the ARM Helper Identity certificate bundle.
-azureArmHelperIdentityCertName: "{{ if .clustersServiceArmHelperCertName }}{{ .clustersServiceArmHelperCertName }}{{ else }}{{ .armHelperCertName }}{{ end }}"
+azureArmHelperIdentityCertName: "{{ .armHelperCertName }}"
 # The principal id of the service principal that represents the mock first party application identity.
 azureArmHelperMockFpaPrincipalId: "{{ .armHelperFPAPrincipalId }}"
 # The name of the secret that contains the mock managed identities certificate bundle.
