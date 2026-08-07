@@ -101,14 +101,20 @@ func (v *AzureNodePoolVMQuotaValidation) Validate(ctx context.Context, _ *api.HC
 	familyRemaining := *familyUsage.Limit - int64(*familyUsage.CurrentValue)
 	regionalRemaining := *regionalUsage.Limit - int64(*regionalUsage.CurrentValue)
 
+	// Describe the required vCPU total using replicas or autoscaling max × vCPUs per instance.
+	requiredVCPUDescription := fmt.Sprintf("%d vCPUs (%d replicas × %d vCPUs per instance)", requiredVCPUs, instanceCount, vcpusPerInstance)
+	if nodePool.Properties.AutoScaling != nil {
+		requiredVCPUDescription = fmt.Sprintf("%d vCPUs (autoscaling max %d × %d vCPUs per instance)", requiredVCPUs, instanceCount, vcpusPerInstance)
+	}
+
 	var errs []error
 	if requiredVCPUs > familyRemaining {
-		errs = append(errs, utils.TrackError(fmt.Errorf("insufficient quota for VM size %q family %q: need %d vCPUs, have %d remaining for %q (current %d, limit %d)",
-			vmSize, family, requiredVCPUs, familyRemaining, localizedNameFromComputeUsage(familyUsage), *familyUsage.CurrentValue, *familyUsage.Limit)))
+		errs = append(errs, utils.TrackError(fmt.Errorf("insufficient quota for VM size %q family %q: need %s, have %d remaining for %q (current %d, limit %d)",
+			vmSize, family, requiredVCPUDescription, familyRemaining, localizedNameFromComputeUsage(familyUsage), *familyUsage.CurrentValue, *familyUsage.Limit)))
 	}
 	if requiredVCPUs > regionalRemaining {
-		errs = append(errs, utils.TrackError(fmt.Errorf("insufficient total regional vCPU quota for VM size %q: need %d vCPUs, have %d remaining for %q (current %d, limit %d)",
-			vmSize, requiredVCPUs, regionalRemaining, localizedNameFromComputeUsage(regionalUsage), *regionalUsage.CurrentValue, *regionalUsage.Limit)))
+		errs = append(errs, utils.TrackError(fmt.Errorf("insufficient total regional vCPU quota for VM size %q: need %s, have %d remaining for %q (current %d, limit %d)",
+			vmSize, requiredVCPUDescription, regionalRemaining, localizedNameFromComputeUsage(regionalUsage), *regionalUsage.CurrentValue, *regionalUsage.Limit)))
 	}
 	return errors.Join(errs...)
 }
