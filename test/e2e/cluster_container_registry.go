@@ -30,12 +30,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
+	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -331,11 +333,38 @@ var _ = Describe("Container Registry Pull Credentials", func() {
 				err = verifiers.VerifyImagePulled(pullTestNamespace, acrLoginServer, "debug", imagePullTimeout).
 					Verify(ctx, adminRESTConfig)
 				Expect(err).NotTo(HaveOccurred(), "failed to pull image from private ACR %s — the credential provider did not authenticate the pull", acrLoginServer)
-			})
 
-		// TODO: Day 2 test (update/clear containerRegistry on existing cluster) is disabled.
-		// The update path triggers node pool rolling replacements via CS, and the operation
-		// convergence time needs investigation before this can be reliably tested in CI.
-		// See ARO-24037 for tracking.
+				By("clearing containerRegistry via PATCH (day-2 unset)")
+				updateResp, err := framework.UpdateHCPCluster20260630(
+					ctx,
+					hcpClient,
+					*resourceGroup.Name,
+					customerClusterName,
+					hcpsdk20260630preview.HcpOpenShiftClusterUpdate{
+						Properties: &hcpsdk20260630preview.HcpOpenShiftClusterPropertiesUpdate{
+							Platform: &hcpsdk20260630preview.PlatformProfileUpdate{
+								ContainerRegistry: azcore.NullValue[*hcpsdk20260630preview.ContainerRegistryProfile](),
+							},
+						},
+					},
+					framework.UpdateHCPClusterTimeout,
+				)
+				Expect(err).NotTo(HaveOccurred(), "failed to clear containerRegistry via PATCH")
+				Expect(updateResp).NotTo(BeNil(), "update response was nil")
+				Expect(updateResp.Properties).NotTo(BeNil(), "update response Properties was nil")
+				Expect(updateResp.Properties.ProvisioningState).NotTo(BeNil(), "update response ProvisioningState was nil")
+				Expect(*updateResp.Properties.ProvisioningState).To(
+					Equal(hcpsdk20260630preview.ProvisioningStateSucceeded),
+					"cluster provisioning state should be Succeeded after clearing containerRegistry",
+				)
+
+				By("verifying containerRegistry is cleared via GET")
+				clusterAfterClear, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				Expect(err).NotTo(HaveOccurred(), "failed to GET cluster after clearing containerRegistry")
+				Expect(clusterAfterClear.Properties).NotTo(BeNil(), "cluster properties was nil after clear")
+				Expect(clusterAfterClear.Properties.Platform).NotTo(BeNil(), "cluster platform was nil after clear")
+				Expect(clusterAfterClear.Properties.Platform.ContainerRegistry).To(BeNil(),
+					"containerRegistry should be nil after clearing via PATCH")
+			})
 	})
 })
