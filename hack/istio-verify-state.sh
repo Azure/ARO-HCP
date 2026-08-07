@@ -9,6 +9,9 @@
 #   ./hack/istio-verify-state.sh after           # snapshot + compare with before
 #   ./hack/istio-verify-state.sh now             # snapshot + verify
 #   ./hack/istio-verify-state.sh now --live      # also run live checks (creates a temporary pod)
+#   ./hack/istio-verify-state.sh verify-file /path/to/snapshot.txt
+#                                                 # offline: verify an existing snapshot file,
+#                                                 # no kubectl calls at all (no cluster required)
 #
 # --live creates a temporary pod (istio-verify-curl) in the aro-hcp namespace to test
 # service reachability and ingress connectivity. The pod is auto-deleted on success;
@@ -749,8 +752,19 @@ case "$PHASE" in
             exit 1
         fi
         ;;
+    verify-file)
+        snapshot_file="${2:-}"
+        if [ -z "$snapshot_file" ] || [ ! -f "$snapshot_file" ]; then
+            echo "Usage: $0 verify-file /path/to/snapshot.txt"
+            exit 1
+        fi
+        run_verification "$snapshot_file"
+        if [ "$FAIL_COUNT" -gt 0 ]; then
+            exit 1
+        fi
+        ;;
     *)
-        echo "Usage: $0 {before|after|now}"
+        echo "Usage: $0 {before|after|now|verify-file <file>}"
         exit 1
         ;;
 esac
