@@ -65,6 +65,9 @@ func resolveDefaultControlPlaneVersion() (string, error) {
 		version := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION")
 		if len(version) == 0 {
 			version = DefaultOCPVersionId
+			if v := os.Getenv("ARO_HCP_OPENSHIFT_VERSION_ID"); v != "" {
+				version = v
+			}
 			channelGroup := DefaultOpenshiftChannelGroup()
 			if channelGroup != "stable" {
 				resolved, err := GetLatestInstallVersion(context.Background(), channelGroup, version)

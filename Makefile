@@ -207,7 +207,7 @@ e2e-local/run: $(ARO_HCP_TESTS)
 	export ADMIN_API_ADDRESS=$${ADMIN_API_ADDRESS:-http://localhost:8444}; \
 	export HCPCTL_BINARY="$$(pwd)/tooling/hcpctl/hcpctl"; \
 	mkdir -p "$$ARTIFACT_DIR"; \
-	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH" --max-concurrency 100
+	$(ARO_HCP_TESTS) run-suite "$${ARO_HCP_E2E_SUITE:-rp-api-compat-all/parallel}" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH" --max-concurrency 100
 .PHONY: e2e-local/run
 
 e2e-local/run-test:
