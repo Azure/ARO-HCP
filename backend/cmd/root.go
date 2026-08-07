@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -28,6 +29,8 @@ import (
 
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog/v2"
+
+	azlog "github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -38,6 +41,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
 )
+
+// checkAccessV2HTTPLogPathMarker matches the CheckAccess V2 API path segment that
+// appears in Azure SDK HTTP log messages for that endpoint.
+const checkAccessV2HTTPLogPathMarker = "/checkAccess"
 
 type BackendRootCmdFlags struct {
 	Kubeconfig                                                                                    string
@@ -354,7 +361,14 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		// In ARO-HCP environments where we have a real FPA, we use the FPA identity to create the Check Access V2 client
 		checkAccessV2ClientBuilder = azureclient.NewRealFPAIdentityCheckAccessV2ClientBuilder(
 			fpaTokenCredRetriever, azureConfig.CloudEnvironment.CheckAccessV2Endpoint(f.AzureLocation),
-			azureConfig.CloudEnvironment.CheckAccessV2Scope(), azureConfig.CloudEnvironment.AZCoreClientOptions(),
+			azureConfig.CloudEnvironment.CheckAccessV2Scope(), azureConfig.CloudEnvironment.CheckAccessV2ClientOptions(),
+		)
+
+		// Throttle our per-tenant call rate to stay under the real FPA identity's documented CheckAccessV2 limit of 500 requests/second per tenant.
+		checkAccessV2ClientBuilder = azureclient.NewRateLimitedCheckAccessV2ClientBuilder(
+			checkAccessV2ClientBuilder,
+			azureclient.CheckAccessV2RealFPARateLimiterQPS,
+			azureclient.CheckAccessV2RealFPARateLimiterBurst,
 		)
 	} else {
 		// In ARO-HCP environments where we don't have a real FPA, we use the Azure Permissions Manager identity to create the Check Access V2 client
@@ -368,7 +382,14 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		checkAccessV2ClientBuilder = azureclient.NewInsecureARMPermissionsManagerIdentityCheckAccessV2ClientBuilder(
 			azureARMPermissionsManagerIdentityTokenCredentialRetriever,
 			azureConfig.CloudEnvironment.CheckAccessV2Endpoint(f.AzureLocation),
-			azureConfig.CloudEnvironment.CheckAccessV2Scope(), azureConfig.CloudEnvironment.AZCoreClientOptions(),
+			azureConfig.CloudEnvironment.CheckAccessV2Scope(), azureConfig.CloudEnvironment.CheckAccessV2ClientOptions(),
+		)
+
+		// Throttle our per-tenant call rate to stay under the Azure Permissions Manager identity's documented CheckAccessV2 limit of 25 requests per 5 seconds per tenant.
+		checkAccessV2ClientBuilder = azureclient.NewRateLimitedCheckAccessV2ClientBuilder(
+			checkAccessV2ClientBuilder,
+			azureclient.CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS,
+			azureclient.CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst,
 		)
 
 		// In ARO-HCP environments where we don't have a real FPA, we use the HardcodedIdentityFPAMIDataplaneClientBuilder to create the FPA MI dataplane client builder
@@ -384,6 +405,10 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
 
 	azCoreClientOptions := *azureConfig.CloudEnvironment.AZCoreClientOptions()
+	miDataplaneBasedIdentityAccessTokenRetrieverBuilder := azureclient.NewMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(
+		fpaMIDataplaneClientBuilder,
+		azCoreClientOptions,
+	)
 
 	cosmosDatabaseClient, err := app.NewCosmosDatabaseClient(
 		f.AzureCosmosDBURL,
@@ -441,11 +466,13 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		BackendIdentityAzureCachedReaders:  backendIdentityAzureCachedReaders,
 		ExitOnPanic:                        f.ExitOnPanic,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
-		SMIClientBuilder:                   smiClientBuilder,
-		CheckAccessV2ClientBuilder:         checkAccessV2ClientBuilder,
-		ClusterScopedIdentitiesConfig:      clusterScopedIdentitiesConfig,
-		MetricsRegisterer:                  legacyregistry.Registerer(),
-		MetricsGatherer:                    legacyregistry.DefaultGatherer,
+		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
+		SMIClientBuilder:              smiClientBuilder,
+		CheckAccessV2ClientBuilder:    checkAccessV2ClientBuilder,
+		ClusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
+		CloudEnvironment:              azureConfig.CloudEnvironment,
+		MetricsRegisterer:             legacyregistry.Registerer(),
+		MetricsGatherer:               legacyregistry.DefaultGatherer,
 	}
 
 	return backendOptions, nil
@@ -526,6 +553,18 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 	slogJSONHandler := slog.NewJSONHandler(os.Stdout, handlerOptions)
 	logger := logr.FromSlogHandler(slogJSONHandler)
 	ctx = utils.ContextWithLogger(ctx, logger)
+
+	// Forward CheckAccess V2 Azure SDK HTTP events to the structured logger so they
+	// are captured in Kusto. IncludeBody is enabled on CheckAccessV2ClientOptions
+	// (see azure_cloud_environment.go) so response bodies appear in EventResponse
+	// messages. Other Azure SDK clients are not logged here.
+	azlog.SetListener(func(event azlog.Event, msg string) {
+		if !strings.Contains(msg, checkAccessV2HTTPLogPathMarker) {
+			return
+		}
+		logger.Info("azure-sdk-http", "event", string(event), "detail", msg)
+	})
+	azlog.SetEvents(azlog.EventRequest, azlog.EventResponse, azlog.EventResponseError)
 
 	// We set our logger to be used on klog log calls
 	klog.SetLogger(logger)

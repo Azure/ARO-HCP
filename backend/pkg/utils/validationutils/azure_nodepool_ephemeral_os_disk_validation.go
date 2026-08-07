@@ -21,12 +21,11 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // AzureVMSizeSupportsEphemeralOSDiskValidation validates that a node pool requesting
 // an ephemeral OS disk uses a VM size that advertises EphemeralOSDiskSupported.
-// Node pools with managed OS disks are skipped.
+// Node pools without ephemeral OS disks are skipped.
 type AzureVMSizeSupportsEphemeralOSDiskValidation struct {
 	resourceSKUsCachedReader cachedreader.VirtualMachineResourceSKUsCachedReader
 }
@@ -41,29 +40,50 @@ func (v *AzureVMSizeSupportsEphemeralOSDiskValidation) Name() string {
 	return "AzureVMSizeSupportsEphemeralOSDiskValidation"
 }
 
-func (v *AzureVMSizeSupportsEphemeralOSDiskValidation) Validate(ctx context.Context, _ *api.HCPOpenShiftCluster, nodePoolSubscription *arm.Subscription, nodePool *api.HCPOpenShiftClusterNodePool) error {
+func (v *AzureVMSizeSupportsEphemeralOSDiskValidation) Validate(ctx context.Context, _ *api.HCPOpenShiftCluster, nodePoolSubscription *arm.Subscription, nodePool *api.HCPOpenShiftClusterNodePool) ValidationResult {
 	if nodePool.Properties.Platform.OSDisk.DiskType != api.OsDiskTypeEphemeral {
-		return nil
+		return SkippedValidation(
+			"NotApplicable",
+			"Node pool does not use an ephemeral OS disk.",
+			"Node pool does not use an ephemeral OS disk; ephemeral OS disk validation does not apply.",
+		)
 	}
 
 	if nodePoolSubscription.Properties == nil || nodePoolSubscription.Properties.TenantId == nil || *nodePoolSubscription.Properties.TenantId == "" {
-		return utils.TrackError(fmt.Errorf("subscription is missing tenant ID"))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify VM size support for ephemeral OS disks.",
+			"subscription is missing tenant ID",
+			ControllerReportingPolicyTypeError,
+		)
 	}
 	tenantID := *nodePoolSubscription.Properties.TenantId
 
 	vmSize := nodePool.Properties.Platform.VMSize
 	sku, err := v.resourceSKUsCachedReader.GetVirtualMachineSKU(ctx, tenantID, nodePool.ID.SubscriptionID, nodePool.Location, vmSize)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get resource SKU for VM size %q: %w", vmSize, err))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify VM size support for ephemeral OS disks.",
+			fmt.Sprintf("failed to get resource SKU for VM size %q: %s", vmSize, err),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 
 	supported, found := isCapabilityEphemeralOSDiskSupported(sku)
 	if !found {
-		return utils.TrackError(fmt.Errorf("resource SKU for VM size %q is missing %s capability", vmSize, computeResourceSKUCapabilityNameEphemeralOSDiskSupported))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify VM size support for ephemeral OS disks.",
+			fmt.Sprintf("resource SKU for VM size %q is missing %s capability", vmSize, computeResourceSKUCapabilityNameEphemeralOSDiskSupported),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 	if !supported {
-		return utils.TrackError(fmt.Errorf("vm size %q does not support ephemeral OS disks", vmSize))
+		userMsg := fmt.Sprintf("vm size %q does not support ephemeral OS disks", vmSize)
+		return FailedValidation("EphemeralOSDiskNotSupported", userMsg, userMsg)
 	}
 
-	return nil
+	internalMsg := fmt.Sprintf("VM size %q supports ephemeral OS disks.", vmSize)
+	return PassedValidation(api.ControllerConditionReasonAsExpected, internalMsg, internalMsg)
 }
