@@ -13,8 +13,8 @@ require (
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/config v0.0.0-20260804145927-0aa72e14ab0f
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260804145927-0aa72e14ab0f
+	github.com/Azure/ARO-Tools/config v0.0.0-20260807054659-4a463f5d83c7
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260807054659-4a463f5d83c7
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2 v2.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement v0.11.0
@@ -73,13 +73,13 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260804145927-0aa72e14ab0f // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260804145927-0aa72e14ab0f // indirect
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260804145927-0aa72e14ab0f // indirect
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260804145927-0aa72e14ab0f // indirect
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260804145927-0aa72e14ab0f // indirect
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260804145927-0aa72e14ab0f // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260804145927-0aa72e14ab0f // indirect
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260807054659-4a463f5d83c7 // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260807054659-4a463f5d83c7 // indirect
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260807054659-4a463f5d83c7 // indirect
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260807054659-4a463f5d83c7 // indirect
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260807054659-4a463f5d83c7 // indirect
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260807054659-4a463f5d83c7 // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260807054659-4a463f5d83c7 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0 // indirect
@@ -94,7 +94,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.31.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.32.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.55.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.55.0 // indirect
 	github.com/GoogleCloudPlatform/testgrid v0.0.123 // indirect
@@ -184,7 +184,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/gomodule/redigo v1.8.5 // indirect
 	github.com/google/btree v1.1.3 // indirect
-	github.com/google/cel-go v0.28.0 // indirect
+	github.com/google/cel-go v0.29.0 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20260507013755-92041b743c96 // indirect
@@ -282,7 +282,7 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/prometheus v0.65.0 // indirect
-	go.opentelemetry.io/contrib/detectors/gcp v1.42.0 // indirect
+	go.opentelemetry.io/contrib/detectors/gcp v1.43.0 // indirect
 	go.opentelemetry.io/contrib/exporters/autoexport v0.65.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.67.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
@@ -323,7 +323,7 @@ require (
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/grpc v1.81.1 // indirect
+	google.golang.org/grpc v1.82.1 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
