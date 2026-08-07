@@ -1,5 +1,3 @@
-{{- $armHelperIdentityClientId := include "cluster-service.armHelperIdentityClientId" . -}}
-{{- $armHelperIdentityCertName := include "cluster-service.armHelperIdentityCertName" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -235,9 +233,9 @@ spec:
         - --azure-mi-mock-service-principal-client-id={{ .Values.azureMiMockServicePrincipalClientId }}
         - --azure-mi-mock-service-principal-principal-id={{ .Values.azureMiMockServicePrincipalPrincipalId }}
         {{- end }}
-        {{- if and $armHelperIdentityCertName $armHelperIdentityClientId .Values.azureArmHelperMockFpaPrincipalId }}
+        {{- if and .Values.azureArmHelperIdentityCertName .Values.azureArmHelperIdentityClientId .Values.azureArmHelperMockFpaPrincipalId }}
         - --azure-arm-helper-identity-certificate-bundle-path=/secrets/keyvault/armHelperIndentityCertificateBundle
-        - --azure-arm-helper-identity-client-id={{ $armHelperIdentityClientId }}
+        - --azure-arm-helper-identity-client-id={{ .Values.azureArmHelperIdentityClientId }}
         - --azure-arm-helper-mock-fpa-principal-id={{ .Values.azureArmHelperMockFpaPrincipalId }}
         {{- end }}
         # Baggage items are populated by the RP frontend and defined in internal/tracing/attributes.go.

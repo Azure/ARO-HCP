@@ -1,9 +1,9 @@
 values: ../values.yaml
-name: cs-shared-arm-helper-fallback
+name: cs-shared-arm-helper
 namespace: clusters-service
 testData:
   armHelperClientId: shared-client-id
   armHelperCertName: shared-cert-name
   armHelperFPAPrincipalId: mock-fpa-principal-id
-  clustersServiceArmHelperClientId: ""
-  clustersServiceArmHelperCertName: ""
+  clustersServiceArmHelperClientId: shared-client-id
+  clustersServiceArmHelperCertName: shared-cert-name

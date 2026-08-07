@@ -150,6 +150,8 @@ if [[ -n "${LEASED_ARM_HELPER_SP:-}" ]]; then
   " "${OVERRIDE_CONFIG_FILE}"
   unset _YQ_ARM_HELPER_CID _YQ_ARM_HELPER_CERT
 
+  CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID="${BACKEND_ARM_HELPER_CLIENT_ID}"
+  CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME="${BACKEND_ARM_HELPER_CERT_NAME}"
   if [[ ${#ARM_HELPER_LEASES[@]} -eq 2 ]]; then
     CLUSTERS_SERVICE_ARM_HELPER_LEASE="${ARM_HELPER_LEASES[1]}"
     CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID=$(yq ".armHelperPool.\"${CLUSTERS_SERVICE_ARM_HELPER_LEASE}\".clientId" "${ARM_HELPER_POOL_CATALOG}")
@@ -163,16 +165,17 @@ if [[ -n "${LEASED_ARM_HELPER_SP:-}" ]]; then
     fi
 
     echo "Clusters Service ARM helper SP override: ${CLUSTERS_SERVICE_ARM_HELPER_LEASE} -> clientId=${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}"
-    export _YQ_CS_ARM_HELPER_CID="${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}"
-    export _YQ_CS_ARM_HELPER_CERT="${CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME}"
-    yq -i "
-      .clouds.dev.environments.${DEPLOY_ENV}.defaults.clustersServiceArmHelperClientId = strenv(_YQ_CS_ARM_HELPER_CID) |
-      .clouds.dev.environments.${DEPLOY_ENV}.defaults.clustersServiceArmHelperCertName = strenv(_YQ_CS_ARM_HELPER_CERT)
-    " "${OVERRIDE_CONFIG_FILE}"
-    unset _YQ_CS_ARM_HELPER_CID _YQ_CS_ARM_HELPER_CERT
   else
-    echo "No Clusters Service ARM helper SP lease provided, preserving its configured defaults"
+    echo "No dedicated Clusters Service ARM helper SP lease provided, reusing the Backend ARM helper lease"
   fi
+
+  export _YQ_CS_ARM_HELPER_CID="${CLUSTERS_SERVICE_ARM_HELPER_CLIENT_ID}"
+  export _YQ_CS_ARM_HELPER_CERT="${CLUSTERS_SERVICE_ARM_HELPER_CERT_NAME}"
+  yq -i "
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.clustersServiceArmHelperClientId = strenv(_YQ_CS_ARM_HELPER_CID) |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.clustersServiceArmHelperCertName = strenv(_YQ_CS_ARM_HELPER_CERT)
+  " "${OVERRIDE_CONFIG_FILE}"
+  unset _YQ_CS_ARM_HELPER_CID _YQ_CS_ARM_HELPER_CERT
 else
   echo "No ARM helper SP lease provided, skipping ARM helper overrides"
 fi

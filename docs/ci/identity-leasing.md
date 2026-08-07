@@ -371,10 +371,10 @@ lease entry fails provisioning. The first whitespace-separated lease configures
 Backend through `armHelperClientId` and `armHelperCertName`; the second configures
 Clusters Service through `clustersServiceArmHelperClientId` and
 `clustersServiceArmHelperCertName`. A single lease remains supported during the
-transition to the shared `hack/ci` provisioning scripts and leaves the Clusters
-Service defaults unchanged. A missing lease preserves all configured defaults.
-Neither lease overrides `armHelperFPAPrincipalId`, which is the shared mock
-first-party principal rather than an authenticating ARM helper.
+transition to the shared `hack/ci` provisioning scripts and configures both
+Backend and Clusters Service with that identity. A missing lease preserves all
+configured defaults. Neither lease overrides `armHelperFPAPrincipalId`, which is
+the shared mock first-party principal rather than an authenticating ARM helper.
 
 ## Where To Look
 
