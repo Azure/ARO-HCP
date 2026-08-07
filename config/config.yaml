@@ -378,7 +378,7 @@ defaults:
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
       digest: sha256:47e2ac7f406159e4d4e4d38970d70d7884785af79e6f38503290be84ed779a20 # b20dd8c0e20865c15e3ce2e76385a75c135379c4 (2026-08-06 20:27)
     namespace: hypershift
-    additionalInstallArg: '--enable-cpo-overrides'
+    additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
     # this value in sdp pipelines for msft environments.
     sharedIngressIPTag: ''
