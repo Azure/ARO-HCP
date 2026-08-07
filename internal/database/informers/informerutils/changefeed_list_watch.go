@@ -89,6 +89,11 @@ func waitForWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMe
 	}
 }
 
+func stopAndWaitForWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](ctx context.Context, clock utilsclock.Clock, watcher *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) error {
+	watcher.signalStop()
+	return waitForWatcher(ctx, clock, watcher)
+}
+
 func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) List(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -108,8 +113,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 	prevFeedWatcher := c.currentWatcher
 	c.currentWatcher = nil
 	if prevFeedWatcher != nil {
-		prevFeedWatcher.Stop()
-		if err := waitForWatcher(ctx, c.clock, prevFeedWatcher); err != nil {
+		if err := stopAndWaitForWatcher(ctx, c.clock, prevFeedWatcher); err != nil {
 			logger.Error(err, "failed to wait for previous watcher to stop, continuing")
 		}
 	}
@@ -121,8 +125,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 
 	iter, err := c.globalLister.List(ctx, nil)
 	if err != nil {
-		c.currentWatcher.Stop()
-		if err := waitForWatcher(ctx, c.clock, c.currentWatcher); err != nil {
+		if err := stopAndWaitForWatcher(ctx, c.clock, c.currentWatcher); err != nil {
 			logger.Error(err, "failed to wait for current watcher to stop, continuing")
 		}
 		c.currentWatcher = nil
@@ -146,8 +149,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 			})
 	}
 	if err := iter.GetError(); err != nil {
-		c.currentWatcher.Stop()
-		if err := waitForWatcher(ctx, c.clock, c.currentWatcher); err != nil {
+		if err := stopAndWaitForWatcher(ctx, c.clock, c.currentWatcher); err != nil {
 			logger.Error(err, "failed to wait for current watcher to stop, continuing")
 		}
 		c.currentWatcher = nil
@@ -288,7 +290,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	if err != nil {
 		retErr := utils.TrackError(err)
 		utilruntime.HandleError(retErr)
-		c.Stop()
+		c.signalStop()
 		cancel(retErr)
 		return
 	}
@@ -331,7 +333,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 			case <-c.done:
 			case <-ctx.Done():
 			}
-			c.Stop()
+			c.signalStop()
 			return
 		}
 	}(ctx)
@@ -469,6 +471,11 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 }
 
 func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Stop() {
+	c.signalStop()
+	<-c.finished
+}
+
+func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) signalStop() {
 	c.stopOnce.Do(func() {
 		close(c.done)
 	})
@@ -480,7 +487,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 // Finished returns a channel that is closed once Run and all of its child
 // goroutines have fully exited. It is safe to call before, during, or after
-// Run, and Stop must be invoked separately to actually trigger shutdown.
+// Run. Stop triggers shutdown and waits for this channel to close.
 func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Finished() <-chan struct{} {
 	return c.finished
 }

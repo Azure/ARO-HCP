@@ -77,6 +77,7 @@ require (
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260807054659-4a463f5d83c7 // indirect
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260807054659-4a463f5d83c7 // indirect
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260807054659-4a463f5d83c7 // indirect
+	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260720175808-ca2cea2cb707 // indirect
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260807054659-4a463f5d83c7 // indirect
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260807054659-4a463f5d83c7 // indirect
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260807054659-4a463f5d83c7 // indirect
