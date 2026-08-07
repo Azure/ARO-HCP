@@ -7,7 +7,7 @@ prometheusRules:
   untestedRules: []
   testDependencies:
   - recording-rules-services.yaml
-  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
+  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRPServicePrometheusAlertingRules.bicep
 internalSubscriptionFilter:
   enabled: true
   table: internal_subscription:info
