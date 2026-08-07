@@ -140,15 +140,6 @@ module rpHcpAlerts '../modules/metrics/rp-hcp-rules.bicep' = {
   }
 }
 
-module rpHcpAlerts '../modules/metrics/rp-hcp-rules.bicep' = {
-  name: 'rpHcpAlerts'
-  params: {
-    azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
-    actionGroups: rpActionGroups
-    severityCeiling: alertSeverityCeiling
-  }
-}
-
 module msftAlerts '../modules/metrics/msft-rules.bicep' = {
   name: 'msftAlerts'
   params: {
