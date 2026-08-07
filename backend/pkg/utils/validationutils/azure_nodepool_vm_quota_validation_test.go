@@ -165,7 +165,7 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 					Return(usageClient, nil)
 			},
 			wantErrs: []string{
-				`insufficient quota for VM size "Standard_D8ds_v5" family "standardDASv4Family": need 20 vCPUs, have 15 remaining for "Standard DASv4 Family vCPUs" (current 85, limit 100)`,
+				`insufficient quota for VM size "Standard_D8ds_v5" family "standardDASv4Family": need 20 vCPUs (autoscaling max 5 × 4 vCPUs per instance), have 15 remaining for "Standard DASv4 Family vCPUs" (current 85, limit 100)`,
 			},
 		},
 		{
@@ -189,7 +189,7 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 					Return(usageClient, nil)
 			},
 			wantErrs: []string{
-				`insufficient quota for VM size "Standard_D8ds_v5" family "standardDASv4Family": need 16 vCPUs, have 10 remaining for "Standard DASv4 Family vCPUs" (current 90, limit 100)`,
+				`insufficient quota for VM size "Standard_D8ds_v5" family "standardDASv4Family": need 16 vCPUs (4 replicas × 4 vCPUs per instance), have 10 remaining for "Standard DASv4 Family vCPUs" (current 90, limit 100)`,
 			},
 		},
 		{
@@ -213,7 +213,7 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 					Return(usageClient, nil)
 			},
 			wantErrs: []string{
-				`insufficient total regional vCPU quota for VM size "Standard_D8ds_v5": need 16 vCPUs, have 5 remaining for "Total Regional vCPUs" (current 195, limit 200)`,
+				`insufficient total regional vCPU quota for VM size "Standard_D8ds_v5": need 16 vCPUs (4 replicas × 4 vCPUs per instance), have 5 remaining for "Total Regional vCPUs" (current 195, limit 200)`,
 			},
 		},
 		{
@@ -237,8 +237,8 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 					Return(usageClient, nil)
 			},
 			wantErrs: []string{
-				`insufficient quota for VM size "Standard_D8ds_v5" family "standardDASv4Family": need 16 vCPUs, have 10 remaining for "Standard DASv4 Family vCPUs" (current 90, limit 100)`,
-				`insufficient total regional vCPU quota for VM size "Standard_D8ds_v5": need 16 vCPUs, have 5 remaining for "Total Regional vCPUs" (current 195, limit 200)`,
+				`insufficient quota for VM size "Standard_D8ds_v5" family "standardDASv4Family": need 16 vCPUs (4 replicas × 4 vCPUs per instance), have 10 remaining for "Standard DASv4 Family vCPUs" (current 90, limit 100)`,
+				`insufficient total regional vCPU quota for VM size "Standard_D8ds_v5": need 16 vCPUs (4 replicas × 4 vCPUs per instance), have 5 remaining for "Total Regional vCPUs" (current 195, limit 200)`,
 			},
 		},
 		{
