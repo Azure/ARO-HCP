@@ -24,8 +24,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
@@ -45,7 +45,7 @@ func TestSliceClusterLister(t *testing.T) {
 	cluster3 := newTestCluster(testSubscriptionID2, testResourceGroupName, testClusterName)
 
 	lister := &SliceClusterLister{
-		Clusters: []*api.HCPOpenShiftCluster{cluster1, cluster2, cluster3},
+		Clusters: []*coreapi.HCPOpenShiftCluster{cluster1, cluster2, cluster3},
 	}
 
 	ctx := context.Background()
@@ -81,7 +81,7 @@ func TestSliceNodePoolLister(t *testing.T) {
 	np3 := newTestNodePool(testSubscriptionID, testResourceGroupName, testClusterName2, testNodePoolName)
 
 	lister := &SliceNodePoolLister{
-		NodePools: []*api.HCPOpenShiftClusterNodePool{np1, np2, np3},
+		NodePools: []*coreapi.HCPOpenShiftClusterNodePool{np1, np2, np3},
 	}
 
 	ctx := context.Background()
@@ -128,7 +128,7 @@ func TestSliceActiveOperationLister(t *testing.T) {
 	eaOp2 := newTestExternalAuthOperation(testSubscriptionID, "ea-op2", testSubscriptionID, testResourceGroupName, testClusterName, "external-auth-2")
 
 	lister := &SliceActiveOperationLister{
-		Operations: []*api.Operation{clusterOp1, clusterOp2, clusterOp3, npOp1, npOp2, npOp3, eaOp1, eaOp2},
+		Operations: []*coreapi.Operation{clusterOp1, clusterOp2, clusterOp3, npOp1, npOp2, npOp3, eaOp1, eaOp2},
 	}
 
 	ctx := context.Background()
@@ -176,7 +176,7 @@ func TestSliceExternalAuthLister(t *testing.T) {
 	ea3 := newTestExternalAuth(testSubscriptionID, testResourceGroupName, testClusterName2, testExternalAuthName)
 
 	lister := &SliceExternalAuthLister{
-		ExternalAuths: []*api.HCPOpenShiftClusterExternalAuth{ea1, ea2, ea3},
+		ExternalAuths: []*coreapi.HCPOpenShiftClusterExternalAuth{ea1, ea2, ea3},
 	}
 
 	ctx := context.Background()
@@ -217,7 +217,7 @@ func TestSliceServiceProviderClusterLister(t *testing.T) {
 	spc2 := newTestServiceProviderCluster(testSubscriptionID, testResourceGroupName, testClusterName2)
 
 	lister := &SliceServiceProviderClusterLister{
-		ServiceProviderClusters: []*api.ServiceProviderCluster{spc1, spc2},
+		ServiceProviderClusters: []*coreapi.ServiceProviderCluster{spc1, spc2},
 	}
 
 	ctx := context.Background()
@@ -253,7 +253,7 @@ func TestSliceSubscriptionLister(t *testing.T) {
 	sub2 := newTestSubscription(testSubscriptionID2)
 
 	lister := &SliceSubscriptionLister{
-		Subscriptions: []*arm.Subscription{sub1, sub2},
+		Subscriptions: []*coreapi.Subscription{sub1, sub2},
 	}
 
 	ctx := context.Background()
@@ -279,7 +279,7 @@ func TestSliceSubscriptionLister(t *testing.T) {
 
 func TestSliceClusterListerWithEmptySlice(t *testing.T) {
 	lister := &SliceClusterLister{
-		Clusters: []*api.HCPOpenShiftCluster{},
+		Clusters: []*coreapi.HCPOpenShiftCluster{},
 	}
 
 	ctx := context.Background()
@@ -304,11 +304,11 @@ func TestSliceClusterListerWithEmptySlice(t *testing.T) {
 }
 
 func TestSliceClusterListerWithNilResourceID(t *testing.T) {
-	clusterWithNilID := &api.HCPOpenShiftCluster{}
+	clusterWithNilID := &coreapi.HCPOpenShiftCluster{}
 	validCluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
 
 	lister := &SliceClusterLister{
-		Clusters: []*api.HCPOpenShiftCluster{clusterWithNilID, validCluster},
+		Clusters: []*coreapi.HCPOpenShiftCluster{clusterWithNilID, validCluster},
 	}
 
 	ctx := context.Background()
@@ -334,41 +334,41 @@ func TestSliceClusterListerWithNilResourceID(t *testing.T) {
 
 // Helper functions to create test resources
 
-func newTestCluster(subscriptionID, resourceGroupName, clusterName string) *api.HCPOpenShiftCluster {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestCluster(subscriptionID, resourceGroupName, clusterName string) *coreapi.HCPOpenShiftCluster {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName,
 	))
-	return &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: clusterName,
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName))),
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName))),
 		},
 	}
 }
 
-func newTestNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) *api.HCPOpenShiftClusterNodePool {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) *coreapi.HCPOpenShiftClusterNodePool {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/nodePools/" + nodePoolName,
 	))
-	return &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	return &coreapi.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: nodePoolName,
 				Type: resourceID.ResourceType.String(),
@@ -377,18 +377,18 @@ func newTestNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolNam
 	}
 }
 
-func newTestOperation(subscriptionID, operationName, targetSubscription, targetResourceGroup, targetCluster string) *api.Operation {
-	operationResourceID := api.Must(azcorearm.ParseResourceID(
+func newTestOperation(subscriptionID, operationName, targetSubscription, targetResourceGroup, targetCluster string) *coreapi.Operation {
+	operationResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + operationName,
 	))
-	externalID := api.Must(azcorearm.ParseResourceID(
+	externalID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + targetSubscription +
 			"/resourceGroups/" + targetResourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + targetCluster,
 	))
-	return &api.Operation{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.Operation{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   operationResourceID,
 			PartitionKey: strings.ToLower(operationResourceID.SubscriptionID),
 		},
@@ -397,19 +397,19 @@ func newTestOperation(subscriptionID, operationName, targetSubscription, targetR
 	}
 }
 
-func newTestNodePoolOperation(subscriptionID, operationName, targetSubscription, targetResourceGroup, targetCluster, nodePoolName string) *api.Operation {
-	operationResourceID := api.Must(azcorearm.ParseResourceID(
+func newTestNodePoolOperation(subscriptionID, operationName, targetSubscription, targetResourceGroup, targetCluster, nodePoolName string) *coreapi.Operation {
+	operationResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + operationName,
 	))
-	externalID := api.Must(azcorearm.ParseResourceID(
+	externalID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + targetSubscription +
 			"/resourceGroups/" + targetResourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + targetCluster +
 			"/nodePools/" + nodePoolName,
 	))
-	return &api.Operation{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.Operation{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   operationResourceID,
 			PartitionKey: strings.ToLower(operationResourceID.SubscriptionID),
 		},
@@ -418,19 +418,19 @@ func newTestNodePoolOperation(subscriptionID, operationName, targetSubscription,
 	}
 }
 
-func newTestExternalAuthOperation(subscriptionID, operationName, targetSubscription, targetResourceGroup, targetCluster, externalAuthName string) *api.Operation {
-	operationResourceID := api.Must(azcorearm.ParseResourceID(
+func newTestExternalAuthOperation(subscriptionID, operationName, targetSubscription, targetResourceGroup, targetCluster, externalAuthName string) *coreapi.Operation {
+	operationResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + operationName,
 	))
-	externalID := api.Must(azcorearm.ParseResourceID(
+	externalID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + targetSubscription +
 			"/resourceGroups/" + targetResourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + targetCluster +
 			"/externalAuths/" + externalAuthName,
 	))
-	return &api.Operation{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.Operation{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   operationResourceID,
 			PartitionKey: strings.ToLower(operationResourceID.SubscriptionID),
 		},
@@ -439,87 +439,87 @@ func newTestExternalAuthOperation(subscriptionID, operationName, targetSubscript
 	}
 }
 
-func newTestExternalAuth(subscriptionID, resourceGroupName, clusterName, externalAuthName string) *api.HCPOpenShiftClusterExternalAuth {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestExternalAuth(subscriptionID, resourceGroupName, clusterName, externalAuthName string) *coreapi.HCPOpenShiftClusterExternalAuth {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/externalAuths/" + externalAuthName,
 	))
-	return &api.HCPOpenShiftClusterExternalAuth{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
-		ProxyResource:  arm.NewProxyResource(resourceID),
+	return &coreapi.HCPOpenShiftClusterExternalAuth{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
+		ProxyResource:  coreapi.NewProxyResource(resourceID),
 	}
 }
 
-func newTestServiceProviderCluster(subscriptionID, resourceGroupName, clusterName string) *api.ServiceProviderCluster {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestServiceProviderCluster(subscriptionID, resourceGroupName, clusterName string) *coreapi.ServiceProviderCluster {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/serviceProviderClusters/default",
 	))
-	return &api.ServiceProviderCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
 
-func newTestClusterController(subscriptionID, resourceGroupName, clusterName, controllerName string) *api.Controller {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestClusterController(subscriptionID, resourceGroupName, clusterName, controllerName string) *coreapi.Controller {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/hcpOpenShiftControllers/" + controllerName,
 	))
-	return &api.Controller{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
 
-func newTestNodePoolController(subscriptionID, resourceGroupName, clusterName, nodePoolName, controllerName string) *api.Controller {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestNodePoolController(subscriptionID, resourceGroupName, clusterName, nodePoolName, controllerName string) *coreapi.Controller {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/nodePools/" + nodePoolName +
 			"/hcpOpenShiftControllers/" + controllerName,
 	))
-	return &api.Controller{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
 
-func newTestExternalAuthController(subscriptionID, resourceGroupName, clusterName, externalAuthName, controllerName string) *api.Controller {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestExternalAuthController(subscriptionID, resourceGroupName, clusterName, externalAuthName, controllerName string) *coreapi.Controller {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/externalAuths/" + externalAuthName +
 			"/hcpOpenShiftControllers/" + controllerName,
 	))
-	return &api.Controller{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
 
-func newTestSubscription(subscriptionID string) *arm.Subscription {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestSubscription(subscriptionID string) *coreapi.Subscription {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID,
 	))
-	return &arm.Subscription{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
@@ -527,27 +527,27 @@ func newTestSubscription(subscriptionID string) *arm.Subscription {
 	}
 }
 
-func newTestClusterScopedManagementClusterContent(subscriptionID, resourceGroupName, clusterName, mccName string) *api.ManagementClusterContent {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestClusterScopedManagementClusterContent(subscriptionID, resourceGroupName, clusterName, mccName string) *coreapi.ManagementClusterContent {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/managementClusterContents/" + mccName,
 	))
-	return &api.ManagementClusterContent{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
+	return &coreapi.ManagementClusterContent{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 	}
 }
 
-func newTestNodePoolScopedManagementClusterContent(subscriptionID, resourceGroupName, clusterName, nodePoolName, mccName string) *api.ManagementClusterContent {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestNodePoolScopedManagementClusterContent(subscriptionID, resourceGroupName, clusterName, nodePoolName, mccName string) *coreapi.ManagementClusterContent {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/nodePools/" + nodePoolName +
 			"/managementClusterContents/" + mccName,
 	))
-	return &api.ManagementClusterContent{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
+	return &coreapi.ManagementClusterContent{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 	}
 }

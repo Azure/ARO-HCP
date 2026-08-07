@@ -26,7 +26,8 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -67,7 +68,7 @@ func NewExternalAuthClusterServiceCreateController(
 	)
 }
 
-func (c *externalAuthClusterServiceCreateSyncer) needsWork(externalAuth *api.HCPOpenShiftClusterExternalAuth) bool {
+func (c *externalAuthClusterServiceCreateSyncer) needsWork(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) bool {
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp == nil &&
 		(externalAuth.ServiceProviderProperties.ClusterServiceID == nil || len(externalAuth.ServiceProviderProperties.ClusterServiceID.String()) == 0)
 }
@@ -116,7 +117,7 @@ func (c *externalAuthClusterServiceCreateSyncer) SyncOnce(ctx context.Context, k
 	// GET must target the same href POST would use: {clusterHref}/external_auth_config/external_auths/{id} where id is
 	// lowercased ARM name (see ocm.BuildCSExternalAuth). We reconstruct it here:
 	csExternalAuthHREF := ocm.GenerateAROHCPExternalAuthHREF(clusterCSInternalID.ID(), strings.ToLower(key.HCPExternalAuthName))
-	externalAuthCSInternalID, err := api.NewInternalID(csExternalAuthHREF)
+	externalAuthCSInternalID, err := metadataapi.NewInternalID(csExternalAuthHREF)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("build external auth internal ID for adoption lookup: %w", err))
 	}
@@ -158,7 +159,7 @@ func (c *externalAuthClusterServiceCreateSyncer) SyncOnce(ctx context.Context, k
 
 // findCSExternalAuth performs GetExternalAuth for the given Cluster Service external auth InternalID.
 // It returns (nil, nil) when CS responds with 404.
-func (c *externalAuthClusterServiceCreateSyncer) findCSExternalAuth(ctx context.Context, externalAuthInternalID api.InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
+func (c *externalAuthClusterServiceCreateSyncer) findCSExternalAuth(ctx context.Context, externalAuthInternalID metadataapi.InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
 	ea, err := c.clustersServiceClient.GetExternalAuth(ctx, externalAuthInternalID)
 	if err != nil {
 		var ocmErr *ocmerrors.Error

@@ -19,16 +19,16 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // ManagementClusterContentLister lists ManagementClusterContent from the shared informer indexer.
 type ManagementClusterContentLister interface {
-	List(ctx context.Context) ([]*api.ManagementClusterContent, error)
-	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, managementClusterContentName string) (*api.ManagementClusterContent, error)
-	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.ManagementClusterContent, error)
-	ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.ManagementClusterContent, error)
+	List(ctx context.Context) ([]*coreapi.ManagementClusterContent, error)
+	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, managementClusterContentName string) (*coreapi.ManagementClusterContent, error)
+	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.ManagementClusterContent, error)
+	ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.ManagementClusterContent, error)
 }
 
 // managementClusterContentLister implements ManagementClusterContentLister backed by a SharedIndexInformer.
@@ -43,21 +43,21 @@ func NewManagementClusterContentLister(indexer cache.Indexer) ManagementClusterC
 	}
 }
 
-func (l *managementClusterContentLister) GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, managementClusterContentName string) (*api.ManagementClusterContent, error) {
-	key := api.ToManagementClusterContentResourceIDString(subscriptionID, resourceGroupName, clusterName, managementClusterContentName)
-	return listerutils.GetByKey[api.ManagementClusterContent](l.indexer, key)
+func (l *managementClusterContentLister) GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, managementClusterContentName string) (*coreapi.ManagementClusterContent, error) {
+	key := coreapi.ToManagementClusterContentResourceIDString(subscriptionID, resourceGroupName, clusterName, managementClusterContentName)
+	return listerutils.GetByKey[coreapi.ManagementClusterContent](l.indexer, key)
 }
 
-func (l *managementClusterContentLister) List(ctx context.Context) ([]*api.ManagementClusterContent, error) {
-	return listerutils.ListAll[api.ManagementClusterContent](l.indexer)
+func (l *managementClusterContentLister) List(ctx context.Context) ([]*coreapi.ManagementClusterContent, error) {
+	return listerutils.ListAll[coreapi.ManagementClusterContent](l.indexer)
 }
 
-func (l *managementClusterContentLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.ManagementClusterContent, error) {
-	key := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
-	return listerutils.ListFromIndex[api.ManagementClusterContent](l.indexer, ByCluster, key)
+func (l *managementClusterContentLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.ManagementClusterContent, error) {
+	key := coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	return listerutils.ListFromIndex[coreapi.ManagementClusterContent](l.indexer, ByCluster, key)
 }
 
-func (l *managementClusterContentLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.ManagementClusterContent, error) {
-	key := api.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
-	return listerutils.ListFromIndex[api.ManagementClusterContent](l.indexer, ByNodePool, key)
+func (l *managementClusterContentLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.ManagementClusterContent, error) {
+	key := coreapi.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
+	return listerutils.ListFromIndex[coreapi.ManagementClusterContent](l.indexer, ByNodePool, key)
 }

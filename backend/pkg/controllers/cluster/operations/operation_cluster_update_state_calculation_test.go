@@ -37,9 +37,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -52,14 +52,14 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 	testClusterUpdatePlatformImageContentSource := "quay.io/openshift-release-dev/ocp-release"
 
 	fixture := operationtesting.NewClusterTestFixture()
-	emptySPC := &api.ServiceProviderCluster{}
+	emptySPC := &coreapi.ServiceProviderCluster{}
 
 	tests := []struct {
 		name                   string
-		cluster                *api.HCPOpenShiftCluster
-		serviceProviderCluster *api.ServiceProviderCluster
-		readDesires            []*kubeapplier.ReadDesire
-		wantState              arm.ProvisioningState
+		cluster                *coreapi.HCPOpenShiftCluster
+		serviceProviderCluster *coreapi.ServiceProviderCluster
+		readDesires            []*kubeapplierapi.ReadDesire
+		wantState              coreapi.ProvisioningState
 		wantMessageSubstr      string
 	}{
 		{
@@ -67,29 +67,29 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 			cluster:                fixture.NewCluster(nil),
 			serviceProviderCluster: emptySPC,
 			readDesires:            nil,
-			wantState:              arm.ProvisioningStateUpdating,
+			wantState:              coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr:      "Hypershift HostedCluster has not been observed yet",
 		},
 		{
 			name:                   "empty cluster matches empty HostedCluster",
 			cluster:                fixture.NewCluster(nil),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "autoscaling maxNodesTotal mismatch returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.Autoscaling.MaxNodesTotal = 10
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -98,12 +98,12 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: "hypershift HostedCluster autoscaling maxNodesTotal is 5, want 10",
 		},
 		{
 			name: "autoscaling matches returns Succeeded",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.Autoscaling.MaxNodesTotal = 10
 				c.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds = 60
@@ -111,7 +111,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -125,17 +125,17 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "maxNodeProvisionTime mismatch returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds = 900
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -144,18 +144,18 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `hypershift HostedCluster autoscaling maxNodeProvisionTime is "10m", want "15m"`,
 		},
 		{
 			name: "maxNodeProvisionTime matches when converted",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds = 900
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -164,37 +164,37 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "imageContentSources missing desired source returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.CustomerProperties.ImageDigestMirrors = []api.ImageDigestMirror{
+				c.CustomerProperties.ImageDigestMirrors = []coreapi.ImageDigestMirror{
 					{Source: "quay.io/foo", Mirrors: []string{"mirror.io/foo"}},
 				}
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `missing source "quay.io/foo"`,
 		},
 		{
 			name: "imageContentSources source mismatch returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.CustomerProperties.ImageDigestMirrors = []api.ImageDigestMirror{
+				c.CustomerProperties.ImageDigestMirrors = []coreapi.ImageDigestMirror{
 					{Source: "quay.io/foo", Mirrors: []string{"mirror.io/foo"}},
 				}
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -205,20 +205,20 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `missing source "quay.io/foo"`,
 		},
 		{
 			name: "imageContentSources matches returns Succeeded",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.CustomerProperties.ImageDigestMirrors = []api.ImageDigestMirror{
+				c.CustomerProperties.ImageDigestMirrors = []coreapi.ImageDigestMirror{
 					{Source: "quay.io/foo", Mirrors: []string{"mirror.io/foo", "mirror2.io/foo"}},
 				}
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -229,17 +229,17 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "imageContentSources unset with stale customer source returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.ImageDigestMirrors = nil
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -251,18 +251,18 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `unexpected imageContentSource "quay.io/foo"`,
 		},
 		{
 			name: "allowedCIDRBlocks mismatch returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/8"}
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: v1beta1.HostedClusterSpec{
 						Networking: v1beta1.ClusterNetworking{
@@ -273,18 +273,18 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					},
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `is missing "10.0.0.0/8", want [10.0.0.0/8]`,
 		},
 		{
 			name: "temporary - allowedCIDRBlocks match with internal extras returns Succeeded",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/8"}
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -300,17 +300,17 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "allowedCIDRBlocks match returns Succeeded",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/8", "192.168.0.0/16"}
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -323,17 +323,17 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "nil authorizedCIDRs with observed blocks returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				c.CustomerProperties.API.AuthorizedCIDRs = nil
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: v1beta1.HostedClusterSpec{
 						Networking: v1beta1.ClusterNetworking{
@@ -344,20 +344,20 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					},
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `allowedCIDRBlocks is [10.0.0.0/8], want unset (allow all)`,
 		},
 		{
 			name: "imageContentSources with extra hypershift sources returns Succeeded",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.CustomerProperties.ImageDigestMirrors = []api.ImageDigestMirror{
+				c.CustomerProperties.ImageDigestMirrors = []coreapi.ImageDigestMirror{
 					{Source: "quay.io/foo", Mirrors: []string{"mirror.io/foo"}},
 				}
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -369,17 +369,17 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "single replica availability policies match returns Succeeded",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = api.SingleReplicaControlPlane
+				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -389,17 +389,17 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "single replica controller policy mismatch returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = api.SingleReplicaControlPlane
+				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -409,18 +409,18 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `controllerAvailabilityPolicy is "HighlyAvailable", want "SingleReplica"`,
 		},
 		{
 			name: "single replica infrastructure policy mismatch returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = api.SingleReplicaControlPlane
+				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -430,31 +430,31 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `infrastructureAvailabilityPolicy is "HighlyAvailable", want "SingleReplica"`,
 		},
 		{
 			name: "default availability policies (highly available) match highly available hypershift side returns Succeeded",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "default availability policies (highly available) mismatch hypershift sidereturns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -464,18 +464,18 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `controllerAvailabilityPolicy is "SingleReplica", want "HighlyAvailable"`,
 		},
 		{
 			name: "minimal pod sizing annotation match returns Succeeded",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = api.MinimalControlPlanePodSizing
+				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = coreapi.MinimalControlPlanePodSizing
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
@@ -485,32 +485,32 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "minimal pod sizing set on cluster but missing annotation on hypershift side returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = api.MinimalControlPlanePodSizing
+				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = coreapi.MinimalControlPlanePodSizing
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `is unset, want "e2e_minimal"`,
 		},
 		{
 			name: "default pod sizing with stale annotation returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
@@ -520,21 +520,21 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `is "e2e_minimal", want unset`,
 		},
 		{
 			name: "SPC level size override matches annotation returns Succeeded",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				return c
 			}(),
-			serviceProviderCluster: &api.ServiceProviderCluster{
-				Spec: api.ServiceProviderClusterSpec{
+			serviceProviderCluster: &coreapi.ServiceProviderCluster{
+				Spec: coreapi.ServiceProviderClusterSpec{
 					DesiredHostedClusterControlPlaneSize: ptr.To("large"),
 				},
 			},
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
@@ -544,20 +544,20 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "SPC level size override mismatch returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				return c
 			}(),
-			serviceProviderCluster: &api.ServiceProviderCluster{
-				Spec: api.ServiceProviderClusterSpec{
+			serviceProviderCluster: &coreapi.ServiceProviderCluster{
+				Spec: coreapi.ServiceProviderClusterSpec{
 					DesiredHostedClusterControlPlaneSize: ptr.To("large"),
 				},
 			},
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
@@ -567,18 +567,18 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `is "medium", want "large"`,
 		},
 		{
 			name: "control plane operator image annotation match returns Succeeded",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage = "quay.io/openshift/cpo:test"
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
@@ -588,32 +588,32 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "control plane operator image missing annotation returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				c.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage = "quay.io/openshift/cpo:test"
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `is unset, want "quay.io/openshift/cpo:test"`,
 		},
 		{
 			name: "default control plane operator image with stale annotation returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
@@ -623,21 +623,21 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `is "quay.io/openshift/cpo:test", want unset`,
 		},
 		{
 			name: "kms cluster key version mismatch returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.CustomerProperties.Etcd = api.EtcdProfile{
-					DataEncryption: api.EtcdDataEncryptionProfile{
-						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-						CustomerManaged: &api.CustomerManagedEncryptionProfile{
-							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-							Kms: &api.KmsEncryptionProfile{
-								Visibility: api.KeyVaultVisibilityPublic,
-								ActiveKey: api.KmsKey{
+				c.CustomerProperties.Etcd = coreapi.EtcdProfile{
+					DataEncryption: coreapi.EtcdDataEncryptionProfile{
+						KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+							EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+							Kms: &coreapi.KmsEncryptionProfile{
+								Visibility: metadataapi.KeyVaultVisibilityPublic,
+								ActiveKey: coreapi.KmsKey{
 									Name:      "test-key",
 									VaultName: "test-vault",
 									Version:   "v2",
@@ -649,7 +649,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -667,21 +667,21 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `active key version is: "v1", want: "v2"`,
 		},
 		{
 			name: "kms cluster with nil SecretEncryption returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.CustomerProperties.Etcd = api.EtcdProfile{
-					DataEncryption: api.EtcdDataEncryptionProfile{
-						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-						CustomerManaged: &api.CustomerManagedEncryptionProfile{
-							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-							Kms: &api.KmsEncryptionProfile{
-								Visibility: api.KeyVaultVisibilityPublic,
-								ActiveKey: api.KmsKey{
+				c.CustomerProperties.Etcd = coreapi.EtcdProfile{
+					DataEncryption: coreapi.EtcdDataEncryptionProfile{
+						KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+							EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+							Kms: &coreapi.KmsEncryptionProfile{
+								Visibility: metadataapi.KeyVaultVisibilityPublic,
+								ActiveKey: coreapi.KmsKey{
 									Name:      "test-key",
 									VaultName: "test-vault",
 									Version:   "v1",
@@ -693,7 +693,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -702,21 +702,21 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: "secret encryption is not set",
 		},
 		{
 			name: "kms cluster key version matching returns Succeeded",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.CustomerProperties.Etcd = api.EtcdProfile{
-					DataEncryption: api.EtcdDataEncryptionProfile{
-						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-						CustomerManaged: &api.CustomerManagedEncryptionProfile{
-							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-							Kms: &api.KmsEncryptionProfile{
-								Visibility: api.KeyVaultVisibilityPublic,
-								ActiveKey: api.KmsKey{
+				c.CustomerProperties.Etcd = coreapi.EtcdProfile{
+					DataEncryption: coreapi.EtcdDataEncryptionProfile{
+						KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+							EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+							Kms: &coreapi.KmsEncryptionProfile{
+								Visibility: metadataapi.KeyVaultVisibilityPublic,
+								ActiveKey: coreapi.KmsKey{
 									Name:      "test-key",
 									VaultName: "test-vault",
 									Version:   "v1",
@@ -728,7 +728,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -746,21 +746,21 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "Platform Managed data encryption returns Updating",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := fixture.NewCluster(nil)
-				c.CustomerProperties.Etcd = api.EtcdProfile{
-					DataEncryption: api.EtcdDataEncryptionProfile{
-						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+				c.CustomerProperties.Etcd = coreapi.EtcdProfile{
+					DataEncryption: coreapi.EtcdDataEncryptionProfile{
+						KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 					},
 				}
 				return c
 			}(),
 			serviceProviderCluster: emptySPC,
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ClusterUpdateMatchingHostedClusterSpec()
@@ -778,7 +778,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: "support for desired key management mode",
 		},
 	}
@@ -922,21 +922,21 @@ func TestHypershiftHostedClusterAvailabilityPoliciesSpecMatchesDesired(t *testin
 
 	tests := []struct {
 		name       string
-		desired    api.ControlPlaneAvailability
+		desired    coreapi.ControlPlaneAvailability
 		observed   v1beta1.HostedClusterSpec
 		wantMatch  bool
 		wantSubstr string
 	}{
 		{
 			name:       "default desired rejects unset policies",
-			desired:    api.DefaultControlPlaneAvailability,
+			desired:    coreapi.DefaultControlPlaneAvailability,
 			observed:   v1beta1.HostedClusterSpec{},
 			wantMatch:  false,
 			wantSubstr: `hypershift HostedCluster controllerAvailabilityPolicy is "", want "HighlyAvailable"`,
 		},
 		{
 			name:    "default desired matches highly available policies",
-			desired: api.DefaultControlPlaneAvailability,
+			desired: coreapi.DefaultControlPlaneAvailability,
 			observed: v1beta1.HostedClusterSpec{
 				ControllerAvailabilityPolicy:     v1beta1.HighlyAvailable,
 				InfrastructureAvailabilityPolicy: v1beta1.HighlyAvailable,
@@ -945,7 +945,7 @@ func TestHypershiftHostedClusterAvailabilityPoliciesSpecMatchesDesired(t *testin
 		},
 		{
 			name:    "default desired rejects single replica controller",
-			desired: api.DefaultControlPlaneAvailability,
+			desired: coreapi.DefaultControlPlaneAvailability,
 			observed: v1beta1.HostedClusterSpec{
 				ControllerAvailabilityPolicy:     v1beta1.SingleReplica,
 				InfrastructureAvailabilityPolicy: v1beta1.SingleReplica,
@@ -955,7 +955,7 @@ func TestHypershiftHostedClusterAvailabilityPoliciesSpecMatchesDesired(t *testin
 		},
 		{
 			name:    "single replica desired matches both policies",
-			desired: api.SingleReplicaControlPlane,
+			desired: coreapi.SingleReplicaControlPlane,
 			observed: v1beta1.HostedClusterSpec{
 				ControllerAvailabilityPolicy:     v1beta1.SingleReplica,
 				InfrastructureAvailabilityPolicy: v1beta1.SingleReplica,
@@ -964,7 +964,7 @@ func TestHypershiftHostedClusterAvailabilityPoliciesSpecMatchesDesired(t *testin
 		},
 		{
 			name:    "single replica desired rejects unset controller policy",
-			desired: api.SingleReplicaControlPlane,
+			desired: coreapi.SingleReplicaControlPlane,
 			observed: v1beta1.HostedClusterSpec{
 				InfrastructureAvailabilityPolicy: v1beta1.SingleReplica,
 			},
@@ -973,7 +973,7 @@ func TestHypershiftHostedClusterAvailabilityPoliciesSpecMatchesDesired(t *testin
 		},
 		{
 			name:    "single replica desired rejects highly available infrastructure",
-			desired: api.SingleReplicaControlPlane,
+			desired: coreapi.SingleReplicaControlPlane,
 			observed: v1beta1.HostedClusterSpec{
 				ControllerAvailabilityPolicy:     v1beta1.SingleReplica,
 				InfrastructureAvailabilityPolicy: v1beta1.HighlyAvailable,
@@ -1002,7 +1002,7 @@ func TestHypershiftHostedClusterSizeOverrideAnnotationMatchesDesired(t *testing.
 
 	tests := []struct {
 		name                string
-		clusterPodSizing    api.ControlPlanePodSizing
+		clusterPodSizing    coreapi.ControlPlanePodSizing
 		spcControlPlaneSize *string
 		observed            map[string]string
 		wantMatch           bool
@@ -1010,13 +1010,13 @@ func TestHypershiftHostedClusterSizeOverrideAnnotationMatchesDesired(t *testing.
 	}{
 		{
 			name:             "default desired with no annotations",
-			clusterPodSizing: api.DefaultControlPlanePodSizing,
+			clusterPodSizing: coreapi.DefaultControlPlanePodSizing,
 			observed:         nil,
 			wantMatch:        true,
 		},
 		{
 			name:             "default desired rejects stale annotation",
-			clusterPodSizing: api.DefaultControlPlanePodSizing,
+			clusterPodSizing: coreapi.DefaultControlPlanePodSizing,
 			observed: map[string]string{
 				v1beta1.ClusterSizeOverrideAnnotation: ocm.CSPropertyE2EMinimalControlPlaneSize,
 			},
@@ -1025,7 +1025,7 @@ func TestHypershiftHostedClusterSizeOverrideAnnotationMatchesDesired(t *testing.
 		},
 		{
 			name:             "minimal desired matches annotation",
-			clusterPodSizing: api.MinimalControlPlanePodSizing,
+			clusterPodSizing: coreapi.MinimalControlPlanePodSizing,
 			observed: map[string]string{
 				v1beta1.ClusterSizeOverrideAnnotation: ocm.CSPropertyE2EMinimalControlPlaneSize,
 			},
@@ -1033,14 +1033,14 @@ func TestHypershiftHostedClusterSizeOverrideAnnotationMatchesDesired(t *testing.
 		},
 		{
 			name:             "minimal desired rejects missing annotation",
-			clusterPodSizing: api.MinimalControlPlanePodSizing,
+			clusterPodSizing: coreapi.MinimalControlPlanePodSizing,
 			observed:         nil,
 			wantMatch:        false,
 			wantSubstr:       `is unset, want "e2e_minimal"`,
 		},
 		{
 			name:             "minimal desired rejects different annotation value",
-			clusterPodSizing: api.MinimalControlPlanePodSizing,
+			clusterPodSizing: coreapi.MinimalControlPlanePodSizing,
 			observed: map[string]string{
 				v1beta1.ClusterSizeOverrideAnnotation: "small",
 			},
@@ -1049,7 +1049,7 @@ func TestHypershiftHostedClusterSizeOverrideAnnotationMatchesDesired(t *testing.
 		},
 		{
 			name:                "SPC size takes precedence and matches",
-			clusterPodSizing:    api.MinimalControlPlanePodSizing,
+			clusterPodSizing:    coreapi.MinimalControlPlanePodSizing,
 			spcControlPlaneSize: ptr.To("large"),
 			observed: map[string]string{
 				v1beta1.ClusterSizeOverrideAnnotation: "large",
@@ -1058,7 +1058,7 @@ func TestHypershiftHostedClusterSizeOverrideAnnotationMatchesDesired(t *testing.
 		},
 		{
 			name:                "SPC size takes precedence and rejects mismatch",
-			clusterPodSizing:    api.MinimalControlPlanePodSizing,
+			clusterPodSizing:    coreapi.MinimalControlPlanePodSizing,
 			spcControlPlaneSize: ptr.To("large"),
 			observed: map[string]string{
 				v1beta1.ClusterSizeOverrideAnnotation: "medium",
@@ -1076,7 +1076,7 @@ func TestHypershiftHostedClusterSizeOverrideAnnotationMatchesDesired(t *testing.
 		},
 		{
 			name:             "unrecognized cluster-level pod sizing returns not completed",
-			clusterPodSizing: api.ControlPlanePodSizing("unknown"),
+			clusterPodSizing: coreapi.ControlPlanePodSizing("unknown"),
 			observed:         nil,
 			wantMatch:        false,
 			wantSubstr:       `unrecognized cluster-level control plane pod sizing: "unknown"`,
@@ -1167,20 +1167,20 @@ func TestHypershiftHostedClusterAutoscalingSpecMatchesDesired(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		desired    api.ClusterAutoscalingProfile
+		desired    coreapi.ClusterAutoscalingProfile
 		observed   v1beta1.ClusterAutoscaling
 		wantMatch  bool
 		wantSubstr string
 	}{
 		{
 			name:      "maxNodesTotal zero exact match",
-			desired:   api.ClusterAutoscalingProfile{},
+			desired:   coreapi.ClusterAutoscalingProfile{},
 			observed:  operationtesting.ClusterUpdateMatchingHostedClusterSpec().Autoscaling,
 			wantMatch: true,
 		},
 		{
 			name:    "maxNodesTotal desired zero observed nil",
-			desired: api.ClusterAutoscalingProfile{},
+			desired: coreapi.ClusterAutoscalingProfile{},
 			observed: func() v1beta1.ClusterAutoscaling {
 				autoscaling := operationtesting.ClusterUpdateMatchingHostedClusterSpec().Autoscaling
 				autoscaling.MaxNodesTotal = nil
@@ -1191,7 +1191,7 @@ func TestHypershiftHostedClusterAutoscalingSpecMatchesDesired(t *testing.T) {
 		},
 		{
 			name:    "maxPodGracePeriod desired zero observed nil",
-			desired: api.ClusterAutoscalingProfile{MaxPodGracePeriodSeconds: 0},
+			desired: coreapi.ClusterAutoscalingProfile{MaxPodGracePeriodSeconds: 0},
 			observed: func() v1beta1.ClusterAutoscaling {
 				autoscaling := operationtesting.ClusterUpdateMatchingHostedClusterSpec().Autoscaling
 				autoscaling.MaxPodGracePeriod = nil
@@ -1202,7 +1202,7 @@ func TestHypershiftHostedClusterAutoscalingSpecMatchesDesired(t *testing.T) {
 		},
 		{
 			name:    "maxNodesTotal mismatch",
-			desired: api.ClusterAutoscalingProfile{MaxNodesTotal: 10},
+			desired: coreapi.ClusterAutoscalingProfile{MaxNodesTotal: 10},
 			observed: func() v1beta1.ClusterAutoscaling {
 				autoscaling := operationtesting.ClusterUpdateMatchingHostedClusterSpec().Autoscaling
 				autoscaling.MaxNodesTotal = ptr.To[int32](5)
@@ -1213,14 +1213,14 @@ func TestHypershiftHostedClusterAutoscalingSpecMatchesDesired(t *testing.T) {
 		},
 		{
 			name:       "maxNodesTotal desired nonzero observed nil",
-			desired:    api.ClusterAutoscalingProfile{MaxNodesTotal: 10},
+			desired:    coreapi.ClusterAutoscalingProfile{MaxNodesTotal: 10},
 			observed:   operationtesting.ClusterUpdateMatchingHostedClusterSpec().Autoscaling,
 			wantMatch:  false,
 			wantSubstr: `maxNodesTotal is 0, want 10`,
 		},
 		{
 			name:    "maxNodeProvisionTime equivalent duration match",
-			desired: api.ClusterAutoscalingProfile{MaxNodeProvisionTimeSeconds: 900},
+			desired: coreapi.ClusterAutoscalingProfile{MaxNodeProvisionTimeSeconds: 900},
 			observed: func() v1beta1.ClusterAutoscaling {
 				autoscaling := operationtesting.ClusterUpdateMatchingHostedClusterSpec().Autoscaling
 				autoscaling.MaxNodeProvisionTime = "900s"
@@ -1230,7 +1230,7 @@ func TestHypershiftHostedClusterAutoscalingSpecMatchesDesired(t *testing.T) {
 		},
 		{
 			name:    "maxNodeProvisionTime invalid duration",
-			desired: api.ClusterAutoscalingProfile{MaxNodeProvisionTimeSeconds: 900},
+			desired: coreapi.ClusterAutoscalingProfile{MaxNodeProvisionTimeSeconds: 900},
 			observed: func() v1beta1.ClusterAutoscaling {
 				autoscaling := operationtesting.ClusterUpdateMatchingHostedClusterSpec().Autoscaling
 				autoscaling.MaxNodeProvisionTime = "not-a-duration"
@@ -1241,7 +1241,7 @@ func TestHypershiftHostedClusterAutoscalingSpecMatchesDesired(t *testing.T) {
 		},
 		{
 			name:    "maxPodGracePeriod mismatch",
-			desired: api.ClusterAutoscalingProfile{MaxPodGracePeriodSeconds: 60},
+			desired: coreapi.ClusterAutoscalingProfile{MaxPodGracePeriodSeconds: 60},
 			observed: func() v1beta1.ClusterAutoscaling {
 				autoscaling := operationtesting.ClusterUpdateMatchingHostedClusterSpec().Autoscaling
 				autoscaling.MaxPodGracePeriod = ptr.To[int32](30)
@@ -1252,7 +1252,7 @@ func TestHypershiftHostedClusterAutoscalingSpecMatchesDesired(t *testing.T) {
 		},
 		{
 			name:    "podPriorityThreshold mismatch",
-			desired: api.ClusterAutoscalingProfile{PodPriorityThreshold: -10},
+			desired: coreapi.ClusterAutoscalingProfile{PodPriorityThreshold: -10},
 			observed: func() v1beta1.ClusterAutoscaling {
 				autoscaling := operationtesting.ClusterUpdateMatchingHostedClusterSpec().Autoscaling
 				autoscaling.PodPriorityThreshold = ptr.To[int32](0)
@@ -1263,7 +1263,7 @@ func TestHypershiftHostedClusterAutoscalingSpecMatchesDesired(t *testing.T) {
 		},
 		{
 			name:    "all match",
-			desired: api.ClusterAutoscalingProfile{MaxNodesTotal: 10, MaxPodGracePeriodSeconds: 60, PodPriorityThreshold: -5},
+			desired: coreapi.ClusterAutoscalingProfile{MaxNodesTotal: 10, MaxPodGracePeriodSeconds: 60, PodPriorityThreshold: -5},
 			observed: v1beta1.ClusterAutoscaling{
 				MaxNodesTotal:        ptr.To[int32](10),
 				MaxPodGracePeriod:    ptr.To[int32](60),
@@ -1296,7 +1296,7 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 
 	tests := []struct {
 		name       string
-		desired    []api.ImageDigestMirror
+		desired    []coreapi.ImageDigestMirror
 		observed   []v1beta1.ImageContentSource
 		wantMatch  bool
 		wantSubstr string
@@ -1309,13 +1309,13 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 		},
 		{
 			name:      "both empty",
-			desired:   []api.ImageDigestMirror{},
+			desired:   []coreapi.ImageDigestMirror{},
 			observed:  []v1beta1.ImageContentSource{},
 			wantMatch: true,
 		},
 		{
 			name: "missing desired source",
-			desired: []api.ImageDigestMirror{
+			desired: []coreapi.ImageDigestMirror{
 				{Source: "a"},
 			},
 			observed:   nil,
@@ -1324,7 +1324,7 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 		},
 		{
 			name: "extra platform observed sources",
-			desired: []api.ImageDigestMirror{
+			desired: []coreapi.ImageDigestMirror{
 				{Source: "a", Mirrors: []string{"m1"}},
 			},
 			observed: []v1beta1.ImageContentSource{
@@ -1335,13 +1335,13 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 		},
 		{
 			name:      "desired empty observed has only platform sources",
-			desired:   []api.ImageDigestMirror{},
+			desired:   []coreapi.ImageDigestMirror{},
 			observed:  []v1beta1.ImageContentSource{{Source: testClusterUpdatePlatformImageContentSource, Mirrors: []string{"platform-mirror"}}},
 			wantMatch: true,
 		},
 		{
 			name:    "desired empty and observed has stale customer sources",
-			desired: []api.ImageDigestMirror{},
+			desired: []coreapi.ImageDigestMirror{},
 			observed: []v1beta1.ImageContentSource{
 				{Source: testClusterUpdatePlatformImageContentSource, Mirrors: []string{"platform-mirror"}},
 				{Source: "quay.io/foo", Mirrors: []string{"mirror.io/foo"}},
@@ -1351,7 +1351,7 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 		},
 		{
 			name: "unset customer source still present",
-			desired: []api.ImageDigestMirror{
+			desired: []coreapi.ImageDigestMirror{
 				{Source: "quay.io/foo", Mirrors: []string{"mirror.io/foo"}},
 			},
 			observed: []v1beta1.ImageContentSource{
@@ -1364,7 +1364,7 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 		},
 		{
 			name: "source mismatch",
-			desired: []api.ImageDigestMirror{
+			desired: []coreapi.ImageDigestMirror{
 				{Source: "a", Mirrors: []string{"m1"}},
 			},
 			observed: []v1beta1.ImageContentSource{
@@ -1375,7 +1375,7 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 		},
 		{
 			name: "mirrors mismatch",
-			desired: []api.ImageDigestMirror{
+			desired: []coreapi.ImageDigestMirror{
 				{Source: "a", Mirrors: []string{"m1", "m2"}},
 			},
 			observed: []v1beta1.ImageContentSource{
@@ -1386,7 +1386,7 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 		},
 		{
 			name: "full match",
-			desired: []api.ImageDigestMirror{
+			desired: []coreapi.ImageDigestMirror{
 				{Source: "a", Mirrors: []string{"m1"}},
 				{Source: "b", Mirrors: []string{"m2", "m3"}},
 			},
@@ -1398,7 +1398,7 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 		},
 		{
 			name: "full match regardless of order",
-			desired: []api.ImageDigestMirror{
+			desired: []coreapi.ImageDigestMirror{
 				{Source: "a", Mirrors: []string{"m1"}},
 				{Source: "b", Mirrors: []string{"m2", "m3"}},
 			},
@@ -1428,13 +1428,13 @@ func TestHypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(t *testin
 
 	controller := &operationClusterUpdate{}
 
-	etcdDesired := api.EtcdDataEncryptionProfile{
-		KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-		CustomerManaged: &api.CustomerManagedEncryptionProfile{
-			EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-			Kms: &api.KmsEncryptionProfile{
-				Visibility: api.KeyVaultVisibilityPublic,
-				ActiveKey: api.KmsKey{
+	etcdDesired := coreapi.EtcdDataEncryptionProfile{
+		KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+		CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+			EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+			Kms: &coreapi.KmsEncryptionProfile{
+				Visibility: metadataapi.KeyVaultVisibilityPublic,
+				ActiveKey: coreapi.KmsKey{
 					Name:      "test-key",
 					VaultName: "test-vault",
 					Version:   "v1",
@@ -1445,7 +1445,7 @@ func TestHypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(t *testin
 
 	tests := []struct {
 		name       string
-		desired    api.EtcdDataEncryptionProfile
+		desired    coreapi.EtcdDataEncryptionProfile
 		observed   *v1beta1.SecretEncryptionSpec
 		wantMatch  bool
 		wantSubstr string
@@ -1518,8 +1518,8 @@ func TestHypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(t *testin
 		},
 		{
 			name: "platform managed",
-			desired: api.EtcdDataEncryptionProfile{
-				KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+			desired: coreapi.EtcdDataEncryptionProfile{
+				KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 			},
 			observed: &v1beta1.SecretEncryptionSpec{
 				Type: v1beta1.KMS,
@@ -1598,118 +1598,118 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		cluster           *api.HCPOpenShiftCluster
+		cluster           *coreapi.HCPOpenShiftCluster
 		csCluster         *arohcpv1alpha1.Cluster
-		wantState         arm.ProvisioningState
+		wantState         coreapi.ProvisioningState
 		wantMessageSubstr string
 	}{
 		{
 			name: "matching node drain timeout returns Succeeded",
-			cluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: 30,
 				},
 			},
 			csCluster: newCSClusterWithNodeDrainTimeoutAndAllowAll(t, 30),
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "zero desired with unset CS value returns Succeeded",
-			cluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{},
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{},
 			},
 			csCluster: newCSClusterWithAllowAll(t),
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "mismatch returns Updating",
-			cluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: 60,
 				},
 			},
 			csCluster:         newCSClusterWithNodeDrainTimeoutAndAllowAll(t, 30),
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `nodeDrainGracePeriod is 30 minutes, want 60`,
 		},
 		{
 			name: "matching authorized CIDRs returns Succeeded",
-			cluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					API: api.CustomerAPIProfile{
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					API: coreapi.CustomerAPIProfile{
 						AuthorizedCIDRs: []string{"10.0.0.0/8", "192.168.0.0/16"},
 					},
 				},
 			},
 			csCluster: newCSClusterWithAuthorizedCIDRs(t, "10.0.0.0/8", "192.168.0.0/16"),
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "nil desired with unset CS CIDR config returns Updating",
-			cluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					API: api.CustomerAPIProfile{},
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					API: coreapi.CustomerAPIProfile{},
 				},
 			},
 			csCluster:         newCSCluster(t),
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `k8sAPIServerAuthorizedCIDRs is unset, want allow_all`,
 		},
 		{
 			name: "authorized CIDR mismatch returns Updating",
-			cluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					API: api.CustomerAPIProfile{
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					API: coreapi.CustomerAPIProfile{
 						AuthorizedCIDRs: []string{"203.0.113.0/24"},
 					},
 				},
 			},
 			csCluster:         newCSClusterWithAuthorizedCIDRs(t, "10.0.0.0/8"),
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `allow_list is [10.0.0.0/8], want [203.0.113.0/24]`,
 		},
 		{
 			name: "explicit allow_all CS config with nil desired returns Succeeded",
-			cluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					API: api.CustomerAPIProfile{},
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					API: coreapi.CustomerAPIProfile{},
 				},
 			},
 			csCluster: newCSClusterWithCIDRBlockAllowAccess(t, ocm.CSCIDRBlockAllowAccessModeAllowAll),
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "allow_all CS config with stale values and nil desired returns Succeeded",
-			cluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					API: api.CustomerAPIProfile{},
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					API: coreapi.CustomerAPIProfile{},
 				},
 			},
 			csCluster: newCSClusterWithCIDRBlockAllowAccess(t, ocm.CSCIDRBlockAllowAccessModeAllowAll, "10.0.0.0/8"),
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "allow_list CS config with nil desired returns Updating",
-			cluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					API: api.CustomerAPIProfile{},
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					API: coreapi.CustomerAPIProfile{},
 				},
 			},
 			csCluster:         newCSClusterWithCIDRBlockAllowAccess(t, ocm.CSCIDRBlockAllowAccessModeAllowList, "10.0.0.0/8"),
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `k8sAPIServerAuthorizedCIDRs is allow_list [10.0.0.0/8], want allow_all`,
 		},
 		{
 			name: "allow_all CS config with desired CIDR list returns Updating",
-			cluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					API: api.CustomerAPIProfile{
+			cluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					API: coreapi.CustomerAPIProfile{
 						AuthorizedCIDRs: []string{"203.0.113.0/24"},
 					},
 				},
 			},
 			csCluster:         newCSClusterWithCIDRBlockAllowAccess(t, ocm.CSCIDRBlockAllowAccessModeAllowAll),
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `k8sAPIServerAuthorizedCIDRs is allow_all, want allow_list`,
 		},
 	}
@@ -1738,26 +1738,26 @@ func readyControlPlaneClusterAutoscaler() *v1beta1.ControlPlaneComponent {
 	}
 }
 
-func newControlPlaneClusterAutoscalerReadDesire(t *testing.T, controlPlaneComponent *v1beta1.ControlPlaneComponent, conditions ...metav1.Condition) *kubeapplier.ReadDesire {
+func newControlPlaneClusterAutoscalerReadDesire(t *testing.T, controlPlaneComponent *v1beta1.ControlPlaneComponent, conditions ...metav1.Condition) *kubeapplierapi.ReadDesire {
 	t.Helper()
 	raw, err := json.Marshal(controlPlaneComponent)
 	require.NoError(t, err)
 	if conditions == nil {
 		conditions = []metav1.Condition{
-			{Type: kubeapplier.ConditionTypeSuccessful, Status: metav1.ConditionTrue, Reason: kubeapplier.ConditionReasonNoErrors},
+			{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue, Reason: kubeapplierapi.ConditionReasonNoErrors},
 		}
 	}
 
-	resourceID := api.Must(azcorearm.ParseResourceID(
-		kubeapplier.ToClusterScopedReadDesireResourceIDString(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 			operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName, operationtesting.TestClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)))
 
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		Status: kubeapplier.ReadDesireStatus{
+		Status: kubeapplierapi.ReadDesireStatus{
 			Conditions:  conditions,
 			KubeContent: &kruntime.RawExtension{Raw: raw},
 		},
@@ -1958,47 +1958,47 @@ func TestHypershiftControlPlaneClusterAutoscalerState(t *testing.T) {
 
 	tests := []struct {
 		name                                          string
-		activeVersions                                []api.HCPClusterActiveVersion
-		cachedControlPlaneClusterAutoscalerReadDesire *kubeapplier.ReadDesire
-		wantState                                     arm.ProvisioningState
+		activeVersions                                []coreapi.HCPClusterActiveVersion
+		cachedControlPlaneClusterAutoscalerReadDesire *kubeapplierapi.ReadDesire
+		wantState                                     coreapi.ProvisioningState
 		wantMessage                                   string
 	}{
 		{
 			name:           "skips autoscaler gate when lowest active version is below 4.20",
-			activeVersions: []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.0"))}},
-			wantState:      arm.ProvisioningStateSucceeded,
+			activeVersions: []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.0"))}},
+			wantState:      coreapi.ProvisioningStateSucceeded,
 			wantMessage:    `lowest active control plane version "4.19.0" does not support ControlPlaneComponent cluster-autoscaler (requires 4.20+)`,
 		},
 		{
 			name:        "waits when active versions are not yet reported",
-			wantState:   arm.ProvisioningStateUpdating,
+			wantState:   coreapi.ProvisioningStateUpdating,
 			wantMessage: "control plane active versions not yet reported",
 		},
 		{
 			name:           "waits when autoscaler ReadDesire is absent on 4.20+",
-			activeVersions: []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
-			wantState:      arm.ProvisioningStateUpdating,
+			activeVersions: []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
+			wantState:      coreapi.ProvisioningStateUpdating,
 			wantMessage:    "cluster autoscaler state not cached yet",
 		},
 		{
 			name: "nightly pre-release control plane version satisfies the 4.20+ autoscaler gate",
-			activeVersions: []api.HCPClusterActiveVersion{{
+			activeVersions: []coreapi.HCPClusterActiveVersion{{
 				Version: ptr.To(semver.MustParse("4.20.0-0.nightly-2026-01-01-000000")),
 			}},
 			cachedControlPlaneClusterAutoscalerReadDesire: newControlPlaneClusterAutoscalerReadDesire(t, readyControlPlaneClusterAutoscaler()),
-			wantState:   arm.ProvisioningStateSucceeded,
+			wantState:   coreapi.ProvisioningStateSucceeded,
 			wantMessage: "",
 		},
 		{
 			name:           "succeeds when autoscaler ControlPlaneComponent is ready",
-			activeVersions: []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
+			activeVersions: []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
 			cachedControlPlaneClusterAutoscalerReadDesire: newControlPlaneClusterAutoscalerReadDesire(t, readyControlPlaneClusterAutoscaler()),
-			wantState:   arm.ProvisioningStateSucceeded,
+			wantState:   coreapi.ProvisioningStateSucceeded,
 			wantMessage: "",
 		},
 		{
 			name:           "updates when autoscaler ControlPlaneComponent is not ready",
-			activeVersions: []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
+			activeVersions: []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
 			cachedControlPlaneClusterAutoscalerReadDesire: newControlPlaneClusterAutoscalerReadDesire(t, &v1beta1.ControlPlaneComponent{
 				Status: v1beta1.ControlPlaneComponentStatus{
 					Conditions: []metav1.Condition{
@@ -2006,7 +2006,7 @@ func TestHypershiftControlPlaneClusterAutoscalerState(t *testing.T) {
 					},
 				},
 			}),
-			wantState:   arm.ProvisioningStateUpdating,
+			wantState:   coreapi.ProvisioningStateUpdating,
 			wantMessage: "cluster autoscaler not available: PodsNotReady: waiting for pods",
 		},
 	}
@@ -2016,21 +2016,21 @@ func TestHypershiftControlPlaneClusterAutoscalerState(t *testing.T) {
 			t.Parallel()
 			cluster := fixture.NewCluster(nil)
 
-			spcResourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+			spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
 				fixture.ClusterResourceID.String(),
-				api.ServiceProviderClusterResourceTypeName,
-				api.ServiceProviderClusterResourceName,
+				coreapi.ServiceProviderClusterResourceTypeName,
+				coreapi.ServiceProviderClusterResourceName,
 			)))
-			spc := &api.ServiceProviderCluster{
-				CosmosMetadata: api.CosmosMetadata{ResourceID: spcResourceID, PartitionKey: strings.ToLower(spcResourceID.SubscriptionID)},
-				Status: api.ServiceProviderClusterStatus{
-					ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+			spc := &coreapi.ServiceProviderCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID, PartitionKey: strings.ToLower(spcResourceID.SubscriptionID)},
+				Status: coreapi.ServiceProviderClusterStatus{
+					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
 						ActiveVersions: tt.activeVersions,
 					},
 				},
 			}
 
-			var readDesires []*kubeapplier.ReadDesire
+			var readDesires []*kubeapplierapi.ReadDesire
 			if tt.cachedControlPlaneClusterAutoscalerReadDesire != nil {
 				readDesires = append(readDesires, tt.cachedControlPlaneClusterAutoscalerReadDesire)
 			}

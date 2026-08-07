@@ -23,7 +23,8 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -69,7 +70,7 @@ func NewDispatchRequestCredentialController(
 	return controller
 }
 
-func (c *dispatchRequestCredential) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *dispatchRequestCredential) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
@@ -137,7 +138,7 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 		return utils.TrackError(err)
 	}
 
-	csBreakGlassCredentialID, err := api.NewInternalID(csBreakGlassCredential.HREF())
+	csBreakGlassCredentialID, err := metadataapi.NewInternalID(csBreakGlassCredential.HREF())
 	if err != nil {
 		return utils.TrackError(err)
 	}

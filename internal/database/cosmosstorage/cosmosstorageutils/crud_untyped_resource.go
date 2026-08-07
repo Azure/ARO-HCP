@@ -23,7 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -136,12 +136,12 @@ func (d *untypedCRUD) Child(resourceType azcorearm.ResourceType, resourceName st
 	switch {
 	case strings.EqualFold(resourceType.Type, "resourcegroups"):
 		// no provider needed here.
-	case resourceType.Namespace == api.ProviderNamespace && d.parentResourceID.ResourceType.Namespace != api.ProviderNamespace:
+	case resourceType.Namespace == coreapi.ProviderNamespace && d.parentResourceID.ResourceType.Namespace != coreapi.ProviderNamespace:
 		parts = append(parts,
 			"providers",
 			resourceType.Namespace,
 		)
-	case resourceType.Namespace != api.ProviderNamespace && d.parentResourceID.ResourceType.Namespace == api.ProviderNamespace:
+	case resourceType.Namespace != coreapi.ProviderNamespace && d.parentResourceID.ResourceType.Namespace == coreapi.ProviderNamespace:
 		return nil, fmt.Errorf("cannot switch to a non-RH provider: %q", resourceType.Namespace)
 	}
 	parts = append(parts, resourceType.Types[len(resourceType.Types)-1])

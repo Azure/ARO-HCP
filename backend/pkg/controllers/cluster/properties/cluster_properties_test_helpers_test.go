@@ -31,10 +31,10 @@ import (
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -58,7 +58,7 @@ const (
 	testIssuerURL                      = "https://issuer.example.com/cluster1"
 )
 
-func newSeededReadDesireLister(ctx context.Context, readDesires ...*kubeapplier.ReadDesire) (kubeapplierlisters.ReadDesireLister, error) {
+func newSeededReadDesireLister(ctx context.Context, readDesires ...*kubeapplierapi.ReadDesire) (kubeapplierlisters.ReadDesireLister, error) {
 	resources := []any{}
 	for _, rd := range readDesires {
 		if rd != nil {
@@ -72,16 +72,16 @@ func newSeededReadDesireLister(ctx context.Context, readDesires ...*kubeapplier.
 	}
 
 	kubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
-	managementClusterID := api.Must(azcorearm.ParseResourceID(
+	managementClusterID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
 	kubeApplierClients.Register(managementClusterID, mockKubeApplierDB)
 
 	return &kubeapplierlistertesting.DBReadDesireLister{
 		Clients: kubeApplierClients,
 		Lister: &fleetlistertesting.SliceManagementClusterLister{
-			ManagementClusters: []*fleet.ManagementCluster{
+			ManagementClusters: []*fleetapi.ManagementCluster{
 				{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: managementClusterID},
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterID},
 					ResourceID:     managementClusterID,
 				},
 			},
@@ -89,27 +89,27 @@ func newSeededReadDesireLister(ctx context.Context, readDesires ...*kubeapplier.
 	}, nil
 }
 
-func newTestCluster(hcpClusterName string, opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestCluster(hcpClusterName string, opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + hcpClusterName,
 	))
 
-	cluster := &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	cluster := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: hcpClusterName,
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID(testClusterServiceIDStr))),
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))),
 		},
 	}
 
@@ -120,7 +120,7 @@ func newTestCluster(hcpClusterName string, opts ...func(*api.HCPOpenShiftCluster
 	return cluster
 }
 
-func newTestHostedClusterReadDesire(t *testing.T, opts ...func(*hsv1beta1.HostedCluster)) *kubeapplier.ReadDesire {
+func newTestHostedClusterReadDesire(t *testing.T, opts ...func(*hsv1beta1.HostedCluster)) *kubeapplierapi.ReadDesire {
 	t.Helper()
 
 	hostedCluster := &hsv1beta1.HostedCluster{
@@ -138,35 +138,35 @@ func newTestHostedClusterReadDesire(t *testing.T, opts ...func(*hsv1beta1.Hosted
 		opt(hostedCluster)
 	}
 
-	resourceIDString := kubeapplier.ToClusterScopedReadDesireResourceIDString(
+	resourceIDString := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 		testSubscriptionID,
 		testResourceGroupName,
 		testClusterName,
 		kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster,
 	)
-	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDString))
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDString))
 
 	raw, err := json.Marshal(hostedCluster)
 	require.NoError(t, err)
 
-	managementClusterResourceID := api.Must(azcorearm.ParseResourceID(
+	managementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
 
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(managementClusterResourceID.String()),
 		},
-		Spec: kubeapplier.ReadDesireSpec{
+		Spec: kubeapplierapi.ReadDesireSpec{
 			ManagementCluster: managementClusterResourceID,
 		},
-		Status: kubeapplier.ReadDesireStatus{
+		Status: kubeapplierapi.ReadDesireStatus{
 			KubeContent: &runtime.RawExtension{Raw: raw},
 		},
 	}
 }
 
-func newTestServingCAReadDesire(t *testing.T, caBundlePEM string) *kubeapplier.ReadDesire {
+func newTestServingCAReadDesire(t *testing.T, caBundlePEM string) *kubeapplierapi.ReadDesire {
 	t.Helper()
 
 	secret := &corev1.Secret{
@@ -178,26 +178,26 @@ func newTestServingCAReadDesire(t *testing.T, caBundlePEM string) *kubeapplier.R
 	raw, err := json.Marshal(secret)
 	require.NoError(t, err)
 
-	resourceIDString := kubeapplier.ToClusterScopedReadDesireResourceIDString(
+	resourceIDString := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 		testSubscriptionID,
 		testResourceGroupName,
 		testClusterName,
 		kubeapplierhelpers.ReadDesireNameServingCA,
 	)
-	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDString))
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDString))
 
-	managementClusterResourceID := api.Must(azcorearm.ParseResourceID(
+	managementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
 
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(managementClusterResourceID.String()),
 		},
-		Spec: kubeapplier.ReadDesireSpec{
+		Spec: kubeapplierapi.ReadDesireSpec{
 			ManagementCluster: managementClusterResourceID,
 		},
-		Status: kubeapplier.ReadDesireStatus{
+		Status: kubeapplierapi.ReadDesireStatus{
 			KubeContent: &runtime.RawExtension{Raw: raw},
 		},
 	}

@@ -43,9 +43,9 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -60,7 +60,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 	testClockNow := operationtesting.MustParseTime("2024-06-01T12:00:00Z")
 	fixture := operationtesting.NewNodePoolTestFixture()
 
-	newNodePoolWithVersion := func(version string, mutate ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
+	newNodePoolWithVersion := func(version string, mutate ...func(*coreapi.HCPOpenShiftClusterNodePool)) *coreapi.HCPOpenShiftClusterNodePool {
 		nodePool := fixture.NewNodePool()
 		nodePool.Properties.Version.ID = version
 		for _, fn := range mutate {
@@ -71,25 +71,25 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 		return nodePool
 	}
 
-	newOperationAccepted := func() *api.Operation {
+	newOperationAccepted := func() *coreapi.Operation {
 		return fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate)
 	}
 
-	newServiceProviderNodePoolWithDesiredVersion := func(version string) *api.ServiceProviderNodePool {
+	newServiceProviderNodePoolWithDesiredVersion := func(version string) *coreapi.ServiceProviderNodePool {
 		sp := fixture.NewServiceProviderNodePool()
 		sp.Spec.NodePoolVersion.DesiredVersion = ptr.To(semver.MustParse(version))
 		return sp
 	}
 
-	newDefaultNodePoolVersionController := func() *api.Controller {
+	newDefaultNodePoolVersionController := func() *coreapi.Controller {
 		return fixture.NewNodePoolVersionController(nil)
 	}
 
-	newNodePoolVersionControllerWithConditions := func(conditions []metav1.Condition) *api.Controller {
+	newNodePoolVersionControllerWithConditions := func(conditions []metav1.Condition) *coreapi.Controller {
 		return fixture.NewNodePoolVersionController(conditions)
 	}
 
-	newPassingCachedNodePoolReadDesire := func(nodePool *api.HCPOpenShiftClusterNodePool) *kubeapplier.ReadDesire {
+	newPassingCachedNodePoolReadDesire := func(nodePool *coreapi.HCPOpenShiftClusterNodePool) *kubeapplierapi.ReadDesire {
 		return newNodePoolReadDesire(t, nodePool, fixture.NewCluster())
 	}
 
@@ -134,18 +134,18 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name             string
-		existingNodePool *api.HCPOpenShiftClusterNodePool
+		existingNodePool *coreapi.HCPOpenShiftClusterNodePool
 		// When not set, the controller uses a node pool lister that contains the existingNodePool.
 		nodePoolLister    corelisters.NodePoolLister
-		existingOperation *api.Operation
+		existingOperation *coreapi.Operation
 		// When not set, the controller uses an active operations lister that contains the existingOperation.
 		activeOperationsLister          corelisters.ActiveOperationLister
-		existingServiceProviderNodePool *api.ServiceProviderNodePool
+		existingServiceProviderNodePool *coreapi.ServiceProviderNodePool
 		// When not set, the controller uses a service provider node pool lister that contains the existingServiceProviderNodePool.
 		serviceProviderNodePoolLister     corelisters.ServiceProviderNodePoolLister
-		existingNodePoolVersionController *api.Controller
+		existingNodePoolVersionController *coreapi.Controller
 		// When set, wires a ReadDesireLister containing this cached Hypershift NodePool mirror.
-		cachedNodePoolReadDesire *kubeapplier.ReadDesire
+		cachedNodePoolReadDesire *kubeapplierapi.ReadDesire
 		seedMismatchFirstSeenAt  time.Time
 		setupMockCSClient        func(*ocm.MockClusterServiceClientSpec)
 		wantErr                  bool
@@ -161,11 +161,11 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, nodePool.Properties.ProvisioningState)
 				assert.Empty(t, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -179,11 +179,11 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, op.Status)
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, nodePool.Properties.ProvisioningState)
 				assert.Equal(t, operationtesting.TestOperationName, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -197,7 +197,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -210,7 +210,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -223,7 +223,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				assert.NotNil(t, op.Error)
 				assert.Contains(t, op.Error.Message, "temporary error occurred")
 			},
@@ -235,9 +235,9 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.20.5"),
 			existingNodePoolVersionController: newNodePoolVersionControllerWithConditions([]metav1.Condition{
 				{
-					Type:    api.ControllerConditionTypeIntentFailed,
+					Type:    coreapi.ControllerConditionTypeIntentFailed,
 					Status:  metav1.ConditionTrue,
-					Reason:  api.VersionUpgradeNotAcceptedReason,
+					Reason:  coreapi.VersionUpgradeNotAcceptedReason,
 					Message: "invalid node pool version 4.21.5: cannot exceed control plane version 4.20.5",
 				},
 			}),
@@ -246,14 +246,14 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, arm.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
 				assert.Contains(t, op.Error.Message, "cannot exceed control plane version")
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, nodePool.Properties.ProvisioningState)
 				assert.Empty(t, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -268,7 +268,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 				assert.Nil(t, op.Error)
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
@@ -282,7 +282,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			existingOperation:               newOperationAccepted(),
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.20.4"),
 			existingNodePoolVersionController: newNodePoolVersionControllerWithConditions([]metav1.Condition{
-				{Type: api.ControllerConditionTypeIntentFailed, Status: metav1.ConditionFalse},
+				{Type: coreapi.ControllerConditionTypeIntentFailed, Status: metav1.ConditionFalse},
 			}),
 			cachedNodePoolReadDesire: newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.20.5")),
 			seedMismatchFirstSeenAt:  testClockNow.Add(-120 * time.Second),
@@ -290,7 +290,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 				assert.Nil(t, op.Error)
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
@@ -304,7 +304,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			existingOperation:               newOperationAccepted(),
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.20.4"),
 			existingNodePoolVersionController: newNodePoolVersionControllerWithConditions([]metav1.Condition{
-				{Type: api.ControllerConditionTypeIntentFailed, Status: metav1.ConditionFalse},
+				{Type: coreapi.ControllerConditionTypeIntentFailed, Status: metav1.ConditionFalse},
 			}),
 			cachedNodePoolReadDesire: newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.20.5")),
 			seedMismatchFirstSeenAt:  testClockNow.Add(-130 * time.Second),
@@ -312,9 +312,9 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, arm.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
 				require.NoError(t, err)
@@ -324,7 +324,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				)
 				assert.Contains(t, op.Error.Message, wantMessageSubstr)
 
-				assert.Equal(t, arm.ProvisioningStateFailed, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, nodePool.Properties.ProvisioningState)
 				assert.Empty(t, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -338,17 +338,17 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, op.Status)
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, nodePool.Properties.ProvisioningState)
 				assert.Equal(t, operationtesting.TestOperationName, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
 		{
 			name: "cs node pool ready with hypershift node drain spec mismatch keeps operation updating",
-			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.HCPOpenShiftClusterNodePool) {
 				nodePool.Properties.NodeDrainTimeoutMinutes = ptr.To(int32(60))
 			}),
 			existingOperation:               newOperationAccepted(),
@@ -358,18 +358,18 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, op.Status)
 				assert.Nil(t, op.Error)
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, nodePool.Properties.ProvisioningState)
 				assert.Equal(t, operationtesting.TestOperationName, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
 		{
 			name: "cs node pool ready with hypershift replicas spec mismatch keeps operation updating",
-			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.HCPOpenShiftClusterNodePool) {
 				nodePool.Properties.Replicas = 3
 			}),
 			existingOperation:               newOperationAccepted(),
@@ -384,37 +384,37 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, op.Status)
 				assert.Nil(t, op.Error)
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateUpdating, nodePool.Properties.ProvisioningState)
 				assert.Equal(t, operationtesting.TestOperationName, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
 		{
 			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
-			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.HCPOpenShiftClusterNodePool) {
 				nodePool.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			existingOperation: newOperationAccepted(),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
 			name: "shouldReconcile gate not passed when node pool is deleting",
-			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newNodePoolWithVersion("4.19.0", func(nodePool *coreapi.HCPOpenShiftClusterNodePool) {
 				nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: testClockNow}
 			}),
 			existingOperation: newOperationAccepted(),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -425,12 +425,12 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 
 				nodePool, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).NodePools(operationtesting.TestClusterName).Get(ctx, operationtesting.TestNodePoolName)
 				require.NoError(t, err)
 				assert.Equal(t, operationtesting.TestOperationName, nodePool.ServiceProviderProperties.ActiveOperationID)
-				assert.Equal(t, arm.ProvisioningStateAccepted, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, nodePool.Properties.ProvisioningState)
 			},
 		},
 	}
@@ -460,7 +460,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			var readDesireLister kubeapplierlisters.ReadDesireLister
 			if tc.cachedNodePoolReadDesire != nil {
 				readDesireLister = &kubeapplierlistertesting.SliceReadDesireLister{
-					Desires: []*kubeapplier.ReadDesire{tc.cachedNodePoolReadDesire},
+					Desires: []*kubeapplierapi.ReadDesire{tc.cachedNodePoolReadDesire},
 				}
 			}
 
@@ -513,32 +513,32 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 	}
 }
 
-func newNodePoolReadDesire(t *testing.T, nodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) *kubeapplier.ReadDesire {
+func newNodePoolReadDesire(t *testing.T, nodePool *coreapi.HCPOpenShiftClusterNodePool, cluster *coreapi.HCPOpenShiftCluster) *kubeapplierapi.ReadDesire {
 	t.Helper()
 
 	hsNodePool := nodePoolToHypershiftNodePool(nodePool, cluster)
 	raw, err := json.Marshal(hsNodePool)
 	require.NoError(t, err)
 
-	resourceID := api.Must(azcorearm.ParseResourceID(
-		kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
 			operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName, operationtesting.TestClusterName, operationtesting.TestNodePoolName,
 			kubeapplierhelpers.ReadDesireNameReadonlyNodePool)))
 
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		Status: kubeapplier.ReadDesireStatus{
+		Status: kubeapplierapi.ReadDesireStatus{
 			Conditions: []metav1.Condition{
-				{Type: kubeapplier.ConditionTypeSuccessful, Status: metav1.ConditionTrue, Reason: kubeapplier.ConditionReasonNoErrors},
+				{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue, Reason: kubeapplierapi.ConditionReasonNoErrors},
 			},
 			KubeContent: &kruntime.RawExtension{Raw: raw},
 		},
 	}
 }
 
-func nodePoolToHypershiftNodePool(nodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) *v1beta1.NodePool {
+func nodePoolToHypershiftNodePool(nodePool *coreapi.HCPOpenShiftClusterNodePool, cluster *coreapi.HCPOpenShiftCluster) *v1beta1.NodePool {
 	effectiveNodeDrainMinutes := nodePool.Properties.NodeDrainTimeoutMinutes
 	if effectiveNodeDrainMinutes == nil {
 		effectiveNodeDrainMinutes = &cluster.CustomerProperties.NodeDrainTimeoutMinutes

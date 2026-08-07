@@ -24,8 +24,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview/generated"
 )
 
@@ -33,7 +33,7 @@ type HcpOpenShiftCluster struct {
 	generated.HcpOpenShiftCluster
 }
 
-var _ api.VersionedCreatableResource[api.HCPOpenShiftCluster] = &HcpOpenShiftCluster{}
+var _ coreapi.VersionedCreatableResource[coreapi.HCPOpenShiftCluster] = &HcpOpenShiftCluster{}
 
 func (h *HcpOpenShiftCluster) NewExternal() any {
 	return &HcpOpenShiftCluster{}
@@ -47,7 +47,7 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.Version = &generated.VersionProfile{}
 	}
 	if obj.Properties.Version.ChannelGroup == nil {
-		obj.Properties.Version.ChannelGroup = ptr.To(api.DefaultClusterVersionChannelGroup)
+		obj.Properties.Version.ChannelGroup = ptr.To(coreapi.DefaultClusterVersionChannelGroup)
 	}
 	if obj.Properties.Network == nil {
 		obj.Properties.Network = &generated.NetworkProfile{}
@@ -56,16 +56,16 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.Network.NetworkType = ptr.To(generated.NetworkTypeOVNKubernetes)
 	}
 	if obj.Properties.Network.PodCIDR == nil {
-		obj.Properties.Network.PodCIDR = ptr.To(api.DefaultClusterNetworkPodCIDR)
+		obj.Properties.Network.PodCIDR = ptr.To(coreapi.DefaultClusterNetworkPodCIDR)
 	}
 	if obj.Properties.Network.ServiceCIDR == nil {
-		obj.Properties.Network.ServiceCIDR = ptr.To(api.DefaultClusterNetworkServiceCIDR)
+		obj.Properties.Network.ServiceCIDR = ptr.To(coreapi.DefaultClusterNetworkServiceCIDR)
 	}
 	if obj.Properties.Network.MachineCIDR == nil {
-		obj.Properties.Network.MachineCIDR = ptr.To(api.DefaultClusterNetworkMachineCIDR)
+		obj.Properties.Network.MachineCIDR = ptr.To(coreapi.DefaultClusterNetworkMachineCIDR)
 	}
 	if obj.Properties.Network.HostPrefix == nil {
-		obj.Properties.Network.HostPrefix = ptr.To(api.DefaultClusterNetworkHostPrefix)
+		obj.Properties.Network.HostPrefix = ptr.To(coreapi.DefaultClusterNetworkHostPrefix)
 	}
 	if obj.Properties.API == nil {
 		obj.Properties.API = &generated.APIProfile{}
@@ -90,13 +90,13 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.Autoscaling = &generated.ClusterAutoscalingProfile{}
 	}
 	if obj.Properties.Autoscaling.MaxPodGracePeriodSeconds == nil {
-		obj.Properties.Autoscaling.MaxPodGracePeriodSeconds = ptr.To(api.DefaultClusterMaxPodGracePeriodSeconds)
+		obj.Properties.Autoscaling.MaxPodGracePeriodSeconds = ptr.To(coreapi.DefaultClusterMaxPodGracePeriodSeconds)
 	}
 	if obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds == nil {
-		obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = ptr.To(api.DefaultClusterMaxNodeProvisionTimeSeconds)
+		obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = ptr.To(coreapi.DefaultClusterMaxNodeProvisionTimeSeconds)
 	}
 	if obj.Properties.Autoscaling.PodPriorityThreshold == nil {
-		obj.Properties.Autoscaling.PodPriorityThreshold = ptr.To(api.DefaultClusterPodPriorityThreshold)
+		obj.Properties.Autoscaling.PodPriorityThreshold = ptr.To(coreapi.DefaultClusterPodPriorityThreshold)
 	}
 	//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
 	// TODO cannot change the default value for this version, but why keep it in our new version?
@@ -117,181 +117,181 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	}
 }
 
-func newVersionProfile(from *api.VersionProfile) generated.VersionProfile {
+func newVersionProfile(from *coreapi.VersionProfile) generated.VersionProfile {
 	if from == nil {
 		return generated.VersionProfile{}
 	}
 	return generated.VersionProfile{
-		ID:           api.PtrOrNil(from.ID),
-		ChannelGroup: api.PtrOrNil(from.ChannelGroup),
+		ID:           metadataapi.PtrOrNil(from.ID),
+		ChannelGroup: metadataapi.PtrOrNil(from.ChannelGroup),
 	}
 }
 
-func newDNSProfile(from *api.CustomerDNSProfile, from2 *api.ServiceProviderDNSProfile) generated.DNSProfile {
+func newDNSProfile(from *coreapi.CustomerDNSProfile, from2 *coreapi.ServiceProviderDNSProfile) generated.DNSProfile {
 	if from == nil {
 		return generated.DNSProfile{}
 	}
 	return generated.DNSProfile{
-		BaseDomain:       api.PtrOrNil(from2.BaseDomain),
-		BaseDomainPrefix: api.PtrOrNil(from.BaseDomainPrefix),
+		BaseDomain:       metadataapi.PtrOrNil(from2.BaseDomain),
+		BaseDomainPrefix: metadataapi.PtrOrNil(from.BaseDomainPrefix),
 	}
 }
 
-func newNetworkProfile(from *api.NetworkProfile) generated.NetworkProfile {
+func newNetworkProfile(from *coreapi.NetworkProfile) generated.NetworkProfile {
 	if from == nil {
 		return generated.NetworkProfile{}
 	}
 	return generated.NetworkProfile{
-		NetworkType: api.PtrOrNil(generated.NetworkType(from.NetworkType)),
-		PodCIDR:     api.PtrOrNil(from.PodCIDR),
-		ServiceCIDR: api.PtrOrNil(from.ServiceCIDR),
-		MachineCIDR: api.PtrOrNil(from.MachineCIDR),
-		HostPrefix:  api.PtrOrNil(from.HostPrefix),
+		NetworkType: metadataapi.PtrOrNil(generated.NetworkType(from.NetworkType)),
+		PodCIDR:     metadataapi.PtrOrNil(from.PodCIDR),
+		ServiceCIDR: metadataapi.PtrOrNil(from.ServiceCIDR),
+		MachineCIDR: metadataapi.PtrOrNil(from.MachineCIDR),
+		HostPrefix:  metadataapi.PtrOrNil(from.HostPrefix),
 	}
 }
 
-func newConsoleProfile(from *api.ServiceProviderConsoleProfile) generated.ConsoleProfile {
+func newConsoleProfile(from *coreapi.ServiceProviderConsoleProfile) generated.ConsoleProfile {
 	if from == nil {
 		return generated.ConsoleProfile{}
 	}
 	return generated.ConsoleProfile{
-		URL: api.PtrOrNil(from.URL),
+		URL: metadataapi.PtrOrNil(from.URL),
 	}
 }
 
-func newAPIProfile(from *api.CustomerAPIProfile, from2 *api.ServiceProviderAPIProfile) generated.APIProfile {
+func newAPIProfile(from *coreapi.CustomerAPIProfile, from2 *coreapi.ServiceProviderAPIProfile) generated.APIProfile {
 	if from == nil {
 		return generated.APIProfile{}
 	}
 	return generated.APIProfile{
-		URL:             api.PtrOrNil(from2.URL),
-		Visibility:      api.PtrOrNil(generated.Visibility(from.Visibility)),
-		AuthorizedCIDRs: api.StringSliceToStringPtrSlice(from.AuthorizedCIDRs),
+		URL:             metadataapi.PtrOrNil(from2.URL),
+		Visibility:      metadataapi.PtrOrNil(generated.Visibility(from.Visibility)),
+		AuthorizedCIDRs: metadataapi.StringSliceToStringPtrSlice(from.AuthorizedCIDRs),
 	}
 }
 
-func newPlatformProfile(from *api.CustomerPlatformProfile, from2 *api.ServiceProviderPlatformProfile) generated.PlatformProfile {
+func newPlatformProfile(from *coreapi.CustomerPlatformProfile, from2 *coreapi.ServiceProviderPlatformProfile) generated.PlatformProfile {
 	if from == nil {
 		return generated.PlatformProfile{}
 	}
 	return generated.PlatformProfile{
-		ManagedResourceGroup:    api.PtrOrNil(from.ManagedResourceGroup),
-		SubnetID:                api.ResourceIDToStringPtr(from.SubnetID),
-		OutboundType:            api.PtrOrNil(generated.OutboundType(from.OutboundType)),
-		NetworkSecurityGroupID:  api.ResourceIDToStringPtr(from.NetworkSecurityGroupID),
-		OperatorsAuthentication: api.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
-		IssuerURL:               api.PtrOrNil(from2.IssuerURL),
+		ManagedResourceGroup:    metadataapi.PtrOrNil(from.ManagedResourceGroup),
+		SubnetID:                metadataapi.ResourceIDToStringPtr(from.SubnetID),
+		OutboundType:            metadataapi.PtrOrNil(generated.OutboundType(from.OutboundType)),
+		NetworkSecurityGroupID:  metadataapi.ResourceIDToStringPtr(from.NetworkSecurityGroupID),
+		OperatorsAuthentication: metadataapi.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
+		IssuerURL:               metadataapi.PtrOrNil(from2.IssuerURL),
 	}
 }
 
-func newClusterAutoscalingProfile(from *api.ClusterAutoscalingProfile) generated.ClusterAutoscalingProfile {
+func newClusterAutoscalingProfile(from *coreapi.ClusterAutoscalingProfile) generated.ClusterAutoscalingProfile {
 	if from == nil {
 		return generated.ClusterAutoscalingProfile{}
 	}
 	return generated.ClusterAutoscalingProfile{
-		MaxNodeProvisionTimeSeconds: api.PtrOrNil(from.MaxNodeProvisionTimeSeconds),
-		MaxNodesTotal:               api.PtrOrNil(from.MaxNodesTotal),
-		MaxPodGracePeriodSeconds:    api.PtrOrNil(from.MaxPodGracePeriodSeconds),
-		PodPriorityThreshold:        api.PtrOrNil(from.PodPriorityThreshold),
+		MaxNodeProvisionTimeSeconds: metadataapi.PtrOrNil(from.MaxNodeProvisionTimeSeconds),
+		MaxNodesTotal:               metadataapi.PtrOrNil(from.MaxNodesTotal),
+		MaxPodGracePeriodSeconds:    metadataapi.PtrOrNil(from.MaxPodGracePeriodSeconds),
+		PodPriorityThreshold:        metadataapi.PtrOrNil(from.PodPriorityThreshold),
 	}
 }
 
-func newEtcdProfile(from *api.EtcdProfile) generated.EtcdProfile {
+func newEtcdProfile(from *coreapi.EtcdProfile) generated.EtcdProfile {
 	if from == nil {
 		return generated.EtcdProfile{}
 	}
 	return generated.EtcdProfile{
-		DataEncryption: api.PtrOrNil(newEtcdDataEncryptionProfile(&from.DataEncryption)),
+		DataEncryption: metadataapi.PtrOrNil(newEtcdDataEncryptionProfile(&from.DataEncryption)),
 	}
 }
-func newEtcdDataEncryptionProfile(from *api.EtcdDataEncryptionProfile) generated.EtcdDataEncryptionProfile {
+func newEtcdDataEncryptionProfile(from *coreapi.EtcdDataEncryptionProfile) generated.EtcdDataEncryptionProfile {
 	if from == nil {
 		return generated.EtcdDataEncryptionProfile{}
 	}
 	return generated.EtcdDataEncryptionProfile{
 		CustomerManaged:   newCustomerManagedEncryptionProfile(from.CustomerManaged),
-		KeyManagementMode: api.PtrOrNil(generated.EtcdDataEncryptionKeyManagementModeType(from.KeyManagementMode)),
+		KeyManagementMode: metadataapi.PtrOrNil(generated.EtcdDataEncryptionKeyManagementModeType(from.KeyManagementMode)),
 	}
 }
-func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProfile) *generated.CustomerManagedEncryptionProfile {
+func newCustomerManagedEncryptionProfile(from *coreapi.CustomerManagedEncryptionProfile) *generated.CustomerManagedEncryptionProfile {
 	if from == nil {
 		return nil
 	}
 	return &generated.CustomerManagedEncryptionProfile{
-		Kms:            api.PtrOrNil(newKmsEncryptionProfile(from.Kms)),
-		EncryptionType: api.PtrOrNil(generated.CustomerManagedEncryptionType(from.EncryptionType)),
+		Kms:            metadataapi.PtrOrNil(newKmsEncryptionProfile(from.Kms)),
+		EncryptionType: metadataapi.PtrOrNil(generated.CustomerManagedEncryptionType(from.EncryptionType)),
 	}
 }
-func newKmsEncryptionProfile(from *api.KmsEncryptionProfile) generated.KmsEncryptionProfile {
+func newKmsEncryptionProfile(from *coreapi.KmsEncryptionProfile) generated.KmsEncryptionProfile {
 	if from == nil {
 		return generated.KmsEncryptionProfile{}
 	}
 	return generated.KmsEncryptionProfile{
-		ActiveKey: api.PtrOrNil(newKmsKey(&from.ActiveKey)),
+		ActiveKey: metadataapi.PtrOrNil(newKmsKey(&from.ActiveKey)),
 	}
 }
-func newKmsKey(from *api.KmsKey) generated.KmsKey {
+func newKmsKey(from *coreapi.KmsKey) generated.KmsKey {
 	if from == nil {
 		return generated.KmsKey{}
 	}
 	return generated.KmsKey{
-		Name:      api.PtrOrNil(from.Name),
-		VaultName: api.PtrOrNil(from.VaultName),
-		Version:   api.PtrOrNil(from.Version),
+		Name:      metadataapi.PtrOrNil(from.Name),
+		VaultName: metadataapi.PtrOrNil(from.VaultName),
+		Version:   metadataapi.PtrOrNil(from.Version),
 	}
 }
 
-func newClusterImageRegistryProfile(from *api.ClusterImageRegistryProfile) generated.ClusterImageRegistryProfile {
+func newClusterImageRegistryProfile(from *coreapi.ClusterImageRegistryProfile) generated.ClusterImageRegistryProfile {
 	if from == nil {
 		return generated.ClusterImageRegistryProfile{}
 	}
 	return generated.ClusterImageRegistryProfile{
-		State: api.PtrOrNil(generated.ClusterImageRegistryState(from.State)),
+		State: metadataapi.PtrOrNil(generated.ClusterImageRegistryState(from.State)),
 	}
 }
 
-func newOperatorsAuthenticationProfile(from *api.OperatorsAuthenticationProfile) generated.OperatorsAuthenticationProfile {
+func newOperatorsAuthenticationProfile(from *coreapi.OperatorsAuthenticationProfile) generated.OperatorsAuthenticationProfile {
 	if from == nil {
 		return generated.OperatorsAuthenticationProfile{}
 	}
 	return generated.OperatorsAuthenticationProfile{
-		UserAssignedIdentities: api.PtrOrNil(newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities)),
+		UserAssignedIdentities: metadataapi.PtrOrNil(newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities)),
 	}
 }
 
-func newUserAssignedIdentitiesProfile(from *api.UserAssignedIdentitiesProfile) generated.UserAssignedIdentitiesProfile {
+func newUserAssignedIdentitiesProfile(from *coreapi.UserAssignedIdentitiesProfile) generated.UserAssignedIdentitiesProfile {
 	if from == nil {
 		return generated.UserAssignedIdentitiesProfile{}
 	}
 	return generated.UserAssignedIdentitiesProfile{
-		ControlPlaneOperators:  api.ResourceIDMapToStringPtrMap(from.ControlPlaneOperators),
-		DataPlaneOperators:     api.ResourceIDMapToStringPtrMap(from.DataPlaneOperators),
-		ServiceManagedIdentity: api.ResourceIDToStringPtr(from.ServiceManagedIdentity),
+		ControlPlaneOperators:  metadataapi.ResourceIDMapToStringPtrMap(from.ControlPlaneOperators),
+		DataPlaneOperators:     metadataapi.ResourceIDMapToStringPtrMap(from.DataPlaneOperators),
+		ServiceManagedIdentity: metadataapi.ResourceIDToStringPtr(from.ServiceManagedIdentity),
 	}
 }
 
-func newSystemData(from *arm.SystemData) generated.SystemData {
+func newSystemData(from *coreapi.SystemData) generated.SystemData {
 	if from == nil {
 		return generated.SystemData{}
 	}
 	return generated.SystemData{
-		CreatedBy:          api.PtrOrNil(from.CreatedBy),
-		CreatedByType:      api.PtrOrNil(generated.CreatedByType(from.CreatedByType)),
+		CreatedBy:          metadataapi.PtrOrNil(from.CreatedBy),
+		CreatedByType:      metadataapi.PtrOrNil(generated.CreatedByType(from.CreatedByType)),
 		CreatedAt:          from.CreatedAt,
-		LastModifiedBy:     api.PtrOrNil(from.LastModifiedBy),
-		LastModifiedByType: api.PtrOrNil(generated.CreatedByType(from.LastModifiedByType)),
+		LastModifiedBy:     metadataapi.PtrOrNil(from.LastModifiedBy),
+		LastModifiedByType: metadataapi.PtrOrNil(generated.CreatedByType(from.LastModifiedByType)),
 		LastModifiedAt:     from.LastModifiedAt,
 	}
 }
 
-func newManagedServiceIdentity(from *arm.ManagedServiceIdentity) *generated.ManagedServiceIdentity {
+func newManagedServiceIdentity(from *coreapi.ManagedServiceIdentity) *generated.ManagedServiceIdentity {
 	if from == nil {
 		return nil
 	}
 	return &generated.ManagedServiceIdentity{
-		Type:                   api.PtrOrNil(generated.ManagedServiceIdentityType(from.Type)),
-		PrincipalID:            api.PtrOrNil(from.PrincipalID),
-		TenantID:               api.PtrOrNil(from.TenantID),
+		Type:                   metadataapi.PtrOrNil(generated.ManagedServiceIdentityType(from.Type)),
+		PrincipalID:            metadataapi.PtrOrNil(from.PrincipalID),
+		TenantID:               metadataapi.PtrOrNil(from.TenantID),
 		UserAssignedIdentities: convertUserAssignedIdentities(from.UserAssignedIdentities),
 	}
 }
@@ -299,7 +299,7 @@ func newManagedServiceIdentity(from *arm.ManagedServiceIdentity) *generated.Mana
 // NewHCPOpenShiftCluster converts an internal representation to this API version.
 // If from is nil, returns a defaulted external object for use on the write path
 // where defaults are applied before unmarshaling the request body.
-func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
+func (v version) NewHCPOpenShiftCluster(from *coreapi.HCPOpenShiftCluster) coreapi.VersionedHCPOpenShiftCluster {
 	if from == nil {
 		ret := &HcpOpenShiftCluster{}
 		SetDefaultValuesCluster(ret)
@@ -313,24 +313,24 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 
 	out := &HcpOpenShiftCluster{
 		generated.HcpOpenShiftCluster{
-			ID:         api.PtrOrNil(idString),
-			Name:       api.PtrOrNil(from.Name),
-			Type:       api.PtrOrNil(from.Type),
-			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),
-			Location:   api.PtrOrNil(from.Location),
-			Tags:       api.StringMapToStringPtrMap(from.Tags),
+			ID:         metadataapi.PtrOrNil(idString),
+			Name:       metadataapi.PtrOrNil(from.Name),
+			Type:       metadataapi.PtrOrNil(from.Type),
+			SystemData: metadataapi.PtrOrNil(newSystemData(from.SystemData)),
+			Location:   metadataapi.PtrOrNil(from.Location),
+			Tags:       metadataapi.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.HcpOpenShiftClusterProperties{
-				ProvisioningState:       api.PtrOrNil(generated.ProvisioningState(from.ServiceProviderProperties.ProvisioningState)),
-				Version:                 api.PtrOrNil(newVersionProfile(&from.CustomerProperties.Version)),
-				DNS:                     api.PtrOrNil(newDNSProfile(&from.CustomerProperties.DNS, &from.ServiceProviderProperties.DNS)),
-				Network:                 api.PtrOrNil(newNetworkProfile(&from.CustomerProperties.Network)),
-				Console:                 api.PtrOrNil(newConsoleProfile(&from.ServiceProviderProperties.Console)),
-				API:                     api.PtrOrNil(newAPIProfile(&from.CustomerProperties.API, &from.ServiceProviderProperties.API)),
-				Platform:                api.PtrOrNil(newPlatformProfile(&from.CustomerProperties.Platform, &from.ServiceProviderProperties.Platform)),
-				Autoscaling:             api.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
-				NodeDrainTimeoutMinutes: api.PtrOrNil(from.CustomerProperties.NodeDrainTimeoutMinutes),
-				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
-				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
+				ProvisioningState:       metadataapi.PtrOrNil(generated.ProvisioningState(from.ServiceProviderProperties.ProvisioningState)),
+				Version:                 metadataapi.PtrOrNil(newVersionProfile(&from.CustomerProperties.Version)),
+				DNS:                     metadataapi.PtrOrNil(newDNSProfile(&from.CustomerProperties.DNS, &from.ServiceProviderProperties.DNS)),
+				Network:                 metadataapi.PtrOrNil(newNetworkProfile(&from.CustomerProperties.Network)),
+				Console:                 metadataapi.PtrOrNil(newConsoleProfile(&from.ServiceProviderProperties.Console)),
+				API:                     metadataapi.PtrOrNil(newAPIProfile(&from.CustomerProperties.API, &from.ServiceProviderProperties.API)),
+				Platform:                metadataapi.PtrOrNil(newPlatformProfile(&from.CustomerProperties.Platform, &from.ServiceProviderProperties.Platform)),
+				Autoscaling:             metadataapi.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
+				NodeDrainTimeoutMinutes: metadataapi.PtrOrNil(from.CustomerProperties.NodeDrainTimeoutMinutes),
+				ClusterImageRegistry:    metadataapi.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
+				Etcd:                    metadataapi.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},
@@ -339,17 +339,17 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 	return out
 }
 
-func (c *HcpOpenShiftCluster) GetVersion() api.Version {
+func (c *HcpOpenShiftCluster) GetVersion() coreapi.Version {
 	return versionedInterface
 }
 
-func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
-	out := &api.HCPOpenShiftCluster{}
+func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.HCPOpenShiftCluster) (*coreapi.HCPOpenShiftCluster, error) {
+	out := &coreapi.HCPOpenShiftCluster{}
 	errs := field.ErrorList{}
 
 	if c.ID != nil {
-		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
-		out.ResourceID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
+		out.ID = metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
+		out.ResourceID = metadataapi.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
 	}
 	if c.Name != nil {
 		out.Name = *c.Name
@@ -358,7 +358,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 		out.Type = *c.Type
 	}
 	if c.SystemData != nil {
-		out.SystemData = &arm.SystemData{
+		out.SystemData = &coreapi.SystemData{
 			CreatedAt:      c.SystemData.CreatedAt,
 			LastModifiedAt: c.SystemData.LastModifiedAt,
 		}
@@ -366,13 +366,13 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 			out.SystemData.CreatedBy = *c.SystemData.CreatedBy
 		}
 		if c.SystemData.CreatedByType != nil {
-			out.SystemData.CreatedByType = arm.CreatedByType(*c.SystemData.CreatedByType)
+			out.SystemData.CreatedByType = coreapi.CreatedByType(*c.SystemData.CreatedByType)
 		}
 		if c.SystemData.LastModifiedBy != nil {
 			out.SystemData.LastModifiedBy = *c.SystemData.LastModifiedBy
 		}
 		if c.SystemData.LastModifiedByType != nil {
-			out.SystemData.LastModifiedByType = arm.CreatedByType(*c.SystemData.LastModifiedByType)
+			out.SystemData.LastModifiedByType = coreapi.CreatedByType(*c.SystemData.LastModifiedByType)
 		}
 	}
 	if c.Location != nil {
@@ -385,10 +385,10 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 	//   When Tags are patched, the tags from the request
 	//   replace all existing tags for the resource
 	//
-	out.Tags = api.StringPtrMapToStringMap(c.Tags)
+	out.Tags = metadataapi.StringPtrMapToStringMap(c.Tags)
 	if c.Properties != nil {
 		if c.Properties.ProvisioningState != nil {
-			out.ServiceProviderProperties.ProvisioningState = arm.ProvisioningState(*c.Properties.ProvisioningState)
+			out.ServiceProviderProperties.ProvisioningState = coreapi.ProvisioningState(*c.Properties.ProvisioningState)
 		}
 		if c.Properties.Version != nil {
 			normalizeVersion(c.Properties.Version, &out.CustomerProperties.Version)
@@ -426,12 +426,12 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 		preserveUnknownClusterFields(existing, out)
 	}
 
-	return out, arm.CloudErrorFromFieldErrors(errs)
+	return out, coreapi.CloudErrorFromFieldErrors(errs)
 }
 
 // preserveUnknownClusterFields copies customer-facing fields from existing that
 // this API version doesn't know about.
-func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
+func preserveUnknownClusterFields(from, to *coreapi.HCPOpenShiftCluster) {
 	for _, idmFrom := range from.CustomerProperties.ImageDigestMirrors {
 		to.CustomerProperties.ImageDigestMirrors = append(
 			to.CustomerProperties.ImageDigestMirrors, *idmFrom.DeepCopy())
@@ -443,10 +443,10 @@ func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
 	// Visibility was added in v2025_12_23_preview.
 	if from.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
 		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged == nil {
-			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{}
+			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{}
 		}
 		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms == nil {
-			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = &api.KmsEncryptionProfile{}
+			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = &coreapi.KmsEncryptionProfile{}
 		}
 		to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility
 	}
@@ -454,12 +454,12 @@ func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
 	to.CustomerProperties.CryptoRestrictions = from.CustomerProperties.CryptoRestrictions
 }
 
-func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {
+func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *coreapi.ManagedServiceIdentity {
 	if identity == nil {
 		return nil
 	}
 
-	ret := &arm.ManagedServiceIdentity{}
+	ret := &coreapi.ManagedServiceIdentity{}
 	if identity.PrincipalID != nil {
 		ret.PrincipalID = *identity.PrincipalID
 	}
@@ -467,7 +467,7 @@ func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.M
 		ret.TenantID = *identity.TenantID
 	}
 	if identity.Type != nil {
-		ret.Type = (arm.ManagedServiceIdentityType)(*identity.Type)
+		ret.Type = (coreapi.ManagedServiceIdentityType)(*identity.Type)
 	}
 	if identity.UserAssignedIdentities != nil {
 		normalizeIdentityUserAssignedIdentities(identity.UserAssignedIdentities, &ret.UserAssignedIdentities)
@@ -476,7 +476,7 @@ func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.M
 	return ret
 }
 
-func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {
+func normalizeVersion(p *generated.VersionProfile, out *coreapi.VersionProfile) {
 	if p.ID != nil {
 		out.ID = *p.ID
 	}
@@ -485,7 +485,7 @@ func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {
 	}
 }
 
-func normalizeDNS(p *generated.DNSProfile, out *api.CustomerDNSProfile, out2 *api.ServiceProviderDNSProfile) {
+func normalizeDNS(p *generated.DNSProfile, out *coreapi.CustomerDNSProfile, out2 *coreapi.ServiceProviderDNSProfile) {
 	if p.BaseDomain != nil {
 		out2.BaseDomain = *p.BaseDomain
 	}
@@ -494,9 +494,9 @@ func normalizeDNS(p *generated.DNSProfile, out *api.CustomerDNSProfile, out2 *ap
 	}
 }
 
-func normalizeNetwork(p *generated.NetworkProfile, out *api.NetworkProfile) {
+func normalizeNetwork(p *generated.NetworkProfile, out *coreapi.NetworkProfile) {
 	if p.NetworkType != nil {
-		out.NetworkType = api.NetworkType(*p.NetworkType)
+		out.NetworkType = metadataapi.NetworkType(*p.NetworkType)
 	}
 	if p.PodCIDR != nil {
 		out.PodCIDR = *p.PodCIDR
@@ -512,23 +512,23 @@ func normalizeNetwork(p *generated.NetworkProfile, out *api.NetworkProfile) {
 	}
 }
 
-func normalizeConsole(p *generated.ConsoleProfile, out *api.ServiceProviderConsoleProfile) {
+func normalizeConsole(p *generated.ConsoleProfile, out *coreapi.ServiceProviderConsoleProfile) {
 	if p.URL != nil {
 		out.URL = *p.URL
 	}
 }
 
-func normalizeAPI(p *generated.APIProfile, out *api.CustomerAPIProfile, out2 *api.ServiceProviderAPIProfile) {
+func normalizeAPI(p *generated.APIProfile, out *coreapi.CustomerAPIProfile, out2 *coreapi.ServiceProviderAPIProfile) {
 	if p.URL != nil {
 		out2.URL = *p.URL
 	}
 	if p.Visibility != nil {
-		out.Visibility = api.Visibility(*p.Visibility)
+		out.Visibility = metadataapi.Visibility(*p.Visibility)
 	}
-	out.AuthorizedCIDRs = api.StringPtrSliceToStringSlice(p.AuthorizedCIDRs)
+	out.AuthorizedCIDRs = metadataapi.StringPtrSliceToStringSlice(p.AuthorizedCIDRs)
 }
 
-func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *api.CustomerPlatformProfile, out2 *api.ServiceProviderPlatformProfile) field.ErrorList {
+func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *coreapi.CustomerPlatformProfile, out2 *coreapi.ServiceProviderPlatformProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	if p.ManagedResourceGroup != nil {
@@ -542,7 +542,7 @@ func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *a
 		}
 	}
 	if p.OutboundType != nil {
-		out.OutboundType = api.OutboundType(*p.OutboundType)
+		out.OutboundType = metadataapi.OutboundType(*p.OutboundType)
 	}
 	if p.NetworkSecurityGroupID != nil && len(*p.NetworkSecurityGroupID) > 0 {
 		if resourceID, err := azcorearm.ParseResourceID(*p.NetworkSecurityGroupID); err != nil {
@@ -561,7 +561,7 @@ func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *a
 	return errs
 }
 
-func normalizeAutoscaling(p *generated.ClusterAutoscalingProfile, out *api.ClusterAutoscalingProfile) {
+func normalizeAutoscaling(p *generated.ClusterAutoscalingProfile, out *coreapi.ClusterAutoscalingProfile) {
 	if p.MaxNodeProvisionTimeSeconds != nil {
 		out.MaxNodeProvisionTimeSeconds = *p.MaxNodeProvisionTimeSeconds
 	}
@@ -576,37 +576,37 @@ func normalizeAutoscaling(p *generated.ClusterAutoscalingProfile, out *api.Clust
 	}
 }
 
-func normalizeEtcd(p *generated.EtcdProfile, out *api.EtcdProfile) {
+func normalizeEtcd(p *generated.EtcdProfile, out *coreapi.EtcdProfile) {
 	if p.DataEncryption != nil {
 		normalizeEtcdDataEncryptionProfile(p.DataEncryption, &out.DataEncryption)
 	}
 }
 
-func normalizeEtcdDataEncryptionProfile(p *generated.EtcdDataEncryptionProfile, out *api.EtcdDataEncryptionProfile) {
+func normalizeEtcdDataEncryptionProfile(p *generated.EtcdDataEncryptionProfile, out *coreapi.EtcdDataEncryptionProfile) {
 	if p.CustomerManaged != nil {
 		if out.CustomerManaged == nil {
-			out.CustomerManaged = &api.CustomerManagedEncryptionProfile{}
+			out.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{}
 		}
 		normalizeCustomerManaged(p.CustomerManaged, out.CustomerManaged)
 	}
 	if p.KeyManagementMode != nil {
-		out.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeType(*p.KeyManagementMode)
+		out.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeType(*p.KeyManagementMode)
 	}
 }
 
-func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out *api.CustomerManagedEncryptionProfile) {
+func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out *coreapi.CustomerManagedEncryptionProfile) {
 	if p.EncryptionType != nil {
-		out.EncryptionType = api.CustomerManagedEncryptionType(*p.EncryptionType)
+		out.EncryptionType = metadataapi.CustomerManagedEncryptionType(*p.EncryptionType)
 	}
 	if p.Kms != nil && p.Kms.ActiveKey != nil {
 		if out.Kms == nil {
-			out.Kms = &api.KmsEncryptionProfile{}
+			out.Kms = &coreapi.KmsEncryptionProfile{}
 		}
 		normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
 	}
 }
 
-func normalizeActiveKey(p *generated.KmsKey, out *api.KmsKey) {
+func normalizeActiveKey(p *generated.KmsKey, out *coreapi.KmsKey) {
 	if p.Name != nil {
 		out.Name = *p.Name
 	}
@@ -618,20 +618,20 @@ func normalizeActiveKey(p *generated.KmsKey, out *api.KmsKey) {
 	}
 }
 
-func normalizeClusterImageRegistry(p *generated.ClusterImageRegistryProfile, out *api.ClusterImageRegistryProfile) {
+func normalizeClusterImageRegistry(p *generated.ClusterImageRegistryProfile, out *coreapi.ClusterImageRegistryProfile) {
 	if p.State != nil {
-		out.State = api.ClusterImageRegistryState(*p.State)
+		out.State = metadataapi.ClusterImageRegistryState(*p.State)
 	}
 }
 
-func normalizeOperatorsAuthentication(fldPath *field.Path, p *generated.OperatorsAuthenticationProfile, out *api.OperatorsAuthenticationProfile) field.ErrorList {
+func normalizeOperatorsAuthentication(fldPath *field.Path, p *generated.OperatorsAuthenticationProfile, out *coreapi.OperatorsAuthenticationProfile) field.ErrorList {
 	if p.UserAssignedIdentities != nil {
 		return normalizeUserAssignedIdentities(fldPath.Child("userAssignedIdentities"), p.UserAssignedIdentities, &out.UserAssignedIdentities)
 	}
 	return nil
 }
 
-func normalizeUserAssignedIdentities(fldPath *field.Path, p *generated.UserAssignedIdentitiesProfile, out *api.UserAssignedIdentitiesProfile) field.ErrorList {
+func normalizeUserAssignedIdentities(fldPath *field.Path, p *generated.UserAssignedIdentitiesProfile, out *coreapi.UserAssignedIdentitiesProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	switch {
@@ -647,8 +647,8 @@ func normalizeUserAssignedIdentities(fldPath *field.Path, p *generated.UserAssig
 		out.DataPlaneOperators = nil
 	}
 
-	errs = append(errs, api.MergeStringPtrMapIntoResourceIDMap(fldPath.Child("controlPlaneOperators"), p.ControlPlaneOperators, &out.ControlPlaneOperators)...)
-	errs = append(errs, api.MergeStringPtrMapIntoResourceIDMap(fldPath.Child("dataPlaneOperators"), p.DataPlaneOperators, &out.DataPlaneOperators)...)
+	errs = append(errs, metadataapi.MergeStringPtrMapIntoResourceIDMap(fldPath.Child("controlPlaneOperators"), p.ControlPlaneOperators, &out.ControlPlaneOperators)...)
+	errs = append(errs, metadataapi.MergeStringPtrMapIntoResourceIDMap(fldPath.Child("dataPlaneOperators"), p.DataPlaneOperators, &out.DataPlaneOperators)...)
 	if p.ServiceManagedIdentity != nil && len(*p.ServiceManagedIdentity) > 0 {
 		if resourceID, err := azcorearm.ParseResourceID(*p.ServiceManagedIdentity); err != nil {
 			errs = append(errs, field.Invalid(fldPath.Child("serviceManagedIdentity"), *p.ServiceManagedIdentity, err.Error()))
@@ -660,13 +660,13 @@ func normalizeUserAssignedIdentities(fldPath *field.Path, p *generated.UserAssig
 	return errs
 }
 
-func normalizeIdentityUserAssignedIdentities(p map[string]*generated.UserAssignedIdentity, out *map[string]*arm.UserAssignedIdentity) {
+func normalizeIdentityUserAssignedIdentities(p map[string]*generated.UserAssignedIdentity, out *map[string]*coreapi.UserAssignedIdentity) {
 	if *out == nil {
-		*out = make(map[string]*arm.UserAssignedIdentity)
+		*out = make(map[string]*coreapi.UserAssignedIdentity)
 	}
 	for key, value := range p {
 		if value != nil {
-			(*out)[key] = &arm.UserAssignedIdentity{
+			(*out)[key] = &coreapi.UserAssignedIdentity{
 				ClientID:    value.ClientID,
 				PrincipalID: value.PrincipalID,
 			}
@@ -676,7 +676,7 @@ func normalizeIdentityUserAssignedIdentities(p map[string]*generated.UserAssigne
 	}
 }
 
-func convertUserAssignedIdentities(from map[string]*arm.UserAssignedIdentity) map[string]*generated.UserAssignedIdentity {
+func convertUserAssignedIdentities(from map[string]*coreapi.UserAssignedIdentity) map[string]*generated.UserAssignedIdentity {
 	if from == nil {
 		return nil
 	}

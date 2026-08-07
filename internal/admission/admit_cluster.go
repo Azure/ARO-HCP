@@ -32,8 +32,8 @@ import (
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -45,14 +45,14 @@ import (
 // (e.g., version-skew validation).
 type ClusterAdmissionContext struct {
 	Clock        utilsclock.PassiveClock
-	Subscription *arm.Subscription
+	Subscription *coreapi.Subscription
 	// OriginalCluster is a deepcopy of the inbound cluster as the user submitted
 	// it, taken before any admission mutation runs. It is the read-only source
 	// of truth for fields (like tags) that are *consumed* during mutation but
 	// whose new-object value may already have been overwritten by the time the
 	// mutation actually runs.
-	OriginalCluster        *api.HCPOpenShiftCluster
-	ServiceProviderCluster *api.ServiceProviderCluster
+	OriginalCluster        *coreapi.HCPOpenShiftCluster
+	ServiceProviderCluster *coreapi.ServiceProviderCluster
 	// ClusterNodePools is the list of node pools belonging to the cluster, used
 	// for minor-version skew checks against the desired cluster version.
 	ClusterNodePools []ClusterAdmissionNodePool
@@ -60,27 +60,27 @@ type ClusterAdmissionContext struct {
 	// (not including the current cluster being admitted), used
 	// for cross-cluster platform resource uniqueness on CREATE.
 	// The list is empty on UPDATE.
-	SubscriptionClusters []*api.HCPOpenShiftCluster
+	SubscriptionClusters []*coreapi.HCPOpenShiftCluster
 	// SubscriptionNodePools lists node pool documents under SubscriptionClusters,
 	// used to ensure a cluster subnet is not already assigned to another cluster's
 	// node pool on CREATE.
 	// The list is empty on UPDATE.
-	SubscriptionNodePools []*api.HCPOpenShiftClusterNodePool
+	SubscriptionNodePools []*coreapi.HCPOpenShiftClusterNodePool
 }
 
 // ClusterAdmissionNodePool is a single node pool plus its prefetched service
 // provider record. The cluster admission walks these to validate version skew
 // of every node pool against the desired cluster version.
 type ClusterAdmissionNodePool struct {
-	NodePool                *api.HCPOpenShiftClusterNodePool
-	ServiceProviderNodePool *api.ServiceProviderNodePool
+	NodePool                *coreapi.HCPOpenShiftClusterNodePool
+	ServiceProviderNodePool *coreapi.ServiceProviderNodePool
 }
 
 // MutateCluster applies admission-time mutations to a cluster (generating
 // the ClusterUID on CREATE and translating experimental tags into
 // ServiceProviderProperties.ExperimentalFeatures). It returns any field errors
 // produced by the mutation step.
-func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *api.HCPOpenShiftCluster) field.ErrorList {
+func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftCluster) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
@@ -91,7 +91,7 @@ func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContex
 
 // mutateClusterServiceProviderProperties applies mutations that live on the
 // service-provider half of the cluster.
-func mutateClusterServiceProviderProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
+func mutateClusterServiceProviderProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, mutateClusterUID(ctx, admissionContext, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, validation.ToClusterServiceProviderPropertiesClusterUID))...)
@@ -111,7 +111,7 @@ func mutateClusterUID(_ context.Context, _ *ClusterAdmissionContext, op operatio
 	return nil
 }
 
-func toSPExperimentalFeatures(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ExperimentalFeatures {
+func toSPExperimentalFeatures(oldObj *coreapi.HCPOpenShiftClusterServiceProviderProperties) *coreapi.ExperimentalFeatures {
 	return &oldObj.ExperimentalFeatures
 }
 
@@ -123,10 +123,10 @@ func toSPExperimentalFeatures(oldObj *api.HCPOpenShiftClusterServiceProviderProp
 // Without AFEC registration ExperimentalFeatures is zeroed and tags are
 // ignored; with AFEC registered, unrecognized experimental tags and invalid
 // values are rejected.
-func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, _ *field.Path, newObj, _ *api.ExperimentalFeatures) field.ErrorList {
+func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, _ *field.Path, newObj, _ *coreapi.ExperimentalFeatures) field.ErrorList {
 	subscription := admissionContext.Subscription
-	if subscription == nil || !subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
-		*newObj = api.ExperimentalFeatures{}
+	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		*newObj = coreapi.ExperimentalFeatures{}
 		return nil
 	}
 
@@ -140,48 +140,48 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterCPOImageOverride, api.TagClusterMaxCreationDuration, api.TagClusterMaxDeletionDuration)
+	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxDeletionDuration)
 	for k := range tags {
-		if strings.HasPrefix(strings.ToLower(k), api.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
+		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
 			return errs
 		}
 	}
 
-	var experimentalFeatures api.ExperimentalFeatures
+	var experimentalFeatures coreapi.ExperimentalFeatures
 
-	singleReplicaValue := lookupTag(tags, api.TagClusterSingleReplica)
-	switch api.ControlPlaneAvailability(singleReplicaValue) {
-	case api.SingleReplicaControlPlane:
-		experimentalFeatures.ControlPlaneAvailability = api.SingleReplicaControlPlane
-	case api.DefaultControlPlaneAvailability:
+	singleReplicaValue := lookupTag(tags, metadataapi.TagClusterSingleReplica)
+	switch coreapi.ControlPlaneAvailability(singleReplicaValue) {
+	case coreapi.SingleReplicaControlPlane:
+		experimentalFeatures.ControlPlaneAvailability = coreapi.SingleReplicaControlPlane
+	case coreapi.DefaultControlPlaneAvailability:
 		// absent or empty
 	default:
 		errs = append(errs, field.Invalid(
-			tagsPath.Key(api.TagClusterSingleReplica), singleReplicaValue,
-			fmt.Sprintf("must be %q or empty", api.SingleReplicaControlPlane),
+			tagsPath.Key(metadataapi.TagClusterSingleReplica), singleReplicaValue,
+			fmt.Sprintf("must be %q or empty", coreapi.SingleReplicaControlPlane),
 		))
 	}
 
-	sizeOverrideValue := lookupTag(tags, api.TagClusterSizeOverride)
-	switch api.ControlPlanePodSizing(sizeOverrideValue) {
-	case api.MinimalControlPlanePodSizing:
-		experimentalFeatures.ControlPlanePodSizing = api.MinimalControlPlanePodSizing
-	case api.DefaultControlPlanePodSizing:
+	sizeOverrideValue := lookupTag(tags, metadataapi.TagClusterSizeOverride)
+	switch coreapi.ControlPlanePodSizing(sizeOverrideValue) {
+	case coreapi.MinimalControlPlanePodSizing:
+		experimentalFeatures.ControlPlanePodSizing = coreapi.MinimalControlPlanePodSizing
+	case coreapi.DefaultControlPlanePodSizing:
 		// absent or empty
 	default:
 		errs = append(errs, field.Invalid(
-			tagsPath.Key(api.TagClusterSizeOverride), sizeOverrideValue,
-			fmt.Sprintf("must be %q or empty", api.MinimalControlPlanePodSizing),
+			tagsPath.Key(metadataapi.TagClusterSizeOverride), sizeOverrideValue,
+			fmt.Sprintf("must be %q or empty", coreapi.MinimalControlPlanePodSizing),
 		))
 	}
 
-	cpoImageValue := lookupTag(tags, api.TagClusterCPOImageOverride)
+	cpoImageValue := lookupTag(tags, metadataapi.TagClusterCPOImageOverride)
 	if cpoImageValue != "" {
 		trimmed := strings.TrimSpace(cpoImageValue)
 		if trimmed == "" {
 			errs = append(errs, field.Invalid(
-				tagsPath.Key(api.TagClusterCPOImageOverride), cpoImageValue,
+				tagsPath.Key(metadataapi.TagClusterCPOImageOverride), cpoImageValue,
 				"must not be blank when provided",
 			))
 		} else {
@@ -233,20 +233,20 @@ func mutateCreateOperationCompletionDeadline(_ context.Context, admissionContext
 	duration := defaultCreateOperationCompletionDeadlineDuration
 
 	subscription := admissionContext.Subscription
-	if subscription != nil && subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
+	if subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
 		var tags map[string]string
 		if admissionContext.OriginalCluster != nil {
 			tags = admissionContext.OriginalCluster.Tags
 		}
-		if tagValue := lookupTag(tags, api.TagClusterMaxCreationDuration); len(tagValue) > 0 {
+		if tagValue := lookupTag(tags, metadataapi.TagClusterMaxCreationDuration); len(tagValue) > 0 {
 			parsed, err := time.ParseDuration(tagValue)
 			if err != nil {
 				tagsPath := field.NewPath("tags")
-				return field.ErrorList{field.Invalid(tagsPath.Key(api.TagClusterMaxCreationDuration), tagValue, "must be a valid Go duration string (e.g. \"19m\", \"30m\")")}
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxCreationDuration), tagValue, "must be a valid Go duration string (e.g. \"19m\", \"30m\")")}
 			}
 			if parsed < minCreateOperationCompletionDeadlineDuration {
 				tagsPath := field.NewPath("tags")
-				return field.ErrorList{field.Invalid(tagsPath.Key(api.TagClusterMaxCreationDuration), tagValue, fmt.Sprintf("must be at least %s", minCreateOperationCompletionDeadlineDuration))}
+				return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxCreationDuration), tagValue, fmt.Sprintf("must be at least %s", minCreateOperationCompletionDeadlineDuration))}
 			}
 			duration = parsed
 		}
@@ -264,7 +264,7 @@ func mutateCreateOperationCompletionDeadline(_ context.Context, admissionContext
 // and the frontend DELETE handler falls back to DefaultDeleteOperationCompletionDeadlineDuration.
 func mutateDeleteOperationCompletionTimeout(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, _ *field.Path, newObj **time.Duration) field.ErrorList {
 	subscription := admissionContext.Subscription
-	if subscription == nil || !subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
+	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
 		*newObj = nil
 		return nil
 	}
@@ -273,7 +273,7 @@ func mutateDeleteOperationCompletionTimeout(_ context.Context, admissionContext 
 	if admissionContext.OriginalCluster != nil {
 		tags = admissionContext.OriginalCluster.Tags
 	}
-	tagValue := lookupTag(tags, api.TagClusterMaxDeletionDuration)
+	tagValue := lookupTag(tags, metadataapi.TagClusterMaxDeletionDuration)
 	if len(tagValue) == 0 {
 		*newObj = nil
 		return nil
@@ -282,11 +282,11 @@ func mutateDeleteOperationCompletionTimeout(_ context.Context, admissionContext 
 	parsed, err := time.ParseDuration(tagValue)
 	if err != nil {
 		tagsPath := field.NewPath("tags")
-		return field.ErrorList{field.Invalid(tagsPath.Key(api.TagClusterMaxDeletionDuration), tagValue, "must be a valid Go duration string (e.g. \"24m\", \"30m\")")}
+		return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxDeletionDuration), tagValue, "must be a valid Go duration string (e.g. \"24m\", \"30m\")")}
 	}
 	if parsed < MinDeleteOperationCompletionDeadlineDuration {
 		tagsPath := field.NewPath("tags")
-		return field.ErrorList{field.Invalid(tagsPath.Key(api.TagClusterMaxDeletionDuration), tagValue, fmt.Sprintf("must be at least %s", MinDeleteOperationCompletionDeadlineDuration))}
+		return field.ErrorList{field.Invalid(tagsPath.Key(metadataapi.TagClusterMaxDeletionDuration), tagValue, fmt.Sprintf("must be at least %s", MinDeleteOperationCompletionDeadlineDuration))}
 	}
 	*newObj = &parsed
 	return nil
@@ -296,7 +296,7 @@ func mutateDeleteOperationCompletionTimeout(_ context.Context, admissionContext 
 // information than is contained inside of the cluster instance itself. For
 // UPDATE operations that may change the cluster version, the admissionContext
 // must carry the prefetched ServiceProviderCluster and ClusterNodePools.
-func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *api.HCPOpenShiftCluster) field.ErrorList {
+func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, newObj, oldObj *coreapi.HCPOpenShiftCluster) field.ErrorList {
 	if op.Type == operation.Update && oldObj != nil && oldObj.ServiceProviderProperties.DeletionTimestamp != nil {
 		return field.ErrorList{field.Forbidden(field.NewPath(""), "cluster is being deleted and cannot be updated")}
 	}
@@ -311,7 +311,7 @@ func AdmitCluster(ctx context.Context, admissionContext *ClusterAdmissionContext
 
 // admitClusterCustomerProperties drills down into the customer-facing portion
 // of the cluster.
-func admitClusterCustomerProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
+func admitClusterCustomerProperties(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitClusterVersionProfile(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToClusterCustomerPropertiesVersion))...)
@@ -321,7 +321,7 @@ func admitClusterCustomerProperties(ctx context.Context, admissionContext *Clust
 	return errs
 }
 
-func admitClusterPlatform(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile) field.ErrorList {
+func admitClusterPlatform(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitClusterManagedResourceGroupName(ctx, admissionContext, op, fldPath, newObj)...)
@@ -335,7 +335,7 @@ func admitClusterPlatform(ctx context.Context, admissionContext *ClusterAdmissio
 //
 // Best-effort only: compares against SubscriptionClusters prefetched before
 // admission runs. Concurrent creates with the same MRG name can both succeed.
-func admitClusterManagedResourceGroupName(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile) field.ErrorList {
+func admitClusterManagedResourceGroupName(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile) field.ErrorList {
 	if op.Type != operation.Create {
 		return nil
 	}
@@ -374,7 +374,7 @@ func admitClusterManagedResourceGroupName(_ context.Context, admissionContext *C
 // Best-effort only: compares against SubscriptionClusters and SubscriptionNodePools
 // prefetched before admission runs. Concurrent creates (or a create racing with a
 // node pool create) using the same subnet can both succeed.
-func admitClusterSubnetResourceID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile) field.ErrorList {
+func admitClusterSubnetResourceID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile) field.ErrorList {
 	if op.Type != operation.Create {
 		return nil
 	}
@@ -426,7 +426,7 @@ func admitClusterSubnetResourceID(_ context.Context, admissionContext *ClusterAd
 //
 // Best-effort only: compares against SubscriptionClusters prefetched before
 // admission runs. Concurrent creates with the same NSG can both succeed.
-func admitClusterNetworkSecurityGroupResourceID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile) field.ErrorList {
+func admitClusterNetworkSecurityGroupResourceID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.CustomerPlatformProfile) field.ErrorList {
 	if op.Type != operation.Create {
 		return nil
 	}
@@ -461,7 +461,7 @@ func admitClusterNetworkSecurityGroupResourceID(_ context.Context, admissionCont
 // changes (skew against active control-plane versions and existing node pool
 // minor skew). On CREATE there is no prior version to compare against, so this
 // is a no-op.
-func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.VersionProfile) field.ErrorList {
+func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.VersionProfile) field.ErrorList {
 	if op.Type != operation.Update || oldObj == nil {
 		return nil
 	}
@@ -511,12 +511,12 @@ var minKmsKeyVersionRotationVersion = semver.Version{Major: 4, Minor: 22}
 // cluster's active control plane version predates the CPO support (< 4.22).
 // Only runs for API versions >= v20260630Preview where version is mutable;
 // older API versions block version changes via the immutability check in validation.
-func admitClusterEtcdKmsKeyVersionChange(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
+func admitClusterEtcdKmsKeyVersionChange(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
 	if op.Type != operation.Update || oldObj == nil {
 		return nil
 	}
 
-	if newObj.Etcd.DataEncryption.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged && newObj.Etcd.DataEncryption.KeyManagementMode != oldObj.Etcd.DataEncryption.KeyManagementMode {
+	if newObj.Etcd.DataEncryption.KeyManagementMode != metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged && newObj.Etcd.DataEncryption.KeyManagementMode != oldObj.Etcd.DataEncryption.KeyManagementMode {
 		return field.ErrorList{field.Forbidden(fldPath, "KMS key version rotation is only supported for customer-managed encryption")}
 	}
 
@@ -524,8 +524,8 @@ func admitClusterEtcdKmsKeyVersionChange(_ context.Context, admissionContext *Cl
 		return nil
 	}
 
-	apiVersion := api.APIVersionFromOptions(op.Options)
-	if apiVersion.LT(api.APIVersionV20260630Preview) {
+	apiVersion := metadataapi.APIVersionFromOptions(op.Options)
+	if apiVersion.LT(metadataapi.APIVersionV20260630Preview) {
 		return field.ErrorList{field.Forbidden(fldPath, "KMS key version is immutable for this API version")}
 	}
 

@@ -21,8 +21,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -31,14 +31,14 @@ import (
 // BuildReadDesire produces the desired-state ReadDesire for a resource.
 // The status section is intentionally zero — the kube-applier owns status.
 // It is shared by the per-cluster and per-node-pool ReadDesire creators.
-func BuildReadDesire(resourceIDString string, managementCluster *azcorearm.ResourceID, target kubeapplier.ResourceReference) *kubeapplier.ReadDesire {
+func BuildReadDesire(resourceIDString string, managementCluster *azcorearm.ResourceID, target kubeapplierapi.ResourceReference) *kubeapplierapi.ReadDesire {
 	resourceID, _ := azcorearm.ParseResourceID(resourceIDString) // resourceIDString is built from helpers and always parses
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(managementCluster.String()),
 		},
-		Spec: kubeapplier.ReadDesireSpec{
+		Spec: kubeapplierapi.ReadDesireSpec{
 			ManagementCluster: managementCluster,
 			TargetItem:        target,
 		},
@@ -48,8 +48,8 @@ func BuildReadDesire(resourceIDString string, managementCluster *azcorearm.Resou
 // GetExistingReadDesire returns the named ReadDesire from cosmos, or nil
 // when the document doesn't exist. Non-NotFound errors are propagated.
 func GetExistingReadDesire(
-	ctx context.Context, crud cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], name string,
-) (*kubeapplier.ReadDesire, error) {
+	ctx context.Context, crud cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], name string,
+) (*kubeapplierapi.ReadDesire, error) {
 	existing, err := crud.Get(ctx, name)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil, nil
@@ -63,7 +63,7 @@ func GetExistingReadDesire(
 // ReadDesireNeedsWork reports whether existing matches desired in the
 // fields the backend writes (Spec.ManagementCluster, Spec.TargetItem).
 // A nil existing means "doesn't exist yet" — work is required.
-func ReadDesireNeedsWork(existing, desired *kubeapplier.ReadDesire) bool {
+func ReadDesireNeedsWork(existing, desired *kubeapplierapi.ReadDesire) bool {
 	if existing == nil {
 		return true
 	}

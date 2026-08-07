@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 const frontendHost = "my-frontend.example.com:8443"
@@ -181,13 +181,13 @@ func TestArmSystemDataPolicy(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		systemData := capturedHeaders.Get(arm.HeaderNameARMResourceSystemData)
+		systemData := capturedHeaders.Get(coreapi.HeaderNameARMResourceSystemData)
 		assert.NotEmpty(t, systemData)
 		assert.Contains(t, systemData, `"createdBy": "e2e-test"`)
 		assert.Contains(t, systemData, `"createdByType": "Application"`)
 		assert.Contains(t, systemData, `"createdAt":`)
 
-		identityURL := capturedHeaders.Get(arm.HeaderNameIdentityURL)
+		identityURL := capturedHeaders.Get(coreapi.HeaderNameIdentityURL)
 		assert.Equal(t, "https://dummyhost.identity.azure.net", identityURL)
 	})
 
@@ -206,8 +206,8 @@ func TestArmSystemDataPolicy(t *testing.T) {
 		resp, err := pipeline.Do(req)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Empty(t, capturedHeaders.Get(arm.HeaderNameARMResourceSystemData))
-		assert.Empty(t, capturedHeaders.Get(arm.HeaderNameIdentityURL))
+		assert.Empty(t, capturedHeaders.Get(coreapi.HeaderNameARMResourceSystemData))
+		assert.Empty(t, capturedHeaders.Get(coreapi.HeaderNameIdentityURL))
 	})
 }
 
@@ -266,7 +266,7 @@ func TestArmResourceGroupValidationPolicy(t *testing.T) {
 			rgClient: &fakeResourceGroupClient{
 				err: &azcore.ResponseError{
 					StatusCode: http.StatusNotFound,
-					ErrorCode:  arm.CloudErrorCodeResourceGroupNotFound,
+					ErrorCode:  coreapi.CloudErrorCodeResourceGroupNotFound,
 				},
 			},
 		}
@@ -288,10 +288,10 @@ func TestArmResourceGroupValidationPolicy(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 		assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
-		var cloudErr arm.CloudError
+		var cloudErr coreapi.CloudError
 		err = json.NewDecoder(resp.Body).Decode(&cloudErr)
 		require.NoError(t, err)
-		assert.Equal(t, arm.CloudErrorCodeResourceGroupNotFound, cloudErr.Code)
+		assert.Equal(t, coreapi.CloudErrorCodeResourceGroupNotFound, cloudErr.Code)
 		assert.Contains(t, cloudErr.Message, "nonexistent-rg")
 	})
 
@@ -345,12 +345,12 @@ func TestRequestIDPolicy(t *testing.T) {
 		_, err = pipeline.Do(req)
 		require.NoError(t, err)
 
-		correlationID := capturedHeaders.Get(arm.HeaderNameCorrelationRequestID)
+		correlationID := capturedHeaders.Get(coreapi.HeaderNameCorrelationRequestID)
 		assert.NotEmpty(t, correlationID)
 		_, uuidErr := uuid.Parse(correlationID)
 		assert.NoError(t, uuidErr, "correlation ID should be a valid UUID")
 
-		clientRequestID := capturedHeaders.Get(arm.HeaderNameClientRequestID)
+		clientRequestID := capturedHeaders.Get(coreapi.HeaderNameClientRequestID)
 		assert.NotEmpty(t, clientRequestID)
 		_, uuidErr = uuid.Parse(clientRequestID)
 		assert.NoError(t, uuidErr, "client request ID should be a valid UUID")
@@ -371,14 +371,14 @@ func TestRequestIDPolicy(t *testing.T) {
 		pipeline := newTestPipeline(pol, transport)
 		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://"+frontendHost+"/foo")
 		require.NoError(t, err)
-		req.Raw().Header.Set(arm.HeaderNameCorrelationRequestID, existingCorrelationID)
-		req.Raw().Header.Set(arm.HeaderNameClientRequestID, existingClientRequestID)
+		req.Raw().Header.Set(coreapi.HeaderNameCorrelationRequestID, existingCorrelationID)
+		req.Raw().Header.Set(coreapi.HeaderNameClientRequestID, existingClientRequestID)
 
 		_, err = pipeline.Do(req)
 		require.NoError(t, err)
 
-		assert.Equal(t, existingCorrelationID, capturedHeaders.Get(arm.HeaderNameCorrelationRequestID))
-		assert.Equal(t, existingClientRequestID, capturedHeaders.Get(arm.HeaderNameClientRequestID))
+		assert.Equal(t, existingCorrelationID, capturedHeaders.Get(coreapi.HeaderNameCorrelationRequestID))
+		assert.Equal(t, existingClientRequestID, capturedHeaders.Get(coreapi.HeaderNameClientRequestID))
 	})
 
 	t.Run("does not add headers for non-frontend requests", func(t *testing.T) {
@@ -396,8 +396,8 @@ func TestRequestIDPolicy(t *testing.T) {
 		_, err = pipeline.Do(req)
 		require.NoError(t, err)
 
-		assert.Empty(t, capturedHeaders.Get(arm.HeaderNameCorrelationRequestID))
-		assert.Empty(t, capturedHeaders.Get(arm.HeaderNameClientRequestID))
+		assert.Empty(t, capturedHeaders.Get(coreapi.HeaderNameCorrelationRequestID))
+		assert.Empty(t, capturedHeaders.Get(coreapi.HeaderNameClientRequestID))
 	})
 }
 

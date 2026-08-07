@@ -20,7 +20,7 @@ import (
 
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -50,7 +50,7 @@ func NewActiveOperationPrioritizingCooldown(activeOperationLister corelisters.Ac
 func (c *ActiveOperationBasedChecker) CanSync(ctx context.Context, key any) bool {
 	logger := utils.LoggerFromContext(ctx)
 
-	var activeOperations []*api.Operation
+	var activeOperations []*coreapi.Operation
 	var err error
 	switch castKey := key.(type) {
 	case HCPClusterKey:

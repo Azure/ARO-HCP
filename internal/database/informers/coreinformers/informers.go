@@ -28,8 +28,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
@@ -58,14 +57,14 @@ const (
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
 // using the default relist duration.
-func NewSubscriptionInformer(lister cosmosstorageutils.GlobalLister[arm.Subscription], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewSubscriptionInformer(lister cosmosstorageutils.GlobalLister[coreapi.Subscription], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewSubscriptionInformerWithRelistDuration(lister, cosmosClient, SubscriptionRelistDuration)
 }
 
 // NewSubscriptionInformerWithRelistDuration creates an unstarted SharedIndexInformer for subscriptions
 // with a configurable relist duration.
-func NewSubscriptionInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[arm.Subscription], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[arm.Subscription, *arm.Subscription, cosmosstorageutils.GenericDocument[arm.Subscription]](
+func NewSubscriptionInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.Subscription], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.Subscription, *coreapi.Subscription, cosmosstorageutils.GenericDocument[coreapi.Subscription]](
 		[]azcorearm.ResourceType{azcorearm.NewResourceType("Microsoft.Resources", "subscriptions")},
 		utilsclock.RealClock{},
 		lister,
@@ -75,7 +74,7 @@ func NewSubscriptionInformerWithRelistDuration(lister cosmosstorageutils.GlobalL
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
-		&arm.Subscription{},
+		&coreapi.Subscription{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			ObjectDescription: "Subscription",
@@ -135,15 +134,15 @@ func NewBillingInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 
 // NewClusterInformer creates an unstarted SharedIndexInformer for clusters
 // with a resource group index using the default relist duration.
-func NewClusterInformer(lister cosmosstorageutils.GlobalLister[api.HCPOpenShiftCluster], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewClusterInformer(lister cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftCluster], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewClusterInformerWithRelistDuration(lister, cosmosClient, ClusterRelistDuration)
 }
 
 // NewClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for clusters
 // with a resource group index and a configurable relist duration.
-func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[api.HCPOpenShiftCluster], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[api.HCPOpenShiftCluster]](
-		[]azcorearm.ResourceType{api.ClusterResourceType},
+func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftCluster], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.HCPOpenShiftCluster, *coreapi.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster]](
+		[]azcorearm.ResourceType{coreapi.ClusterResourceType},
 		utilsclock.RealClock{},
 		lister,
 		cosmosClient,
@@ -152,7 +151,7 @@ func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
-		&api.HCPOpenShiftCluster{},
+		&coreapi.HCPOpenShiftCluster{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -165,15 +164,15 @@ func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 
 // NewNodePoolInformer creates an unstarted SharedIndexInformer for node pools
 // with resource group and cluster indexes using the default relist duration.
-func NewNodePoolInformer(lister cosmosstorageutils.GlobalLister[api.HCPOpenShiftClusterNodePool], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewNodePoolInformer(lister cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftClusterNodePool], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewNodePoolInformerWithRelistDuration(lister, cosmosClient, NodePoolRelistDuration)
 }
 
 // NewNodePoolInformerWithRelistDuration creates an unstarted SharedIndexInformer for node pools
 // with resource group and cluster indexes and a configurable relist duration.
-func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[api.HCPOpenShiftClusterNodePool], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterNodePool]](
-		[]azcorearm.ResourceType{api.NodePoolResourceType},
+func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftClusterNodePool], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterNodePool]](
+		[]azcorearm.ResourceType{coreapi.NodePoolResourceType},
 		utilsclock.RealClock{},
 		lister,
 		cosmosClient,
@@ -182,7 +181,7 @@ func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalListe
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
-		&api.HCPOpenShiftClusterNodePool{},
+		&coreapi.HCPOpenShiftClusterNodePool{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -196,15 +195,15 @@ func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalListe
 
 // NewExternalAuthInformer creates an unstarted SharedIndexInformer for external auths
 // with resource group and cluster indexes using the default relist duration.
-func NewExternalAuthInformer(lister cosmosstorageutils.GlobalLister[api.HCPOpenShiftClusterExternalAuth], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewExternalAuthInformer(lister cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftClusterExternalAuth], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewExternalAuthInformerWithRelistDuration(lister, cosmosClient, ExternalAuthRelistDuration)
 }
 
 // NewExternalAuthInformerWithRelistDuration creates an unstarted SharedIndexInformer for external auths
 // with resource group and cluster indexes and a configurable relist duration.
-func NewExternalAuthInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[api.HCPOpenShiftClusterExternalAuth], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterExternalAuth]](
-		[]azcorearm.ResourceType{api.ExternalAuthResourceType},
+func NewExternalAuthInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.HCPOpenShiftClusterExternalAuth], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.HCPOpenShiftClusterExternalAuth, *coreapi.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterExternalAuth]](
+		[]azcorearm.ResourceType{coreapi.ExternalAuthResourceType},
 		utilsclock.RealClock{},
 		lister,
 		cosmosClient,
@@ -213,7 +212,7 @@ func NewExternalAuthInformerWithRelistDuration(lister cosmosstorageutils.GlobalL
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
-		&api.HCPOpenShiftClusterExternalAuth{},
+		&coreapi.HCPOpenShiftClusterExternalAuth{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -227,15 +226,15 @@ func NewExternalAuthInformerWithRelistDuration(lister cosmosstorageutils.GlobalL
 
 // NewServiceProviderClusterInformer creates an unstarted SharedIndexInformer for service provider clusters
 // with a cluster index using the default relist duration.
-func NewServiceProviderClusterInformer(lister cosmosstorageutils.GlobalLister[api.ServiceProviderCluster], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewServiceProviderClusterInformer(lister cosmosstorageutils.GlobalLister[coreapi.ServiceProviderCluster], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewServiceProviderClusterInformerWithRelistDuration(lister, cosmosClient, ServiceProviderClusterRelistDuration)
 }
 
 // NewServiceProviderClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for service provider clusters
 // with a cluster index and a configurable relist duration.
-func NewServiceProviderClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[api.ServiceProviderCluster], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[api.ServiceProviderCluster, *api.ServiceProviderCluster, cosmosstorageutils.GenericDocument[api.ServiceProviderCluster]](
-		[]azcorearm.ResourceType{api.ServiceProviderClusterResourceType},
+func NewServiceProviderClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.ServiceProviderCluster], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderCluster]](
+		[]azcorearm.ResourceType{coreapi.ServiceProviderClusterResourceType},
 		utilsclock.RealClock{},
 		lister,
 		cosmosClient,
@@ -244,7 +243,7 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister cosmosstorageuti
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
-		&api.ServiceProviderCluster{},
+		&coreapi.ServiceProviderCluster{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -257,13 +256,13 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister cosmosstorageuti
 
 // NewManagementClusterContentInformer creates an unstarted SharedIndexInformer for management cluster contents
 // with cluster and node pool indexes using the default relist duration.
-func NewManagementClusterContentInformer(lister cosmosstorageutils.GlobalLister[api.ManagementClusterContent]) cache.SharedIndexInformer {
+func NewManagementClusterContentInformer(lister cosmosstorageutils.GlobalLister[coreapi.ManagementClusterContent]) cache.SharedIndexInformer {
 	return NewManagementClusterContentInformerWithRelistDuration(lister, ManagementClusterContentRelistDuration)
 }
 
 // NewManagementClusterContentInformerWithRelistDuration creates an unstarted SharedIndexInformer for management cluster contents
 // with cluster and node pool indexes and a configurable relist duration.
-func NewManagementClusterContentInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[api.ManagementClusterContent], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewManagementClusterContentInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.ManagementClusterContent], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -275,7 +274,7 @@ func NewManagementClusterContentInformerWithRelistDuration(lister cosmosstorageu
 				return nil, err
 			}
 
-			list := &api.ManagementClusterContentList{}
+			list := &coreapi.ManagementClusterContentList{}
 			list.ResourceVersion = "0"
 			for _, mcc := range iter.Items(ctx) {
 				list.Items = append(list.Items, *mcc)
@@ -293,7 +292,7 @@ func NewManagementClusterContentInformerWithRelistDuration(lister cosmosstorageu
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw},
-		&api.ManagementClusterContent{},
+		&coreapi.ManagementClusterContent{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -307,15 +306,15 @@ func NewManagementClusterContentInformerWithRelistDuration(lister cosmosstorageu
 
 // NewServiceProviderNodePoolInformer creates an unstarted SharedIndexInformer for service provider node pools
 // with a node pool index using the default relist duration.
-func NewServiceProviderNodePoolInformer(lister cosmosstorageutils.GlobalLister[api.ServiceProviderNodePool], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewServiceProviderNodePoolInformer(lister cosmosstorageutils.GlobalLister[coreapi.ServiceProviderNodePool], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewServiceProviderNodePoolInformerWithRelistDuration(lister, cosmosClient, ServiceProviderNodePoolRelistDuration)
 }
 
 // NewServiceProviderNodePoolInformerWithRelistDuration creates an unstarted SharedIndexInformer for service provider node pools
 // with a node pool index and a configurable relist duration.
-func NewServiceProviderNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[api.ServiceProviderNodePool], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[api.ServiceProviderNodePool, *api.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[api.ServiceProviderNodePool]](
-		[]azcorearm.ResourceType{api.ServiceProviderNodePoolResourceType},
+func NewServiceProviderNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.ServiceProviderNodePool], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderNodePool]](
+		[]azcorearm.ResourceType{coreapi.ServiceProviderNodePoolResourceType},
 		utilsclock.RealClock{},
 		lister,
 		cosmosClient,
@@ -324,7 +323,7 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister cosmosstorageut
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
-		&api.ServiceProviderNodePool{},
+		&coreapi.ServiceProviderNodePool{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -337,15 +336,15 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister cosmosstorageut
 
 // NewSystemAdminCredentialRequestInformer creates an unstarted SharedIndexInformer for
 // SystemAdminCredentialRequests with a cluster index using the default relist duration.
-func NewSystemAdminCredentialRequestInformer(lister cosmosstorageutils.GlobalLister[api.SystemAdminCredentialRequest], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewSystemAdminCredentialRequestInformer(lister cosmosstorageutils.GlobalLister[coreapi.SystemAdminCredentialRequest], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewSystemAdminCredentialRequestInformerWithRelistDuration(lister, cosmosClient, SystemAdminCredentialRequestRelistDuration)
 }
 
 // NewSystemAdminCredentialRequestInformerWithRelistDuration creates an unstarted SharedIndexInformer
 // for SystemAdminCredentialRequests with a cluster index and a configurable relist duration.
-func NewSystemAdminCredentialRequestInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[api.SystemAdminCredentialRequest], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, cosmosstorageutils.GenericDocument[api.SystemAdminCredentialRequest]](
-		[]azcorearm.ResourceType{api.SystemAdminCredentialRequestResourceType},
+func NewSystemAdminCredentialRequestInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.SystemAdminCredentialRequest], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.SystemAdminCredentialRequest, *coreapi.SystemAdminCredentialRequest, cosmosstorageutils.GenericDocument[coreapi.SystemAdminCredentialRequest]](
+		[]azcorearm.ResourceType{coreapi.SystemAdminCredentialRequestResourceType},
 		utilsclock.RealClock{},
 		lister,
 		cosmosClient,
@@ -354,7 +353,7 @@ func NewSystemAdminCredentialRequestInformerWithRelistDuration(lister cosmosstor
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
-		&api.SystemAdminCredentialRequest{},
+		&coreapi.SystemAdminCredentialRequest{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -367,15 +366,15 @@ func NewSystemAdminCredentialRequestInformerWithRelistDuration(lister cosmosstor
 
 // NewSystemAdminCredentialRevocationInformer creates an unstarted SharedIndexInformer for
 // SystemAdminCredentialRevocations with a cluster index using the default relist duration.
-func NewSystemAdminCredentialRevocationInformer(lister cosmosstorageutils.GlobalLister[api.SystemAdminCredentialRevocation], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewSystemAdminCredentialRevocationInformer(lister cosmosstorageutils.GlobalLister[coreapi.SystemAdminCredentialRevocation], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister, cosmosClient, SystemAdminCredentialRevocationRelistDuration)
 }
 
 // NewSystemAdminCredentialRevocationInformerWithRelistDuration creates an unstarted SharedIndexInformer
 // for SystemAdminCredentialRevocations with a cluster index and a configurable relist duration.
-func NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[api.SystemAdminCredentialRevocation], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, cosmosstorageutils.GenericDocument[api.SystemAdminCredentialRevocation]](
-		[]azcorearm.ResourceType{api.SystemAdminCredentialRevocationResourceType},
+func NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.SystemAdminCredentialRevocation], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.SystemAdminCredentialRevocation, *coreapi.SystemAdminCredentialRevocation, cosmosstorageutils.GenericDocument[coreapi.SystemAdminCredentialRevocation]](
+		[]azcorearm.ResourceType{coreapi.SystemAdminCredentialRevocationResourceType},
 		utilsclock.RealClock{},
 		lister,
 		cosmosClient,
@@ -384,7 +383,7 @@ func NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister cosmoss
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
-		&api.SystemAdminCredentialRevocation{},
+		&coreapi.SystemAdminCredentialRevocation{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -397,7 +396,7 @@ func NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister cosmoss
 
 // NewControllerInformer creates an unstarted SharedIndexInformer for controllers
 // using the default relist duration.
-func NewControllerInformer(lister cosmosstorageutils.GlobalLister[api.Controller], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewControllerInformer(lister cosmosstorageutils.GlobalLister[coreapi.Controller], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewControllerInformerWithRelistDuration(lister, cosmosClient, ControllerRelistDuration)
 }
 
@@ -405,14 +404,14 @@ func NewControllerInformer(lister cosmosstorageutils.GlobalLister[api.Controller
 // with a configurable relist duration. Controllers live under three different
 // ARM resource types (cluster-scoped, nodepool-scoped, externalauth-scoped) so
 // the change feed filter accepts all three.
-func NewControllerInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[api.Controller], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[api.Controller, *api.Controller, cosmosstorageutils.GenericDocument[api.Controller]](
+func NewControllerInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.Controller], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](
 		[]azcorearm.ResourceType{
-			api.ClusterControllerResourceType,
-			api.NodePoolControllerResourceType,
-			api.ExternalAuthControllerResourceType,
-			api.SystemAdminCredentialRequestControllerResourceType,
-			api.SystemAdminCredentialRevocationControllerResourceType,
+			coreapi.ClusterControllerResourceType,
+			coreapi.NodePoolControllerResourceType,
+			coreapi.ExternalAuthControllerResourceType,
+			coreapi.SystemAdminCredentialRequestControllerResourceType,
+			coreapi.SystemAdminCredentialRevocationControllerResourceType,
 		},
 		utilsclock.RealClock{},
 		lister,
@@ -422,7 +421,7 @@ func NewControllerInformerWithRelistDuration(lister cosmosstorageutils.GlobalLis
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
-		&api.Controller{},
+		&coreapi.Controller{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
 			Indexers: cache.Indexers{
@@ -440,15 +439,15 @@ func NewControllerInformerWithRelistDuration(lister cosmosstorageutils.GlobalLis
 // operations (including terminal) using the default relist duration. This is
 // used by the metrics controller so that completed operations remain visible
 // in Prometheus until the 7-day Cosmos TTL removes them.
-func NewOperationInformer(lister cosmosstorageutils.GlobalLister[api.Operation], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewOperationInformer(lister cosmosstorageutils.GlobalLister[coreapi.Operation], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewOperationInformerWithRelistDuration(lister, cosmosClient, AllOperationsRelistDuration)
 }
 
 // NewOperationInformerWithRelistDuration creates an unstarted SharedIndexInformer
 // for all operations (including terminal) with a configurable relist duration.
-func NewOperationInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[api.Operation], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[api.Operation, *api.Operation, cosmosstorageutils.GenericDocument[api.Operation]](
-		[]azcorearm.ResourceType{api.OperationStatusResourceType},
+func NewOperationInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.Operation], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.Operation, *coreapi.Operation, cosmosstorageutils.GenericDocument[coreapi.Operation]](
+		[]azcorearm.ResourceType{coreapi.OperationStatusResourceType},
 		utilsclock.RealClock{},
 		lister,
 		cosmosClient,
@@ -457,7 +456,7 @@ func NewOperationInformerWithRelistDuration(lister cosmosstorageutils.GlobalList
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
-		&api.Operation{},
+		&coreapi.Operation{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod:      1 * time.Hour,
 			ObjectDescription: "Operation",
@@ -468,27 +467,27 @@ func NewOperationInformerWithRelistDuration(lister cosmosstorageutils.GlobalList
 // NewActiveOperationInformer creates an unstarted SharedIndexInformer for
 // active (non-terminal) operations with resource group and cluster indexes
 // using the default relist duration.
-func NewActiveOperationInformer(lister cosmosstorageutils.GlobalLister[api.Operation], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+func NewActiveOperationInformer(lister cosmosstorageutils.GlobalLister[coreapi.Operation], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewActiveOperationInformerWithRelistDuration(lister, cosmosClient, ActiveOperationsRelistDuration)
 }
 
 // NewActiveOperationInformerWithRelistDuration creates an unstarted SharedIndexInformer for
 // active (non-terminal) operations with resource group and cluster indexes
 // and a configurable relist duration.
-func NewActiveOperationInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[api.Operation], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := informerutils.NewChangeFeedListWatcher[api.Operation, *api.Operation, cosmosstorageutils.GenericDocument[api.Operation]](
-		[]azcorearm.ResourceType{api.OperationStatusResourceType},
+func NewActiveOperationInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.Operation], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.Operation, *coreapi.Operation, cosmosstorageutils.GenericDocument[coreapi.Operation]](
+		[]azcorearm.ResourceType{coreapi.OperationStatusResourceType},
 		utilsclock.RealClock{},
 		lister,
 		cosmosClient,
 		relistDuration,
-	).WithShouldDeliverItemFn(func(obj *api.Operation) bool {
+	).WithShouldDeliverItemFn(func(obj *coreapi.Operation) bool {
 		return !obj.Status.IsTerminal()
 	})
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
-		&api.Operation{},
+		&coreapi.Operation{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -504,18 +503,18 @@ func NewActiveOperationInformerWithRelistDuration(lister cosmosstorageutils.Glob
 
 func resourceGroupIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
-	case arm.CosmosMetadataAccessor:
+	case coreapi.CosmosMetadataAccessor:
 		if castObj.GetResourceID() == nil {
 			return nil, utils.TrackError(fmt.Errorf("obj is missing resourceID: %T %v", obj, obj))
 		}
-		return []string{api.ToResourceGroupResourceIDString(castObj.GetResourceID().SubscriptionID, castObj.GetResourceID().ResourceGroupName)}, nil
-	case arm.CosmosPersistable:
+		return []string{coreapi.ToResourceGroupResourceIDString(castObj.GetResourceID().SubscriptionID, castObj.GetResourceID().ResourceGroupName)}, nil
+	case coreapi.CosmosPersistable:
 		if castObj.GetCosmosData() == nil || castObj.GetCosmosData().ResourceID == nil {
 			return nil, utils.TrackError(fmt.Errorf("obj is missing resourceID: %T %v", obj, obj))
 		}
-		return []string{api.ToResourceGroupResourceIDString(castObj.GetCosmosData().ResourceID.SubscriptionID, castObj.GetCosmosData().ResourceID.ResourceGroupName)}, nil
+		return []string{coreapi.ToResourceGroupResourceIDString(castObj.GetCosmosData().ResourceID.SubscriptionID, castObj.GetCosmosData().ResourceID.ResourceGroupName)}, nil
 	default:
-		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))
+		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected coreapi.CosmosMetadataAccessor or coreapi.CosmosPersistable", obj))
 	}
 }
 
@@ -545,46 +544,46 @@ func selfOrDirectParentResourceID(resourceType azcorearm.ResourceType, resourceI
 
 func clusterResourceIDIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
-	case arm.CosmosMetadataAccessor:
+	case coreapi.CosmosMetadataAccessor:
 		return clusterResourceIDFromResourceID(castObj.GetResourceID())
-	case arm.CosmosPersistable:
+	case coreapi.CosmosPersistable:
 		return clusterResourceIDFromResourceID(castObj.GetCosmosData().ResourceID)
 	default:
-		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))
+		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected coreapi.CosmosMetadataAccessor or coreapi.CosmosPersistable", obj))
 	}
 }
 
 func clusterResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
-	return selfOrDirectParentResourceID(api.ClusterResourceType, resourceID)
+	return selfOrDirectParentResourceID(coreapi.ClusterResourceType, resourceID)
 }
 
 func externalAuthResourceIDIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
-	case arm.CosmosMetadataAccessor:
+	case coreapi.CosmosMetadataAccessor:
 		return externalAuthResourceIDFromResourceID(castObj.GetResourceID())
-	case arm.CosmosPersistable:
+	case coreapi.CosmosPersistable:
 		return externalAuthResourceIDFromResourceID(castObj.GetCosmosData().ResourceID)
 	default:
-		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))
+		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected coreapi.CosmosMetadataAccessor or coreapi.CosmosPersistable", obj))
 	}
 }
 
 func externalAuthResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
-	return selfOrDirectParentResourceID(api.ExternalAuthResourceType, resourceID)
+	return selfOrDirectParentResourceID(coreapi.ExternalAuthResourceType, resourceID)
 }
 
 // activeOperationResourceGroupIndexFunc indexes operations by the resource group
 // of their ExternalID.
 func activeOperationResourceGroupIndexFunc(obj interface{}) ([]string, error) {
-	op, ok := obj.(*api.Operation)
+	op, ok := obj.(*coreapi.Operation)
 	if !ok {
-		return nil, fmt.Errorf("expected *api.Operation, got %T", obj)
+		return nil, fmt.Errorf("expected *coreapi.Operation, got %T", obj)
 	}
 	if op.ExternalID == nil {
 		return nil, nil
 	}
 
-	return []string{api.ToResourceGroupResourceIDString(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName)}, nil
+	return []string{coreapi.ToResourceGroupResourceIDString(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName)}, nil
 }
 
 // activeOperationClusterIndexFunc indexes operations by their associated cluster
@@ -592,9 +591,9 @@ func activeOperationResourceGroupIndexFunc(obj interface{}) ([]string, error) {
 // it is used directly. If it is a child resource (nodepool, externalauth), the
 // parent cluster resource ID is used.
 func activeOperationClusterIndexFunc(obj interface{}) ([]string, error) {
-	op, ok := obj.(*api.Operation)
+	op, ok := obj.(*coreapi.Operation)
 	if !ok {
-		return nil, fmt.Errorf("expected *api.Operation, got %T", obj)
+		return nil, fmt.Errorf("expected *coreapi.Operation, got %T", obj)
 	}
 
 	return clusterResourceIDFromResourceID(op.ExternalID)
@@ -605,9 +604,9 @@ func activeOperationClusterIndexFunc(obj interface{}) ([]string, error) {
 // it is used directly. If it is a descendant of a node pool, the parent node pool
 // resource ID is used.
 func activeOperationNodePoolIndexFunc(obj interface{}) ([]string, error) {
-	op, ok := obj.(*api.Operation)
+	op, ok := obj.(*coreapi.Operation)
 	if !ok {
-		return nil, fmt.Errorf("expected *api.Operation, got %T", obj)
+		return nil, fmt.Errorf("expected *coreapi.Operation, got %T", obj)
 	}
 
 	return nodePoolResourceIDFromResourceID(op.ExternalID)
@@ -618,9 +617,9 @@ func activeOperationNodePoolIndexFunc(obj interface{}) ([]string, error) {
 // auth resource ID, it is used directly. If it is a descendant of an external auth,
 // the parent external auth resource ID is used.
 func activeOperationExternalAuthIndexFunc(obj interface{}) ([]string, error) {
-	op, ok := obj.(*api.Operation)
+	op, ok := obj.(*coreapi.Operation)
 	if !ok {
-		return nil, fmt.Errorf("expected *api.Operation, got %T", obj)
+		return nil, fmt.Errorf("expected *coreapi.Operation, got %T", obj)
 	}
 
 	return externalAuthResourceIDFromResourceID(op.ExternalID)
@@ -630,17 +629,17 @@ func activeOperationExternalAuthIndexFunc(obj interface{}) ([]string, error) {
 // nodePool ancestor in the ARM path (Cosmos metadata resource ID).
 func nodePoolResourceIDIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
-	case arm.CosmosMetadataAccessor:
+	case coreapi.CosmosMetadataAccessor:
 		return nodePoolResourceIDFromResourceID(castObj.GetResourceID())
-	case arm.CosmosPersistable:
+	case coreapi.CosmosPersistable:
 		return nodePoolResourceIDFromResourceID(castObj.GetCosmosData().ResourceID)
 	default:
-		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected arm.CosmosMetadataAccessor or arm.CosmosPersistable", obj))
+		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected coreapi.CosmosMetadataAccessor or coreapi.CosmosPersistable", obj))
 	}
 }
 
 func nodePoolResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
-	return selfOrDirectParentResourceID(api.NodePoolResourceType, resourceID)
+	return selfOrDirectParentResourceID(coreapi.NodePoolResourceType, resourceID)
 }
 
 // billingDocSubscriptionIndexFunc indexes billing documents by their subscription ID.

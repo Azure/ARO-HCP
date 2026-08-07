@@ -29,7 +29,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -92,14 +92,14 @@ func NewOperationExternalAuthDeleteController(
 	return controller
 }
 
-func (c *operationExternalAuthDelete) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationExternalAuthDelete) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != cosmosstorageutils.OperationRequestDelete {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.ExternalAuthResourceType.String()) {
 		return false
 	}
 	return true
@@ -153,13 +153,13 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 	return nil
 }
 
-func (c *operationExternalAuthDelete) shouldReconcileOperationAndResourceStatus(externalAuth *api.HCPOpenShiftClusterExternalAuth) bool {
+func (c *operationExternalAuthDelete) shouldReconcileOperationAndResourceStatus(externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) bool {
 	return externalAuth.ServiceProviderProperties.DeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		externalAuth.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *api.Operation, externalAuth *api.HCPOpenShiftClusterExternalAuth) error {
+func (c *operationExternalAuthDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID

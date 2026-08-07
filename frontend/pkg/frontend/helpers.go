@@ -24,8 +24,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -35,7 +34,7 @@ func addOperationResponseHeaders(writer http.ResponseWriter, request *http.Reque
 	return func(result cosmosstorageutils.DBTransactionResult) {
 		// If ARM passed a notification URI, acknowledge it.
 		if len(notificationURI) > 0 {
-			writer.Header().Set(arm.HeaderNameAsyncNotification, "Enabled")
+			writer.Header().Set(coreapi.HeaderNameAsyncNotification, "Enabled")
 		}
 
 		// Add callback header(s) based on the request method.
@@ -58,15 +57,15 @@ func checkForProvisioningStateConflict(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	operationRequest cosmosstorageutils.OperationRequest,
 	resourceID *azcorearm.ResourceID,
-	provisioningState arm.ProvisioningState,
+	provisioningState coreapi.ProvisioningState,
 ) error {
 
 	switch operationRequest {
 	case cosmosstorageutils.OperationRequestCreate:
 		// Resource must already exist for there to be a conflict.
 	case cosmosstorageutils.OperationRequestDelete:
-		if provisioningState == arm.ProvisioningStateDeleting {
-			return arm.NewConflictError(
+		if provisioningState == coreapi.ProvisioningStateDeleting {
+			return coreapi.NewConflictError(
 				resourceID,
 				"Resource is already deleting")
 		}
@@ -74,7 +73,7 @@ func checkForProvisioningStateConflict(
 		// Defer to Cluster Service for ProvisioningStateFailed since
 		// it is ambiguous about whether the resource is functional.
 		if !provisioningState.IsTerminal() {
-			return arm.NewConflictError(
+			return coreapi.NewConflictError(
 				resourceID,
 				"Cannot update resource while resource is %q",
 				strings.ToLower(string(provisioningState)))
@@ -83,7 +82,7 @@ func checkForProvisioningStateConflict(
 		// Defer to Cluster Service for ProvisioningStateFailed since
 		// it is ambiguous about whether the resource is functional.
 		if !provisioningState.IsTerminal() {
-			return arm.NewConflictError(
+			return coreapi.NewConflictError(
 				resourceID,
 				"Cannot request credential while resource is %q",
 				strings.ToLower(string(provisioningState)))
@@ -92,7 +91,7 @@ func checkForProvisioningStateConflict(
 		// Defer to Cluster Service for ProvisioningStateFailed since
 		// it is ambiguous about whether the resource is functional.
 		if !provisioningState.IsTerminal() {
-			return arm.NewConflictError(
+			return coreapi.NewConflictError(
 				resourceID,
 				"Cannot revoke credentials while resource is %q",
 				strings.ToLower(string(provisioningState)))
@@ -100,8 +99,8 @@ func checkForProvisioningStateConflict(
 	}
 
 	// For nested resource types, check the provisioning state of the parent cluster.
-	if strings.EqualFold(resourceID.ResourceType.String(), api.NodePoolResourceType.String()) ||
-		strings.EqualFold(resourceID.ResourceType.String(), api.ExternalAuthResourceType.String()) {
+	if strings.EqualFold(resourceID.ResourceType.String(), coreapi.NodePoolResourceType.String()) ||
+		strings.EqualFold(resourceID.ResourceType.String(), coreapi.ExternalAuthResourceType.String()) {
 
 		cluster, err := resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Parent.Name)
 		if err != nil {
@@ -116,15 +115,15 @@ func checkForProvisioningStateConflict(
 		//     Cluster Service will catch and correctly reject such requests, so I'm
 		//     leaving this gap open until Cluster Service is out of the picture and
 		//     the RP has more direct control over resource provisioning.
-		if cluster.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateProvisioning {
-			return arm.NewConflictError(
+		if cluster.ServiceProviderProperties.ProvisioningState == coreapi.ProvisioningStateProvisioning {
+			return coreapi.NewConflictError(
 				resourceID,
 				"Cannot %s resource while parent resource is provisioning",
 				strings.ToLower(string(operationRequest)))
 		}
 
-		if cluster.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateDeleting {
-			return arm.NewConflictError(
+		if cluster.ServiceProviderProperties.ProvisioningState == coreapi.ProvisioningStateDeleting {
+			return coreapi.NewConflictError(
 				resourceID,
 				"Cannot %s resource while parent resource is deleting",
 				strings.ToLower(string(operationRequest)))
@@ -142,7 +141,7 @@ func (f *Frontend) DeleteAllResourcesInSubscription(ctx context.Context, subscri
 		return utils.TrackError(err)
 	}
 	for _, cluster := range clusterIterator.Items(ctx) {
-		if cluster.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateDeleting {
+		if cluster.ServiceProviderProperties.ProvisioningState == coreapi.ProvisioningStateDeleting {
 			// don't try to delete already deleting clusters.  If we call the delete on them, the call will fail
 			// on various problems from cluster-service. We trust the existing delete is doing good things.
 			continue
@@ -164,7 +163,7 @@ func (f *Frontend) DeleteAllResourcesInSubscription(ctx context.Context, subscri
 }
 
 func nameResourceIDMismatch(resourceID *azcorearm.ResourceID, name string) error {
-	return arm.CloudErrorFromFieldErrors(field.ErrorList{
+	return coreapi.CloudErrorFromFieldErrors(field.ErrorList{
 		field.Invalid(field.NewPath("name"), name, fmt.Sprintf("name must match resourceID path: %v", resourceID)),
 	})
 }

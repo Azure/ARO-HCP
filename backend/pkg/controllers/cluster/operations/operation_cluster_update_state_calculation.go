@@ -30,8 +30,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
@@ -41,7 +41,7 @@ import (
 
 // hypershiftHostedClusterOperationState contains the cluster update operation state calculation comparing desired state
 // against Hypershift's HostedCluster in the management cluster.
-func (c *operationClusterUpdate) hypershiftHostedClusterOperationState(ctx context.Context, cluster *api.HCPOpenShiftCluster, spc *api.ServiceProviderCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) hypershiftHostedClusterOperationState(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
 	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx,
 		c.readDesireLister,
@@ -53,22 +53,22 @@ func (c *operationClusterUpdate) hypershiftHostedClusterOperationState(ctx conte
 		return nil, utils.TrackError(err)
 	}
 	if hostedCluster == nil {
-		return operationbase.NewOperationState(arm.ProvisioningStateUpdating, "Hypershift HostedCluster has not been observed yet"), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "Hypershift HostedCluster has not been observed yet"), nil
 	}
 
 	if matches, message := c.hypershiftHostedClusterSpecMatchesDesired(cluster, spc, hostedCluster); !matches {
-		return operationbase.NewOperationState(arm.ProvisioningStateUpdating, message), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
 	}
 
 	// TODO: add hypershiftHostedClusterStatusMatchesDesired to perform checks against Hypershift's HostedCluster status.
 
-	return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }
 
 // hypershiftHostedClusterSpecMatchesDesired reports whether Hypershift HostedCluster .Spec fields
 // and other non status configuration matches desired state. Returns false and a diagnostic message
 // when any leaf check fails. HostedCluster .status is not checked here.
-func (c *operationClusterUpdate) hypershiftHostedClusterSpecMatchesDesired(cluster *api.HCPOpenShiftCluster, spc *api.ServiceProviderCluster, hostedCluster *v1beta1.HostedCluster) (bool, string) {
+func (c *operationClusterUpdate) hypershiftHostedClusterSpecMatchesDesired(cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster, hostedCluster *v1beta1.HostedCluster) (bool, string) {
 	if matches, message := c.hypershiftHostedClusterAllowedCIDRBlocksSpecMatchesDesired(cluster.CustomerProperties.API.AuthorizedCIDRs, &hostedCluster.Spec); !matches {
 		return false, message
 	}
@@ -144,9 +144,9 @@ func (c *operationClusterUpdate) hypershiftHostedClusterAllowedCIDRBlocksSpecMat
 
 // hypershiftHostedClusterAvailabilityPoliciesSpecMatchesDesired reports whether HostedCluster's
 // controller and infrastructure availability policies match the desired state's control plane availability setting.
-func (c *operationClusterUpdate) hypershiftHostedClusterAvailabilityPoliciesSpecMatchesDesired(desired api.ControlPlaneAvailability, observedSpec *v1beta1.HostedClusterSpec) (bool, string) {
+func (c *operationClusterUpdate) hypershiftHostedClusterAvailabilityPoliciesSpecMatchesDesired(desired coreapi.ControlPlaneAvailability, observedSpec *v1beta1.HostedClusterSpec) (bool, string) {
 	expectedAvailability := v1beta1.HighlyAvailable
-	if desired == api.SingleReplicaControlPlane {
+	if desired == coreapi.SingleReplicaControlPlane {
 		expectedAvailability = v1beta1.SingleReplica
 	}
 
@@ -172,13 +172,13 @@ func (c *operationClusterUpdate) hypershiftHostedClusterAvailabilityPoliciesSpec
 // hypershiftHostedClusterSizeOverrideAnnotationMatchesDesired reports whether HostedCluster's
 // cluster size override annotation matches desired state of control plane sizing from cluster experimental
 // features and/or spc.Spec.DesiredHostedClusterControlPlaneSize.
-func (c *operationClusterUpdate) hypershiftHostedClusterSizeOverrideAnnotationMatchesDesired(desiredClusterControlPlanePodSizing api.ControlPlanePodSizing, desiredSPCControlPlanePodSizing *string, observedAnnotations map[string]string) (bool, string) {
+func (c *operationClusterUpdate) hypershiftHostedClusterSizeOverrideAnnotationMatchesDesired(desiredClusterControlPlanePodSizing coreapi.ControlPlanePodSizing, desiredSPCControlPlanePodSizing *string, observedAnnotations map[string]string) (bool, string) {
 	annotationKey := v1beta1.ClusterSizeOverrideAnnotation
 	observedValue, ok := observedAnnotations[annotationKey]
 
 	if desiredSPCControlPlanePodSizing == nil &&
 		desiredClusterControlPlanePodSizing != "" &&
-		desiredClusterControlPlanePodSizing != api.MinimalControlPlanePodSizing {
+		desiredClusterControlPlanePodSizing != coreapi.MinimalControlPlanePodSizing {
 		return false, fmt.Sprintf("unrecognized cluster-level control plane pod sizing: %q", desiredClusterControlPlanePodSizing)
 	}
 
@@ -249,7 +249,7 @@ func (c *operationClusterUpdate) hypershiftHostedClusterControlPlaneOperatorImag
 
 // hypershiftHostedClusterAutoscalingSpecMatchesDesired reports whether HostedCluster's autoscaling spec
 // matches the desired state's cluster autoscaling profile.
-func (c *operationClusterUpdate) hypershiftHostedClusterAutoscalingSpecMatchesDesired(desired api.ClusterAutoscalingProfile, observed *v1beta1.ClusterAutoscaling) (bool, string) {
+func (c *operationClusterUpdate) hypershiftHostedClusterAutoscalingSpecMatchesDesired(desired coreapi.ClusterAutoscalingProfile, observed *v1beta1.ClusterAutoscaling) (bool, string) {
 	observedMaxNodesStr := "unset"
 	if observed.MaxNodesTotal != nil {
 		observedMaxNodesStr = fmt.Sprintf("%d", *observed.MaxNodesTotal)
@@ -308,8 +308,8 @@ func isPlatformImageContentSource(source string) bool {
 // hypershiftHostedClusterImageContentSourcesSpecMatchesDesired reports whether HostedCluster
 // imageContentSources spec matches desired state's imageDigestMirrors. Platform-managed sources may be
 // present on the HostedCluster without matching a customer desired entry.
-func (c *operationClusterUpdate) hypershiftHostedClusterImageContentSourcesSpecMatchesDesired(desired []api.ImageDigestMirror, observed []v1beta1.ImageContentSource) (bool, string) {
-	desiredBySource := make(map[string]api.ImageDigestMirror, len(desired))
+func (c *operationClusterUpdate) hypershiftHostedClusterImageContentSourcesSpecMatchesDesired(desired []coreapi.ImageDigestMirror, observed []v1beta1.ImageContentSource) (bool, string) {
+	desiredBySource := make(map[string]coreapi.ImageDigestMirror, len(desired))
 	for _, want := range desired {
 		desiredBySource[want.Source] = want
 	}
@@ -344,7 +344,7 @@ func (c *operationClusterUpdate) hypershiftHostedClusterImageContentSourcesSpecM
 	return true, ""
 }
 
-func (c *operationClusterUpdate) hypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(desired api.EtcdDataEncryptionProfile, observed *v1beta1.SecretEncryptionSpec) (bool, string) {
+func (c *operationClusterUpdate) hypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(desired coreapi.EtcdDataEncryptionProfile, observed *v1beta1.SecretEncryptionSpec) (bool, string) {
 
 	if observed == nil {
 		return false, "unexpected hypershift HostedCluster secret encryption is not set"
@@ -357,12 +357,12 @@ func (c *operationClusterUpdate) hypershiftHostedClusterEtcdSecretEncryptionSpec
 	return true, ""
 }
 
-func (c *operationClusterUpdate) hypershiftHostedClusterCustomerManagedSecretEncryptionSpecMatchesDesired(desired api.EtcdDataEncryptionProfile, observed *v1beta1.SecretEncryptionSpec) (bool, string) {
-	if desired.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
+func (c *operationClusterUpdate) hypershiftHostedClusterCustomerManagedSecretEncryptionSpecMatchesDesired(desired coreapi.EtcdDataEncryptionProfile, observed *v1beta1.SecretEncryptionSpec) (bool, string) {
+	if desired.KeyManagementMode != metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
 		return false, fmt.Sprintf("support for desired key management mode %q for updates is not implemented", desired.KeyManagementMode)
 	}
 
-	if desired.CustomerManaged.EncryptionType != api.CustomerManagedEncryptionTypeKMS {
+	if desired.CustomerManaged.EncryptionType != metadataapi.CustomerManagedEncryptionTypeKMS {
 		return false, fmt.Sprintf("support for desired customer managed key encryption type %s for updates is not implemented", desired.CustomerManaged.EncryptionType)
 	}
 
@@ -390,17 +390,17 @@ func (c *operationClusterUpdate) hypershiftHostedClusterCustomerManagedSecretEnc
 // directly can be added here
 // Add checks against the management cluster state when possible instead of here, to reduce the number of checks against Cluster Service, as
 // CS will be removed in the future.
-func (c *operationClusterUpdate) clusterServiceClusterSpecOperationState(cluster *api.HCPOpenShiftCluster, csCluster *arohcpv1alpha1.Cluster) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) clusterServiceClusterSpecOperationState(cluster *coreapi.HCPOpenShiftCluster, csCluster *arohcpv1alpha1.Cluster) (*operationbase.OperationState, error) {
 	if matches, message := c.clusterServiceClusterSpecMatchesDesired(cluster, csCluster); !matches {
-		return operationbase.NewOperationState(arm.ProvisioningStateUpdating, message), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
 	}
-	return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }
 
 // clusterServiceClusterSpecMatchesDesired reports whether Cluster Service cluster spec fields
 // relevant to the cluster update operation match desired state. Returns false and a diagnostic
 // message when any leaf check fails.
-func (c *operationClusterUpdate) clusterServiceClusterSpecMatchesDesired(cluster *api.HCPOpenShiftCluster, csCluster *arohcpv1alpha1.Cluster) (bool, string) {
+func (c *operationClusterUpdate) clusterServiceClusterSpecMatchesDesired(cluster *coreapi.HCPOpenShiftCluster, csCluster *arohcpv1alpha1.Cluster) (bool, string) {
 	// TODO for now we calculate authorized CIDR against CS because we cannot calculate the difference on
 	// the Hypershift HostedCluster because there are internal IPs associated to the Node Pools egress LB that we
 	// do not track on the RP side yet. Once that is tracked we should remove this and update the logic that calculates
@@ -489,12 +489,12 @@ func (c *operationClusterUpdate) clusterServiceClusterNodeDrainTimeoutSpecMatche
 // cluster-autoscaler ControlPlaneComponent status (Available + RolloutComplete)
 // when the active control plane is 4.20+. HostedCluster autoscaling Spec matching
 // is owned by hypershiftHostedClusterOperationState.
-func (c *operationClusterUpdate) hypershiftControlPlaneClusterAutoscalerState(ctx context.Context, existingCluster *api.HCPOpenShiftCluster, spc *api.ServiceProviderCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) hypershiftControlPlaneClusterAutoscalerState(ctx context.Context, existingCluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(spc.Status.ControlPlaneVersion.ActiveVersions)
 	if lowest == nil {
-		return operationbase.NewOperationState(arm.ProvisioningStateUpdating, "control plane active versions not yet reported"), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "control plane active versions not yet reported"), nil
 	}
 	// Compare major.minor only so pre-release builds (e.g. nightlies like
 	// 4.20.0-0.nightly-...) still satisfy the 4.20+ autoscaler gate.
@@ -504,7 +504,7 @@ func (c *operationClusterUpdate) hypershiftControlPlaneClusterAutoscalerState(ct
 			`lowest active control plane version %q does not support ControlPlaneComponent cluster-autoscaler (requires 4.20+)`,
 			lowest.String(),
 		)
-		return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, msg), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, msg), nil
 	}
 
 	controlPlaneComponent, err := kubeapplierhelpers.GetCachedControlPlaneClusterAutoscalerForCluster(
@@ -515,14 +515,14 @@ func (c *operationClusterUpdate) hypershiftControlPlaneClusterAutoscalerState(ct
 		return nil, utils.TrackError(err)
 	}
 	if controlPlaneComponent == nil {
-		return operationbase.NewOperationState(arm.ProvisioningStateUpdating, "cluster autoscaler state not cached yet"), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, "cluster autoscaler state not cached yet"), nil
 	}
 	if !c.isControlPlaneClusterAutoscalerReady(controlPlaneComponent) {
 		message := c.controlPlaneClusterAutoscalerNotReadyMessage(controlPlaneComponent)
 		logger.Info("cluster autoscaler ControlPlaneComponent is not ready", "message", message)
-		return operationbase.NewOperationState(arm.ProvisioningStateUpdating, message), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateUpdating, message), nil
 	}
-	return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 }
 
 func (c *operationClusterUpdate) isControlPlaneClusterAutoscalerReady(controlPlaneComponent *v1beta1.ControlPlaneComponent) bool {

@@ -22,25 +22,26 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 func TestManagementClusterContentResourceIDFromClusterResourceID(t *testing.T) {
-	clusterRID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/mycluster"))
+	clusterRID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/mycluster"))
 
-	got := ManagementClusterContentResourceIDFromParentResourceID(clusterRID, api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster)
+	got := ManagementClusterContentResourceIDFromParentResourceID(clusterRID, coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster)
 	require.NotNil(t, got)
-	assert.Equal(t, got.ResourceType.Type, api.ClusterScopedManagementClusterContentResourceType.Type)
+	assert.Equal(t, got.ResourceType.Type, coreapi.ClusterScopedManagementClusterContentResourceType.Type)
 	// Name is the last segment of the resource ID (the management cluster content name)
-	assert.Equal(t, got.Name, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+	assert.Equal(t, got.Name, string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 }
 
 func TestManagementClusterContentResourceIDFromNodePoolResourceID(t *testing.T) {
-	nodePoolRID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/mycluster/nodePools/mynodepool"))
+	nodePoolRID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/mycluster/nodePools/mynodepool"))
 
-	got := ManagementClusterContentResourceIDFromParentResourceID(nodePoolRID, api.MaestroBundleInternalNameReadonlyHypershiftNodePool)
+	got := ManagementClusterContentResourceIDFromParentResourceID(nodePoolRID, coreapi.MaestroBundleInternalNameReadonlyHypershiftNodePool)
 	require.NotNil(t, got)
-	assert.Equal(t, got.ResourceType.Type, api.NodePoolScopedManagementClusterContentResourceType.Type)
+	assert.Equal(t, got.ResourceType.Type, coreapi.NodePoolScopedManagementClusterContentResourceType.Type)
 	// Name is the last segment of the resource ID (the management cluster content name)
-	assert.Equal(t, got.Name, string(api.MaestroBundleInternalNameReadonlyHypershiftNodePool))
+	assert.Equal(t, got.Name, string(coreapi.MaestroBundleInternalNameReadonlyHypershiftNodePool))
 }

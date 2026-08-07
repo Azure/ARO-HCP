@@ -30,8 +30,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
@@ -48,15 +48,15 @@ func newTestValidationCondition(name string, status metav1.ConditionStatus, reas
 	}
 }
 
-func newTestServiceProviderClusterForAggregator(opts ...func(*api.ServiceProviderCluster)) *api.ServiceProviderCluster {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestServiceProviderClusterForAggregator(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceProviderCluster {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
-			"/serviceProviderClusters/" + api.ServiceProviderClusterResourceName,
+			"/serviceProviderClusters/" + coreapi.ServiceProviderClusterResourceName,
 	))
-	spc := &api.ServiceProviderCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	spc := &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
@@ -84,8 +84,8 @@ func TestClusterRequirementsValidAggregator_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                           string
-		existingCluster                *api.HCPOpenShiftCluster
-		existingServiceProviderCluster *api.ServiceProviderCluster
+		existingCluster                *coreapi.HCPOpenShiftCluster
+		existingServiceProviderCluster *coreapi.ServiceProviderCluster
 		// wantCondition is the expected RequirementsValid condition after SyncOnce.
 		// nil means the condition must remain absent. Only Type/Status/Reason/Message
 		// are asserted; LastTransitionTime is not considered.
@@ -100,17 +100,17 @@ func TestClusterRequirementsValidAggregator_SyncOnce(t *testing.T) {
 		{
 			name:            "failed validation writes False/Degraded",
 			existingCluster: newTestClusterForAggregator(),
-			existingServiceProviderCluster: newTestServiceProviderClusterForAggregator(func(spc *api.ServiceProviderCluster) {
+			existingServiceProviderCluster: newTestServiceProviderClusterForAggregator(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Status.Validations = []metav1.Condition{failedValidation}
 			}),
 			wantCondition: &degradedCondition,
 		},
 		{
 			name: "no-op when UserFacingConditions already match",
-			existingCluster: newTestClusterForAggregator(func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForAggregator(func(c *coreapi.HCPOpenShiftCluster) {
 				c.Status.UserFacingConditions = []metav1.Condition{degradedCondition}
 			}),
-			existingServiceProviderCluster: newTestServiceProviderClusterForAggregator(func(spc *api.ServiceProviderCluster) {
+			existingServiceProviderCluster: newTestServiceProviderClusterForAggregator(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Status.Validations = []metav1.Condition{failedValidation}
 			}),
 			wantCondition: &degradedCondition,
@@ -123,11 +123,11 @@ func TestClusterRequirementsValidAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "deleting cluster skips write",
-			existingCluster: newTestClusterForAggregator(func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForAggregator(func(c *coreapi.HCPOpenShiftCluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
-			existingServiceProviderCluster: newTestServiceProviderClusterForAggregator(func(spc *api.ServiceProviderCluster) {
+			existingServiceProviderCluster: newTestServiceProviderClusterForAggregator(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Status.Validations = []metav1.Condition{failedValidation}
 			}),
 			wantCondition: nil,
@@ -183,7 +183,7 @@ func TestClusterRequirementsValidAggregator_NeedsWork(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		cluster *api.HCPOpenShiftCluster
+		cluster *coreapi.HCPOpenShiftCluster
 		want    bool
 	}{
 		{
@@ -193,7 +193,7 @@ func TestClusterRequirementsValidAggregator_NeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when deletion timestamp is set",
-			cluster: newTestClusterForAggregator(func(c *api.HCPOpenShiftCluster) {
+			cluster: newTestClusterForAggregator(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
 			want: false,

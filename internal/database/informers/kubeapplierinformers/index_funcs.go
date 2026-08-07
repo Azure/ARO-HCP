@@ -20,17 +20,16 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // desireMetadataAccessor narrows the interface set we need from each *Desire
 // to power the indexers, without committing the index funcs to a single concrete type.
 type desireMetadataAccessor interface {
-	arm.CosmosMetadataAccessor
-	kubeapplier.ManagementClusterAccessor
+	coreapi.CosmosMetadataAccessor
+	kubeapplierapi.ManagementClusterAccessor
 }
 
 // asDesire performs the runtime type assertion to the metadata-accessor
@@ -68,7 +67,7 @@ func clusterResourceIDIndexFunc(obj any) ([]string, error) {
 	if id == nil {
 		return nil, utils.TrackError(fmt.Errorf("desire has nil ResourceID: %T %v", obj, obj))
 	}
-	clusterID := findAncestorOfType(id, api.ClusterResourceType)
+	clusterID := findAncestorOfType(id, coreapi.ClusterResourceType)
 	if clusterID == nil {
 		return nil, nil
 	}
@@ -87,7 +86,7 @@ func nodePoolResourceIDIndexFunc(obj any) ([]string, error) {
 	if id == nil {
 		return nil, utils.TrackError(fmt.Errorf("desire has nil ResourceID: %T %v", obj, obj))
 	}
-	npID := findAncestorOfType(id, api.NodePoolResourceType)
+	npID := findAncestorOfType(id, coreapi.NodePoolResourceType)
 	if npID == nil {
 		return nil, nil
 	}

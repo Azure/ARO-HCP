@@ -24,8 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -53,7 +52,7 @@ func (v *AzureNodePoolVMQuotaValidation) Name() string {
 	return "AzureNodePoolVMQuotaValidation"
 }
 
-func (v *AzureNodePoolVMQuotaValidation) Validate(ctx context.Context, _ *api.HCPOpenShiftCluster, nodePoolSubscription *arm.Subscription, nodePool *api.HCPOpenShiftClusterNodePool) error {
+func (v *AzureNodePoolVMQuotaValidation) Validate(ctx context.Context, _ *coreapi.HCPOpenShiftCluster, nodePoolSubscription *coreapi.Subscription, nodePool *coreapi.HCPOpenShiftClusterNodePool) error {
 	instanceCount := v.requiredInstanceCount(nodePool)
 	if instanceCount <= 0 {
 		return nil
@@ -115,7 +114,7 @@ func (v *AzureNodePoolVMQuotaValidation) Validate(ctx context.Context, _ *api.HC
 
 // requiredInstanceCount returns the peak number of VMs the node pool may run.
 // Autoscaled pools use AutoScaling.Max; fixed-size pools use Replicas.
-func (v *AzureNodePoolVMQuotaValidation) requiredInstanceCount(nodePool *api.HCPOpenShiftClusterNodePool) int32 {
+func (v *AzureNodePoolVMQuotaValidation) requiredInstanceCount(nodePool *coreapi.HCPOpenShiftClusterNodePool) int32 {
 	if nodePool.Properties.AutoScaling != nil {
 		return nodePool.Properties.AutoScaling.Max
 	}

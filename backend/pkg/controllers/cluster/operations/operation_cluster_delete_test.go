@@ -32,8 +32,7 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
@@ -48,7 +47,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 
 	fixture := operationtesting.NewClusterTestFixture()
 
-	clusterPassingReconcileGate := func() *api.HCPOpenShiftCluster {
+	clusterPassingReconcileGate := func() *coreapi.HCPOpenShiftCluster {
 		now := time.Now()
 		cluster := fixture.NewCluster(nil)
 		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
@@ -58,10 +57,10 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name                           string
-		nodePools                      []*api.HCPOpenShiftClusterNodePool
-		externalAuths                  []*api.HCPOpenShiftClusterExternalAuth
+		nodePools                      []*coreapi.HCPOpenShiftClusterNodePool
+		externalAuths                  []*coreapi.HCPOpenShiftClusterExternalAuth
 		usesNewClusterDeletionApproach bool
-		existingCluster                *api.HCPOpenShiftCluster
+		existingCluster                *coreapi.HCPOpenShiftCluster
 		setupCSMock                    func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
 		wantErr                        bool
 		verifyDB                       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
@@ -80,7 +79,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 
 				_, err = db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				assert.Error(t, err, "cluster should have been deleted")
@@ -89,7 +88,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 		{
 			name:            "legacy approach: cluster not found does not remove cluster while nodepools exist",
 			existingCluster: fixture.NewCluster(&createdAt),
-			nodePools: []*api.HCPOpenShiftClusterNodePool{
+			nodePools: []*coreapi.HCPOpenShiftClusterNodePool{
 				operationtesting.NewNodePoolTestFixture().NewNodePool(),
 			},
 			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
@@ -103,7 +102,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 
 				// Cluster should still exist
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
@@ -123,14 +122,14 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			wantErr: false,
-			externalAuths: []*api.HCPOpenShiftClusterExternalAuth{
+			externalAuths: []*coreapi.HCPOpenShiftClusterExternalAuth{
 				operationtesting.NewExternalAuthTestFixture().NewExternalAuth(),
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				// Operation should remain non-terminal since external auths still exist
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 
 				// Cluster should still exist
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
@@ -154,7 +153,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateDeleting, op.Status)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
@@ -177,7 +176,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
@@ -202,7 +201,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				assert.NotNil(t, op.Error)
 				assert.Equal(t, "ERR001", op.Error.Code)
 
@@ -217,13 +216,13 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 			},
 		},
 		{
 			name:                           "shouldReconcile gate not passed skips cluster service",
 			usesNewClusterDeletionApproach: true,
-			existingCluster: func() *api.HCPOpenShiftCluster {
+			existingCluster: func() *coreapi.HCPOpenShiftCluster {
 				cluster := fixture.NewCluster(nil)
 				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				return cluster
@@ -231,13 +230,13 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
 			name:                           "shouldReconcile gate not passed when ClusterServiceID is nil",
 			usesNewClusterDeletionApproach: true,
-			existingCluster: func() *api.HCPOpenShiftCluster {
+			existingCluster: func() *coreapi.HCPOpenShiftCluster {
 				cluster := fixture.NewCluster(nil)
 				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 				cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: time.Now()}
@@ -247,7 +246,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -267,7 +266,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateDeleting, op.Status)
 			},
 		},
 		{
@@ -289,7 +288,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				assert.NotNil(t, op.Error)
 				assert.Equal(t, "ERR001", op.Error.Code)
 			},
@@ -311,7 +310,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status, "operation should stay at Accepted, waiting for Cosmos Cluster document deletion")
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status, "operation should stay at Accepted, waiting for Cosmos Cluster document deletion")
 			},
 		},
 		{
@@ -329,7 +328,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status, "operation should stay at Accepted, waiting for ID clearer")
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status, "operation should stay at Accepted, waiting for ID clearer")
 			},
 		},
 	}

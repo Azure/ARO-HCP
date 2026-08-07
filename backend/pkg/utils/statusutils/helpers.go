@@ -18,7 +18,7 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // reasonMissingDegraded is the synthesized reason used when a controller
@@ -32,7 +32,7 @@ const reasonMissingDegraded = "MissingDegradedCondition"
 // onto the parent.
 const DegradedConditionType = "Degraded"
 
-// CollectDegradedConditions flattens an api.Controller slice into the
+// CollectDegradedConditions flattens an coreapi.Controller slice into the
 // SourcedCondition form that UnionCondition consumes. Each entry's
 // ControllerName is the trailing name segment of the controller document's
 // resource ID — matching the controller-name argument that writers pass
@@ -53,7 +53,7 @@ const DegradedConditionType = "Degraded"
 //
 // Controllers with a nil ResourceID are skipped — we have no key to track
 // them and no name to attribute them to.
-func CollectDegradedConditions(controllers []*api.Controller, firstObservedBad *FirstObservedBadCache) []SourcedCondition {
+func CollectDegradedConditions(controllers []*coreapi.Controller, firstObservedBad *FirstObservedBadCache) []SourcedCondition {
 	out := make([]SourcedCondition, 0, len(controllers))
 	for _, ctrl := range controllers {
 		if ctrl == nil || ctrl.ResourceID == nil {

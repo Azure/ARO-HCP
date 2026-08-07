@@ -15,7 +15,8 @@
 package v20240610preview
 
 import (
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview/generated"
 )
 
@@ -23,7 +24,7 @@ type HcpOpenShiftVersion struct {
 	generated.HcpOpenShiftVersion
 }
 
-func (v version) NewHCPOpenShiftVersion(from *api.HCPOpenShiftVersion) api.VersionedHCPOpenShiftVersion {
+func (v version) NewHCPOpenShiftVersion(from *coreapi.HCPOpenShiftVersion) coreapi.VersionedHCPOpenShiftVersion {
 	idString := ""
 	if from.ID != nil {
 		idString = from.ID.String()
@@ -31,19 +32,19 @@ func (v version) NewHCPOpenShiftVersion(from *api.HCPOpenShiftVersion) api.Versi
 
 	return &HcpOpenShiftVersion{
 		generated.HcpOpenShiftVersion{
-			ID:   api.PtrOrNil(idString),
-			Name: api.PtrOrNil(from.Name),
-			Type: api.PtrOrNil(from.Type),
+			ID:   metadataapi.PtrOrNil(idString),
+			Name: metadataapi.PtrOrNil(from.Name),
+			Type: metadataapi.PtrOrNil(from.Type),
 			Properties: &generated.HcpOpenShiftVersionProperties{
-				ChannelGroup: api.PtrOrNil(from.Properties.ChannelGroup),
+				ChannelGroup: metadataapi.PtrOrNil(from.Properties.ChannelGroup),
 				// Use Ptr (not PtrOrNil) to ensure boolean is always present in JSON response, even when false
-				Enabled:            api.Ptr(from.Properties.Enabled),
-				EndOfLifeTimestamp: api.PtrOrNil(from.Properties.EndOfLifeTimestamp),
+				Enabled:            metadataapi.Ptr(from.Properties.Enabled),
+				EndOfLifeTimestamp: metadataapi.PtrOrNil(from.Properties.EndOfLifeTimestamp),
 			},
 		},
 	}
 }
 
-func (v *HcpOpenShiftVersion) GetVersion() api.Version {
+func (v *HcpOpenShiftVersion) GetVersion() coreapi.Version {
 	return versionedInterface
 }

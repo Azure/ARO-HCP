@@ -19,7 +19,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionlisterskubeapplier "github.com/Azure/ARO-HCP/internal/database/unionlisters/kubeapplier"
@@ -52,8 +52,8 @@ type UnionKubeApplierInformers struct {
 	applyInformer *UnionDesireInformer
 	readInformer  *UnionDesireInformer
 
-	applyLister *unionlisterskubeapplier.UnionDesireLister[kubeapplier.ApplyDesire]
-	readLister  *unionlisterskubeapplier.UnionDesireLister[kubeapplier.ReadDesire]
+	applyLister *unionlisterskubeapplier.UnionDesireLister[kubeapplierapi.ApplyDesire]
+	readLister  *unionlisterskubeapplier.UnionDesireLister[kubeapplierapi.ReadDesire]
 }
 
 // NewUnionKubeApplierInformers returns an empty aggregator. Call Add to
@@ -63,8 +63,8 @@ func NewUnionKubeApplierInformers() *UnionKubeApplierInformers {
 		applyInformer: NewUnionDesireInformer(),
 		readInformer:  NewUnionDesireInformer(),
 
-		applyLister: unionlisterskubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire](),
-		readLister:  unionlisterskubeapplier.NewUnionDesireLister[kubeapplier.ReadDesire](),
+		applyLister: unionlisterskubeapplier.NewUnionDesireLister[kubeapplierapi.ApplyDesire](),
+		readLister:  unionlisterskubeapplier.NewUnionDesireLister[kubeapplierapi.ReadDesire](),
 	}
 }
 

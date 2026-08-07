@@ -32,28 +32,28 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/statusutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
 
 // newTestNodePoolForAggregator builds a minimal HCPOpenShiftClusterNodePool
 // suitable for the aggregator tests.
-func newTestNodePoolForAggregator(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestNodePoolForAggregator(opts ...func(*coreapi.HCPOpenShiftClusterNodePool)) *coreapi.HCPOpenShiftClusterNodePool {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
 			"/nodePools/" + statusutils.TestNodePoolName,
 	))
-	np := &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{
+	np := &coreapi.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: statusutils.TestNodePoolName,
 				Type: resourceID.ResourceType.String(),
@@ -67,7 +67,7 @@ func newTestNodePoolForAggregator(opts ...func(*api.HCPOpenShiftClusterNodePool)
 }
 
 func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName +
@@ -82,7 +82,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 
 	// Parent cluster — also needed so the resourcesDBClient is happy when the
 	// node-pool CRUD looks up the parent path internally during Replace.
-	parentClusterID := api.Must(azcorearm.ParseResourceID(
+	parentClusterID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + statusutils.TestSubscriptionID +
 			"/resourceGroups/" + statusutils.TestResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + statusutils.TestClusterName,
@@ -91,7 +91,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name string
 
-		controllers []*api.Controller
+		controllers []*coreapi.Controller
 		inertia     statusutils.Inertia
 		// initialConditions, if set, is layered onto the node pool before SyncOnce
 		// runs. Used to drive the "no-op when conditions unchanged" case.
@@ -111,7 +111,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "all controllers report Degraded=False -> aggregate False/AsExpected",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia:       thirtySecondInertia,
@@ -121,7 +121,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "bad controller within 30s inertia stays hidden",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 10*time.Second),
 			},
 			inertia:       thirtySecondInertia,
@@ -131,7 +131,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "bad controller past 30s inertia flips aggregate",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 31*time.Second),
 			},
 			inertia:       thirtySecondInertia,
@@ -141,7 +141,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "per-controller override: SlowController stays in inertia window",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "SlowController", metav1.ConditionTrue, "Failed", "settling", 2*time.Minute),
 			},
 			inertia:       fiveMinuteOverrideInertia,
@@ -151,7 +151,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "per-controller override: SlowController past 5m flips",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "SlowController", metav1.ConditionTrue, "Failed", "stuck", 6*time.Minute),
 			},
 			inertia:       fiveMinuteOverrideInertia,
@@ -161,7 +161,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "nil inertia propagates immediately",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionTrue, "Failed", "boom", 1*time.Second),
 			},
 			inertia:       nil,
@@ -171,7 +171,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no-op when conditions unchanged",
-			controllers: []*api.Controller{
+			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
 			inertia: thirtySecondInertia,
@@ -193,18 +193,18 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			existing := newTestNodePoolForAggregator(func(np *api.HCPOpenShiftClusterNodePool) {
+			existing := newTestNodePoolForAggregator(func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				if len(tc.initialConditions) > 0 {
 					np.Status.Conditions = append([]metav1.Condition{}, tc.initialConditions...)
 				}
 			})
-			parentCluster := &api.HCPOpenShiftCluster{
-				CosmosMetadata: arm.CosmosMetadata{
+			parentCluster := &coreapi.HCPOpenShiftCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{
 					ResourceID:   parentClusterID,
 					PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),
 				},
-				TrackedResource: arm.TrackedResource{
-					Resource: arm.Resource{ID: parentClusterID, Name: statusutils.TestClusterName, Type: parentClusterID.ResourceType.String()},
+				TrackedResource: coreapi.TrackedResource{
+					Resource: coreapi.Resource{ID: parentClusterID, Name: statusutils.TestClusterName, Type: parentClusterID.ResourceType.String()},
 				},
 			}
 

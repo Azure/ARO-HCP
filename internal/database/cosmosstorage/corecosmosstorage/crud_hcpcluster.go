@@ -22,19 +22,19 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 type ControllerContainer interface {
 	// TODO controllers are a concept that is at this scope and at lower scopes and sometimes you want to query all like it
 	// TODO they look a lot like operations, though we can model them as a one-off to start.
-	Controllers(hcpClusterID string) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller]
+	Controllers(hcpClusterID string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller]
 }
 
 type OperationCRUD interface {
-	cosmosstorageutils.ResourceCRUD[api.Operation, *api.Operation]
+	cosmosstorageutils.ResourceCRUD[coreapi.Operation, *coreapi.Operation]
 
 	// ListActiveOperations returns an iterator that searches for asynchronous operation documents
 	// with a non-terminal status in the "Resources" container under the given partition key. The
@@ -43,11 +43,11 @@ type OperationCRUD interface {
 	// Note that ListActiveOperations does not perform the search, but merely prepares an iterator
 	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
 	// the iterator in a ranged for loop.
-	ListActiveOperations(options *ResourcesDBClientListActiveOperationDocsOptions) cosmosstorageutils.DBClientIterator[api.Operation]
+	ListActiveOperations(options *ResourcesDBClientListActiveOperationDocsOptions) cosmosstorageutils.DBClientIterator[coreapi.Operation]
 }
 
 type operationCRUD struct {
-	*cosmosstorageutils.NestedCosmosResourceCRUD[api.Operation, *api.Operation, cosmosstorageutils.GenericDocument[api.Operation]]
+	*cosmosstorageutils.NestedCosmosResourceCRUD[coreapi.Operation, *coreapi.Operation, cosmosstorageutils.GenericDocument[coreapi.Operation]]
 }
 
 func NewOperationCRUD(containerClient *azcosmos.ContainerClient, subscriptionID string) OperationCRUD {
@@ -55,16 +55,16 @@ func NewOperationCRUD(containerClient *azcosmos.ContainerClient, subscriptionID 
 		"/subscriptions",
 		strings.ToLower(subscriptionID),
 	}
-	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(path.Join(parts...)))
 
 	return &operationCRUD{
-		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[api.Operation, *api.Operation, cosmosstorageutils.GenericDocument[api.Operation]](containerClient, parentResourceID, api.OperationStatusResourceType),
+		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[coreapi.Operation, *coreapi.Operation, cosmosstorageutils.GenericDocument[coreapi.Operation]](containerClient, parentResourceID, coreapi.OperationStatusResourceType),
 	}
 }
 
 var _ OperationCRUD = &operationCRUD{}
 
-func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiveOperationDocsOptions) cosmosstorageutils.DBClientIterator[api.Operation] {
+func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiveOperationDocsOptions) cosmosstorageutils.DBClientIterator[coreapi.Operation] {
 	var queryOptions azcosmos.QueryOptions
 
 	query := fmt.Sprintf(
@@ -72,10 +72,10 @@ func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiv
 			"AND LENGTH(c.resourceID) > 0 "+
 			"AND (NOT IS_DEFINED(c.deletionTimestamp)) "+
 			"AND NOT ARRAYCONTAINS([%q, %q, %q], c.properties.status)",
-		api.OperationStatusResourceType.String(),
-		arm.ProvisioningStateSucceeded,
-		arm.ProvisioningStateFailed,
-		arm.ProvisioningStateCanceled)
+		coreapi.OperationStatusResourceType.String(),
+		coreapi.ProvisioningStateSucceeded,
+		coreapi.ProvisioningStateFailed,
+		coreapi.ProvisioningStateCanceled)
 
 	if options != nil {
 		if options.Request != nil {
@@ -105,11 +105,11 @@ func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiv
 	}
 
 	pager := d.ContainerClient.NewQueryItemsPager(query, cosmosstorageutils.NewPartitionKey(d.ParentResourceID.SubscriptionID), &queryOptions)
-	return cosmosstorageutils.NewQueryResourcesIterator[api.Operation, cosmosstorageutils.GenericDocument[api.Operation]](pager)
+	return cosmosstorageutils.NewQueryResourcesIterator[coreapi.Operation, cosmosstorageutils.GenericDocument[coreapi.Operation]](pager)
 }
 
 type HCPClusterCRUD interface {
-	cosmosstorageutils.ResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster]
+	cosmosstorageutils.ResourceCRUD[coreapi.HCPOpenShiftCluster, *coreapi.HCPOpenShiftCluster]
 	ControllerContainer
 	ManagementClusterContentContainer
 
@@ -122,35 +122,35 @@ type HCPClusterCRUD interface {
 func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID, resourceGroupName string) HCPClusterCRUD {
 	var parentResourceID *azcorearm.ResourceID
 	if len(resourceGroupName) > 0 {
-		parentResourceID = api.Must(api.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
+		parentResourceID = metadataapi.Must(coreapi.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
 	} else {
-		parentResourceID = api.Must(arm.ToSubscriptionResourceID(subscriptionID))
+		parentResourceID = metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
 	}
 
 	return &hcpClusterCRUD{
-		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[api.HCPOpenShiftCluster]](containerClient, parentResourceID, api.ClusterResourceType),
+		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[coreapi.HCPOpenShiftCluster, *coreapi.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster]](containerClient, parentResourceID, coreapi.ClusterResourceType),
 	}
 }
 
 type NodePoolsCRUD interface {
-	cosmosstorageutils.ResourceCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool]
+	cosmosstorageutils.ResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool]
 	ControllerContainer
 	ManagementClusterContentContainer
 }
 
 type ExternalAuthsCRUD interface {
-	cosmosstorageutils.ResourceCRUD[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth]
+	cosmosstorageutils.ResourceCRUD[coreapi.HCPOpenShiftClusterExternalAuth, *coreapi.HCPOpenShiftClusterExternalAuth]
 	ControllerContainer
 }
 
 type hcpClusterCRUD struct {
-	*cosmosstorageutils.NestedCosmosResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[api.HCPOpenShiftCluster]]
+	*cosmosstorageutils.NestedCosmosResourceCRUD[coreapi.HCPOpenShiftCluster, *coreapi.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster]]
 }
 
 var _ HCPClusterCRUD = &hcpClusterCRUD{}
 
 func (h *hcpClusterCRUD) ExternalAuth(hcpClusterName string) ExternalAuthsCRUD {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.ParentResourceID.String(),
 			"providers",
@@ -159,16 +159,16 @@ func (h *hcpClusterCRUD) ExternalAuth(hcpClusterName string) ExternalAuthsCRUD {
 			hcpClusterName)))
 
 	return &externalAuthCRUD{
-		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterExternalAuth]](
+		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[coreapi.HCPOpenShiftClusterExternalAuth, *coreapi.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterExternalAuth]](
 			h.ContainerClient,
 			parentResourceID,
-			api.ExternalAuthResourceType,
+			coreapi.ExternalAuthResourceType,
 		),
 	}
 }
 
 func (h *hcpClusterCRUD) NodePools(hcpClusterName string) NodePoolsCRUD {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.ParentResourceID.String(),
 			"providers",
@@ -177,15 +177,15 @@ func (h *hcpClusterCRUD) NodePools(hcpClusterName string) NodePoolsCRUD {
 			hcpClusterName)))
 
 	return &nodePoolsCRUD{
-		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterNodePool]](
+		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterNodePool]](
 			h.ContainerClient,
 			parentResourceID,
-			api.NodePoolResourceType),
+			coreapi.NodePoolResourceType),
 	}
 }
 
 func (h *hcpClusterCRUD) SystemAdminCredentialRequests(hcpClusterName string) SystemAdminCredentialRequestsCRUD {
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.ParentResourceID.String(),
 			"providers",
@@ -194,15 +194,15 @@ func (h *hcpClusterCRUD) SystemAdminCredentialRequests(hcpClusterName string) Sy
 			hcpClusterName)))
 
 	return &systemAdminCredentialRequestsCRUD{
-		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, cosmosstorageutils.GenericDocument[api.SystemAdminCredentialRequest]](
+		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[coreapi.SystemAdminCredentialRequest, *coreapi.SystemAdminCredentialRequest, cosmosstorageutils.GenericDocument[coreapi.SystemAdminCredentialRequest]](
 			h.ContainerClient,
 			clusterResourceID,
-			api.SystemAdminCredentialRequestResourceType),
+			coreapi.SystemAdminCredentialRequestResourceType),
 	}
 }
 
 func (h *hcpClusterCRUD) SystemAdminCredentialRevocations(hcpClusterName string) SystemAdminCredentialRevocationsCRUD {
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.ParentResourceID.String(),
 			"providers",
@@ -211,15 +211,15 @@ func (h *hcpClusterCRUD) SystemAdminCredentialRevocations(hcpClusterName string)
 			hcpClusterName)))
 
 	return &systemAdminCredentialRevocationsCRUD{
-		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, cosmosstorageutils.GenericDocument[api.SystemAdminCredentialRevocation]](
+		NestedCosmosResourceCRUD: cosmosstorageutils.NewCosmosResourceCRUD[coreapi.SystemAdminCredentialRevocation, *coreapi.SystemAdminCredentialRevocation, cosmosstorageutils.GenericDocument[coreapi.SystemAdminCredentialRevocation]](
 			h.ContainerClient,
 			clusterResourceID,
-			api.SystemAdminCredentialRevocationResourceType),
+			coreapi.SystemAdminCredentialRevocationResourceType),
 	}
 }
 
-func (h *hcpClusterCRUD) Controllers(hcpClusterName string) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (h *hcpClusterCRUD) Controllers(hcpClusterName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.ParentResourceID.String(),
 			"providers",
@@ -227,11 +227,11 @@ func (h *hcpClusterCRUD) Controllers(hcpClusterName string) cosmosstorageutils.R
 			h.ResourceType.Type,
 			hcpClusterName)))
 
-	return NewControllerCRUD(h.ContainerClient, parentResourceID, api.ClusterControllerResourceType)
+	return NewControllerCRUD(h.ContainerClient, parentResourceID, coreapi.ClusterControllerResourceType)
 }
 
-func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) cosmosstorageutils.ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.ParentResourceID.String(),
 			"providers",
@@ -239,104 +239,104 @@ func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) cosmos
 			h.ResourceType.Type,
 			hcpClusterName)))
 
-	return cosmosstorageutils.NewCosmosResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent, cosmosstorageutils.GenericDocument[api.ManagementClusterContent]](
+	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent, cosmosstorageutils.GenericDocument[coreapi.ManagementClusterContent]](
 		h.ContainerClient,
 		parentResourceID,
-		api.ClusterScopedManagementClusterContentResourceType,
+		coreapi.ClusterScopedManagementClusterContentResourceType,
 	)
 }
 
 type externalAuthCRUD struct {
-	*cosmosstorageutils.NestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterExternalAuth]]
+	*cosmosstorageutils.NestedCosmosResourceCRUD[coreapi.HCPOpenShiftClusterExternalAuth, *coreapi.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterExternalAuth]]
 }
 
-func (h *externalAuthCRUD) Controllers(externalAuthName string) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (h *externalAuthCRUD) Controllers(externalAuthName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.ParentResourceID.String(),
 			h.ResourceType.Types[len(h.ResourceType.Types)-1],
 			externalAuthName,
 		)))
 
-	return NewControllerCRUD(h.ContainerClient, parentResourceID, api.ExternalAuthControllerResourceType)
+	return NewControllerCRUD(h.ContainerClient, parentResourceID, coreapi.ExternalAuthControllerResourceType)
 }
 
 type nodePoolsCRUD struct {
-	*cosmosstorageutils.NestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterNodePool]]
+	*cosmosstorageutils.NestedCosmosResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterNodePool]]
 }
 
-func (h *nodePoolsCRUD) Controllers(nodePoolName string) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (h *nodePoolsCRUD) Controllers(nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.ParentResourceID.String(),
 			h.ResourceType.Types[len(h.ResourceType.Types)-1],
 			nodePoolName,
 		)))
 
-	return NewControllerCRUD(h.ContainerClient, parentResourceID, api.NodePoolControllerResourceType)
+	return NewControllerCRUD(h.ContainerClient, parentResourceID, coreapi.NodePoolControllerResourceType)
 }
 
-func (h *nodePoolsCRUD) ManagementClusterContents(nodePoolName string) cosmosstorageutils.ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (h *nodePoolsCRUD) ManagementClusterContents(nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.ParentResourceID.String(),
 			h.ResourceType.Types[len(h.ResourceType.Types)-1],
 			nodePoolName,
 		)))
 
-	return cosmosstorageutils.NewCosmosResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent, cosmosstorageutils.GenericDocument[api.ManagementClusterContent]](
+	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent, cosmosstorageutils.GenericDocument[coreapi.ManagementClusterContent]](
 		h.ContainerClient,
 		parentResourceID,
-		api.NodePoolScopedManagementClusterContentResourceType,
+		coreapi.NodePoolScopedManagementClusterContentResourceType,
 	)
 }
 
 type SystemAdminCredentialRequestsCRUD interface {
-	cosmosstorageutils.ResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest]
+	cosmosstorageutils.ResourceCRUD[coreapi.SystemAdminCredentialRequest, *coreapi.SystemAdminCredentialRequest]
 	ControllerContainer
 }
 
 type systemAdminCredentialRequestsCRUD struct {
-	*cosmosstorageutils.NestedCosmosResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, cosmosstorageutils.GenericDocument[api.SystemAdminCredentialRequest]]
+	*cosmosstorageutils.NestedCosmosResourceCRUD[coreapi.SystemAdminCredentialRequest, *coreapi.SystemAdminCredentialRequest, cosmosstorageutils.GenericDocument[coreapi.SystemAdminCredentialRequest]]
 }
 
-func (h *systemAdminCredentialRequestsCRUD) Controllers(credentialRequestName string) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (h *systemAdminCredentialRequestsCRUD) Controllers(credentialRequestName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.ParentResourceID.String(),
 			h.ResourceType.Types[len(h.ResourceType.Types)-1],
 			credentialRequestName,
 		)))
 
-	return NewControllerCRUD(h.ContainerClient, parentResourceID, api.SystemAdminCredentialRequestControllerResourceType)
+	return NewControllerCRUD(h.ContainerClient, parentResourceID, coreapi.SystemAdminCredentialRequestControllerResourceType)
 }
 
 var _ SystemAdminCredentialRequestsCRUD = &systemAdminCredentialRequestsCRUD{}
 
 type SystemAdminCredentialRevocationsCRUD interface {
-	cosmosstorageutils.ResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation]
+	cosmosstorageutils.ResourceCRUD[coreapi.SystemAdminCredentialRevocation, *coreapi.SystemAdminCredentialRevocation]
 	ControllerContainer
 }
 
 type systemAdminCredentialRevocationsCRUD struct {
-	*cosmosstorageutils.NestedCosmosResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, cosmosstorageutils.GenericDocument[api.SystemAdminCredentialRevocation]]
+	*cosmosstorageutils.NestedCosmosResourceCRUD[coreapi.SystemAdminCredentialRevocation, *coreapi.SystemAdminCredentialRevocation, cosmosstorageutils.GenericDocument[coreapi.SystemAdminCredentialRevocation]]
 }
 
-func (h *systemAdminCredentialRevocationsCRUD) Controllers(revocationName string) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (h *systemAdminCredentialRevocationsCRUD) Controllers(revocationName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.ParentResourceID.String(),
 			h.ResourceType.Types[len(h.ResourceType.Types)-1],
 			revocationName,
 		)))
 
-	return NewControllerCRUD(h.ContainerClient, parentResourceID, api.SystemAdminCredentialRevocationControllerResourceType)
+	return NewControllerCRUD(h.ContainerClient, parentResourceID, coreapi.SystemAdminCredentialRevocationControllerResourceType)
 }
 
 var _ SystemAdminCredentialRevocationsCRUD = &systemAdminCredentialRevocationsCRUD{}
 
 func NewControllerCRUD(
-	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
+	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
 
-	return cosmosstorageutils.NewCosmosResourceCRUD[api.Controller, *api.Controller, cosmosstorageutils.GenericDocument[api.Controller]](containerClient, parentResourceID, resourceType)
+	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](containerClient, parentResourceID, resourceType)
 }

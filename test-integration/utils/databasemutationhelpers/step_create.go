@@ -23,17 +23,17 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
-type createStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
+type createStep[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
 	stepID StepID
 	key    CosmosCRUDKey
 
 	resources []*InternalAPIType
 }
 
-func newCreateStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](stepID StepID, stepDir fs.FS) (*createStep[InternalAPIType, InternalAPITypePointer], error) {
+func newCreateStep[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](stepID StepID, stepDir fs.FS) (*createStep[InternalAPIType, InternalAPITypePointer], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)

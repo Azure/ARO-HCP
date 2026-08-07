@@ -43,7 +43,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -127,7 +128,7 @@ type NonConformingClustersError struct {
 }
 
 func (e *NonConformingClustersError) Error() string {
-	return fmt.Sprintf("the following clusters did not have tags[%s]=%s: %v; we require end-to-end tests to opt into this tag to ensure that the control planes we provision during automated test runs have minimal footprints on our production infrastructure", api.TagClusterSizeOverride, api.MinimalControlPlanePodSizing, e.clusters)
+	return fmt.Sprintf("the following clusters did not have tags[%s]=%s: %v; we require end-to-end tests to opt into this tag to ensure that the control planes we provision during automated test runs have minimal footprints on our production infrastructure", metadataapi.TagClusterSizeOverride, coreapi.MinimalControlPlanePodSizing, e.clusters)
 }
 
 func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConfig *rest.Config) error {

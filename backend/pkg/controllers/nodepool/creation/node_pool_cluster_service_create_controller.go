@@ -26,7 +26,8 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -70,7 +71,7 @@ func NewNodePoolClusterServiceCreateController(
 	)
 }
 
-func (c *nodePoolClusterServiceCreateSyncer) needsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+func (c *nodePoolClusterServiceCreateSyncer) needsWork(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil &&
 		(nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0)
 }
@@ -119,7 +120,7 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 	// GET must target the same href POST would use: {clusterHref}/node_pools/{id} where id is
 	// lowercased ARM name (see ocm.BuildCSNodePool). We reconstruct it here:
 	csNodePoolHREF := ocm.GenerateAROHCPNodePoolHREF(clusterCSInternalID.ID(), strings.ToLower(key.HCPNodePoolName))
-	nodePoolCSInternalID, err := api.NewInternalID(csNodePoolHREF)
+	nodePoolCSInternalID, err := metadataapi.NewInternalID(csNodePoolHREF)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("build node pool internal ID for adoption lookup: %w", err))
 	}
@@ -161,7 +162,7 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 
 // findCSNodePool performs GetNodePool for the given Cluster Service node pool InternalID.
 // It returns (nil, nil) when CS responds with 404.
-func (c *nodePoolClusterServiceCreateSyncer) findCSNodePool(ctx context.Context, nodePoolInternalID api.InternalID) (*arohcpv1alpha1.NodePool, error) {
+func (c *nodePoolClusterServiceCreateSyncer) findCSNodePool(ctx context.Context, nodePoolInternalID metadataapi.InternalID) (*arohcpv1alpha1.NodePool, error) {
 	np, err := c.clustersServiceClient.GetNodePool(ctx, nodePoolInternalID)
 	if err != nil {
 		var ocmErr *ocmerrors.Error

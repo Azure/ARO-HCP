@@ -19,14 +19,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 type OperationState struct {
 	// Source is a name that identifies the source of the operation state.
-	Source            string                `json:"source"`
-	ProvisioningState arm.ProvisioningState `json:"provisioningState"`
-	Message           string                `json:"message"`
+	Source            string                    `json:"source"`
+	ProvisioningState coreapi.ProvisioningState `json:"provisioningState"`
+	Message           string                    `json:"message"`
 }
 
 // WithSource sets the source of the operation state.
@@ -36,7 +36,7 @@ func (s *OperationState) WithSource(source string) *OperationState {
 }
 
 // NewOperationState creates a new operation state with the given provisioning state and message, without a source.
-func NewOperationState(provisioningState arm.ProvisioningState, message string) *OperationState {
+func NewOperationState(provisioningState coreapi.ProvisioningState, message string) *OperationState {
 	return &OperationState{
 		ProvisioningState: provisioningState,
 		Message:           message,
@@ -46,16 +46,16 @@ func NewOperationState(provisioningState arm.ProvisioningState, message string) 
 // provisioningStatePriority is a logical merge order that decides what the most important state to return is.
 // For instance, if one check is succeeded, one is failed, and one is accepted, then failed is the most
 // reasonable state for the operation.
-var provisioningStatePriority = map[arm.ProvisioningState]int{
-	"":                                  -1, // causes an error
-	arm.ProvisioningStateFailed:         0,
-	arm.ProvisioningStateCanceled:       10,
-	arm.ProvisioningStateDeleting:       20,
-	arm.ProvisioningStateProvisioning:   30,
-	arm.ProvisioningStateAwaitingSecret: 35,
-	arm.ProvisioningStateUpdating:       40,
-	arm.ProvisioningStateAccepted:       50,
-	arm.ProvisioningStateSucceeded:      100,
+var provisioningStatePriority = map[coreapi.ProvisioningState]int{
+	"":                                      -1, // causes an error
+	coreapi.ProvisioningStateFailed:         0,
+	coreapi.ProvisioningStateCanceled:       10,
+	coreapi.ProvisioningStateDeleting:       20,
+	coreapi.ProvisioningStateProvisioning:   30,
+	coreapi.ProvisioningStateAwaitingSecret: 35,
+	coreapi.ProvisioningStateUpdating:       40,
+	coreapi.ProvisioningStateAccepted:       50,
+	coreapi.ProvisioningStateSucceeded:      100,
 }
 
 func CompareOperationState(lhs, rhs *OperationState) int {

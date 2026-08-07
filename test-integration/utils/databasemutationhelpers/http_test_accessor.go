@@ -25,7 +25,8 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -59,8 +60,8 @@ func NewVersionedHTTPTestAccessor(url, apiVersion string) *httpHTTPTestAccessor 
 		apiVersion: apiVersion,
 		headers: map[string]string{
 			"X-Ms-Arm-Resource-System-Data": "{}",
-			"X-Ms-Home-Tenant-Id":           api.TestTenantID,
-			"X-Ms-Identity-Url":             api.TestManagedIdentitiesDataPlaneIdentityURL,
+			"X-Ms-Home-Tenant-Id":           coreapitesting.TestTenantID,
+			"X-Ms-Identity-Url":             coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL,
 			"Content-Type":                  "application/json",
 		},
 	}
@@ -142,7 +143,7 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 	// The stored resource ID is .../providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/{id}
 	// but the API route expects .../providers/Microsoft.RedHatOpenShift/locations/{location}/hcpOperationStatuses/{id}
 	if len(a.apiVersion) != 0 {
-		opStatusSegment := "/" + api.OperationStatusResourceTypeName + "/"
+		opStatusSegment := "/" + coreapi.OperationStatusResourceTypeName + "/"
 		if idx := strings.Index(strings.ToLower(path), strings.ToLower(opStatusSegment)); idx >= 0 {
 			path = path[:idx] + "/locations/" + operationStatusLocation + path[idx:]
 		}

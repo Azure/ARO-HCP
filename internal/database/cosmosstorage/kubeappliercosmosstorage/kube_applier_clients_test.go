@@ -24,8 +24,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // fakeManagementClusterLister is the minimal in-memory ManagementClusterLister
@@ -33,30 +34,30 @@ import (
 // without an import cycle.
 type fakeManagementClusterLister struct {
 	mu    sync.Mutex
-	mcs   []*fleet.ManagementCluster
+	mcs   []*fleetapi.ManagementCluster
 	calls int // counts List() invocations so tests can assert the lister was hit
 	err   error
 }
 
-func (f *fakeManagementClusterLister) List(ctx context.Context) ([]*fleet.ManagementCluster, error) {
+func (f *fakeManagementClusterLister) List(ctx context.Context) ([]*fleetapi.ManagementCluster, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
 	if f.err != nil {
 		return nil, f.err
 	}
-	out := make([]*fleet.ManagementCluster, len(f.mcs))
+	out := make([]*fleetapi.ManagementCluster, len(f.mcs))
 	copy(out, f.mcs)
 	return out, nil
 }
 
-func newFakeMC(t *testing.T, stampIdentifier, containerName, consumerName string) *fleet.ManagementCluster {
+func newFakeMC(t *testing.T, stampIdentifier, containerName, consumerName string) *fleetapi.ManagementCluster {
 	t.Helper()
-	rid := api.Must(fleet.ToManagementClusterResourceID(stampIdentifier))
-	return &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
+	rid := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stampIdentifier))
+	return &fleetapi.ManagementCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
 		ResourceID:     rid,
-		Status: fleet.ManagementClusterStatus{
+		Status: fleetapi.ManagementClusterStatus{
 			KubeApplierCosmosContainerName: containerName,
 			MaestroConsumerName:            consumerName,
 		},
@@ -77,7 +78,7 @@ func TestKubeApplierDBClients_ForReturnsNilForUnknownMC(t *testing.T) {
 // counter goes up).
 func TestKubeApplierDBClients_ForUsesLister_ReturnsNilWhenMissing(t *testing.T) {
 	lister := &fakeManagementClusterLister{
-		mcs: []*fleet.ManagementCluster{newFakeMC(t, "present", "container-a", "mc-a")},
+		mcs: []*fleetapi.ManagementCluster{newFakeMC(t, "present", "container-a", "mc-a")},
 	}
 	clients := NewKubeApplierDBClients(nil, lister)
 

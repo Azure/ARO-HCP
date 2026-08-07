@@ -29,7 +29,7 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -104,7 +104,7 @@ func NewClusterClusterServiceUpdateDispatchSyncer(
 	}
 }
 
-func needsWork(cluster *api.HCPOpenShiftCluster) bool {
+func needsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
@@ -164,7 +164,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	}
 
 	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
-	serviceProviderCluster, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	serviceProviderCluster, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// We expect the service provider cluster to be created when the cluster exists. If it doesn't exist, we wait for the next sync.
 		logger.Info("service provider cluster not found, waiting")

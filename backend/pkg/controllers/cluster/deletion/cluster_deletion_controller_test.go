@@ -30,8 +30,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -48,8 +48,8 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 		HCPClusterName:    testClusterName,
 	}
 
-	readyForDeletionCluster := func(t *testing.T) *api.HCPOpenShiftCluster {
-		return newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+	readyForDeletionCluster := func(t *testing.T) *coreapi.HCPOpenShiftCluster {
+		return newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 			c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 			c.ServiceProviderProperties.ClusterServiceID = nil
@@ -70,7 +70,7 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name            string
-		existingCluster *api.HCPOpenShiftCluster
+		existingCluster *coreapi.HCPOpenShiftCluster
 		extraResources  []any
 		wantErr         bool
 		verifyDB        func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
@@ -87,14 +87,14 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			}),
 			verifyDB: verifyClusterStillExists,
 		},
 		{
 			name: "ClusterServiceID still set -- no-op",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 			}),
@@ -116,7 +116,7 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 			name:            "cluster still has maestro readonly bundles -- blocks",
 			existingCluster: readyForDeletionCluster(t),
 			extraResources: []any{
-				newTestSPC(t, api.MaestroBundleReferenceList{
+				newTestSPC(t, coreapi.MaestroBundleReferenceList{
 					{Name: "test-bundle"},
 				}),
 			},
@@ -154,7 +154,7 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "feature flag false -- no-op even when all delete conditions met",
-			existingCluster: newTestClusterWithOldDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithOldDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 				c.ServiceProviderProperties.ClusterServiceID = nil
@@ -181,14 +181,14 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 
 			mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 
-			clustersForLister := []*api.HCPOpenShiftCluster{}
+			clustersForLister := []*coreapi.HCPOpenShiftCluster{}
 			if tc.existingCluster != nil {
 				clustersForLister = append(clustersForLister, tc.existingCluster)
 			}
 
-			spcForLister := []*api.ServiceProviderCluster{}
+			spcForLister := []*coreapi.ServiceProviderCluster{}
 			for _, r := range tc.extraResources {
-				if spc, ok := r.(*api.ServiceProviderCluster); ok {
+				if spc, ok := r.(*coreapi.ServiceProviderCluster); ok {
 					spcForLister = append(spcForLister, spc)
 				}
 			}
@@ -220,7 +220,7 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 
 	testCases := []struct {
 		name    string
-		cluster *api.HCPOpenShiftCluster
+		cluster *coreapi.HCPOpenShiftCluster
 		want    bool
 	}{
 		{
@@ -235,14 +235,14 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 		},
 		{
 			name: "DeletionTimestamp set but no ClusterServiceDeletionTimestamp",
-			cluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			cluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 			}),
 			want: false,
 		},
 		{
 			name: "both timestamps set but ClusterServiceID not nil",
-			cluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			cluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 			}),
@@ -250,7 +250,7 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 		},
 		{
 			name: "all conditions met",
-			cluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			cluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime}
 				c.ServiceProviderProperties.ClusterServiceID = nil
@@ -267,147 +267,147 @@ func TestClusterDeletionController_NeedsWork(t *testing.T) {
 	}
 }
 
-func newTestNodePool(t *testing.T) *api.HCPOpenShiftClusterNodePool {
+func newTestNodePool(t *testing.T) *coreapi.HCPOpenShiftClusterNodePool {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/test-nodepool"))
-	return &api.HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	return &coreapi.HCPOpenShiftClusterNodePool{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: "test-nodepool",
-				Type: api.NodePoolResourceType.String(),
+				Type: coreapi.NodePoolResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		CosmosMetadata: arm.CosmosMetadata{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Platform: api.NodePoolPlatformProfile{
-				OSDisk: api.OSDiskProfile{
-					DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
-					DiskType:               api.OsDiskTypeManaged,
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			Platform: coreapi.NodePoolPlatformProfile{
+				OSDisk: coreapi.OSDiskProfile{
+					DiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,
+					DiskType:               metadataapi.OsDiskTypeManaged,
 				},
 			},
 		},
 	}
 }
 
-func newTestExternalAuth(t *testing.T) *api.HCPOpenShiftClusterExternalAuth {
+func newTestExternalAuth(t *testing.T) *coreapi.HCPOpenShiftClusterExternalAuth {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/externalAuths/test-auth"))
-	return &api.HCPOpenShiftClusterExternalAuth{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.HCPOpenShiftClusterExternalAuth{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		ProxyResource: arm.ProxyResource{
-			Resource: arm.Resource{
+		ProxyResource: coreapi.ProxyResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: "test-auth",
-				Type: api.ExternalAuthResourceType.String(),
+				Type: coreapi.ExternalAuthResourceType.String(),
 			},
 		},
 	}
 }
 
-func newTestSPC(t *testing.T, bundles api.MaestroBundleReferenceList) *api.ServiceProviderCluster {
+func newTestSPC(t *testing.T, bundles coreapi.MaestroBundleReferenceList) *coreapi.ServiceProviderCluster {
 	t.Helper()
-	spcResourceID := api.Must(azcorearm.ParseResourceID(
+	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/serviceProviderClusters/default"))
-	return &api.ServiceProviderCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   spcResourceID,
 			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
 		},
-		Status: api.ServiceProviderClusterStatus{
+		Status: coreapi.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: bundles,
 		},
 	}
 }
 
-func newTestClusterScopedManagementClusterContent(t *testing.T, name string) *api.ManagementClusterContent {
+func newTestClusterScopedManagementClusterContent(t *testing.T, name string) *coreapi.ManagementClusterContent {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/managementClusterContents/" + name))
-	return &api.ManagementClusterContent{
-		CosmosMetadata: api.CosmosMetadata{
+	return &coreapi.ManagementClusterContent{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
 
-func newTestClusterController(t *testing.T, name string) *api.Controller {
+func newTestClusterController(t *testing.T, name string) *coreapi.Controller {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/hcpOpenShiftControllers/" + name))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		ExternalID: api.Must(azcorearm.ParseResourceID(
+		ExternalID: metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName)),
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
 }
 
-func newTestNodePoolController(t *testing.T, name string) *api.Controller {
+func newTestNodePoolController(t *testing.T, name string) *coreapi.Controller {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/test-nodepool" +
 			"/hcpOpenShiftControllers/" + name))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
 }
 
-func newTestExternalAuthController(t *testing.T, name string) *api.Controller {
+func newTestExternalAuthController(t *testing.T, name string) *coreapi.Controller {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/externalAuths/test-auth" +
 			"/hcpOpenShiftControllers/" + name))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}

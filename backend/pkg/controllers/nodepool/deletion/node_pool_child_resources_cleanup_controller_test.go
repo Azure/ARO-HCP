@@ -29,9 +29,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
@@ -39,114 +39,114 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func newTestManagementClusterContent(t *testing.T, name string) *api.ManagementClusterContent {
+func newTestManagementClusterContent(t *testing.T, name string) *coreapi.ManagementClusterContent {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/" + testNodePoolName +
 			"/managementClusterContents/" + name))
-	return &api.ManagementClusterContent{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
+	return &coreapi.ManagementClusterContent{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 	}
 }
 
-func newTestNodePoolController(t *testing.T, name string) *api.Controller {
+func newTestNodePoolController(t *testing.T, name string) *coreapi.Controller {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/" + testNodePoolName +
 			"/hcpOpenShiftControllers/" + name))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
-		ExternalID: api.Must(azcorearm.ParseResourceID(
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
+		ExternalID: metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 				"/nodePools/" + testNodePoolName)),
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
 }
 
 func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
-	managementClusterResourceID := api.Must(azcorearm.ParseResourceID(
+	managementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
-	unregisteredManagementClusterResourceID := api.Must(azcorearm.ParseResourceID(
+	unregisteredManagementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/unregistered"))
 
-	newTestSPCWithManagementCluster := func(mcResourceID *azcorearm.ResourceID) *api.ServiceProviderCluster {
-		spcResourceID := api.Must(azcorearm.ParseResourceID(
+	newTestSPCWithManagementCluster := func(mcResourceID *azcorearm.ResourceID) *coreapi.ServiceProviderCluster {
+		spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 				"/serviceProviderClusters/default"))
-		return &api.ServiceProviderCluster{
-			CosmosMetadata: arm.CosmosMetadata{
+		return &coreapi.ServiceProviderCluster{
+			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   spcResourceID,
 				PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
 			},
-			Status: api.ServiceProviderClusterStatus{
+			Status: coreapi.ServiceProviderClusterStatus{
 				ManagementClusterResourceID: mcResourceID,
 			},
 		}
 	}
-	newTestNodePoolScopedReadDesire := func(name string) *kubeapplier.ReadDesire {
-		resourceID := api.Must(azcorearm.ParseResourceID(
-			kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
+	newTestNodePoolScopedReadDesire := func(name string) *kubeapplierapi.ReadDesire {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, name)))
-		return &kubeapplier.ReadDesire{
-			CosmosMetadata: api.CosmosMetadata{
+		return &kubeapplierapi.ReadDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   resourceID,
 				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
 			},
-			Spec: kubeapplier.ReadDesireSpec{
+			Spec: kubeapplierapi.ReadDesireSpec{
 				ManagementCluster: managementClusterResourceID,
 			},
 		}
 	}
-	newTestClusterScopedReadDesire := func(name string) *kubeapplier.ReadDesire {
-		resourceID := api.Must(azcorearm.ParseResourceID(
-			kubeapplier.ToClusterScopedReadDesireResourceIDString(
+	newTestClusterScopedReadDesire := func(name string) *kubeapplierapi.ReadDesire {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, name)))
-		return &kubeapplier.ReadDesire{
-			CosmosMetadata: api.CosmosMetadata{
+		return &kubeapplierapi.ReadDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   resourceID,
 				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
 			},
-			Spec: kubeapplier.ReadDesireSpec{
+			Spec: kubeapplierapi.ReadDesireSpec{
 				ManagementCluster: managementClusterResourceID,
 			},
 		}
 	}
-	newTestClusterScopedApplyDesire := func(name string) *kubeapplier.ApplyDesire {
-		resourceID := api.Must(azcorearm.ParseResourceID(
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+	newTestClusterScopedApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, name)))
-		return &kubeapplier.ApplyDesire{
-			CosmosMetadata: api.CosmosMetadata{
+		return &kubeapplierapi.ApplyDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   resourceID,
 				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
 			},
-			Spec: kubeapplier.ApplyDesireSpec{
+			Spec: kubeapplierapi.ApplyDesireSpec{
 				ManagementCluster: managementClusterResourceID,
 			},
 		}
 	}
-	newTestNodePoolScopedApplyDesire := func(name string) *kubeapplier.ApplyDesire {
-		resourceID := api.Must(azcorearm.ParseResourceID(
-			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
+	newTestNodePoolScopedApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, name)))
-		return &kubeapplier.ApplyDesire{
-			CosmosMetadata: api.CosmosMetadata{
+		return &kubeapplierapi.ApplyDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   resourceID,
 				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
 			},
-			Spec: kubeapplier.ApplyDesireSpec{
+			Spec: kubeapplierapi.ApplyDesireSpec{
 				ManagementCluster: managementClusterResourceID,
 			},
 		}
@@ -159,7 +159,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		t.Helper()
 		client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
 		require.NotNil(t, client)
-		nodePoolResourceID := api.Must(azcorearm.ParseResourceID(
+		nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
@@ -184,7 +184,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		t.Helper()
 		client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
 		require.NotNil(t, client)
-		resourceID := api.Must(azcorearm.ParseResourceID(resourceIDString))
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDString))
 		untypedCRUD, err := client.UntypedCRUD(*resourceID.Parent)
 		require.NoError(t, err)
 		iter, err := untypedCRUD.ListRecursive(ctx, nil)
@@ -200,7 +200,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 
 	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
-	readyToDeleteNodePoolOptsFunc := func(np *api.HCPOpenShiftClusterNodePool) {
+	readyToDeleteNodePoolOptsFunc := func(np *coreapi.HCPOpenShiftClusterNodePool) {
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 		np.ServiceProviderProperties.ClusterServiceID = nil
@@ -215,7 +215,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name               string
-		existingNodePool   *api.HCPOpenShiftClusterNodePool
+		existingNodePool   *coreapi.HCPOpenShiftClusterNodePool
 		childResources     []any
 		kubeApplierDesires []any
 		wantErr            bool
@@ -234,7 +234,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when no ClusterServiceDeletionTimestamp is set performs a no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = nil
 				np.ServiceProviderProperties.ClusterServiceID = nil
@@ -249,7 +249,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is set performs a no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
@@ -297,7 +297,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 
 				var controllerCount int
 				for _, child := range childIterator.Items(ctx) {
-					if strings.EqualFold(child.ResourceType, api.NodePoolControllerResourceType.String()) {
+					if strings.EqualFold(child.ResourceType, coreapi.NodePoolControllerResourceType.String()) {
 						controllerCount++
 					}
 				}
@@ -320,7 +320,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				var controllerCount int
 				for _, child := range childIterator.Items(ctx) {
 					remainingCount++
-					if strings.EqualFold(child.ResourceType, api.NodePoolControllerResourceType.String()) {
+					if strings.EqualFold(child.ResourceType, coreapi.NodePoolControllerResourceType.String()) {
 						controllerCount++
 					}
 				}
@@ -339,7 +339,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				spnpCRUD := db.ServiceProviderNodePools(
 					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
-				_, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				_, err := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected SPNP to be deleted")
 			},
 		},
@@ -353,20 +353,20 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				spnpCRUD := db.ServiceProviderNodePools(
 					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
-				_, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				_, err := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected SPNP to be deleted")
 			},
 		},
 		{
 			name:             "when there is a child ServiceProviderNodePool and it has Maestro bundle references it does not delete it",
 			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
-			childResources: []any{newTestSPNP(t, api.MaestroBundleReferenceList{
+			childResources: []any{newTestSPNP(t, coreapi.MaestroBundleReferenceList{
 				{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
 			})},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				spnpCRUD := db.ServiceProviderNodePools(
 					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
-				_, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				_, err := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 				require.NoError(t, err, "expected SPNP to still exist")
 			},
 		},
@@ -375,7 +375,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
 			childResources: []any{
 				newTestManagementClusterContent(t, "gate-mcc"),
-				newTestSPNP(t, api.MaestroBundleReferenceList{
+				newTestSPNP(t, coreapi.MaestroBundleReferenceList{
 					{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
 				}),
 			},
@@ -387,7 +387,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 
 				spnpCRUD := db.ServiceProviderNodePools(
 					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
-				_, err = spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				_, err = spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 				require.NoError(t, err, "expected SPNP to still exist")
 			},
 		},
@@ -403,7 +403,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 
 				spnpCRUD := db.ServiceProviderNodePools(
 					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
-				_, err = spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				_, err = spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 				require.NoError(t, err, "expected SPNP to still exist")
 			},
 		},
@@ -428,7 +428,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				spnpCRUD := db.ServiceProviderNodePools(
 					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
-				_, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				_, err := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected SPNP to be deleted")
 
 				require.Nil(t, kubeApplierDBClients.For(ctx, unregisteredManagementClusterResourceID))
@@ -445,7 +445,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				spnpCRUD := db.ServiceProviderNodePools(
 					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
-				_, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				_, err := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 				require.True(t, cosmosstorageutils.IsNotFoundError(err), "expected SPNP to be deleted")
 
 				assertNoNodePoolScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
@@ -466,10 +466,10 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, _ *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				assertNoNodePoolScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
 				assertClusterScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
-					kubeapplier.ToClusterScopedReadDesireResourceIDString(
+					kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 						testSubscriptionID, testResourceGroupName, testClusterName, "readonly-hostedcluster"))
 				assertClusterScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
-					kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+					kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 						testSubscriptionID, testResourceGroupName, testClusterName, "apply-example"))
 			},
 		},
@@ -492,7 +492,7 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 			mockKubeApplierDBClients.Register(managementClusterResourceID, mockKubeApplierClient)
 
-			nodePoolsForLister := []*api.HCPOpenShiftClusterNodePool{}
+			nodePoolsForLister := []*coreapi.HCPOpenShiftClusterNodePool{}
 			if tc.existingNodePool != nil {
 				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
 			}

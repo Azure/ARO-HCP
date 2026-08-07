@@ -28,14 +28,14 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type OperationSynchronizer interface {
-	ShouldProcess(ctx context.Context, operation *api.Operation) bool
+	ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool
 	SynchronizeOperation(ctx context.Context, key OperationKey) error
 }
 
@@ -97,15 +97,15 @@ func NewGenericOperationController(
 	return c
 }
 
-func (c *genericOperation) controllerCRUD(key OperationKey) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
+func (c *genericOperation) controllerCRUD(key OperationKey) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
 	parentResourceID := key.GetParentResourceID()
 	sub := parentResourceID.SubscriptionID
 	rg := parentResourceID.ResourceGroupName
 
 	switch {
-	case strings.EqualFold(parentResourceID.ResourceType.String(), api.NodePoolResourceType.String()):
+	case strings.EqualFold(parentResourceID.ResourceType.String(), coreapi.NodePoolResourceType.String()):
 		return c.resourcesDBClient.HCPClusters(sub, rg).NodePools(parentResourceID.Parent.Name).Controllers(parentResourceID.Name)
-	case strings.EqualFold(parentResourceID.ResourceType.String(), api.ExternalAuthResourceType.String()):
+	case strings.EqualFold(parentResourceID.ResourceType.String(), coreapi.ExternalAuthResourceType.String()):
 		return c.resourcesDBClient.HCPClusters(sub, rg).ExternalAuth(parentResourceID.Parent.Name).Controllers(parentResourceID.Name)
 	default:
 		return c.resourcesDBClient.HCPClusters(sub, rg).Controllers(parentResourceID.Name)
@@ -198,7 +198,7 @@ func (c *genericOperation) enqueueAdd(newObj interface{}) {
 	ctx := logr.NewContext(context.TODO(), logger)
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 
-	castObj := newObj.(*api.Operation)
+	castObj := newObj.(*coreapi.Operation)
 	if castObj.ExternalID == nil {
 		return
 	}

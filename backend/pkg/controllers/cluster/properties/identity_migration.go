@@ -22,8 +22,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -74,7 +73,7 @@ func NewIdentityMigrationController(
 	return controller
 }
 
-func (c *identityMigrationSyncer) NeedsWork(ctx context.Context, existingCluster *api.HCPOpenShiftCluster) bool {
+func (c *identityMigrationSyncer) NeedsWork(ctx context.Context, existingCluster *coreapi.HCPOpenShiftCluster) bool {
 	// Check if we have a cluster service ID to query
 	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil || len(existingCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return false
@@ -131,7 +130,7 @@ func (c *identityMigrationSyncer) NeedsWork(ctx context.Context, existingCluster
 
 // needsWorkForIdentityKey returns true when the identity at key is missing or has empty
 // client/principal IDs, signalling that the migration controller should fill it in.
-func needsWorkForIdentityKey(userAssignedIdentities map[string]*arm.UserAssignedIdentity, key string) bool {
+func needsWorkForIdentityKey(userAssignedIdentities map[string]*coreapi.UserAssignedIdentity, key string) bool {
 	identity, ok := userAssignedIdentities[key]
 	if !ok || identity == nil {
 		return true
@@ -195,7 +194,7 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 	// Only assign the Identity.UserAssignedIdentities from the converted cluster
 	replacement := existingCluster.DeepCopy()
 	if replacement.Identity == nil {
-		replacement.Identity = &arm.ManagedServiceIdentity{}
+		replacement.Identity = &coreapi.ManagedServiceIdentity{}
 	}
 	replacement.Identity.UserAssignedIdentities = userAssignedIdentities
 

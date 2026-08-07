@@ -30,30 +30,30 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func newTestExternalAuthController(t *testing.T, name string) *api.Controller {
+func newTestExternalAuthController(t *testing.T, name string) *coreapi.Controller {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/externalAuths/" + testExternalAuthName +
 			"/hcpOpenShiftControllers/" + name))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
-		ExternalID: api.Must(azcorearm.ParseResourceID(
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
+		ExternalID: metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 				"/externalAuths/" + testExternalAuthName)),
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
@@ -61,7 +61,7 @@ func newTestExternalAuthController(t *testing.T, name string) *api.Controller {
 
 func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
-	readyToDeleteExternalAuthOptsFunc := func(ea *api.HCPOpenShiftClusterExternalAuth) {
+	readyToDeleteExternalAuthOptsFunc := func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 		ea.ServiceProviderProperties.ClusterServiceID = nil
@@ -72,13 +72,13 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	// non-controller children, so we store a raw TypedDocument directly.
 	storeNonControllerChild := func(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient, name string) {
 		t.Helper()
-		resourceID := api.Must(azcorearm.ParseResourceID(
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 				"/externalAuths/" + testExternalAuthName +
 				"/nonControllerChildType/" + name))
-		cosmosID, err := arm.ResourceIDToCosmosID(resourceID)
+		cosmosID, err := coreapi.ResourceIDToCosmosID(resourceID)
 		require.NoError(t, err)
 		doc := cosmosstorageutils.TypedDocument{
 			BaseDocument: cosmosstorageutils.BaseDocument{ID: cosmosID},
@@ -99,7 +99,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                    string
-		existingExternalAuth    *api.HCPOpenShiftClusterExternalAuth
+		existingExternalAuth    *coreapi.HCPOpenShiftClusterExternalAuth
 		childResources          []any
 		extraSetupDBTestingMock func(t *testing.T, db *corecosmosstoragetesting.MockResourcesDBClient)
 		wantErr                 bool
@@ -118,7 +118,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when no ClusterServiceDeletionTimestamp is set performs a no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = nil
 				ea.ServiceProviderProperties.ClusterServiceID = nil
@@ -133,7 +133,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is set performs a no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
@@ -183,7 +183,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 
 				var controllerCount int
 				for _, child := range childIterator.Items(ctx) {
-					if strings.EqualFold(child.ResourceType, api.ExternalAuthControllerResourceType.String()) {
+					if strings.EqualFold(child.ResourceType, coreapi.ExternalAuthControllerResourceType.String()) {
 						controllerCount++
 					}
 				}
@@ -209,7 +209,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				var controllerCount int
 				for _, child := range childIterator.Items(ctx) {
 					remainingCount++
-					if strings.EqualFold(child.ResourceType, api.ExternalAuthControllerResourceType.String()) {
+					if strings.EqualFold(child.ResourceType, coreapi.ExternalAuthControllerResourceType.String()) {
 						controllerCount++
 					}
 				}
@@ -252,7 +252,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				tc.extraSetupDBTestingMock(t, mockResourcesDBClient)
 			}
 
-			externalAuthsForLister := []*api.HCPOpenShiftClusterExternalAuth{}
+			externalAuthsForLister := []*coreapi.HCPOpenShiftClusterExternalAuth{}
 			if tc.existingExternalAuth != nil {
 				externalAuthsForLister = append(externalAuthsForLister, tc.existingExternalAuth)
 			}

@@ -24,9 +24,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -55,8 +54,8 @@ func NewMockFleetDBClient() *MockFleetDBClient {
 
 // NewMockFleetDBClientWithResources creates a MockFleetDBClient and populates
 // it with the given resources. Supported types:
-//   - *fleet.Stamp
-//   - *fleet.ManagementCluster
+//   - *fleetapi.Stamp
+//   - *fleetapi.ManagementCluster
 func NewMockFleetDBClientWithResources(ctx context.Context, resources []any) (*MockFleetDBClient, error) {
 	mock := NewMockFleetDBClient()
 	for i, r := range resources {
@@ -69,16 +68,16 @@ func NewMockFleetDBClientWithResources(ctx context.Context, resources []any) (*M
 
 func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error {
 	switch r := resource.(type) {
-	case *fleet.Stamp:
+	case *fleetapi.Stamp:
 		return m.addStamp(ctx, r)
-	case *fleet.ManagementCluster:
+	case *fleetapi.ManagementCluster:
 		return m.addManagementCluster(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type for MockFleetDBClient: %T", resource)
 	}
 }
 
-func (m *MockFleetDBClient) addStamp(ctx context.Context, stamp *fleet.Stamp) error {
+func (m *MockFleetDBClient) addStamp(ctx context.Context, stamp *fleetapi.Stamp) error {
 	stampIdentifier := stamp.GetStampIdentifier()
 	if len(stampIdentifier) == 0 {
 		return fmt.Errorf("stamp has empty stamp identifier")
@@ -88,7 +87,7 @@ func (m *MockFleetDBClient) addStamp(ctx context.Context, stamp *fleet.Stamp) er
 	return err
 }
 
-func (m *MockFleetDBClient) addManagementCluster(ctx context.Context, mc *fleet.ManagementCluster) error {
+func (m *MockFleetDBClient) addManagementCluster(ctx context.Context, mc *fleetapi.ManagementCluster) error {
 	stampIdentifier := mc.GetStampIdentifier()
 	if len(stampIdentifier) == 0 {
 		return fmt.Errorf("management cluster has empty stamp identifier")
@@ -173,7 +172,7 @@ func (m *MockFleetDBClient) GetAllDocuments() map[string]json.RawMessage {
 // that mirrors fleetResourceCRUD. Fleet resources live outside the subscription
 // hierarchy (e.g. /providers/Microsoft.RedHatOpenShift/stamps/{id}), so the
 // standard subscription-scoped corecosmosstoragetesting.MockResourceCRUD path logic does not apply.
-func newMockFleetResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
+func newMockFleetResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
 	client corecosmosstoragetesting.MockDocumentStore, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType,
 ) *corecosmosstoragetesting.MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 	m := corecosmosstoragetesting.NewMockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType](client, parentResourceID, resourceType)
@@ -202,8 +201,8 @@ func newMockFleetResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.Co
 // --- FleetDBClient implementation ---
 
 func (m *MockFleetDBClient) Stamps() fleetcosmosstorage.StampsCRUD {
-	inner := newMockFleetResourceCRUD[fleet.Stamp, *fleet.Stamp, cosmosstorageutils.GenericDocument[fleet.Stamp]](
-		m, nil, fleet.StampResourceType,
+	inner := newMockFleetResourceCRUD[fleetapi.Stamp, *fleetapi.Stamp, cosmosstorageutils.GenericDocument[fleetapi.Stamp]](
+		m, nil, fleetapi.StampResourceType,
 	)
 	return &mockStampsCRUD{
 		ValidatingResourceCRUD: cosmosstorageutils.NewValidatingCRUD(inner,
@@ -221,17 +220,17 @@ func (m *MockFleetDBClient) GlobalListers() fleetcosmosstorage.FleetGlobalLister
 // --- StampsCRUD ---
 
 type mockStampsCRUD struct {
-	cosmosstorageutils.ValidatingResourceCRUD[fleet.Stamp, *fleet.Stamp]
+	cosmosstorageutils.ValidatingResourceCRUD[fleetapi.Stamp, *fleetapi.Stamp]
 	store *MockFleetDBClient
 }
 
 func (s *mockStampsCRUD) ManagementClusters(stampIdentifier string) fleetcosmosstorage.ManagementClustersCRUD {
-	parentResourceID, err := fleet.ToStampResourceID(stampIdentifier)
+	parentResourceID, err := fleetapi.ToStampResourceID(stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", stampIdentifier, err))
 	}
-	inner := newMockFleetResourceCRUD[fleet.ManagementCluster, *fleet.ManagementCluster, cosmosstorageutils.GenericDocument[fleet.ManagementCluster]](
-		s.store, parentResourceID, fleet.ManagementClusterResourceType,
+	inner := newMockFleetResourceCRUD[fleetapi.ManagementCluster, *fleetapi.ManagementCluster, cosmosstorageutils.GenericDocument[fleetapi.ManagementCluster]](
+		s.store, parentResourceID, fleetapi.ManagementClusterResourceType,
 	)
 	return &mockManagementClustersCRUD{
 		ValidatingResourceCRUD: cosmosstorageutils.NewValidatingCRUD(inner,
@@ -246,18 +245,18 @@ func (s *mockStampsCRUD) ManagementClusters(stampIdentifier string) fleetcosmoss
 // --- ManagementClustersCRUD ---
 
 type mockManagementClustersCRUD struct {
-	cosmosstorageutils.ValidatingResourceCRUD[fleet.ManagementCluster, *fleet.ManagementCluster]
+	cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ManagementCluster, *fleetapi.ManagementCluster]
 	store           *MockFleetDBClient
 	stampIdentifier string
 }
 
-func (m *mockManagementClustersCRUD) Controllers() cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
-	mcResourceID, err := fleet.ToManagementClusterResourceID(m.stampIdentifier)
+func (m *mockManagementClustersCRUD) Controllers() cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
+	mcResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
-	return newMockFleetResourceCRUD[api.Controller, *api.Controller, cosmosstorageutils.GenericDocument[api.Controller]](
-		m.store, mcResourceID, fleet.ManagementClusterControllerResourceType,
+	return newMockFleetResourceCRUD[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](
+		m.store, mcResourceID, fleetapi.ManagementClusterControllerResourceType,
 	)
 }
 
@@ -269,16 +268,16 @@ type mockFleetGlobalListers struct {
 
 var _ fleetcosmosstorage.FleetGlobalListers = &mockFleetGlobalListers{}
 
-func (g *mockFleetGlobalListers) Stamps() cosmosstorageutils.GlobalLister[fleet.Stamp] {
-	return corecosmosstoragetesting.NewMockGlobalLister[fleet.Stamp, cosmosstorageutils.GenericDocument[fleet.Stamp]](
+func (g *mockFleetGlobalListers) Stamps() cosmosstorageutils.GlobalLister[fleetapi.Stamp] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.Stamp, cosmosstorageutils.GenericDocument[fleetapi.Stamp]](
 		g.client,
-		[]azcorearm.ResourceType{fleet.StampResourceType},
+		[]azcorearm.ResourceType{fleetapi.StampResourceType},
 	)
 }
 
-func (g *mockFleetGlobalListers) ManagementClusters() cosmosstorageutils.GlobalLister[fleet.ManagementCluster] {
-	return corecosmosstoragetesting.NewMockGlobalLister[fleet.ManagementCluster, cosmosstorageutils.GenericDocument[fleet.ManagementCluster]](
+func (g *mockFleetGlobalListers) ManagementClusters() cosmosstorageutils.GlobalLister[fleetapi.ManagementCluster] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.ManagementCluster, cosmosstorageutils.GenericDocument[fleetapi.ManagementCluster]](
 		g.client,
-		[]azcorearm.ResourceType{fleet.ManagementClusterResourceType},
+		[]azcorearm.ResourceType{fleetapi.ManagementClusterResourceType},
 	)
 }

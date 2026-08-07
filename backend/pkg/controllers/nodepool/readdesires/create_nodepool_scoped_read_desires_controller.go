@@ -23,8 +23,8 @@ import (
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -133,7 +133,7 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 
 	target := nodePoolTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix, existingNodePool.ID.Name)
 	desired := controllerutils.BuildReadDesire(
-		kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
+		kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
 			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName,
 			readDesireNameReadonlyNodePool,
 		),
@@ -174,7 +174,7 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 // backend uses for the NodePool mirror. Lowercase form of the existing
 // MaestroBundleInternalName so the downstream ManagementClusterContent
 // document path stays stable.
-var readDesireNameReadonlyNodePool = strings.ToLower(string(api.MaestroBundleInternalNameReadonlyHypershiftNodePool))
+var readDesireNameReadonlyNodePool = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftNodePool))
 
 // nodePoolTarget builds the ResourceReference that points at the
 // nodepool's NodePool object in the management cluster. The naming rules
@@ -182,8 +182,8 @@ var readDesireNameReadonlyNodePool = strings.ToLower(string(api.MaestroBundleInt
 // "<csClusterDomainPrefix>-<csNodePoolID>") match what CS itself uses;
 // see createNodePoolScopedMaestroReadonlyBundlesSyncer for the original
 // derivation.
-func nodePoolTarget(envIdentifier, csClusterID, csClusterDomainPrefix, csNodePoolID string) kubeapplier.ResourceReference {
-	return kubeapplier.ResourceReference{
+func nodePoolTarget(envIdentifier, csClusterID, csClusterDomainPrefix, csNodePoolID string) kubeapplierapi.ResourceReference {
+	return kubeapplierapi.ResourceReference{
 		Group:     hsv1beta1.SchemeGroupVersion.Group,
 		Version:   hsv1beta1.SchemeGroupVersion.Version,
 		Resource:  "nodepools",

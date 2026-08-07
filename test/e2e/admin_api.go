@@ -24,7 +24,7 @@ import (
 
 	"k8s.io/client-go/rest"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -91,7 +91,7 @@ var _ = Describe("SRE", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", engineeringClusterName)
 
-			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", api.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
+			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
 
 			// commonVerifiers are run for both aro-sre-pso and aro-sre-csa access levels.
 			// They cover actual data access smoke tests and SSAR-based read permission
@@ -323,7 +323,7 @@ var _ = Describe("SRE", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create worker nodepool for serial console test")
 
-			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", api.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
+			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
 
 			By("resolving current Azure identity")
 			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
@@ -432,7 +432,7 @@ var _ = Describe("SRE", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create worker nodepool for boot diagnostics test")
 
-			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", api.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
+			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
 
 			By("resolving current Azure identity")
 			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)

@@ -20,15 +20,16 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // NewInitialManagementClusterContent returns a new ManagementClusterContent with
 // the given full managementClusterContents ARM resource ID.
 // The returned value can be used to consistently initialize a new ManagementClusterContent
-func NewInitialManagementClusterContent(managementClusterContentResourceID *azcorearm.ResourceID) *api.ManagementClusterContent {
-	return &api.ManagementClusterContent{
-		CosmosMetadata: api.CosmosMetadata{
+func NewInitialManagementClusterContent(managementClusterContentResourceID *azcorearm.ResourceID) *coreapi.ManagementClusterContent {
+	return &coreapi.ManagementClusterContent{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   managementClusterContentResourceID,
 			PartitionKey: strings.ToLower(managementClusterContentResourceID.SubscriptionID),
 		},
@@ -38,6 +39,6 @@ func NewInitialManagementClusterContent(managementClusterContentResourceID *azco
 // ManagementClusterContentResourceIDFromParentResourceID returns the resource ID for the
 // ManagementClusterContent nested under parentResourceID with the given
 // maestro bundle internal name.
-func ManagementClusterContentResourceIDFromParentResourceID(parentResourceID *azcorearm.ResourceID, maestroBundleInternalName api.MaestroBundleInternalName) *azcorearm.ResourceID {
-	return api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", parentResourceID.String(), api.ManagementClusterContentResourceTypeName, maestroBundleInternalName)))
+func ManagementClusterContentResourceIDFromParentResourceID(parentResourceID *azcorearm.ResourceID, maestroBundleInternalName coreapi.MaestroBundleInternalName) *azcorearm.ResourceID {
+	return metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", parentResourceID.String(), coreapi.ManagementClusterContentResourceTypeName, maestroBundleInternalName)))
 }

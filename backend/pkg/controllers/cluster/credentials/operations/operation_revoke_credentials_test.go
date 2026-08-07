@@ -28,8 +28,7 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -39,27 +38,29 @@ import (
 func TestOperationRevokeCredentials_ShouldProcess(t *testing.T) {
 	tests := []struct {
 		name              string
-		operationOverride func(*api.Operation)
+		operationOverride func(*coreapi.Operation)
 		expectedResult    bool
 	}{
 		{
 			name:              "Deleting status should be processed",
-			operationOverride: func(o *api.Operation) { o.Status = arm.ProvisioningStateDeleting },
+			operationOverride: func(o *coreapi.Operation) { o.Status = coreapi.ProvisioningStateDeleting },
 			expectedResult:    true,
 		},
 		{
 			name:              "Terminal ProvisioningState should not be processed",
-			operationOverride: func(o *api.Operation) { o.Status = arm.ProvisioningStateCanceled },
+			operationOverride: func(o *coreapi.Operation) { o.Status = coreapi.ProvisioningStateCanceled },
 			expectedResult:    false,
 		},
 		{
-			name:              "Wrong operation request type should not be processed",
-			operationOverride: func(o *api.Operation) { o.Request = cosmosstorageutils.OperationRequestSystemAdminCredentialRequest },
-			expectedResult:    false,
+			name: "Wrong operation request type should not be processed",
+			operationOverride: func(o *coreapi.Operation) {
+				o.Request = cosmosstorageutils.OperationRequestSystemAdminCredentialRequest
+			},
+			expectedResult: false,
 		},
 		{
 			name:              "ProvisioningStateAccepted should not be processed",
-			operationOverride: func(o *api.Operation) { o.Status = arm.ProvisioningStateAccepted },
+			operationOverride: func(o *coreapi.Operation) { o.Status = coreapi.ProvisioningStateAccepted },
 			expectedResult:    false,
 		},
 	}
@@ -71,7 +72,7 @@ func TestOperationRevokeCredentials_ShouldProcess(t *testing.T) {
 
 			fixture := operationtesting.NewClusterTestFixture()
 			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation)
-			operation.Status = arm.ProvisioningStateDeleting
+			operation.Status = coreapi.ProvisioningStateDeleting
 			if tt.operationOverride != nil {
 				tt.operationOverride(operation)
 			}
@@ -86,7 +87,7 @@ func TestOperationRevokeCredentials_ShouldProcess(t *testing.T) {
 func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 	tests := []struct {
 		name                         string
-		operationOverride            func(*api.Operation)
+		operationOverride            func(*coreapi.Operation)
 		breakGlassCredentialStatuses []cmv1.BreakGlassCredentialStatus
 		revokeCredentialsOperationID string
 		expectError                  bool
@@ -102,7 +103,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
@@ -121,7 +122,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
@@ -141,7 +142,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateDeleting, op.Status)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
@@ -159,7 +160,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
@@ -175,7 +176,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 				assert.Nil(t, op.Error)
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
@@ -192,7 +193,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status) // no state change
+				assert.Equal(t, coreapi.ProvisioningStateDeleting, op.Status) // no state change
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
@@ -201,14 +202,14 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name:                         "ShouldProcess returns false for terminal status and no state change occurs",
-			operationOverride:            func(o *api.Operation) { o.Status = arm.ProvisioningStateSucceeded },
+			operationOverride:            func(o *coreapi.Operation) { o.Status = coreapi.ProvisioningStateSucceeded },
 			revokeCredentialsOperationID: operationtesting.TestOperationName,
 			expectError:                  false,
 			expectCSMockCalled:           false,
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status) // no state change
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status) // no state change
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
@@ -228,7 +229,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			cluster := fixture.NewCluster(nil)
 			cluster.ServiceProviderProperties.RevokeCredentialsOperationID = tt.revokeCredentialsOperationID
 			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation)
-			operation.Status = arm.ProvisioningStateDeleting
+			operation.Status = coreapi.ProvisioningStateDeleting
 			if tt.operationOverride != nil {
 				tt.operationOverride(operation)
 			}

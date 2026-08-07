@@ -34,8 +34,8 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -53,12 +53,12 @@ const (
 )
 
 func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
-	csID := api.Must(api.NewInternalID(testNodePoolCSIDStr))
+	csID := metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr))
 
-	defaultExistingCSNodePool := api.Must(arohcpv1alpha1.NewNodePool().Build())
+	defaultExistingCSNodePool := metadataapi.Must(arohcpv1alpha1.NewNodePool().Build())
 
-	newNodePoolWithConfigDiff := func() *api.HCPOpenShiftClusterNodePool {
-		return newTestNodePool(func(np *api.HCPOpenShiftClusterNodePool) {
+	newNodePoolWithConfigDiff := func() *coreapi.HCPOpenShiftClusterNodePool {
+		return newTestNodePool(func(np *coreapi.HCPOpenShiftClusterNodePool) {
 			np.Properties.Replicas = 5
 			np.Properties.Labels = map[string]string{"env": "prod"}
 		})
@@ -90,7 +90,7 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name               string
-		existingNodePool   *api.HCPOpenShiftClusterNodePool
+		existingNodePool   *coreapi.HCPOpenShiftClusterNodePool
 		existingCSNodePool *arohcpv1alpha1.NodePool
 		// When not set, the syncer uses a node pool lister backed by the seeded Cosmos resources.
 		nodePoolLister                      corelisters.NodePoolLister
@@ -101,7 +101,7 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name: "skip without CS call when no CSID",
-			existingNodePool: newTestNodePool(func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.ClusterServiceID = nil
 				np.Properties.Replicas = 5
 			}),
@@ -123,16 +123,16 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no-op when config matches",
-			existingNodePool: newTestNodePool(func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Replicas = 2
 			}),
-			existingCSNodePool: mustBuildCSNodePoolFromRP(t, newTestNodePool(func(np *api.HCPOpenShiftClusterNodePool) {
+			existingCSNodePool: mustBuildCSNodePoolFromRP(t, newTestNodePool(func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Replicas = 2
 			})),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetNodePool(gomock.Any(), csID).
-					Return(mustBuildCSNodePoolFromRP(t, newTestNodePool(func(np *api.HCPOpenShiftClusterNodePool) {
+					Return(mustBuildCSNodePoolFromRP(t, newTestNodePool(func(np *coreapi.HCPOpenShiftClusterNodePool) {
 						np.Properties.Replicas = 2
 					})), nil)
 			},
@@ -269,18 +269,18 @@ func TestNodePoolUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 }
 
 func TestNeedsWork(t *testing.T) {
-	csID := api.Must(api.NewInternalID(testNodePoolCSIDStr))
+	csID := metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr))
 	now := metav1.Now()
 
 	tests := []struct {
 		name     string
-		nodePool *api.HCPOpenShiftClusterNodePool
+		nodePool *coreapi.HCPOpenShiftClusterNodePool
 		want     bool
 	}{
 		{
 			name: "proceed when CSID set",
-			nodePool: &api.HCPOpenShiftClusterNodePool{
-				ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 					ClusterServiceID: &csID,
 				},
 			},
@@ -288,8 +288,8 @@ func TestNeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when deletion timestamp is set",
-			nodePool: &api.HCPOpenShiftClusterNodePool{
-				ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 					DeletionTimestamp: &now,
 					ClusterServiceID:  &csID,
 				},
@@ -298,8 +298,8 @@ func TestNeedsWork(t *testing.T) {
 		},
 		{
 			name: "skip when no CSID",
-			nodePool: &api.HCPOpenShiftClusterNodePool{
-				ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{},
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
+				ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{},
 			},
 			want: false,
 		},
@@ -312,7 +312,7 @@ func TestNeedsWork(t *testing.T) {
 	}
 }
 
-func mustBuildCSNodePoolFromRP(t *testing.T, hcpNodePool *api.HCPOpenShiftClusterNodePool) *arohcpv1alpha1.NodePool {
+func mustBuildCSNodePoolFromRP(t *testing.T, hcpNodePool *coreapi.HCPOpenShiftClusterNodePool) *arohcpv1alpha1.NodePool {
 	t.Helper()
 
 	builder, err := ocm.BuildCSNodePool(context.Background(), hcpNodePool, true)
@@ -323,42 +323,42 @@ func mustBuildCSNodePoolFromRP(t *testing.T, hcpNodePool *api.HCPOpenShiftCluste
 	return csNodePool
 }
 
-func newTestNodePool(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestNodePool(opts ...func(*coreapi.HCPOpenShiftClusterNodePool)) *coreapi.HCPOpenShiftClusterNodePool {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/" + testNodePoolName,
 	))
 
-	csID := api.Must(api.NewInternalID(testNodePoolCSIDStr))
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{
+	csID := metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr))
+	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: testNodePoolName,
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 			ClusterServiceID: &csID,
 		},
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 			Replicas: 2,
-			Version: api.NodePoolVersionProfile{
+			Version: coreapi.NodePoolVersionProfile{
 				ID:           "4.20.8",
 				ChannelGroup: "stable",
 			},
-			Platform: api.NodePoolPlatformProfile{
+			Platform: coreapi.NodePoolPlatformProfile{
 				VMSize: "Standard_D4s_v3",
-				OSDisk: api.OSDiskProfile{
+				OSDisk: coreapi.OSDiskProfile{
 					SizeGiB:                ptr.To(int32(128)),
-					DiskType:               api.OsDiskTypeManaged,
-					DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+					DiskType:               metadataapi.OsDiskTypeManaged,
+					DiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,
 				},
 			},
 		},

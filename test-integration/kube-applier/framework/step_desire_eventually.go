@@ -27,7 +27,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
 )
@@ -99,7 +99,7 @@ func newDesireEventuallyStep(id string, dir fs.FS) (Step, error) {
 // to a function that fetches that *Desire kind. Adding a new desire type
 // in the future is one entry in this map.
 var desireGetters = map[string]func(ctx context.Context, kac kubeappliercosmosstorage.KubeApplierDBClient, id *azcorearm.ResourceID) (any, error){
-	strings.ToLower(kubeapplier.ApplyDesireResourceTypeName): func(ctx context.Context, kac kubeappliercosmosstorage.KubeApplierDBClient, id *azcorearm.ResourceID) (any, error) {
+	strings.ToLower(kubeapplierapi.ApplyDesireResourceTypeName): func(ctx context.Context, kac kubeappliercosmosstorage.KubeApplierDBClient, id *azcorearm.ResourceID) (any, error) {
 		k, err := keys.ApplyDesireKeyFromResourceID(id)
 		if err != nil {
 			return nil, err
@@ -110,7 +110,7 @@ var desireGetters = map[string]func(ctx context.Context, kac kubeappliercosmosst
 		}
 		return c.Get(ctx, id.Name)
 	},
-	strings.ToLower(kubeapplier.ReadDesireResourceTypeName): func(ctx context.Context, kac kubeappliercosmosstorage.KubeApplierDBClient, id *azcorearm.ResourceID) (any, error) {
+	strings.ToLower(kubeapplierapi.ReadDesireResourceTypeName): func(ctx context.Context, kac kubeappliercosmosstorage.KubeApplierDBClient, id *azcorearm.ResourceID) (any, error) {
 		k, err := keys.ReadDesireKeyFromResourceID(id)
 		if err != nil {
 			return nil, err

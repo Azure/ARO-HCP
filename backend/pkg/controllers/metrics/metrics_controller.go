@@ -28,19 +28,19 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // Handler emits and deletes Prometheus metrics for a single Cosmos-backed type.
-type Handler[T arm.CosmosPersistable] interface {
+type Handler[T coreapi.CosmosPersistable] interface {
 	Sync(ctx context.Context, obj T)
 	Delete(key string)
 }
 
 // Controller watches a SharedIndexInformer and keeps metrics level-driven from
 // the current cache contents.
-type Controller[T arm.CosmosPersistable] struct {
+type Controller[T coreapi.CosmosPersistable] struct {
 	name    string
 	indexer cache.Indexer
 	queue   workqueue.TypedRateLimitingInterface[string]
@@ -48,7 +48,7 @@ type Controller[T arm.CosmosPersistable] struct {
 }
 
 // NewController creates a metrics controller for the given informer/handler pair.
-func NewController[T arm.CosmosPersistable](
+func NewController[T coreapi.CosmosPersistable](
 	name string,
 	informer cache.SharedIndexInformer,
 	handler Handler[T],
@@ -162,7 +162,7 @@ func resourceIDStoreKeyForObject(obj interface{}) (string, error) {
 			return "", fmt.Errorf("tombstone missing key and object")
 		}
 		return resourceIDStoreKeyForTombstone(typed.Key, typed.Obj)
-	case arm.CosmosPersistable:
+	case coreapi.CosmosPersistable:
 		return resourceIDStoreKey(typed)
 	default:
 		return "", fmt.Errorf("unexpected object type %T", obj)
@@ -194,7 +194,7 @@ func resourceIDStoreKeyForTombstone(key string, obj interface{}) (string, error)
 				return strings.ToLower(typed.Key), nil
 			}
 			current = typed.Obj
-		case arm.CosmosPersistable:
+		case coreapi.CosmosPersistable:
 			return resourceIDStoreKey(typed)
 		default:
 			return "", fmt.Errorf("unexpected object type %T", current)
@@ -204,7 +204,7 @@ func resourceIDStoreKeyForTombstone(key string, obj interface{}) (string, error)
 	return "", fmt.Errorf("tombstone exceeded max unwrap depth")
 }
 
-func resourceIDStoreKey(obj arm.CosmosPersistable) (string, error) {
+func resourceIDStoreKey(obj coreapi.CosmosPersistable) (string, error) {
 	cosmosData := obj.GetCosmosData()
 	if cosmosData == nil || cosmosData.GetResourceID() == nil {
 		return "", fmt.Errorf("object %T is missing a resource ID", obj)
@@ -233,6 +233,6 @@ func resourceIDToTypeMetricLabel(resourceID *azcorearm.ResourceID) string {
 	return strings.ToLower(resourceID.ResourceType.String())
 }
 
-func phaseMetricLabel(status arm.ProvisioningState) string {
+func phaseMetricLabel(status coreapi.ProvisioningState) string {
 	return strings.ToLower(string(status))
 }

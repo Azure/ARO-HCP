@@ -20,7 +20,8 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -76,7 +77,7 @@ func NewManagementClusterPlacementSyncController(
 }
 
 // needsWork checks if the ServiceProviderCluster still needs its ManagementClusterResourceID resolved.
-func (c *managementClusterPlacementSyncer) needsWork(spc *api.ServiceProviderCluster) bool {
+func (c *managementClusterPlacementSyncer) needsWork(spc *coreapi.ServiceProviderCluster) bool {
 	return spc.Status.ManagementClusterResourceID == nil
 }
 
@@ -116,7 +117,7 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 
 	// Get the ServiceProviderCluster from Cosmos (live read)
 	spcCRUD := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	existingSPC, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
+	existingSPC, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.V(1).Info("ServiceProviderCluster not found in Cosmos, skipping")
 		return nil
@@ -140,7 +141,7 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 		logger.V(1).Info("Provision shard not yet allocated by Cluster Service, skipping")
 		return nil
 	}
-	provisionShardID, err := api.NewInternalID(csShard.HREF())
+	provisionShardID, err := metadataapi.NewInternalID(csShard.HREF())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to parse provision shard href: %w", err))
 	}

@@ -17,7 +17,7 @@ package read_desire_kubernetes
 import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 )
 
 // safeSecretDataKeys lists the data keys that are safe to mirror into
@@ -30,7 +30,7 @@ var safeSecretDataKeys = map[string]struct{}{
 }
 
 // isSecret returns true when the ResourceReference points at a core/v1 Secret.
-func isSecret(ref kubeapplier.ResourceReference) bool {
+func isSecret(ref kubeapplierapi.ResourceReference) bool {
 	return ref.Group == "" && ref.Version == "v1" && ref.Resource == "secrets"
 }
 

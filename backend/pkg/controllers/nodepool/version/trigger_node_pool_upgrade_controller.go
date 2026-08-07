@@ -24,7 +24,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -132,7 +132,7 @@ func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key control
 //  1. Queries existing upgrade policies from Cluster Service (sorted by creation_timestamp desc)
 //  2. Checks if the latest policy matches the desired version - returns nil if it does
 //  3. Otherwise, creates a new upgrade policy with the desired version
-func (c *triggerNodePoolUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, desiredVersion *semver.Version, nodePoolServiceID api.InternalID) error {
+func (c *triggerNodePoolUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, desiredVersion *semver.Version, nodePoolServiceID metadataapi.InternalID) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Query existing node pool upgrade policies from Cluster Service

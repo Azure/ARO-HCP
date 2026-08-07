@@ -25,20 +25,21 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
-	baseProperties := api.HCPOpenShiftClusterNodePoolProperties{
+	baseProperties := coreapi.HCPOpenShiftClusterNodePoolProperties{
 		Labels:   map[string]string{"env": "prod"},
 		Replicas: 3,
-		Taints: []api.Taint{
-			{Effect: api.EffectNoSchedule, Key: "key1", Value: "val1"},
+		Taints: []coreapi.Taint{
+			{Effect: metadataapi.EffectNoSchedule, Key: "key1", Value: "val1"},
 		},
 		NodeDrainTimeoutMinutes: ptr.To(int32(30)),
 	}
 
-	base := &api.HCPOpenShiftClusterNodePool{Properties: baseProperties}
+	base := &coreapi.HCPOpenShiftClusterNodePool{Properties: baseProperties}
 
 	baseHash, err := nodePoolUpdateDispatchConfigHash(base)
 	require.NoError(t, err)
@@ -50,12 +51,12 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		nodePool *api.HCPOpenShiftClusterNodePool
+		nodePool *coreapi.HCPOpenShiftClusterNodePool
 	}{
 		{
 			name: "different labels",
-			nodePool: &api.HCPOpenShiftClusterNodePool{
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
+				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 					Labels:                  map[string]string{"env": "staging"},
 					Replicas:                baseProperties.Replicas,
 					Taints:                  baseProperties.Taints,
@@ -65,8 +66,8 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "different replicas",
-			nodePool: &api.HCPOpenShiftClusterNodePool{
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
+				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 					Labels:                  baseProperties.Labels,
 					Replicas:                5,
 					Taints:                  baseProperties.Taints,
@@ -76,10 +77,10 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "autoscaling instead of replicas",
-			nodePool: &api.HCPOpenShiftClusterNodePool{
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
+				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 					Labels:                  baseProperties.Labels,
-					AutoScaling:             &api.NodePoolAutoScaling{Min: 1, Max: 10},
+					AutoScaling:             &coreapi.NodePoolAutoScaling{Min: 1, Max: 10},
 					Taints:                  baseProperties.Taints,
 					NodeDrainTimeoutMinutes: baseProperties.NodeDrainTimeoutMinutes,
 				},
@@ -87,12 +88,12 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "different taints",
-			nodePool: &api.HCPOpenShiftClusterNodePool{
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
+				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 					Labels:   baseProperties.Labels,
 					Replicas: baseProperties.Replicas,
-					Taints: []api.Taint{
-						{Effect: api.EffectNoExecute, Key: "key2", Value: "val2"},
+					Taints: []coreapi.Taint{
+						{Effect: metadataapi.EffectNoExecute, Key: "key2", Value: "val2"},
 					},
 					NodeDrainTimeoutMinutes: baseProperties.NodeDrainTimeoutMinutes,
 				},
@@ -100,8 +101,8 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 		},
 		{
 			name: "different node drain timeout",
-			nodePool: &api.HCPOpenShiftClusterNodePool{
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
+				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 					Labels:                  baseProperties.Labels,
 					Replicas:                baseProperties.Replicas,
 					Taints:                  baseProperties.Taints,
@@ -124,21 +125,21 @@ func TestNodePoolUpdateDispatchConfigHash(t *testing.T) {
 }
 
 func TestNodePoolUpdateDispatchConfigHashExcludesNonUpdatableFields(t *testing.T) {
-	np1 := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+	np1 := &coreapi.HCPOpenShiftClusterNodePool{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 			Replicas: 3,
-			Version:  api.NodePoolVersionProfile{ID: "4.19.1", ChannelGroup: "stable"},
-			Platform: api.NodePoolPlatformProfile{
+			Version:  coreapi.NodePoolVersionProfile{ID: "4.19.1", ChannelGroup: "stable"},
+			Platform: coreapi.NodePoolPlatformProfile{
 				VMSize: "Standard_D4s_v3",
 			},
 		},
 	}
 
-	np2 := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+	np2 := &coreapi.HCPOpenShiftClusterNodePool{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 			Replicas: 3,
-			Version:  api.NodePoolVersionProfile{ID: "4.19.2", ChannelGroup: "candidate"},
-			Platform: api.NodePoolPlatformProfile{
+			Version:  coreapi.NodePoolVersionProfile{ID: "4.19.2", ChannelGroup: "candidate"},
+			Platform: coreapi.NodePoolPlatformProfile{
 				VMSize: "Standard_D8s_v3",
 			},
 		},
@@ -152,14 +153,14 @@ func TestNodePoolUpdateDispatchConfigHashExcludesNonUpdatableFields(t *testing.T
 }
 
 func TestNodePoolUpdateDispatchConfigHashExcludesAutoRepair(t *testing.T) {
-	np1 := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+	np1 := &coreapi.HCPOpenShiftClusterNodePool{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 			Replicas:   3,
 			AutoRepair: true,
 		},
 	}
-	np2 := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+	np2 := &coreapi.HCPOpenShiftClusterNodePool{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 			Replicas:   3,
 			AutoRepair: false,
 		},
@@ -177,17 +178,17 @@ func TestNodePoolUpdateDispatchConfigHashExcludesAutoRepair(t *testing.T) {
 // via BuildCSNodePool (update path: updating=true). nodePoolUpdateDispatchConfigFromCS and
 // nodePoolUpdateDispatchConfigFromRP must then produce the same canonical hash.
 func TestNodePoolUpdateDispatchConfigFromCSRoundTrip(t *testing.T) {
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 			Labels:   map[string]string{"env": "prod", "team": "platform"},
 			Replicas: 5,
-			Taints: []api.Taint{
-				{Effect: api.EffectNoSchedule, Key: "dedicated", Value: "infra"},
+			Taints: []coreapi.Taint{
+				{Effect: metadataapi.EffectNoSchedule, Key: "dedicated", Value: "infra"},
 			},
 			NodeDrainTimeoutMinutes: ptr.To(int32(45)),
 			AutoRepair:              true,
-			Version:                 api.NodePoolVersionProfile{ID: "4.19.1", ChannelGroup: "stable"},
-			Platform: api.NodePoolPlatformProfile{
+			Version:                 coreapi.NodePoolVersionProfile{ID: "4.19.1", ChannelGroup: "stable"},
+			Platform: coreapi.NodePoolPlatformProfile{
 				VMSize: "Standard_D4s_v3",
 			},
 		},
@@ -212,9 +213,9 @@ func TestNodePoolUpdateDispatchConfigFromCSRoundTrip(t *testing.T) {
 // autoscaling (instead of fixed replicas) round-trips through BuildCSNodePool and
 // nodePoolUpdateDispatchConfigFromCS with matching hash.
 func TestNodePoolUpdateDispatchConfigFromCSRoundTripAutoScaling(t *testing.T) {
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			AutoScaling:             &api.NodePoolAutoScaling{Min: 2, Max: 10},
+	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			AutoScaling:             &coreapi.NodePoolAutoScaling{Min: 2, Max: 10},
 			NodeDrainTimeoutMinutes: ptr.To(int32(30)),
 		},
 	}
@@ -365,21 +366,21 @@ func TestNodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(t *testing
 
 	tests := []struct {
 		name       string
-		nodePool   *api.HCPOpenShiftClusterNodePool
+		nodePool   *coreapi.HCPOpenShiftClusterNodePool
 		csNodePool func(t *testing.T) *arohcpv1alpha1.NodePool
 		want       *int32
 	}{
 		{
 			name: "explicit RP override",
-			nodePool: &api.HCPOpenShiftClusterNodePool{
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
+				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 					NodeDrainTimeoutMinutes: ptr.To(int32(15)),
 				},
 			},
 			csNodePool: func(t *testing.T) *arohcpv1alpha1.NodePool {
 				t.Helper()
-				csNodePoolBuilder, err := BuildCSNodePool(context.Background(), &api.HCPOpenShiftClusterNodePool{
-					Properties: api.HCPOpenShiftClusterNodePoolProperties{
+				csNodePoolBuilder, err := BuildCSNodePool(context.Background(), &coreapi.HCPOpenShiftClusterNodePool{
+					Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 						NodeDrainTimeoutMinutes: ptr.To(int32(4)),
 					},
 				}, true)
@@ -392,8 +393,8 @@ func TestNodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(t *testing
 		},
 		{
 			name: "RP set uses RP when CS unset",
-			nodePool: &api.HCPOpenShiftClusterNodePool{
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
+				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 					NodeDrainTimeoutMinutes: ptr.To(int32(15)),
 				},
 			},
@@ -407,11 +408,11 @@ func TestNodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(t *testing
 		},
 		{
 			name:     "RP unset uses CS",
-			nodePool: &api.HCPOpenShiftClusterNodePool{},
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{},
 			csNodePool: func(t *testing.T) *arohcpv1alpha1.NodePool {
 				t.Helper()
-				csNodePoolBuilder, err := BuildCSNodePool(context.Background(), &api.HCPOpenShiftClusterNodePool{
-					Properties: api.HCPOpenShiftClusterNodePoolProperties{
+				csNodePoolBuilder, err := BuildCSNodePool(context.Background(), &coreapi.HCPOpenShiftClusterNodePool{
+					Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 						NodeDrainTimeoutMinutes: ptr.To(int32(4)),
 					},
 				}, true)
@@ -424,7 +425,7 @@ func TestNodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(t *testing
 		},
 		{
 			name:     "RP unset and CS unset returns nil",
-			nodePool: &api.HCPOpenShiftClusterNodePool{},
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{},
 			csNodePool: func(t *testing.T) *arohcpv1alpha1.NodePool {
 				t.Helper()
 				csNodePool, err := arohcpv1alpha1.NewNodePool().Build()
@@ -435,15 +436,15 @@ func TestNodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(t *testing
 		},
 		{
 			name: "RP explicit zero overrides CS",
-			nodePool: &api.HCPOpenShiftClusterNodePool{
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			nodePool: &coreapi.HCPOpenShiftClusterNodePool{
+				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 					NodeDrainTimeoutMinutes: ptr.To(int32(0)),
 				},
 			},
 			csNodePool: func(t *testing.T) *arohcpv1alpha1.NodePool {
 				t.Helper()
-				csNodePoolBuilder, err := BuildCSNodePool(context.Background(), &api.HCPOpenShiftClusterNodePool{
-					Properties: api.HCPOpenShiftClusterNodePoolProperties{
+				csNodePoolBuilder, err := BuildCSNodePool(context.Background(), &coreapi.HCPOpenShiftClusterNodePool{
+					Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 						NodeDrainTimeoutMinutes: ptr.To(int32(4)),
 					},
 				}, true)
@@ -466,14 +467,14 @@ func TestNodePoolUpdateDispatchConfigEffectiveNodeDrainTimeoutMinutes(t *testing
 }
 
 func TestNodePoolUpdateDispatchConfigDiffJSONIgnoresCSDrainTimeoutWhenRPUnset(t *testing.T) {
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 			Replicas: 3,
 		},
 	}
 
-	csNodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+	csNodePool := &coreapi.HCPOpenShiftClusterNodePool{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 			Replicas:                3,
 			NodeDrainTimeoutMinutes: ptr.To(int32(4)),
 		},
@@ -491,8 +492,8 @@ func TestNodePoolUpdateDispatchConfigDiffJSONIgnoresCSDrainTimeoutWhenRPUnset(t 
 }
 
 func TestNodePoolUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+	nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
 			Labels:                  map[string]string{"env": "prod"},
 			Replicas:                3,
 			NodeDrainTimeoutMinutes: ptr.To(int32(45)),
@@ -551,7 +552,7 @@ func TestNodePoolUpdateDispatchConfigTaintsFromCS(t *testing.T) {
 				csNodePool, err := arohcpv1alpha1.NewNodePool().
 					Taints(
 						arohcpv1alpha1.NewTaint().
-							Effect(string(api.EffectNoSchedule)).
+							Effect(string(metadataapi.EffectNoSchedule)).
 							Key("dedicated").
 							Value("infra"),
 					).
@@ -560,7 +561,7 @@ func TestNodePoolUpdateDispatchConfigTaintsFromCS(t *testing.T) {
 				return csNodePool
 			},
 			want: []NodePoolUpdateDispatchConfigTaint{
-				{Effect: string(api.EffectNoSchedule), Key: "dedicated", Value: "infra"},
+				{Effect: string(metadataapi.EffectNoSchedule), Key: "dedicated", Value: "infra"},
 			},
 		},
 	}
@@ -585,7 +586,7 @@ func TestNodePoolUpdateDispatchConfigApplyToCSBuilder(t *testing.T) {
 				Labels:   map[string]string{"env": "prod"},
 				Replicas: 5,
 				Taints: []NodePoolUpdateDispatchConfigTaint{
-					{Effect: string(api.EffectNoSchedule), Key: "dedicated", Value: "infra"},
+					{Effect: string(metadataapi.EffectNoSchedule), Key: "dedicated", Value: "infra"},
 				},
 			},
 			verify: func(t *testing.T, csNodePool *arohcpv1alpha1.NodePool) {
@@ -595,7 +596,7 @@ func TestNodePoolUpdateDispatchConfigApplyToCSBuilder(t *testing.T) {
 				assert.Equal(t, int32(5), got.Replicas)
 				require.Len(t, got.Taints, 1)
 				assert.Equal(t, NodePoolUpdateDispatchConfigTaint{
-					Effect: string(api.EffectNoSchedule),
+					Effect: string(metadataapi.EffectNoSchedule),
 					Key:    "dedicated",
 					Value:  "infra",
 				}, got.Taints[0])

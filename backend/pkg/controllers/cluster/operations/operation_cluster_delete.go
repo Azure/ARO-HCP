@@ -33,9 +33,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -109,14 +108,14 @@ func NewOperationClusterDeleteController(
 	return controller
 }
 
-func (c *operationClusterDelete) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationClusterDelete) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != cosmosstorageutils.OperationRequestDelete {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.ClusterResourceType.String()) {
 		return false
 	}
 	return true
@@ -166,11 +165,11 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		logger.Info("delete operation deadline exceeded, marking as failed",
 			"deadline", cluster.ServiceProviderProperties.DeleteOperationCompletionDeadline.Time,
 			"message", message)
-		persistErr := &arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeInternalServerError,
+		persistErr := &coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeInternalServerError,
 			Message: message,
 		}
-		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, arm.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
+		err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateFailed, persistErr, operationbase.PostAsyncNotificationFn(c.notificationClient))
 		if cosmosstorageutils.IsPreconditionFailedError(err) {
 			return nil
 		}
@@ -191,13 +190,13 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 	return nil
 }
 
-func (c *operationClusterDelete) shouldReconcileOperationAndResourceStatus(cluster *api.HCPOpenShiftCluster) bool {
+func (c *operationClusterDelete) shouldReconcileOperationAndResourceStatus(cluster *coreapi.HCPOpenShiftCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *api.Operation, cluster *api.HCPOpenShiftCluster) error {
+func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
@@ -233,7 +232,7 @@ func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context
 	return nil
 }
 
-func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context, _ *api.Operation, cluster *api.HCPOpenShiftCluster) string {
+func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context, _ *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) string {
 	logger := utils.LoggerFromContext(ctx)
 
 	errs := []error{}
@@ -285,61 +284,61 @@ func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context
 }
 
 // TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
-func clusterServiceDeletionStatus(cluster *api.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+func clusterServiceDeletionStatus(cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
-		return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil {
-		return operationbase.NewOperationState(arm.ProvisioningStateDeleting, "ClusterService deletion not yet dispatched"), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, "ClusterService deletion not yet dispatched"), nil
 	}
-	return operationbase.NewOperationState(arm.ProvisioningStateDeleting, fmt.Sprintf("ClusterService cluster %s still exists (deletion dispatched at %s)",
+	return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, fmt.Sprintf("ClusterService cluster %s still exists (deletion dispatched at %s)",
 		cluster.ServiceProviderProperties.ClusterServiceID,
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Format(time.RFC3339))), nil
 }
 
 // TODO scale this out better. We likely want something we can aggregate, e.g. a UserFacingDeleteProgress condition.
-func (c *operationClusterDelete) clusterServiceStatusForDeletion(ctx context.Context, cluster *api.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterDelete) clusterServiceStatusForDeletion(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
-		return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 
 	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, *cluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-			return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+			return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 		}
 		return nil, fmt.Errorf("failed to get ClusterService status: %w", err)
 	}
 
-	return operationbase.NewOperationState(arm.ProvisioningStateDeleting, fmt.Sprintf("ClusterService state is %q", csClusterStatus.State())), nil
+	return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, fmt.Sprintf("ClusterService state is %q", csClusterStatus.State())), nil
 }
 
 func (c *operationClusterDelete) shouldCountChild(child *cosmosstorageutils.TypedDocument) bool {
 	lowered := strings.ToLower(child.ResourceType)
-	if strings.Contains(lowered, strings.ToLower(api.ControllerResourceTypeName)) {
+	if strings.Contains(lowered, strings.ToLower(coreapi.ControllerResourceTypeName)) {
 		return false
 	}
-	if strings.Contains(lowered, strings.ToLower(api.ManagementClusterContentResourceTypeName)) {
+	if strings.Contains(lowered, strings.ToLower(coreapi.ManagementClusterContentResourceTypeName)) {
 		return false
 	}
-	if strings.Contains(lowered, strings.ToLower(kubeapplier.ReadDesireResourceTypeName)) {
+	if strings.Contains(lowered, strings.ToLower(kubeapplierapi.ReadDesireResourceTypeName)) {
 		return false
 	}
-	if strings.Contains(lowered, strings.ToLower(kubeapplier.ApplyDesireResourceTypeName)) {
+	if strings.Contains(lowered, strings.ToLower(kubeapplierapi.ApplyDesireResourceTypeName)) {
 		var partial struct {
 			Spec struct {
-				Type kubeapplier.ApplyDesireType `json:"type"`
+				Type kubeapplierapi.ApplyDesireType `json:"type"`
 			} `json:"spec"`
 		}
-		if json.Unmarshal(child.Properties, &partial) == nil && partial.Spec.Type == kubeapplier.ApplyDesireTypeDelete {
+		if json.Unmarshal(child.Properties, &partial) == nil && partial.Spec.Type == kubeapplierapi.ApplyDesireTypeDelete {
 			return false
 		}
 	}
 	return true
 }
 
-func (c *operationClusterDelete) remainingDescendantResources(ctx context.Context, cluster *api.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterDelete) remainingDescendantResources(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 	typeCounts := map[string]int{}
 
@@ -351,7 +350,7 @@ func (c *operationClusterDelete) remainingDescendantResources(ctx context.Contex
 		return nil, err
 	}
 
-	spc, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		logger.Error(err, "failed to get ServiceProviderCluster for kube-applier resource count")
 	}
@@ -366,7 +365,7 @@ func (c *operationClusterDelete) remainingDescendantResources(ctx context.Contex
 	}
 
 	if len(typeCounts) == 0 {
-		return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 
 	var parts []string
@@ -374,7 +373,7 @@ func (c *operationClusterDelete) remainingDescendantResources(ctx context.Contex
 		parts = append(parts, fmt.Sprintf("%d %s", count, resourceType))
 	}
 	slices.Sort(parts)
-	return operationbase.NewOperationState(arm.ProvisioningStateDeleting, fmt.Sprintf("remaining resources: %s", strings.Join(parts, ", "))), nil
+	return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, fmt.Sprintf("remaining resources: %s", strings.Join(parts, ", "))), nil
 }
 
 func countDescendants(ctx context.Context, crud cosmosstorageutils.UntypedResourceCRUD, shouldCount func(*cosmosstorageutils.TypedDocument) bool, typeCounts map[string]int) error {
@@ -394,13 +393,13 @@ func countDescendants(ctx context.Context, crud cosmosstorageutils.UntypedResour
 	return nil
 }
 
-func (c *operationClusterDelete) hostedClusterDeletionStatus(ctx context.Context, cluster *api.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterDelete) hostedClusterDeletionStatus(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
 	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cached HostedCluster: %w", err)
 	}
 	if hostedCluster == nil {
-		return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
-	return operationbase.NewOperationState(arm.ProvisioningStateDeleting, "HostedCluster still exists"), nil
+	return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting, "HostedCluster still exists"), nil
 }

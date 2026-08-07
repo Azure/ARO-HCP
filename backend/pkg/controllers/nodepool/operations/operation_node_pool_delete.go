@@ -29,7 +29,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -91,33 +91,33 @@ func NewOperationNodePoolDeleteController(
 	return controller
 }
 
-func (c *operationNodePoolDelete) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationNodePoolDelete) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != cosmosstorageutils.OperationRequestDelete {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.NodePoolResourceType.String()) {
 		return false
 	}
 	return true
 }
 
-func (c *operationNodePoolDelete) legacyShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationNodePoolDelete) legacyShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != cosmosstorageutils.OperationRequestDelete {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.NodePoolResourceType.String()) {
 		return false
 	}
 	return true
 }
 
-func (c *operationNodePoolDelete) legacySynchronizeOperation(ctx context.Context, operation *api.Operation) error {
+func (c *operationNodePoolDelete) legacySynchronizeOperation(ctx context.Context, operation *coreapi.Operation) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	if !c.legacyShouldProcess(ctx, operation) {
@@ -200,13 +200,13 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	return nil
 }
 
-func (c *operationNodePoolDelete) shouldReconcileOperationAndResourceStatus(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+func (c *operationNodePoolDelete) shouldReconcileOperationAndResourceStatus(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-func (c *operationNodePoolDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *api.Operation, nodePool *api.HCPOpenShiftClusterNodePool) error {
+func (c *operationNodePoolDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, nodePool *coreapi.HCPOpenShiftClusterNodePool) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	nodePoolCSID := nodePool.ServiceProviderProperties.ClusterServiceID

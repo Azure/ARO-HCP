@@ -23,9 +23,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -220,7 +219,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&arm.Subscription{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.Subscription{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.subscriptionInformer.RunWithContext(localCtx)
@@ -229,7 +228,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&arm.Operation{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.OperationStatus{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.activeOperationInformer.RunWithContext(localCtx)
@@ -238,7 +237,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&arm.Operation{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.OperationStatus{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.allOperationInformer.RunWithContext(localCtx)
@@ -247,7 +246,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&api.HCPOpenShiftCluster{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.HCPOpenShiftCluster{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.clusterInformer.RunWithContext(localCtx)
@@ -256,7 +255,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&api.HCPOpenShiftClusterNodePool{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.HCPOpenShiftClusterNodePool{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.nodePoolInformer.RunWithContext(localCtx)
@@ -265,7 +264,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&api.HCPOpenShiftClusterExternalAuth{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.HCPOpenShiftClusterExternalAuth{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.externalAuthInformer.RunWithContext(localCtx)
@@ -274,7 +273,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&api.ServiceProviderCluster{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.ServiceProviderCluster{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.serviceProviderClusterInformer.RunWithContext(localCtx)
@@ -283,7 +282,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&api.ServiceProviderNodePool{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.ServiceProviderNodePool{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.serviceProviderNodePoolInformer.RunWithContext(localCtx)
@@ -292,7 +291,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&api.Controller{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.Controller{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.controllerInformer.RunWithContext(localCtx)
@@ -301,7 +300,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&fleet.ManagementCluster{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&fleetapi.ManagementCluster{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.managementClusterContentInformer.RunWithContext(localCtx)
@@ -310,7 +309,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&api.SystemAdminCredentialRequest{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.SystemAdminCredentialRequest{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.systemAdminCredentialRequestInformer.RunWithContext(localCtx)
@@ -319,7 +318,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		localLogger := logger.WithValues("type", reflect.TypeOf(&api.SystemAdminCredentialRevocation{}).String())
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.SystemAdminCredentialRevocation{}).String())
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		b.systemAdminCredentialRevocationInformer.RunWithContext(localCtx)

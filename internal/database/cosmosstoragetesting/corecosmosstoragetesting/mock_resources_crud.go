@@ -29,8 +29,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -50,7 +50,7 @@ type MockDocumentStore interface {
 }
 
 // MockResourceCRUD is a generic mock implementation of cosmosstorageutils.ResourceCRUD.
-type MockResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any] struct {
+type MockResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any] struct {
 	client           MockDocumentStore
 	parentResourceID *azcorearm.ResourceID
 	resourceType     azcorearm.ResourceType
@@ -62,7 +62,7 @@ type MockResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMeta
 	GetListPrefix func() (string, error)
 }
 
-func NewMockResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
+func NewMockResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
 	client MockDocumentStore, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 
 	m := &MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]{
@@ -88,7 +88,7 @@ func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 	}
 	parts := []string{m.parentResourceID.String()}
 
-	if !strings.EqualFold(m.parentResourceID.ResourceType.Namespace, api.ProviderNamespace) {
+	if !strings.EqualFold(m.parentResourceID.ResourceType.Namespace, coreapi.ProviderNamespace) {
 		if len(resourceID) == 0 {
 			resourcePathString := path.Join(parts...)
 			return azcorearm.ParseResourceID(resourcePathString)
@@ -193,7 +193,7 @@ func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
 	}
 
-	newCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
+	newCosmosID, err := coreapi.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return nil, err
 	}
@@ -277,8 +277,8 @@ func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	storedETag := any(oldObj).(arm.CosmosPersistable).GetCosmosData().CosmosETag
-	existingCosmosID := any(oldObj).(arm.CosmosPersistable).GetCosmosData().GetCosmosUID()
+	storedETag := any(oldObj).(coreapi.CosmosPersistable).GetCosmosData().CosmosETag
+	existingCosmosID := any(oldObj).(coreapi.CosmosPersistable).GetCosmosData().GetCosmosUID()
 
 	if storedETag != expectedETag {
 		return nil, NewPreconditionFailedError()
@@ -305,7 +305,7 @@ func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 		return fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
 	}
 
-	cosmosUID, err := arm.ResourceIDToCosmosID(completeResourceID)
+	cosmosUID, err := coreapi.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return err
 	}
@@ -430,17 +430,17 @@ func (m *MockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 
 // mockHCPClusterCRUD implements corecosmosstorage.HCPClusterCRUD.
 type mockHCPClusterCRUD struct {
-	*MockResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[api.HCPOpenShiftCluster]]
+	*MockResourceCRUD[coreapi.HCPOpenShiftCluster, *coreapi.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster]]
 }
 
 func newMockHCPClusterCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockHCPClusterCRUD {
 	return &mockHCPClusterCRUD{
-		MockResourceCRUD: NewMockResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[api.HCPOpenShiftCluster]](client, parentResourceID, api.ClusterResourceType),
+		MockResourceCRUD: NewMockResourceCRUD[coreapi.HCPOpenShiftCluster, *coreapi.HCPOpenShiftCluster, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftCluster]](client, parentResourceID, coreapi.ClusterResourceType),
 	}
 }
 
 func (m *mockHCPClusterCRUD) ExternalAuth(hcpClusterName string) corecosmosstorage.ExternalAuthsCRUD {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
 			"providers",
@@ -449,16 +449,16 @@ func (m *mockHCPClusterCRUD) ExternalAuth(hcpClusterName string) corecosmosstora
 			hcpClusterName)))
 
 	return &mockExternalAuthCRUD{
-		MockResourceCRUD: NewMockResourceCRUD[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterExternalAuth]](
+		MockResourceCRUD: NewMockResourceCRUD[coreapi.HCPOpenShiftClusterExternalAuth, *coreapi.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterExternalAuth]](
 			m.client,
 			parentResourceID,
-			api.ExternalAuthResourceType,
+			coreapi.ExternalAuthResourceType,
 		),
 	}
 }
 
 func (m *mockHCPClusterCRUD) NodePools(hcpClusterName string) corecosmosstorage.NodePoolsCRUD {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
 			"providers",
@@ -467,15 +467,15 @@ func (m *mockHCPClusterCRUD) NodePools(hcpClusterName string) corecosmosstorage.
 			hcpClusterName)))
 
 	return &mockNodePoolsCRUD{
-		MockResourceCRUD: NewMockResourceCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterNodePool]](
+		MockResourceCRUD: NewMockResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterNodePool]](
 			m.client,
 			parentResourceID,
-			api.NodePoolResourceType),
+			coreapi.NodePoolResourceType),
 	}
 }
 
-func (m *mockHCPClusterCRUD) Controllers(hcpClusterName string) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (m *mockHCPClusterCRUD) Controllers(hcpClusterName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
 			"providers",
@@ -483,11 +483,11 @@ func (m *mockHCPClusterCRUD) Controllers(hcpClusterName string) cosmosstorageuti
 			m.resourceType.Type,
 			hcpClusterName)))
 
-	return NewMockResourceCRUD[api.Controller, *api.Controller, cosmosstorageutils.GenericDocument[api.Controller]](m.client, parentResourceID, api.ClusterControllerResourceType)
+	return NewMockResourceCRUD[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](m.client, parentResourceID, coreapi.ClusterControllerResourceType)
 }
 
-func (m *mockHCPClusterCRUD) ManagementClusterContents(hcpClusterName string) cosmosstorageutils.ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (m *mockHCPClusterCRUD) ManagementClusterContents(hcpClusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
 			"providers",
@@ -495,34 +495,34 @@ func (m *mockHCPClusterCRUD) ManagementClusterContents(hcpClusterName string) co
 			m.resourceType.Type,
 			hcpClusterName)))
 
-	return newMockManagementClusterContentCRUD(m.client, parentResourceID, api.ClusterScopedManagementClusterContentResourceType)
+	return newMockManagementClusterContentCRUD(m.client, parentResourceID, coreapi.ClusterScopedManagementClusterContentResourceType)
 }
 
 func (m *mockHCPClusterCRUD) SystemAdminCredentialRequests(hcpClusterName string) corecosmosstorage.SystemAdminCredentialRequestsCRUD {
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
 			"providers",
-			api.ClusterResourceType.Namespace,
-			api.ClusterResourceType.Type,
+			coreapi.ClusterResourceType.Namespace,
+			coreapi.ClusterResourceType.Type,
 			hcpClusterName)))
 
 	return &mockSystemAdminCredentialRequestsCRUD{
-		MockResourceCRUD: NewMockResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, cosmosstorageutils.GenericDocument[api.SystemAdminCredentialRequest]](m.client, clusterResourceID, api.SystemAdminCredentialRequestResourceType),
+		MockResourceCRUD: NewMockResourceCRUD[coreapi.SystemAdminCredentialRequest, *coreapi.SystemAdminCredentialRequest, cosmosstorageutils.GenericDocument[coreapi.SystemAdminCredentialRequest]](m.client, clusterResourceID, coreapi.SystemAdminCredentialRequestResourceType),
 	}
 }
 
 func (m *mockHCPClusterCRUD) SystemAdminCredentialRevocations(hcpClusterName string) corecosmosstorage.SystemAdminCredentialRevocationsCRUD {
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
 			"providers",
-			api.ClusterResourceType.Namespace,
-			api.ClusterResourceType.Type,
+			coreapi.ClusterResourceType.Namespace,
+			coreapi.ClusterResourceType.Type,
 			hcpClusterName)))
 
 	return &mockSystemAdminCredentialRevocationsCRUD{
-		MockResourceCRUD: NewMockResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, cosmosstorageutils.GenericDocument[api.SystemAdminCredentialRevocation]](m.client, clusterResourceID, api.SystemAdminCredentialRevocationResourceType),
+		MockResourceCRUD: NewMockResourceCRUD[coreapi.SystemAdminCredentialRevocation, *coreapi.SystemAdminCredentialRevocation, cosmosstorageutils.GenericDocument[coreapi.SystemAdminCredentialRevocation]](m.client, clusterResourceID, coreapi.SystemAdminCredentialRevocationResourceType),
 	}
 }
 
@@ -530,101 +530,101 @@ var _ corecosmosstorage.HCPClusterCRUD = &mockHCPClusterCRUD{}
 
 // mockNodePoolsCRUD implements corecosmosstorage.NodePoolsCRUD.
 type mockNodePoolsCRUD struct {
-	*MockResourceCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterNodePool]]
+	*MockResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterNodePool]]
 }
 
-func (m *mockNodePoolsCRUD) Controllers(nodePoolName string) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (m *mockNodePoolsCRUD) Controllers(nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
 			m.resourceType.Types[len(m.resourceType.Types)-1],
 			nodePoolName,
 		)))
 
-	return NewMockResourceCRUD[api.Controller, *api.Controller, cosmosstorageutils.GenericDocument[api.Controller]](m.client, parentResourceID, api.NodePoolControllerResourceType)
+	return NewMockResourceCRUD[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](m.client, parentResourceID, coreapi.NodePoolControllerResourceType)
 }
 
-func (m *mockNodePoolsCRUD) ManagementClusterContents(nodePoolName string) cosmosstorageutils.ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (m *mockNodePoolsCRUD) ManagementClusterContents(nodePoolName string) cosmosstorageutils.ResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
 			m.resourceType.Types[len(m.resourceType.Types)-1],
 			nodePoolName,
 		)))
 
-	return newMockManagementClusterContentCRUD(m.client, parentResourceID, api.NodePoolScopedManagementClusterContentResourceType)
+	return newMockManagementClusterContentCRUD(m.client, parentResourceID, coreapi.NodePoolScopedManagementClusterContentResourceType)
 }
 
 var _ corecosmosstorage.NodePoolsCRUD = &mockNodePoolsCRUD{}
 
 // mockExternalAuthCRUD implements corecosmosstorage.ExternalAuthsCRUD.
 type mockExternalAuthCRUD struct {
-	*MockResourceCRUD[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[api.HCPOpenShiftClusterExternalAuth]]
+	*MockResourceCRUD[coreapi.HCPOpenShiftClusterExternalAuth, *coreapi.HCPOpenShiftClusterExternalAuth, cosmosstorageutils.GenericDocument[coreapi.HCPOpenShiftClusterExternalAuth]]
 }
 
-func (m *mockExternalAuthCRUD) Controllers(externalAuthName string) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (m *mockExternalAuthCRUD) Controllers(externalAuthName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
 			m.resourceType.Types[len(m.resourceType.Types)-1],
 			externalAuthName,
 		)))
 
-	return NewMockResourceCRUD[api.Controller, *api.Controller, cosmosstorageutils.GenericDocument[api.Controller]](m.client, parentResourceID, api.ExternalAuthControllerResourceType)
+	return NewMockResourceCRUD[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](m.client, parentResourceID, coreapi.ExternalAuthControllerResourceType)
 }
 
 var _ corecosmosstorage.ExternalAuthsCRUD = &mockExternalAuthCRUD{}
 
 type mockSystemAdminCredentialRequestsCRUD struct {
-	*MockResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, cosmosstorageutils.GenericDocument[api.SystemAdminCredentialRequest]]
+	*MockResourceCRUD[coreapi.SystemAdminCredentialRequest, *coreapi.SystemAdminCredentialRequest, cosmosstorageutils.GenericDocument[coreapi.SystemAdminCredentialRequest]]
 }
 
-func (m *mockSystemAdminCredentialRequestsCRUD) Controllers(credentialRequestName string) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (m *mockSystemAdminCredentialRequestsCRUD) Controllers(credentialRequestName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
 			m.resourceType.Types[len(m.resourceType.Types)-1],
 			credentialRequestName,
 		)))
 
-	return NewMockResourceCRUD[api.Controller, *api.Controller, cosmosstorageutils.GenericDocument[api.Controller]](m.client, parentResourceID, api.SystemAdminCredentialRequestControllerResourceType)
+	return NewMockResourceCRUD[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](m.client, parentResourceID, coreapi.SystemAdminCredentialRequestControllerResourceType)
 }
 
 var _ corecosmosstorage.SystemAdminCredentialRequestsCRUD = &mockSystemAdminCredentialRequestsCRUD{}
 
 type mockSystemAdminCredentialRevocationsCRUD struct {
-	*MockResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, cosmosstorageutils.GenericDocument[api.SystemAdminCredentialRevocation]]
+	*MockResourceCRUD[coreapi.SystemAdminCredentialRevocation, *coreapi.SystemAdminCredentialRevocation, cosmosstorageutils.GenericDocument[coreapi.SystemAdminCredentialRevocation]]
 }
 
-func (m *mockSystemAdminCredentialRevocationsCRUD) Controllers(revocationName string) cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller] {
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+func (m *mockSystemAdminCredentialRevocationsCRUD) Controllers(revocationName string) cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
+	parentResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
 			m.resourceType.Types[len(m.resourceType.Types)-1],
 			revocationName,
 		)))
 
-	return NewMockResourceCRUD[api.Controller, *api.Controller, cosmosstorageutils.GenericDocument[api.Controller]](m.client, parentResourceID, api.SystemAdminCredentialRevocationControllerResourceType)
+	return NewMockResourceCRUD[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](m.client, parentResourceID, coreapi.SystemAdminCredentialRevocationControllerResourceType)
 }
 
 var _ corecosmosstorage.SystemAdminCredentialRevocationsCRUD = &mockSystemAdminCredentialRevocationsCRUD{}
 
 // mockOperationCRUD implements corecosmosstorage.OperationCRUD.
 type mockOperationCRUD struct {
-	*MockResourceCRUD[api.Operation, *api.Operation, cosmosstorageutils.GenericDocument[api.Operation]]
+	*MockResourceCRUD[coreapi.Operation, *coreapi.Operation, cosmosstorageutils.GenericDocument[coreapi.Operation]]
 }
 
 func newMockOperationCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockOperationCRUD {
 	return &mockOperationCRUD{
-		MockResourceCRUD: NewMockResourceCRUD[api.Operation, *api.Operation, cosmosstorageutils.GenericDocument[api.Operation]](client, parentResourceID, api.OperationStatusResourceType),
+		MockResourceCRUD: NewMockResourceCRUD[coreapi.Operation, *coreapi.Operation, cosmosstorageutils.GenericDocument[coreapi.Operation]](client, parentResourceID, coreapi.OperationStatusResourceType),
 	}
 }
 
-func (m *mockOperationCRUD) ListActiveOperations(options *corecosmosstorage.ResourcesDBClientListActiveOperationDocsOptions) cosmosstorageutils.DBClientIterator[api.Operation] {
+func (m *mockOperationCRUD) ListActiveOperations(options *corecosmosstorage.ResourcesDBClientListActiveOperationDocsOptions) cosmosstorageutils.DBClientIterator[coreapi.Operation] {
 	allDocs := m.client.GetAllDocuments()
 
 	var ids []string
-	var items []*api.Operation
+	var items []*coreapi.Operation
 
 	for _, data := range allDocs {
 		var typedDoc cosmosstorageutils.TypedDocument
@@ -633,7 +633,7 @@ func (m *mockOperationCRUD) ListActiveOperations(options *corecosmosstorage.Reso
 		}
 
 		// Check resource type
-		if !strings.EqualFold(typedDoc.ResourceType, api.OperationStatusResourceType.String()) {
+		if !strings.EqualFold(typedDoc.ResourceType, coreapi.OperationStatusResourceType.String()) {
 			continue
 		}
 
@@ -645,16 +645,16 @@ func (m *mockOperationCRUD) ListActiveOperations(options *corecosmosstorage.Reso
 			continue
 		}
 
-		var cosmosObj cosmosstorageutils.GenericDocument[api.Operation]
+		var cosmosObj cosmosstorageutils.GenericDocument[coreapi.Operation]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			continue
 		}
 
 		// Filter out terminal states
 		status := cosmosObj.Content.Status
-		if status == arm.ProvisioningStateSucceeded ||
-			status == arm.ProvisioningStateFailed ||
-			status == arm.ProvisioningStateCanceled {
+		if status == coreapi.ProvisioningStateSucceeded ||
+			status == coreapi.ProvisioningStateFailed ||
+			status == coreapi.ProvisioningStateCanceled {
 			continue
 		}
 
@@ -696,20 +696,20 @@ func (m *mockOperationCRUD) ListActiveOperations(options *corecosmosstorage.Reso
 
 var _ corecosmosstorage.OperationCRUD = &mockOperationCRUD{}
 
-// mockSubscriptionCRUD implements cosmosstorageutils.ResourceCRUD[arm.Subscription, *arm.Subscription].
+// mockSubscriptionCRUD implements cosmosstorageutils.ResourceCRUD[coreapi.Subscription, *coreapi.Subscription].
 // It embeds MockResourceCRUD with customized MakeResourceIDPath and GetListPrefix
 // functions for subscription-specific resource ID construction.
 type mockSubscriptionCRUD struct {
-	*MockResourceCRUD[arm.Subscription, *arm.Subscription, cosmosstorageutils.GenericDocument[arm.Subscription]]
+	*MockResourceCRUD[coreapi.Subscription, *coreapi.Subscription, cosmosstorageutils.GenericDocument[coreapi.Subscription]]
 }
 
 func newMockSubscriptionCRUD(client *MockResourcesDBClient) *mockSubscriptionCRUD {
-	base := NewMockResourceCRUD[arm.Subscription, *arm.Subscription, cosmosstorageutils.GenericDocument[arm.Subscription]](
+	base := NewMockResourceCRUD[coreapi.Subscription, *coreapi.Subscription, cosmosstorageutils.GenericDocument[coreapi.Subscription]](
 		client, nil, azcorearm.SubscriptionResourceType)
 
 	// Override MakeResourceIDPath for subscription-specific resource ID construction
 	base.MakeResourceIDPath = func(resourceID string) (*azcorearm.ResourceID, error) {
-		return arm.ToSubscriptionResourceID(resourceID)
+		return coreapi.ToSubscriptionResourceID(resourceID)
 	}
 
 	// Override GetListPrefix for subscription-specific listing (no parent prefix)
@@ -722,49 +722,49 @@ func newMockSubscriptionCRUD(client *MockResourcesDBClient) *mockSubscriptionCRU
 	}
 }
 
-var _ cosmosstorageutils.ResourceCRUD[arm.Subscription, *arm.Subscription] = &mockSubscriptionCRUD{}
+var _ cosmosstorageutils.ResourceCRUD[coreapi.Subscription, *coreapi.Subscription] = &mockSubscriptionCRUD{}
 
-// mockServiceProviderClusterCRUD implements cosmosstorageutils.ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster].
+// mockServiceProviderClusterCRUD implements cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster].
 type mockServiceProviderClusterCRUD struct {
-	*MockResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster, cosmosstorageutils.GenericDocument[api.ServiceProviderCluster]]
+	*MockResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderCluster]]
 }
 
 func newMockServiceProviderClusterCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockServiceProviderClusterCRUD {
 	return &mockServiceProviderClusterCRUD{
-		MockResourceCRUD: NewMockResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster, cosmosstorageutils.GenericDocument[api.ServiceProviderCluster]](
-			client, parentResourceID, api.ServiceProviderClusterResourceType),
+		MockResourceCRUD: NewMockResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderCluster]](
+			client, parentResourceID, coreapi.ServiceProviderClusterResourceType),
 	}
 }
 
-var _ cosmosstorageutils.ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster] = &mockServiceProviderClusterCRUD{}
+var _ cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster] = &mockServiceProviderClusterCRUD{}
 
-// mockServiceProviderNodePoolCRUD implements cosmosstorageutils.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool].
+// mockServiceProviderNodePoolCRUD implements cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool].
 type mockServiceProviderNodePoolCRUD struct {
-	*MockResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[api.ServiceProviderNodePool]]
+	*MockResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderNodePool]]
 }
 
 func newMockServiceProviderNodePoolCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockServiceProviderNodePoolCRUD {
 	return &mockServiceProviderNodePoolCRUD{
-		MockResourceCRUD: NewMockResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[api.ServiceProviderNodePool]](
-			client, parentResourceID, api.ServiceProviderNodePoolResourceType),
+		MockResourceCRUD: NewMockResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool, cosmosstorageutils.GenericDocument[coreapi.ServiceProviderNodePool]](
+			client, parentResourceID, coreapi.ServiceProviderNodePoolResourceType),
 	}
 }
 
-var _ cosmosstorageutils.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] = &mockServiceProviderNodePoolCRUD{}
+var _ cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderNodePool, *coreapi.ServiceProviderNodePool] = &mockServiceProviderNodePoolCRUD{}
 
-// mockManagementClusterContentCRUD implements cosmosstorageutils.ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent].
+// mockManagementClusterContentCRUD implements cosmosstorageutils.ResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent].
 type mockManagementClusterContentCRUD struct {
-	*MockResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent, cosmosstorageutils.GenericDocument[api.ManagementClusterContent]]
+	*MockResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent, cosmosstorageutils.GenericDocument[coreapi.ManagementClusterContent]]
 }
 
 func newMockManagementClusterContentCRUD(client MockDocumentStore, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockManagementClusterContentCRUD {
 	return &mockManagementClusterContentCRUD{
-		MockResourceCRUD: NewMockResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent, cosmosstorageutils.GenericDocument[api.ManagementClusterContent]](
+		MockResourceCRUD: NewMockResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent, cosmosstorageutils.GenericDocument[coreapi.ManagementClusterContent]](
 			client, parentResourceID, resourceType),
 	}
 }
 
-var _ cosmosstorageutils.ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent] = &mockManagementClusterContentCRUD{}
+var _ cosmosstorageutils.ResourceCRUD[coreapi.ManagementClusterContent, *coreapi.ManagementClusterContent] = &mockManagementClusterContentCRUD{}
 
 // mockUntypedCRUD implements cosmosstorageutils.UntypedResourceCRUD.
 type mockUntypedCRUD struct {
@@ -784,7 +784,7 @@ func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.Resourc
 		return nil, fmt.Errorf("resourceID %q must be a descendent of parentResourceID %q", resourceID.String(), m.parentResourceID.String())
 	}
 
-	newCosmosID, err := arm.ResourceIDToCosmosID(resourceID)
+	newCosmosID, err := coreapi.ResourceIDToCosmosID(resourceID)
 	if err != nil {
 		return nil, err
 	}
@@ -859,7 +859,7 @@ func (m *mockUntypedCRUD) listInternal(ctx context.Context, opts *cosmosstorageu
 }
 
 func (m *mockUntypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.ResourceID) error {
-	cosmosUID, err := arm.ResourceIDToCosmosID(resourceID)
+	cosmosUID, err := coreapi.ResourceIDToCosmosID(resourceID)
 	if err != nil {
 		return err
 	}
@@ -880,12 +880,12 @@ func (m *mockUntypedCRUD) Child(resourceType azcorearm.ResourceType, resourceNam
 	switch {
 	case strings.EqualFold(resourceType.Type, "resourcegroups"):
 		// no provider needed here.
-	case resourceType.Namespace == api.ProviderNamespace && m.parentResourceID.ResourceType.Namespace != api.ProviderNamespace:
+	case resourceType.Namespace == coreapi.ProviderNamespace && m.parentResourceID.ResourceType.Namespace != coreapi.ProviderNamespace:
 		parts = append(parts,
 			"providers",
 			resourceType.Namespace,
 		)
-	case resourceType.Namespace != api.ProviderNamespace && m.parentResourceID.ResourceType.Namespace == api.ProviderNamespace:
+	case resourceType.Namespace != coreapi.ProviderNamespace && m.parentResourceID.ResourceType.Namespace == coreapi.ProviderNamespace:
 		return nil, fmt.Errorf("cannot switch to a non-RH provider: %q", resourceType.Namespace)
 	}
 	parts = append(parts, resourceType.Types[len(resourceType.Types)-1])

@@ -21,7 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
@@ -47,7 +47,7 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		mockResourcesDBClient,
 		nil,
 		newNoopAuditClient(t),
-		api.TestLocation,
+		coreapitesting.TestLocation,
 		true,
 	)
 	return f

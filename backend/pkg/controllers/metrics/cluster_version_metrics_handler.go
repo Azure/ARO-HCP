@@ -23,7 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -37,7 +37,7 @@ type clusterVersionMetricsHandler struct {
 func NewClusterVersionMetricsHandler(
 	prometheusRegisterer prometheus.Registerer,
 	readDesireLister kubeapplierlisters.ReadDesireLister,
-) Handler[*api.ServiceProviderCluster] {
+) Handler[*coreapi.ServiceProviderCluster] {
 	metricsHandler := &clusterVersionMetricsHandler{
 		readDesireLister: readDesireLister,
 		clusterVersionInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -49,7 +49,7 @@ func NewClusterVersionMetricsHandler(
 	return metricsHandler
 }
 
-func (metricsHandler *clusterVersionMetricsHandler) Sync(ctx context.Context, serviceProviderCluster *api.ServiceProviderCluster) {
+func (metricsHandler *clusterVersionMetricsHandler) Sync(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) {
 	resourceID := resourceIDMetricLabel(serviceProviderCluster.ResourceID.Parent)
 	subscriptionID := subscriptionIDMetricLabel(serviceProviderCluster.ResourceID.Parent)
 	clusterUUID := metricsHandler.clusterUUIDMetricLabel(ctx, serviceProviderCluster.ResourceID.Parent)
@@ -105,7 +105,7 @@ func (metricsHandler *clusterVersionMetricsHandler) clusterUUIDMetricLabel(
 	return strings.ToLower(clusterUUID.String())
 }
 
-func (metricsHandler *clusterVersionMetricsHandler) versionStatesFromServiceProviderCluster(serviceProviderCluster *api.ServiceProviderCluster) map[string]string {
+func (metricsHandler *clusterVersionMetricsHandler) versionStatesFromServiceProviderCluster(serviceProviderCluster *coreapi.ServiceProviderCluster) map[string]string {
 	versionStates := make(map[string]string)
 
 	activeVersions := serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions

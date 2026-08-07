@@ -19,15 +19,15 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/listers/listerutils"
 )
 
 // SystemAdminCredentialRequestLister lists and gets SystemAdminCredentialRequests from an informer's indexer.
 type SystemAdminCredentialRequestLister interface {
-	List(ctx context.Context) ([]*api.SystemAdminCredentialRequest, error)
-	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialName string) (*api.SystemAdminCredentialRequest, error)
-	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.SystemAdminCredentialRequest, error)
+	List(ctx context.Context) ([]*coreapi.SystemAdminCredentialRequest, error)
+	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialName string) (*coreapi.SystemAdminCredentialRequest, error)
+	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.SystemAdminCredentialRequest, error)
 }
 
 // systemAdminCredentialRequestLister implements SystemAdminCredentialRequestLister backed by a SharedIndexInformer.
@@ -42,19 +42,19 @@ func NewSystemAdminCredentialRequestLister(indexer cache.Indexer) SystemAdminCre
 	}
 }
 
-func (l *systemAdminCredentialRequestLister) List(ctx context.Context) ([]*api.SystemAdminCredentialRequest, error) {
-	return listerutils.ListAll[api.SystemAdminCredentialRequest](l.indexer)
+func (l *systemAdminCredentialRequestLister) List(ctx context.Context) ([]*coreapi.SystemAdminCredentialRequest, error) {
+	return listerutils.ListAll[coreapi.SystemAdminCredentialRequest](l.indexer)
 }
 
 // Get retrieves a single SystemAdminCredentialRequest by subscription ID, resource group name, cluster name,
 // and credential name. The store key is the lowercased ResourceID string.
-func (l *systemAdminCredentialRequestLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialName string) (*api.SystemAdminCredentialRequest, error) {
-	key := api.ToSystemAdminCredentialRequestResourceIDString(subscriptionID, resourceGroupName, clusterName, credentialName)
-	return listerutils.GetByKey[api.SystemAdminCredentialRequest](l.indexer, key)
+func (l *systemAdminCredentialRequestLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialName string) (*coreapi.SystemAdminCredentialRequest, error) {
+	key := coreapi.ToSystemAdminCredentialRequestResourceIDString(subscriptionID, resourceGroupName, clusterName, credentialName)
+	return listerutils.GetByKey[coreapi.SystemAdminCredentialRequest](l.indexer, key)
 }
 
 // ListForCluster retrieves all SystemAdminCredentialRequests for a given cluster.
-func (l *systemAdminCredentialRequestLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.SystemAdminCredentialRequest, error) {
-	key := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
-	return listerutils.ListFromIndex[api.SystemAdminCredentialRequest](l.indexer, ByCluster, key)
+func (l *systemAdminCredentialRequestLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.SystemAdminCredentialRequest, error) {
+	key := coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	return listerutils.ListFromIndex[coreapi.SystemAdminCredentialRequest](l.indexer, ByCluster, key)
 }

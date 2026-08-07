@@ -17,8 +17,7 @@ package validationutils
 import (
 	"context"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // ClusterValidation represents a validation that can be performed on a cluster.
@@ -26,5 +25,5 @@ type ClusterValidation interface {
 	// Name returns the name of the validation.
 	Name() string
 	// Validate validates the Cluster. It returns nil if the validation succeeds and an error otherwise.
-	Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) error
+	Validate(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster) error
 }

@@ -27,7 +27,6 @@ import (
 	"sync"
 	"time"
 
-	// If using ginkgo, import your tests here
 	_ "github.com/Azure/ARO-HCP/test/e2e"
 
 	"github.com/go-logr/stdr"
@@ -39,7 +38,8 @@ import (
 	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	// If using ginkgo, import your tests here
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/cleanup"
 	customlinktools "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/custom-link-tools"
 	gatherobservability "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-observability"
@@ -719,11 +719,11 @@ func setupCli() *cobra.Command {
 
 	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
 	root.AddCommand(cleanup.NewCommand())
-	root.AddCommand(api.Must(visualize.NewCommand()))
-	root.AddCommand(api.Must(customlinktools.NewCommand()))
-	root.AddCommand(api.Must(gatherobservability.NewCommand()))
-	root.AddCommand(api.Must(gathersnapshot.NewCommand()))
-	root.AddCommand(api.Must(slotmanager.NewCommand()))
+	root.AddCommand(metadataapi.Must(visualize.NewCommand()))
+	root.AddCommand(metadataapi.Must(customlinktools.NewCommand()))
+	root.AddCommand(metadataapi.Must(gatherobservability.NewCommand()))
+	root.AddCommand(metadataapi.Must(gathersnapshot.NewCommand()))
+	root.AddCommand(metadataapi.Must(slotmanager.NewCommand()))
 	return root
 }
 

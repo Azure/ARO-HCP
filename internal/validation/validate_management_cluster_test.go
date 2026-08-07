@@ -23,29 +23,29 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-func validManagementCluster(t *testing.T) *fleet.ManagementCluster {
+func validManagementCluster(t *testing.T) *fleetapi.ManagementCluster {
 	t.Helper()
-	resourceID := api.Must(fleet.ToManagementClusterResourceID("1"))
-	return &fleet.ManagementCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID("1"))
+	return &fleetapi.ManagementCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
 		ResourceID: resourceID,
-		Spec: fleet.ManagementClusterSpec{
-			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
+		Spec: fleetapi.ManagementClusterSpec{
+			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
-		Status: fleet.ManagementClusterStatus{
-			AKSResourceID:                                        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/pers-westus3-mgmt-1")),
-			PublicDNSZoneResourceID:                              api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
+		Status: fleetapi.ManagementClusterStatus{
+			AKSResourceID:                                        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/pers-westus3-mgmt-1")),
+			PublicDNSZoneResourceID:                              metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
 			HostedClustersSecretsKeyVaultURL:                     "https://kv-cx-secrets.vault.azure.net",
 			HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-cx-mi.vault.azure.net",
 			HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-			ClusterServiceProvisionShardID:                       ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
+			ClusterServiceProvisionShardID:                       ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
 			MaestroConsumerName:                                  "hcp-underlay-westus3-mgmt-1",
 			MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
 			MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
@@ -64,18 +64,18 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		modify       func(t *testing.T, mc *fleet.ManagementCluster)
+		modify       func(t *testing.T, mc *fleetapi.ManagementCluster)
 		expectErrors []expectedError
 	}{
 		{
 			name:         "valid create",
-			modify:       func(t *testing.T, mc *fleet.ManagementCluster) {},
+			modify:       func(t *testing.T, mc *fleetapi.ManagementCluster) {},
 			expectErrors: nil,
 		},
 		// ResourceID
 		{
 			name: "missing resourceId",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.ResourceID = nil
 			},
 			expectErrors: []expectedError{
@@ -85,8 +85,8 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		// Stamp identifier (resourceId.parent.name) — must be 1-3 lowercase alphanumeric
 		{
 			name: "stamp identifier with uppercase rejected",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
-				mc.ResourceID = api.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/ABC/managementClusters/default"))
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/ABC/managementClusters/default"))
 				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: []expectedError{
@@ -95,8 +95,8 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		},
 		{
 			name: "stamp identifier too long rejected",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
-				mc.ResourceID = api.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/abcd/managementClusters/default"))
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/abcd/managementClusters/default"))
 				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: []expectedError{
@@ -105,8 +105,8 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		},
 		{
 			name: "stamp identifier with special chars rejected",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
-				mc.ResourceID = api.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/a-b/managementClusters/default"))
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.ResourceID = metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/a-b/managementClusters/default"))
 				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: []expectedError{
@@ -115,16 +115,16 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		},
 		{
 			name: "stamp identifier single char accepted",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
-				mc.ResourceID = api.Must(fleet.ToManagementClusterResourceID("a"))
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("a"))
 				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: nil,
 		},
 		{
 			name: "stamp identifier three chars accepted",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
-				mc.ResourceID = api.Must(fleet.ToManagementClusterResourceID("ab3"))
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("ab3"))
 				mc.CosmosMetadata.ResourceID = mc.ResourceID
 			},
 			expectErrors: nil,
@@ -132,7 +132,7 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		// SchedulingPolicy
 		{
 			name: "empty schedulingPolicy rejected",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Spec.SchedulingPolicy = ""
 			},
 			expectErrors: []expectedError{
@@ -142,7 +142,7 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		},
 		{
 			name: "invalid schedulingPolicy rejected",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Spec.SchedulingPolicy = "InvalidValue"
 			},
 			expectErrors: []expectedError{
@@ -151,16 +151,16 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		},
 		{
 			name: "Unschedulable schedulingPolicy accepted",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
-				mc.Spec.SchedulingPolicy = fleet.ManagementClusterSchedulingPolicyUnschedulable
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.Spec.SchedulingPolicy = fleetapi.ManagementClusterSchedulingPolicyUnschedulable
 			},
 			expectErrors: nil,
 		},
 		// Status — all fields required
 		{
 			name: "empty status rejected",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
-				mc.Status = fleet.ManagementClusterStatus{}
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.Status = fleetapi.ManagementClusterStatus{}
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "status.aksResourceID", message: "Required"},
@@ -176,7 +176,7 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		},
 		{
 			name: "missing kubeApplierCosmosContainerName rejected on create",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.KubeApplierCosmosContainerName = ""
 			},
 			expectErrors: []expectedError{
@@ -185,7 +185,7 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		},
 		{
 			name: "missing aksResourceID rejected",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.AKSResourceID = nil
 			},
 			expectErrors: []expectedError{
@@ -194,14 +194,14 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		},
 		{
 			name: "nil clusterServiceProvisionShardID accepted on create",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.ClusterServiceProvisionShardID = nil
 			},
 			expectErrors: nil,
 		},
 		{
 			name: "invalid hostedClustersSecretsKeyVaultManagedIdentityClientID",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID = "not-a-uuid"
 			},
 			expectErrors: []expectedError{
@@ -210,7 +210,7 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		},
 		{
 			name: "invalid maestroConsumerName rejected",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.MaestroConsumerName = "INVALID_CONSUMER_NAME!"
 			},
 			expectErrors: []expectedError{
@@ -219,7 +219,7 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		},
 		{
 			name: "invalid maestroGRPCTarget format rejected",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.MaestroGRPCTarget = "missing-port"
 			},
 			expectErrors: []expectedError{
@@ -228,7 +228,7 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 		},
 		{
 			name: "invalid maestroGRPCTarget host rejected",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.MaestroGRPCTarget = "not_a_valid_host:8090"
 			},
 			expectErrors: []expectedError{
@@ -276,26 +276,26 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		modify       func(t *testing.T, mc *fleet.ManagementCluster)
+		modify       func(t *testing.T, mc *fleetapi.ManagementCluster)
 		expectErrors []expectedError
 	}{
 		{
 			name:         "valid update - no changes",
-			modify:       func(t *testing.T, mc *fleet.ManagementCluster) {},
+			modify:       func(t *testing.T, mc *fleetapi.ManagementCluster) {},
 			expectErrors: nil,
 		},
 		{
 			name: "valid update - change schedulingPolicy",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
-				mc.Spec.SchedulingPolicy = fleet.ManagementClusterSchedulingPolicyUnschedulable
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.Spec.SchedulingPolicy = fleetapi.ManagementClusterSchedulingPolicyUnschedulable
 			},
 			expectErrors: nil,
 		},
 		// Immutability checks
 		{
 			name: "aksResourceID changed",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
-				mc.Status.AKSResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/different-name"))
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.Status.AKSResourceID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/different-name"))
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "status.aksResourceID", message: "immutable"},
@@ -303,8 +303,8 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		},
 		{
 			name: "publicDNSZoneResourceID changed",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
-				mc.Status.PublicDNSZoneResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/other.com"))
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.Status.PublicDNSZoneResourceID = metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/other.com"))
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "status.publicDNSZoneResourceID", message: "immutable"},
@@ -312,7 +312,7 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		},
 		{
 			name: "hostedClustersSecretsKeyVaultURL changed",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.HostedClustersSecretsKeyVaultURL = "https://kv-other.vault.azure.net"
 			},
 			expectErrors: []expectedError{
@@ -321,7 +321,7 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		},
 		{
 			name: "hostedClustersManagedIdentitiesKeyVaultURL changed",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.HostedClustersManagedIdentitiesKeyVaultURL = "https://kv-other.vault.azure.net"
 			},
 			expectErrors: []expectedError{
@@ -330,7 +330,7 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		},
 		{
 			name: "hostedClustersSecretsKeyVaultManagedIdentityClientID changed",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID = "99999999-9999-9999-9999-999999999999"
 			},
 			expectErrors: []expectedError{
@@ -339,8 +339,8 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		},
 		{
 			name: "clusterServiceProvisionShardID immutable once set",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
-				mc.Status.ClusterServiceProvisionShardID = ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555")))
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.Status.ClusterServiceProvisionShardID = ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555")))
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "status.clusterServiceProvisionShardID", message: "immutable once set"},
@@ -348,7 +348,7 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		},
 		{
 			name: "maestroConsumerName changed",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.MaestroConsumerName = "different-consumer"
 			},
 			expectErrors: []expectedError{
@@ -357,7 +357,7 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		},
 		{
 			name: "maestroRESTAPIURL changed",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.MaestroRESTAPIURL = "http://different:8000"
 			},
 			expectErrors: []expectedError{
@@ -366,7 +366,7 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		},
 		{
 			name: "maestroGRPCTarget changed",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.MaestroGRPCTarget = "different:8090"
 			},
 			expectErrors: []expectedError{
@@ -375,8 +375,8 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		},
 		{
 			name: "resourceId changed",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
-				mc.ResourceID = api.Must(fleet.ToManagementClusterResourceID("x2"))
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
+				mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("x2"))
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "resourceId", message: "immutable"},
@@ -388,7 +388,7 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		// TestValidateManagementClusterUpdate_KubeApplierContainerMigration.
 		{
 			name: "kubeApplierCosmosContainerName changed once set",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.KubeApplierCosmosContainerName = "Manifests-MC-DIFFERENT"
 			},
 			expectErrors: []expectedError{
@@ -397,7 +397,7 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 		},
 		{
 			name: "kubeApplierCosmosContainerName cleared once set",
-			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+			modify: func(t *testing.T, mc *fleetapi.ManagementCluster) {
 				mc.Status.KubeApplierCosmosContainerName = ""
 			},
 			expectErrors: []expectedError{
@@ -516,13 +516,13 @@ func TestValidateManagementClusterUpdate_KubeApplierContainerMigration(t *testin
 func TestValidateManagementClusterUpdate_ClusterServiceProvisionShardID(t *testing.T) {
 	t.Parallel()
 
-	shardA := ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")))
-	shardB := ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555")))
+	shardA := ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")))
+	shardB := ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555")))
 
 	tests := []struct {
 		name       string
-		oldValue   *api.InternalID
-		newValue   *api.InternalID
+		oldValue   *metadataapi.InternalID
+		newValue   *metadataapi.InternalID
 		wantErrSub string
 	}{
 		{

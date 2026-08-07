@@ -33,7 +33,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
@@ -112,9 +113,9 @@ func NewDefaultClusterParams20251223() ClusterParams20251223 {
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
 		// registered for these tags to be honored.
 		Tags: map[string]*string{
-			api.TagClusterSizeOverride:        to.Ptr(string(api.MinimalControlPlanePodSizing)),
-			api.TagClusterMaxCreationDuration: to.Ptr((ClusterCreationTimeout - time.Minute).String()),
-			api.TagClusterMaxDeletionDuration: to.Ptr((HCPClusterDeletionTimeout - time.Minute).String()),
+			metadataapi.TagClusterSizeOverride:        to.Ptr(string(coreapi.MinimalControlPlanePodSizing)),
+			metadataapi.TagClusterMaxCreationDuration: to.Ptr((ClusterCreationTimeout - time.Minute).String()),
+			metadataapi.TagClusterMaxDeletionDuration: to.Ptr((HCPClusterDeletionTimeout - time.Minute).String()),
 		},
 	}
 	applyCPOImageOverride(params.Tags)
@@ -135,7 +136,7 @@ func NewDefaultNodePoolParams20251223() NodePoolParams20251223 {
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
 		// registered for these tags to be honored.
 		Tags: map[string]*string{
-			api.TagNodePoolMaxCreationDuration: to.Ptr((NodePoolCreationTimeout - time.Minute).String()),
+			metadataapi.TagNodePoolMaxCreationDuration: to.Ptr((NodePoolCreationTimeout - time.Minute).String()),
 		},
 	}
 }

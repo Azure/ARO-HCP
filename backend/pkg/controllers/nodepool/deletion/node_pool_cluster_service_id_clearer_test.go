@@ -30,7 +30,8 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -39,7 +40,7 @@ import (
 
 func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 	fixedNow := time.Now().UTC().Truncate(time.Second)
-	withDeletionStampsNodePoolOptsFunc := func(np *api.HCPOpenShiftClusterNodePool) {
+	withDeletionStampsNodePoolOptsFunc := func(np *coreapi.HCPOpenShiftClusterNodePool) {
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 	}
@@ -56,7 +57,7 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		existingNodePool  *api.HCPOpenShiftClusterNodePool
+		existingNodePool  *coreapi.HCPOpenShiftClusterNodePool
 		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
 		wantErr           bool
 		wantErrContain    string
@@ -69,14 +70,14 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not yet -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 			}),
 			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "ClusterServiceID already cleared -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -90,24 +91,24 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "CS NodePool still present -- wait",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
-					GetNodePool(gomock.Any(), api.Must(api.NewInternalID(testNodePoolCSIDStr))).
+					GetNodePool(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr))).
 					Return(newCSNodePool(t), nil)
 			},
 			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "CS returns 404 -- clear ClusterServiceID",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
-					GetNodePool(gomock.Any(), api.Must(api.NewInternalID(testNodePoolCSIDStr))).
+					GetNodePool(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr))).
 					Return(nil, fakeOCMNotFoundError())
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
@@ -120,12 +121,12 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "CS returns one of the not handled errors -- propagated, no clear",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
-					GetNodePool(gomock.Any(), api.Must(api.NewInternalID(testNodePoolCSIDStr))).
+					GetNodePool(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testNodePoolCSIDStr))).
 					Return(nil, errors.New("boom"))
 			},
 			wantErr:        true,
@@ -133,7 +134,7 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "UsesNewNodePoolDeletionApproach false -- no-op even when all clear conditions met",
-			existingNodePool: newTestNodePoolWithOldDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolWithOldDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 			}),
 			verifyDB: verifyClusterServiceIDUnchanged,
@@ -160,7 +161,7 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 				tc.setupMockCSClient(mockCSClient)
 			}
 
-			nodePoolsForLister := []*api.HCPOpenShiftClusterNodePool{}
+			nodePoolsForLister := []*coreapi.HCPOpenShiftClusterNodePool{}
 			if tc.existingNodePool != nil {
 				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
 			}

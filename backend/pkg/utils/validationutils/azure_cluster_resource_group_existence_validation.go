@@ -19,8 +19,7 @@ import (
 	"fmt"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -43,7 +42,7 @@ func (a *AzureClusterResourceGroupExistenceValidation) Name() string {
 }
 
 func (a *AzureClusterResourceGroupExistenceValidation) Validate(
-	ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster,
+	ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster,
 ) error {
 	rgClient, err := a.azureFPAClientBuilder.ResourceGroupsClient(
 		*clusterSubscription.Properties.TenantId,

@@ -28,8 +28,8 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -59,7 +59,7 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, fixture *operationtesting.ClusterTestFixture) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateCanceled, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateCanceled, op.Status)
 			},
 		},
 	}
@@ -75,7 +75,7 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			cluster := fixture.NewCluster(nil)
 			cluster.ServiceProviderProperties.RevokeCredentialsOperationID = tt.revokeCredentialsOperationID
 			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestSystemAdminCredentialRequest)
-			operation.InternalID = api.InternalID{}
+			operation.InternalID = metadataapi.InternalID{}
 
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)

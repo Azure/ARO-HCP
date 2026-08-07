@@ -28,8 +28,7 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -74,7 +73,7 @@ func NewDispatchRevokeCredentialsController(
 	return controller
 }
 
-func (c *dispatchRevokeCredentials) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *dispatchRevokeCredentials) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
@@ -88,7 +87,7 @@ func (c *dispatchRevokeCredentials) ShouldProcess(ctx context.Context, operation
 	// the credential revocation has not yet been dispatched to Clusters
 	// Service. Once dispatched, the operation status becomes "Deleting"
 	// and is ready for status polling.
-	if operation.Status != arm.ProvisioningStateAccepted {
+	if operation.Status != coreapi.ProvisioningStateAccepted {
 		return false
 	}
 	return true
@@ -156,7 +155,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	// Service polling in the "OperationRevokeCredentials" controller.
 
 	replacement := operation.DeepCopy()
-	replacement.Status = arm.ProvisioningStateDeleting
+	replacement.Status = coreapi.ProvisioningStateDeleting
 
 	_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
 	if err != nil {

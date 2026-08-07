@@ -27,8 +27,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -46,14 +47,14 @@ type ApplyDesireKey struct {
 }
 
 // CRUD returns the right per-scope CRUD for this key's parent.
-func (k ApplyDesireKey) CRUD(client kubeappliercosmosstorage.KubeApplierApplyDesireCRUD) (cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+func (k ApplyDesireKey) CRUD(client kubeappliercosmosstorage.KubeApplierApplyDesireCRUD) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
 	return applyDesireCRUD(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.SubResourceType, k.SubResourceName, client)
 }
 
 // GetResourceID returns the desire's full resource ID.
 func (k ApplyDesireKey) GetResourceID() *azcorearm.ResourceID {
-	s := desireResourceIDString(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.SubResourceType, k.SubResourceName, kubeapplier.ApplyDesireResourceTypeName, k.Name)
-	return api.Must(azcorearm.ParseResourceID(s))
+	s := desireResourceIDString(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.SubResourceType, k.SubResourceName, kubeapplierapi.ApplyDesireResourceTypeName, k.Name)
+	return metadataapi.Must(azcorearm.ParseResourceID(s))
 }
 
 // AddLoggerValues implements utils.LoggableKey so the generic worker loop seeds
@@ -75,14 +76,14 @@ type ReadDesireKey struct {
 }
 
 // CRUD returns the right per-scope CRUD for this key's parent.
-func (k ReadDesireKey) CRUD(client kubeappliercosmosstorage.KubeApplierReadDesireCRUD) (cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+func (k ReadDesireKey) CRUD(client kubeappliercosmosstorage.KubeApplierReadDesireCRUD) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
 	return readDesireCRUD(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.SubResourceType, k.SubResourceName, client)
 }
 
 // GetResourceID returns the desire's full resource ID.
 func (k ReadDesireKey) GetResourceID() *azcorearm.ResourceID {
-	s := desireResourceIDString(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.SubResourceType, k.SubResourceName, kubeapplier.ReadDesireResourceTypeName, k.Name)
-	return api.Must(azcorearm.ParseResourceID(s))
+	s := desireResourceIDString(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.SubResourceType, k.SubResourceName, kubeapplierapi.ReadDesireResourceTypeName, k.Name)
+	return metadataapi.Must(azcorearm.ParseResourceID(s))
 }
 
 // AddLoggerValues implements utils.LoggableKey so the generic worker loop seeds
@@ -145,7 +146,7 @@ func parseDesireParts(id *azcorearm.ResourceID) (desireParts, error) {
 		return desireParts{}, fmt.Errorf("desire %q has no parent in its resource ID", id.String())
 	}
 
-	if matchesType(parent.ResourceType, api.ClusterResourceType) {
+	if matchesType(parent.ResourceType, coreapi.ClusterResourceType) {
 		out.ClusterName = parent.Name
 		return out, nil
 	}
@@ -161,7 +162,7 @@ func parseDesireParts(id *azcorearm.ResourceID) (desireParts, error) {
 			"desire %q has intermediate parent %s but no grandparent cluster", id.String(), parent.ResourceType,
 		)
 	}
-	if !matchesType(grandparent.ResourceType, api.ClusterResourceType) {
+	if !matchesType(grandparent.ResourceType, coreapi.ClusterResourceType) {
 		return desireParts{}, fmt.Errorf(
 			"desire %q grandparent is %s, not a cluster", id.String(), grandparent.ResourceType,
 		)
@@ -183,37 +184,37 @@ func leafTypeName(rt azcorearm.ResourceType) string {
 // desireResourceIDString builds the lowercased resource ID string for a desire
 // from its decomposed parts.
 func desireResourceIDString(subscriptionID, resourceGroupName, clusterName, subResourceType, subResourceName, desireTypeName, desireName string) string {
-	clusterPath := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	clusterPath := coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	if len(subResourceType) == 0 {
 		return strings.ToLower(path.Join(clusterPath, desireTypeName, desireName))
 	}
 	return strings.ToLower(path.Join(clusterPath, subResourceType, subResourceName, desireTypeName, desireName))
 }
 
-func applyDesireCRUD(subscriptionID, resourceGroupName, clusterName, subResourceType, subResourceName string, client kubeappliercosmosstorage.KubeApplierApplyDesireCRUD) (cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+func applyDesireCRUD(subscriptionID, resourceGroupName, clusterName, subResourceType, subResourceName string, client kubeappliercosmosstorage.KubeApplierApplyDesireCRUD) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
 	switch strings.ToLower(subResourceType) {
 	case "":
 		return client.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
-	case strings.ToLower(api.NodePoolResourceTypeName):
+	case strings.ToLower(coreapi.NodePoolResourceTypeName):
 		return client.ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, subResourceName)
-	case strings.ToLower(api.SystemAdminCredentialRequestResourceTypeName):
+	case strings.ToLower(coreapi.SystemAdminCredentialRequestResourceTypeName):
 		return client.ApplyDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, subResourceName)
-	case strings.ToLower(api.SystemAdminCredentialRevocationResourceTypeName):
+	case strings.ToLower(coreapi.SystemAdminCredentialRevocationResourceTypeName):
 		return client.ApplyDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, subResourceName)
 	default:
 		return nil, fmt.Errorf("unsupported sub-resource type %q for apply desire CRUD dispatch", subResourceType)
 	}
 }
 
-func readDesireCRUD(subscriptionID, resourceGroupName, clusterName, subResourceType, subResourceName string, client kubeappliercosmosstorage.KubeApplierReadDesireCRUD) (cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+func readDesireCRUD(subscriptionID, resourceGroupName, clusterName, subResourceType, subResourceName string, client kubeappliercosmosstorage.KubeApplierReadDesireCRUD) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
 	switch strings.ToLower(subResourceType) {
 	case "":
 		return client.ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
-	case strings.ToLower(api.NodePoolResourceTypeName):
+	case strings.ToLower(coreapi.NodePoolResourceTypeName):
 		return client.ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, subResourceName)
-	case strings.ToLower(api.SystemAdminCredentialRequestResourceTypeName):
+	case strings.ToLower(coreapi.SystemAdminCredentialRequestResourceTypeName):
 		return client.ReadDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, subResourceName)
-	case strings.ToLower(api.SystemAdminCredentialRevocationResourceTypeName):
+	case strings.ToLower(coreapi.SystemAdminCredentialRevocationResourceTypeName):
 		return client.ReadDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, subResourceName)
 	default:
 		return nil, fmt.Errorf("unsupported sub-resource type %q for read desire CRUD dispatch", subResourceType)

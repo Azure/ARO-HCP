@@ -18,8 +18,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -27,16 +26,16 @@ import (
 
 // SliceClusterLister implements corelisters.ClusterLister backed by a slice.
 type SliceClusterLister struct {
-	Clusters []*api.HCPOpenShiftCluster
+	Clusters []*coreapi.HCPOpenShiftCluster
 }
 
 var _ corelisters.ClusterLister = &SliceClusterLister{}
 
-func (l *SliceClusterLister) List(ctx context.Context) ([]*api.HCPOpenShiftCluster, error) {
+func (l *SliceClusterLister) List(ctx context.Context) ([]*coreapi.HCPOpenShiftCluster, error) {
 	return l.Clusters, nil
 }
 
-func (l *SliceClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*api.HCPOpenShiftCluster, error) {
+func (l *SliceClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.HCPOpenShiftCluster, error) {
 	for _, c := range l.Clusters {
 		if c.ID == nil {
 			continue
@@ -50,8 +49,8 @@ func (l *SliceClusterLister) Get(ctx context.Context, subscriptionID, resourceGr
 	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
-func (l *SliceClusterLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.HCPOpenShiftCluster, error) {
-	var result []*api.HCPOpenShiftCluster
+func (l *SliceClusterLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.HCPOpenShiftCluster, error) {
+	var result []*coreapi.HCPOpenShiftCluster
 	for _, c := range l.Clusters {
 		if c.ID == nil {
 			continue
@@ -66,16 +65,16 @@ func (l *SliceClusterLister) ListForResourceGroup(ctx context.Context, subscript
 
 // SliceNodePoolLister implements corelisters.NodePoolLister backed by a slice.
 type SliceNodePoolLister struct {
-	NodePools []*api.HCPOpenShiftClusterNodePool
+	NodePools []*coreapi.HCPOpenShiftClusterNodePool
 }
 
 var _ corelisters.NodePoolLister = &SliceNodePoolLister{}
 
-func (l *SliceNodePoolLister) List(ctx context.Context) ([]*api.HCPOpenShiftClusterNodePool, error) {
+func (l *SliceNodePoolLister) List(ctx context.Context) ([]*coreapi.HCPOpenShiftClusterNodePool, error) {
 	return l.NodePools, nil
 }
 
-func (l *SliceNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*api.HCPOpenShiftClusterNodePool, error) {
+func (l *SliceNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.HCPOpenShiftClusterNodePool, error) {
 	for _, np := range l.NodePools {
 		if np.ID == nil {
 			continue
@@ -90,8 +89,8 @@ func (l *SliceNodePoolLister) Get(ctx context.Context, subscriptionID, resourceG
 	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
-func (l *SliceNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.HCPOpenShiftClusterNodePool, error) {
-	var result []*api.HCPOpenShiftClusterNodePool
+func (l *SliceNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.HCPOpenShiftClusterNodePool, error) {
+	var result []*coreapi.HCPOpenShiftClusterNodePool
 	for _, np := range l.NodePools {
 		if np.ID == nil {
 			continue
@@ -104,8 +103,8 @@ func (l *SliceNodePoolLister) ListForResourceGroup(ctx context.Context, subscrip
 	return result, nil
 }
 
-func (l *SliceNodePoolLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.HCPOpenShiftClusterNodePool, error) {
-	var result []*api.HCPOpenShiftClusterNodePool
+func (l *SliceNodePoolLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.HCPOpenShiftClusterNodePool, error) {
+	var result []*coreapi.HCPOpenShiftClusterNodePool
 	for _, np := range l.NodePools {
 		if np.ID == nil {
 			continue
@@ -121,16 +120,16 @@ func (l *SliceNodePoolLister) ListForCluster(ctx context.Context, subscriptionID
 
 // SliceActiveOperationLister implements corelisters.ActiveOperationLister backed by a slice.
 type SliceActiveOperationLister struct {
-	Operations []*api.Operation
+	Operations []*coreapi.Operation
 }
 
 var _ corelisters.ActiveOperationLister = &SliceActiveOperationLister{}
 
-func (l *SliceActiveOperationLister) List(ctx context.Context) ([]*api.Operation, error) {
+func (l *SliceActiveOperationLister) List(ctx context.Context) ([]*coreapi.Operation, error) {
 	return l.Operations, nil
 }
 
-func (l *SliceActiveOperationLister) Get(ctx context.Context, subscriptionID, name string) (*api.Operation, error) {
+func (l *SliceActiveOperationLister) Get(ctx context.Context, subscriptionID, name string) (*coreapi.Operation, error) {
 	for _, op := range l.Operations {
 		if op.OperationID == nil {
 			continue
@@ -145,23 +144,23 @@ func (l *SliceActiveOperationLister) Get(ctx context.Context, subscriptionID, na
 
 // ListActiveOperationsForCluster returns active operations for the cluster and its
 // child resources (node pools, external auths), matching production lister semantics.
-func (l *SliceActiveOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.Operation, error) {
-	clusterKey := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+func (l *SliceActiveOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.Operation, error) {
+	clusterKey := coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	return l.listByPrefix(clusterKey), nil
 }
 
-func (l *SliceActiveOperationLister) ListActiveOperationsForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*api.Operation, error) {
-	nodePoolKey := api.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+func (l *SliceActiveOperationLister) ListActiveOperationsForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.Operation, error) {
+	nodePoolKey := coreapi.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	return l.listByPrefix(nodePoolKey), nil
 }
 
-func (l *SliceActiveOperationLister) ListActiveOperationsForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*api.Operation, error) {
-	externalAuthKey := api.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+func (l *SliceActiveOperationLister) ListActiveOperationsForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.Operation, error) {
+	externalAuthKey := coreapi.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
 	return l.listByPrefix(externalAuthKey), nil
 }
 
-func (l *SliceActiveOperationLister) listByPrefix(prefix string) []*api.Operation {
-	var result []*api.Operation
+func (l *SliceActiveOperationLister) listByPrefix(prefix string) []*coreapi.Operation {
+	var result []*coreapi.Operation
 	for _, op := range l.Operations {
 		if op.ExternalID == nil {
 			continue
@@ -175,16 +174,16 @@ func (l *SliceActiveOperationLister) listByPrefix(prefix string) []*api.Operatio
 
 // SliceExternalAuthLister implements corelisters.ExternalAuthLister backed by a slice.
 type SliceExternalAuthLister struct {
-	ExternalAuths []*api.HCPOpenShiftClusterExternalAuth
+	ExternalAuths []*coreapi.HCPOpenShiftClusterExternalAuth
 }
 
 var _ corelisters.ExternalAuthLister = &SliceExternalAuthLister{}
 
-func (l *SliceExternalAuthLister) List(ctx context.Context) ([]*api.HCPOpenShiftClusterExternalAuth, error) {
+func (l *SliceExternalAuthLister) List(ctx context.Context) ([]*coreapi.HCPOpenShiftClusterExternalAuth, error) {
 	return l.ExternalAuths, nil
 }
 
-func (l *SliceExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*api.HCPOpenShiftClusterExternalAuth, error) {
+func (l *SliceExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*coreapi.HCPOpenShiftClusterExternalAuth, error) {
 	for _, ea := range l.ExternalAuths {
 		if ea.ID == nil {
 			continue
@@ -199,8 +198,8 @@ func (l *SliceExternalAuthLister) Get(ctx context.Context, subscriptionID, resou
 	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
-func (l *SliceExternalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.HCPOpenShiftClusterExternalAuth, error) {
-	var result []*api.HCPOpenShiftClusterExternalAuth
+func (l *SliceExternalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.HCPOpenShiftClusterExternalAuth, error) {
+	var result []*coreapi.HCPOpenShiftClusterExternalAuth
 	for _, ea := range l.ExternalAuths {
 		if ea.ID == nil {
 			continue
@@ -213,8 +212,8 @@ func (l *SliceExternalAuthLister) ListForResourceGroup(ctx context.Context, subs
 	return result, nil
 }
 
-func (l *SliceExternalAuthLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.HCPOpenShiftClusterExternalAuth, error) {
-	var result []*api.HCPOpenShiftClusterExternalAuth
+func (l *SliceExternalAuthLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.HCPOpenShiftClusterExternalAuth, error) {
+	var result []*coreapi.HCPOpenShiftClusterExternalAuth
 	for _, ea := range l.ExternalAuths {
 		if ea.ID == nil {
 			continue
@@ -230,16 +229,16 @@ func (l *SliceExternalAuthLister) ListForCluster(ctx context.Context, subscripti
 
 // SliceServiceProviderClusterLister implements corelisters.ServiceProviderClusterLister backed by a slice.
 type SliceServiceProviderClusterLister struct {
-	ServiceProviderClusters []*api.ServiceProviderCluster
+	ServiceProviderClusters []*coreapi.ServiceProviderCluster
 }
 
 var _ corelisters.ServiceProviderClusterLister = &SliceServiceProviderClusterLister{}
 
-func (l *SliceServiceProviderClusterLister) List(ctx context.Context) ([]*api.ServiceProviderCluster, error) {
+func (l *SliceServiceProviderClusterLister) List(ctx context.Context) ([]*coreapi.ServiceProviderCluster, error) {
 	return l.ServiceProviderClusters, nil
 }
 
-func (l *SliceServiceProviderClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*api.ServiceProviderCluster, error) {
+func (l *SliceServiceProviderClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*coreapi.ServiceProviderCluster, error) {
 	for _, spc := range l.ServiceProviderClusters {
 		resourceID := spc.GetResourceID()
 		if resourceID == nil {
@@ -254,8 +253,8 @@ func (l *SliceServiceProviderClusterLister) Get(ctx context.Context, subscriptio
 	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
-func (l *SliceServiceProviderClusterLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.ServiceProviderCluster, error) {
-	var result []*api.ServiceProviderCluster
+func (l *SliceServiceProviderClusterLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.ServiceProviderCluster, error) {
+	var result []*coreapi.ServiceProviderCluster
 	for _, spc := range l.ServiceProviderClusters {
 		resourceID := spc.GetResourceID()
 		if resourceID == nil {
@@ -272,16 +271,16 @@ func (l *SliceServiceProviderClusterLister) ListForCluster(ctx context.Context, 
 
 // SliceServiceProviderNodePoolLister implements corelisters.ServiceProviderNodePoolLister backed by a slice.
 type SliceServiceProviderNodePoolLister struct {
-	ServiceProviderNodePools []*api.ServiceProviderNodePool
+	ServiceProviderNodePools []*coreapi.ServiceProviderNodePool
 }
 
 var _ corelisters.ServiceProviderNodePoolLister = &SliceServiceProviderNodePoolLister{}
 
-func (l *SliceServiceProviderNodePoolLister) List(ctx context.Context) ([]*api.ServiceProviderNodePool, error) {
+func (l *SliceServiceProviderNodePoolLister) List(ctx context.Context) ([]*coreapi.ServiceProviderNodePool, error) {
 	return l.ServiceProviderNodePools, nil
 }
 
-func (l *SliceServiceProviderNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*api.ServiceProviderNodePool, error) {
+func (l *SliceServiceProviderNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*coreapi.ServiceProviderNodePool, error) {
 	for _, spnp := range l.ServiceProviderNodePools {
 		resourceID := spnp.GetResourceID()
 		if resourceID == nil {
@@ -297,8 +296,8 @@ func (l *SliceServiceProviderNodePoolLister) Get(ctx context.Context, subscripti
 	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
-func (l *SliceServiceProviderNodePoolLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.ServiceProviderNodePool, error) {
-	var result []*api.ServiceProviderNodePool
+func (l *SliceServiceProviderNodePoolLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.ServiceProviderNodePool, error) {
+	var result []*coreapi.ServiceProviderNodePool
 	for _, spnp := range l.ServiceProviderNodePools {
 		resourceID := spnp.GetResourceID()
 		if resourceID == nil {
@@ -316,16 +315,16 @@ func (l *SliceServiceProviderNodePoolLister) ListForNodePool(ctx context.Context
 
 // SliceManagementClusterContentLister implements corelisters.ManagementClusterContentLister backed by a slice.
 type SliceManagementClusterContentLister struct {
-	Contents []*api.ManagementClusterContent
+	Contents []*coreapi.ManagementClusterContent
 }
 
 var _ corelisters.ManagementClusterContentLister = &SliceManagementClusterContentLister{}
 
-func (l *SliceManagementClusterContentLister) List(ctx context.Context) ([]*api.ManagementClusterContent, error) {
+func (l *SliceManagementClusterContentLister) List(ctx context.Context) ([]*coreapi.ManagementClusterContent, error) {
 	return l.Contents, nil
 }
 
-func (l *SliceManagementClusterContentLister) GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, managementClusterContentName string) (*api.ManagementClusterContent, error) {
+func (l *SliceManagementClusterContentLister) GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, managementClusterContentName string) (*coreapi.ManagementClusterContent, error) {
 	for _, c := range l.Contents {
 		resourceID := c.GetResourceID()
 		if resourceID == nil {
@@ -341,8 +340,8 @@ func (l *SliceManagementClusterContentLister) GetForCluster(ctx context.Context,
 	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
-func (l *SliceManagementClusterContentLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.ManagementClusterContent, error) {
-	var result []*api.ManagementClusterContent
+func (l *SliceManagementClusterContentLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.ManagementClusterContent, error) {
+	var result []*coreapi.ManagementClusterContent
 	for _, c := range l.Contents {
 		resourceID := c.GetResourceID()
 		if resourceID == nil {
@@ -357,9 +356,9 @@ func (l *SliceManagementClusterContentLister) ListForCluster(ctx context.Context
 	return result, nil
 }
 
-func (l *SliceManagementClusterContentLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.ManagementClusterContent, error) {
-	prefix := api.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
-	var result []*api.ManagementClusterContent
+func (l *SliceManagementClusterContentLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.ManagementClusterContent, error) {
+	prefix := coreapi.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
+	var result []*coreapi.ManagementClusterContent
 	for _, c := range l.Contents {
 		resourceID := c.GetResourceID()
 		if resourceID == nil {
@@ -374,16 +373,16 @@ func (l *SliceManagementClusterContentLister) ListForNodePool(ctx context.Contex
 
 // SliceSubscriptionLister implements corelisters.SubscriptionLister backed by a slice.
 type SliceSubscriptionLister struct {
-	Subscriptions []*arm.Subscription
+	Subscriptions []*coreapi.Subscription
 }
 
 var _ corelisters.SubscriptionLister = &SliceSubscriptionLister{}
 
-func (l *SliceSubscriptionLister) List(ctx context.Context) ([]*arm.Subscription, error) {
+func (l *SliceSubscriptionLister) List(ctx context.Context) ([]*coreapi.Subscription, error) {
 	return l.Subscriptions, nil
 }
 
-func (l *SliceSubscriptionLister) Get(ctx context.Context, subscriptionID string) (*arm.Subscription, error) {
+func (l *SliceSubscriptionLister) Get(ctx context.Context, subscriptionID string) (*coreapi.Subscription, error) {
 	for _, s := range l.Subscriptions {
 		resourceID := s.GetResourceID()
 		if resourceID == nil {
@@ -433,17 +432,17 @@ func (l *SliceBillingLister) ListForSubscription(ctx context.Context, subscripti
 // controllers nested further down (e.g. a node-pool controller is not
 // returned by ListForCluster for that node pool's parent cluster).
 type SliceControllerLister struct {
-	Controllers []*api.Controller
+	Controllers []*coreapi.Controller
 }
 
 var _ corelisters.ControllerLister = &SliceControllerLister{}
 
-func (l *SliceControllerLister) List(_ context.Context) ([]*api.Controller, error) {
+func (l *SliceControllerLister) List(_ context.Context) ([]*coreapi.Controller, error) {
 	return l.Controllers, nil
 }
 
-func (l *SliceControllerLister) ListForResourceGroup(_ context.Context, subscriptionID, resourceGroupName string) ([]*api.Controller, error) {
-	out := []*api.Controller{}
+func (l *SliceControllerLister) ListForResourceGroup(_ context.Context, subscriptionID, resourceGroupName string) ([]*coreapi.Controller, error) {
+	out := []*coreapi.Controller{}
 	for _, c := range l.Controllers {
 		if c.ResourceID == nil {
 			continue
@@ -456,27 +455,27 @@ func (l *SliceControllerLister) ListForResourceGroup(_ context.Context, subscrip
 	return out, nil
 }
 
-func (l *SliceControllerLister) ListForCluster(_ context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.Controller, error) {
+func (l *SliceControllerLister) ListForCluster(_ context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.Controller, error) {
 	return listControllersUnderPrefix(l.Controllers,
-		api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
+		coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
 }
 
-func (l *SliceControllerLister) ListForNodePool(_ context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*api.Controller, error) {
+func (l *SliceControllerLister) ListForNodePool(_ context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*coreapi.Controller, error) {
 	return listControllersUnderPrefix(l.Controllers,
-		api.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+		coreapi.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 }
 
-func (l *SliceControllerLister) ListForExternalAuth(_ context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*api.Controller, error) {
+func (l *SliceControllerLister) ListForExternalAuth(_ context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*coreapi.Controller, error) {
 	return listControllersUnderPrefix(l.Controllers,
-		api.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName))
+		coreapi.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName))
 }
 
 // listControllersUnderPrefix returns the controllers whose ResourceID is a
 // direct child of parentResourceID — exactly one path segment-pair (type +
 // name) below the parent.
-func listControllersUnderPrefix(controllers []*api.Controller, parentResourceID string) ([]*api.Controller, error) {
+func listControllersUnderPrefix(controllers []*coreapi.Controller, parentResourceID string) ([]*coreapi.Controller, error) {
 	prefix := strings.ToLower(parentResourceID) + "/"
-	out := []*api.Controller{}
+	out := []*coreapi.Controller{}
 	for _, c := range controllers {
 		if c.ResourceID == nil {
 			continue

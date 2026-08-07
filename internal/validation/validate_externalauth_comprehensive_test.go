@@ -25,8 +25,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -35,8 +35,8 @@ func TestValidateExternalAuth(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		newObj       *api.HCPOpenShiftClusterExternalAuth
-		oldObj       *api.HCPOpenShiftClusterExternalAuth
+		newObj       *coreapi.HCPOpenShiftClusterExternalAuth
+		oldObj       *coreapi.HCPOpenShiftClusterExternalAuth
 		op           operation.Operation
 		expectErrors []utils.ExpectedError
 	}{
@@ -51,10 +51,10 @@ func TestValidateExternalAuth(t *testing.T) {
 			newObj: testExternalAuthWithClients(
 				[]string{"console-client"},
 				testExternalAuthClientProfile(
-					api.ExternalAuthConsoleClientComponentName,
-					api.ExternalAuthConsoleClientComponentNamespace,
+					coreapi.ExternalAuthConsoleClientComponentName,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 					"console-client",
-					api.ExternalAuthClientTypeConfidential,
+					metadataapi.ExternalAuthClientTypeConfidential,
 				),
 			),
 			op:           operation.Operation{Type: operation.Create},
@@ -62,33 +62,33 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "valid external auth with multiple unique clients",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"client1", "client2", "client3"}
-				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+				obj.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "component1",
 							AuthClientNamespace: "namespace1",
 						},
 						ClientID: "client1",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "component2",
 							AuthClientNamespace: "namespace2",
 						},
 						ClientID: "client2",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "component1", // Same name but different namespace is OK
 							AuthClientNamespace: "namespace3",
 						},
 						ClientID: "client3",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -98,7 +98,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "valid external auth without CA certificate",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.CA = "" // CA is optional
 				return obj
@@ -117,7 +117,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "invalid issuer URL - not HTTPS",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "http://insecure.example.com"
 				return obj
@@ -130,7 +130,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "missing issuer audiences",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{}
@@ -144,7 +144,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "too many issuer audiences",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = make([]string, 11)
@@ -160,7 +160,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "empty issuer audience",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{""}
@@ -173,7 +173,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "empty issuer audience among valid audiences",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1", ""}
@@ -186,7 +186,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "multiple empty issuer audiences",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"", ""}
@@ -200,7 +200,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "invalid CA certificate",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
@@ -214,19 +214,19 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "too many clients",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
-				obj.Properties.Clients = make([]api.ExternalAuthClientProfile, 21)
+				obj.Properties.Clients = make([]coreapi.ExternalAuthClientProfile, 21)
 				for i := range obj.Properties.Clients {
-					obj.Properties.Clients[i] = api.ExternalAuthClientProfile{
-						Component: api.ExternalAuthClientComponentProfile{
+					obj.Properties.Clients[i] = coreapi.ExternalAuthClientProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "component" + string(rune('0'+i)),
 							AuthClientNamespace: "namespace" + string(rune('0'+i)),
 						},
 						ClientID: "audience1",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					}
 				}
 				return obj
@@ -238,18 +238,18 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "missing client component name",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
 				obj.Properties.Issuer.CA = validCertPEM()
-				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+				obj.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							AuthClientNamespace: "test-namespace",
 						},
 						ClientID: "audience1",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -261,7 +261,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "client component name too long",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				longName := make([]byte, 257)
 				for i := range longName {
@@ -277,7 +277,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "username claim too long",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				longClaim := make([]byte, 257)
 				for i := range longClaim {
@@ -293,7 +293,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "group claim too long",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				longClaim := make([]byte, 257)
 				for i := range longClaim {
@@ -309,7 +309,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "missing username claim",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.Mappings.Username.Claim = ""
 				return obj
@@ -321,25 +321,25 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "duplicate client components (unique validation)",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"client1", "client2"}
-				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+				obj.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "same-component",
 							AuthClientNamespace: "same-namespace",
 						},
 						ClientID: "client1",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "same-component", // Same component name and namespace
 							AuthClientNamespace: "same-namespace",
 						},
 						ClientID: "client2",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -351,17 +351,17 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "client ID not matching any issuer audience",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"audience1", "audience2"}
-				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+				obj.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "test-component",
 							AuthClientNamespace: "test-namespace",
 						},
 						ClientID: "nonexistent-client", // This doesn't match any audience
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -373,25 +373,25 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "multiple clients with mismatched audiences",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
-				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+				obj.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "component1",
 							AuthClientNamespace: "namespace1",
 						},
 						ClientID: "audience1", // This matches
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "component2",
 							AuthClientNamespace: "namespace2",
 						},
 						ClientID: "bad-audience", // This doesn't match
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -403,7 +403,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "invalid client type",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Clients[0].Type = "InvalidType"
 				return obj
@@ -415,7 +415,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "valid client extraScopes",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Clients[0].ExtraScopes = []string{"email", "profile"}
 				return obj
@@ -425,7 +425,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "empty client extraScope",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Clients[0].ExtraScopes = []string{""}
 				return obj
@@ -437,7 +437,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "empty client extraScope among valid extraScopes",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Clients[0].ExtraScopes = []string{"email", ""}
 				return obj
@@ -449,7 +449,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "multiple empty client extraScopes",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Clients[0].ExtraScopes = []string{"", ""}
 				return obj
@@ -462,7 +462,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "invalid external auth resource name - empty",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.ID.Name = ""
 				obj.Name = ""
@@ -476,7 +476,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "invalid external auth resource name - special character",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.ID.Name = "$"
 				obj.Name = "$"
@@ -489,7 +489,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "invalid external auth resource name - starts with hyphen",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.ID.Name = "-abcde"
 				obj.Name = "-abcde"
@@ -502,7 +502,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "invalid external auth resource name - starts with number",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.ID.Name = "1externalauth"
 				obj.Name = "1externalauth"
@@ -515,7 +515,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "invalid external auth resource name - ends with hyphen",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.ID.Name = "my-auth-"
 				obj.Name = "my-auth-"
@@ -528,7 +528,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "invalid external auth resource name - too long",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				long := "07B4gc00vjA2C8KL3Ns4No9fi"
 				obj.ID.Name = long
@@ -543,7 +543,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "valid external auth resource name - minimum length",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.ID.Name = "a"
 				obj.Name = "a"
@@ -554,7 +554,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "valid external auth resource name - with hyphens",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.ID.Name = "my-auth-1"
 				obj.Name = "my-auth-1"
@@ -565,7 +565,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "valid external auth resource name - maximum length",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.ID.Name = "myExternalAuth1" // 15 chars — max for this pattern
 				obj.Name = "myExternalAuth1"
@@ -576,18 +576,18 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "immutable provisioning state on update",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.ProvisioningState = arm.ProvisioningStateSucceeded
+				obj.Properties.ProvisioningState = coreapi.ProvisioningStateSucceeded
 				// Set ValidationRules to empty to avoid nil pointer in discriminated union validation
-				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{}
+				obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{}
 				return obj
 			}(),
-			oldObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			oldObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.ProvisioningState = arm.ProvisioningStateProvisioning
+				obj.Properties.ProvisioningState = coreapi.ProvisioningStateProvisioning
 				// Set ValidationRules to empty to avoid nil pointer in discriminated union validation
-				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{}
+				obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{}
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Update},
@@ -600,27 +600,27 @@ func TestValidateExternalAuth(t *testing.T) {
 			newObj: testExternalAuthWithClients(
 				[]string{"console-client"},
 				testExternalAuthClientProfile(
-					api.ExternalAuthConsoleClientComponentName,
-					api.ExternalAuthConsoleClientComponentNamespace,
+					coreapi.ExternalAuthConsoleClientComponentName,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 					"console-client",
-					api.ExternalAuthClientTypePublic,
+					metadataapi.ExternalAuthClientTypePublic,
 				),
 			),
 			oldObj: testExternalAuthWithClients(
 				[]string{"console-client"},
 				testExternalAuthClientProfile(
-					api.ExternalAuthConsoleClientComponentName,
-					api.ExternalAuthConsoleClientComponentNamespace,
+					coreapi.ExternalAuthConsoleClientComponentName,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 					"console-client",
-					api.ExternalAuthClientTypeConfidential,
+					metadataapi.ExternalAuthClientTypeConfidential,
 				),
 			),
 			op: operation.Operation{Type: operation.Update},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.clients[0].type", Message: fmt.Sprintf("must be %s when component name is %s and component namespace is %s",
-					api.ExternalAuthClientTypeConfidential,
-					api.ExternalAuthConsoleClientComponentName,
-					api.ExternalAuthConsoleClientComponentNamespace,
+					metadataapi.ExternalAuthClientTypeConfidential,
+					coreapi.ExternalAuthConsoleClientComponentName,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 				)},
 			},
 		},
@@ -629,19 +629,19 @@ func TestValidateExternalAuth(t *testing.T) {
 			newObj: testExternalAuthWithClients(
 				[]string{"console-client"},
 				testExternalAuthClientProfile(
-					api.ExternalAuthConsoleClientComponentName,
-					api.ExternalAuthConsoleClientComponentNamespace,
+					coreapi.ExternalAuthConsoleClientComponentName,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 					"console-client",
-					api.ExternalAuthClientTypeConfidential,
+					metadataapi.ExternalAuthClientTypeConfidential,
 				),
 			),
 			oldObj: testExternalAuthWithClients(
 				[]string{"console-client"},
 				testExternalAuthClientProfile(
-					api.ExternalAuthConsoleClientComponentName,
-					api.ExternalAuthConsoleClientComponentNamespace,
+					coreapi.ExternalAuthConsoleClientComponentName,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 					"console-client",
-					api.ExternalAuthClientTypeConfidential,
+					metadataapi.ExternalAuthClientTypeConfidential,
 				),
 			),
 			op:           operation.Operation{Type: operation.Update},
@@ -655,7 +655,7 @@ func TestValidateExternalAuth(t *testing.T) {
 					"component1",
 					"namespace1",
 					"other-client",
-					api.ExternalAuthClientTypeConfidential,
+					metadataapi.ExternalAuthClientTypeConfidential,
 				),
 			),
 			oldObj: testExternalAuthWithClients(
@@ -664,7 +664,7 @@ func TestValidateExternalAuth(t *testing.T) {
 					"component1",
 					"namespace1",
 					"other-client",
-					api.ExternalAuthClientTypePublic,
+					metadataapi.ExternalAuthClientTypePublic,
 				),
 			),
 			op: operation.Operation{Type: operation.Update},
@@ -693,16 +693,16 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		setupObject  func() *api.HCPOpenShiftClusterExternalAuth
+		setupObject  func() *coreapi.HCPOpenShiftClusterExternalAuth
 		expectErrors []utils.ExpectedError
 	}{
 		{
 			name: "username prefix policy - valid None with no prefix",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
+				obj.Properties.Claim.Mappings.Username = coreapi.UsernameClaimProfile{
 					Claim:        "sub",
-					PrefixPolicy: api.UsernameClaimPrefixPolicyNone,
+					PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyNone,
 				}
 				return obj
 			},
@@ -710,11 +710,11 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "username prefix policy - valid NoPrefix with no prefix",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
+				obj.Properties.Claim.Mappings.Username = coreapi.UsernameClaimProfile{
 					Claim:        "sub",
-					PrefixPolicy: api.UsernameClaimPrefixPolicyNoPrefix,
+					PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyNoPrefix,
 				}
 				return obj
 			},
@@ -722,12 +722,12 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "username prefix policy - valid Prefix with prefix",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
+				obj.Properties.Claim.Mappings.Username = coreapi.UsernameClaimProfile{
 					Claim:        "sub",
 					Prefix:       "custom:",
-					PrefixPolicy: api.UsernameClaimPrefixPolicyPrefix,
+					PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyPrefix,
 				}
 				return obj
 			},
@@ -735,12 +735,12 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "username prefix policy - invalid None with prefix (discriminated union violation)",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
+				obj.Properties.Claim.Mappings.Username = coreapi.UsernameClaimProfile{
 					Claim:        "sub",
 					Prefix:       "custom:",
-					PrefixPolicy: api.UsernameClaimPrefixPolicyNone,
+					PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyNone,
 				}
 				return obj
 			},
@@ -750,11 +750,11 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "username prefix policy - invalid Prefix without prefix (discriminated union violation)",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
+				obj.Properties.Claim.Mappings.Username = coreapi.UsernameClaimProfile{
 					Claim:        "sub",
-					PrefixPolicy: api.UsernameClaimPrefixPolicyPrefix,
+					PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyPrefix,
 				}
 				return obj
 			},
@@ -764,12 +764,12 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "token validation rule - valid RequiredClaim with claim",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{
+				obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{
 					{
-						Type: api.TokenValidationRuleTypeRequiredClaim,
-						RequiredClaim: api.TokenRequiredClaim{
+						Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
+						RequiredClaim: coreapi.TokenRequiredClaim{
 							Claim:         "iss",
 							RequiredValue: "https://valid.example.com",
 						},
@@ -781,11 +781,11 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "token validation rule - invalid RequiredClaim without claim (discriminated union violation)",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{
+				obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{
 					{
-						Type: api.TokenValidationRuleTypeRequiredClaim,
+						Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
 					},
 				}
 				return obj
@@ -798,12 +798,12 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "token validation rule - invalid RequiredClaim with empty claim field",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{
+				obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{
 					{
-						Type: api.TokenValidationRuleTypeRequiredClaim,
-						RequiredClaim: api.TokenRequiredClaim{
+						Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
+						RequiredClaim: coreapi.TokenRequiredClaim{
 							Claim:         "", // Empty claim should be rejected
 							RequiredValue: "https://valid.example.com",
 						},
@@ -817,12 +817,12 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "token validation rule - invalid RequiredClaim with empty required value",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{
+				obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{
 					{
-						Type: api.TokenValidationRuleTypeRequiredClaim,
-						RequiredClaim: api.TokenRequiredClaim{
+						Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
+						RequiredClaim: coreapi.TokenRequiredClaim{
 							Claim:         "iss",
 							RequiredValue: "", // Empty required value should be rejected
 						},
@@ -836,12 +836,12 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "username prefix policy - invalid NoPrefix with non-empty prefix (discriminated union violation)",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
+				obj.Properties.Claim.Mappings.Username = coreapi.UsernameClaimProfile{
 					Claim:        "sub",
 					Prefix:       "should-not-be-set:", // Prefix should not be set when PrefixPolicy is NoPrefix
-					PrefixPolicy: api.UsernameClaimPrefixPolicyNoPrefix,
+					PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyNoPrefix,
 				}
 				return obj
 			},
@@ -851,9 +851,9 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "username prefix policy - invalid empty prefixPolicy",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
+				obj.Properties.Claim.Mappings.Username = coreapi.UsernameClaimProfile{
 					Claim:        "sub",
 					PrefixPolicy: "", // Empty prefixPolicy should be rejected
 				}
@@ -865,12 +865,12 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "token validation rule - invalid empty type",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
-				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{
+				obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{
 					{
 						Type: "", // Empty type should be rejected
-						RequiredClaim: api.TokenRequiredClaim{
+						RequiredClaim: coreapi.TokenRequiredClaim{
 							Claim:         "iss",
 							RequiredValue: "https://valid.example.com",
 						},
@@ -899,22 +899,22 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		newObj       *api.HCPOpenShiftClusterExternalAuth
+		newObj       *coreapi.HCPOpenShiftClusterExternalAuth
 		expectErrors []utils.ExpectedError
 	}{
 		{
 			name: "client ID matches audience",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"client1", "client2"}
-				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+				obj.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "component1",
 							AuthClientNamespace: "namespace1",
 						},
 						ClientID: "client1",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -923,17 +923,17 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 		},
 		{
 			name: "client ID does not match any audience",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"audience1", "audience2"}
-				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+				obj.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "component1",
 							AuthClientNamespace: "namespace1",
 						},
 						ClientID: "nonexistent-client",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -944,25 +944,25 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 		},
 		{
 			name: "unique client identifiers",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"client1", "client2"}
-				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+				obj.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "component1",
 							AuthClientNamespace: "namespace1",
 						},
 						ClientID: "client1",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "component2",
 							AuthClientNamespace: "namespace2",
 						},
 						ClientID: "client2",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -974,10 +974,10 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 			newObj: testExternalAuthWithClients(
 				[]string{"console-client"},
 				testExternalAuthClientProfile(
-					api.ExternalAuthConsoleClientComponentName,
-					api.ExternalAuthConsoleClientComponentNamespace,
+					coreapi.ExternalAuthConsoleClientComponentName,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 					"console-client",
-					api.ExternalAuthClientTypeConfidential,
+					metadataapi.ExternalAuthClientTypeConfidential,
 				),
 			),
 			expectErrors: nil,
@@ -987,17 +987,17 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 			newObj: testExternalAuthWithClients(
 				[]string{"console-client"},
 				testExternalAuthClientProfile(
-					api.ExternalAuthConsoleClientComponentName,
-					api.ExternalAuthConsoleClientComponentNamespace,
+					coreapi.ExternalAuthConsoleClientComponentName,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 					"console-client",
-					api.ExternalAuthClientTypePublic,
+					metadataapi.ExternalAuthClientTypePublic,
 				),
 			),
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.clients[0].type", Message: fmt.Sprintf("must be %s when component name is %s and component namespace is %s",
-					api.ExternalAuthClientTypeConfidential,
-					api.ExternalAuthConsoleClientComponentName,
-					api.ExternalAuthConsoleClientComponentNamespace,
+					metadataapi.ExternalAuthClientTypeConfidential,
+					coreapi.ExternalAuthConsoleClientComponentName,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 				)},
 			},
 		},
@@ -1009,7 +1009,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 					"component1",
 					"namespace1",
 					"other-client",
-					api.ExternalAuthClientTypeConfidential,
+					metadataapi.ExternalAuthClientTypeConfidential,
 				),
 			),
 			expectErrors: []utils.ExpectedError{
@@ -1022,9 +1022,9 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 				[]string{"cli-client"},
 				testExternalAuthClientProfile(
 					"cli",
-					api.ExternalAuthConsoleClientComponentNamespace,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 					"cli-client",
-					api.ExternalAuthClientTypePublic,
+					metadataapi.ExternalAuthClientTypePublic,
 				),
 			),
 			expectErrors: nil,
@@ -1034,10 +1034,10 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 			newObj: testExternalAuthWithClients(
 				[]string{"console-client"},
 				testExternalAuthClientProfile(
-					api.ExternalAuthConsoleClientComponentName,
+					coreapi.ExternalAuthConsoleClientComponentName,
 					"other-namespace",
 					"console-client",
-					api.ExternalAuthClientTypePublic,
+					metadataapi.ExternalAuthClientTypePublic,
 				),
 			),
 			expectErrors: nil,
@@ -1048,9 +1048,9 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 				[]string{"oauth-client"},
 				testExternalAuthClientProfile(
 					"oauth",
-					api.ExternalAuthConsoleClientComponentNamespace,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 					"oauth-client",
-					api.ExternalAuthClientTypePublic,
+					metadataapi.ExternalAuthClientTypePublic,
 				),
 			),
 			expectErrors: nil,
@@ -1060,41 +1060,41 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 			newObj: testExternalAuthWithClients(
 				[]string{"shared-client-id"},
 				testExternalAuthClientProfile(
-					api.ExternalAuthConsoleClientComponentName,
-					api.ExternalAuthConsoleClientComponentNamespace,
+					coreapi.ExternalAuthConsoleClientComponentName,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 					"shared-client-id",
-					api.ExternalAuthClientTypeConfidential,
+					metadataapi.ExternalAuthClientTypeConfidential,
 				),
 				testExternalAuthClientProfile(
 					"cli",
-					api.ExternalAuthConsoleClientComponentNamespace,
+					coreapi.ExternalAuthConsoleClientComponentNamespace,
 					"shared-client-id",
-					api.ExternalAuthClientTypePublic,
+					metadataapi.ExternalAuthClientTypePublic,
 				),
 			),
 			expectErrors: nil,
 		},
 		{
 			name: "duplicate client identifiers",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *coreapi.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"client1"}
-				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+				obj.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "same-component",
 							AuthClientNamespace: "same-namespace",
 						},
 						ClientID: "client1-a",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 					{
-						Component: api.ExternalAuthClientComponentProfile{
+						Component: coreapi.ExternalAuthClientComponentProfile{
 							Name:                "same-component",
 							AuthClientNamespace: "same-namespace",
 						},
 						ClientID: "client1-b",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -1115,9 +1115,9 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 	}
 }
 
-func testExternalAuthClientProfile(name, namespace, clientID string, clientType api.ExternalAuthClientType) api.ExternalAuthClientProfile {
-	return api.ExternalAuthClientProfile{
-		Component: api.ExternalAuthClientComponentProfile{
+func testExternalAuthClientProfile(name, namespace, clientID string, clientType metadataapi.ExternalAuthClientType) coreapi.ExternalAuthClientProfile {
+	return coreapi.ExternalAuthClientProfile{
+		Component: coreapi.ExternalAuthClientComponentProfile{
 			Name:                name,
 			AuthClientNamespace: namespace,
 		},
@@ -1126,75 +1126,75 @@ func testExternalAuthClientProfile(name, namespace, clientID string, clientType 
 	}
 }
 
-func testExternalAuthWithClients(audiences []string, clients ...api.ExternalAuthClientProfile) *api.HCPOpenShiftClusterExternalAuth {
+func testExternalAuthWithClients(audiences []string, clients ...coreapi.ExternalAuthClientProfile) *coreapi.HCPOpenShiftClusterExternalAuth {
 	obj := createValidExternalAuth()
 	obj.Properties.Issuer.Audiences = audiences
 	obj.Properties.Clients = clients
 	// Avoid nil pointer issues in discriminated union validation during update tests.
-	obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{}
+	obj.Properties.Claim.ValidationRules = []coreapi.TokenClaimValidationRule{}
 	return obj
 }
 
-func createMinimalExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
+func createMinimalExternalAuth() *coreapi.HCPOpenShiftClusterExternalAuth {
 	resourceID, _ := azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth")
-	obj := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
+	obj := coreapi.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
 	obj.Properties.Claim.Mappings.Username.Claim = "sub"
 	// Add required systemData fields
 	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	obj.SystemData = &arm.SystemData{
+	obj.SystemData = &coreapi.SystemData{
 		CreatedBy:     "test-user",
-		CreatedByType: arm.CreatedByTypeUser,
+		CreatedByType: coreapi.CreatedByTypeUser,
 		CreatedAt:     &createdAt,
 	}
 	return obj
 }
 
-func createValidExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
+func createValidExternalAuth() *coreapi.HCPOpenShiftClusterExternalAuth {
 	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	return &api.HCPOpenShiftClusterExternalAuth{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth"))},
-		ProxyResource: arm.ProxyResource{
-			Resource: arm.Resource{
-				ID:   api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth")),
+	return &coreapi.HCPOpenShiftClusterExternalAuth{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth"))},
+		ProxyResource: coreapi.ProxyResource{
+			Resource: coreapi.Resource{
+				ID:   metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth")),
 				Name: "test-auth",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths",
-				SystemData: &arm.SystemData{
+				SystemData: &coreapi.SystemData{
 					CreatedBy:     "test-user",
-					CreatedByType: arm.CreatedByTypeUser,
+					CreatedByType: coreapi.CreatedByTypeUser,
 					CreatedAt:     &createdAt,
 				},
 			},
 		},
-		Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-			Issuer: api.TokenIssuerProfile{
+		Properties: coreapi.HCPOpenShiftClusterExternalAuthProperties{
+			Issuer: coreapi.TokenIssuerProfile{
 				URL:       "https://issuer.example.com",
 				Audiences: []string{"audience1", "audience2"},
 				CA:        validCertPEM(),
 			},
-			Clients: []api.ExternalAuthClientProfile{
+			Clients: []coreapi.ExternalAuthClientProfile{
 				{
-					Component: api.ExternalAuthClientComponentProfile{
+					Component: coreapi.ExternalAuthClientComponentProfile{
 						Name:                "test-component",
 						AuthClientNamespace: "test-namespace",
 					},
 					ClientID: "audience1",
-					Type:     api.ExternalAuthClientTypePublic,
+					Type:     metadataapi.ExternalAuthClientTypePublic,
 				},
 			},
-			Claim: api.ExternalAuthClaimProfile{
-				Mappings: api.TokenClaimMappingsProfile{
-					Username: api.UsernameClaimProfile{
+			Claim: coreapi.ExternalAuthClaimProfile{
+				Mappings: coreapi.TokenClaimMappingsProfile{
+					Username: coreapi.UsernameClaimProfile{
 						Claim:        "sub",
-						PrefixPolicy: api.UsernameClaimPrefixPolicyNone,
+						PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyNone,
 					},
-					Groups: &api.GroupClaimProfile{
+					Groups: &coreapi.GroupClaimProfile{
 						Claim: "groups",
 					},
 				},
-				ValidationRules: []api.TokenClaimValidationRule{
+				ValidationRules: []coreapi.TokenClaimValidationRule{
 					{
-						Type: api.TokenValidationRuleTypeRequiredClaim,
-						RequiredClaim: api.TokenRequiredClaim{
+						Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
+						RequiredClaim: coreapi.TokenRequiredClaim{
 							Claim:         "iss",
 							RequiredValue: "https://issuer.example.com",
 						},

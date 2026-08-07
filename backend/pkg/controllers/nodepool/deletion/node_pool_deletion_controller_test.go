@@ -26,7 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -35,7 +35,7 @@ import (
 
 func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 	fixedNow := time.Now().UTC().Truncate(time.Second)
-	readyToDeleteNodePoolOptsFunc := func(np *api.HCPOpenShiftClusterNodePool) {
+	readyToDeleteNodePoolOptsFunc := func(np *coreapi.HCPOpenShiftClusterNodePool) {
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 		np.ServiceProviderProperties.ClusterServiceID = nil
@@ -57,7 +57,7 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name             string
-		existingNodePool *api.HCPOpenShiftClusterNodePool
+		existingNodePool *coreapi.HCPOpenShiftClusterNodePool
 		childResources   []any
 		wantErr          bool
 		verifyDB         func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
@@ -69,14 +69,14 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 			}),
 			verifyDB: verifyNodePoolStillExists,
 		},
 		{
 			name: "ClusterServiceID still set -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *coreapi.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
@@ -90,7 +90,7 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 		{
 			name:             "all conditions met, SPNP has remaining bundles -- backs off",
 			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
-			childResources: []any{newTestSPNP(t, api.MaestroBundleReferenceList{
+			childResources: []any{newTestSPNP(t, coreapi.MaestroBundleReferenceList{
 				{Name: "readonly-bundle-1"},
 			})},
 			verifyDB: verifyNodePoolStillExists,
@@ -136,13 +136,13 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			nodePoolsForLister := []*api.HCPOpenShiftClusterNodePool{}
+			nodePoolsForLister := []*coreapi.HCPOpenShiftClusterNodePool{}
 			if tc.existingNodePool != nil {
 				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
 			}
-			spnpForLister := []*api.ServiceProviderNodePool{}
+			spnpForLister := []*coreapi.ServiceProviderNodePool{}
 			for _, child := range tc.childResources {
-				if spnp, ok := child.(*api.ServiceProviderNodePool); ok {
+				if spnp, ok := child.(*coreapi.ServiceProviderNodePool); ok {
 					spnpForLister = append(spnpForLister, spnp)
 				}
 			}

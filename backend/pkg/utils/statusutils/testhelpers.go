@@ -22,7 +22,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // Shared resource-identity constants used across the aggregator tests.
@@ -39,19 +40,19 @@ const (
 // sit on a daylight-savings boundary.
 var FixedNow = time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
 
-// ControllerUnder builds an api.Controller doc that is a direct child of
+// ControllerUnder builds an coreapi.Controller doc that is a direct child of
 // the given parent resource ID (cluster, node pool, or external auth) with
 // the given controller name, carrying a Degraded condition that has held
 // `age` long.
-func ControllerUnder(parentResourceID *azcorearm.ResourceID, controllerName string, status metav1.ConditionStatus, reason, message string, age time.Duration) *api.Controller {
-	rid := api.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+func ControllerUnder(parentResourceID *azcorearm.ResourceID, controllerName string, status metav1.ConditionStatus, reason, message string, age time.Duration) *coreapi.Controller {
+	rid := metadataapi.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + coreapi.ControllerResourceTypeName + "/" + controllerName))
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   rid,
 			PartitionKey: strings.ToLower(rid.SubscriptionID),
 		},
 		ExternalID: parentResourceID,
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{
 				{
 					Type:               DegradedConditionType,

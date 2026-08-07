@@ -33,9 +33,8 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -49,7 +48,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 	testClockNow := time.Now()
 	fixture := operationtesting.NewExternalAuthTestFixture()
 
-	newExternalAuth := func(mutate ...func(*api.HCPOpenShiftClusterExternalAuth)) *api.HCPOpenShiftClusterExternalAuth {
+	newExternalAuth := func(mutate ...func(*coreapi.HCPOpenShiftClusterExternalAuth)) *coreapi.HCPOpenShiftClusterExternalAuth {
 		externalAuth := fixture.NewExternalAuth()
 		for _, fn := range mutate {
 			if fn != nil {
@@ -59,7 +58,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 		return externalAuth
 	}
 
-	newOperationAccepted := func() *api.Operation {
+	newOperationAccepted := func() *coreapi.Operation {
 		return fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate)
 	}
 
@@ -70,13 +69,13 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 	// requires a non-zero InstanceVersion before it will attempt the etag-checked replace.
 	preconditionListerOperation.InstanceVersion = 1
 
-	newPassingCachedHostedClusterReadDesire := func() *kubeapplier.ReadDesire {
+	newPassingCachedHostedClusterReadDesire := func() *kubeapplierapi.ReadDesire {
 		return operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 			Spec: operationtesting.ExternalAuthUpdateMatchingHostedClusterSpec(),
 		})
 	}
 
-	newPassingCSExternalAuth := func(t *testing.T, externalAuth *api.HCPOpenShiftClusterExternalAuth) *arohcpv1alpha1.ExternalAuth {
+	newPassingCSExternalAuth := func(t *testing.T, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) *arohcpv1alpha1.ExternalAuth {
 		t.Helper()
 		builder, err := ocm.BuildCSExternalAuth(context.Background(), externalAuth, true)
 		require.NoError(t, err)
@@ -85,7 +84,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 		return csExternalAuth
 	}
 
-	newPassingExternalAuth := func(mutate ...func(*api.HCPOpenShiftClusterExternalAuth)) *api.HCPOpenShiftClusterExternalAuth {
+	newPassingExternalAuth := func(mutate ...func(*coreapi.HCPOpenShiftClusterExternalAuth)) *coreapi.HCPOpenShiftClusterExternalAuth {
 		return operationtesting.NewExternalAuthUpdateTestExternalAuth(mutate...)
 	}
 
@@ -93,22 +92,22 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 		t.Helper()
 		op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 		require.NoError(t, err)
-		assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+		assert.Equal(t, coreapi.ProvisioningStateUpdating, op.Status)
 		assert.Nil(t, op.Error)
 
 		externalAuth, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).ExternalAuth(operationtesting.TestClusterName).Get(ctx, operationtesting.TestExternalAuthName)
 		require.NoError(t, err)
-		assert.Equal(t, arm.ProvisioningStateUpdating, externalAuth.Properties.ProvisioningState)
+		assert.Equal(t, coreapi.ProvisioningStateUpdating, externalAuth.Properties.ProvisioningState)
 		assert.Equal(t, operationtesting.TestOperationName, externalAuth.ServiceProviderProperties.ActiveOperationID)
 	}
 
 	testCases := []struct {
 		name                          string
-		existingExternalAuth          *api.HCPOpenShiftClusterExternalAuth
-		existingOperation             *api.Operation
+		existingExternalAuth          *coreapi.HCPOpenShiftClusterExternalAuth
+		existingOperation             *coreapi.Operation
 		externalAuthLister            corelisters.ExternalAuthLister
 		activeOperationsLister        corelisters.ActiveOperationLister
-		cachedHostedClusterReadDesire *kubeapplier.ReadDesire
+		cachedHostedClusterReadDesire *kubeapplierapi.ReadDesire
 		setupMockCSClient             func(*ocm.MockClusterServiceClientSpec)
 		wantErr                       bool
 		verifyDB                      func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
@@ -127,11 +126,11 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, op.Status)
 
 				externalAuth, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).ExternalAuth(operationtesting.TestClusterName).Get(ctx, operationtesting.TestExternalAuthName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, externalAuth.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateSucceeded, externalAuth.Properties.ProvisioningState)
 				assert.Empty(t, externalAuth.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -141,7 +140,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 			existingOperation:             newOperationAccepted(),
 			cachedHostedClusterReadDesire: newPassingCachedHostedClusterReadDesire(),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
-				staleCSExternalAuth := newPassingCSExternalAuth(t, newPassingExternalAuth(func(ea *api.HCPOpenShiftClusterExternalAuth) {
+				staleCSExternalAuth := newPassingCSExternalAuth(t, newPassingExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 					ea.Properties.Issuer.URL = "https://stale.example.com"
 				}))
 				mock.EXPECT().
@@ -203,48 +202,48 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 
 				externalAuth, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).ExternalAuth(operationtesting.TestClusterName).Get(ctx, operationtesting.TestExternalAuthName)
 				require.NoError(t, err)
 				assert.Equal(t, operationtesting.TestOperationName, externalAuth.ServiceProviderProperties.ActiveOperationID)
-				assert.Equal(t, arm.ProvisioningStateAccepted, externalAuth.Properties.ProvisioningState)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, externalAuth.Properties.ProvisioningState)
 			},
 		},
 		{
 			name: "active operation id mismatch leaves operation unchanged",
-			existingExternalAuth: newExternalAuth(func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.ActiveOperationID = "other-operation"
 			}),
 			existingOperation: newOperationAccepted(),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
 			name: "shouldReconcile gate not passed when ClusterServiceID is nil",
-			existingExternalAuth: newExternalAuth(func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			existingOperation: newOperationAccepted(),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
 			name: "shouldReconcile gate not passed when external auth is deleting",
-			existingExternalAuth: newExternalAuth(func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: testClockNow}
 			}),
 			existingOperation: newOperationAccepted(),
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -253,7 +252,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 			existingOperation:             preconditionExistingOperation,
 			cachedHostedClusterReadDesire: newPassingCachedHostedClusterReadDesire(),
 			activeOperationsLister: &corelistertesting.SliceActiveOperationLister{
-				Operations: []*api.Operation{preconditionListerOperation},
+				Operations: []*coreapi.Operation{preconditionListerOperation},
 			},
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				passingExternalAuth := newPassingExternalAuth()
@@ -264,7 +263,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
 				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status, "operation should be unchanged after optimistic concurrency conflict")
+				assert.Equal(t, coreapi.ProvisioningStateAccepted, op.Status, "operation should be unchanged after optimistic concurrency conflict")
 			},
 		},
 	}
@@ -288,7 +287,7 @@ func TestOperationExternalAuthUpdate_SynchronizeOperation(t *testing.T) {
 			var readDesireLister kubeapplierlistertesting.SliceReadDesireLister
 			if tc.cachedHostedClusterReadDesire != nil {
 				readDesireLister = kubeapplierlistertesting.SliceReadDesireLister{
-					Desires: []*kubeapplier.ReadDesire{tc.cachedHostedClusterReadDesire},
+					Desires: []*kubeapplierapi.ReadDesire{tc.cachedHostedClusterReadDesire},
 				}
 			}
 

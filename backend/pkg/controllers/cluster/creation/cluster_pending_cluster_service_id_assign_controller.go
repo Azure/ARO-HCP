@@ -20,7 +20,8 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -55,7 +56,7 @@ func NewClusterPendingClusterServiceIDAssignController(resourcesDBClient corecos
 	)
 }
 
-func (c *clusterPendingClusterServiceIDAssignSyncer) needsWork(cluster *api.HCPOpenShiftCluster) bool {
+func (c *clusterPendingClusterServiceIDAssignSyncer) needsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
 		cluster.ServiceProviderProperties.PendingClusterServiceID == nil &&
 		(cluster.ServiceProviderProperties.ClusterServiceID == nil ||
@@ -86,7 +87,7 @@ func (c *clusterPendingClusterServiceIDAssignSyncer) SyncOnce(ctx context.Contex
 	}
 
 	uid := ocm.NewCSClusterUID()
-	pendingID, err := api.NewInternalID(fmt.Sprintf("/api/aro_hcp/v1alpha1/clusters/%s", uid))
+	pendingID, err := metadataapi.NewInternalID(fmt.Sprintf("/api/aro_hcp/v1alpha1/clusters/%s", uid))
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to create PendingClusterServiceID: %w", err))
 	}

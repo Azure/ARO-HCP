@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 func TestHostPort(t *testing.T) {
@@ -129,12 +129,12 @@ func mustSemverPtr(s string) *semver.Version {
 	return &v
 }
 
-// nodePoolActiveVersions builds a []api.HCPNodePoolActiveVersion from a list of
+// nodePoolActiveVersions builds a []coreapi.HCPNodePoolActiveVersion from a list of
 // version strings, representing the node pool's currently-active versions.
-func nodePoolActiveVersions(versions ...string) []api.HCPNodePoolActiveVersion {
-	out := make([]api.HCPNodePoolActiveVersion, 0, len(versions))
+func nodePoolActiveVersions(versions ...string) []coreapi.HCPNodePoolActiveVersion {
+	out := make([]coreapi.HCPNodePoolActiveVersion, 0, len(versions))
 	for _, v := range versions {
-		out = append(out, api.HCPNodePoolActiveVersion{Version: mustSemverPtr(v)})
+		out = append(out, coreapi.HCPNodePoolActiveVersion{Version: mustSemverPtr(v)})
 	}
 	return out
 }

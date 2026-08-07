@@ -34,7 +34,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/frontend/cmd"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
@@ -137,15 +137,15 @@ func LoadCosmosContent(ctx context.Context, cosmosContainer *azcosmos.ContainerC
 
 	var err error
 	switch {
-	case armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.OperationStatusResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ClusterResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.NodePoolResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ExternalAuthResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ClusterControllerResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.NodePoolControllerResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ExternalAuthControllerResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ServiceProviderClusterResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ServiceProviderNodePoolResourceType):
+	case armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.OperationStatusResourceType),
+		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ClusterResourceType),
+		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.NodePoolResourceType),
+		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ExternalAuthResourceType),
+		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ClusterControllerResourceType),
+		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.NodePoolControllerResourceType),
+		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ExternalAuthControllerResourceType),
+		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderClusterResourceType),
+		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderNodePoolResourceType):
 		partitionKey := azcosmos.NewPartitionKeyString(contentMap["partitionKey"].(string))
 		_, err = cosmosContainer.CreateItem(ctx, partitionKey, content, nil)
 
@@ -309,7 +309,7 @@ func saveContainerContent(ctx context.Context, documentLister DocumentLister, ou
 				"subscriptions",
 				fmt.Sprintf("subscription_%s.json", docMap["id"].(string)))
 
-		case armhelpers.ResourceTypeStringEqual(resourceType.(string), api.OperationStatusResourceType):
+		case armhelpers.ResourceTypeStringEqual(resourceType.(string), coreapi.OperationStatusResourceType):
 			externalID := properties["externalId"].(string)
 			if clusterResourceID, _ := azcorearm.ParseResourceID(externalID); clusterResourceID != nil {
 				clusterDir := resourceIDToDir(clusterResourceID)

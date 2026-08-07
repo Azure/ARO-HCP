@@ -27,7 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatch"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -46,7 +46,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 				ResourceGroupName: "unimportantPostponement",
 				HCPClusterName:    "monstrousPrecinct",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
+			ArtifactDir: metadataapi.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return newSubscriptionKeyWrapper(
 					mismatch.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
@@ -62,7 +62,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 				ResourceGroupName: "unimportantPostponement",
 				HCPClusterName:    "monstrousPrecinct",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
+			ArtifactDir: metadataapi.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return newSubscriptionKeyWrapper(
 					mismatch.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
@@ -71,7 +71,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
 				// Controllers under missing nodepool should be deleted
 				// Controllers under existing cluster should NOT be deleted
-				subscriptionResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2"))
+				subscriptionResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2"))
 				crud, err := input.ResourcesDBClient.UntypedCRUD(*subscriptionResourceID)
 				require.NoError(t, err)
 
@@ -96,7 +96,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 				ResourceGroupName: "unimportantPostponement",
 				HCPClusterName:    "missingcluster",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
+			ArtifactDir: metadataapi.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return newSubscriptionKeyWrapper(
 					mismatch.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
@@ -104,7 +104,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
 				// All controllers under missing cluster should be deleted
-				subscriptionResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2"))
+				subscriptionResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2"))
 				crud, err := input.ResourcesDBClient.UntypedCRUD(*subscriptionResourceID)
 				require.NoError(t, err)
 
@@ -127,7 +127,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 				ResourceGroupName: "unimportantPostponement",
 				HCPClusterName:    "monstrousPrecinct",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
+			ArtifactDir: metadataapi.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return newSubscriptionKeyWrapper(
 					mismatch.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
@@ -135,7 +135,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
 				// The old-style ID document should be deleted
-				subscriptionResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2"))
+				subscriptionResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2"))
 				crud, err := input.ResourcesDBClient.UntypedCRUD(*subscriptionResourceID)
 				require.NoError(t, err)
 

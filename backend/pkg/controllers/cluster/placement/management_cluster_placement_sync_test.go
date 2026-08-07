@@ -31,9 +31,9 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -50,7 +50,7 @@ const (
 )
 
 func testClusterResourceID() *azcorearm.ResourceID {
-	return api.Must(azcorearm.ParseResourceID(
+	return metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testClusterSubscriptionID +
 			"/resourceGroups/" + testClusterResourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
@@ -58,22 +58,22 @@ func testClusterResourceID() *azcorearm.ResourceID {
 }
 
 func testMgmtClusterResourceID() *azcorearm.ResourceID {
-	return api.Must(fleet.ToManagementClusterResourceID(testMgmtClusterName))
+	return metadataapi.Must(fleetapi.ToManagementClusterResourceID(testMgmtClusterName))
 }
 
-func newTestHCPCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
+func newTestHCPCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
 	resourceID := testClusterResourceID()
-	clusterServiceID := api.Must(api.NewInternalID(testClusterServiceIDStr))
+	clusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 
-	cluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster := &coreapi.HCPOpenShiftCluster{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: testClusterName,
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID: &clusterServiceID,
 		},
 	}
@@ -83,14 +83,14 @@ func newTestHCPCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShift
 	return cluster
 }
 
-func newTestSPC(opts ...func(*api.ServiceProviderCluster)) *api.ServiceProviderCluster {
+func newTestSPC(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceProviderCluster {
 	clusterResourceID := testClusterResourceID()
-	spcResourceID := api.Must(azcorearm.ParseResourceID(
-		clusterResourceID.String() + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName,
+	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		clusterResourceID.String() + "/" + coreapi.ServiceProviderClusterResourceTypeName + "/" + coreapi.ServiceProviderClusterResourceName,
 	))
 
-	spc := &api.ServiceProviderCluster{
-		CosmosMetadata: api.CosmosMetadata{
+	spc := &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   spcResourceID,
 			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
 		},
@@ -101,16 +101,16 @@ func newTestSPC(opts ...func(*api.ServiceProviderCluster)) *api.ServiceProviderC
 	return spc
 }
 
-func newTestManagementCluster() *fleet.ManagementCluster {
+func newTestManagementCluster() *fleetapi.ManagementCluster {
 	resourceID := testMgmtClusterResourceID()
-	return &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{
+	return &fleetapi.ManagementCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ResourceID: resourceID,
-		Status: fleet.ManagementClusterStatus{
-			ClusterServiceProvisionShardID: ptr.To(api.Must(api.NewInternalID(testProvisionShardHREF(testProvisionShardIDStr)))),
+		Status: fleetapi.ManagementClusterStatus{
+			ClusterServiceProvisionShardID: ptr.To(metadataapi.Must(metadataapi.NewInternalID(testProvisionShardHREF(testProvisionShardIDStr)))),
 		},
 	}
 }
@@ -122,22 +122,22 @@ func testProvisionShardHREF(shardID string) string {
 func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 	testCases := []struct {
 		name                                string
-		cachedSPC                           *api.ServiceProviderCluster // SPC in cache, nil means use same as existingSPC
-		existingSPC                         *api.ServiceProviderCluster // SPC in cosmos
-		cachedCluster                       *api.HCPOpenShiftCluster    // cluster in cache
+		cachedSPC                           *coreapi.ServiceProviderCluster // SPC in cache, nil means use same as existingSPC
+		existingSPC                         *coreapi.ServiceProviderCluster // SPC in cosmos
+		cachedCluster                       *coreapi.HCPOpenShiftCluster    // cluster in cache
 		csShard                             *arohcpv1alpha1.ProvisionShard
 		csError                             error
-		managementClusters                  []*fleet.ManagementCluster
+		managementClusters                  []*fleetapi.ManagementCluster
 		expectCSCall                        bool
 		expectError                         bool
 		expectedManagementClusterResourceID string // empty means nil
 	}{
 		{
 			name: "cache indicates no work needed - ManagementClusterResourceID already set",
-			cachedSPC: newTestSPC(func(spc *api.ServiceProviderCluster) {
+			cachedSPC: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Status.ManagementClusterResourceID = testMgmtClusterResourceID()
 			}),
-			existingSPC: newTestSPC(func(spc *api.ServiceProviderCluster) {
+			existingSPC: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Status.ManagementClusterResourceID = testMgmtClusterResourceID()
 			}),
 			cachedCluster:                       newTestHCPCluster(),
@@ -148,7 +148,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 		{
 			name:      "cache says work needed but live data has ManagementClusterResourceID",
 			cachedSPC: newTestSPC(), // cache has no ManagementClusterResourceID
-			existingSPC: newTestSPC(func(spc *api.ServiceProviderCluster) {
+			existingSPC: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				// cosmos has it (cache is stale)
 				spc.Status.ManagementClusterResourceID = testMgmtClusterResourceID()
 			}),
@@ -161,7 +161,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			name:        "no cluster service ID - skip",
 			cachedSPC:   newTestSPC(),
 			existingSPC: newTestSPC(),
-			cachedCluster: newTestHCPCluster(func(c *api.HCPOpenShiftCluster) {
+			cachedCluster: newTestHCPCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			expectCSCall:                        false,
@@ -173,8 +173,8 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			cachedSPC:                           newTestSPC(),
 			existingSPC:                         newTestSPC(),
 			cachedCluster:                       newTestHCPCluster(),
-			csShard:                             api.Must(arohcpv1alpha1.NewProvisionShard().Build()),
-			managementClusters:                  []*fleet.ManagementCluster{newTestManagementCluster()},
+			csShard:                             metadataapi.Must(arohcpv1alpha1.NewProvisionShard().Build()),
+			managementClusters:                  []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			expectCSCall:                        true,
 			expectError:                         false,
 			expectedManagementClusterResourceID: "",
@@ -184,10 +184,10 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			cachedSPC:     newTestSPC(),
 			existingSPC:   newTestSPC(),
 			cachedCluster: newTestHCPCluster(),
-			csShard: api.Must(arohcpv1alpha1.NewProvisionShard().
+			csShard: metadataapi.Must(arohcpv1alpha1.NewProvisionShard().
 				HREF(testProvisionShardHREF(testProvisionShardIDStr)).
 				Build()),
-			managementClusters:                  []*fleet.ManagementCluster{newTestManagementCluster()},
+			managementClusters:                  []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			expectCSCall:                        true,
 			expectError:                         false,
 			expectedManagementClusterResourceID: testMgmtClusterResourceID().String(),
@@ -198,7 +198,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			existingSPC:                         newTestSPC(),
 			cachedCluster:                       newTestHCPCluster(),
 			csError:                             fmt.Errorf("connection refused"),
-			managementClusters:                  []*fleet.ManagementCluster{newTestManagementCluster()},
+			managementClusters:                  []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			expectCSCall:                        true,
 			expectError:                         true,
 			expectedManagementClusterResourceID: "",
@@ -208,10 +208,10 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			cachedSPC:     newTestSPC(),
 			existingSPC:   newTestSPC(),
 			cachedCluster: newTestHCPCluster(),
-			csShard: api.Must(arohcpv1alpha1.NewProvisionShard().
+			csShard: metadataapi.Must(arohcpv1alpha1.NewProvisionShard().
 				HREF("unknown-shard-id").
 				Build()),
-			managementClusters:                  []*fleet.ManagementCluster{newTestManagementCluster()},
+			managementClusters:                  []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			expectCSCall:                        true,
 			expectError:                         true,
 			expectedManagementClusterResourceID: "",
@@ -221,10 +221,10 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			cachedSPC:     newTestSPC(),
 			existingSPC:   newTestSPC(),
 			cachedCluster: newTestHCPCluster(),
-			csShard: api.Must(arohcpv1alpha1.NewProvisionShard().
+			csShard: metadataapi.Must(arohcpv1alpha1.NewProvisionShard().
 				HREF(testProvisionShardHREF(testProvisionShardIDStr)).
 				Build()),
-			managementClusters:                  []*fleet.ManagementCluster{}, // empty — no match
+			managementClusters:                  []*fleetapi.ManagementCluster{}, // empty — no match
 			expectCSCall:                        true,
 			expectError:                         true,
 			expectedManagementClusterResourceID: "",
@@ -234,14 +234,14 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			cachedSPC:     newTestSPC(),
 			existingSPC:   newTestSPC(),
 			cachedCluster: newTestHCPCluster(),
-			csShard: api.Must(arohcpv1alpha1.NewProvisionShard().
+			csShard: metadataapi.Must(arohcpv1alpha1.NewProvisionShard().
 				HREF(testProvisionShardHREF(testProvisionShardIDStr)).
 				Build()),
-			managementClusters: []*fleet.ManagementCluster{
+			managementClusters: []*fleetapi.ManagementCluster{
 				newTestManagementCluster(),
-				func() *fleet.ManagementCluster {
+				func() *fleetapi.ManagementCluster {
 					mc := newTestManagementCluster()
-					mc.ResourceID = api.Must(fleet.ToManagementClusterResourceID("mc2"))
+					mc.ResourceID = metadataapi.Must(fleetapi.ToManagementClusterResourceID("mc2"))
 					return mc
 				}(),
 			},
@@ -272,12 +272,12 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 				cachedSPC = tc.existingSPC
 			}
 			spcLister := &corelistertesting.SliceServiceProviderClusterLister{
-				ServiceProviderClusters: []*api.ServiceProviderCluster{cachedSPC},
+				ServiceProviderClusters: []*coreapi.ServiceProviderCluster{cachedSPC},
 			}
 
 			// Setup cluster lister (cache)
 			clusterLister := &corelistertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{tc.cachedCluster},
+				Clusters: []*coreapi.HCPOpenShiftCluster{tc.cachedCluster},
 			}
 
 			// Setup management cluster lister
@@ -289,7 +289,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			if tc.expectCSCall {
 				mockCSClient.EXPECT().
-					GetClusterProvisionShard(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+					GetClusterProvisionShard(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
 					Return(tc.csShard, tc.csError)
 			}
 
@@ -317,7 +317,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			}
 
 			// Verify the SPC state in Cosmos
-			updatedSPC, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
+			updatedSPC, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
 
 			if tc.expectedManagementClusterResourceID != "" {

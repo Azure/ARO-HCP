@@ -23,8 +23,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -49,7 +48,7 @@ func AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, 
 		u.RawQuery = values.Encode()
 	}
 
-	writer.Header().Set(arm.HeaderNameAsyncOperation, u.String())
+	writer.Header().Set(coreapi.HeaderNameAsyncOperation, u.String())
 }
 
 // AddLocationHeader adds a "Location" header to the ResponseWriter with a URL of the
@@ -68,7 +67,7 @@ func AddLocationHeader(writer http.ResponseWriter, request *http.Request, operat
 		"subscriptions", operationID.SubscriptionID,
 		"providers", operationID.ResourceType.Namespace,
 		"locations", operationID.Location,
-		api.OperationResultResourceTypeName, operationID.Name)
+		coreapi.OperationResultResourceTypeName, operationID.Name)
 
 	apiVersion := request.URL.Query().Get(APIVersionKey)
 	if apiVersion != "" {
@@ -82,13 +81,13 @@ func AddLocationHeader(writer http.ResponseWriter, request *http.Request, operat
 
 // OperationIsVisible returns true if the request is being called from the same
 // tenant and subscription that the operation originated in.
-func (f *Frontend) OperationIsVisible(request *http.Request, operation *api.Operation) bool {
+func (f *Frontend) OperationIsVisible(request *http.Request, operation *coreapi.Operation) bool {
 	var visible = true
 
 	logger := utils.LoggerFromContext(request.Context())
 
-	tenantID := request.Header.Get(arm.HeaderNameHomeTenantID)
-	clientID := request.Header.Get(arm.HeaderNameClientObjectID)
+	tenantID := request.Header.Get(coreapi.HeaderNameHomeTenantID)
+	clientID := request.Header.Get(coreapi.HeaderNameClientObjectID)
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
 	if operation.OperationID != nil {

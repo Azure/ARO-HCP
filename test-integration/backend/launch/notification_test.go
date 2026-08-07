@@ -30,8 +30,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -96,13 +96,13 @@ func TestControllerNotifications(t *testing.T) {
 			backendErrCh <- nil
 		}()
 
-		clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic"))
+		clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic"))
 		frontendClientAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, "2024-06-10-preview")
 
-		subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(clusterResourceID.SubscriptionID))
-		subscriptionJSONBytes := api.Must(artifacts.ReadFile("artifacts/subscription-32350638-2403-4bc9-a36e-4922c8c99b52.json"))
+		subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(clusterResourceID.SubscriptionID))
+		subscriptionJSONBytes := metadataapi.Must(artifacts.ReadFile("artifacts/subscription-32350638-2403-4bc9-a36e-4922c8c99b52.json"))
 		require.NoError(t, frontendClientAccessor.CreateOrUpdate(ctx, subscriptionResourceID.String(), subscriptionJSONBytes))
-		clusterJSONBytes := api.Must(artifacts.ReadFile("artifacts/cluster-basic.json"))
+		clusterJSONBytes := metadataapi.Must(artifacts.ReadFile("artifacts/cluster-basic.json"))
 		err = frontendClientAccessor.CreateOrUpdate(ctx, clusterResourceID.String(), clusterJSONBytes)
 		require.NoError(t, err)
 

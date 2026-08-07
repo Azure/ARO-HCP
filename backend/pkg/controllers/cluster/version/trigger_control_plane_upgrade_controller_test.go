@@ -32,8 +32,8 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -42,12 +42,12 @@ import (
 )
 
 func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) {
-	testClusterServiceID, _ := api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster-id")
+	testClusterServiceID, _ := metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster-id")
 
 	tests := []struct {
 		name                         string
 		desiredVersion               *semver.Version
-		clusterServiceID             api.InternalID
+		clusterServiceID             metadataapi.InternalID
 		mockSetup                    func(*ocm.MockClusterServiceClientSpec)
 		expectError                  bool
 		expectedErrorContains        string
@@ -59,8 +59,8 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 			desiredVersion:   ptr.To(semver.MustParse("4.19.20")),
 			clusterServiceID: testClusterServiceID,
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
-				latestPolicy := api.Must(arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.20").Build())
-				olderPolicy := api.Must(arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.15").Build())
+				latestPolicy := metadataapi.Must(arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.20").Build())
+				olderPolicy := metadataapi.Must(arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.15").Build())
 
 				mc.EXPECT().
 					ListControlPlaneUpgradePolicies(testClusterServiceID, "creation_timestamp desc").
@@ -74,8 +74,8 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 			desiredVersion:   ptr.To(semver.MustParse("4.19.20")),
 			clusterServiceID: testClusterServiceID,
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
-				latestPolicy := api.Must(arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.18").Build())
-				olderPolicy := api.Must(arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.15").Build())
+				latestPolicy := metadataapi.Must(arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.18").Build())
+				olderPolicy := metadataapi.Must(arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version("4.19.15").Build())
 
 				mc.EXPECT().
 					ListControlPlaneUpgradePolicies(testClusterServiceID, "creation_timestamp desc").
@@ -88,7 +88,7 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 						testClusterServiceID,
 						expectedBuilder,
 					).
-					Return(api.Must(expectedBuilder.Build()), nil)
+					Return(metadataapi.Must(expectedBuilder.Build()), nil)
 			},
 			expectError:                  false,
 			expectPolicyCreation:         true,
@@ -110,7 +110,7 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 						testClusterServiceID,
 						expectedBuilder,
 					).
-					Return(api.Must(expectedBuilder.Build()), nil)
+					Return(metadataapi.Must(expectedBuilder.Build()), nil)
 			},
 			expectError:                  false,
 			expectPolicyCreation:         true,
@@ -180,35 +180,35 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 }
 
 func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
-	clusterResourceID := api.Must(api.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
+	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
 	now := time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)
 	listerBoom := errors.New("active operation lister exploded")
 
-	newCluster := func(createdAt *time.Time, activeOperationID string) *api.HCPOpenShiftCluster {
-		c := &api.HCPOpenShiftCluster{
-			CosmosMetadata: api.CosmosMetadata{
+	newCluster := func(createdAt *time.Time, activeOperationID string) *coreapi.HCPOpenShiftCluster {
+		c := &coreapi.HCPOpenShiftCluster{
+			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID: clusterResourceID,
 			},
-			TrackedResource: arm.TrackedResource{
-				Resource: arm.Resource{
+			TrackedResource: coreapi.TrackedResource{
+				Resource: coreapi.Resource{
 					ID:   clusterResourceID,
 					Name: testClusterName,
-					Type: api.ClusterResourceType.String(),
+					Type: coreapi.ClusterResourceType.String(),
 				},
 			},
-			ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 				ActiveOperationID: activeOperationID,
 			},
 		}
 		if createdAt != nil {
-			c.SystemData = &arm.SystemData{CreatedAt: createdAt}
+			c.SystemData = &coreapi.SystemData{CreatedAt: createdAt}
 		}
 		return c
 	}
 
 	tests := []struct {
 		name           string
-		cluster        *api.HCPOpenShiftCluster
+		cluster        *coreapi.HCPOpenShiftCluster
 		seedOperation  bool
 		opLister       func(mockDB *corecosmosstoragetesting.MockResourcesDBClient) corelisters.ActiveOperationLister
 		wantShouldRun  bool

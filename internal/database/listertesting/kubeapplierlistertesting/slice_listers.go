@@ -20,7 +20,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/listertestingutils"
@@ -29,19 +29,19 @@ import (
 // SliceApplyDesireLister implements kubeapplierlisters.ApplyDesireLister backed by a slice.
 // Tests can populate Desires directly and the lister scans on every call.
 type SliceApplyDesireLister struct {
-	Desires []*kubeapplier.ApplyDesire
+	Desires []*kubeapplierapi.ApplyDesire
 }
 
 var _ kubeapplierlisters.ApplyDesireLister = &SliceApplyDesireLister{}
 
-func (l *SliceApplyDesireLister) List(ctx context.Context) ([]*kubeapplier.ApplyDesire, error) {
+func (l *SliceApplyDesireLister) List(ctx context.Context) ([]*kubeapplierapi.ApplyDesire, error) {
 	return l.Desires, nil
 }
 
 func (l *SliceApplyDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
-) (*kubeapplier.ApplyDesire, error) {
-	want := kubeapplier.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
+) (*kubeapplierapi.ApplyDesire, error) {
+	want := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
 	for _, d := range l.Desires {
 		id := listertestingutils.ResourceIDOf(d)
 		if id != nil && strings.EqualFold(id.String(), want) {
@@ -53,8 +53,8 @@ func (l *SliceApplyDesireLister) GetForCluster(
 
 func (l *SliceApplyDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
-) (*kubeapplier.ApplyDesire, error) {
-	want := kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
+) (*kubeapplierapi.ApplyDesire, error) {
+	want := kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
 	)
 	for _, d := range l.Desires {
@@ -68,8 +68,8 @@ func (l *SliceApplyDesireLister) GetForNodePool(
 
 func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRequest(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
-) (*kubeapplier.ApplyDesire, error) {
-	want := kubeapplier.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
+) (*kubeapplierapi.ApplyDesire, error) {
+	want := kubeapplierapi.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
 	)
 	for _, d := range l.Desires {
@@ -83,8 +83,8 @@ func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRequest(
 
 func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRevocation(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
-) (*kubeapplier.ApplyDesire, error) {
-	want := kubeapplier.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(
+) (*kubeapplierapi.ApplyDesire, error) {
+	want := kubeapplierapi.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
 	for _, d := range l.Desires {
@@ -98,12 +98,12 @@ func (l *SliceApplyDesireLister) GetForSystemAdminCredentialRevocation(
 
 func (l *SliceApplyDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
-) ([]*kubeapplier.ApplyDesire, error) {
+) ([]*kubeapplierapi.ApplyDesire, error) {
 	if managementClusterResourceID == nil {
 		return nil, nil
 	}
 	want := managementClusterResourceID.String()
-	var out []*kubeapplier.ApplyDesire
+	var out []*kubeapplierapi.ApplyDesire
 	for _, d := range l.Desires {
 		if mc := d.GetManagementCluster(); mc != nil && strings.EqualFold(mc.String(), want) {
 			out = append(out, d)
@@ -114,8 +114,8 @@ func (l *SliceApplyDesireLister) ListForManagementCluster(
 
 func (l *SliceApplyDesireLister) ListForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName string,
-) ([]*kubeapplier.ApplyDesire, error) {
-	var out []*kubeapplier.ApplyDesire
+) ([]*kubeapplierapi.ApplyDesire, error) {
+	var out []*kubeapplierapi.ApplyDesire
 	for _, d := range l.Desires {
 		if listertestingutils.UnderCluster(listertestingutils.ResourceIDOf(d), subscriptionID, resourceGroupName, clusterName) {
 			out = append(out, d)
@@ -126,8 +126,8 @@ func (l *SliceApplyDesireLister) ListForCluster(
 
 func (l *SliceApplyDesireLister) ListForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) ([]*kubeapplier.ApplyDesire, error) {
-	var out []*kubeapplier.ApplyDesire
+) ([]*kubeapplierapi.ApplyDesire, error) {
+	var out []*kubeapplierapi.ApplyDesire
 	for _, d := range l.Desires {
 		if listertestingutils.UnderNodePool(listertestingutils.ResourceIDOf(d), subscriptionID, resourceGroupName, clusterName, nodePoolName) {
 			out = append(out, d)
@@ -138,19 +138,19 @@ func (l *SliceApplyDesireLister) ListForNodePool(
 
 // SliceReadDesireLister implements kubeapplierlisters.ReadDesireLister backed by a slice.
 type SliceReadDesireLister struct {
-	Desires []*kubeapplier.ReadDesire
+	Desires []*kubeapplierapi.ReadDesire
 }
 
 var _ kubeapplierlisters.ReadDesireLister = &SliceReadDesireLister{}
 
-func (l *SliceReadDesireLister) List(ctx context.Context) ([]*kubeapplier.ReadDesire, error) {
+func (l *SliceReadDesireLister) List(ctx context.Context) ([]*kubeapplierapi.ReadDesire, error) {
 	return l.Desires, nil
 }
 
 func (l *SliceReadDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
-) (*kubeapplier.ReadDesire, error) {
-	want := kubeapplier.ToClusterScopedReadDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
+) (*kubeapplierapi.ReadDesire, error) {
+	want := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
 	for _, d := range l.Desires {
 		id := listertestingutils.ResourceIDOf(d)
 		if id != nil && strings.EqualFold(id.String(), want) {
@@ -162,8 +162,8 @@ func (l *SliceReadDesireLister) GetForCluster(
 
 func (l *SliceReadDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
-) (*kubeapplier.ReadDesire, error) {
-	want := kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
+) (*kubeapplierapi.ReadDesire, error) {
+	want := kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
 	)
 	for _, d := range l.Desires {
@@ -177,8 +177,8 @@ func (l *SliceReadDesireLister) GetForNodePool(
 
 func (l *SliceReadDesireLister) GetForSystemAdminCredentialRequest(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
-) (*kubeapplier.ReadDesire, error) {
-	want := kubeapplier.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
+) (*kubeapplierapi.ReadDesire, error) {
+	want := kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
 	)
 	for _, d := range l.Desires {
@@ -192,8 +192,8 @@ func (l *SliceReadDesireLister) GetForSystemAdminCredentialRequest(
 
 func (l *SliceReadDesireLister) GetForSystemAdminCredentialRevocation(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
-) (*kubeapplier.ReadDesire, error) {
-	want := kubeapplier.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(
+) (*kubeapplierapi.ReadDesire, error) {
+	want := kubeapplierapi.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
 	for _, d := range l.Desires {
@@ -207,12 +207,12 @@ func (l *SliceReadDesireLister) GetForSystemAdminCredentialRevocation(
 
 func (l *SliceReadDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
-) ([]*kubeapplier.ReadDesire, error) {
+) ([]*kubeapplierapi.ReadDesire, error) {
 	if managementClusterResourceID == nil {
 		return nil, nil
 	}
 	want := managementClusterResourceID.String()
-	var out []*kubeapplier.ReadDesire
+	var out []*kubeapplierapi.ReadDesire
 	for _, d := range l.Desires {
 		if mc := d.GetManagementCluster(); mc != nil && strings.EqualFold(mc.String(), want) {
 			out = append(out, d)
@@ -223,8 +223,8 @@ func (l *SliceReadDesireLister) ListForManagementCluster(
 
 func (l *SliceReadDesireLister) ListForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName string,
-) ([]*kubeapplier.ReadDesire, error) {
-	var out []*kubeapplier.ReadDesire
+) ([]*kubeapplierapi.ReadDesire, error) {
+	var out []*kubeapplierapi.ReadDesire
 	for _, d := range l.Desires {
 		if listertestingutils.UnderCluster(listertestingutils.ResourceIDOf(d), subscriptionID, resourceGroupName, clusterName) {
 			out = append(out, d)
@@ -235,8 +235,8 @@ func (l *SliceReadDesireLister) ListForCluster(
 
 func (l *SliceReadDesireLister) ListForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) ([]*kubeapplier.ReadDesire, error) {
-	var out []*kubeapplier.ReadDesire
+) ([]*kubeapplierapi.ReadDesire, error) {
+	var out []*kubeapplierapi.ReadDesire
 	for _, d := range l.Desires {
 		if listertestingutils.UnderNodePool(listertestingutils.ResourceIDOf(d), subscriptionID, resourceGroupName, clusterName, nodePoolName) {
 			out = append(out, d)

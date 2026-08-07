@@ -28,9 +28,9 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -41,32 +41,32 @@ func TestHypershiftHostedClusterExternalAuthOperationState(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		externalAuth      *api.HCPOpenShiftClusterExternalAuth
-		readDesires       []*kubeapplier.ReadDesire
-		wantState         arm.ProvisioningState
+		externalAuth      *coreapi.HCPOpenShiftClusterExternalAuth
+		readDesires       []*kubeapplierapi.ReadDesire
+		wantState         coreapi.ProvisioningState
 		wantMessageSubstr string
 	}{
 		{
 			name:              "no ReadDesire returns Updating",
 			externalAuth:      operationtesting.NewExternalAuthUpdateTestExternalAuth(),
 			readDesires:       nil,
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: "Hypershift HostedCluster has not been observed yet",
 		},
 		{
 			name:         "matching external auth returns Succeeded",
 			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: operationtesting.ExternalAuthUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name:         "oidc provider name match is case insensitive",
 			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ExternalAuthUpdateMatchingHostedClusterSpec()
@@ -77,12 +77,12 @@ func TestHypershiftHostedClusterExternalAuthOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState: arm.ProvisioningStateSucceeded,
+			wantState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name:         "missing OIDC providers returns Updating",
 			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: v1beta1.HostedClusterSpec{
 						Configuration: &v1beta1.ClusterConfiguration{
@@ -91,13 +91,13 @@ func TestHypershiftHostedClusterExternalAuthOperationState(t *testing.T) {
 					},
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: "Hypershift HostedCluster has no OIDCProviders configured",
 		},
 		{
 			name:         "OIDC provider not found returns Updating",
 			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: func() v1beta1.HostedClusterSpec {
 						spec := operationtesting.ExternalAuthUpdateMatchingHostedClusterSpec()
@@ -108,65 +108,65 @@ func TestHypershiftHostedClusterExternalAuthOperationState(t *testing.T) {
 					}(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `OIDCProvider "test-external-auth" not found`,
 		},
 		{
 			name: "issuer URL mismatch returns Updating",
-			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.Properties.Issuer.URL = "https://changed.example.com"
 			}),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: operationtesting.ExternalAuthUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `issuer URL is "https://issuer.example.com", want "https://changed.example.com"`,
 		},
 		{
 			name: "client count mismatch returns Updating",
-			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *api.HCPOpenShiftClusterExternalAuth) {
-				ea.Properties.Clients = append(ea.Properties.Clients, api.ExternalAuthClientProfile{
-					Component: api.ExternalAuthClientComponentProfile{
+			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
+				ea.Properties.Clients = append(ea.Properties.Clients, coreapi.ExternalAuthClientProfile{
+					Component: coreapi.ExternalAuthClientComponentProfile{
 						Name:                "oauth",
 						AuthClientNamespace: "openshift-authentication",
 					},
 					ClientID: "client-id-2",
 				})
 			}),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: operationtesting.ExternalAuthUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: "has 1 clients, want 2",
 		},
 		{
 			name: "username claim mismatch returns Updating",
-			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.Properties.Claim.Mappings.Username.Claim = "sub"
 			}),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: operationtesting.ExternalAuthUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `username claim is "email", want "sub"`,
 		},
 		{
 			name: "validation rule mismatch returns Updating",
-			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.Properties.Claim.ValidationRules[0].RequiredClaim.RequiredValue = "other.example.com"
 			}),
-			readDesires: []*kubeapplier.ReadDesire{
+			readDesires: []*kubeapplierapi.ReadDesire{
 				operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 					Spec: operationtesting.ExternalAuthUpdateMatchingHostedClusterSpec(),
 				}),
 			},
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: `requiredValue is "example.com", want "other.example.com"`,
 		},
 	}
@@ -201,14 +201,14 @@ func TestHypershiftHostedClusterExternalAuthIssuerSpecMatchesDesired(t *testing.
 
 	tests := []struct {
 		name       string
-		desired    api.TokenIssuerProfile
+		desired    coreapi.TokenIssuerProfile
 		observed   configv1.OIDCProvider
 		wantMatch  bool
 		wantSubstr string
 	}{
 		{
 			name: "matching issuer",
-			desired: api.TokenIssuerProfile{
+			desired: coreapi.TokenIssuerProfile{
 				URL:       "https://issuer.example.com",
 				Audiences: []string{"aud1", "aud2"},
 			},
@@ -217,7 +217,7 @@ func TestHypershiftHostedClusterExternalAuthIssuerSpecMatchesDesired(t *testing.
 		},
 		{
 			name: "URL mismatch",
-			desired: api.TokenIssuerProfile{
+			desired: coreapi.TokenIssuerProfile{
 				URL: "https://other.example.com",
 			},
 			observed:   matchingProvider,
@@ -226,7 +226,7 @@ func TestHypershiftHostedClusterExternalAuthIssuerSpecMatchesDesired(t *testing.
 		},
 		{
 			name: "audiences mismatch",
-			desired: api.TokenIssuerProfile{
+			desired: coreapi.TokenIssuerProfile{
 				URL:       "https://issuer.example.com",
 				Audiences: []string{"aud1"},
 			},
@@ -236,7 +236,7 @@ func TestHypershiftHostedClusterExternalAuthIssuerSpecMatchesDesired(t *testing.
 		},
 		{
 			name:      "both empty audiences match",
-			desired:   api.TokenIssuerProfile{},
+			desired:   coreapi.TokenIssuerProfile{},
 			observed:  configv1.OIDCProvider{},
 			wantMatch: true,
 		},
@@ -262,16 +262,16 @@ func TestHypershiftHostedClusterExternalAuthClientsSpecMatchesDesired(t *testing
 
 	tests := []struct {
 		name       string
-		desired    []api.ExternalAuthClientProfile
+		desired    []coreapi.ExternalAuthClientProfile
 		observed   []configv1.OIDCClientConfig
 		wantMatch  bool
 		wantSubstr string
 	}{
 		{
 			name: "matching clients",
-			desired: []api.ExternalAuthClientProfile{
+			desired: []coreapi.ExternalAuthClientProfile{
 				{
-					Component: api.ExternalAuthClientComponentProfile{
+					Component: coreapi.ExternalAuthClientComponentProfile{
 						Name:                "console",
 						AuthClientNamespace: "openshift-console",
 					},
@@ -284,16 +284,16 @@ func TestHypershiftHostedClusterExternalAuthClientsSpecMatchesDesired(t *testing
 		},
 		{
 			name: "client order mismatch",
-			desired: []api.ExternalAuthClientProfile{
+			desired: []coreapi.ExternalAuthClientProfile{
 				{
-					Component: api.ExternalAuthClientComponentProfile{
+					Component: coreapi.ExternalAuthClientComponentProfile{
 						Name:                "oauth",
 						AuthClientNamespace: "openshift-authentication",
 					},
 					ClientID: "client-id-2",
 				},
 				{
-					Component: api.ExternalAuthClientComponentProfile{
+					Component: coreapi.ExternalAuthClientComponentProfile{
 						Name:                "console",
 						AuthClientNamespace: "openshift-console",
 					},
@@ -314,14 +314,14 @@ func TestHypershiftHostedClusterExternalAuthClientsSpecMatchesDesired(t *testing
 		},
 		{
 			name:       "count mismatch",
-			desired:    []api.ExternalAuthClientProfile{{ClientID: "a"}},
+			desired:    []coreapi.ExternalAuthClientProfile{{ClientID: "a"}},
 			observed:   nil,
 			wantMatch:  false,
 			wantSubstr: "has 0 clients, want 1",
 		},
 		{
 			name: "clientID mismatch",
-			desired: []api.ExternalAuthClientProfile{
+			desired: []coreapi.ExternalAuthClientProfile{
 				{ClientID: "want-this"},
 			},
 			observed: []configv1.OIDCClientConfig{
@@ -332,9 +332,9 @@ func TestHypershiftHostedClusterExternalAuthClientsSpecMatchesDesired(t *testing
 		},
 		{
 			name: "componentName mismatch",
-			desired: []api.ExternalAuthClientProfile{
+			desired: []coreapi.ExternalAuthClientProfile{
 				{
-					Component: api.ExternalAuthClientComponentProfile{Name: "console"},
+					Component: coreapi.ExternalAuthClientComponentProfile{Name: "console"},
 					ClientID:  "client-id-1",
 				},
 			},
@@ -349,9 +349,9 @@ func TestHypershiftHostedClusterExternalAuthClientsSpecMatchesDesired(t *testing
 		},
 		{
 			name: "componentNamespace mismatch",
-			desired: []api.ExternalAuthClientProfile{
+			desired: []coreapi.ExternalAuthClientProfile{
 				{
-					Component: api.ExternalAuthClientComponentProfile{
+					Component: coreapi.ExternalAuthClientComponentProfile{
 						Name:                "console",
 						AuthClientNamespace: "openshift-console",
 					},
@@ -370,7 +370,7 @@ func TestHypershiftHostedClusterExternalAuthClientsSpecMatchesDesired(t *testing
 		},
 		{
 			name: "extraScopes mismatch",
-			desired: []api.ExternalAuthClientProfile{
+			desired: []coreapi.ExternalAuthClientProfile{
 				{
 					ClientID:    "client-id-1",
 					ExtraScopes: []string{"email"},
@@ -404,7 +404,7 @@ func TestHypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(t *t
 
 	controller := &operationExternalAuthUpdate{}
 
-	newMatchingClaim := func() api.ExternalAuthClaimProfile {
+	newMatchingClaim := func() coreapi.ExternalAuthClaimProfile {
 		return operationtesting.NewExternalAuthUpdateTestExternalAuth().Properties.Claim
 	}
 	newMatchingProvider := func() configv1.OIDCProvider {
@@ -413,7 +413,7 @@ func TestHypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(t *t
 
 	tests := []struct {
 		name       string
-		desired    api.ExternalAuthClaimProfile
+		desired    coreapi.ExternalAuthClaimProfile
 		observed   configv1.OIDCProvider
 		wantMatch  bool
 		wantSubstr string
@@ -426,7 +426,7 @@ func TestHypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(t *t
 		},
 		{
 			name: "username claim mismatch",
-			desired: func() api.ExternalAuthClaimProfile {
+			desired: func() coreapi.ExternalAuthClaimProfile {
 				claim := newMatchingClaim()
 				claim.Mappings.Username.Claim = "sub"
 				return claim
@@ -437,9 +437,9 @@ func TestHypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(t *t
 		},
 		{
 			name: "username prefixPolicy mismatch",
-			desired: func() api.ExternalAuthClaimProfile {
+			desired: func() coreapi.ExternalAuthClaimProfile {
 				claim := newMatchingClaim()
-				claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyNone
+				claim.Mappings.Username.PrefixPolicy = metadataapi.UsernameClaimPrefixPolicyNone
 				return claim
 			}(),
 			observed:   newMatchingProvider(),
@@ -448,9 +448,9 @@ func TestHypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(t *t
 		},
 		{
 			name: "username prefix mismatch when policy is Prefix",
-			desired: func() api.ExternalAuthClaimProfile {
+			desired: func() coreapi.ExternalAuthClaimProfile {
 				claim := newMatchingClaim()
-				claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyPrefix
+				claim.Mappings.Username.PrefixPolicy = metadataapi.UsernameClaimPrefixPolicyPrefix
 				claim.Mappings.Username.Prefix = "oidc:"
 				return claim
 			}(),
@@ -465,9 +465,9 @@ func TestHypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(t *t
 		},
 		{
 			name: "username prefix policy Prefix matches",
-			desired: func() api.ExternalAuthClaimProfile {
+			desired: func() coreapi.ExternalAuthClaimProfile {
 				claim := newMatchingClaim()
-				claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyPrefix
+				claim.Mappings.Username.PrefixPolicy = metadataapi.UsernameClaimPrefixPolicyPrefix
 				claim.Mappings.Username.Prefix = "oidc:"
 				return claim
 			}(),
@@ -481,7 +481,7 @@ func TestHypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(t *t
 		},
 		{
 			name: "groups claim mismatch",
-			desired: func() api.ExternalAuthClaimProfile {
+			desired: func() coreapi.ExternalAuthClaimProfile {
 				claim := newMatchingClaim()
 				claim.Mappings.Groups.Claim = "custom-groups"
 				return claim
@@ -492,7 +492,7 @@ func TestHypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(t *t
 		},
 		{
 			name: "groups prefix mismatch",
-			desired: func() api.ExternalAuthClaimProfile {
+			desired: func() coreapi.ExternalAuthClaimProfile {
 				claim := newMatchingClaim()
 				claim.Mappings.Groups.Prefix = "custom:"
 				return claim
@@ -503,7 +503,7 @@ func TestHypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(t *t
 		},
 		{
 			name: "nil groups desired matches when observed has no groups",
-			desired: func() api.ExternalAuthClaimProfile {
+			desired: func() coreapi.ExternalAuthClaimProfile {
 				claim := newMatchingClaim()
 				claim.Mappings.Groups = nil
 				return claim
@@ -517,7 +517,7 @@ func TestHypershiftHostedClusterExternalAuthClaimMappingsSpecMatchesDesired(t *t
 		},
 		{
 			name: "nil groups desired rejects observed groups",
-			desired: func() api.ExternalAuthClaimProfile {
+			desired: func() coreapi.ExternalAuthClaimProfile {
 				claim := newMatchingClaim()
 				claim.Mappings.Groups = nil
 				return claim
@@ -548,17 +548,17 @@ func TestHypershiftHostedClusterExternalAuthValidationRulesSpecMatchesDesired(t 
 
 	tests := []struct {
 		name       string
-		desired    []api.TokenClaimValidationRule
+		desired    []coreapi.TokenClaimValidationRule
 		observed   []configv1.TokenClaimValidationRule
 		wantMatch  bool
 		wantSubstr string
 	}{
 		{
 			name: "matching required claim rule",
-			desired: []api.TokenClaimValidationRule{
+			desired: []coreapi.TokenClaimValidationRule{
 				{
-					Type: api.TokenValidationRuleTypeRequiredClaim,
-					RequiredClaim: api.TokenRequiredClaim{
+					Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
+					RequiredClaim: coreapi.TokenRequiredClaim{
 						Claim:         "hd",
 						RequiredValue: "example.com",
 					},
@@ -569,15 +569,15 @@ func TestHypershiftHostedClusterExternalAuthValidationRulesSpecMatchesDesired(t 
 		},
 		{
 			name:       "count mismatch",
-			desired:    []api.TokenClaimValidationRule{{Type: api.TokenValidationRuleTypeRequiredClaim}},
+			desired:    []coreapi.TokenClaimValidationRule{{Type: metadataapi.TokenValidationRuleTypeRequiredClaim}},
 			observed:   nil,
 			wantMatch:  false,
 			wantSubstr: "has 0 validation rules, want 1",
 		},
 		{
 			name: "rule type mismatch",
-			desired: []api.TokenClaimValidationRule{
-				{Type: api.TokenValidationRuleTypeRequiredClaim},
+			desired: []coreapi.TokenClaimValidationRule{
+				{Type: metadataapi.TokenValidationRuleTypeRequiredClaim},
 			},
 			observed: []configv1.TokenClaimValidationRule{
 				{Type: configv1.TokenValidationRuleTypeCEL},
@@ -587,8 +587,8 @@ func TestHypershiftHostedClusterExternalAuthValidationRulesSpecMatchesDesired(t 
 		},
 		{
 			name: "nil requiredClaim errors when token validation rule type is RequiredClaim",
-			desired: []api.TokenClaimValidationRule{
-				{Type: api.TokenValidationRuleTypeRequiredClaim},
+			desired: []coreapi.TokenClaimValidationRule{
+				{Type: metadataapi.TokenValidationRuleTypeRequiredClaim},
 			},
 			observed: []configv1.TokenClaimValidationRule{
 				{Type: configv1.TokenValidationRuleTypeRequiredClaim},
@@ -598,10 +598,10 @@ func TestHypershiftHostedClusterExternalAuthValidationRulesSpecMatchesDesired(t 
 		},
 		{
 			name: "claim mismatch",
-			desired: []api.TokenClaimValidationRule{
+			desired: []coreapi.TokenClaimValidationRule{
 				{
-					Type: api.TokenValidationRuleTypeRequiredClaim,
-					RequiredClaim: api.TokenRequiredClaim{
+					Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
+					RequiredClaim: coreapi.TokenRequiredClaim{
 						Claim:         "iss",
 						RequiredValue: "example.com",
 					},
@@ -613,10 +613,10 @@ func TestHypershiftHostedClusterExternalAuthValidationRulesSpecMatchesDesired(t 
 		},
 		{
 			name: "requiredValue mismatch",
-			desired: []api.TokenClaimValidationRule{
+			desired: []coreapi.TokenClaimValidationRule{
 				{
-					Type: api.TokenValidationRuleTypeRequiredClaim,
-					RequiredClaim: api.TokenRequiredClaim{
+					Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
+					RequiredClaim: coreapi.TokenRequiredClaim{
 						Claim:         "hd",
 						RequiredValue: "other.example.com",
 					},
@@ -628,8 +628,8 @@ func TestHypershiftHostedClusterExternalAuthValidationRulesSpecMatchesDesired(t 
 		},
 		{
 			name: "unsupported desired type",
-			desired: []api.TokenClaimValidationRule{
-				{Type: api.TokenValidationRuleType("Unsupported")},
+			desired: []coreapi.TokenClaimValidationRule{
+				{Type: metadataapi.TokenValidationRuleType("Unsupported")},
 			},
 			observed: []configv1.TokenClaimValidationRule{
 				{Type: configv1.TokenValidationRuleTypeRequiredClaim},
@@ -654,7 +654,7 @@ func TestHypershiftHostedClusterExternalAuthValidationRulesSpecMatchesDesired(t 
 func TestClusterServiceExternalAuthSpecOperationState(t *testing.T) {
 	t.Parallel()
 
-	newCSExternalAuthFromRP := func(t *testing.T, externalAuth *api.HCPOpenShiftClusterExternalAuth) *arohcpv1alpha1.ExternalAuth {
+	newCSExternalAuthFromRP := func(t *testing.T, externalAuth *coreapi.HCPOpenShiftClusterExternalAuth) *arohcpv1alpha1.ExternalAuth {
 		t.Helper()
 		builder, err := ocm.BuildCSExternalAuth(context.Background(), externalAuth, true)
 		require.NoError(t, err)
@@ -667,39 +667,39 @@ func TestClusterServiceExternalAuthSpecOperationState(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		externalAuth      *api.HCPOpenShiftClusterExternalAuth
+		externalAuth      *coreapi.HCPOpenShiftClusterExternalAuth
 		csExternalAuth    *arohcpv1alpha1.ExternalAuth
-		wantState         arm.ProvisioningState
+		wantState         coreapi.ProvisioningState
 		wantMessageSubstr string
 	}{
 		{
 			name:           "matching external auth returns Succeeded",
 			externalAuth:   operationtesting.NewExternalAuthUpdateTestExternalAuth(),
 			csExternalAuth: newCSExternalAuthFromRP(t, operationtesting.NewExternalAuthUpdateTestExternalAuth()),
-			wantState:      arm.ProvisioningStateSucceeded,
+			wantState:      coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "issuer URL mismatch returns Updating",
-			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.Properties.Issuer.URL = "https://changed.example.com"
 			}),
 			csExternalAuth:    newCSExternalAuthFromRP(t, operationtesting.NewExternalAuthUpdateTestExternalAuth()),
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: "Cluster Service external auth spec does not match desired",
 		},
 		{
 			name:           "empty default external auth matches empty CS external auth",
 			externalAuth:   operationtesting.NewExternalAuthTestFixture().NewExternalAuth(),
 			csExternalAuth: mustBuildEmptyCSExternalAuth(t),
-			wantState:      arm.ProvisioningStateSucceeded,
+			wantState:      coreapi.ProvisioningStateSucceeded,
 		},
 		{
 			name: "validation rule mismatch returns Updating",
-			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			externalAuth: operationtesting.NewExternalAuthUpdateTestExternalAuth(func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.Properties.Claim.ValidationRules[0].RequiredClaim.RequiredValue = "changed.example.com"
 			}),
 			csExternalAuth:    newCSExternalAuthFromRP(t, operationtesting.NewExternalAuthUpdateTestExternalAuth()),
-			wantState:         arm.ProvisioningStateUpdating,
+			wantState:         coreapi.ProvisioningStateUpdating,
 			wantMessageSubstr: "changed.example.com",
 		},
 	}

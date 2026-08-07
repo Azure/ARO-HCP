@@ -25,7 +25,8 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -36,15 +37,15 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                     string
-		cachedCluster            *api.HCPOpenShiftCluster
-		existingCluster          *api.HCPOpenShiftCluster
+		cachedCluster            *coreapi.HCPOpenShiftCluster
+		existingCluster          *coreapi.HCPOpenShiftCluster
 		csDomainPrefix           string
 		expectCSGetCluster       bool
 		expectedBaseDomainPrefix string
 	}{
 		{
 			name: "short-circuit when base domain prefix already set",
-			existingCluster: newTestCluster(testClusterName, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(testClusterName, func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			expectedBaseDomainPrefix: testBaseDomainPrefix,
@@ -52,7 +53,7 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 		{
 			name:          "cache says work needed but live data has base domain prefix",
 			cachedCluster: newTestCluster(testClusterName),
-			existingCluster: newTestCluster(testClusterName, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(testClusterName, func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			expectedBaseDomainPrefix: testBaseDomainPrefix,
@@ -82,7 +83,7 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 				cachedCluster = tc.existingCluster
 			}
 			clusterLister := &corelistertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{cachedCluster},
+				Clusters: []*coreapi.HCPOpenShiftCluster{cachedCluster},
 			}
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -90,7 +91,7 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 				csCluster, err := arohcpv1alpha1.NewCluster().DomainPrefix(tc.csDomainPrefix).Build()
 				require.NoError(t, err)
 				mockCSClient.EXPECT().
-					GetCluster(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+					GetCluster(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
 					Return(csCluster, nil)
 			}
 

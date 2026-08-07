@@ -26,7 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -35,7 +35,7 @@ import (
 
 func TestExternalAuthDeletionController_SyncOnce(t *testing.T) {
 	fixedNow := time.Now().UTC().Truncate(time.Second)
-	readyToDeleteExternalAuthOptsFunc := func(ea *api.HCPOpenShiftClusterExternalAuth) {
+	readyToDeleteExternalAuthOptsFunc := func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 		ea.ServiceProviderProperties.ClusterServiceID = nil
@@ -57,7 +57,7 @@ func TestExternalAuthDeletionController_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                 string
-		existingExternalAuth *api.HCPOpenShiftClusterExternalAuth
+		existingExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth
 		childResources       []any
 		wantErr              bool
 		verifyDB             func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
@@ -69,14 +69,14 @@ func TestExternalAuthDeletionController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not -- no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 			}),
 			verifyDB: verifyExternalAuthStillExists,
 		},
 		{
 			name: "ClusterServiceID still set -- no-op",
-			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *api.HCPOpenShiftClusterExternalAuth) {
+			existingExternalAuth: newTestExternalAuthWithNewDeletionApproach(t, func(ea *coreapi.HCPOpenShiftClusterExternalAuth) {
 				ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				ea.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
@@ -117,7 +117,7 @@ func TestExternalAuthDeletionController_SyncOnce(t *testing.T) {
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			externalAuthsForLister := []*api.HCPOpenShiftClusterExternalAuth{}
+			externalAuthsForLister := []*coreapi.HCPOpenShiftClusterExternalAuth{}
 			if tc.existingExternalAuth != nil {
 				externalAuthsForLister = append(externalAuthsForLister, tc.existingExternalAuth)
 			}

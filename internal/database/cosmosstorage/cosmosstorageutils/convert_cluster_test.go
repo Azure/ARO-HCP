@@ -17,48 +17,49 @@ package cosmosstorageutils
 import (
 	"testing"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 func TestClusterEnsureDefaults(t *testing.T) {
 	tests := []struct {
 		name               string
-		networkType        api.NetworkType
-		visibility         api.Visibility
-		outboundType       api.OutboundType
-		imageRegistryState api.ClusterImageRegistryState
-		keyManagementMode  api.EtcdDataEncryptionKeyManagementModeType
-		wantNetworkType    api.NetworkType
-		wantVisibility     api.Visibility
-		wantOutboundType   api.OutboundType
-		wantImageRegState  api.ClusterImageRegistryState
-		wantKeyMgmtMode    api.EtcdDataEncryptionKeyManagementModeType
+		networkType        metadataapi.NetworkType
+		visibility         metadataapi.Visibility
+		outboundType       metadataapi.OutboundType
+		imageRegistryState metadataapi.ClusterImageRegistryState
+		keyManagementMode  metadataapi.EtcdDataEncryptionKeyManagementModeType
+		wantNetworkType    metadataapi.NetworkType
+		wantVisibility     metadataapi.Visibility
+		wantOutboundType   metadataapi.OutboundType
+		wantImageRegState  metadataapi.ClusterImageRegistryState
+		wantKeyMgmtMode    metadataapi.EtcdDataEncryptionKeyManagementModeType
 	}{
 		{
 			name:              "zero values get defaults",
-			wantNetworkType:   api.NetworkTypeOVNKubernetes,
-			wantVisibility:    api.VisibilityPublic,
-			wantOutboundType:  api.OutboundTypeLoadBalancer,
-			wantImageRegState: api.ClusterImageRegistryStateEnabled,
+			wantNetworkType:   metadataapi.NetworkTypeOVNKubernetes,
+			wantVisibility:    metadataapi.VisibilityPublic,
+			wantOutboundType:  metadataapi.OutboundTypeLoadBalancer,
+			wantImageRegState: metadataapi.ClusterImageRegistryStateEnabled,
 		},
 		{
 			name:               "explicit values preserved",
-			networkType:        api.NetworkTypeOVNKubernetes,
-			visibility:         api.VisibilityPrivate,
-			outboundType:       api.OutboundTypeLoadBalancer,
-			imageRegistryState: api.ClusterImageRegistryStateDisabled,
-			keyManagementMode:  api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-			wantNetworkType:    api.NetworkTypeOVNKubernetes,
-			wantVisibility:     api.VisibilityPrivate,
-			wantOutboundType:   api.OutboundTypeLoadBalancer,
-			wantImageRegState:  api.ClusterImageRegistryStateDisabled,
-			wantKeyMgmtMode:    api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+			networkType:        metadataapi.NetworkTypeOVNKubernetes,
+			visibility:         metadataapi.VisibilityPrivate,
+			outboundType:       metadataapi.OutboundTypeLoadBalancer,
+			imageRegistryState: metadataapi.ClusterImageRegistryStateDisabled,
+			keyManagementMode:  metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+			wantNetworkType:    metadataapi.NetworkTypeOVNKubernetes,
+			wantVisibility:     metadataapi.VisibilityPrivate,
+			wantOutboundType:   metadataapi.OutboundTypeLoadBalancer,
+			wantImageRegState:  metadataapi.ClusterImageRegistryStateDisabled,
+			wantKeyMgmtMode:    metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cluster := &api.HCPOpenShiftCluster{}
+			cluster := &coreapi.HCPOpenShiftCluster{}
 			cluster.CustomerProperties.Network.NetworkType = tt.networkType
 			cluster.CustomerProperties.API.Visibility = tt.visibility
 			cluster.CustomerProperties.Platform.OutboundType = tt.outboundType

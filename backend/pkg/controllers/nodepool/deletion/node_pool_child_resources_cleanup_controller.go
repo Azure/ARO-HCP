@@ -23,7 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -71,7 +71,7 @@ func NewNodePoolChildResourcesCleanupController(
 	)
 }
 
-func (c *nodePoolChildResourcesCleanupController) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+func (c *nodePoolChildResourcesCleanupController) NeedsWork(nodePool *coreapi.HCPOpenShiftClusterNodePool) bool {
 	// TODO temporary check to skip the new deletion approach for NodePools that were created before the new approach was implemented.
 	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
@@ -126,10 +126,10 @@ func (c *nodePoolChildResourcesCleanupController) SyncOnce(ctx context.Context, 
 	// an error.
 	// If the resource type is not in the map, the resource is deleted.
 	extraDeleteGates := map[string]func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error){
-		strings.ToLower(api.ServiceProviderNodePoolResourceType.String()): c.extraDeleteGateShouldDeleteServiceProviderNodePool,
+		strings.ToLower(coreapi.ServiceProviderNodePoolResourceType.String()): c.extraDeleteGateShouldDeleteServiceProviderNodePool,
 		// We never delete node pool controllers here, as there might be controllers still running for the NodePool until the very
 		// end of the deletion process
-		strings.ToLower(api.NodePoolControllerResourceType.String()): func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error) { return false, nil },
+		strings.ToLower(coreapi.NodePoolControllerResourceType.String()): func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error) { return false, nil },
 	}
 
 	childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
@@ -181,7 +181,7 @@ func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteSer
 	clusterName := serviceProviderNodePoolResourceID.Parent.Parent.Name
 	nodePoolName := serviceProviderNodePoolResourceID.Parent.Name
 
-	spnp, err := c.resourcesDBClient.ServiceProviderNodePools(serviceProviderNodePoolResourceID.SubscriptionID, serviceProviderNodePoolResourceID.ResourceGroupName, clusterName, nodePoolName).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	spnp, err := c.resourcesDBClient.ServiceProviderNodePools(serviceProviderNodePoolResourceID.SubscriptionID, serviceProviderNodePoolResourceID.ResourceGroupName, clusterName, nodePoolName).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return false, nil
 	}
@@ -199,7 +199,7 @@ func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteSer
 	// Check if there are any nodepool-scoped kube-applier *Desire documents remaining.
 	nodePoolResourceID := serviceProviderNodePoolResourceID.Parent
 	clusterResourceID := nodePoolResourceID.Parent
-	spc, err := c.resourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.Info("no ServiceProviderCluster found associated to the cluster. Continuing with deletion of ServiceProviderNodePool document")
 		return true, nil
@@ -246,7 +246,7 @@ func (c *nodePoolChildResourcesCleanupController) ensureNodePoolScopedKubeApplie
 	logger := utils.LoggerFromContext(ctx)
 
 	clusterResourceID := nodePoolResourceID.Parent
-	spc, err := c.resourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// If there is no ServiceProviderCluster, we cannot determine the management cluster resource ID, so we skip the deletion of the
 		// *Desire documents without erroring.

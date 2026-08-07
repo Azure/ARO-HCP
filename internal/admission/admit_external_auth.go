@@ -20,19 +20,19 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // ExternalAuthAdmissionContext carries dependencies that external auth mutation/admission needs
 // beyond the external auth object itself.
 type ExternalAuthAdmissionContext struct {
 	// ClusterExternalAuths is a list of all external auths for the cluster
-	ClusterExternalAuths []*api.HCPOpenShiftClusterExternalAuth
+	ClusterExternalAuths []*coreapi.HCPOpenShiftClusterExternalAuth
 }
 
 // AdmitExternalAuth performs non-static checks of external auth. Checks that require more information than is contained inside of
 // the external auth instance itself.
-func AdmitExternalAuth(ctx context.Context, admissionContext *ExternalAuthAdmissionContext, op operation.Operation, newExternalAuth, oldExternalAuth *api.HCPOpenShiftClusterExternalAuth) field.ErrorList {
+func AdmitExternalAuth(ctx context.Context, admissionContext *ExternalAuthAdmissionContext, op operation.Operation, newExternalAuth, oldExternalAuth *coreapi.HCPOpenShiftClusterExternalAuth) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// We do a *best-effort* to check to see if there are other external auths on the cluster and if there are we

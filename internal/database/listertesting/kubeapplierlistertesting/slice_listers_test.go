@@ -26,22 +26,23 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 )
 
-func newTestManagementCluster(name, shardID string) *fleet.ManagementCluster {
-	resourceID := api.Must(fleet.ToManagementClusterResourceID(name))
-	return &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{
+func newTestManagementCluster(name, shardID string) *fleetapi.ManagementCluster {
+	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(name))
+	return &fleetapi.ManagementCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
 		ResourceID: resourceID,
-		Status: fleet.ManagementClusterStatus{
-			ClusterServiceProvisionShardID: ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/" + shardID))),
+		Status: fleetapi.ManagementClusterStatus{
+			ClusterServiceProvisionShardID: ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/" + shardID))),
 		},
 	}
 }
@@ -51,7 +52,7 @@ func TestSliceManagementClusterLister(t *testing.T) {
 	mc2 := newTestManagementCluster("m2", "22222222-2222-2222-2222-222222222222")
 
 	lister := &fleetlistertesting.SliceManagementClusterLister{
-		ManagementClusters: []*fleet.ManagementCluster{mc1, mc2},
+		ManagementClusters: []*fleetapi.ManagementCluster{mc1, mc2},
 	}
 
 	ctx := context.Background()
@@ -75,14 +76,14 @@ func TestSliceManagementClusterLister(t *testing.T) {
 	})
 
 	t.Run("GetByCSProvisionShard returns matching management cluster", func(t *testing.T) {
-		csShardID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-1111-1111-1111-111111111111"))
+		csShardID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-1111-1111-1111-111111111111"))
 		result, err := lister.GetByCSProvisionShardID(ctx, csShardID.ID())
 		require.NoError(t, err)
 		assert.Equal(t, "m1", result.ResourceID.Parent.Name)
 	})
 
 	t.Run("GetByCSProvisionShard returns not found for non-existent shard", func(t *testing.T) {
-		csShardID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/99999999-9999-9999-9999-999999999999"))
+		csShardID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/99999999-9999-9999-9999-999999999999"))
 		_, err := lister.GetByCSProvisionShardID(ctx, csShardID.ID())
 		require.Error(t, err)
 		assert.True(t, cosmosstorageutils.IsNotFoundError(err))
@@ -91,9 +92,9 @@ func TestSliceManagementClusterLister(t *testing.T) {
 	t.Run("GetByCSProvisionShard returns error for duplicate shards", func(t *testing.T) {
 		mc3 := newTestManagementCluster("m3", "11111111-1111-1111-1111-111111111111")
 		dupLister := &fleetlistertesting.SliceManagementClusterLister{
-			ManagementClusters: []*fleet.ManagementCluster{mc1, mc3},
+			ManagementClusters: []*fleetapi.ManagementCluster{mc1, mc3},
 		}
-		csShardID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-1111-1111-1111-111111111111"))
+		csShardID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-1111-1111-1111-111111111111"))
 		_, err := dupLister.GetByCSProvisionShardID(ctx, csShardID.ID())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "expected at most 1")
@@ -110,9 +111,9 @@ const (
 // Management cluster identifiers. *ID values go into Spec.ManagementCluster
 // and are also what callers pass to ListForManagementCluster.
 var (
-	testMgmtAID = api.Must(azcorearm.ParseResourceID(
+	testMgmtAID = metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
-	testMgmtBID = api.Must(azcorearm.ParseResourceID(
+	testMgmtBID = metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/2/managementclusters/mgmt-b"))
 	testMgmtA = strings.ToLower(testMgmtAID.String())
 )
@@ -126,11 +127,11 @@ func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
 	return id
 }
 
-func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
-		Spec:           kubeapplier.ApplyDesireSpec{ManagementCluster: mgmt},
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
+		Spec:           kubeapplierapi.ApplyDesireSpec{ManagementCluster: mgmt},
 	}
 }
 
@@ -139,20 +140,20 @@ func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kub
 //   - clusterA-np: mgmt-a, nodepool-scoped, name=a2
 //   - clusterB: mgmt-b, cluster-scoped (different cluster), name=b1
 //   - clusterB-other-rg: mgmt-b, cluster-scoped, different rg
-func fixtureDesires(t *testing.T) []*kubeapplier.ApplyDesire {
+func fixtureDesires(t *testing.T) []*kubeapplierapi.ApplyDesire {
 	t.Helper()
-	return []*kubeapplier.ApplyDesire{
+	return []*kubeapplierapi.ApplyDesire{
 		newApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 			testMgmtAID),
 		newApplyDesire(t,
-			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
+			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
 			testMgmtAID),
 		newApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
 			testMgmtBID),
 		newApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, "other-rg", testCluster, "b2"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, "other-rg", testCluster, "b2"),
 			testMgmtBID),
 	}
 }

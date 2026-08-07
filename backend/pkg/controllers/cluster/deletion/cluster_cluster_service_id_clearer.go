@@ -24,7 +24,7 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -73,7 +73,7 @@ func NewClusterClusterServiceIDClearerController(
 // given Cluster: deletion has been started (DeletionTimestamp), the deleter
 // has already issued the CS delete (ClusterServiceDeletionTimestamp), and a
 // ClusterServiceID is still recorded that needs verification before clearing.
-func (c *clusterClusterServiceIDClearer) NeedsWork(cluster *api.HCPOpenShiftCluster) bool {
+func (c *clusterClusterServiceIDClearer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster) bool {
 	// TODO temporary check to skip the new deletion approach for Clusters that were created before the new approach was implemented.
 	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.

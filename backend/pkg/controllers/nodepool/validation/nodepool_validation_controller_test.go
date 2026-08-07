@@ -31,8 +31,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -56,61 +56,61 @@ func newTestNodePoolKey() controllerutils.HCPNodePoolKey {
 	}
 }
 
-func newTestCluster(t *testing.T) *api.HCPOpenShiftCluster {
+func newTestCluster(t *testing.T) *coreapi.HCPOpenShiftCluster {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	return &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: testClusterName,
-				Type: api.ClusterResourceType.String(),
+				Type: coreapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
 	}
 }
 
-func newTestNodePool(t *testing.T) *api.HCPOpenShiftClusterNodePool {
+func newTestNodePool(t *testing.T) *coreapi.HCPOpenShiftClusterNodePool {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/" + testNodePoolName))
-	return &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{
+	return &coreapi.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: testNodePoolName,
-				Type: api.NodePoolResourceType.String(),
+				Type: coreapi.NodePoolResourceType.String(),
 			},
 			Location: "eastus",
 		},
 	}
 }
 
-func newTestSubscription() *arm.Subscription {
-	subResourceID := api.Must(azcorearm.ParseResourceID(
+func newTestSubscription() *coreapi.Subscription {
+	subResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID))
-	return &arm.Subscription{
-		CosmosMetadata: api.CosmosMetadata{
+	return &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   subResourceID,
 			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
 		},
 		ResourceID: subResourceID,
-		State:      arm.SubscriptionStateRegistered,
+		State:      coreapi.SubscriptionStateRegistered,
 	}
 }
 
@@ -124,7 +124,7 @@ var _ validationutils.NodePoolValidation = (*mockNodePoolValidation)(nil)
 
 func (m *mockNodePoolValidation) Name() string { return m.name }
 
-func (m *mockNodePoolValidation) Validate(_ context.Context, _ *api.HCPOpenShiftCluster, _ *arm.Subscription, _ *api.HCPOpenShiftClusterNodePool) error {
+func (m *mockNodePoolValidation) Validate(_ context.Context, _ *coreapi.HCPOpenShiftCluster, _ *coreapi.Subscription, _ *coreapi.HCPOpenShiftClusterNodePool) error {
 	return m.validateErr
 }
 
@@ -180,7 +180,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			validation: &mockNodePoolValidation{
 				name: testValidationName,
 			},
-			wantConditionStatus: api.Ptr(metav1.ConditionTrue),
+			wantConditionStatus: metadataapi.Ptr(metav1.ConditionTrue),
 		},
 		{
 			name:    "validation fails -- condition set to False and error returned",
@@ -190,7 +190,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				validateErr: fmt.Errorf("quota exceeded"),
 			},
 			wantErr:             true,
-			wantConditionStatus: api.Ptr(metav1.ConditionFalse),
+			wantConditionStatus: metadataapi.Ptr(metav1.ConditionFalse),
 		},
 		{
 			name: "already-succeeded validation -- skipped",
@@ -198,7 +198,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				defaultSetupDB(t, ctx, mockDB)
 				spnpCRUD := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName)
-				spnp, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				spnp, err := spnpCRUD.Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 				require.NoError(t, err)
 				spnp.Status.Validations = []metav1.Condition{
 					{
@@ -242,7 +242,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			if tc.wantConditionStatus != nil {
 				spnp, spnpErr := mockDB.ServiceProviderNodePools(
 					testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName,
-				).Get(ctx, api.ServiceProviderNodePoolResourceName)
+				).Get(ctx, coreapi.ServiceProviderNodePoolResourceName)
 				require.NoError(t, spnpErr)
 
 				cond := meta.FindStatusCondition(spnp.Status.Validations, testValidationName)

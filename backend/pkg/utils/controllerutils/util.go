@@ -29,8 +29,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -51,7 +51,7 @@ type OperationKey struct {
 }
 
 func (k OperationKey) GetParentResourceID() *azcorearm.ResourceID {
-	return api.Must(azcorearm.ParseResourceID(k.ParentResourceID))
+	return metadataapi.Must(azcorearm.ParseResourceID(k.ParentResourceID))
 }
 
 func (k OperationKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -61,18 +61,18 @@ func (k OperationKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 			AddOperationID(k.OperationName)...)
 }
 
-func (k OperationKey) InitialController(controllerName string) *api.Controller {
+func (k OperationKey) InitialController(controllerName string) *coreapi.Controller {
 	// TODO, this structure only allows one status per operation controller even if there are multiple instances of the operation
 	// TODO, this may or may not age well. Nesting is possible or we could actually separate controllers that way (probably useful).
 	// TODO, leaving this as a thing open to change in the future.
-	resourceID := api.Must(azcorearm.ParseResourceID(k.GetParentResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(k.GetParentResourceID().String() + "/" + coreapi.ControllerResourceTypeName + "/" + controllerName))
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ExternalID: k.GetParentResourceID(),
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
@@ -86,7 +86,7 @@ type HCPClusterKey struct {
 }
 
 func (k HCPClusterKey) GetResourceID() *azcorearm.ResourceID {
-	return api.Must(api.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
+	return metadataapi.Must(coreapi.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
 }
 
 func (k HCPClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -95,15 +95,15 @@ func (k HCPClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 			AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
-func (k HCPClusterKey) InitialController(controllerName string) *api.Controller {
-	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+func (k HCPClusterKey) InitialController(controllerName string) *coreapi.Controller {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + coreapi.ControllerResourceTypeName + "/" + controllerName))
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ExternalID: k.GetResourceID(),
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
@@ -118,7 +118,7 @@ type HCPNodePoolKey struct {
 }
 
 func (k HCPNodePoolKey) GetResourceID() *azcorearm.ResourceID {
-	return api.Must(api.ToNodePoolResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.HCPNodePoolName))
+	return metadataapi.Must(coreapi.ToNodePoolResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.HCPNodePoolName))
 }
 
 func (k HCPNodePoolKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -126,15 +126,15 @@ func (k HCPNodePoolKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 		utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
-func (k HCPNodePoolKey) InitialController(controllerName string) *api.Controller {
-	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+func (k HCPNodePoolKey) InitialController(controllerName string) *coreapi.Controller {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + coreapi.ControllerResourceTypeName + "/" + controllerName))
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ExternalID: k.GetResourceID(),
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
@@ -146,7 +146,7 @@ type SubscriptionKey struct {
 }
 
 func (k SubscriptionKey) GetResourceID() *azcorearm.ResourceID {
-	return api.Must(arm.ToSubscriptionResourceID(k.SubscriptionID))
+	return metadataapi.Must(coreapi.ToSubscriptionResourceID(k.SubscriptionID))
 }
 
 func (k SubscriptionKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -163,22 +163,22 @@ type HCPExternalAuthKey struct {
 }
 
 func (k *HCPExternalAuthKey) GetResourceID() *azcorearm.ResourceID {
-	return api.Must(api.ToExternalAuthResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.HCPExternalAuthName))
+	return metadataapi.Must(coreapi.ToExternalAuthResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.HCPExternalAuthName))
 }
 
 func (k *HCPExternalAuthKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 	return logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
-func (k *HCPExternalAuthKey) InitialController(controllerName string) *api.Controller {
-	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+func (k *HCPExternalAuthKey) InitialController(controllerName string) *coreapi.Controller {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + coreapi.ControllerResourceTypeName + "/" + controllerName))
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ExternalID: k.GetResourceID(),
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
@@ -193,11 +193,11 @@ type SystemAdminCredentialRequestKey struct {
 }
 
 func (k SystemAdminCredentialRequestKey) GetResourceID() *azcorearm.ResourceID {
-	return api.Must(api.ToSystemAdminCredentialRequestResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.CredentialName))
+	return metadataapi.Must(coreapi.ToSystemAdminCredentialRequestResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.CredentialName))
 }
 
 func (k SystemAdminCredentialRequestKey) GetClusterResourceID() *azcorearm.ResourceID {
-	return api.Must(api.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
+	return metadataapi.Must(coreapi.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
 }
 
 func (k SystemAdminCredentialRequestKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -206,15 +206,15 @@ func (k SystemAdminCredentialRequestKey) AddLoggerValues(logger logr.Logger) log
 			AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
-func (k SystemAdminCredentialRequestKey) InitialController(controllerName string) *api.Controller {
-	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+func (k SystemAdminCredentialRequestKey) InitialController(controllerName string) *coreapi.Controller {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + coreapi.ControllerResourceTypeName + "/" + controllerName))
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ExternalID: k.GetResourceID(),
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
@@ -229,11 +229,11 @@ type SystemAdminCredentialRevocationKey struct {
 }
 
 func (k SystemAdminCredentialRevocationKey) GetResourceID() *azcorearm.ResourceID {
-	return api.Must(api.ToSystemAdminCredentialRevocationResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.RevocationName))
+	return metadataapi.Must(coreapi.ToSystemAdminCredentialRevocationResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.RevocationName))
 }
 
 func (k SystemAdminCredentialRevocationKey) GetClusterResourceID() *azcorearm.ResourceID {
-	return api.Must(api.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
+	return metadataapi.Must(coreapi.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
 }
 
 func (k SystemAdminCredentialRevocationKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -242,15 +242,15 @@ func (k SystemAdminCredentialRevocationKey) AddLoggerValues(logger logr.Logger) 
 			AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
-func (k SystemAdminCredentialRevocationKey) InitialController(controllerName string) *api.Controller {
-	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+func (k SystemAdminCredentialRevocationKey) InitialController(controllerName string) *coreapi.Controller {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + coreapi.ControllerResourceTypeName + "/" + controllerName))
+	return &coreapi.Controller{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ExternalID: k.GetResourceID(),
-		Status: api.ControllerStatus{
+		Status: coreapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
@@ -259,10 +259,10 @@ func (k SystemAdminCredentialRevocationKey) InitialController(controllerName str
 // controllerMutationFunc is called when trying to write a controller. It gives a spot for computation of a value.
 // It should only perform short calls, not long lookups.  It must not fail. Think of it as a way to write information
 // that you have already precomputed.
-type controllerMutationFunc func(controller *api.Controller)
+type controllerMutationFunc func(controller *coreapi.Controller)
 
 func ReportSyncError(syncErr error) controllerMutationFunc {
-	return func(controller *api.Controller) {
+	return func(controller *coreapi.Controller) {
 		if syncErr == nil {
 			meta.SetStatusCondition(&controller.Status.Conditions, metav1.Condition{
 				Type:    "Degraded",
@@ -282,11 +282,11 @@ func ReportSyncError(syncErr error) controllerMutationFunc {
 	}
 }
 
-// InitialControllerFunc builds a new api.Controller for the given logical controller name
+// InitialControllerFunc builds a new coreapi.Controller for the given logical controller name
 // (for example HCPClusterKey.InitialController).
-type InitialControllerFunc func(controllerName string) *api.Controller
+type InitialControllerFunc func(controllerName string) *coreapi.Controller
 
-func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller], controllerName string, initialControllerFn InitialControllerFunc) func(interface{}) {
+func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller], controllerName string, initialControllerFn InitialControllerFunc) func(interface{}) {
 	return func(panicVal interface{}) {
 		stack := debug.Stack()
 		err := WriteController(ctx, controllerCRUD, controllerName, initialControllerFn, ReportSyncError(fmt.Errorf("panic caught:\n%v\n\n%s", panicVal, stack)))
@@ -297,21 +297,21 @@ func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD cosmosst
 	}
 }
 
-func controllerCRUDForParent(resourcesDBClient corecosmosstorage.ResourcesDBClient, parentResourceID *azcorearm.ResourceID) (cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller], error) {
+func controllerCRUDForParent(resourcesDBClient corecosmosstorage.ResourcesDBClient, parentResourceID *azcorearm.ResourceID) (cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller], error) {
 	subscriptionID := parentResourceID.SubscriptionID
 	resourceGroupName := parentResourceID.ResourceGroupName
 	hcp := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
 
 	switch {
-	case armhelpers.ResourceTypeEqual(parentResourceID.ResourceType, api.ClusterResourceType):
+	case armhelpers.ResourceTypeEqual(parentResourceID.ResourceType, coreapi.ClusterResourceType):
 		return hcp.Controllers(parentResourceID.Name), nil
-	case armhelpers.ResourceTypeEqual(parentResourceID.ResourceType, api.NodePoolResourceType):
+	case armhelpers.ResourceTypeEqual(parentResourceID.ResourceType, coreapi.NodePoolResourceType):
 		if parentResourceID.Parent == nil {
 			return nil, fmt.Errorf("node pool resource ID is missing parent cluster ID")
 		}
 		clusterName := parentResourceID.Parent.Name
 		return hcp.NodePools(clusterName).Controllers(parentResourceID.Name), nil
-	case armhelpers.ResourceTypeEqual(parentResourceID.ResourceType, api.ExternalAuthResourceType):
+	case armhelpers.ResourceTypeEqual(parentResourceID.ResourceType, coreapi.ExternalAuthResourceType):
 		if parentResourceID.Parent == nil {
 			return nil, fmt.Errorf("external auth resource ID is missing parent cluster ID")
 		}
@@ -327,11 +327,11 @@ func controllerCRUDForParent(resourcesDBClient corecosmosstorage.ResourcesDBClie
 // existing document (same pattern as corecosmosstorage.GetOrCreateServiceProviderCluster).
 func getOrCreateControllerDocument(
 	ctx context.Context,
-	controllerCRUD cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller],
+	controllerCRUD cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller],
 	controllerName string,
 	initialControllerFn InitialControllerFunc,
 	secondAttempt ...bool,
-) (*api.Controller, error) {
+) (*coreapi.Controller, error) {
 	if initialControllerFn == nil {
 		return nil, fmt.Errorf("initialControllerFn is required")
 	}
@@ -387,7 +387,7 @@ func getOrCreateControllerDocument(
 func GetOrCreateController(
 	ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, parentResourceID *azcorearm.ResourceID,
 	controllerName string, initialControllerFn InitialControllerFunc,
-) (*api.Controller, error) {
+) (*coreapi.Controller, error) {
 	controllerCRUD, err := controllerCRUDForParent(resourcesDBClient, parentResourceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -404,7 +404,7 @@ func GetOrCreateController(
 // If it fails, then the an error is returned.  This detail is important, it doesn't even retry conflicts.  This is so that
 // if a failure happens the control-loop will re-run and restablish the information it was trying to write as valid.
 // This prevents accidental recreation of controller instances in cosmos during a delete.
-func WriteController(ctx context.Context, controllerCRUD cosmosstorageutils.ResourceCRUD[api.Controller, *api.Controller], controllerName string, initialControllerFn InitialControllerFunc, mutationFns ...controllerMutationFunc) error {
+func WriteController(ctx context.Context, controllerCRUD cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller], controllerName string, initialControllerFn InitialControllerFunc, mutationFns ...controllerMutationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	existingController, err := getOrCreateControllerDocument(ctx, controllerCRUD, controllerName, initialControllerFn)

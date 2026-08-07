@@ -30,9 +30,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -110,13 +111,13 @@ func TestUnionKubeApplierInformersController_E2E(t *testing.T) {
 		// --- step 1: pre-load *Desires for the test stamp --------------------
 		// Stamp identifiers are constrained to [0-9a-z]{1,3} by validation.
 		stampIdentifier := "s1"
-		managementClusterResourceID := api.Must(fleet.ToManagementClusterResourceID(stampIdentifier))
+		managementClusterResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stampIdentifier))
 
 		initialClusterScopedApply := newApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, testClusterName, "initial-a"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, testClusterName, "initial-a"),
 			managementClusterResourceID)
 		initialNodePoolScopedApply := newApplyDesire(t,
-			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName, "initial-b"),
+			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName, "initial-b"),
 			managementClusterResourceID)
 
 		mockKubeApplierClient, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
@@ -188,7 +189,7 @@ func TestUnionKubeApplierInformersController_E2E(t *testing.T) {
 
 		// --- step 5: add another *Desire and watch it propagate -------------
 		secondClusterScopedApply := newApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, "cluster-2", "initial-c"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSubscriptionID, testResourceGroup, "cluster-2", "initial-c"),
 			managementClusterResourceID)
 		require.NoError(t, createApplyDesire(ctx, mockKubeApplierClient, secondClusterScopedApply))
 
@@ -237,14 +238,14 @@ func (factory *cosmosKubeApplierFactory) NewKubeApplierInformers(
 // insert becomes a synthetic Add when the next list runs).
 type applyDesireRecorder struct {
 	mu    sync.Mutex
-	items []*kubeapplier.ApplyDesire
+	items []*kubeapplierapi.ApplyDesire
 	seen  map[string]struct{}
 }
 
 func (recorder *applyDesireRecorder) handlers() cache.ResourceEventHandler {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
-			desire, ok := obj.(*kubeapplier.ApplyDesire)
+			desire, ok := obj.(*kubeapplierapi.ApplyDesire)
 			if !ok {
 				return
 			}
@@ -269,24 +270,24 @@ func (recorder *applyDesireRecorder) count() int {
 	return len(recorder.items)
 }
 
-func newApplyDesire(t *testing.T, resourceIDString string, managementClusterResourceID *azcorearm.ResourceID) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, resourceIDString string, managementClusterResourceID *azcorearm.ResourceID) *kubeapplierapi.ApplyDesire {
 	t.Helper()
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
 	require.NoError(t, err, "parse %q", resourceIDString)
-	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
-		Spec: kubeapplier.ApplyDesireSpec{
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: managementClusterResourceID,
-			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
-			ServerSideApply:   &kubeapplier.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)}},
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			ServerSideApply:   &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)}},
 		},
 	}
 }
 
 func createStamp(ctx context.Context, fleetClient fleetcosmosstorage.FleetDBClient, stampIdentifier string) error {
-	stampResourceID := api.Must(fleet.ToStampResourceID(stampIdentifier))
-	stamp := &fleet.Stamp{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: stampResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
+	stampResourceID := metadataapi.Must(fleetapi.ToStampResourceID(stampIdentifier))
+	stamp := &fleetapi.Stamp{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: stampResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
 		ResourceID:     stampResourceID,
 	}
 	_, err := fleetClient.Stamps().Create(ctx, stamp, nil)
@@ -294,20 +295,20 @@ func createStamp(ctx context.Context, fleetClient fleetcosmosstorage.FleetDBClie
 }
 
 func createManagementCluster(ctx context.Context, fleetClient fleetcosmosstorage.FleetDBClient, stampIdentifier string) error {
-	managementClusterResourceID := api.Must(fleet.ToManagementClusterResourceID(stampIdentifier))
-	aksResourceID := api.Must(azcorearm.ParseResourceID(
+	managementClusterResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stampIdentifier))
+	aksResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		fmt.Sprintf("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-%s", stampIdentifier)))
-	dnsZoneResourceID := api.Must(azcorearm.ParseResourceID(
+	dnsZoneResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/test.example.com"))
-	provisionShardID := ptr.To(api.Must(api.NewInternalID(
+	provisionShardID := ptr.To(metadataapi.Must(metadataapi.NewInternalID(
 		fmt.Sprintf("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee%s", stampIdentifier))))
-	managementCluster := &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: managementClusterResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
+	managementCluster := &fleetapi.ManagementCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: managementClusterResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
 		ResourceID:     managementClusterResourceID,
-		Spec: fleet.ManagementClusterSpec{
-			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
+		Spec: fleetapi.ManagementClusterSpec{
+			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
-		Status: fleet.ManagementClusterStatus{
+		Status: fleetapi.ManagementClusterStatus{
 			AKSResourceID:                                        aksResourceID,
 			PublicDNSZoneResourceID:                              dnsZoneResourceID,
 			HostedClustersSecretsKeyVaultURL:                     "https://cx-kv.vault.azure.net/",
@@ -326,18 +327,18 @@ func createManagementCluster(ctx context.Context, fleetClient fleetcosmosstorage
 
 // createApplyDesire writes a new ApplyDesire to a per-MC kube-applier mock
 // using the desire's parent resource hierarchy.
-func createApplyDesire(ctx context.Context, mockClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, desire *kubeapplier.ApplyDesire) error {
+func createApplyDesire(ctx context.Context, mockClient *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, desire *kubeapplierapi.ApplyDesire) error {
 	id := desire.GetResourceID()
 	if id == nil || id.Parent == nil {
 		return fmt.Errorf("desire %v has no parent in its resource ID", id)
 	}
 	parentType := id.Parent.ResourceType
-	var applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire]
+	var applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire]
 	var err error
 	switch {
-	case armhelpers.ResourceTypeEqual(parentType, api.ClusterResourceType):
+	case armhelpers.ResourceTypeEqual(parentType, coreapi.ClusterResourceType):
 		applyDesireCRUD, err = mockClient.ApplyDesiresForCluster(id.SubscriptionID, id.ResourceGroupName, id.Parent.Name)
-	case armhelpers.ResourceTypeEqual(parentType, api.NodePoolResourceType):
+	case armhelpers.ResourceTypeEqual(parentType, coreapi.NodePoolResourceType):
 		applyDesireCRUD, err = mockClient.ApplyDesiresForNodePool(id.SubscriptionID, id.ResourceGroupName, id.Parent.Parent.Name, id.Parent.Name)
 	default:
 		return fmt.Errorf("unsupported *Desire parent resource type: %s", parentType)

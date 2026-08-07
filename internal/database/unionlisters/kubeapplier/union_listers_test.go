@@ -23,8 +23,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
@@ -39,11 +40,11 @@ const (
 )
 
 var (
-	mgmtAID = api.Must(azcorearm.ParseResourceID(
+	mgmtAID = metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
-	mgmtBID = api.Must(azcorearm.ParseResourceID(
+	mgmtBID = metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/2/managementclusters/mgmt-b"))
-	mgmtUnregistered = api.Must(azcorearm.ParseResourceID(
+	mgmtUnregistered = metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/9/managementclusters/mgmt-z"))
 )
 
@@ -58,11 +59,11 @@ func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
 
 // --- ApplyDesire fixtures ------------------------------------------------
 
-func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
-		Spec:           kubeapplier.ApplyDesireSpec{ManagementCluster: mgmt},
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
+		Spec:           kubeapplierapi.ApplyDesireSpec{ManagementCluster: mgmt},
 	}
 }
 
@@ -71,19 +72,19 @@ func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kub
 func applySublisters(t *testing.T) (a, b *kubeapplierlistertesting.SliceApplyDesireLister) {
 	t.Helper()
 	a = &kubeapplierlistertesting.SliceApplyDesireLister{
-		Desires: []*kubeapplier.ApplyDesire{
+		Desires: []*kubeapplierapi.ApplyDesire{
 			newApplyDesire(t,
-				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
+				kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 				mgmtAID),
 			newApplyDesire(t,
-				kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
+				kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
 				mgmtAID),
 		},
 	}
 	b = &kubeapplierlistertesting.SliceApplyDesireLister{
-		Desires: []*kubeapplier.ApplyDesire{
+		Desires: []*kubeapplierapi.ApplyDesire{
 			newApplyDesire(t,
-				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
+				kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
 				mgmtBID),
 		},
 	}
@@ -92,30 +93,30 @@ func applySublisters(t *testing.T) (a, b *kubeapplierlistertesting.SliceApplyDes
 
 // --- ReadDesire fixtures -------------------------------------------------
 
-func newReadDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplier.ReadDesire {
+func newReadDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplierapi.ReadDesire {
 	t.Helper()
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
-		Spec:           kubeapplier.ReadDesireSpec{ManagementCluster: mgmt},
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
+		Spec:           kubeapplierapi.ReadDesireSpec{ManagementCluster: mgmt},
 	}
 }
 
 func readSublisters(t *testing.T) (a, b *kubeapplierlistertesting.SliceReadDesireLister) {
 	t.Helper()
 	a = &kubeapplierlistertesting.SliceReadDesireLister{
-		Desires: []*kubeapplier.ReadDesire{
+		Desires: []*kubeapplierapi.ReadDesire{
 			newReadDesire(t,
-				kubeapplier.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, "a1"),
+				kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 				mgmtAID),
 			newReadDesire(t,
-				kubeapplier.ToNodePoolScopedReadDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
+				kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
 				mgmtAID),
 		},
 	}
 	b = &kubeapplierlistertesting.SliceReadDesireLister{
-		Desires: []*kubeapplier.ReadDesire{
+		Desires: []*kubeapplierapi.ReadDesire{
 			newReadDesire(t,
-				kubeapplier.ToClusterScopedReadDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
+				kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
 				mgmtBID),
 		},
 	}
@@ -128,7 +129,7 @@ func readSublisters(t *testing.T) (a, b *kubeapplierlistertesting.SliceReadDesir
 
 func TestUnionApplyDesireLister_EmptyUnion(t *testing.T) {
 	ctx := context.Background()
-	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplierapi.ApplyDesire]()
 
 	if got, err := u.List(ctx); err != nil || len(got) != 0 {
 		t.Errorf("empty List: got (%v, %v), want (empty, nil)", got, err)
@@ -153,7 +154,7 @@ func TestUnionApplyDesireLister_EmptyUnion(t *testing.T) {
 func TestUnionApplyDesireLister_AggregatesAcrossSublisters(t *testing.T) {
 	ctx := context.Background()
 	a, b := applySublisters(t)
-	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplierapi.ApplyDesire]()
 	u.Add(mgmtAID, a)
 	u.Add(mgmtBID, b)
 
@@ -169,7 +170,7 @@ func TestUnionApplyDesireLister_AggregatesAcrossSublisters(t *testing.T) {
 func TestUnionApplyDesireLister_ListForManagementCluster_DelegatesToSingleSublister(t *testing.T) {
 	ctx := context.Background()
 	a, b := applySublisters(t)
-	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplierapi.ApplyDesire]()
 	u.Add(mgmtAID, a)
 	u.Add(mgmtBID, b)
 
@@ -212,7 +213,7 @@ func TestUnionApplyDesireLister_ListForManagementCluster_DelegatesToSingleSublis
 func TestUnionApplyDesireLister_GetForCluster_FirstHitWins(t *testing.T) {
 	ctx := context.Background()
 	a, b := applySublisters(t)
-	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplierapi.ApplyDesire]()
 	u.Add(mgmtAID, a)
 	u.Add(mgmtBID, b)
 
@@ -243,7 +244,7 @@ func TestUnionApplyDesireLister_GetForCluster_FirstHitWins(t *testing.T) {
 func TestUnionApplyDesireLister_GetForCluster_NonNotFoundShortCircuits(t *testing.T) {
 	ctx := context.Background()
 	sentinel := errors.New("boom")
-	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplierapi.ApplyDesire]()
 	u.Add(mgmtAID, &erroringApplyLister{err: sentinel})
 
 	_, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "a1")
@@ -255,7 +256,7 @@ func TestUnionApplyDesireLister_GetForCluster_NonNotFoundShortCircuits(t *testin
 func TestUnionApplyDesireLister_RemoveDropsSublister(t *testing.T) {
 	ctx := context.Background()
 	a, b := applySublisters(t)
-	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplierapi.ApplyDesire]()
 	u.Add(mgmtAID, a)
 	u.Add(mgmtBID, b)
 
@@ -290,13 +291,13 @@ func TestUnionApplyDesireLister_AddReplaces(t *testing.T) {
 	ctx := context.Background()
 	a1, _ := applySublisters(t)
 	a2 := &kubeapplierlistertesting.SliceApplyDesireLister{
-		Desires: []*kubeapplier.ApplyDesire{
+		Desires: []*kubeapplierapi.ApplyDesire{
 			newApplyDesire(t,
-				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "replacement"),
+				kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "replacement"),
 				mgmtAID),
 		},
 	}
-	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplierapi.ApplyDesire]()
 	u.Add(mgmtAID, a1)
 	u.Add(mgmtAID, a2) // second Add under the same MC replaces the first
 
@@ -312,7 +313,7 @@ func TestUnionApplyDesireLister_AddReplaces(t *testing.T) {
 func TestUnionApplyDesireLister_ConcurrentAddRemoveVsRead(t *testing.T) {
 	ctx := context.Background()
 	a, b := applySublisters(t)
-	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplierapi.ApplyDesire]()
 
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
@@ -361,7 +362,7 @@ func TestUnionApplyDesireLister_ConcurrentAddRemoveVsRead(t *testing.T) {
 func TestUnionReadDesireLister(t *testing.T) {
 	ctx := context.Background()
 	a, b := readSublisters(t)
-	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ReadDesire]()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplierapi.ReadDesire]()
 	u.Add(mgmtAID, a)
 	u.Add(mgmtBID, b)
 
@@ -407,7 +408,7 @@ func TestUnionReadDesireLister(t *testing.T) {
 	})
 
 	t.Run("Remove", func(t *testing.T) {
-		u2 := unionkubeapplier.NewUnionDesireLister[kubeapplier.ReadDesire]()
+		u2 := unionkubeapplier.NewUnionDesireLister[kubeapplierapi.ReadDesire]()
 		u2.Add(mgmtAID, a)
 		u2.Add(mgmtBID, b)
 		u2.Remove(mgmtAID)
@@ -431,27 +432,27 @@ type erroringApplyLister struct {
 
 var _ kubeapplierlisters.ApplyDesireLister = &erroringApplyLister{}
 
-func (e *erroringApplyLister) List(ctx context.Context) ([]*kubeapplier.ApplyDesire, error) {
+func (e *erroringApplyLister) List(ctx context.Context) ([]*kubeapplierapi.ApplyDesire, error) {
 	return nil, e.err
 }
-func (e *erroringApplyLister) GetForCluster(ctx context.Context, _, _, _, _ string) (*kubeapplier.ApplyDesire, error) {
+func (e *erroringApplyLister) GetForCluster(ctx context.Context, _, _, _, _ string) (*kubeapplierapi.ApplyDesire, error) {
 	return nil, e.err
 }
-func (e *erroringApplyLister) GetForNodePool(ctx context.Context, _, _, _, _, _ string) (*kubeapplier.ApplyDesire, error) {
+func (e *erroringApplyLister) GetForNodePool(ctx context.Context, _, _, _, _, _ string) (*kubeapplierapi.ApplyDesire, error) {
 	return nil, e.err
 }
-func (e *erroringApplyLister) GetForSystemAdminCredentialRequest(ctx context.Context, _, _, _, _, _ string) (*kubeapplier.ApplyDesire, error) {
+func (e *erroringApplyLister) GetForSystemAdminCredentialRequest(ctx context.Context, _, _, _, _, _ string) (*kubeapplierapi.ApplyDesire, error) {
 	return nil, e.err
 }
-func (e *erroringApplyLister) GetForSystemAdminCredentialRevocation(ctx context.Context, _, _, _, _, _ string) (*kubeapplier.ApplyDesire, error) {
+func (e *erroringApplyLister) GetForSystemAdminCredentialRevocation(ctx context.Context, _, _, _, _, _ string) (*kubeapplierapi.ApplyDesire, error) {
 	return nil, e.err
 }
-func (e *erroringApplyLister) ListForManagementCluster(ctx context.Context, _ *azcorearm.ResourceID) ([]*kubeapplier.ApplyDesire, error) {
+func (e *erroringApplyLister) ListForManagementCluster(ctx context.Context, _ *azcorearm.ResourceID) ([]*kubeapplierapi.ApplyDesire, error) {
 	return nil, e.err
 }
-func (e *erroringApplyLister) ListForCluster(ctx context.Context, _, _, _ string) ([]*kubeapplier.ApplyDesire, error) {
+func (e *erroringApplyLister) ListForCluster(ctx context.Context, _, _, _ string) ([]*kubeapplierapi.ApplyDesire, error) {
 	return nil, e.err
 }
-func (e *erroringApplyLister) ListForNodePool(ctx context.Context, _, _, _, _ string) ([]*kubeapplier.ApplyDesire, error) {
+func (e *erroringApplyLister) ListForNodePool(ctx context.Context, _, _, _, _ string) ([]*kubeapplierapi.ApplyDesire, error) {
 	return nil, e.err
 }

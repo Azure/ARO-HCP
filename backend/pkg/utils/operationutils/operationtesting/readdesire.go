@@ -29,34 +29,35 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // NewHostedClusterReadDesire builds a kube-applier ReadDesire fixture wrapping the
 // given HostedCluster. When no conditions are supplied it defaults to a successful
 // observation. Shared across the resource operations test packages.
-func NewHostedClusterReadDesire(t *testing.T, hostedCluster *v1beta1.HostedCluster, conditions ...metav1.Condition) *kubeapplier.ReadDesire {
+func NewHostedClusterReadDesire(t *testing.T, hostedCluster *v1beta1.HostedCluster, conditions ...metav1.Condition) *kubeapplierapi.ReadDesire {
 	t.Helper()
 	raw, err := json.Marshal(hostedCluster)
 	require.NoError(t, err)
 	if conditions == nil {
 		// Default: kube-applier successfully observed the target.
 		conditions = []metav1.Condition{
-			{Type: kubeapplier.ConditionTypeSuccessful, Status: metav1.ConditionTrue, Reason: kubeapplier.ConditionReasonNoErrors},
+			{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue, Reason: kubeapplierapi.ConditionReasonNoErrors},
 		}
 	}
 
-	resourceID := api.Must(azcorearm.ParseResourceID(
-		kubeapplier.ToClusterScopedReadDesireResourceIDString(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 			TestSubscriptionID, TestResourceGroupName, TestClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)))
 
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		Status: kubeapplier.ReadDesireStatus{
+		Status: kubeapplierapi.ReadDesireStatus{
 			Conditions:  conditions,
 			KubeContent: &kruntime.RawExtension{Raw: raw},
 		},

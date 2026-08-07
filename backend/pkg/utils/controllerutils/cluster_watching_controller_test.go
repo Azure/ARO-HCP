@@ -27,8 +27,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
@@ -41,18 +41,18 @@ type mockClusterSyncer struct {
 }
 
 func newFakeClusterLister(subscriptionID, resourceGroup, clusterName string) corelisters.ClusterLister {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName,
 	))
 	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-	err := indexer.Add(&api.HCPOpenShiftCluster{
-		CosmosMetadata: api.CosmosMetadata{
+	err := indexer.Add(&coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.NewResource(resourceID),
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.NewResource(resourceID),
 		},
 	})
 	if err != nil {
@@ -96,7 +96,7 @@ func TestClusterWatchingControllerSyncHasLoggerContextValues(t *testing.T) {
 		syncer:            mockSyncer,
 		clusterLister:     newFakeClusterLister(subscriptionID, resourceGroup, clusterName),
 	}
-	gwc := newGenericWatchingController("test-controller", api.ClusterResourceType, inner)
+	gwc := newGenericWatchingController("test-controller", coreapi.ClusterResourceType, inner)
 	gwc.queue.Add(HCPClusterKey{
 		SubscriptionID:    subscriptionID,
 		ResourceGroupName: resourceGroup,

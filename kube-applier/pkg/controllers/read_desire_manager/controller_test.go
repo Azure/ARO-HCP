@@ -22,8 +22,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
@@ -39,7 +40,7 @@ const (
 // testManagementID is the resourceID stamped into Spec.ManagementCluster;
 // testManagement is the lowercased-string form used as the Cosmos partition key.
 var (
-	testManagementID = api.Must(azcorearm.ParseResourceID(
+	testManagementID = metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1"))
 )
 
@@ -52,16 +53,16 @@ func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
 	return id
 }
 
-func newReadDesire(t *testing.T, target kubeapplier.ResourceReference) *kubeapplier.ReadDesire {
+func newReadDesire(t *testing.T, target kubeapplierapi.ResourceReference) *kubeapplierapi.ReadDesire {
 	t.Helper()
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedReadDesireResourceIDString(
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 				testSub, testRG, testCluster, testDesire,
 			)),
 			PartitionKey: strings.ToLower(testManagementID.String()),
 		},
-		Spec: kubeapplier.ReadDesireSpec{
+		Spec: kubeapplierapi.ReadDesireSpec{
 			ManagementCluster: testManagementID,
 			TargetItem:        target,
 		},
@@ -69,7 +70,7 @@ func newReadDesire(t *testing.T, target kubeapplier.ResourceReference) *kubeappl
 }
 
 // keyFor returns the typed key the controller uses for a given ReadDesire.
-func keyFor(t *testing.T, d *kubeapplier.ReadDesire) keys.ReadDesireKey {
+func keyFor(t *testing.T, d *kubeapplierapi.ReadDesire) keys.ReadDesireKey {
 	t.Helper()
 	k, err := keys.ReadDesireKeyFromResourceID(d.GetResourceID())
 	if err != nil {
@@ -81,14 +82,14 @@ func keyFor(t *testing.T, d *kubeapplier.ReadDesire) keys.ReadDesireKey {
 // fakePerInstance is a stand-in for ReadDesireKubernetesController that
 // records its lifecycle so the manager test can assert on start/stop ordering.
 type fakePerInstance struct {
-	target  kubeapplier.ResourceReference
+	target  kubeapplierapi.ResourceReference
 	mu      sync.Mutex
 	running bool
 	started chan struct{}
 	stopped chan struct{}
 }
 
-func newFakePerInstance(t kubeapplier.ResourceReference) *fakePerInstance {
+func newFakePerInstance(t kubeapplierapi.ResourceReference) *fakePerInstance {
 	return &fakePerInstance{
 		target:  t,
 		started: make(chan struct{}),
@@ -125,14 +126,14 @@ func newTestController(
 		fetcher: &readDesireFetcher{crudByParent: mock},
 		factory: &recordingFakeFactory{fakes: fakes},
 		running: map[keys.ReadDesireKey]*runningInstance{},
-		writer:  noopStatusWriter[kubeapplier.ReadDesire, keys.ReadDesireKey]{},
+		writer:  noopStatusWriter[kubeapplierapi.ReadDesire, keys.ReadDesireKey]{},
 	}
 }
 
 // loadDesires inserts the provided ReadDesires into the mock under the
 // canonical (subscriptionID, resourceGroup, cluster) parent. The test desires
 // all share the same parent in this file's fixtures.
-func loadDesires(t *testing.T, mock *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, ds ...*kubeapplier.ReadDesire) {
+func loadDesires(t *testing.T, mock *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, ds ...*kubeapplierapi.ReadDesire) {
 	t.Helper()
 	crud, err := mock.ReadDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
@@ -146,7 +147,7 @@ func loadDesires(t *testing.T, mock *kubeappliercosmosstoragetesting.MockKubeApp
 }
 
 // deleteDesire removes a ReadDesire from the mock store.
-func deleteDesire(t *testing.T, mock *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, d *kubeapplier.ReadDesire) {
+func deleteDesire(t *testing.T, mock *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, d *kubeapplierapi.ReadDesire) {
 	t.Helper()
 	crud, err := mock.ReadDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
@@ -158,7 +159,7 @@ func deleteDesire(t *testing.T, mock *kubeappliercosmosstoragetesting.MockKubeAp
 }
 
 // replaceDesire swaps a ReadDesire's TargetItem in the mock store.
-func replaceDesire(t *testing.T, mock *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, d *kubeapplier.ReadDesire) {
+func replaceDesire(t *testing.T, mock *kubeappliercosmosstoragetesting.MockKubeApplierDBClient, d *kubeapplierapi.ReadDesire) {
 	t.Helper()
 	crud, err := mock.ReadDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
@@ -183,7 +184,7 @@ type recordingFakeFactory struct {
 }
 
 func (f *recordingFakeFactory) Build(
-	_ keys.ReadDesireKey, target kubeapplier.ResourceReference,
+	_ keys.ReadDesireKey, target kubeapplierapi.ResourceReference,
 ) (PerInstanceController, error) {
 	fake := newFakePerInstance(target)
 	*f.fakes = append(*f.fakes, fake)
@@ -194,7 +195,7 @@ func TestManagerSyncOnce_LaunchesPerInstanceController(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	target := kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"}
+	target := kubeapplierapi.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"}
 	desire := newReadDesire(t, target)
 	mock := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 	loadDesires(t, mock, desire)
@@ -221,8 +222,8 @@ func TestManagerSyncOnce_RestartsOnTargetChange(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	t1 := kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"}
-	t2 := kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "y"}
+	t1 := kubeapplierapi.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"}
+	t2 := kubeapplierapi.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "y"}
 	desire := newReadDesire(t, t1)
 	mock := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 	loadDesires(t, mock, desire)
@@ -259,7 +260,7 @@ func TestManagerSyncOnce_NoOpWhenTargetUnchanged(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	target := kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"}
+	target := kubeapplierapi.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"}
 	desire := newReadDesire(t, target)
 	mock := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 	loadDesires(t, mock, desire)
@@ -282,7 +283,7 @@ func TestManagerSyncOnce_StopsOnDelete(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	target := kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"}
+	target := kubeapplierapi.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"}
 	desire := newReadDesire(t, target)
 	mock := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 	loadDesires(t, mock, desire)

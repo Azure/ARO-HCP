@@ -23,7 +23,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -63,7 +63,7 @@ func NewExternalAuthWatchingController(
 		syncer:            syncer,
 	}
 
-	externalAuthGenericWatchingController := newGenericWatchingController(name, api.ExternalAuthResourceType, controller)
+	externalAuthGenericWatchingController := newGenericWatchingController(name, coreapi.ExternalAuthResourceType, controller)
 
 	externalAuthInformer, externalAuthLister := informers.ExternalAuths()
 	controller.externalAuthLister = externalAuthLister

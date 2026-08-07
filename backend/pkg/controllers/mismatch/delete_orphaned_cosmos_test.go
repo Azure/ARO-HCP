@@ -27,10 +27,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
@@ -65,12 +65,12 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 	mgmtA := mustParseResourceID(t, "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/"+testMgmtClusterA)
 	mgmtB := mustParseResourceID(t, "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/"+testMgmtClusterB)
 
-	clusterScopedDesire := func(t *testing.T, mc *azcorearm.ResourceID, clusterName, desireName string) *kubeapplier.ApplyDesire {
-		return newApplyDesire(t, mc, kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+	clusterScopedDesire := func(t *testing.T, mc *azcorearm.ResourceID, clusterName, desireName string) *kubeapplierapi.ApplyDesire {
+		return newApplyDesire(t, mc, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 			testSubscriptionID, testResourceGroup, clusterName, desireName))
 	}
-	nodePoolScopedDesire := func(t *testing.T, mc *azcorearm.ResourceID, clusterName, nodePoolName, desireName string) *kubeapplier.ApplyDesire {
-		return newApplyDesire(t, mc, kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
+	nodePoolScopedDesire := func(t *testing.T, mc *azcorearm.ResourceID, clusterName, nodePoolName, desireName string) *kubeapplierapi.ApplyDesire {
+		return newApplyDesire(t, mc, kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
 			testSubscriptionID, testResourceGroup, clusterName, nodePoolName, desireName))
 	}
 
@@ -80,7 +80,7 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 	}
 	type mcContents struct {
 		mc      *azcorearm.ResourceID
-		desires []*kubeapplier.ApplyDesire
+		desires []*kubeapplierapi.ApplyDesire
 		raw     []rawDoc // direct StoreDocument inserts (for invalid fixtures)
 	}
 	type assertion struct {
@@ -109,7 +109,7 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 				return []mcContents{
 					{
 						mc: mgmtA,
-						desires: []*kubeapplier.ApplyDesire{
+						desires: []*kubeapplierapi.ApplyDesire{
 							clusterScopedDesire(t, mgmtA, testLiveCluster, "live-cluster-desire"),
 							nodePoolScopedDesire(t, mgmtA, testLiveCluster, testLiveNodePool, "live-np-desire"),
 							nodePoolScopedDesire(t, mgmtA, testLiveCluster, testMissingNodePool, "missing-np-desire"),
@@ -117,7 +117,7 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 					},
 					{
 						mc: mgmtB,
-						desires: []*kubeapplier.ApplyDesire{
+						desires: []*kubeapplierapi.ApplyDesire{
 							clusterScopedDesire(t, mgmtB, testMissingCluster, "missing-cluster-desire"),
 						},
 					},
@@ -144,7 +144,7 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 			buildMCs: func(t *testing.T) []mcContents {
 				return []mcContents{{
 					mc: mgmtA,
-					desires: []*kubeapplier.ApplyDesire{
+					desires: []*kubeapplierapi.ApplyDesire{
 						clusterScopedDesire(t, mgmtA, testLiveCluster, "live-cluster-desire"),
 						nodePoolScopedDesire(t, mgmtA, testLiveCluster, testLiveNodePool, "live-np-desire"),
 					},
@@ -175,7 +175,7 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 			mcs := tt.buildMCs(t)
 			kubeApplierClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 			mockByMC := map[string]*kubeappliercosmosstoragetesting.MockKubeApplierDBClient{}
-			var mcFleet []*fleet.ManagementCluster
+			var mcFleet []*fleetapi.ManagementCluster
 			for _, m := range mcs {
 				docs := make([]any, 0, len(m.desires))
 				for _, d := range m.desires {
@@ -188,8 +188,8 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 				}
 				kubeApplierClients.Register(m.mc, mock)
 				mockByMC[strings.ToLower(m.mc.String())] = mock
-				mcFleet = append(mcFleet, &fleet.ManagementCluster{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: m.mc, PartitionKey: strings.ToLower(m.mc.SubscriptionID)},
+				mcFleet = append(mcFleet, &fleetapi.ManagementCluster{
+					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: m.mc, PartitionKey: strings.ToLower(m.mc.SubscriptionID)},
 					ResourceID:     m.mc,
 				})
 			}
@@ -213,67 +213,67 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 	}
 }
 
-func cosmosIDForDesire(t *testing.T, d *kubeapplier.ApplyDesire) string {
+func cosmosIDForDesire(t *testing.T, d *kubeapplierapi.ApplyDesire) string {
 	t.Helper()
-	return api.Must(arm.ResourceIDToCosmosID(d.ResourceID))
+	return metadataapi.Must(coreapi.ResourceIDToCosmosID(d.ResourceID))
 }
 
 func mustParseResourceID(t *testing.T, s string) *azcorearm.ResourceID {
 	t.Helper()
-	return api.Must(azcorearm.ParseResourceID(s))
+	return metadataapi.Must(azcorearm.ParseResourceID(s))
 }
 
-func subscription(t *testing.T) *arm.Subscription {
+func subscription(t *testing.T) *coreapi.Subscription {
 	t.Helper()
-	rid := api.Must(arm.ToSubscriptionResourceID(testSubscriptionID))
-	return &arm.Subscription{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
+	rid := metadataapi.Must(coreapi.ToSubscriptionResourceID(testSubscriptionID))
+	return &coreapi.Subscription{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
 		ResourceID:     rid,
-		State:          arm.SubscriptionStateRegistered,
+		State:          coreapi.SubscriptionStateRegistered,
 	}
 }
 
-func cluster(t *testing.T, name string) *api.HCPOpenShiftCluster {
+func cluster(t *testing.T, name string) *coreapi.HCPOpenShiftCluster {
 	t.Helper()
-	rid := api.Must(api.ToClusterResourceID(testSubscriptionID, testResourceGroup, name))
-	return &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	rid := metadataapi.Must(coreapi.ToClusterResourceID(testSubscriptionID, testResourceGroup, name))
+	return &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   rid,
 				Name: name,
-				Type: api.ClusterResourceType.String(),
+				Type: coreapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
 	}
 }
 
-func nodePool(t *testing.T, clusterName, nodePoolName string) *api.HCPOpenShiftClusterNodePool {
+func nodePool(t *testing.T, clusterName, nodePoolName string) *coreapi.HCPOpenShiftClusterNodePool {
 	t.Helper()
-	rid := api.Must(api.ToNodePoolResourceID(testSubscriptionID, testResourceGroup, clusterName, nodePoolName))
-	return &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	rid := metadataapi.Must(coreapi.ToNodePoolResourceID(testSubscriptionID, testResourceGroup, clusterName, nodePoolName))
+	return &coreapi.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   rid,
 				Name: nodePoolName,
-				Type: api.NodePoolResourceType.String(),
+				Type: coreapi.NodePoolResourceType.String(),
 			},
 			Location: "eastus",
 		},
 	}
 }
 
-func newApplyDesire(t *testing.T, managementCluster *azcorearm.ResourceID, resourceIDString string) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, managementCluster *azcorearm.ResourceID, resourceIDString string) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	rid := api.Must(azcorearm.ParseResourceID(resourceIDString))
-	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
-		Spec: kubeapplier.ApplyDesireSpec{
+	rid := metadataapi.Must(azcorearm.ParseResourceID(resourceIDString))
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: managementCluster,
-			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
-			ServerSideApply:   &kubeapplier.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x","namespace":"default"}}`)}},
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			ServerSideApply:   &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x","namespace":"default"}}`)}},
 		},
 	}
 }

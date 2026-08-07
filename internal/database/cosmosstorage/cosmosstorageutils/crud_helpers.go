@@ -29,7 +29,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -98,7 +98,7 @@ func IsSoftDeleted(data []byte) bool {
 
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
 	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
-	newExactCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
+	newExactCosmosID, err := coreapi.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -185,7 +185,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 // before serializing the document so that a fresh insert starts the version
 // counter at 1. The value is unconditionally overwritten so callers can't
 // accidentally carry over a value from a prior Get.
-func PrepareForCreate[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](newObj InternalAPITypePointer) error {
+func PrepareForCreate[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](newObj InternalAPITypePointer) error {
 	if newObj.GetInstanceVersion() != 0 {
 		return fmt.Errorf("create of %T requires InstanceVersion to be 0; refusing to overwrite existing value", newObj)
 	}
@@ -197,7 +197,7 @@ func PrepareForCreate[InternalAPIType any, InternalAPITypePointer arm.CosmosMeta
 // must carry a CosmosETag (we refuse unconditional updates) and the on-disk
 // InstanceVersion auto-increments. All Replace paths (in this package and in
 // databasetesting) must call this before serializing the document.
-func PrepareForReplace[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](newObj InternalAPITypePointer) error {
+func PrepareForReplace[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](newObj InternalAPITypePointer) error {
 	if len(newObj.GetEtag()) == 0 {
 		return fmt.Errorf("replace of %T requires a non-empty CosmosETag; refusing to perform an unconditional update", newObj)
 	}
@@ -213,7 +213,7 @@ func PrepareForReplace[InternalAPIType any, InternalAPITypePointer arm.CosmosMet
 // CosmosMetadata.PartitionKey ahead of time (via SetPartitionKey);
 // SerializeItem refuses to write a document with an empty partition key
 // because doing so silently corrupts the container.
-func SerializeItem[InternalAPIType, CosmosAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](newObj InternalAPITypePointer) (*arm.CosmosMetadata, []byte, error) {
+func SerializeItem[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](newObj InternalAPITypePointer) (*coreapi.CosmosMetadata, []byte, error) {
 	cosmosData := newObj.GetCosmosData()
 	if len(newObj.GetPartitionKey()) == 0 {
 		return nil, nil, fmt.Errorf("type %T has no PartitionKey on its CosmosMetadata; the CRUD layer must call SetPartitionKey before serializing", newObj)
@@ -247,7 +247,7 @@ func SerializeItem[InternalAPIType, CosmosAPIType any, InternalAPITypePointer ar
 	return cosmosData, data, nil
 }
 
-func addCreateToTransaction[InternalAPIType, CosmosAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, transaction DBTransaction, newObj InternalAPITypePointer, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func addCreateToTransaction[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, transaction DBTransaction, newObj InternalAPITypePointer, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	if err := PrepareForCreate[InternalAPIType, InternalAPITypePointer](newObj); err != nil {
 		return "", err
 	}
@@ -277,7 +277,7 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any, InternalAPITypeP
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
-func addReplaceToTransaction[InternalAPIType, CosmosAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, transaction DBTransaction, newObj InternalAPITypePointer, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func addReplaceToTransaction[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, transaction DBTransaction, newObj InternalAPITypePointer, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	if err := PrepareForReplace[InternalAPIType, InternalAPITypePointer](newObj); err != nil {
 		return "", err
 	}
@@ -313,7 +313,7 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any, InternalAPIType
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
-func create[InternalAPIType, CosmosAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, containerClient *azcosmos.ContainerClient, newObj InternalAPITypePointer, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
+func create[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, containerClient *azcosmos.ContainerClient, newObj InternalAPITypePointer, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
 	if err := PrepareForCreate[InternalAPIType, InternalAPITypePointer](newObj); err != nil {
 		return nil, err
 	}
@@ -335,7 +335,7 @@ func create[InternalAPIType, CosmosAPIType any, InternalAPITypePointer arm.Cosmo
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
-func replace[InternalAPIType, CosmosAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, containerClient *azcosmos.ContainerClient, newObj InternalAPITypePointer, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
+func replace[InternalAPIType, CosmosAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, containerClient *azcosmos.ContainerClient, newObj InternalAPITypePointer, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
 	if err := PrepareForReplace[InternalAPIType, InternalAPITypePointer](newObj); err != nil {
 		return nil, err
 	}
@@ -359,7 +359,7 @@ func replace[InternalAPIType, CosmosAPIType any, InternalAPITypePointer arm.Cosm
 }
 
 func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceID *azcorearm.ResourceID) error {
-	cosmosID, err := arm.ResourceIDToCosmosID(resourceID)
+	cosmosID, err := coreapi.ResourceIDToCosmosID(resourceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}

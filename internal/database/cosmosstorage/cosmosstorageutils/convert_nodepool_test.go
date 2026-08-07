@@ -17,50 +17,51 @@ package cosmosstorageutils
 import (
 	"testing"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 func TestNodePoolEnsureDefaults(t *testing.T) {
 	tests := []struct {
 		name                       string
-		diskStorageAccountType     api.DiskStorageAccountType
-		wantDiskStorageAccountType api.DiskStorageAccountType
-		diskType                   api.OsDiskType
-		wantDiskType               api.OsDiskType
+		diskStorageAccountType     metadataapi.DiskStorageAccountType
+		wantDiskStorageAccountType metadataapi.DiskStorageAccountType
+		diskType                   metadataapi.OsDiskType
+		wantDiskType               metadataapi.OsDiskType
 	}{
 		{
 			name:                       "zero values get defaults",
 			diskStorageAccountType:     "",
-			wantDiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+			wantDiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,
 			diskType:                   "",
-			wantDiskType:               api.OsDiskTypeManaged,
+			wantDiskType:               metadataapi.OsDiskTypeManaged,
 		},
 		{
 			name:                       "explicit Premium_LRS preserved",
-			diskStorageAccountType:     api.DiskStorageAccountTypePremium_LRS,
-			wantDiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
-			diskType:                   api.OsDiskTypeManaged,
-			wantDiskType:               api.OsDiskTypeManaged,
+			diskStorageAccountType:     metadataapi.DiskStorageAccountTypePremium_LRS,
+			wantDiskStorageAccountType: metadataapi.DiskStorageAccountTypePremium_LRS,
+			diskType:                   metadataapi.OsDiskTypeManaged,
+			wantDiskType:               metadataapi.OsDiskTypeManaged,
 		},
 		{
 			name:                       "explicit StandardSSD_LRS preserved",
-			diskStorageAccountType:     api.DiskStorageAccountTypeStandardSSD_LRS,
-			wantDiskStorageAccountType: api.DiskStorageAccountTypeStandardSSD_LRS,
-			diskType:                   api.OsDiskTypeEphemeral,
-			wantDiskType:               api.OsDiskTypeEphemeral,
+			diskStorageAccountType:     metadataapi.DiskStorageAccountTypeStandardSSD_LRS,
+			wantDiskStorageAccountType: metadataapi.DiskStorageAccountTypeStandardSSD_LRS,
+			diskType:                   metadataapi.OsDiskTypeEphemeral,
+			wantDiskType:               metadataapi.OsDiskTypeEphemeral,
 		},
 		{
 			name:                       "explicit Standard_LRS preserved",
-			diskStorageAccountType:     api.DiskStorageAccountTypeStandard_LRS,
-			wantDiskStorageAccountType: api.DiskStorageAccountTypeStandard_LRS,
-			diskType:                   api.OsDiskTypeManaged,
-			wantDiskType:               api.OsDiskTypeManaged,
+			diskStorageAccountType:     metadataapi.DiskStorageAccountTypeStandard_LRS,
+			wantDiskStorageAccountType: metadataapi.DiskStorageAccountTypeStandard_LRS,
+			diskType:                   metadataapi.OsDiskTypeManaged,
+			wantDiskType:               metadataapi.OsDiskTypeManaged,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			np := &api.HCPOpenShiftClusterNodePool{}
+			np := &coreapi.HCPOpenShiftClusterNodePool{}
 			np.Properties.Platform.OSDisk.DiskStorageAccountType = tt.diskStorageAccountType
 			np.Properties.Platform.OSDisk.DiskType = tt.diskType
 

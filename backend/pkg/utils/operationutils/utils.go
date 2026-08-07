@@ -31,8 +31,8 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -43,7 +43,7 @@ const (
 	InflightChecksFailedProvisionErrorCode = "OCM4001"
 )
 
-type PostAsyncNotificationFunc func(ctx context.Context, operation *api.Operation) error
+type PostAsyncNotificationFunc func(ctx context.Context, operation *coreapi.Operation) error
 
 // Copied from uhc-clusters-service, because the
 // OCM SDK does not define this for some reason.
@@ -86,7 +86,7 @@ const (
 //
 // In all of these cases the operation document is still persisted and ARM is
 // notified, so the operation reaches its terminal state and does not get stuck.
-func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState, newOperationError *coreapi.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 	if existingOperation == nil {
 		return nil
@@ -123,7 +123,7 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 		// No associated resource document to update.
 		logger.Info("No external ID, skipping update")
 
-	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()):
+	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), coreapi.ClusterResourceType.String()):
 		dbClient := resourcesDBClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName)
 		updated, err := getClusterForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
@@ -136,7 +136,7 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 			}
 		}
 
-	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()):
+	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), coreapi.NodePoolResourceType.String()):
 		dbClient := resourcesDBClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).NodePools(existingOperation.ExternalID.Parent.Name)
 		updated, err := getNodePoolForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
@@ -149,7 +149,7 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 			}
 		}
 
-	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()):
+	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), coreapi.ExternalAuthResourceType.String()):
 		dbClient := resourcesDBClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).ExternalAuth(existingOperation.ExternalID.Parent.Name)
 		updated, err := getExternalAuthForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
@@ -180,7 +180,7 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 
 // getClusterForUpdate returns a deep copy of the cluster with updated provisioning
 // state, or nil if the resource update should be skipped.
-func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.HCPClusterCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftCluster, error) {
+func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.HCPClusterCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.HCPOpenShiftCluster, error) {
 	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
@@ -214,7 +214,7 @@ func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient corec
 
 // getNodePoolForUpdate returns a deep copy of the node pool with updated provisioning
 // state, or nil if the resource update should be skipped.
-func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.NodePoolsCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftClusterNodePool, error) {
+func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.NodePoolsCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.HCPOpenShiftClusterNodePool, error) {
 	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
@@ -248,7 +248,7 @@ func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient core
 
 // getExternalAuthForUpdate returns a deep copy of the external auth with updated
 // provisioning state, or nil if the resource update should be skipped.
-func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.ExternalAuthsCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftClusterExternalAuth, error) {
+func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient corecosmosstorage.ExternalAuthsCRUD, existingOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState) (*coreapi.HCPOpenShiftClusterExternalAuth, error) {
 	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 	var responseErr *azcore.ResponseError
 	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
@@ -280,7 +280,7 @@ func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient 
 	return updated, nil
 }
 
-func NeedToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody) bool {
+func NeedToPatchOperation(oldOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState, newOperationError *coreapi.CloudErrorBody) bool {
 	statusChanged := oldOperation.Status != newOperationStatus
 	errorChanged := oldOperation.Error != newOperationError
 	needsNotification := len(oldOperation.NotificationURI) > 0 && newOperationStatus.IsTerminal()
@@ -292,7 +292,7 @@ func NeedToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.Pr
 }
 
 // PatchOperation patches the status and error fields of an OperationDocument.
-func PatchOperation(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func PatchOperation(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, oldOperation *coreapi.Operation, newOperationStatus coreapi.ProvisioningState, newOperationError *coreapi.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	if !NeedToPatchOperation(oldOperation, newOperationStatus, newOperationError) {
@@ -327,12 +327,12 @@ func PatchOperation(ctx context.Context, clock utilsclock.PassiveClock, resource
 // The notification URI is cleared in a separate write after the notification is
 // sent successfully. If the process crashes between sending the notification and
 // clearing the URI, the notification may be sent again on the next reconcile.
-func notifyOperationOwner(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) {
+func notifyOperationOwner(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, operation *coreapi.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) {
 	logger := utils.LoggerFromContext(ctx)
 
 	message := fmt.Sprintf("Updated status to '%s'", operation.Status)
 	switch operation.Status {
-	case arm.ProvisioningStateSucceeded:
+	case coreapi.ProvisioningStateSucceeded:
 		switch operation.Request {
 		case cosmosstorageutils.OperationRequestCreate:
 			message = "Resource creation succeeded"
@@ -345,7 +345,7 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient corecosmosstora
 		case cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation:
 			message = "Credential revocation succeeded"
 		}
-	case arm.ProvisioningStateFailed:
+	case coreapi.ProvisioningStateFailed:
 		switch operation.Request {
 		case cosmosstorageutils.OperationRequestCreate:
 			message = "Resource creation failed"
@@ -398,13 +398,13 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient corecosmosstora
 }
 
 func PostAsyncNotificationFn(notificationClient *http.Client) PostAsyncNotificationFunc {
-	return func(ctx context.Context, operation *api.Operation) error {
+	return func(ctx context.Context, operation *coreapi.Operation) error {
 		return PostAsyncNotification(ctx, notificationClient, operation)
 	}
 }
 
-func PostAsyncNotification(ctx context.Context, notificationClient *http.Client, operation *api.Operation) error {
-	data, err := arm.MarshalJSON(cosmosstorageutils.ToStatus(operation))
+func PostAsyncNotification(ctx context.Context, notificationClient *http.Client, operation *coreapi.Operation) error {
+	data, err := coreapi.MarshalJSON(cosmosstorageutils.ToStatus(operation))
 	if err != nil {
 		return err
 	}
@@ -432,19 +432,19 @@ func PostAsyncNotification(ctx context.Context, notificationClient *http.Client,
 // ConvertClusterStatus attempts to translate a ClusterStatus object from
 // Cluster Service into an ARM provisioning state and, if necessary, a
 // structured OData error.
-func ConvertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, operation *api.Operation, clusterStatus *arohcpv1alpha1.ClusterStatus, clusterServiceID api.InternalID) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+func ConvertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, operation *coreapi.Operation, clusterStatus *arohcpv1alpha1.ClusterStatus, clusterServiceID metadataapi.InternalID) (coreapi.ProvisioningState, *coreapi.CloudErrorBody, error) {
 	var newOperationStatus = operation.Status
-	var opError *arm.CloudErrorBody
+	var opError *coreapi.CloudErrorBody
 	var err error
 
 	switch state := clusterStatus.State(); state {
 	case arohcpv1alpha1.ClusterStateError:
-		newOperationStatus = arm.ProvisioningStateFailed
+		newOperationStatus = coreapi.ProvisioningStateFailed
 		// Provision error codes are defined in the CS repo:
 		// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/cluster_errors.go
 		code := clusterStatus.ProvisionErrorCode()
 		if code == "" {
-			code = arm.CloudErrorCodeInternalServerError
+			code = coreapi.CloudErrorCodeInternalServerError
 		}
 		message := clusterStatus.ProvisionErrorMessage()
 		if message == "" {
@@ -458,22 +458,22 @@ func ConvertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 				return newOperationStatus, opError, err
 			}
 		default:
-			opError = &arm.CloudErrorBody{Code: code, Message: message}
+			opError = &coreapi.CloudErrorBody{Code: code, Message: message}
 		}
 	case arohcpv1alpha1.ClusterStateInstalling:
-		newOperationStatus = arm.ProvisioningStateProvisioning
+		newOperationStatus = coreapi.ProvisioningStateProvisioning
 	case arohcpv1alpha1.ClusterStateUpdating:
-		newOperationStatus = arm.ProvisioningStateUpdating
+		newOperationStatus = coreapi.ProvisioningStateUpdating
 	case arohcpv1alpha1.ClusterStateReady:
 		// Resource deletion is successful when fetching its state
 		// from Cluster Service returns a "404 Not Found" error. If
 		// we see the resource in a "Ready" state during a deletion
 		// operation, leave the current provisioning state as is.
 		if operation.Request != cosmosstorageutils.OperationRequestDelete {
-			newOperationStatus = arm.ProvisioningStateSucceeded
+			newOperationStatus = coreapi.ProvisioningStateSucceeded
 		}
 	case arohcpv1alpha1.ClusterStateUninstalling:
-		newOperationStatus = arm.ProvisioningStateDeleting
+		newOperationStatus = coreapi.ProvisioningStateDeleting
 	case arohcpv1alpha1.ClusterStatePending, arohcpv1alpha1.ClusterStateValidating:
 		// These are valid cluster states for ARO-HCP but there are
 		// no unique ProvisioningState values for them. They should
@@ -481,17 +481,17 @@ func ConvertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 		// ones that can be set for the operation request. If they don't match, we
 		// error. If they match we leave the current provisioning state as is.
 		switch operation.Request {
-		case api.OperationRequestCreate:
-			if newOperationStatus != arm.ProvisioningStateAccepted && newOperationStatus != arm.ProvisioningStateProvisioning {
-				err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s' or '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateAccepted, arm.ProvisioningStateProvisioning)
+		case coreapi.OperationRequestCreate:
+			if newOperationStatus != coreapi.ProvisioningStateAccepted && newOperationStatus != coreapi.ProvisioningStateProvisioning {
+				err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s' or '%s'", state, clusterStatus.Description(), newOperationStatus, coreapi.ProvisioningStateAccepted, coreapi.ProvisioningStateProvisioning)
 			}
-		case api.OperationRequestUpdate:
-			if newOperationStatus != arm.ProvisioningStateAccepted && newOperationStatus != arm.ProvisioningStateUpdating {
-				err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s' or '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateAccepted, arm.ProvisioningStateUpdating)
+		case coreapi.OperationRequestUpdate:
+			if newOperationStatus != coreapi.ProvisioningStateAccepted && newOperationStatus != coreapi.ProvisioningStateUpdating {
+				err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s' or '%s'", state, clusterStatus.Description(), newOperationStatus, coreapi.ProvisioningStateAccepted, coreapi.ProvisioningStateUpdating)
 			}
-		case api.OperationRequestDelete:
-			if newOperationStatus != arm.ProvisioningStateDeleting {
-				err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateDeleting)
+		case coreapi.OperationRequestDelete:
+			if newOperationStatus != coreapi.ProvisioningStateDeleting {
+				err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s'", state, clusterStatus.Description(), newOperationStatus, coreapi.ProvisioningStateDeleting)
 			}
 		default:
 			err = fmt.Errorf("unrecognized operation request: %s", operation.Request)
@@ -506,9 +506,9 @@ func ConvertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 // ConvertNodePoolStatus attempts to translate a NodePoolStatus object
 // from Cluster Service into an ARM provisioning state and, if necessary,
 // a structured OData error.
-func ConvertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alpha1.NodePoolStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+func ConvertNodePoolStatus(operation *coreapi.Operation, nodePoolStatus *arohcpv1alpha1.NodePoolStatus) (coreapi.ProvisioningState, *coreapi.CloudErrorBody, error) {
 	var newOperationStatus = operation.Status
-	var opError *arm.CloudErrorBody
+	var opError *coreapi.CloudErrorBody
 	var err error
 
 	switch state := NodePoolStateValue(nodePoolStatus.State().NodePoolStateValue()); state {
@@ -516,30 +516,30 @@ func ConvertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 		// These are valid node pool states for ARO-HCP but there are
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.
-		if operation.Status != arm.ProvisioningStateAccepted {
+		if operation.Status != coreapi.ProvisioningStateAccepted {
 			msg, _ := nodePoolStatus.GetMessage()
-			err = fmt.Errorf("got NodePoolStatusValue '%s' (message: %q) while ProvisioningState was '%s' instead of '%s'", state, msg, operation.Status, arm.ProvisioningStateAccepted)
+			err = fmt.Errorf("got NodePoolStatusValue '%s' (message: %q) while ProvisioningState was '%s' instead of '%s'", state, msg, operation.Status, coreapi.ProvisioningStateAccepted)
 		}
 	case NodePoolStateInstalling:
-		newOperationStatus = arm.ProvisioningStateProvisioning
+		newOperationStatus = coreapi.ProvisioningStateProvisioning
 	case NodePoolStateReady:
 		// Resource deletion is successful when fetching its state
 		// from Cluster Service returns a "404 Not Found" error. If
 		// we see the resource in a "Ready" state during a deletion
 		// operation, leave the current provisioning state as is.
 		if operation.Request != cosmosstorageutils.OperationRequestDelete {
-			newOperationStatus = arm.ProvisioningStateSucceeded
+			newOperationStatus = coreapi.ProvisioningStateSucceeded
 		}
 	case NodePoolStateUpdating:
-		newOperationStatus = arm.ProvisioningStateUpdating
+		newOperationStatus = coreapi.ProvisioningStateUpdating
 	case NodePoolStateUninstalling:
-		newOperationStatus = arm.ProvisioningStateDeleting
+		newOperationStatus = coreapi.ProvisioningStateDeleting
 	case NodePoolStateRecoverableError, NodePoolStateError:
 		// XXX OCM SDK offers no error code or message for failed node pool
 		//     operations so "Internal Server Error" is all we can do for now.
 		//     https://issues.redhat.com/browse/ARO-14969
-		newOperationStatus = arm.ProvisioningStateFailed
-		opError = arm.NewInternalServerError().CloudErrorBody
+		newOperationStatus = coreapi.ProvisioningStateFailed
+		opError = coreapi.NewInternalServerError().CloudErrorBody
 		if msg, ok := nodePoolStatus.GetMessage(); ok {
 			opError.Message = msg
 		}
@@ -551,26 +551,26 @@ func ConvertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 	return newOperationStatus, opError, err
 }
 
-func ConvertExternalAuthStatus(operation *api.Operation, externalAuthStatus *arohcpv1alpha1.ExternalAuthStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+func ConvertExternalAuthStatus(operation *coreapi.Operation, externalAuthStatus *arohcpv1alpha1.ExternalAuthStatus) (coreapi.ProvisioningState, *coreapi.CloudErrorBody, error) {
 	var newOperationStatus = operation.Status
-	var opError *arm.CloudErrorBody
+	var opError *coreapi.CloudErrorBody
 	var err error
 
 	switch state := ExternalAuthStateValue(externalAuthStatus.State().Value()); state {
 	case ExternalAuthStateReady:
 		if operation.Request != cosmosstorageutils.OperationRequestDelete {
-			newOperationStatus = arm.ProvisioningStateSucceeded
+			newOperationStatus = coreapi.ProvisioningStateSucceeded
 		}
 	case ExternalAuthStateError:
 		// XXX OCM SDK offers no error code or message for failed externalauth
 		//     operations so "Internal Server Error" is all we can do for now.
-		newOperationStatus = arm.ProvisioningStateFailed
-		opError = arm.NewInternalServerError().CloudErrorBody
+		newOperationStatus = coreapi.ProvisioningStateFailed
+		opError = coreapi.NewInternalServerError().CloudErrorBody
 		if msg, ok := externalAuthStatus.GetMessage(); ok {
 			opError.Message = msg
 		}
 	case ExternalAuthStateUninstalling:
-		newOperationStatus = arm.ProvisioningStateDeleting
+		newOperationStatus = coreapi.ProvisioningStateDeleting
 	default:
 		msg, _ := externalAuthStatus.GetMessage()
 		err = fmt.Errorf("unhandled ExternalAuthState '%s' (message: %q)", state, msg)
@@ -579,17 +579,17 @@ func ConvertExternalAuthStatus(operation *api.Operation, externalAuthStatus *aro
 }
 
 // convertInflightChecks gets a cluster internal ID, fetches inflight check errors from CS endpoint, and converts them
-// to arm.CloudErrorBody type.
+// to coreapi.CloudErrorBody type.
 // The function should be triggered only if inflight errors occurred with provision error code OCM4001.
-func convertInflightChecks(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, internalId ocm.InternalID) (*arm.CloudErrorBody, error) {
+func convertInflightChecks(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, internalId ocm.InternalID) (*coreapi.CloudErrorBody, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	inflightChecks, err := clusterServiceClient.GetClusterInflightChecks(ctx, internalId)
 	if err != nil {
-		return &arm.CloudErrorBody{}, err
+		return &coreapi.CloudErrorBody{}, err
 	}
 
-	var cloudErrors []arm.CloudErrorBody
+	var cloudErrors []coreapi.CloudErrorBody
 	for _, inflightCheck := range inflightChecks.Items() {
 		if inflightCheck.State() == arohcpv1alpha1.InflightCheckStateFailed {
 			cloudErrors = append(cloudErrors, convertInflightCheck(inflightCheck, logger))
@@ -600,22 +600,22 @@ func convertInflightChecks(ctx context.Context, clusterServiceClient ocm.Cluster
 	// there should be at least one inflight failure.
 	if len(cloudErrors) == 0 {
 		logger.Info("Cluster returned error code OCM4001, but no inflight failures were found", "internalId", internalId)
-		return &arm.CloudErrorBody{
-			Code: arm.CloudErrorCodeInternalServerError,
+		return &coreapi.CloudErrorBody{
+			Code: coreapi.CloudErrorCodeInternalServerError,
 		}, nil
 	}
 
-	return arm.NewCloudErrorBodyFromSlice(cloudErrors, "Cluster provisioning failed due to multiple errors"), nil
+	return coreapi.NewCloudErrorBodyFromSlice(cloudErrors, "Cluster provisioning failed due to multiple errors"), nil
 }
 
-func convertInflightCheck(inflightCheck *arohcpv1alpha1.InflightCheck, logger logr.Logger) arm.CloudErrorBody {
+func convertInflightCheck(inflightCheck *arohcpv1alpha1.InflightCheck, logger logr.Logger) coreapi.CloudErrorBody {
 	message, succeeded := convertInflightCheckDetails(inflightCheck)
 	if !succeeded {
 		logger.Error(nil, "error converting inflight check details", "name", inflightCheck.Name())
 	}
 
-	return arm.CloudErrorBody{
-		Code:    arm.CloudErrorCodeInternalServerError,
+	return coreapi.CloudErrorBody{
+		Code:    coreapi.CloudErrorCodeInternalServerError,
 		Message: message,
 	}
 }
@@ -643,7 +643,7 @@ func convertInflightCheckDetails(inflightCheck *arohcpv1alpha1.InflightCheck) (s
 }
 
 // SetDeleteOperationAsCompleted updates Cosmos DB to reflect a completed resource deletion.
-func SetDeleteOperationAsCompleted(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func SetDeleteOperationAsCompleted(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, operation *coreapi.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	// Delete the resource document first. If it fails the backend will retry
 	// by virtue of the operation document still having a non-terminal status.
 	untypedCRUD, err := resourcesDBClient.UntypedCRUD(*operation.ExternalID)
@@ -666,9 +666,9 @@ func SetDeleteOperationAsCompleted(ctx context.Context, clock utilsclock.Passive
 	for _, childResource := range childIterator.Items(ctx) {
 		// clusters, nodepools, and externalauths have special deletion handling, so don't delete them from here.
 		switch strings.ToLower(childResource.ResourceType) {
-		case strings.ToLower(api.ClusterControllerResourceType.String()),
-			strings.ToLower(api.NodePoolControllerResourceType.String()),
-			strings.ToLower(api.ExternalAuthControllerResourceType.String()):
+		case strings.ToLower(coreapi.ClusterControllerResourceType.String()),
+			strings.ToLower(coreapi.NodePoolControllerResourceType.String()),
+			strings.ToLower(coreapi.ExternalAuthControllerResourceType.String()):
 			continue
 		}
 
@@ -689,7 +689,7 @@ func SetDeleteOperationAsCompleted(ctx context.Context, clock utilsclock.Passive
 	}
 
 	// Save a final "succeeded" operation status until TTL expires.
-	err = PatchOperation(ctx, clock, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
+	err = PatchOperation(ctx, clock, resourcesDBClient, operation, coreapi.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
 	if err != nil {
 		return utils.TrackError(err)
 	}

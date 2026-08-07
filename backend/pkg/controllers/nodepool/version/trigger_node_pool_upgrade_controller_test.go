@@ -34,8 +34,8 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -74,24 +74,24 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
 
-				nodePoolResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+				nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
 					"/resourceGroups/" + testResourceGroupName +
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 					"/nodePools/" + testNodePoolName))
-				nodePool := &api.HCPOpenShiftClusterNodePool{
-					CosmosMetadata: arm.CosmosMetadata{
+				nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   nodePoolResourceID,
 						PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID),
 					},
-					TrackedResource: arm.TrackedResource{
-						Resource: arm.Resource{
+					TrackedResource: coreapi.TrackedResource{
+						Resource: coreapi.Resource{
 							ID:   nodePoolResourceID,
 							Name: testNodePoolName,
-							Type: api.NodePoolResourceType.String(),
+							Type: coreapi.NodePoolResourceType.String(),
 						},
 						Location: "eastus",
 					},
-					ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{},
+					ServiceProviderProperties: coreapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{},
 				}
 
 				_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
@@ -155,12 +155,12 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 }
 
 func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) {
-	testNodePoolServiceID, _ := api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster-id/node_pools/test-nodepool-id")
+	testNodePoolServiceID, _ := metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster-id/node_pools/test-nodepool-id")
 
 	tests := []struct {
 		name                         string
 		desiredVersion               *semver.Version
-		nodePoolServiceID            api.InternalID
+		nodePoolServiceID            metadataapi.InternalID
 		mockSetup                    func(*ocm.MockClusterServiceClientSpec)
 		expectError                  bool
 		expectedErrorContains        string
@@ -172,8 +172,8 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 			desiredVersion:    ptr.To(semver.MustParse("4.19.20")),
 			nodePoolServiceID: testNodePoolServiceID,
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
-				latestPolicy := api.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.20").Build())
-				olderPolicy := api.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.15").Build())
+				latestPolicy := metadataapi.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.20").Build())
+				olderPolicy := metadataapi.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.15").Build())
 
 				mc.EXPECT().
 					ListNodePoolUpgradePolicies(testNodePoolServiceID, "creation_timestamp desc").
@@ -187,8 +187,8 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 			desiredVersion:    ptr.To(semver.MustParse("4.19.20")),
 			nodePoolServiceID: testNodePoolServiceID,
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
-				latestPolicy := api.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.18").Build())
-				olderPolicy := api.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.15").Build())
+				latestPolicy := metadataapi.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.18").Build())
+				olderPolicy := metadataapi.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.15").Build())
 
 				mc.EXPECT().
 					ListNodePoolUpgradePolicies(testNodePoolServiceID, "creation_timestamp desc").
@@ -201,7 +201,7 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 						testNodePoolServiceID,
 						expectedBuilder,
 					).
-					Return(api.Must(expectedBuilder.Build()), nil)
+					Return(metadataapi.Must(expectedBuilder.Build()), nil)
 			},
 			expectError:                  false,
 			expectPolicyCreation:         true,
@@ -223,7 +223,7 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 						testNodePoolServiceID,
 						expectedBuilder,
 					).
-					Return(api.Must(expectedBuilder.Build()), nil)
+					Return(metadataapi.Must(expectedBuilder.Build()), nil)
 			},
 			expectError:                  false,
 			expectPolicyCreation:         true,
@@ -308,26 +308,26 @@ func createServiceProviderNodePoolWithActiveAndDesiredVersion(
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 		"/nodePools/" + testNodePoolName
-	spNodePoolResourceID := nodePoolResourceID + "/" + api.ServiceProviderNodePoolResourceTypeName + "/" + api.ServiceProviderNodePoolResourceName
+	spNodePoolResourceID := nodePoolResourceID + "/" + coreapi.ServiceProviderNodePoolResourceTypeName + "/" + coreapi.ServiceProviderNodePoolResourceName
 
-	var activeVersionEntries []api.HCPNodePoolActiveVersion
+	var activeVersionEntries []coreapi.HCPNodePoolActiveVersion
 	for _, activeVersion := range activeVersions {
 		version := semver.MustParse(activeVersion)
-		activeVersionEntries = append(activeVersionEntries, api.HCPNodePoolActiveVersion{Version: &version})
+		activeVersionEntries = append(activeVersionEntries, coreapi.HCPNodePoolActiveVersion{Version: &version})
 	}
 
-	spNodePool := &api.ServiceProviderNodePool{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID:   api.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
+	spNodePool := &coreapi.ServiceProviderNodePool{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
 			PartitionKey: strings.ToLower(testSubscriptionID),
 		},
-		Spec: api.ServiceProviderNodePoolSpec{
-			NodePoolVersion: api.ServiceProviderNodePoolSpecVersion{
+		Spec: coreapi.ServiceProviderNodePoolSpec{
+			NodePoolVersion: coreapi.ServiceProviderNodePoolSpecVersion{
 				DesiredVersion: desiredVersion,
 			},
 		},
-		Status: api.ServiceProviderNodePoolStatus{
-			NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
+		Status: coreapi.ServiceProviderNodePoolStatus{
+			NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
 				ActiveVersions: activeVersionEntries,
 			},
 		},

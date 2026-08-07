@@ -44,7 +44,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -99,9 +99,9 @@ func (c Config) withDefaults() Config {
 type ApplyDesireController struct {
 	name                string
 	applyDesireInformer cache.SharedIndexInformer
-	fetcher             desirestatuswriter.Fetcher[kubeapplier.ApplyDesire, keys.ApplyDesireKey]
+	fetcher             desirestatuswriter.Fetcher[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey]
 	dyn                 dynamic.Interface
-	writer              desirestatuswriter.StatusWriter[kubeapplier.ApplyDesire, keys.ApplyDesireKey]
+	writer              desirestatuswriter.StatusWriter[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey]
 	queue               workqueue.TypedRateLimitingInterface[keys.ApplyDesireKey]
 
 	cfg Config
@@ -130,7 +130,7 @@ func NewApplyDesireController(
 		applyDesireInformer: applyDesireInformer,
 		fetcher:             fetcher,
 		dyn:                 dyn,
-		writer: desirestatuswriter.New[kubeapplier.ApplyDesire, keys.ApplyDesireKey, *kubeapplier.ApplyDesire](
+		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](
 			fetcher,
 			&applyDesireReplacer{crudByParent: crudByParent},
 		),
@@ -175,7 +175,7 @@ func (c *ApplyDesireController) Run(ctx context.Context, threadiness int) {
 
 // handleAdd queues every observed Add unconditionally.
 func (c *ApplyDesireController) handleAdd(obj any) {
-	d, ok := obj.(*kubeapplier.ApplyDesire)
+	d, ok := obj.(*kubeapplierapi.ApplyDesire)
 	if !ok {
 		return
 	}
@@ -185,14 +185,14 @@ func (c *ApplyDesireController) handleAdd(obj any) {
 // handleUpdate enqueues the key unconditionally. The informer's
 // ResyncPeriod controls how often unchanged items are re-delivered.
 func (c *ApplyDesireController) handleUpdate(_, newObj any) {
-	newD, newOK := newObj.(*kubeapplier.ApplyDesire)
+	newD, newOK := newObj.(*kubeapplierapi.ApplyDesire)
 	if !newOK {
 		return
 	}
 	c.enqueue(newD)
 }
 
-func (c *ApplyDesireController) enqueue(d *kubeapplier.ApplyDesire) {
+func (c *ApplyDesireController) enqueue(d *kubeapplierapi.ApplyDesire) {
 	key, err := keys.ApplyDesireKeyFromResourceID(d.GetResourceID())
 	if err != nil {
 		utilruntime.HandleError(err)
@@ -248,7 +248,7 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 	}
 
 	switch desire.Spec.Type {
-	case kubeapplier.ApplyDesireTypeServerSideApply:
+	case kubeapplierapi.ApplyDesireTypeServerSideApply:
 		applied, syncErr := c.applyDesired(ctx, desire)
 
 		// Capture the metadata.generation of the Kubernetes object returned by
@@ -259,17 +259,17 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 			appliedKubeGeneration = &gen
 		}
 
-		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplier.ApplyDesire) {
+		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, syncErr)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
 			d.Status.AppliedKubeGeneration = appliedKubeGeneration
 		})
-	case kubeapplier.ApplyDesireTypeDelete:
+	case kubeapplierapi.ApplyDesireTypeDelete:
 		mutate := c.evaluateDelete(ctx, desire)
 		return c.writer.UpdateStatus(ctx, key, mutate)
 	default:
 		syncErr := conditions.NewPreCheckError(fmt.Errorf("unknown desire type %q", desire.Spec.Type))
-		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplier.ApplyDesire) {
+		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, syncErr)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
 		})
@@ -284,7 +284,7 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 // PreCheckError is returned for pre-flight failures (parse, missing fields)
 // so they classify as PreCheckFailed; everything else is treated as a
 // kube-apiserver error.
-func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier.ApplyDesire) (*unstructured.Unstructured, error) {
+func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplierapi.ApplyDesire) (*unstructured.Unstructured, error) {
 	target := d.Spec.TargetItem
 	if len(target.Resource) == 0 || len(target.Version) == 0 || len(target.Name) == 0 {
 		return nil, conditions.NewPreCheckError(errors.New("spec.targetItem requires version, resource, and name"))
@@ -328,11 +328,11 @@ func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier
 //	                           re-issue get
 //	                             not found              -> Successful=True
 //	                             has deletion timestamp  -> WaitingForDeletion
-func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeapplier.ApplyDesire) desirestatuswriter.MutateFunc[kubeapplier.ApplyDesire] {
+func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeapplierapi.ApplyDesire) desirestatuswriter.MutateFunc[kubeapplierapi.ApplyDesire] {
 	target := d.Spec.TargetItem
 	if len(target.Resource) == 0 || len(target.Version) == 0 || len(target.Name) == 0 {
 		err := conditions.NewPreCheckError(errors.New("spec.targetItem requires version, resource, and name"))
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}
@@ -347,14 +347,14 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 
 	got, getErr := kubeResourceAccessor.Get(ctx, target.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(getErr) {
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, nil)
 			conditions.SetDegraded(&d.Status.Conditions, nil)
 		}
 	}
 	if getErr != nil {
 		err := fmt.Errorf("get target: %w", getErr)
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}
@@ -362,7 +362,7 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 
 	if dt := got.GetDeletionTimestamp(); dt != nil {
 		uid := got.GetUID()
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessfulWaitingForDeletion(&d.Status.Conditions, *dt, uid)
 			conditions.SetDegraded(&d.Status.Conditions, nil)
 		}
@@ -370,13 +370,13 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 
 	if delErr := kubeResourceAccessor.Delete(ctx, target.Name, metav1.DeleteOptions{}); delErr != nil {
 		if apierrors.IsNotFound(delErr) {
-			return func(d *kubeapplier.ApplyDesire) {
+			return func(d *kubeapplierapi.ApplyDesire) {
 				conditions.SetSuccessful(&d.Status.Conditions, nil)
 				conditions.SetDegraded(&d.Status.Conditions, nil)
 			}
 		}
 		err := fmt.Errorf("delete target: %w", delErr)
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}
@@ -386,14 +386,14 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 	// "waiting for finalizers" message.
 	post, postErr := kubeResourceAccessor.Get(ctx, target.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(postErr) {
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, nil)
 			conditions.SetDegraded(&d.Status.Conditions, nil)
 		}
 	}
 	if postErr != nil {
 		err := fmt.Errorf("post-delete get: %w", postErr)
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}
@@ -404,7 +404,7 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 		now := metav1.NewTime(time.Now())
 		dt = &now
 	}
-	return func(d *kubeapplier.ApplyDesire) {
+	return func(d *kubeapplierapi.ApplyDesire) {
 		conditions.SetSuccessfulWaitingForDeletion(&d.Status.Conditions, *dt, uid)
 		conditions.SetDegraded(&d.Status.Conditions, nil)
 	}
@@ -447,9 +447,9 @@ type applyDesireFetcher struct {
 	crudByParent kubeappliercosmosstorage.KubeApplierApplyDesireCRUD
 }
 
-var _ desirestatuswriter.Fetcher[kubeapplier.ApplyDesire, keys.ApplyDesireKey] = &applyDesireFetcher{}
+var _ desirestatuswriter.Fetcher[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey] = &applyDesireFetcher{}
 
-func (f *applyDesireFetcher) Fetch(ctx context.Context, key keys.ApplyDesireKey) (*kubeapplier.ApplyDesire, error) {
+func (f *applyDesireFetcher) Fetch(ctx context.Context, key keys.ApplyDesireKey) (*kubeapplierapi.ApplyDesire, error) {
 	crud, err := key.CRUD(f.crudByParent)
 	if err != nil {
 		return nil, fmt.Errorf("crud for key %v: %w", key, err)
@@ -465,9 +465,9 @@ type applyDesireReplacer struct {
 	crudByParent kubeappliercosmosstorage.KubeApplierApplyDesireCRUD
 }
 
-var _ desirestatuswriter.Replacer[kubeapplier.ApplyDesire] = &applyDesireReplacer{}
+var _ desirestatuswriter.Replacer[kubeapplierapi.ApplyDesire] = &applyDesireReplacer{}
 
-func (r *applyDesireReplacer) Replace(ctx context.Context, desired *kubeapplier.ApplyDesire) error {
+func (r *applyDesireReplacer) Replace(ctx context.Context, desired *kubeapplierapi.ApplyDesire) error {
 	key, err := keys.ApplyDesireKeyFromResourceID(desired.GetResourceID())
 	if err != nil {
 		return fmt.Errorf("derive key for replace: %w", err)

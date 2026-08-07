@@ -25,8 +25,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -157,14 +157,14 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 		return utils.TrackError(fmt.Errorf("failed to get ReadDesire CRUD: %w", err))
 	}
 
-	desiredReadDesires := []*kubeapplier.ReadDesire{
+	desiredReadDesires := []*kubeapplierapi.ReadDesire{
 		controllerutils.BuildReadDesire(
-			kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, readDesireNameReadonlyHostedCluster),
+			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, readDesireNameReadonlyHostedCluster),
 			mcResourceID,
 			hostedClusterTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix),
 		),
 		controllerutils.BuildReadDesire(
-			kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler),
+			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler),
 			mcResourceID,
 			clusterAutoscalerTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix),
 		),
@@ -173,7 +173,7 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	controlPlaneNamespace := serviceProviderCluster.Status.ControlPlaneNamespace
 	if len(controlPlaneNamespace) > 0 {
 		desiredReadDesires = append(desiredReadDesires, controllerutils.BuildReadDesire(
-			kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, kubeapplierhelpers.ReadDesireNameServingCA),
+			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, kubeapplierhelpers.ReadDesireNameServingCA),
 			mcResourceID,
 			servingCATarget(controlPlaneNamespace),
 		))
@@ -192,7 +192,7 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 // the backend uses for the HostedCluster mirror. It matches the existing
 // MaestroBundleInternalName in lowercase so the downstream
 // ManagementClusterContent document path stays stable across the migration.
-var readDesireNameReadonlyHostedCluster = strings.ToLower(string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+var readDesireNameReadonlyHostedCluster = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 
 // hostedClusterTarget builds the ResourceReference that points at the
 // cluster's HostedCluster object in the management cluster. The naming
@@ -200,8 +200,8 @@ var readDesireNameReadonlyHostedCluster = strings.ToLower(string(api.MaestroBund
 // match what CS itself uses; see the corresponding pre-migration code in
 // createClusterScopedMaestroReadonlyBundlesSyncer.buildClusterEmptyHostedCluster
 // for the original derivation.
-func hostedClusterTarget(envIdentifier, csClusterID, csClusterDomainPrefix string) kubeapplier.ResourceReference {
-	return kubeapplier.ResourceReference{
+func hostedClusterTarget(envIdentifier, csClusterID, csClusterDomainPrefix string) kubeapplierapi.ResourceReference {
+	return kubeapplierapi.ResourceReference{
 		Group:     hsv1beta1.SchemeGroupVersion.Group,
 		Version:   hsv1beta1.SchemeGroupVersion.Version,
 		Resource:  "hostedclusters",
@@ -212,8 +212,8 @@ func hostedClusterTarget(envIdentifier, csClusterID, csClusterDomainPrefix strin
 
 // clusterAutoscalerTarget builds the ResourceReference for the cluster-autoscaler
 // ControlPlaneComponent in the HCP control plane namespace.
-func clusterAutoscalerTarget(envIdentifier, csClusterID, csClusterDomainPrefix string) kubeapplier.ResourceReference {
-	return kubeapplier.ResourceReference{
+func clusterAutoscalerTarget(envIdentifier, csClusterID, csClusterDomainPrefix string) kubeapplierapi.ResourceReference {
+	return kubeapplierapi.ResourceReference{
 		Group:     hsv1beta1.SchemeGroupVersion.Group,
 		Version:   hsv1beta1.SchemeGroupVersion.Version,
 		Resource:  "controlplanecomponents",
@@ -224,8 +224,8 @@ func clusterAutoscalerTarget(envIdentifier, csClusterID, csClusterDomainPrefix s
 
 const servingCATLSSecretName = "kube-apiserver-tls-cert"
 
-func servingCATarget(controlPlaneNamespace string) kubeapplier.ResourceReference {
-	return kubeapplier.ResourceReference{
+func servingCATarget(controlPlaneNamespace string) kubeapplierapi.ResourceReference {
+	return kubeapplierapi.ResourceReference{
 		Group:     "",
 		Version:   "v1",
 		Resource:  "secrets",
@@ -235,7 +235,7 @@ func servingCATarget(controlPlaneNamespace string) kubeapplier.ResourceReference
 }
 
 // ensureReadDesire creates or updates a ReadDesire when the desired spec differs from cosmos.
-func (c *createClusterScopedReadDesiresSyncer) ensureReadDesire(ctx context.Context, crud cosmosstorageutils.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], desired *kubeapplier.ReadDesire) error {
+func (c *createClusterScopedReadDesiresSyncer) ensureReadDesire(ctx context.Context, crud cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], desired *kubeapplierapi.ReadDesire) error {
 	existing, err := controllerutils.GetExistingReadDesire(ctx, crud, desired.ResourceID.Name)
 	if err != nil {
 		return err

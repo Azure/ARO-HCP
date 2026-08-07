@@ -23,7 +23,7 @@ import (
 
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -31,7 +31,7 @@ import (
 
 // ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler is the well-known ReadDesire name the
 // backend writes the per-cluster cluster-autoscaler ControlPlaneComponent mirror under.
-var ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler = strings.ToLower(string(api.ReadonlyHypershiftControlPlaneComponentClusterAutoscaler))
+var ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler = strings.ToLower(string(coreapi.ReadonlyHypershiftControlPlaneComponentClusterAutoscaler))
 
 // GetCachedControlPlaneClusterAutoscalerForCluster reads the cluster-autoscaler
 // ControlPlaneComponent mirror from the per-cluster ReadDesire.

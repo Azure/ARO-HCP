@@ -28,7 +28,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -272,7 +273,7 @@ func buildHCPClusterRequest_4_19(
 		Location: to.Ptr(location),
 		Identity: identityProfile,
 		Tags: map[string]*string{
-			api.TagClusterSizeOverride: to.Ptr(string(api.MinimalControlPlanePodSizing)),
+			metadataapi.TagClusterSizeOverride: to.Ptr(string(coreapi.MinimalControlPlanePodSizing)),
 		},
 		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20240610preview.VersionProfile{

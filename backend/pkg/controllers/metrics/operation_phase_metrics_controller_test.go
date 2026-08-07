@@ -30,23 +30,23 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 func TestPhaseMetricLabel(t *testing.T) {
 	tests := []struct {
-		input    arm.ProvisioningState
+		input    coreapi.ProvisioningState
 		expected string
 	}{
-		{arm.ProvisioningStateAccepted, "accepted"},
-		{arm.ProvisioningStateProvisioning, "provisioning"},
-		{arm.ProvisioningStateUpdating, "updating"},
-		{arm.ProvisioningStateDeleting, "deleting"},
-		{arm.ProvisioningStateSucceeded, "succeeded"},
-		{arm.ProvisioningStateFailed, "failed"},
-		{arm.ProvisioningStateCanceled, "canceled"},
-		{arm.ProvisioningStateAwaitingSecret, "awaitingsecret"},
+		{coreapi.ProvisioningStateAccepted, "accepted"},
+		{coreapi.ProvisioningStateProvisioning, "provisioning"},
+		{coreapi.ProvisioningStateUpdating, "updating"},
+		{coreapi.ProvisioningStateDeleting, "deleting"},
+		{coreapi.ProvisioningStateSucceeded, "succeeded"},
+		{coreapi.ProvisioningStateFailed, "failed"},
+		{coreapi.ProvisioningStateCanceled, "canceled"},
+		{coreapi.ProvisioningStateAwaitingSecret, "awaitingsecret"},
 	}
 
 	for _, tt := range tests {
@@ -69,17 +69,17 @@ func TestResourceIDToTypeMetricLabel(t *testing.T) {
 		},
 		{
 			name:       "cluster resource type",
-			resourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
+			resourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
 			expected:   "microsoft.redhatopenshift/hcpopenshiftclusters",
 		},
 		{
 			name:       "nodepool resource type",
-			resourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1")),
+			resourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1")),
 			expected:   "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools",
 		},
 		{
 			name:       "externalauth resource type",
-			resourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1")),
+			resourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1")),
 			expected:   "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
 		},
 	}
@@ -104,7 +104,7 @@ func TestSubscriptionIDMetricLabel(t *testing.T) {
 		},
 		{
 			name:       "subscription is lowercased",
-			resourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/SUB-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
+			resourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/SUB-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
 			expected:   "sub-1",
 		},
 	}
@@ -118,14 +118,14 @@ func TestSubscriptionIDMetricLabel(t *testing.T) {
 
 func TestOperationTypeMetricLabel(t *testing.T) {
 	tests := []struct {
-		input    api.OperationRequest
+		input    coreapi.OperationRequest
 		expected string
 	}{
-		{api.OperationRequestCreate, "create"},
-		{api.OperationRequestUpdate, "update"},
-		{api.OperationRequestDelete, "delete"},
-		{api.OperationRequestSystemAdminCredentialRequest, "requestcredential"},
-		{api.OperationRequestSystemAdminCredentialRevocation, "revokecredentials"},
+		{coreapi.OperationRequestCreate, "create"},
+		{coreapi.OperationRequestUpdate, "update"},
+		{coreapi.OperationRequestDelete, "delete"},
+		{coreapi.OperationRequestSystemAdminCredentialRequest, "requestcredential"},
+		{coreapi.OperationRequestSystemAdminCredentialRevocation, "revokecredentials"},
 	}
 
 	for _, tt := range tests {
@@ -135,13 +135,13 @@ func TestOperationTypeMetricLabel(t *testing.T) {
 	}
 }
 
-func newTestOperation(t *testing.T, opName string, request api.OperationRequest, status arm.ProvisioningState, externalID string, startTime, lastTransition time.Time) *api.Operation {
+func newTestOperation(t *testing.T, opName string, request coreapi.OperationRequest, status coreapi.ProvisioningState, externalID string, startTime, lastTransition time.Time) *coreapi.Operation {
 	t.Helper()
 
-	operationID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/" + opName))
-	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + opName))
-	op := &api.Operation{
-		CosmosMetadata: api.CosmosMetadata{
+	operationID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/" + opName))
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + opName))
+	op := &coreapi.Operation{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
@@ -152,7 +152,7 @@ func newTestOperation(t *testing.T, opName string, request api.OperationRequest,
 		LastTransitionTime: lastTransition,
 	}
 	if externalID != "" {
-		op.ExternalID = api.Must(azcorearm.ParseResourceID(externalID))
+		op.ExternalID = metadataapi.Must(azcorearm.ParseResourceID(externalID))
 	}
 	return op
 }
@@ -171,8 +171,8 @@ func TestOperationPhaseMetricsHandler_SetsAllThreeMetrics(t *testing.T) {
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -191,8 +191,8 @@ func TestOperationPhaseMetricsHandler_PhaseTransitionDeletesOldSeries(t *testing
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -201,7 +201,7 @@ func TestOperationPhaseMetricsHandler_PhaseTransitionDeletesOldSeries(t *testing
 	handler, reg := newTestOperationHandler(t)
 	handler.Sync(context.Background(), op)
 
-	op.Status = arm.ProvisioningStateProvisioning
+	op.Status = coreapi.ProvisioningStateProvisioning
 	op.LastTransitionTime = now.Add(5 * time.Minute)
 	handler.Sync(context.Background(), op)
 
@@ -221,8 +221,8 @@ func TestOperationControllerSyncResource_SetsMetricsFromIndexer(t *testing.T) {
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -232,7 +232,7 @@ func TestOperationControllerSyncResource_SetsMetricsFromIndexer(t *testing.T) {
 	require.NoError(t, indexer.Add(op))
 
 	handler, reg := newTestOperationHandler(t)
-	controller := &Controller[*api.Operation]{
+	controller := &Controller[*coreapi.Operation]{
 		name:    "OperationPhaseMetrics",
 		indexer: indexer,
 		handler: handler,
@@ -261,8 +261,8 @@ func TestOperationControllerSyncResource_DeleteIsNoOp(t *testing.T) {
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -272,7 +272,7 @@ func TestOperationControllerSyncResource_DeleteIsNoOp(t *testing.T) {
 	require.NoError(t, indexer.Add(op))
 
 	handler, _ := newTestOperationHandler(t)
-	controller := &Controller[*api.Operation]{
+	controller := &Controller[*coreapi.Operation]{
 		name:    "OperationPhaseMetrics",
 		indexer: indexer,
 		handler: handler,
@@ -299,8 +299,8 @@ func TestResourceIDStoreKeyForObject_MatchesMetaNamespaceKeyFuncForOperation(t *
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -317,15 +317,15 @@ func TestResourceIDStoreKeyForObject_MatchesMetaNamespaceKeyFuncForOperation(t *
 
 func TestOperationPhaseMetricsHandler_SkipsNilOperationID(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-nil-id"))
-	op := &api.Operation{
-		CosmosMetadata: api.CosmosMetadata{
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-nil-id"))
+	op := &coreapi.Operation{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		ExternalID:         api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
-		Request:            api.OperationRequestCreate,
-		Status:             arm.ProvisioningStateAccepted,
+		ExternalID:         metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
+		Request:            coreapi.OperationRequestCreate,
+		Status:             coreapi.ProvisioningStateAccepted,
 		StartTime:          now,
 		LastTransitionTime: now,
 	}
@@ -342,8 +342,8 @@ func TestOperationPhaseMetricsHandler_SkipsZeroTimestamps(t *testing.T) {
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		time.Time{},
 		time.Time{},
@@ -362,8 +362,8 @@ func TestOperationPhaseMetricsHandler_MultipleOperations(t *testing.T) {
 	op1 := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -371,8 +371,8 @@ func TestOperationPhaseMetricsHandler_MultipleOperations(t *testing.T) {
 	op2 := newTestOperation(
 		t,
 		"op-2",
-		api.OperationRequestDelete,
-		arm.ProvisioningStateDeleting,
+		coreapi.OperationRequestDelete,
+		coreapi.ProvisioningStateDeleting,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1",
 		now,
 		now,
@@ -392,8 +392,8 @@ func TestOperationPhaseMetricsHandler_VerifiesLabelValues(t *testing.T) {
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateProvisioning,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateProvisioning,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -421,8 +421,8 @@ func TestOperationPhaseMetricsHandler_ResourceIDIsExternalIDNotCosmosID(t *testi
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateProvisioning,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateProvisioning,
 		armResourceID,
 		now,
 		now,
@@ -457,12 +457,12 @@ backend_resource_operation_phase_info{operation_type="create",phase="provisionin
 // the unexpected state to operators.
 func TestOperationPhaseMetricsHandler_SkipsWhenExternalIDNil(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-no-ext-id"))
-	op := &api.Operation{
-		CosmosMetadata:     api.CosmosMetadata{ResourceID: resourceID},
-		OperationID:        api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/op-no-ext-id")),
-		Request:            api.OperationRequestCreate,
-		Status:             arm.ProvisioningStateAccepted,
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-no-ext-id"))
+	op := &coreapi.Operation{
+		CosmosMetadata:     coreapi.CosmosMetadata{ResourceID: resourceID},
+		OperationID:        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/op-no-ext-id")),
+		Request:            coreapi.OperationRequestCreate,
+		Status:             coreapi.ProvisioningStateAccepted,
 		StartTime:          now,
 		LastTransitionTime: now,
 		// ExternalID intentionally nil
@@ -487,8 +487,8 @@ func TestOperationPhaseMetricsHandler_LowercasesResourceID(t *testing.T) {
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
 		mixedCase,
 		now,
 		now,
@@ -514,8 +514,8 @@ func TestOperationPhaseMetricsHandler_SubscriptionIDFromExternalID(t *testing.T)
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-target/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -545,8 +545,8 @@ func TestOperationPhaseMetricsHandler_DeleteIsNoOp(t *testing.T) {
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		coreapi.OperationRequestCreate,
+		coreapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -578,8 +578,8 @@ func TestOperationPhaseMetricsHandler_MultipleOpsSameExternalIDCoexistByOperatio
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
 
-	op1 := newTestOperation(t, "op-1", api.OperationRequestCreate, arm.ProvisioningStateSucceeded, armID, now, now)
-	op2 := newTestOperation(t, "op-2", api.OperationRequestUpdate, arm.ProvisioningStateProvisioning, armID, now.Add(time.Hour), now.Add(time.Hour))
+	op1 := newTestOperation(t, "op-1", coreapi.OperationRequestCreate, coreapi.ProvisioningStateSucceeded, armID, now, now)
+	op2 := newTestOperation(t, "op-2", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateProvisioning, armID, now.Add(time.Hour), now.Add(time.Hour))
 
 	handler, reg := newTestOperationHandler(t)
 
@@ -611,8 +611,8 @@ func TestOperationPhaseMetricsHandler_SameOperationTypeCollapsesToOneSeries(t *t
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
 
-	op1 := newTestOperation(t, "op-1", api.OperationRequestUpdate, arm.ProvisioningStateSucceeded, armID, now, now)
-	op2 := newTestOperation(t, "op-2", api.OperationRequestUpdate, arm.ProvisioningStateProvisioning, armID, now.Add(time.Hour), now.Add(time.Hour))
+	op1 := newTestOperation(t, "op-1", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateSucceeded, armID, now, now)
+	op2 := newTestOperation(t, "op-2", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateProvisioning, armID, now.Add(time.Hour), now.Add(time.Hour))
 
 	handler, reg := newTestOperationHandler(t)
 
@@ -639,9 +639,9 @@ func TestOperationPhaseMetricsHandler_DeleteOnSiblingDoesNotBlankActiveSeries(t 
 	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
 
 	// op1: completed Create still in cosmos TTL window.
-	op1 := newTestOperation(t, "op-1", api.OperationRequestCreate, arm.ProvisioningStateSucceeded, armID, now, now)
+	op1 := newTestOperation(t, "op-1", coreapi.OperationRequestCreate, coreapi.ProvisioningStateSucceeded, armID, now, now)
 	// op2: fresh Update on the same cluster, currently in flight.
-	op2 := newTestOperation(t, "op-2", api.OperationRequestUpdate, arm.ProvisioningStateProvisioning, armID, now.Add(time.Hour), now.Add(time.Hour))
+	op2 := newTestOperation(t, "op-2", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateProvisioning, armID, now.Add(time.Hour), now.Add(time.Hour))
 
 	handler, reg := newTestOperationHandler(t)
 	handler.Sync(context.Background(), op1)
@@ -679,10 +679,10 @@ func TestOperationPhaseMetricsHandler_NilOperationIDDoesNotBlankSibling(t *testi
 	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"
 
 	// op-A: explicit operation, owns the emitted series.
-	opA := newTestOperation(t, "op-a", api.OperationRequestUpdate, arm.ProvisioningStateProvisioning, armID, now, now)
+	opA := newTestOperation(t, "op-a", coreapi.OperationRequestUpdate, coreapi.ProvisioningStateProvisioning, armID, now, now)
 
 	// op-B: implicit operation (nil OperationID) on the same ARM resource.
-	opB := newTestOperation(t, "op-b", api.OperationRequestDelete, arm.ProvisioningStateDeleting, armID, now.Add(time.Minute), now.Add(time.Minute))
+	opB := newTestOperation(t, "op-b", coreapi.OperationRequestDelete, coreapi.ProvisioningStateDeleting, armID, now.Add(time.Minute), now.Add(time.Minute))
 	opB.OperationID = nil
 
 	handler, reg := newTestOperationHandler(t)

@@ -35,8 +35,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	operationbase "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -108,20 +108,20 @@ func NewOperationClusterUpdateController(
 	return controller
 }
 
-func (c *operationClusterUpdate) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationClusterUpdate) ShouldProcess(ctx context.Context, operation *coreapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != cosmosstorageutils.OperationRequestUpdate {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), coreapi.ClusterResourceType.String()) {
 		return false
 	}
 	return true
 }
 
-func (c *operationClusterUpdate) shouldReconcileOperationAndResourceStatus(cluster *api.HCPOpenShiftCluster) bool {
+func (c *operationClusterUpdate) shouldReconcileOperationAndResourceStatus(cluster *coreapi.HCPOpenShiftCluster) bool {
 	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
 		cluster.ServiceProviderProperties.ClusterServiceID != nil
 }
@@ -164,10 +164,10 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(err)
 	}
 
-	var persistErr *arm.CloudErrorBody
-	if operationalState.ProvisioningState == arm.ProvisioningStateFailed {
-		persistErr = &arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeInvalidRequestContent,
+	var persistErr *coreapi.CloudErrorBody
+	if operationalState.ProvisioningState == coreapi.ProvisioningStateFailed {
+		persistErr = &coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeInvalidRequestContent,
 			Message: operationalState.Message,
 		}
 	}
@@ -184,7 +184,7 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 	return nil
 }
 
-func (c *operationClusterUpdate) determineOperationState(ctx context.Context, operation *api.Operation, existingCluster *api.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) determineOperationState(ctx context.Context, operation *coreapi.Operation, existingCluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	clusterCSID := existingCluster.ServiceProviderProperties.ClusterServiceID
@@ -247,7 +247,7 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	return picked, nil
 }
 
-func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *api.Operation, existingCluster *api.HCPOpenShiftCluster, spc *api.ServiceProviderCluster) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *coreapi.Operation, existingCluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (*operationbase.OperationState, error) {
 	resultingDesiredVersion := spc.Spec.ControlPlaneVersion.DesiredVersion
 	if resultingDesiredVersion == nil {
 		return nil, utils.TrackError(fmt.Errorf("service provider cluster has no desired version"))
@@ -261,7 +261,7 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 	if customerDesiredVersion.Major == resultingDesiredVersion.Major &&
 		customerDesiredVersion.Minor == resultingDesiredVersion.Minor {
 		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-		return operationbase.NewOperationState(arm.ProvisioningStateSucceeded, ""), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 	clusterKey := controllerutils.HCPClusterKey{
 		SubscriptionID:    operation.ExternalID.SubscriptionID,
@@ -278,14 +278,14 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 	if getControllerErr != nil {
 		return nil, utils.TrackError(getControllerErr)
 	}
-	intentFailedCondition := apimeta.FindStatusCondition(controllerDoc.Status.Conditions, api.ControllerConditionTypeIntentFailed)
-	if intentFailedCondition == nil || intentFailedCondition.Status != metav1.ConditionTrue || intentFailedCondition.Reason != api.VersionUpgradeNotAcceptedReason {
+	intentFailedCondition := apimeta.FindStatusCondition(controllerDoc.Status.Conditions, coreapi.ControllerConditionTypeIntentFailed)
+	if intentFailedCondition == nil || intentFailedCondition.Status != metav1.ConditionTrue || intentFailedCondition.Reason != coreapi.VersionUpgradeNotAcceptedReason {
 		// Customer desired minor differs from the service provider resolved version, and the
 		// ControlPlaneDesiredVersion controller has not yet set IntentFailed (VersionUpgradeNotAccepted).
 		// Stay Accepted while resolution runs; fail once elapsed exceeds 129s from the first
 		// time this process observed the mismatch for this operation, so a
 		// controller restart does not immediately fail long-running operations.
-		pending := operationbase.NewOperationState(arm.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")
+		pending := operationbase.NewOperationState(coreapi.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")
 		firstSeen, ok := c.desiredVersionMismatchFirstSeen.Get(operation.ResourceID.String())
 		if !ok {
 			c.desiredVersionMismatchFirstSeen.Add(operation.ResourceID.String(), c.clock.Now())
@@ -299,13 +299,13 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 			existingCluster.CustomerProperties.Version.ID,
 		)
 		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-		return operationbase.NewOperationState(arm.ProvisioningStateFailed, msg), nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateFailed, msg), nil
 	}
 	c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
-	return operationbase.NewOperationState(arm.ProvisioningStateFailed, intentFailedCondition.Message), nil
+	return operationbase.NewOperationState(coreapi.ProvisioningStateFailed, intentFailedCondition.Message), nil
 }
 
-func (c *operationClusterUpdate) clusterServiceClusterStatusOperationState(ctx context.Context, operation *api.Operation, existingCSClusterStatus *arohcpv1alpha1.ClusterStatus, clusterServiceID api.InternalID) (*operationbase.OperationState, error) {
+func (c *operationClusterUpdate) clusterServiceClusterStatusOperationState(ctx context.Context, operation *coreapi.Operation, existingCSClusterStatus *arohcpv1alpha1.ClusterStatus, clusterServiceID metadataapi.InternalID) (*operationbase.OperationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	newOperationStatus, opError, err := operationbase.ConvertClusterStatus(ctx, c.clusterServiceClient, operation, existingCSClusterStatus, clusterServiceID)

@@ -21,24 +21,24 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 )
 
 // SliceStampLister implements fleetlisters.StampLister backed by a slice.
 type SliceStampLister struct {
-	Stamps []*fleet.Stamp
+	Stamps []*fleetapi.Stamp
 }
 
 var _ fleetlisters.StampLister = &SliceStampLister{}
 
-func (l *SliceStampLister) List(ctx context.Context) ([]*fleet.Stamp, error) {
+func (l *SliceStampLister) List(ctx context.Context) ([]*fleetapi.Stamp, error) {
 	return l.Stamps, nil
 }
 
-func (l *SliceStampLister) Get(ctx context.Context, stampIdentifier string) (*fleet.Stamp, error) {
-	key := fleet.ToStampResourceIDString(stampIdentifier)
+func (l *SliceStampLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.Stamp, error) {
+	key := fleetapi.ToStampResourceIDString(stampIdentifier)
 	for _, s := range l.Stamps {
 		if s.CosmosMetadata.ResourceID != nil && strings.EqualFold(s.CosmosMetadata.ResourceID.String(), key) {
 			return s, nil
@@ -49,17 +49,17 @@ func (l *SliceStampLister) Get(ctx context.Context, stampIdentifier string) (*fl
 
 // SliceManagementClusterLister implements fleetlisters.ManagementClusterLister backed by a slice.
 type SliceManagementClusterLister struct {
-	ManagementClusters []*fleet.ManagementCluster
+	ManagementClusters []*fleetapi.ManagementCluster
 }
 
 var _ fleetlisters.ManagementClusterLister = &SliceManagementClusterLister{}
 
-func (l *SliceManagementClusterLister) List(ctx context.Context) ([]*fleet.ManagementCluster, error) {
+func (l *SliceManagementClusterLister) List(ctx context.Context) ([]*fleetapi.ManagementCluster, error) {
 	return l.ManagementClusters, nil
 }
 
-func (l *SliceManagementClusterLister) Get(ctx context.Context, stampIdentifier string) (*fleet.ManagementCluster, error) {
-	key := fleet.ToManagementClusterResourceIDString(stampIdentifier)
+func (l *SliceManagementClusterLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.ManagementCluster, error) {
+	key := fleetapi.ToManagementClusterResourceIDString(stampIdentifier)
 	for _, mc := range l.ManagementClusters {
 		if mc.ResourceID != nil && strings.EqualFold(mc.ResourceID.String(), key) {
 			return mc, nil
@@ -68,8 +68,8 @@ func (l *SliceManagementClusterLister) Get(ctx context.Context, stampIdentifier 
 	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
-func (l *SliceManagementClusterLister) GetByCSProvisionShardID(ctx context.Context, shardID string) (*fleet.ManagementCluster, error) {
-	var matches []*fleet.ManagementCluster
+func (l *SliceManagementClusterLister) GetByCSProvisionShardID(ctx context.Context, shardID string) (*fleetapi.ManagementCluster, error) {
+	var matches []*fleetapi.ManagementCluster
 	for _, mc := range l.ManagementClusters {
 		if mc.Status.ClusterServiceProvisionShardID != nil && mc.Status.ClusterServiceProvisionShardID.ID() == shardID {
 			matches = append(matches, mc)

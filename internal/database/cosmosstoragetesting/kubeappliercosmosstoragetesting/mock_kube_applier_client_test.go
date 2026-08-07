@@ -24,8 +24,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 )
@@ -41,7 +42,7 @@ const (
 // testMgmtID is the resourceID stamped into Spec.ManagementCluster; testMgmt
 // is its lowercased-string form, used as the Cosmos partition key.
 var (
-	testMgmtID = api.Must(azcorearm.ParseResourceID(
+	testMgmtID = metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1"))
 	testMgmt = strings.ToLower(testMgmtID.String())
 )
@@ -55,18 +56,18 @@ func mustParse(t *testing.T, s string) *azcorearm.ResourceID {
 	return id
 }
 
-func newClusterApplyDesire(t *testing.T) *kubeapplier.ApplyDesire {
+func newClusterApplyDesire(t *testing.T) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: mustParse(t,
-				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testDesireName)),
+				kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testDesireName)),
 			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
-		Spec: kubeapplier.ApplyDesireSpec{
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: testMgmtID,
-			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
-			ServerSideApply: &kubeapplier.ServerSideApplyConfig{
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
 				KubeContent: &runtime.RawExtension{
 					Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x"}}`),
 				},
@@ -75,18 +76,18 @@ func newClusterApplyDesire(t *testing.T) *kubeapplier.ApplyDesire {
 	}
 }
 
-func newNodePoolReadDesire(t *testing.T) *kubeapplier.ReadDesire {
+func newNodePoolReadDesire(t *testing.T) *kubeapplierapi.ReadDesire {
 	t.Helper()
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: mustParse(t,
-				kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
+				kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
 					testSub, testRG, testCluster, testNodePool, testDesireName)),
 			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
-		Spec: kubeapplier.ReadDesireSpec{
+		Spec: kubeapplierapi.ReadDesireSpec{
 			ManagementCluster: testMgmtID,
-			TargetItem: kubeapplier.ResourceReference{
+			TargetItem: kubeapplierapi.ResourceReference{
 				Resource: "configmaps", Namespace: "default", Name: "x",
 			},
 		},
@@ -176,17 +177,17 @@ func TestMockKubeApplierGlobalLister_UnionsClusterAndNodePoolScopes(t *testing.T
 	mock, err := NewMockKubeApplierDBClientWithResources(ctx, []any{
 		newClusterApplyDesire(t),
 		// A second ApplyDesire under a node pool, using a different desire name.
-		&kubeapplier.ApplyDesire{
-			CosmosMetadata: api.CosmosMetadata{
+		&kubeapplierapi.ApplyDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID: mustParse(t,
-					kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
+					kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
 						testSub, testRG, testCluster, testNodePool, "other")),
 				PartitionKey: strings.ToLower(testMgmtID.String()),
 			},
-			Spec: kubeapplier.ApplyDesireSpec{
+			Spec: kubeapplierapi.ApplyDesireSpec{
 				ManagementCluster: testMgmtID,
-				Type:              kubeapplier.ApplyDesireTypeServerSideApply,
-				ServerSideApply:   &kubeapplier.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"Secret","metadata":{"name":"y"}}`)}},
+				Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+				ServerSideApply:   &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"Secret","metadata":{"name":"y"}}`)}},
 			},
 		},
 	})

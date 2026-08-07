@@ -36,8 +36,8 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -56,27 +56,27 @@ func fakeOCMNotFoundError() error {
 	return e
 }
 
-func newTestClusterWithNewDeletionApproach(t *testing.T, opts func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
+func newTestClusterWithNewDeletionApproach(t *testing.T, opts func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	clusterInternalID := api.Ptr(api.Must(api.NewInternalID(testClusterServiceIDStr)))
-	cluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	clusterInternalID := metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr)))
+	cluster := &coreapi.HCPOpenShiftCluster{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: testClusterName,
-				Type: api.ClusterResourceType.String(),
+				Type: coreapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		CosmosMetadata: arm.CosmosMetadata{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID:               clusterInternalID,
 			UsesNewClusterDeletionApproach: true,
 		},
@@ -87,7 +87,7 @@ func newTestClusterWithNewDeletionApproach(t *testing.T, opts func(*api.HCPOpenS
 	return cluster
 }
 
-func newTestClusterWithOldDeletionApproach(t *testing.T, opts func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
+func newTestClusterWithOldDeletionApproach(t *testing.T, opts func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpenShiftCluster {
 	cluster := newTestClusterWithNewDeletionApproach(t, opts)
 	cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = false
 	return cluster
@@ -120,7 +120,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                string
-		existingCluster     *api.HCPOpenShiftCluster
+		existingCluster     *coreapi.HCPOpenShiftCluster
 		firstSeenDeletionAt time.Time
 		setupMockCSClient   func(mock *ocm.MockClusterServiceClientSpec)
 		wantErr             bool
@@ -134,7 +134,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceDeletionTimestamp is set no-op is performed",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-30 * time.Minute)}
 			}),
@@ -148,7 +148,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is not set and deletion is first observed then first seen is recorded and no-op is performed",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -156,7 +156,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is not set and first seen within timeout no-op is performed",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -165,7 +165,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is not set and first seen older than timeout then we give up and stamp",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -174,52 +174,52 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "when ClusterServiceID is set we trigger CS cluster deletion and stamp",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Minute)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout / 2),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
-					DeleteCluster(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+					DeleteCluster(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
 					Return(nil)
 			},
 			verifyDB: verifyClusterServiceDeletionTimestampStamped,
 		},
 		{
 			name: "when CS cluster deletion returns 404 within timeout no-op is performed",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout / 2),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
-					DeleteCluster(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+					DeleteCluster(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
 					Return(fakeOCMNotFoundError())
 			},
 			verifyDB: verifyClusterServiceDeletionTimestampIsNil,
 		},
 		{
 			name: "when CS cluster deletion returns 404 past timeout then we stamp",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout - time.Second),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
-					DeleteCluster(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+					DeleteCluster(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
 					Return(fakeOCMNotFoundError())
 			},
 			verifyDB: verifyClusterServiceDeletionTimestampStamped,
 		},
 		{
 			name: "when CS cluster deletion returns unhandled error we propagate it",
-			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Minute)}
 			}),
 			firstSeenDeletionAt: fixedClockTime.Add(-missingClusterServiceIDTimeout / 2),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
-					DeleteCluster(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+					DeleteCluster(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
 					Return(errors.New("boom"))
 			},
 			wantErr:        true,
@@ -227,7 +227,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "UsesNewClusterDeletionApproach false -- no-op even when DeletionTimestamp is set",
-			existingCluster: newTestClusterWithOldDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterWithOldDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Minute)}
 			}),
 			verifyDB: verifyClusterServiceDeletionTimestampIsNil,
@@ -254,7 +254,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 				tc.setupMockCSClient(mockCSClient)
 			}
 
-			clustersForLister := []*api.HCPOpenShiftCluster{}
+			clustersForLister := []*coreapi.HCPOpenShiftCluster{}
 			if tc.existingCluster != nil {
 				clustersForLister = append(clustersForLister, tc.existingCluster)
 			}
@@ -297,7 +297,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircuit(t 
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	ctrl := gomock.NewController(t)
 
-	clusterInDB := newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+	clusterInDB := newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 		c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 	})
 	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{clusterInDB})
@@ -308,7 +308,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircuit(t 
 
 	syncer := &clusterClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*api.HCPOpenShiftCluster{cachedCluster}},
+		clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cachedCluster}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
 		firstSeenDeletionTimestampCache: lru.New(10),
@@ -332,7 +332,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	ctrl := gomock.NewController(t)
 
-	cluster := newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+	cluster := newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 		c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Hour)}
 		c.ServiceProviderProperties.ClusterServiceID = nil
 	})
@@ -342,7 +342,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 	firstSeenDeletionTimestampCache := lru.New(10)
 	syncer := &clusterClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*api.HCPOpenShiftCluster{cluster}},
+		clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cluster}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
 		firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
@@ -367,7 +367,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 	ctrl := gomock.NewController(t)
 
-	cluster := newTestClusterWithNewDeletionApproach(t, func(c *api.HCPOpenShiftCluster) {
+	cluster := newTestClusterWithNewDeletionApproach(t, func(c *coreapi.HCPOpenShiftCluster) {
 		c.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedClockTime.Add(-time.Minute)}
 	})
 	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster})
@@ -379,12 +379,12 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 
 	mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 	mockCSClient.EXPECT().
-		DeleteCluster(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+		DeleteCluster(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
 		Return(nil)
 
 	syncer := &clusterClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*api.HCPOpenShiftCluster{cluster}},
+		clusterLister:                   &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cluster}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            mockCSClient,
 		firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
