@@ -26,7 +26,10 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
+
+	"github.com/onsi/ginkgo/v2"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -285,4 +288,51 @@ func HasNodeTaint(nodes []corev1.Node, key, value string, effect corev1.TaintEff
 	}
 
 	return count == expectedCount[0]
+}
+
+// requiredResourceTypesForAPIVersion lists the ARM resource types that must all
+// support a given API version for async operations (create/delete/update) to work
+// end-to-end. The generated SDK uses the same api-version query parameter for both
+// the resource and its operation status polling endpoint.
+var requiredResourceTypesForAPIVersion = []string{
+	"hcpOpenShiftClusters",
+	"locations/hcpOperationStatuses",
+	"locations/hcpOperationResults",
+}
+
+// IsHCPAPIVersionAvailable checks whether apiVersion is registered in the ARM
+// provider manifest for all resource types required by the ARO-HCP SDK. In
+// development environments the check is skipped (always returns true).
+func (tc *perItOrDescribeTestContext) IsHCPAPIVersionAvailable(ctx context.Context, apiVersion string) (bool, error) {
+	if tc.perBinaryInvocationTestContext.isDevelopmentEnvironment {
+		return true, nil
+	}
+	factory, err := tc.GetARMResourcesClientFactory(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get ARM resources client factory: %w", err)
+	}
+	provider, err := factory.NewProvidersClient().Get(ctx, "Microsoft.RedHatOpenShift", nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to get Microsoft.RedHatOpenShift resource provider: %w", err)
+	}
+	for _, requiredRT := range requiredResourceTypesForAPIVersion {
+		found := false
+		for _, rt := range provider.ResourceTypes {
+			if rt.ResourceType == nil || !strings.EqualFold(*rt.ResourceType, requiredRT) {
+				continue
+			}
+			for _, v := range rt.APIVersions {
+				if v != nil && strings.EqualFold(*v, apiVersion) {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			ginkgo.GinkgoLogr.Info("API version not available for resource type",
+				"apiVersion", apiVersion, "resourceType", requiredRT)
+			return false, nil
+		}
+	}
+	return true, nil
 }
