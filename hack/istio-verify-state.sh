@@ -481,13 +481,19 @@ run_verification() {
         record_fail "$mesh_stale stale sidecar pod(s) in mesh namespaces"
     fi
 
-    # Check 3: Control planes healthy
-    local unhealthy
-    unhealthy=$(sed -n '/CONTROL PLANES/,/^$/p' "$file" | grep -c "False" || true)
-    if [ "$unhealthy" -eq 0 ]; then
-        record_pass "All control plane pods ready"
+    # Check 3: Control planes healthy (presence + quality — no istiod pods is a FAIL, not a vacuous PASS)
+    local cp_pod_count
+    cp_pod_count=$(sed -n '/CONTROL PLANES/,/^$/p' "$file" | grep -c "istiod" || true)
+    if [ "$cp_pod_count" -eq 0 ]; then
+        record_fail "No control plane (istiod) pods found in snapshot"
     else
-        record_fail "$unhealthy control plane pod(s) not ready"
+        local unhealthy
+        unhealthy=$(sed -n '/CONTROL PLANES/,/^$/p' "$file" | grep -c "False" || true)
+        if [ "$unhealthy" -eq 0 ]; then
+            record_pass "All control plane pods ready"
+        else
+            record_fail "$unhealthy control plane pod(s) not ready"
+        fi
     fi
 
     # Check 4: Namespace labels all use tag (not direct revision)
@@ -520,9 +526,6 @@ run_verification() {
     if [ -z "$cm_revisions" ]; then
         cm_revisions=$(sed -n '/CONFIGMAPS (aks-istio-system)/,/^$/p' "$file" | grep -oE 'istio-shared-configmap-[A-Za-z0-9._-]+' | sed 's/^istio-shared-configmap-//' | sort -u)
     fi
-    local cp_pod_count
-    cp_pod_count=$(sed -n '/CONTROL PLANES/,/^$/p' "$file" | grep -c "istiod" || true)
-
     # Check 6: ConfigMap ext-authz providers (presence + quality, not just absence of "no ext-authz")
     if [ -z "$cm_revisions" ]; then
         if [ "$cp_pod_count" -gt 0 ]; then
@@ -593,44 +596,65 @@ run_verification() {
         record_pass "Fleet istio-proxy healthy"
     fi
 
-    # Check 10: Deployments fully rolled out (skip 0-replica and <none> deployments)
-    local not_ready
-    not_ready=$(sed -n '/DEPLOYMENT ROLLOUT STATUS/,/^$/p' "$file" | grep -v "^\[" | grep -v "^---" | grep -v "^$" | grep -v "^NAME" | awk '{gsub(/<none>/, "0")} $3 != 0 && ($2 != $3 || $3 != $4) {print}' 2>/dev/null || true)
-    if [ -z "$not_ready" ]; then
-        record_pass "All deployments fully rolled out"
+    # Check 10: Deployments fully rolled out (skip 0-replica and <none> deployments).
+    # No deploy rows at all is bootstrap-tolerant — WARN, not a vacuous PASS or FAIL.
+    local deploy_rows
+    deploy_rows=$(sed -n '/DEPLOYMENT ROLLOUT STATUS/,/^$/p' "$file" | grep -v "^\[" | grep -v "^---" | grep -v "^$" | grep -v "^NAME" || true)
+    if [ -z "$deploy_rows" ]; then
+        record_warn "No deployment rows in snapshot"
     else
-        record_fail "Some deployments not fully rolled out:"
-        echo "$not_ready" | sed 's/^/  /'
+        local not_ready
+        not_ready=$(echo "$deploy_rows" | awk '{gsub(/<none>/, "0")} $3 != 0 && ($2 != $3 || $3 != $4) {print}' 2>/dev/null || true)
+        if [ -z "$not_ready" ]; then
+            record_pass "All deployments fully rolled out"
+        else
+            record_fail "Some deployments not fully rolled out:"
+            echo "$not_ready" | sed 's/^/  /'
+        fi
     fi
 
-    # Check 11: Ingress PIP pinning (IP drift prevention)
-    local pip_issues=0
-    while IFS= read -r line; do
-        if echo "$line" | grep -q "pip=none"; then
-            record_fail "Ingress service missing PIP annotation: $line"
-            pip_issues=$((pip_issues + 1))
+    # Check 11: Ingress PIP pinning (IP drift prevention). Zero SVC lines (including the
+    # "(none)" sentinel for an empty section) is a FAIL, not a vacuous PASS.
+    local pip_svc_lines
+    pip_svc_lines=$(sed -n '/INGRESS PIP PINNING/,/^$/p' "$file" | grep "^  " | grep -v "^  (none)$" || true)
+    if [ -z "$pip_svc_lines" ]; then
+        record_fail "No ingress services found for PIP pinning check"
+    else
+        local pip_issues=0
+        while IFS= read -r line; do
+            if echo "$line" | grep -q "pip=none"; then
+                record_fail "Ingress service missing PIP annotation: $line"
+                pip_issues=$((pip_issues + 1))
+            fi
+        done < <(echo "$pip_svc_lines")
+        if [ "$pip_issues" -eq 0 ]; then
+            record_pass "All ingress services have PIP pinned"
         fi
-    done < <(sed -n '/INGRESS PIP PINNING/,/^$/p' "$file" | grep "^  ")
-    if [ "$pip_issues" -eq 0 ]; then
-        record_pass "All ingress services have PIP pinned"
     fi
 
-    # Check 12: Sidecar injection — all pods in mesh namespaces should have istio-proxy
-    local injection_issues=0
-    while IFS= read -r line; do
-        [ -z "$line" ] && continue
-        local injected total_pods
-        injected=$(echo "$line" | grep -oE '[0-9]+/[0-9]+' | cut -d/ -f1)
-        total_pods=$(echo "$line" | grep -oE '[0-9]+/[0-9]+' | cut -d/ -f2)
-        local inj_ns
-        inj_ns=$(echo "$line" | awk -F: '{print $1}' | tr -d ' ')
-        if [ -n "$total_pods" ] && [ "$total_pods" -gt 0 ] && [ "$injected" != "$total_pods" ]; then
-            record_fail "$inj_ns has $injected/$total_pods pods injected"
-            injection_issues=$((injection_issues + 1))
+    # Check 12: Sidecar injection — all pods in mesh namespaces should have istio-proxy.
+    # No injection status lines at all (e.g. no mesh namespaces) is a FAIL, not a vacuous PASS.
+    local injection_lines
+    injection_lines=$(sed -n '/SIDECAR INJECTION STATUS/,/^$/p' "$file" | grep "pods injected" || true)
+    if [ -z "$injection_lines" ]; then
+        record_fail "No sidecar injection status lines found in snapshot"
+    else
+        local injection_issues=0
+        while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            local injected total_pods
+            injected=$(echo "$line" | grep -oE '[0-9]+/[0-9]+' | cut -d/ -f1)
+            total_pods=$(echo "$line" | grep -oE '[0-9]+/[0-9]+' | cut -d/ -f2)
+            local inj_ns
+            inj_ns=$(echo "$line" | awk -F: '{print $1}' | tr -d ' ')
+            if [ -n "$total_pods" ] && [ "$total_pods" -gt 0 ] && [ "$injected" != "$total_pods" ]; then
+                record_fail "$inj_ns has $injected/$total_pods pods injected"
+                injection_issues=$((injection_issues + 1))
+            fi
+        done < <(echo "$injection_lines")
+        if [ "$injection_issues" -eq 0 ]; then
+            record_pass "All pods in mesh namespaces have sidecar injected"
         fi
-    done < <(sed -n '/SIDECAR INJECTION STATUS/,/^$/p' "$file" | grep "pods injected")
-    if [ "$injection_issues" -eq 0 ]; then
-        record_pass "All pods in mesh namespaces have sidecar injected"
     fi
 
     # Check 13: mTLS STRICT enforced mesh-wide
