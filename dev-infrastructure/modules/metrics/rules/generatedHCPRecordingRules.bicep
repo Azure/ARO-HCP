@@ -195,3 +195,41 @@ resource hcpKasLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
     ]
   }
 }
+
+resource arohcpSwiftNetworkingSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_networking_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'router:startup_latency:seconds'
+        expression: '(time() - kube_pod_created{namespace=~"ocm-.*"}) * on (namespace, pod) kube_pod_owner{owner_kind="ReplicaSet",owner_name=~"router-.*"} * on (namespace, pod) (kube_pod_status_phase{phase="Pending"} == 1)'
+      }
+      {
+        record: 'router:startup_latency:p99'
+        expression: 'quantile(0.99, router:startup_latency:seconds)'
+      }
+      {
+        record: 'router:startup_latency:p99_avg_5m'
+        expression: 'avg_over_time(router:startup_latency:p99[5m])'
+      }
+      {
+        record: 'router:startup_latency:p99_avg_30m'
+        expression: 'avg_over_time(router:startup_latency:p99[30m])'
+      }
+      {
+        record: 'router:startup_latency:p99_avg_1h'
+        expression: 'avg_over_time(router:startup_latency:p99[1h])'
+      }
+      {
+        record: 'router:startup_latency:p99_avg_6h'
+        expression: 'avg_over_time(router:startup_latency:p99[6h])'
+      }
+    ]
+  }
+}
