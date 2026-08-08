@@ -626,14 +626,6 @@ spec:
       status: {}
 
 ---
-# Source: aro-hcp-hypershift-operator/templates/installer.serviceaccount.yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  creationTimestamp: null
-  name: hypershift-installer
-  namespace: 'hypershift'
----
 # Source: aro-hcp-hypershift-operator/templates/pull-secret.secret.yaml
 apiVersion: v1
 data:
@@ -697,6 +689,19 @@ data:
       - action:       "keep"
         regex:        "cluster_operator_conditions|go_gc_duration_seconds(_sum|_count)?|go_goroutines|go_memstats_(alloc_bytes(_total)?|heap_(alloc|inuse)_bytes|mallocs_total|stack_inuse_bytes)|process_(cpu_seconds_total|resident_memory_bytes)"
         sourceLabels: ["__name__"]
+
+---
+# Source: aro-hcp-hypershift-operator/templates/installer.serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  creationTimestamp: null
+  name: hypershift-installer
+  namespace: 'hypershift'
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
 ---
 # Source: aro-hcp-hypershift-operator/templates/installer.clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -704,6 +709,10 @@ kind: ClusterRoleBinding
 metadata:
   creationTimestamp: null
   name: hypershift-installer-cluster-role
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
 roleRef:
   kind: ClusterRole
   name: cluster-admin
@@ -712,7 +721,6 @@ subjects:
 - kind: ServiceAccount
   name: hypershift-installer
   namespace: 'hypershift'
-
 ---
 # Source: aro-hcp-hypershift-operator/templates/installer.job.yaml
 apiVersion: batch/v1
