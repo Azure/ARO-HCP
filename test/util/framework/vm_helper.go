@@ -122,75 +122,153 @@ func RunVMCommand(ctx context.Context, tc interface {
 		return "", err
 	}
 
-	computeClient, err := armcompute.NewVirtualMachinesClient(subscriptionID, azCreds, nil)
+	clientFactory, err := armcompute.NewClientFactory(subscriptionID, azCreds, nil)
 	if err != nil {
 		return "", err
 	}
 
-	runCommandInput := armcompute.RunCommandInput{
-		CommandID: to.Ptr("RunShellScript"),
-		Script: []*string{
-			to.Ptr(command),
+	vmClient := clientFactory.NewVirtualMachinesClient()
+	runCommandsClient := clientFactory.NewVirtualMachineRunCommandsClient()
+
+	vm, err := vmClient.Get(ctx, resourceGroup, vmName, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get VM %q before running command: %w", vmName, err)
+	}
+	if vm.Location == nil || *vm.Location == "" {
+		return "", fmt.Errorf("VM %q has no location set", vmName)
+	}
+
+	runCommandName := fmt.Sprintf("e2e-runcommand-%d", time.Now().UnixNano())
+	timeoutSeconds := int32(max(60, int(pollTimeout.Seconds())+60))
+	// Managed Run Commands accept exactly one script source (script, scriptUri,
+	// or commandId). Custom shell content must use Script only — CommandID is
+	// for predefined gallery/builtin commands, not the old RunShellScript action.
+	runCommand := armcompute.VirtualMachineRunCommand{
+		Location: vm.Location,
+		Properties: &armcompute.VirtualMachineRunCommandProperties{
+			Source: &armcompute.VirtualMachineRunCommandScriptSource{
+				Script: to.Ptr(command),
+			},
+			AsyncExecution:   to.Ptr(false),
+			TimeoutInSeconds: to.Ptr(timeoutSeconds),
 		},
 	}
 
-	poller, err := computeClient.BeginRunCommand(ctx, resourceGroup, vmName, runCommandInput, nil)
+	poller, err := runCommandsClient.BeginCreateOrUpdate(ctx, resourceGroup, vmName, runCommandName, runCommand, nil)
 	if err != nil {
 		return "", err
 	}
 
-	// Create a timeout context to avoid waiting too long on VM command failures
-	// VM commands should complete quickly (within a few minutes at most)
+	// Create a timeout context to avoid waiting too long on VM command failures.
+	// On any PollUntilDone failure (timeout or ARM/LRO error), best-effort delete
+	// the named run command so it cannot block subsequent commands on the VM.
+	// Error messages intentionally omit the script content — callers often pass
+	// secrets such as base64-encoded kubeconfigs.
 	pollCtx, cancel := context.WithTimeout(ctx, pollTimeout)
 	defer cancel()
 
-	result, err := poller.PollUntilDone(pollCtx, nil)
+	_, err = poller.PollUntilDone(pollCtx, nil)
 	if err != nil {
-		return "", err
+		deleteErr := deleteVirtualMachineRunCommandBestEffort(runCommandsClient, resourceGroup, vmName, runCommandName)
+		timedOut := errors.Is(err, context.DeadlineExceeded) || errors.Is(pollCtx.Err(), context.DeadlineExceeded)
+		switch {
+		case timedOut && deleteErr != nil:
+			return "", fmt.Errorf("timed out waiting for VM run command %q on VM %q and failed to cancel it: %w (cancel error: %v)", runCommandName, vmName, err, deleteErr)
+		case timedOut:
+			return "", fmt.Errorf("timed out waiting for VM run command %q on VM %q; canceled run command", runCommandName, vmName)
+		case deleteErr != nil:
+			return "", fmt.Errorf("VM run command %q on VM %q failed and cleanup also failed: %w (cancel error: %v)", runCommandName, vmName, err, deleteErr)
+		default:
+			return "", fmt.Errorf("VM run command %q on VM %q failed: %w", runCommandName, vmName, err)
+		}
+	}
+	defer func() {
+		if deleteErr := deleteVirtualMachineRunCommandBestEffort(runCommandsClient, resourceGroup, vmName, runCommandName); deleteErr != nil {
+			ginkgo.GinkgoLogr.Error(deleteErr, "failed to delete completed VM run command resource", "resourceGroup", resourceGroup, "vmName", vmName, "runCommandName", runCommandName)
+		}
+	}()
+
+	// CreateOrUpdate LRO responses often omit instance view; fetch it explicitly.
+	// Use a fresh timeout — pollCtx may already be near its deadline after PollUntilDone.
+	getCtx, getCancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer getCancel()
+	result, err := runCommandsClient.GetByVirtualMachine(getCtx, resourceGroup, vmName, runCommandName, &armcompute.VirtualMachineRunCommandsClientGetByVirtualMachineOptions{
+		Expand: to.Ptr("instanceView"),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get instance view for run command %q on VM %q: %w", runCommandName, vmName, err)
 	}
 
-	if len(result.Value) > 0 && result.Value[0].Message != nil {
-		// Azure Run Command returns output in format:
-		// "Enable succeeded: \n[stdout]\n<actual output>\n[stderr]\n<errors>"
-		// We need to extract stdout and stderr content
-		message := *result.Value[0].Message
-
-		// Find the stdout section
-		stdoutStart := strings.Index(message, "[stdout]\n")
-		if stdoutStart == -1 {
-			// If no stdout marker, return the whole message
-			return message, nil
-		}
-
-		// Skip past the "[stdout]\n" marker
-		stdoutStart += len("[stdout]\n")
-
-		// Find where stderr starts (if present)
-		stderrStart := strings.Index(message[stdoutStart:], "\n[stderr]")
-
-		var output string
-		if stderrStart == -1 {
-			// No stderr marker, take everything after stdout
-			output = message[stdoutStart:]
-		} else {
-			// Take only the stdout section
-			output = message[stdoutStart : stdoutStart+stderrStart]
-
-			// Extract and inspect stderr
-			stderrAbsoluteStart := stdoutStart + stderrStart + len("\n[stderr]\n")
-			if stderrAbsoluteStart < len(message) {
-				stderr := strings.TrimSpace(message[stderrAbsoluteStart:])
-				if stderr != "" {
-					// Return an error if stderr is not empty
-					return "", fmt.Errorf("%s", stderr)
-				}
-			}
-		}
-
-		return strings.TrimSpace(output), nil
+	if result.Properties == nil || result.Properties.InstanceView == nil {
+		return "", fmt.Errorf("run command %q on VM %q completed without instance view", runCommandName, vmName)
 	}
 
-	return "", nil
+	instanceView := result.Properties.InstanceView
+	output := strings.TrimSpace(toValue(instanceView.Output))
+	errorOutput := strings.TrimSpace(toValue(instanceView.Error))
+
+	if errorOutput != "" {
+		return "", fmt.Errorf("%s", errorOutput)
+	}
+
+	if instanceView.ExitCode != nil && *instanceView.ExitCode != 0 {
+		return "", fmt.Errorf("run command %q failed with exit code %d on VM %q (output: %q)", runCommandName, *instanceView.ExitCode, vmName, output)
+	}
+
+	if instanceView.ExecutionState != nil && *instanceView.ExecutionState != armcompute.ExecutionStateSucceeded {
+		return "", fmt.Errorf("run command %q finished in unexpected state %q on VM %q (output: %q)", runCommandName, *instanceView.ExecutionState, vmName, output)
+	}
+
+	return output, nil
+}
+
+func deleteVirtualMachineRunCommandBestEffort(
+	runCommandsClient *armcompute.VirtualMachineRunCommandsClient,
+	resourceGroup string,
+	vmName string,
+	runCommandName string,
+) error {
+	deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer deleteCancel()
+	return deleteVirtualMachineRunCommand(deleteCtx, runCommandsClient, resourceGroup, vmName, runCommandName)
+}
+
+func deleteVirtualMachineRunCommand(
+	ctx context.Context,
+	runCommandsClient *armcompute.VirtualMachineRunCommandsClient,
+	resourceGroup string,
+	vmName string,
+	runCommandName string,
+) error {
+	poller, err := runCommandsClient.BeginDelete(ctx, resourceGroup, vmName, runCommandName, nil)
+	if err != nil {
+		if isNotFoundResponseError(err) {
+			return nil
+		}
+		return err
+	}
+
+	_, err = poller.PollUntilDone(ctx, nil)
+	if err != nil && !isNotFoundResponseError(err) {
+		return err
+	}
+
+	return nil
+}
+
+func isNotFoundResponseError(err error) bool {
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) {
+		return responseErr.StatusCode == http.StatusNotFound
+	}
+	return false
+}
+
+func toValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 // GetVirtualMachinesInResourceGroup lists all VMs in the given resource group

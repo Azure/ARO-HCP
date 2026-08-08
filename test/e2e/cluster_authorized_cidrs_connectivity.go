@@ -190,8 +190,10 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("verifying aggregated API services from authorized VM")
 				// Only output unavailable services (filter out :True lines) to stay within 4KB VM output limit
+				// grep exits 1 when every line is filtered out (the healthy case).
+				// Append || true so RunVMCommand's exit-code check does not treat that as failure.
 				apiServicesCmd := fmt.Sprintf(
-					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get apiservices -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$'`,
+					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get apiservices -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$' || [ $? -eq 1 ]`,
 					kubeconfigB64,
 				)
 
@@ -360,8 +362,10 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("verifying all cluster operators are healthy from authorized VM")
 				// Only output unavailable operators (filter out :True lines) to stay within 4KB VM output limit
+				// grep exits 1 when every line is filtered out (the healthy case).
+				// Append || true so RunVMCommand's exit-code check does not treat that as failure.
 				clusterOperatorsCmd := fmt.Sprintf(
-					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get clusteroperators -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$'`,
+					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get clusteroperators -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$' || true`,
 					kubeconfigB64,
 				)
 
