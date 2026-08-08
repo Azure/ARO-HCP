@@ -463,6 +463,8 @@ defaults:
       id: "aro-{{ .ctx.environment }}-{{ .ctx.region }}"
       displayName: "HCP - {{ .ctx.environment }} {{ .ctx.region }}"
     managedIdentityName: aro-quotaizer
+    # This should be removed and replaced with global.subscription.key in quotaizer deployment pipeline once old stg infra is decommissioned (AROSLSRE-1202)
+    managedIdentitySubscriptionKey: "hcp-global"
     image:
       registry: "empty-sentinel"
       repository: "empty-sentinel"
