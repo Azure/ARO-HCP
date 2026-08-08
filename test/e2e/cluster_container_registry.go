@@ -194,16 +194,16 @@ var _ = Describe("Container Registry Pull Credentials", func() {
 				By("importing a test image into the ACR")
 				importPoller, err := registriesClient.BeginImportImage(ctx, *resourceGroup.Name, acrName, armcontainerregistry.ImportImageParameters{
 					Source: &armcontainerregistry.ImportSource{
-						RegistryURI: to.Ptr("mcr.microsoft.com"),
-						SourceImage: to.Ptr("azurelinux/distroless/debug:3.0"),
+						RegistryURI: to.Ptr("registry.access.redhat.com"),
+						SourceImage: to.Ptr("ubi9/ubi-minimal:latest"),
 					},
-					TargetTags: []*string{to.Ptr("debug:3.0")},
+					TargetTags: []*string{to.Ptr("ubi-minimal:latest")},
 					Mode:       to.Ptr(armcontainerregistry.ImportModeForce),
 				}, nil)
 				Expect(err).NotTo(HaveOccurred(), "failed to start image import into ACR")
 				_, err = importPoller.PollUntilDone(ctx, nil)
 				Expect(err).NotTo(HaveOccurred(), "failed to import image into ACR %s", acrName)
-				GinkgoWriter.Printf("Imported mcr.microsoft.com/azurelinux/distroless/debug:3.0 into %s\n", acrLoginServer)
+				GinkgoWriter.Printf("Imported registry.access.redhat.com/ubi9/ubi-minimal:latest into %s\n", acrLoginServer)
 
 				By("creating ACR pull managed identity")
 				msiClient, err := armmsi.NewUserAssignedIdentitiesClient(subscriptionID, cred, nil)
@@ -298,7 +298,7 @@ var _ = Describe("Container Registry Pull Credentials", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create namespace %s", pullTestNamespace)
 
 				By(fmt.Sprintf("deploying a pod that pulls from private ACR %s — no imagePullSecrets", acrLoginServer))
-				testImage := fmt.Sprintf("%s/debug:3.0", acrLoginServer)
+				testImage := fmt.Sprintf("%s/ubi-minimal:latest", acrLoginServer)
 				pod := &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "acr-pull-test",
@@ -309,7 +309,7 @@ var _ = Describe("Container Registry Pull Credentials", func() {
 							{
 								Name:            "acr-pull-test",
 								Image:           testImage,
-								Command:         []string{"/bin/sh", "-c", "exit 0"},
+								Command:         []string{"true"},
 								ImagePullPolicy: corev1.PullAlways,
 								SecurityContext: &corev1.SecurityContext{
 									AllowPrivilegeEscalation: to.Ptr(false),
@@ -330,7 +330,7 @@ var _ = Describe("Container Registry Pull Credentials", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create ACR pull test pod")
 
 				By("verifying the image was pulled from the private ACR")
-				err = verifiers.VerifyImagePulled(pullTestNamespace, acrLoginServer, "debug", imagePullTimeout).
+				err = verifiers.VerifyImagePulled(pullTestNamespace, acrLoginServer, "ubi-minimal", imagePullTimeout).
 					Verify(ctx, adminRESTConfig)
 				Expect(err).NotTo(HaveOccurred(), "failed to pull image from private ACR %s — the credential provider did not authenticate the pull", acrLoginServer)
 
