@@ -2,5 +2,6 @@ prometheusRules:
   rulesFolders:
   - recording-rules/access-cluster-slo-recordingRule.yaml
   - recording-rules/cluster-provision-slo-recordingRule.yaml
+  - recording-rules/cluster-deletion-slo-recordingRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRecordingRules.bicep
