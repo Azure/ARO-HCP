@@ -44,6 +44,9 @@ param vnetName string
 @description('The subnet name for deploying HCP cluster resources')
 param subnetName string
 
+@description('The integration subnet name for control plane connectivity')
+param integrationSubnetName string
+
 @description('The KeyVault name that contains the etcd encryption key')
 param keyVaultName string
 
@@ -64,6 +67,7 @@ module pooledNonMsiScopedAssignments 'non-msi-scoped-assignments.bicep' = if (us
     identities: identities
     vnetName: vnetName
     subnetName: subnetName
+    integrationSubnetName: integrationSubnetName
     nsgName: nsgName
     keyVaultName: keyVaultName
     rbacScope: rbacScope
@@ -100,6 +104,7 @@ module clusterNonMsiScopedAssignments 'non-msi-scoped-assignments.bicep' = if (!
     identities: clusterIdentities.outputs.msiIdentities
     vnetName: vnetName
     subnetName: subnetName
+    integrationSubnetName: integrationSubnetName
     nsgName: nsgName
     keyVaultName: keyVaultName
     rbacScope: rbacScope
