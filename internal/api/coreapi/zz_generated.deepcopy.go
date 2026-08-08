@@ -465,6 +465,10 @@ func (in *CustomerPlatformProfile) DeepCopyInto(out *CustomerPlatformProfile) {
 		*out = DeepCopyResourceID(*in)
 	}
 	in.OperatorsAuthentication.DeepCopyInto(&out.OperatorsAuthentication)
+	if in.ContainerRegistryPullManagedIdentity != nil {
+		in, out := &in.ContainerRegistryPullManagedIdentity, &out.ContainerRegistryPullManagedIdentity
+		*out = DeepCopyResourceID(*in)
+	}
 	return
 }
 

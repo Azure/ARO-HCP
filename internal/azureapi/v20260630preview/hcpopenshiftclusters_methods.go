@@ -196,7 +196,17 @@ func newPlatformProfile(from *coreapi.CustomerPlatformProfile, from2 *coreapi.Se
 		OutboundType:            metadataapi.PtrOrNil(generated.OutboundType(from.OutboundType)),
 		NetworkSecurityGroupID:  metadataapi.ResourceIDToStringPtr(from.NetworkSecurityGroupID),
 		OperatorsAuthentication: metadataapi.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
+		ContainerRegistry:       newContainerRegistryProfile(from.ContainerRegistryPullManagedIdentity),
 		IssuerURL:               metadataapi.PtrOrNil(from2.IssuerURL),
+	}
+}
+
+func newContainerRegistryProfile(from *azcorearm.ResourceID) *generated.ContainerRegistryProfile {
+	if from == nil {
+		return nil
+	}
+	return &generated.ContainerRegistryProfile{
+		ManagedIdentity: metadataapi.ResourceIDToStringPtr(from),
 	}
 }
 
@@ -642,7 +652,26 @@ func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *c
 	} else {
 		out.OperatorsAuthentication = coreapi.OperatorsAuthenticationProfile{}
 	}
+	errs = append(errs, normalizeContainerRegistry(fldPath.Child("containerRegistry"), p.ContainerRegistry, &out.ContainerRegistryPullManagedIdentity)...)
 	out2.IssuerURL = metadataapi.Deref(p.IssuerURL)
+
+	return errs
+}
+
+func normalizeContainerRegistry(fldPath *field.Path, p *generated.ContainerRegistryProfile, out **azcorearm.ResourceID) field.ErrorList {
+	errs := field.ErrorList{}
+
+	if p == nil || p.ManagedIdentity == nil || len(*p.ManagedIdentity) == 0 {
+		*out = nil
+		return errs
+	}
+
+	resourceID, err := azcorearm.ParseResourceID(*p.ManagedIdentity)
+	if err != nil {
+		errs = append(errs, field.Invalid(fldPath.Child("managedIdentity"), *p.ManagedIdentity, err.Error()))
+	} else {
+		*out = resourceID
+	}
 
 	return errs
 }
