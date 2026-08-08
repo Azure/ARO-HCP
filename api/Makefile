@@ -24,12 +24,12 @@ endif
 generate: swagger models
 
 .PHONY: swagger
-swagger:
+swagger: .npm-install.stamp
 	npm run format-check
 	npm run compile
 
 .PHONY: models
-models: $(GOIMPORTS)
+models: .npm-install.stamp $(GOIMPORTS)
 	VERSION=${VERSION} npm run models
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ../internal
 	# Remove the client API, leave only the constants and models.
@@ -39,12 +39,12 @@ models: $(GOIMPORTS)
 	rm $(RM_FORCE) ${AUTOREST_OUTPUT_DIR}/responses.go
 
 .PHONY: testsdk
-testsdk: $(GOIMPORTS)
+testsdk: .npm-install.stamp $(GOIMPORTS)
 	VERSION=${VERSION} npm run testsdk
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ../test/sdk
 
 .PHONY: fmt
-fmt:
+fmt: .npm-install.stamp
 	npm run format
 
 .PHONY: validate-examples
@@ -73,3 +73,7 @@ lint-openapi:
 			--tag=package-$$version \
 			$(SPEC_BASE_DIR)/readme.md || exit 1; \
 	done
+
+.npm-install.stamp: package-lock.json
+	npm ci
+	touch $@
