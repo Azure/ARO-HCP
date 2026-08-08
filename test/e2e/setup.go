@@ -27,6 +27,8 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/log"
 )
 
+const cpoOverrideImage = "arohcpocpdev.azurecr.io/control-plane-operator@sha256:bb471a00fcb61e8dc8a8c4abfebb16f15f282e2cb7df792514fdfc66a5891a1a"
+
 var (
 	e2eSetup integration.SetupModel
 )
