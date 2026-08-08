@@ -1,0 +1,35 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: userjourney-etcd-latency-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  # Recording rules that pre-compute etcd gRPC latency percentiles for HCP clusters.
+  # These target the etcd gRPC server (etcdserverpb.*) running in HCP namespaces (ocm-*),
+  # enabling efficient dashboarding and alerting without re-computing quantiles at query time.
+  - name: rp-userjourney-etcd-latency-recording-rules
+    interval: 1m
+    rules:
+    # P99 etcd gRPC latency (5m rate) per HCP namespace.
+    # Captures the worst-case tail latency — a sustained spike here (e.g. >500ms)
+    # typically indicates etcd disk I/O pressure, leader election churn, or kube-apiserver
+    # overloading etcd with large list/watch requests.
+    - record: etcd:grpc_server_handling:latency_p99:rate5m
+      expr: |
+        histogram_quantile(0.99,
+          sum by (namespace, cluster, le) (
+            rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*", namespace=~"ocm-.*"}[5m])
+          )
+        )
+    # P95 etcd gRPC latency (5m rate) per HCP namespace.
+    # Represents the latency experienced by the vast majority of requests.
+    # More stable than P99 and useful for SLO tracking — a healthy HCP cluster
+    # should keep this under ~100ms for most gRPC operations.
+    - record: etcd:grpc_server_handling:latency_p95:rate5m
+      expr: |
+        histogram_quantile(0.95,
+          sum by (namespace, cluster, le) (
+            rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*", namespace=~"ocm-.*"}[5m])
+          )
+        )

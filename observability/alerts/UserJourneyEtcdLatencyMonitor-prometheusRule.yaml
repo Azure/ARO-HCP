@@ -1,0 +1,90 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: userjourney-etcd-latency-alerts
+  namespace: prometheus
+spec:
+  groups:
+  - name: rp-userjourney-etcd-latency-monitor-rules
+    labels:
+      component: hcp
+    rules:
+    # MWMBR Fast burn (1h/5m) — Sev 3 per ADR-001 (user journey, non-KAS)
+    - alert: userJourneyEtcdLatencyP991h5m
+      expr: |
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*", namespace=~"ocm-.*"}[1h])
+            )
+          ) > 0.2
+        )
+        and
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*", namespace=~"ocm-.*"}[5m])
+            )
+          ) > 0.2
+        )
+      for: 2m
+      labels:
+        severity: "3"
+        slo: etcd-grpc-latency
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: etcd gRPC P99 latency exceeds 200ms in {{ $labels.namespace }} (fast burn 1h/5m)
+        description: >-
+          etcd gRPC P99 latency in namespace {{ $labels.namespace }} has exceeded 200ms in both the 1h and 5m windows, indicating a fast burn-rate degradation affecting hosted cluster operations.
+        correlationId: userJourneyEtcdLatencyP991h5m/{{ $labels.cluster }}/{{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+    # MWMBR Medium burn (6h/30m) — Sev 3 per ADR-001
+    - alert: userJourneyEtcdLatencyP996h30m
+      expr: |
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*", namespace=~"ocm-.*"}[6h])
+            )
+          ) > 0.2
+        )
+        and
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*", namespace=~"ocm-.*"}[30m])
+            )
+          ) > 0.2
+        )
+      for: 2m
+      labels:
+        severity: "3"
+        slo: etcd-grpc-latency
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: etcd gRPC P99 latency exceeds 200ms in {{ $labels.namespace }} (medium burn 6h/30m)
+        description: >-
+          etcd gRPC P99 latency in namespace {{ $labels.namespace }} has exceeded 200ms in both the 6h and 30m windows, indicating a sustained medium burn-rate degradation affecting hosted cluster operations.
+        correlationId: userJourneyEtcdLatencyP996h30m/{{ $labels.cluster }}/{{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+    # MWMBR Slow burn (3d) — Sev 4 per ADR-001 (slow burn = ticket, not page)
+    - alert: userJourneyEtcdLatencyP993d
+      expr: |
+        histogram_quantile(0.99,
+          sum by (namespace, cluster, le) (
+            rate(grpc_server_handling_seconds_bucket{grpc_service=~"etcdserverpb.*", namespace=~"ocm-.*"}[3d])
+          )
+        ) > 0.2
+      for: 10m
+      labels:
+        severity: "4"
+        slo: etcd-grpc-latency
+        long_window: 3d
+      annotations:
+        summary: etcd gRPC P99 latency exceeds 200ms in {{ $labels.namespace }} (slow burn 3d)
+        description: >-
+          etcd gRPC P99 latency in namespace {{ $labels.namespace }} has exceeded 200ms over a 3d window, indicating a slow but persistent latency degradation. This generates a ticket for investigation.
+        correlationId: userJourneyEtcdLatencyP993d/{{ $labels.cluster }}/{{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
