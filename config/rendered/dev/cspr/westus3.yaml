@@ -389,6 +389,28 @@ geneva:
       account: AzureRedHatOpenShiftRP
   principalId: ""
   resourceContributor: ""
+genevaHealthFunction:
+  appServicePlanName: arohcp-cspr-geneva-health-plan-usw3
+  certificate:
+    commonName: ""
+    issuer: OneCertV2-PrivateCA
+    manage: true
+    name: geneva-health-publisher
+    sanDnsNames: []
+  deploy: false
+  functionAppName: arohcp-cspr-geneva-health-usw3
+  healthEnvironment: ""
+  image:
+    digest: ""
+    registry: empty-sentinel
+    repository: empty-sentinel
+  imageArtifact:
+    adoProject: ""
+    artifactName: ""
+    buildId: 0
+  managedIdentityName: arohcp-cspr-geneva-health-mi-usw3
+  monitoringAccount: ""
+  storageAccountName: arohcpcsprgenhltusw3
 global:
   billing:
     digest: placeholder

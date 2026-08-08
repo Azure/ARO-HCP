@@ -389,6 +389,28 @@ geneva:
       account: AzureRedHatOpenShiftRP
   principalId: ""
   resourceContributor: ""
+genevaHealthFunction:
+  appServicePlanName: arohcp-pers-geneva-health-plan-usw3test
+  certificate:
+    commonName: ""
+    issuer: OneCertV2-PrivateCA
+    manage: true
+    name: geneva-health-publisher
+    sanDnsNames: []
+  deploy: false
+  functionAppName: arohcp-pers-geneva-health-usw3test
+  healthEnvironment: ""
+  image:
+    digest: ""
+    registry: empty-sentinel
+    repository: empty-sentinel
+  imageArtifact:
+    adoProject: ""
+    artifactName: ""
+    buildId: 0
+  managedIdentityName: arohcp-pers-geneva-health-mi-usw3test
+  monitoringAccount: ""
+  storageAccountName: arohcppersgenhltusw3test
 global:
   billing:
     digest: placeholder
