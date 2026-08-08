@@ -86,6 +86,36 @@ resourceGroups:
       step: acrs
     - resourceGroup: singleton
       step: grafana-reconcile
+  # TODO: Enable ci-monitoring and resolve prometheusPrincipalId (no persistent global
+  # Prometheus identity exists — either grant the publisher role to each ephemeral CI job
+  # identity during bootstrap, or create a dedicated long-lived CI publisher identity).
+  # - name: ci-monitoring
+  #   action: ARM
+  #   template: templates/ci-monitoring.bicep
+  #   parameters: configurations/ci-monitoring.tmpl.bicepparam
+  #   deploymentLevel: ResourceGroup
+  #   parameterOverrides:
+  #     prometheusPrincipalId:
+  #       input:
+  #         resourceGroup: singleton
+  #         step: output
+  #         name: prometheusPrincipalId
+  #   dependsOn:
+  #   - resourceGroup: singleton
+  #     step: infra
+  #   - resourceGroup: singleton
+  #     step: output
+  # TODO: After ci-monitoring is enabled, add a GrafanaDatasources step to wire
+  # CI AMWs into Grafana (replaces the old bicep-based Grafana role assignments).
+  # - name: ci-grafana-datasources
+  #   action: GrafanaDatasources
+  #   grafanaName:
+  #     configRef: monitoring.grafanaName
+  #   dependsOn:
+  #   - resourceGroup: singleton
+  #     step: ci-monitoring
+  #   - resourceGroup: singleton
+  #     step: grafana-reconcile
   - name: grafana-monitoring-reader
     action: ARM
     template: templates/grafana-monitoring-reader.bicep
@@ -252,6 +282,9 @@ resourceGroups:
       step: housekeeping
     - resourceGroup: singleton
       step: output
+      # TODO: re-add ci-grafana-datasources dependency after ci-monitoring is enabled
+      # - resourceGroup: singleton
+      #   step: ci-grafana-datasources
   # creates DNS delegation for the ARO HCP global SVC zone
   - name: svcChildZone
     action: DelegateChildZone
