@@ -12,7 +12,8 @@ RUN mkdir -p /etc/yum.repos.art/ci/ /etc/yum.repos.art/localdev/ && \
     ln -s /etc/yum.repos.d/microsoft-prod.repo /etc/yum.repos.art/ci/ && \
     ln -s /etc/yum.repos.d/microsoft-prod.repo /etc/yum.repos.art/localdev/
 RUN dnf install -y azure-cli libicu make git procps-ng
-RUN az bicep install && mv /root/.azure/bin/bicep /usr/local/bin
+RUN az bicep install && cp /root/.azure/bin/bicep /usr/local/bin/bicep
+ENV AZURE_BICEP_USE_BINARY_FROM_PATH=true
 # Install kubectl and kubelogin
 RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
     KUBECTL_VER=$(curl -fsSL --retry 3 https://dl.k8s.io/release/stable.txt) && \
