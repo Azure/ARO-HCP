@@ -415,7 +415,7 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
 }`, clusterName, subscriptionID, subscriptionID, subscriptionID))
 
 	case v20260901:
-		// v20260901 payload
+		// v20260901 payload — uses keyEncryptionKeyUrl instead of activeKey/vaultName
 		return []byte(fmt.Sprintf(`{
   "identity": {
     "type": "UserAssigned",
@@ -440,12 +440,8 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
         "customerManaged": {
           "encryptionType": "KMS",
           "kms": {
-            "activeKey": {
-              "name": "vc-encryption-key",
-              "version": "2024-12-01-preview"
-            },
-            "vaultName": "vc-key-vault",
-            "visibility": "Public"
+            "visibility": "Public",
+            "keyEncryptionKeyUrl": "https://vc-key-vault.vault.azure.net/keys/vc-encryption-key/2024-12-01-preview"
           }
         },
         "keyManagementMode": "CustomerManaged"

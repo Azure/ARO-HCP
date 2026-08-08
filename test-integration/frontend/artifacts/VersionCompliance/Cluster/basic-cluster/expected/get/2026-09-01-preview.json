@@ -23,11 +23,7 @@
 				"customerManaged": {
 					"encryptionType": "KMS",
 					"kms": {
-						"activeKey": {
-							"name": "vc-encryption-key",
-							"version": "2024-12-01-preview"
-						},
-						"vaultName": "vc-key-vault",
+						"keyEncryptionKeyUrl": "https://vc-key-vault.vault.azure.net/keys/vc-encryption-key/2024-12-01-preview",
 						"visibility": "Public"
 					}
 				},

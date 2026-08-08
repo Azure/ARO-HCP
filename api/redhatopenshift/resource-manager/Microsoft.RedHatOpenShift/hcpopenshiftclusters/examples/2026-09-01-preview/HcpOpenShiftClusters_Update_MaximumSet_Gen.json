@@ -79,12 +79,8 @@
               "customerManaged": {
                 "encryptionType": "KMS",
                 "kms": {
-                  "vaultName": "my-cool-vault",
                   "visibility": "Public",
-                  "activeKey": {
-                    "name": "my-cool-key",
-                    "version": "8e73e7d1fd7d4a87b730f676fc77d3a6"
-                  }
+                  "keyEncryptionKeyUrl": "https://my-cool-vault.vault.azure.net/keys/my-cool-key/8e73e7d1fd7d4a87b730f676fc77d3a6"
                 }
               }
             }

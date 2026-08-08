@@ -50,6 +50,11 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		original.ResourceID = original.ID
 		original.InstanceVersion = 0
 		original.PartitionKey = ""
+		// KeyEncryptionKeyURL was added in v2026_09_01_preview and does
+		// not round-trip through this version.
+		if original.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && original.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
+			original.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL = ""
+		}
 		roundTripHCPCluster(t, original)
 	}
 
