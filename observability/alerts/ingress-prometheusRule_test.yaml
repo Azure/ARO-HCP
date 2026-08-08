@@ -1,0 +1,176 @@
+rule_files:
+- ingress-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# --- UJIngressAvailability1h5m (fast burn: 5m/1h) ---
+# With 30s data interval, 1h window has ~120 samples.
+# count > 60 first satisfied at T=30m (61 samples). for: 2m → fires at T=32m.
+- interval: 30s
+  input_series:
+  - series: 'probe_success{job="blackbox-ingress",probe_url="https://apps.cluster.example.com",namespace="hcp-ns",_id="cluster-1",cluster="mgmt-1"}'
+    values: "0+0x70"
+  alert_rule_test:
+  - eval_time: 33m
+    alertname: UJIngressAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        long_window: 1h
+        short_window: 5m
+        probe_url: https://apps.cluster.example.com
+        namespace: hcp-ns
+        _id: cluster-1
+        cluster: mgmt-1
+      exp_annotations:
+        message: "High error budget burn for ingress https://apps.cluster.example.com (current value: 1)"
+        runbook_url: https://aka.ms/arohcp-runbook-ingress
+
+# Should NOT fire before for: 2m
+- interval: 30s
+  input_series:
+  - series: 'probe_success{job="blackbox-ingress",probe_url="https://apps.cluster.example.com",namespace="hcp-ns",_id="cluster-1",cluster="mgmt-1"}'
+    values: "0+0x70"
+  alert_rule_test:
+  - eval_time: 31m
+    alertname: UJIngressAvailability1h5m
+    exp_alerts: []
+
+# Should NOT fire when probe is healthy
+- interval: 30s
+  input_series:
+  - series: 'probe_success{job="blackbox-ingress",probe_url="https://apps.cluster.example.com",namespace="hcp-ns",_id="cluster-1",cluster="mgmt-1"}'
+    values: "1+0x70"
+  alert_rule_test:
+  - eval_time: 33m
+    alertname: UJIngressAvailability1h5m
+    exp_alerts: []
+
+# --- UJIngressAvailability6h30m (medium burn: 30m/6h) ---
+# count > 360 first satisfied at T=180m. for: 15m → fires at T=195m.
+- interval: 30s
+  input_series:
+  - series: 'probe_success{job="blackbox-ingress",probe_url="https://apps.cluster.example.com",namespace="hcp-ns",_id="cluster-1",cluster="mgmt-1"}'
+    values: "0+0x400"
+  alert_rule_test:
+  - eval_time: 196m
+    alertname: UJIngressAvailability6h30m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        long_window: 6h
+        short_window: 30m
+        probe_url: https://apps.cluster.example.com
+        namespace: hcp-ns
+        _id: cluster-1
+        cluster: mgmt-1
+      exp_annotations:
+        message: "High error budget burn for ingress https://apps.cluster.example.com (current value: 1)"
+        runbook_url: https://aka.ms/arohcp-runbook-ingress
+
+# Should NOT fire before for: 15m
+- interval: 30s
+  input_series:
+  - series: 'probe_success{job="blackbox-ingress",probe_url="https://apps.cluster.example.com",namespace="hcp-ns",_id="cluster-1",cluster="mgmt-1"}'
+    values: "0+0x400"
+  alert_rule_test:
+  - eval_time: 194m
+    alertname: UJIngressAvailability6h30m
+    exp_alerts: []
+
+# --- UJIngressAvailability1d2h (slow burn: 2h/1d) ---
+# count > 1440 first satisfied at T=720m. for: 1h → fires at T=780m.
+- interval: 30s
+  input_series:
+  - series: 'probe_success{job="blackbox-ingress",probe_url="https://apps.cluster.example.com",namespace="hcp-ns",_id="cluster-1",cluster="mgmt-1"}'
+    values: "0+0x1570"
+  alert_rule_test:
+  - eval_time: 781m
+    alertname: UJIngressAvailability1d2h
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        long_window: 1d
+        short_window: 2h
+        probe_url: https://apps.cluster.example.com
+        namespace: hcp-ns
+        _id: cluster-1
+        cluster: mgmt-1
+      exp_annotations:
+        message: "High error budget burn for ingress https://apps.cluster.example.com (current value: 1)"
+        runbook_url: https://aka.ms/arohcp-runbook-ingress
+
+# Should NOT fire before for: 1h
+- interval: 30s
+  input_series:
+  - series: 'probe_success{job="blackbox-ingress",probe_url="https://apps.cluster.example.com",namespace="hcp-ns",_id="cluster-1",cluster="mgmt-1"}'
+    values: "0+0x1570"
+  alert_rule_test:
+  - eval_time: 779m
+    alertname: UJIngressAvailability1d2h
+    exp_alerts: []
+
+# --- UJIngressAvailability3d6h (very slow burn: 6h/3d) ---
+# count > 4320 first satisfied at T=2160m. for: 3h → fires at T=2340m.
+- interval: 30s
+  input_series:
+  - series: 'probe_success{job="blackbox-ingress",probe_url="https://apps.cluster.example.com",namespace="hcp-ns",_id="cluster-1",cluster="mgmt-1"}'
+    values: "0+0x4690"
+  alert_rule_test:
+  - eval_time: 2341m
+    alertname: UJIngressAvailability3d6h
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        long_window: 3d
+        short_window: 6h
+        probe_url: https://apps.cluster.example.com
+        namespace: hcp-ns
+        _id: cluster-1
+        cluster: mgmt-1
+      exp_annotations:
+        message: "High error budget burn for ingress https://apps.cluster.example.com (current value: 1)"
+        runbook_url: https://aka.ms/arohcp-runbook-ingress
+
+# Should NOT fire before for: 3h
+- interval: 30s
+  input_series:
+  - series: 'probe_success{job="blackbox-ingress",probe_url="https://apps.cluster.example.com",namespace="hcp-ns",_id="cluster-1",cluster="mgmt-1"}'
+    values: "0+0x4690"
+  alert_rule_test:
+  - eval_time: 2339m
+    alertname: UJIngressAvailability3d6h
+    exp_alerts: []
+
+# Multiple clusters — only failing cluster alerts, healthy one does not
+- interval: 30s
+  input_series:
+  - series: 'probe_success{job="blackbox-ingress",probe_url="https://apps.cluster-a.example.com",namespace="hcp-ns-a",_id="cluster-a",cluster="mgmt-1"}'
+    values: "0+0x70"
+  - series: 'probe_success{job="blackbox-ingress",probe_url="https://apps.cluster-b.example.com",namespace="hcp-ns-b",_id="cluster-b",cluster="mgmt-1"}'
+    values: "1+0x70"
+  alert_rule_test:
+  - eval_time: 33m
+    alertname: UJIngressAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        long_window: 1h
+        short_window: 5m
+        probe_url: https://apps.cluster-a.example.com
+        namespace: hcp-ns-a
+        _id: cluster-a
+        cluster: mgmt-1
+      exp_annotations:
+        message: "High error budget burn for ingress https://apps.cluster-a.example.com (current value: 1)"
+        runbook_url: https://aka.ms/arohcp-runbook-ingress
+
+# No probe data — no alerts
+- interval: 30s
+  input_series: []
+  alert_rule_test:
+  - eval_time: 33m
+    alertname: UJIngressAvailability1h5m
+    exp_alerts: []
+  - eval_time: 196m
+    alertname: UJIngressAvailability6h30m
+    exp_alerts: []
