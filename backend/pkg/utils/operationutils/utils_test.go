@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-logr/logr/testr"
 	"github.com/tj/assert"
+	"go.uber.org/mock/gomock"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -335,4 +336,85 @@ func TestConvertClusterStatus(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Convert ClusterStateError with OCM4001 during create stays Provisioning", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+		mockCSClient.EXPECT().
+			GetClusterInflightChecks(gomock.Any(), gomock.Any()).
+			Return(&arohcpv1alpha1.InflightCheckList{}, nil)
+
+		clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
+			State(arohcpv1alpha1.ClusterStateError).
+			ProvisionErrorCode(InflightChecksFailedProvisionErrorCode).
+			ProvisionErrorMessage("inflight checks failed").
+			Build()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		op := &api.Operation{
+			Request: api.OperationRequestCreate,
+			Status:  arm.ProvisioningStateAccepted,
+		}
+
+		opState, opError, err := ConvertClusterStatus(ctx, mockCSClient, op, clusterStatus, ocm.InternalID{})
+
+		assert.Equal(t, arm.ProvisioningStateProvisioning, opState)
+		assert.NotNil(t, opError)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Convert ClusterStateError with OCM4001 during update stays Failed", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+		mockCSClient.EXPECT().
+			GetClusterInflightChecks(gomock.Any(), gomock.Any()).
+			Return(&arohcpv1alpha1.InflightCheckList{}, nil)
+
+		clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
+			State(arohcpv1alpha1.ClusterStateError).
+			ProvisionErrorCode(InflightChecksFailedProvisionErrorCode).
+			ProvisionErrorMessage("inflight checks failed").
+			Build()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		op := &api.Operation{
+			Request: api.OperationRequestUpdate,
+			Status:  arm.ProvisioningStateUpdating,
+		}
+
+		opState, opError, err := ConvertClusterStatus(ctx, mockCSClient, op, clusterStatus, ocm.InternalID{})
+
+		assert.Equal(t, arm.ProvisioningStateFailed, opState)
+		assert.NotNil(t, opError)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Convert ClusterStateError with non-OCM4001 during create stays Failed", func(t *testing.T) {
+		clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
+			State(arohcpv1alpha1.ClusterStateError).
+			ProvisionErrorCode("ERR001").
+			ProvisionErrorMessage("some other error").
+			Build()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		op := &api.Operation{
+			Request: api.OperationRequestCreate,
+			Status:  arm.ProvisioningStateAccepted,
+		}
+
+		opState, opError, err := ConvertClusterStatus(ctx, nil, op, clusterStatus, ocm.InternalID{})
+
+		assert.Equal(t, arm.ProvisioningStateFailed, opState)
+		assert.NotNil(t, opError)
+		assert.NoError(t, err)
+	})
 }

@@ -457,6 +457,12 @@ func ConvertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 			if err != nil {
 				return newOperationStatus, opError, err
 			}
+			// During CREATE, keep the operation non-terminal so the controller
+			// continues polling CS. CS may recover once role assignments propagate.
+			// The CreateOperationCompletionDeadline (60 min) provides a backstop.
+			if operation.Request == cosmosstorageutils.OperationRequestCreate {
+				newOperationStatus = arm.ProvisioningStateProvisioning
+			}
 		default:
 			opError = &coreapi.CloudErrorBody{Code: code, Message: message}
 		}
