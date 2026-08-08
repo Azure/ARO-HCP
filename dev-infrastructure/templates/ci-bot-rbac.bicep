@@ -20,6 +20,11 @@ resource botSp 'Microsoft.Graph/servicePrincipals@beta' existing = {
   appId: botApp.appId
 }
 
+// E2E (customer test) subscriptions get the standard test-runner roles
+// (Contributor, RBAC Admin, plus AKS RBAC Cluster Admin when grantAksRbac is set).
+// Key Vault Admin and the global-only data-plane roles (Grafana Admin) are
+// reserved for infrastructure subscriptions, which opt in per-sub below, so
+// isGlobalSubscription and grantKeyVaultAdmin are intentionally always false here.
 module e2eRbac 'ci-bot-rbac-subscription.bicep' = [
   for (subId, index) in e2eSubscriptionIds: {
     name: 'ci-bot-e2e-rbac-${index}'
@@ -28,6 +33,7 @@ module e2eRbac 'ci-bot-rbac-subscription.bicep' = [
       botPrincipalId: botSp.id
       isGlobalSubscription: false
       grantAksRbac: grantAksRbac
+      grantKeyVaultAdmin: false
     }
   }
 ]
@@ -40,6 +46,7 @@ module infraRbac 'ci-bot-rbac-subscription.bicep' = [
       botPrincipalId: botSp.id
       isGlobalSubscription: sub.?isGlobalSubscription ?? false
       grantAksRbac: grantAksRbac
+      grantKeyVaultAdmin: sub.?grantKeyVaultAdmin ?? false
     }
   }
 ]
