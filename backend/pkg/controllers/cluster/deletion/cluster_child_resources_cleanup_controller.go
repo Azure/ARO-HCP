@@ -24,6 +24,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -318,11 +320,20 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 		return nil
 	}
 
+	// Backup schedule desires are managed by the BackupSchedule controller's
+	// deletion path and must not be swept here while that graceful teardown is
+	// in progress.
+	skipBackupDesires := func(_ context.Context, resourceID *azcorearm.ResourceID) (bool, error) {
+		if strings.HasPrefix(resourceID.Name, backup.BackupScheduleDesireNamePrefix) {
+			return false, nil
+		}
+		return true, nil
+	}
 	// extraDeleteGates uses lowercased kubeapplier.*DesireResourceTypeName keys. Types not
 	// in the map are deleted unconditionally.
 	extraDeleteGates := map[string]func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error){
-		// strings.ToLower(kubeapplier.ClusterScopedReadDesireResourceType.String()): c.extraDeleteGateShouldDeleteReadDesire,
-		// strings.ToLower(kubeapplier.ClusterScopedApplyDesireResourceType.String()): c.extraDeleteGateShouldDeleteApplyDesire,
+		strings.ToLower(kubeapplierapi.ClusterScopedApplyDesireResourceType.String()): skipBackupDesires,
+		strings.ToLower(kubeapplierapi.ClusterScopedReadDesireResourceType.String()):  skipBackupDesires,
 	}
 
 	desireCRUD, err := kaClient.UntypedCRUD(*clusterResourceID)
