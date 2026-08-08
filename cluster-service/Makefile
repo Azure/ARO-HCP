@@ -42,30 +42,35 @@ deploy-pr-env-deps:
 		-p MSI_MOCK_CLIENT_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
 		-p MSI_MOCK_PRINCIPAL_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} | oc apply -f -
 	oc process --local -f cspr/orphaned-namespace-cleaner.yaml | oc apply -f -
-	./cspr/deploy-resource-cleaner.sh \
+	az deployment group create \
+		--name resource-cleaner-infra \
 		--resource-group "${RESOURCEGROUP}" \
-		--cx-keyvault "${CX_SECRETS_KV_NAME}" \
-		--mi-keyvault "${CX_MI_KV_NAME}" \
-		--acr-name "${OCP_ACR_NAME}"
+		--parameters ../dev-infrastructure/configurations/resource-cleaner.bicepparam
+	CLEANER_OUTPUTS=$$(az deployment group show \
+		--name resource-cleaner-infra \
+		--resource-group "${RESOURCEGROUP}" \
+		--query 'properties.outputs.{principalId:principalId.value,clientId:clientId.value,tenantId:tenantId.value}' -o json) && \
+	CLEANER_PRINCIPAL_ID=$$(echo "$${CLEANER_OUTPUTS}" | jq -r '.principalId') && \
+	az deployment sub create \
+		--name "resource-cleaner-sub-${RESOURCEGROUP}" \
+		--location "$$(az group show -n "${RESOURCEGROUP}" --query location -o tsv)" \
+		--template-file ../dev-infrastructure/templates/dev-resource-cleaner-subscription.bicep \
+		--parameters principalId="$${CLEANER_PRINCIPAL_ID}" && \
+	AZURE_CLIENT_ID=$$(echo "$${CLEANER_OUTPUTS}" | jq -r '.clientId') \
+	AZURE_TENANT_ID=$$(echo "$${CLEANER_OUTPUTS}" | jq -r '.tenantId') \
+	./cspr/deploy-resource-cleaner.sh \
+		--resource-group "${RESOURCEGROUP}"
 
 cspr-jenkins-kubeconfig:
 	./cspr-kubeconfig.sh cluster-service-admin cluster-service-mgmt ./cspr.kubeconfig
 
 create-pr-env-sp:
-	CLUSTER_ID=$(shell az aks show -g ${RESOURCEGROUP} -n ${AKS_NAME} --query id -o tsv) && \
-	az ad sp create-for-rbac \
-	--display-name "cs-pr-authentication" \
-	--role 'Contributor' \
-	--scopes "$${CLUSTER_ID}"
-	az role assignment create \
-	--role "Key Vault Certificate User" \
-	--assignee "$(shell az ad sp list --display-name cs-pr-authentication --query [0].appId -o tsv)" \
-	--scope "$(shell az keyvault show --name ${SERVICE_KV} --query id -o tsv)"
-	echo "cs-pr-authentication requires 'Microsoft.Authorization/roleAssignments/write' action granted via 'User Access Administrator'. This role assignment requires elevated permissions, please add it in the case of re-creation of this service principal."
-#	az role assignment create \
-#	--role "User Access Administrator" \
-#	--assignee "$(shell az ad sp list --display-name cs-pr-authentication --query [0].appId -o tsv)" \
-#	--scope "$${CLUSTER_ID}"
+	az deployment group create \
+		--name cs-pr-auth-app \
+		--resource-group "${RESOURCEGROUP}" \
+		--parameters ../dev-infrastructure/configurations/cs-pr-auth-app.bicepparam
+	@echo "NOTE: cs-pr-authentication may also need User Access Administrator on the AKS cluster."
+	@echo "This requires elevated permissions and must be assigned manually if the SP is re-created."
 
 local-deploy-provision-shard:
 	@ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \

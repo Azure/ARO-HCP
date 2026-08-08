@@ -6,6 +6,9 @@ param principalIds array
 @description('Whether to grant push access to the ACR')
 param grantPushAccess bool = false
 
+@description('Whether to grant delete access to the ACR independently of push access')
+param grantDeleteAccess bool = false
+
 @description('Whether to grant pull access from the ACR')
 param grantPullAccess bool = false
 
@@ -68,7 +71,7 @@ resource acrPushRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
 ]
 
 resource acrDeleteRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for principalId in principalIds: if (grantPushAccess) {
+  for principalId in principalIds: if (grantPushAccess || grantDeleteAccess) {
     name: guid(acrName, principalId, acrDeleteRoleDefinitionId)
     scope: acrInstance
     properties: {
