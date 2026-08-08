@@ -16,12 +16,3 @@ module rpSvcGeneratedAlerts 'rules/generatedRPServicePrometheusAlertingRules.bic
     severityCeiling: severityCeiling
   }
 }
-
-module rpHcpGeneratedAlerts 'rules/generatedRPHCPPrometheusAlertingRules.bicep' = {
-  name: 'generatedRPHCPPrometheusAlertingRules'
-  params: {
-    azureMonitoring: azureMonitoringWorkspaceId
-    actionGroups: actionGroups
-    severityCeiling: severityCeiling
-  }
-}

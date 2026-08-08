@@ -47,13 +47,13 @@ run-sre-services:
 	go run ./...  --config-file ../../observability/alerts-sre-services.yaml $(EXTRA_FLAGS)
 .PHONY: run-sre-services
 
-run-rp-services:
-	go run ./...  --config-file ../../observability/alerts-rp-services.yaml $(EXTRA_FLAGS)
-.PHONY: run-rp-services
-
 run-rp-hcps:
 	go run ./...  --config-file ../../observability/alerts-rp-hcps.yaml $(EXTRA_FLAGS)
 .PHONY: run-rp-hcps
+
+run-rp-services:
+	go run ./...  --config-file ../../observability/alerts-rp-services.yaml $(EXTRA_FLAGS)
+.PHONY: run-rp-services
 
 run-msft-services:
 	go run ./...  --config-file ../../observability/alerts-msft-services.yaml $(EXTRA_FLAGS)
@@ -80,6 +80,7 @@ ALERT_CONFIGS = \
 	../../observability/alerts-sl-hcps.yaml \
 	../../observability/alerts-sre-hcps.yaml \
 	../../observability/alerts-sre-services.yaml \
+	../../observability/alerts-rp-hcps.yaml \
 	../../observability/alerts-rp-services.yaml \
 	../../observability/alerts-rp-hcps.yaml \
 	../../observability/alerts-msft-services.yaml \

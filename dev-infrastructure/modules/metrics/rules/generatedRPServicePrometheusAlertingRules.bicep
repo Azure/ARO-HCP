@@ -10,8 +10,8 @@ param severityCeiling int = 0
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
 
-resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_access_cluster_slo_error_alerts'
+resource rpSvcArohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'rp_svc_arohcp_access_cluster_slo_error_alerts'
   location: location
   properties: {
     interval: 'PT1M'
@@ -172,8 +172,8 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
   }
 }
 
-resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_access_cluster_saturation_alerts'
+resource rpSvcArohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'rp_svc_arohcp_access_cluster_saturation_alerts'
   location: location
   properties: {
     interval: 'PT1M'
@@ -241,8 +241,8 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
   }
 }
 
-resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_cluster_provision_slo_error_alerts'
+resource rpSvcArohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'rp_svc_arohcp_cluster_provision_slo_error_alerts'
   location: location
   properties: {
     interval: 'PT1M'
@@ -375,8 +375,8 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
   }
 }
 
-resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_nodepool_slo_error_alerts'
+resource rpSvcArohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'rp_svc_arohcp_nodepool_slo_error_alerts'
   location: location
   properties: {
     interval: 'PT1M'
@@ -537,8 +537,8 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
   }
 }
 
-resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_nodepool_saturation_alerts'
+resource rpSvcArohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'rp_svc_arohcp_nodepool_saturation_alerts'
   location: location
   properties: {
     interval: 'PT1M'

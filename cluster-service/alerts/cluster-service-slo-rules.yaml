@@ -389,6 +389,7 @@ spec:
         )
       for: 5m
       labels:
+        component: backend
         long: 6h
         severity: warning
         short: 30m
@@ -402,6 +403,7 @@ spec:
         sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))
       for: 30m
       labels:
+        component: backend
         severity: warning
         slo: api-availability
       annotations:
@@ -432,6 +434,7 @@ spec:
         )
       for: 5m
       labels:
+        component: backend
         long: 6h
         severity: warning
         short: 30m
@@ -444,6 +447,7 @@ spec:
         sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))
       for: 30m
       labels:
+        component: backend
         severity: warning
         slo: api-latency-p99
       annotations:
@@ -474,6 +478,7 @@ spec:
         )
       for: 5m
       labels:
+        component: backend
         long: 6h
         severity: warning
         short: 30m
@@ -486,6 +491,7 @@ spec:
         sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.90))
       for: 30m
       labels:
+        component: backend
         severity: warning
         slo: api-latency-p90
       annotations:
