@@ -1029,6 +1029,9 @@ func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions
 	isCrossMajorDowngrade := highest != nil && desiredVersion.Major < highest.Major
 	if isCrossMajorUpgrade || isCrossMajorDowngrade {
 		if !allowMajorUpgrade {
+			if isCrossMajorDowngrade {
+				return fmt.Errorf("node pool version changes are not supported while the control plane is on a different major version (node pool major version %d vs control plane major version %d)", desiredVersion.Major, highestCPVersion.Major)
+			}
 			return fmt.Errorf("major version changes are not supported")
 		}
 		if isCrossMajorUpgrade {
