@@ -49,33 +49,13 @@ var _ = Describe("FIPS Mode Support", func() {
 				tc := framework.NewTestContext()
 
 				By("checking API version availability")
-				if !framework.IsDevelopmentEnvironment() {
-					resourcesFactory, err := tc.GetARMResourcesClientFactory(ctx)
-					Expect(err).NotTo(HaveOccurred(), "failed to get ARM resources client factory")
-
-					providersClient := resourcesFactory.NewProvidersClient()
-					provider, err := providersClient.Get(ctx, "Microsoft.RedHatOpenShift", nil)
-					Expect(err).NotTo(HaveOccurred(), "failed to get Microsoft.RedHatOpenShift resource provider")
-
-					available := false
-					for _, rt := range provider.ResourceTypes {
-						if rt.ResourceType == nil || !strings.EqualFold(*rt.ResourceType, "hcpOpenShiftClusters") {
-							continue
-						}
-						for _, v := range rt.APIVersions {
-							if v != nil && strings.EqualFold(*v, apiVersion) {
-								available = true
-								break
-							}
-						}
+				apiAvailable, err := tc.IsHCPAPIVersionAvailable(ctx, apiVersion)
+				Expect(err).NotTo(HaveOccurred(), "failed to check API version availability")
+				if !apiAvailable {
+					if time.Now().After(framework.V20260630PreviewDeploymentDeadline) {
+						Fail(fmt.Sprintf("API version %s should be fully available by %s", apiVersion, framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
 					}
-					if !available {
-						if time.Now().After(framework.V20260630PreviewDeploymentDeadline) {
-							Fail(fmt.Sprintf("API version %s should be available for Microsoft.RedHatOpenShift/hcpOpenShiftClusters by %s", apiVersion, framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
-						}
-						Skip(fmt.Sprintf("API version %s is not available for Microsoft.RedHatOpenShift/hcpOpenShiftClusters in this environment", apiVersion))
-					}
-					GinkgoLogr.Info("API version available", "version", apiVersion)
+					Skip(fmt.Sprintf("API version %s is not fully available in this environment", apiVersion))
 				}
 
 				if tc.UsePooledIdentities() {
@@ -117,6 +97,12 @@ var _ = Describe("FIPS Mode Support", func() {
 					clusterResource,
 					framework.ClusterCreationTimeout,
 				)
+				if isAPINotDeployedError(err) {
+					if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
+						Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
+					}
+					Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
+				}
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with cryptoRestrictions set to FIPS", customerClusterName)
 
 				By("creating the node pool with FIPS enabled machines")

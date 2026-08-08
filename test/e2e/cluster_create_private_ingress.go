@@ -51,8 +51,18 @@ var _ = Describe("Customer", func() {
 
 			tc := framework.NewTestContext()
 
+			By("checking API version availability")
+			apiAvailable, err := tc.IsHCPAPIVersionAvailable(ctx, "2026-06-30-preview")
+			Expect(err).NotTo(HaveOccurred(), "failed to check API version availability")
+			if !apiAvailable {
+				if time.Now().After(framework.V20260630PreviewDeploymentDeadline) {
+					Fail(fmt.Sprintf("API version 2026-06-30-preview should be fully available by %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
+				}
+				Skip("API version 2026-06-30-preview is not fully available in this environment")
+			}
+
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				err = tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
