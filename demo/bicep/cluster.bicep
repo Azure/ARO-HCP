@@ -97,6 +97,23 @@ resource hcpClusterApiProviderRoleSubnetAssignment 'Microsoft.Authorization/role
   }
 }
 
+// Security Reader: View permissions for Microsoft Defender for Cloud.
+// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/security#security-reader
+var securityReaderRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '39bc4728-0917-49c7-9d2c-d95423bc2eb4'
+)
+
+resource clusterApiAzureSecurityReaderRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, clusterApiAzureMi.id, securityReaderRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: clusterApiAzureMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: securityReaderRoleId
+  }
+}
+
 resource serviceManagedIdentityReaderOnClusterApiAzureMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, clusterApiAzureMi.id)
   scope: clusterApiAzureMi
