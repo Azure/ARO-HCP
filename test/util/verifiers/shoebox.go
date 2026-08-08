@@ -89,3 +89,43 @@ func VerifyShoeboxLogs(client *armstorage.BlobContainersClient, resourceGroupNam
 		storageAccountName: storageAccountName,
 	}
 }
+
+type verifyShoeboxLogCategoriesImpl struct {
+	verifyShoeboxLogsImpl
+	categories []string
+}
+
+func (v verifyShoeboxLogCategoriesImpl) Name() string {
+	return "VerifyShoeboxLogCategories"
+}
+
+func (v verifyShoeboxLogCategoriesImpl) Verify(ctx context.Context) error {
+	containers, err := v.listInsightsContainers(ctx)
+	if err != nil {
+		return err
+	}
+	present := make(map[string]bool, len(containers))
+	for _, container := range containers {
+		present[container] = true
+	}
+	var missing []string
+	for _, category := range v.categories {
+		if !present["insights-logs-"+strings.ToLower(category)] {
+			missing = append(missing, category)
+		}
+	}
+	if len(missing) > 0 {
+		return &retryableError{err: fmt.Errorf("missing insights-logs containers for categories %v in storage account %s (found: %v)", missing, v.storageAccountName, containers)}
+	}
+	return nil
+}
+
+// VerifyShoeboxLogCategories creates a verifier that checks that each of the
+// given diagnostic log categories has a corresponding insights-logs-<category>
+// blob container in the storage account.
+func VerifyShoeboxLogCategories(client *armstorage.BlobContainersClient, resourceGroupName, storageAccountName string, categories []string) verifyShoeboxLogCategoriesImpl {
+	return verifyShoeboxLogCategoriesImpl{
+		verifyShoeboxLogsImpl: VerifyShoeboxLogs(client, resourceGroupName, storageAccountName),
+		categories:            categories,
+	}
+}
