@@ -115,6 +115,7 @@ type completedControllerOptions struct {
 	nodeHealth               *nodehealth.Controller
 	resourceWatcher          *controller.ResourceWatcher
 	podWatcher               *controller.PodWatcher
+	deploymentWatcher        *controller.DeploymentWatcher
 	configMapWatcher         *controller.ConfigMapWatcher
 	kubeInformers            kubeinformers.SharedInformerFactory
 	ksmKubeInformers         kubeinformers.SharedInformerFactory
@@ -194,6 +195,11 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	podWatcher, err := controller.NewPodWatcher(clusterWideKubeInformers.Core().V1().Pods())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pod watcher: %w", err)
+	}
+
+	deploymentWatcher, err := controller.NewDeploymentWatcher(clusterWideKubeInformers.Apps().V1().Deployments())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create deployment watcher: %w", err)
 	}
 
 	cmWatcherInformers := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClientset, 0,
@@ -321,6 +327,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			nodeHealth:               nodeHealth,
 			resourceWatcher:          resourceWatcher,
 			podWatcher:               podWatcher,
+			deploymentWatcher:        deploymentWatcher,
 			configMapWatcher:         configMapWatcher,
 			kubeInformers:            kubeInformers,
 			ksmKubeInformers:         ksmKubeInformers,
@@ -491,6 +498,14 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 						defer utilruntime.HandleCrash()
 						if err := o.podWatcher.Run(ctx); err != nil {
 							logger.Error(err, "pod watcher failed")
+						}
+					}()
+				}
+				if o.deploymentWatcher != nil {
+					go func() {
+						defer utilruntime.HandleCrash()
+						if err := o.deploymentWatcher.Run(ctx); err != nil {
+							logger.Error(err, "deployment watcher failed")
 						}
 					}()
 				}
