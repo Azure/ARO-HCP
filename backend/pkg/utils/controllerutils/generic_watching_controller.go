@@ -42,6 +42,13 @@ type GenericSyncer[T comparable] interface {
 	MakeKey(resourceID *azcorearm.ResourceID) T
 }
 
+// AfterEnqueuer allows scheduling a workqueue item for processing after an
+// explicit delay. Validation controllers use this to implement
+// EarliestRetryAfter semantics.
+type AfterEnqueuer interface {
+	EnqueueAfter(keyObj any, duration time.Duration)
+}
+
 type Notifier interface {
 	AddEventHandlerWithOptions(handler cache.ResourceEventHandler, options cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error)
 }
@@ -75,6 +82,14 @@ func newGenericWatchingController[T comparable](name string, resourceType azcore
 	}
 
 	return c
+}
+
+func (c *genericWatchingController[T]) EnqueueAfter(keyObj any, duration time.Duration) {
+	key, ok := keyObj.(T)
+	if !ok {
+		return
+	}
+	c.queue.AddAfter(key, duration)
 }
 
 func (c *genericWatchingController[T]) SyncOnce(ctx context.Context, keyObj any) error {
