@@ -136,6 +136,10 @@ Incomplete list:
 
 The github.com/Azure/ARO-Tools repo is also a dependency and changes can be suggested for it.
 
+## Architectural Boundaries
+
+- **The frontend must never access kube-applier, `ReadDesireLister`, or management cluster APIs directly.** All management-cluster state needed by the frontend or admission code must be mirrored through `ServiceProviderCluster` by the backend. This architectural boundary prevents the frontend from having credentials or network access to management clusters. Concretely: the backend (which legitimately watches management clusters) observes the needed state and writes a distilled form onto the `ServiceProviderCluster` document in Cosmos; the frontend prefetches `ServiceProviderCluster` and admission reads it from the admission context — never from a live management-cluster client. For example, `admitClusterVersionID` validates a version change against `ServiceProviderCluster.Status.DesiredVersionChannels`, which the backend `ControlPlaneActiveVersions` controller mirrors from the observed HostedCluster. See `internal/admission/CLAUDE.md` for the full rule.
+
 ## Additional Build, Configuration and Deployment Info
 
 ### Go Workspace

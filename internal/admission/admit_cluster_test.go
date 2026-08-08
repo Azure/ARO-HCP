@@ -24,6 +24,7 @@ import (
 	"github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilsclock "k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
@@ -1133,6 +1134,168 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 			}
 
 			errs := AdmitCluster(ctx, admissionContext, operation.Operation{Type: operation.Create}, tt.newCluster, nil)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+// TestAdmitClusterVersionID covers the version-channel admission check that
+// fires when a cluster's version.id is updated. The check requires the target
+// update channel ("<channelGroup>-<major>.<minor>") to be present in the
+// associated HostedCluster's observed status.version.desired.channels, which the
+// backend mirrors onto ServiceProviderCluster.Status.DesiredVersionChannels. The
+// requested version's major.minor is derived from its ID, so patch, nightly and
+// pre-release IDs all resolve to their release-line channel.
+func TestAdmitClusterVersionID(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	// Matches the path admitClusterCustomerProperties passes down in production
+	// (field.NewPath("properties").Child("version")).
+	fldPath := field.NewPath("properties", "version")
+
+	spcWithChannels := func(channels ...string) *coreapi.ServiceProviderCluster {
+		return &coreapi.ServiceProviderCluster{
+			Status: coreapi.ServiceProviderClusterStatus{
+				DesiredVersionChannels: channels,
+			},
+		}
+	}
+
+	tests := []struct {
+		name         string
+		op           operation.Operation
+		oldVersion   *coreapi.VersionProfile
+		newVersion   *coreapi.VersionProfile
+		spc          *coreapi.ServiceProviderCluster // nil models a missing/unmirrored ServiceProviderCluster
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "version.id update with matching channel passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.18", ChannelGroup: "stable"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			spc:          spcWithChannels("stable-4.18", "candidate-4.19", "stable-4.19"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:       "version.id update with no matching channel is rejected",
+			op:         operation.Operation{Type: operation.Update},
+			oldVersion: &coreapi.VersionProfile{ID: "4.18", ChannelGroup: "stable"},
+			newVersion: &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			spc:        spcWithChannels("stable-4.20", "candidate-4.20"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: `no upgrade path to update channel "stable-4.19"`},
+			},
+		},
+		{
+			// Micro/patch version: the requested channel is keyed by major.minor,
+			// so "4.20.8" must resolve to the "stable-4.20" channel and pass.
+			name:         "micro version resolves to major.minor channel and passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.20.8", ChannelGroup: "stable"},
+			spc:          spcWithChannels("stable-4.20"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Micro version whose major.minor channel is absent is rejected; the
+			// error names the derived "stable-4.20" channel, not the raw "4.20.8".
+			name:       "micro version with no matching major.minor channel is rejected",
+			op:         operation.Operation{Type: operation.Update},
+			oldVersion: &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			newVersion: &coreapi.VersionProfile{ID: "4.20.8", ChannelGroup: "stable"},
+			spc:        spcWithChannels("stable-4.19"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: `no upgrade path to update channel "stable-4.20"`},
+			},
+		},
+		{
+			// Nightly pre-release: "5.0.0-0.nightly-..." must resolve to "5.0".
+			name:         "nightly version resolves to major.minor channel and passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "candidate"},
+			newVersion:   &coreapi.VersionProfile{ID: "5.0.0-0.nightly-2026-08-05-123456", ChannelGroup: "candidate"},
+			spc:          spcWithChannels("candidate-5.0"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:       "nightly version with no matching major.minor channel is rejected",
+			op:         operation.Operation{Type: operation.Update},
+			oldVersion: &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "candidate"},
+			newVersion: &coreapi.VersionProfile{ID: "5.0.0-0.nightly-2026-08-05-123456", ChannelGroup: "candidate"},
+			spc:        spcWithChannels("candidate-4.19"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: `no upgrade path to update channel "candidate-5.0"`},
+			},
+		},
+		{
+			// Pre-release: "4.21.0-rc.1" must resolve to "4.21".
+			name:         "pre-release version resolves to major.minor channel and passes",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.20", ChannelGroup: "fast"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.21.0-rc.1", ChannelGroup: "fast"},
+			spc:          spcWithChannels("fast-4.21"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Fail open: the ServiceProviderCluster (and thus the channel mirror)
+			// is not available, so the channel check cannot run and must not block.
+			// The missing-prefetch condition is separately surfaced as an
+			// InternalError by the version-skew check in admitClusterVersionProfile.
+			name:         "version.id update with missing service provider cluster skips (fail open until synced)",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.18", ChannelGroup: "stable"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			spc:          nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			// Fail open: the backend has not yet mirrored any channels, so we
+			// cannot validate the requested channel and must not block the update.
+			name:         "version.id update with empty channel list skips (fail open until synced)",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.18", ChannelGroup: "stable"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			spc:          spcWithChannels(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "unchanged version.id is a no-op",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			spc:          spcWithChannels(), // no channels present, but unchanged version is never validated
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "create operation is a no-op",
+			op:           operation.Operation{Type: operation.Create},
+			oldVersion:   nil,
+			newVersion:   &coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+			spc:          nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "empty channel group skips the check",
+			op:           operation.Operation{Type: operation.Update},
+			oldVersion:   &coreapi.VersionProfile{ID: "4.18"},
+			newVersion:   &coreapi.VersionProfile{ID: "4.19"},
+			spc:          spcWithChannels("stable-4.20"),
+			expectErrors: []utils.ExpectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			admissionContext := &ClusterAdmissionContext{
+				ServiceProviderCluster: tt.spc,
+			}
+
+			errs := admitClusterVersionID(ctx, admissionContext, tt.op, fldPath, tt.newVersion, tt.oldVersion)
 
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})

@@ -252,6 +252,16 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 // ServiceProviderCluster and the list of node pools (plus their service-provider
 // records) so admission can validate version skew without hitting the DB itself.
 // On CREATE pass a nil clusterResourceID — no prior state exists to prefetch.
+//
+// Architectural rule: the frontend must NEVER reach the management cluster
+// directly (no kube-applier, no ReadDesireLister, no Maestro, no HostedCluster
+// Kubernetes API). Everything admission needs about management-cluster state
+// must be mirrored by the backend onto the ServiceProviderCluster document and
+// prefetched here from Cosmos. For example, the observed HostedCluster's
+// status.version.desired.channels is mirrored onto
+// ServiceProviderCluster.Status.DesiredVersionChannels by the backend and read
+// from there by admission — the frontend never talks to the management cluster
+// to obtain it. See internal/admission/CLAUDE.md.
 func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.Operation, subscription *coreapi.Subscription, originalCluster *coreapi.HCPOpenShiftCluster, clusterResourceID *azcorearm.ResourceID) (*admission.ClusterAdmissionContext, error) {
 	if subscription == nil {
 		return nil, fmt.Errorf("subscription is required for admission context")
