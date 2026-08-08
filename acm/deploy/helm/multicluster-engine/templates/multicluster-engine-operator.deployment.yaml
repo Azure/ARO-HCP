@@ -90,7 +90,7 @@ spec:
         - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:eed71e45db6887c28673889e26ec85c154784503bfdd1285819d34f2001971cf'
         - name: OPERAND_IMAGE_OPENSHIFT_HIVE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hive-rhel9@sha256:2cf43c3c09bf18c5b8afb103bb5c537425b2ed58e7441ce603f58b5a79bf5109'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hive-rhel9@sha256:0db6358cb69c2239116abdd08ceb0221963ba4452f1d33caac81afd8d889d890'
         - name: OPERAND_IMAGE_HYPERSHIFT_ADDON_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-addon-rhel9-operator@sha256:9ceabb4221c5ed28faea1a4beca8613818cd734b6d2ceff7c37d302a7d838b94'
         - name: OPERAND_IMAGE_HYPERSHIFT_CLI
@@ -134,12 +134,12 @@ spec:
         - name: OPERAND_IMAGE_POSTGRESQL_13
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/postgresql-13@sha256:97b64c18a32944b86fd1a118aa0d1aa04ff1fad8068c3c20f6e94af24712ff36'
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:15d53407c948f2726d6e793bb6d08c1095eaa1d6353ed79e6e7d3beb33868e05'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:fdbd4593ca3c04c69db3081e77fc2daa25eb449110912ab5c48f16fa20e603de'
         - name: OPERATOR_VERSION
           value: 2.11.5
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
-        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:15d53407c948f2726d6e793bb6d08c1095eaa1d6353ed79e6e7d3beb33868e05'
+        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:fdbd4593ca3c04c69db3081e77fc2daa25eb449110912ab5c48f16fa20e603de'
         livenessProbe:
           httpGet:
             path: /healthz
