@@ -1,0 +1,13 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('containerLogs')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where container_name == 'mgmt-agent-controller'
+| where tostring(log.msg) == 'resource event'
+| where tostring(log.object.kind) == 'ManagedCluster'
+| where tostring(log.name) == '{{ .ClusterID }}'
+| summarize content=take_any(log.object), observedTime=take_any(timestamp) by event=tostring(log.event)
+| top 1 by observedTime desc
+| mv-expand condition = content.status.conditions
+| project observedTime, type=tostring(condition.type), status=tostring(condition.status), reason=tostring(condition.reason), message=tostring(condition.message), lastTransitionTime=todatetime(condition.lastTransitionTime)
