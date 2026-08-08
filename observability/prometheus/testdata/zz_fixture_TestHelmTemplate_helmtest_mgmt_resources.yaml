@@ -67727,6 +67727,46 @@ data:
             type: StateSet
           help: Azure KMS configuration validity condition
           name: valid_azure_kms_config
+      - groupVersionKind:
+          group: velero.io
+          kind: Backup
+          version: v1
+        labelsFromPath:
+          name:
+          - metadata
+          - name
+          namespace:
+          - metadata
+          - namespace
+          schedule:
+          - metadata
+          - labels
+          - velero.io/schedule-name
+        metricNamePrefix: veleroBackup
+        metrics:
+        - each:
+            stateSet:
+              labelName: phase
+              list:
+              - New
+              - Queued
+              - ReadyToStart
+              - FailedValidation
+              - InProgress
+              - WaitingForPluginOperations
+              - WaitingForPluginOperationsPartiallyFailed
+              - Finalizing
+              - FinalizingPartiallyFailed
+              - Completed
+              - PartiallyFailed
+              - Failed
+              - Deleting
+              path:
+              - status
+              - phase
+            type: StateSet
+          help: Backup phase
+          name: phase
 ---
 # Source: hcp-prometheus/templates/ama-metrics-settings-configmap.yaml
 kind: ConfigMap
@@ -67970,6 +68010,13 @@ rules:
   - hypershift.openshift.io
   resources:
   - hostedclusters
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - backups
   verbs:
   - list
   - watch
