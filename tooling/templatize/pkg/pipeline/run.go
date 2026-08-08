@@ -929,6 +929,9 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 		output := buf.String()
 		fmt.Println(output)
 		return ShellOutput(output), nil, nil
+	case *types.SafeFlyStep:
+		logger.Info("SafeFly submission requires a live EV2 rollout, skipping in templatize", "step", step.StepName())
+		return nil, nil, nil
 	case *types.SecretSyncStep:
 		if err := runSecretSyncStep(step, ctx, options); err != nil {
 			return nil, nil, fmt.Errorf("error running secret sync Step, %v", err)
