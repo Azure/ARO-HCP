@@ -22,6 +22,7 @@ bin/envtest
 **/*.sha256
 CLAUDE.local.md
 .claude/*.local.json
+**/SKILL.local.md
 go.work.sum
 .step-cache
 .graph.dot
