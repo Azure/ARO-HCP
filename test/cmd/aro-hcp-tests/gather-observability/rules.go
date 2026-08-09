@@ -22,6 +22,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/prometheusrulegroups/armprometheusrulegroups"
 )
 
@@ -54,6 +55,30 @@ func fetchAlertRules(ctx context.Context, cred azcore.TokenCredential, workspace
 	for name := range seen {
 		rules = append(rules, name)
 	}
+	slices.Sort(rules)
+	return rules, nil
+}
+
+func fetchMetricAlertRules(ctx context.Context, cred azcore.TokenCredential, subscriptionID, resourceGroup string) ([]string, error) {
+	client, err := armmonitor.NewMetricAlertsClient(subscriptionID, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metric alerts client: %w", err)
+	}
+
+	var rules []string
+	pager := client.NewListByResourceGroupPager(resourceGroup, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list metric alert rules: %w", err)
+		}
+		for _, alert := range page.Value {
+			if alert.Name != nil && *alert.Name != "" {
+				rules = append(rules, *alert.Name)
+			}
+		}
+	}
+
 	slices.Sort(rules)
 	return rules, nil
 }

@@ -18,17 +18,19 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/go-logr/logr"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 const (
-	workspaceSvc = "svc"
-	workspaceHcp = "hcp"
+	workspaceSvc   = "svc"
+	workspaceHcp   = "hcp"
+	workspaceInfra = "infra"
 )
 
 type workspaceData struct {
@@ -38,7 +40,7 @@ type workspaceData struct {
 	FiredAlerts  []alert
 }
 
-func fetchWorkspaceData(ctx context.Context, cred azcore.TokenCredential, wsType string, workspaceResourceID azcorearm.ResourceID, start, end time.Time, severityThreshold int, knownIssues []knownIssue) (*workspaceData, error) {
+func fetchWorkspaceData(ctx context.Context, cred azcore.TokenCredential, wsType string, workspaceResourceID azcorearm.ResourceID, allAlerts []alert, severityThreshold int, knownIssues []knownIssue) (*workspaceData, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
@@ -55,12 +57,6 @@ func fetchWorkspaceData(ctx context.Context, cred azcore.TokenCredential, wsType
 		return nil, fmt.Errorf("failed to fetch alert rules: %w", err)
 	}
 	logger.Info("fetched alert rules", "workspace", wsType, "count", len(rules))
-
-	scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", workspaceResourceID.SubscriptionID, workspaceResourceID.ResourceGroupName)
-	allAlerts, err := fetchAlerts(ctx, cred, scope, start, end)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch alerts: %w", err)
-	}
 
 	var alerts []alert
 	for _, a := range allAlerts {
@@ -80,6 +76,47 @@ func fetchWorkspaceData(ctx context.Context, cred azcore.TokenCredential, wsType
 		AlertRules:   rules,
 		FiredAlerts:  alerts,
 	}, nil
+}
+
+const azureMonitorResourceType = "microsoft.monitor/accounts"
+
+func buildInfraAlertData(allAlerts []alert, metricAlertRules []string, severityThreshold int, knownIssues []knownIssue) *workspaceData {
+	var alerts []alert
+	for _, a := range allAlerts {
+		if isWorkspaceTargeted(a) {
+			continue
+		}
+		a.Metadata.MonitoringWorkspaceType = workspaceInfra
+		alerts = append(alerts, a)
+	}
+
+	alerts = filterAlertsBySeverity(alerts, severityThreshold)
+	alerts = classifyAlerts(alerts, knownIssues)
+
+	return &workspaceData{
+		Type:        workspaceInfra,
+		AlertRules:  metricAlertRules,
+		FiredAlerts: alerts,
+	}
+}
+
+func isWorkspaceTargeted(a alert) bool {
+	if a.Metadata.MonitoringWorkspace == "" {
+		return false
+	}
+	targetID, err := azcorearm.ParseResourceID(a.Metadata.MonitoringWorkspace)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(targetID.ResourceType.String(), azureMonitorResourceType)
+}
+
+func uniqueResourceGroups(workspaces map[string]azcorearm.ResourceID) sets.Set[string] {
+	result := sets.New[string]()
+	for _, ws := range workspaces {
+		result.Insert(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", ws.SubscriptionID, ws.ResourceGroupName))
+	}
+	return result
 }
 
 func alertBelongsToWorkspace(a alert, ws azcorearm.ResourceID) bool {
