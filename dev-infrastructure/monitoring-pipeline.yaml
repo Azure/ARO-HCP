@@ -56,6 +56,11 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: hcpAzureMonitoringWorkspaceId
+    - name: rpCosmosDbAccountId
+      input:
+        resourceGroup: regional
+        step: output
+        name: rpCosmosDbAccountId
     - name: actionGroupSL
       input:
         resourceGroup: kusto

@@ -3,6 +3,7 @@ using '../templates/monitoring.bicep'
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 param hcpAzureMonitoringWorkspaceId = '__hcpAzureMonitoringWorkspaceId__'
 param region = '{{ .region }}'
+param rpCosmosDbAccountId = '__rpCosmosDbAccountId__'
 
 param actionGroupSL = '__actionGroupSL__'
 param actionGroupSRE = '__actionGroupSRE__'

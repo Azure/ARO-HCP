@@ -421,8 +421,7 @@ defaults:
       # 2M initial limit, bump per env when hitting 50% utilization (Azure requires <200% increase)
       pollInterval: 30m
     alertRuleOwningTeamTag: ""
-    # alertsEnabled: disables the Azure Action Group resource (affects all lanes: SRE, SL, RP, MSFT)
-    alertsEnabled: false
+    alertsEnabled: true
     alertSeverityCeiling: 0
     eventHubAlerting:
       enabled: false
