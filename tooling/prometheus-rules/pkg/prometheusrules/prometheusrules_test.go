@@ -148,7 +148,7 @@ prometheusRules:
 
 		completed, err := validated.Complete()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "promtool not found at")
+		assert.Contains(t, err.Error(), "unable to find promtool binary")
 		assert.Nil(t, completed)
 	})
 

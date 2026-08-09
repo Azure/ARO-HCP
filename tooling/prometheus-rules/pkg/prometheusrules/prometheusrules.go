@@ -15,6 +15,7 @@
 package prometheusrules
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 
@@ -75,18 +76,24 @@ type ValidatedOptions struct {
 }
 
 func (o *ValidatedOptions) Complete() (*Options, error) {
+	var validationErrors []error
+
 	promtoolPath := o.PromtoolPath
 	if !o.SkipTests {
 		resolved, err := exec.LookPath(o.PromtoolPath)
 		if err != nil {
-			return nil, fmt.Errorf("promtool not found at %q: %w", o.PromtoolPath, err)
+			validationErrors = append(validationErrors, fmt.Errorf("unable to find promtool binary: %w", err))
 		}
 		promtoolPath = resolved
 	}
 
 	gen := internal.NewOptions()
 	if err := gen.Complete(o.ConfigFile, promtoolPath); err != nil {
-		return nil, fmt.Errorf("could not complete options: %w", err)
+		validationErrors = append(validationErrors, fmt.Errorf("could not complete options: %w", err))
+	}
+
+	if len(validationErrors) > 0 {
+		return nil, errors.Join(validationErrors...)
 	}
 	return &Options{
 		completedOptions: &completedOptions{
