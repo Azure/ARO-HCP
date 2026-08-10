@@ -96,7 +96,7 @@ func GetCachedCSRForSystemAdminCredentialRequest(
 func GetCachedCertificateRevocationRequestForSystemAdminCredentialRevocation(
 	ctx context.Context,
 	readDesireLister dblisters.ReadDesireLister,
-	subscriptionName, resourceGroupName, clusterName, revocationName, revokeOpSuffix string,
+	subscriptionName, resourceGroupName, clusterName, revocationName string,
 ) (*certificatesv1alpha1.CertificateRevocationRequest, error) {
 	desireName := ReadDesireNameForSystemAdminCredentialRequestRevocation()
 	readDesire, err := readDesireLister.GetForSystemAdminCredentialRevocation(ctx, subscriptionName, resourceGroupName, clusterName, revocationName, desireName)

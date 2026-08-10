@@ -95,7 +95,7 @@ func (c *revocationCompletion) SyncOnce(ctx context.Context, key controllerutils
 	if !meta.IsStatusConditionTrue(revocation.Status.Conditions, coreapi.SystemAdminCredentialRevocationConditionCertificatesRevoked) {
 		cachedCRR, err := kubeapplierhelpers.GetCachedCertificateRevocationRequestForSystemAdminCredentialRevocation(
 			ctx, c.readDesireLister,
-			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.RevocationName, revocation.Spec.RevokeOpSuffix)
+			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.RevocationName)
 		if err != nil {
 			return utils.TrackError(err)
 		}
