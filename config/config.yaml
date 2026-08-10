@@ -180,7 +180,7 @@ defaults:
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:dea4ec46b0d97261cedd62ab6235e6aa6002e5aac8fab87b80d41e57f9658f82 # 20260802.1 (2026-08-02 03:25)
+      digest: sha256:b1473b04f721c0e2a44bc7bc09b6ce3d0e31fd93f7dbaa4533fd656bb1135c92 # 20260809.1 (2026-08-09 03:24)
     k8s:
       namespace: monitoring
       serviceAccountName: ke-serviceaccount
@@ -376,7 +376,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:99bf7bd6a156e9deb3cbf943345710d64c621f9600d62666c3f9be8481f7da3a # 9bf009ae8f273b5ab54788e88e68ac325b6115d8 (2026-08-07 19:53)
+      digest: sha256:d79597fbc15abf7956c1c8ccfb0aa28014fc8d5b65c6bb2fc2cdbe1b24d8897e # 1e6d2f04df184505f21eedeff4b7090812ca1eb4 (2026-08-10 12:40)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -476,15 +476,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:a611f6c4f62b7f9a281bda0ae7390264e8f4be21f4751710e1feb90956ffad23 # 1.6.1 (2026-08-04 18:27)
+      digest: sha256:6772a276c45f9f5831607dc8188bf6e5adbeb303abcb483c911bdf504f92d847 # 1.6.1 (2026-08-10 08:28)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:6c9a836847b7992bf4b62e4abbcf1abca396c8766b4736cbeecf43c85921dfeb # 1.6.1 (2026-08-04 18:34)
+      digest: sha256:dced4f4b66d87ed0b1542ef15c4e59b5c7542c96dd660f367632a5cddfae4d7b # 1.6.1 (2026-08-10 08:30)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:1e959bed1cbfaf165fef00818235110674327c568d93fafa2027233aa331a9cc # 1.6.1 (2026-08-04 18:37)
+      digest: sha256:edb3971e68f5545fa3dc80708581ee6701854504b2c42ec64f500797b693dcd9 # 1.6.1 (2026-08-10 08:31)
   # SVC cluster specifics
   svc:
     subscription:
@@ -1036,18 +1036,18 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:6e09b7f2cf4091f074569bfcd645cced1375395b2ce111cfe3f2cb659afdd242 # v2.16.3-557 (2026-08-07 18:17)
+        digest: sha256:3b287baf421e9e10303e0e85c6e3f1d2c3cf9589fb622136b3daaf46098e29d5 # v2.16.3-559 (2026-08-10 13:36)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:7699b62af13be17cfb3022054e83cbc8fa68b92c886599a17e63fa5fced15c58 # v2.11.5-604 (2026-08-07 18:21)
+        digest: sha256:f963866fc6bce1af9d777564d7e4a0f968b8bbd7846f123b5d562e5b8fabeb8b # v2.11.5-607 (2026-08-10 13:33)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:d7f643f4f1a1f44cbe5d6adb71ec89931c0c1c0a5ad704e341a2b3a62d8ba046 # 20f523f160c2317dcc0d40b6959e86321cb3d3dc (2026-08-06 07:47)
+      digest: sha256:c6ab0e25331fd54603eab42b3405836ede08b675a849f7126656e854a7aef618 # b825c0ba330e97d41413ac0deeec1dacbcba8793 (2026-08-10 14:15)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1109,7 +1109,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:a71e05da9a3d0e56ad1e8e6f957c1546b3020a47ce46d0614025c12c2c7dce8b # d86b9c0 (2026-08-07 21:27)
+        digest: sha256:99f3e03124cbcd02c26e1e163b88cc9ca99a97889cc6ae39ee7177a588be101a # abd32d8 (2026-08-10 13:41)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
