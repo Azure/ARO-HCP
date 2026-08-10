@@ -1105,6 +1105,12 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	return nil
 }
 
+// assembleAdminCredentialFromCosmos looks up the SystemAdminCredentialRequest
+// Cosmos document pointed to by Operation.InternalID and assembles a kubeconfig
+// from its signed certificate and the serving CA bundle from the
+// ServiceProviderCluster. The kubeconfig does not include the private key;
+// the service never has access to it for security reasons. The caller must
+// combine this kubeconfig with the private key they hold client-side.
 func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *coreapi.Operation) (*coreapi.HCPOpenShiftClusterAdminCredential, error) {
 	if op.SystemAdminCredentialRequest == nil || op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID == nil {
 		return nil, fmt.Errorf("operation has no SystemAdminCredentialRequestResourceID")
