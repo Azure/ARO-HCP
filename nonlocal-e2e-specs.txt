@@ -14,5 +14,6 @@
   "should confirm the HCP cluster is deleted (not found)",
   "should create an HCP cluster and validate TLS certificates",
   "should deny pods with images from disallowed registries",
+  "should not contain any series that the drop rules target",
   "validates node pool stability after full region upgrade"
 ]
