@@ -769,7 +769,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	nodePoolCustomerNSGValidationController := nodepoolvalidation.NewNodePoolValidationController(
 		validationutils.UserProvidedNodePoolNetworkSecurityGroupValidation(b.options.SMIClientBuilder),
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		serviceProviderNodePoolLister,
 		backendInformers,

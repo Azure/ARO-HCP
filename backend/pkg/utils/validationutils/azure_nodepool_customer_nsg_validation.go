@@ -26,7 +26,6 @@ import (
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // outboundNSGPorts are TCP ports checked on the worker-subnet NSG (egress).
@@ -68,20 +67,27 @@ func UserProvidedNodePoolNetworkSecurityGroupValidation(smiClientBuilder azurecl
 	}
 }
 
+var _ NodePoolValidation = (*AzureCustomerNSGValidation)(nil)
+
 func (v *AzureCustomerNSGValidation) Name() string {
 	return "AzureCustomerNSGValidation"
 }
 
 // Validate checks outbound rules on the worker-subnet NSG and inbound rules
 // on the vnet-integration-subnet NSG. Each subnet is skipped when it has no NSG.
-func (v *AzureCustomerNSGValidation) Validate(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, _ *coreapi.Subscription, nodePool *coreapi.HCPOpenShiftClusterNodePool) error {
+func (v *AzureCustomerNSGValidation) Validate(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, _ *coreapi.Subscription, nodePool *coreapi.HCPOpenShiftClusterNodePool) ValidationResult {
 	smiResourceID := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 	clusterIdentityURL := cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL
 	subscriptionID := cluster.ID.SubscriptionID
 
 	subnetsClient, err := v.smiClientBuilder.SubnetsClient(ctx, clusterIdentityURL, smiResourceID, subscriptionID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get subnets client as service managed identity: %w", err))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify customer network security group rules.",
+			fmt.Sprintf("failed to get subnets client as service managed identity: %v", err),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 
 	// Lazily create the NSG client only when a subnet has an NSG attached,
@@ -93,7 +99,7 @@ func (v *AzureCustomerNSGValidation) Validate(ctx context.Context, cluster *core
 		}
 		client, err := v.smiClientBuilder.NetworkSecurityGroupsClient(ctx, clusterIdentityURL, smiResourceID, subscriptionID)
 		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("failed to get network security groups client as service managed identity: %w", err))
+			return nil, fmt.Errorf("failed to get network security groups client as service managed identity: %w", err)
 		}
 		nsgClient = client
 		return nsgClient, nil
@@ -106,21 +112,34 @@ func (v *AzureCustomerNSGValidation) Validate(ctx context.Context, cluster *core
 	}
 
 	clusterSubnetID := cluster.CustomerProperties.Platform.SubnetID
-	if clusterSubnetID == nil {
-		return utils.TrackError(fmt.Errorf("cluster has no subnet ID"))
-	}
 
 	workerSubnet, err := v.getSubnet(ctx, subnetsClient, workerSubnetID)
 	if err != nil {
-		return utils.TrackError(err)
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify customer network security group rules.",
+			fmt.Sprintf("failed to get worker subnet: %v", err),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 	workerNSGID, err := v.nsgIDFromSubnet(workerSubnet.Properties)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("node pool subnet: %w", err))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify customer network security group rules.",
+			fmt.Sprintf("failed to get worker subnet NSG: %v", err),
+			ControllerReportingPolicyTypeError,
+		)
 	}
+
 	workerPrefixes, err := v.subnetAddressPrefixes(workerSubnet.Properties)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("node pool subnet: %w", err))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify customer network security group rules.",
+			fmt.Sprintf("failed to get worker subnet address prefixes: %v", err),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 
 	// Cluster machine subnet CIDRs
@@ -128,11 +147,21 @@ func (v *AzureCustomerNSGValidation) Validate(ctx context.Context, cluster *core
 	if !strings.EqualFold(workerSubnetID.String(), clusterSubnetID.String()) {
 		clusterSubnet, err := v.getSubnet(ctx, subnetsClient, clusterSubnetID)
 		if err != nil {
-			return utils.TrackError(fmt.Errorf("cluster subnet: %w", err))
+			return UnknownValidation(
+				"InternalError",
+				"Unable to verify customer network security group rules.",
+				fmt.Sprintf("failed to get cluster subnet: %v", err),
+				ControllerReportingPolicyTypeError,
+			)
 		}
 		clusterPrefixes, err = v.subnetAddressPrefixes(clusterSubnet.Properties)
 		if err != nil {
-			return utils.TrackError(fmt.Errorf("cluster subnet: %w", err))
+			return UnknownValidation(
+				"InternalError",
+				"Unable to verify customer network security group rules.",
+				fmt.Sprintf("failed to get cluster subnet address prefixes: %v", err),
+				ControllerReportingPolicyTypeError,
+			)
 		}
 	}
 
@@ -146,51 +175,83 @@ func (v *AzureCustomerNSGValidation) Validate(ctx context.Context, cluster *core
 	if vnetIntegrationSubnetID != nil {
 		vnetIntegrationSubnet, err := v.getSubnet(ctx, subnetsClient, vnetIntegrationSubnetID)
 		if err != nil {
-			return utils.TrackError(err)
+			return UnknownValidation(
+				"InternalError",
+				"Unable to verify customer network security group rules.",
+				fmt.Sprintf("failed to get vnet-integration subnet: %v", err),
+				ControllerReportingPolicyTypeError,
+			)
 		}
 		vnetIntegrationPrefixes, err = v.subnetAddressPrefixes(vnetIntegrationSubnet.Properties)
 		if err != nil {
-			return utils.TrackError(fmt.Errorf("vnet-integration subnet: %w", err))
+			return UnknownValidation(
+				"InternalError",
+				"Unable to verify customer network security group rules.",
+				fmt.Sprintf("failed to get vnet-integration subnet address prefixes: %v", err),
+				ControllerReportingPolicyTypeError,
+			)
 		}
 		vnetIntegrationNSGID, err = v.nsgIDFromSubnet(vnetIntegrationSubnet.Properties)
 		if err != nil {
-			return utils.TrackError(fmt.Errorf("vnet-integration subnet: %w", err))
+			return UnknownValidation(
+				"InternalError",
+				"Unable to verify customer network security group rules.",
+				fmt.Sprintf("failed to get vnet-integration subnet NSG: %v", err),
+				ControllerReportingPolicyTypeError,
+			)
 		}
 		outboundDestinationPrefixes = append(outboundDestinationPrefixes, vnetIntegrationPrefixes...)
 	}
 
-	if workerNSGID != nil {
-		client, err := getNSGClient()
-		if err != nil {
-			return err
-		}
-		outbound, _, err := v.listNSGSecurityRules(ctx, client, workerNSGID)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		err = v.validateOutboundNSGRules(outbound, workerPrefixes, outboundDestinationPrefixes, outboundNSGPorts)
-		if err != nil {
-			return utils.TrackError(err)
-		}
+	client, err := getNSGClient()
+	if err != nil {
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify customer network security group rules.",
+			fmt.Sprintf("failed to get network security groups client: %v", err),
+			ControllerReportingPolicyTypeError,
+		)
+	}
+	outbound, _, err := v.listNSGSecurityRules(ctx, client, workerNSGID)
+	if err != nil {
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify customer network security group rules.",
+			fmt.Sprintf("failed to list network security group rules: %v", err),
+			ControllerReportingPolicyTypeError,
+		)
+	}
+	if err := v.validateOutboundNSGRules(outbound, workerPrefixes, outboundDestinationPrefixes, outboundNSGPorts); err != nil {
+		msg := err.Error()
+		return FailedValidation("CustomerNSGBlocksControlPlane", msg, msg)
 	}
 
 	if vnetIntegrationNSGID == nil {
-		return nil
+		return PassedValidation(
+			coreapi.ControllerConditionReasonAsExpected,
+			"Customer network security group rules are valid.",
+			"Customer network security group rules are valid.",
+		)
 	}
 
-	client, err := getNSGClient()
-	if err != nil {
-		return err
-	}
 	_, inbound, err := v.listNSGSecurityRules(ctx, client, vnetIntegrationNSGID)
 	if err != nil {
-		return utils.TrackError(err)
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify customer network security group rules.",
+			fmt.Sprintf("failed to list network security group rules: %v", err),
+			ControllerReportingPolicyTypeError,
+		)
 	}
-	err = v.validateInboundNSGRules(inbound, workerPrefixes, vnetIntegrationPrefixes, inboundNSGPorts)
-	if err != nil {
-		return utils.TrackError(err)
+	if err := v.validateInboundNSGRules(inbound, workerPrefixes, vnetIntegrationPrefixes, inboundNSGPorts); err != nil {
+		msg := err.Error()
+		return FailedValidation("CustomerNSGBlocksControlPlane", msg, fmt.Sprintf("failed to validate inbound network security group rules: %v", err))
 	}
-	return nil
+	return PassedValidation(
+		coreapi.ControllerConditionReasonAsExpected,
+		"Customer network security group rules are valid.",
+		"Customer network security group rules are valid.",
+	)
 }
 
 func (v *AzureCustomerNSGValidation) getSubnet(ctx context.Context, subnetsClient azureclient.SubnetsClient, subnetID *azcorearm.ResourceID) (*armnetwork.Subnet, error) {

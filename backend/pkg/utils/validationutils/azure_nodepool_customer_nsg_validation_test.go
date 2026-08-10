@@ -163,9 +163,9 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		)
 
 		v := UserProvidedNodePoolNetworkSecurityGroupValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
-		err := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "DenyAnyAny")
+		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
+		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+		require.Contains(t, result.InternalMessage(), "DenyAnyAny")
 	})
 
 	t.Run("Deny to IP in cluster subnet fails without Allow", func(t *testing.T) {
@@ -199,9 +199,9 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		)
 
 		v := UserProvidedNodePoolNetworkSecurityGroupValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
-		err := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "DenyILB")
+		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
+		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+		require.Contains(t, result.InternalMessage(), "DenyILB")
 	})
 
 	t.Run("Deny Any to vnet-integration CIDR on outbound fails", func(t *testing.T) {
@@ -235,9 +235,9 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		)
 
 		v := UserProvidedNodePoolNetworkSecurityGroupValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
-		err := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "DenyToIntegration")
+		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
+		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+		require.Contains(t, result.InternalMessage(), "DenyToIntegration")
 	})
 
 	t.Run("Deny Any to cluster machine subnet when NP uses different subnet fails", func(t *testing.T) {
@@ -284,9 +284,9 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		np := testNodePool()
 		np.Properties.Platform.SubnetID = metadataapi.Must(azcorearm.ParseResourceID(npSubnetID))
 		v := UserProvidedNodePoolNetworkSecurityGroupValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
-		err := v.Validate(context.Background(), testCluster(), testNSGSubscription(), np)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "DenyToClusterSubnet")
+		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), np)
+		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+		require.Contains(t, result.InternalMessage(), "DenyToClusterSubnet")
 	})
 
 	t.Run("empty security rules on attached NSGs", func(t *testing.T) {
@@ -301,7 +301,8 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(emptyNSG(), nil).Times(2)
 
 		v := UserProvidedNodePoolNetworkSecurityGroupValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
-		require.NoError(t, v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool()))
+		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
+		require.Equal(t, OutcomeTypePassed, result.Outcome.Type)
 	})
 
 	t.Run("skips validation when vnet-integration subnet has no NSG attached", func(t *testing.T) {
@@ -317,7 +318,8 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		builder := &fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets}
 
 		v := UserProvidedNodePoolNetworkSecurityGroupValidation(builder)
-		require.NoError(t, v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool()))
+		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
+		require.Equal(t, OutcomeTypePassed, result.Outcome.Type)
 		require.Equal(t, 1, builder.nsgClientRequests, "NSG client should be created for worker NSG only")
 	})
 
@@ -326,10 +328,11 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		subnets := azureclient.NewMockSubnetsClient(ctrl)
 		expectWorkerAndIntegrationSubnets(subnets,
-			subnetWithoutNSG(workerSubnet),
+			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID),
 			subnetWithNSG(integrationSubnet, integrationNSGID),
 		)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
+		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(emptyNSG(), nil)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, integrationNSGName, nil).Return(
 			armnetwork.SecurityGroupsClientGetResponse{
 				SecurityGroup: armnetwork.SecurityGroup{
@@ -352,10 +355,10 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		)
 
 		v := UserProvidedNodePoolNetworkSecurityGroupValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
-		err := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "DenyAnyAnyIn")
-		require.Contains(t, err.Error(), "inbound")
+		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
+		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+		require.Contains(t, result.InternalMessage(), "DenyAnyAnyIn")
+		require.Contains(t, result.InternalMessage(), "inbound")
 	})
 
 	t.Run("inbound Deny Any to vnet-integration subnet fails", func(t *testing.T) {
@@ -363,10 +366,11 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		subnets := azureclient.NewMockSubnetsClient(ctrl)
 		expectWorkerAndIntegrationSubnets(subnets,
-			subnetWithoutNSG(workerSubnet),
+			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID),
 			subnetWithNSG(integrationSubnet, integrationNSGID),
 		)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
+		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(emptyNSG(), nil)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, integrationNSGName, nil).Return(
 			armnetwork.SecurityGroupsClientGetResponse{
 				SecurityGroup: armnetwork.SecurityGroup{
@@ -389,10 +393,10 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		)
 
 		v := UserProvidedNodePoolNetworkSecurityGroupValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
-		err := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "DenyAnyToIntegration")
-		require.Contains(t, err.Error(), "inbound")
+		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
+		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+		require.Contains(t, result.InternalMessage(), "DenyAnyToIntegration")
+		require.Contains(t, result.InternalMessage(), "inbound")
 	})
 
 	t.Run("different NSGs: outbound on worker NSG and inbound on integration NSG", func(t *testing.T) {
@@ -441,6 +445,7 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		)
 
 		v := UserProvidedNodePoolNetworkSecurityGroupValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
-		require.NoError(t, v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool()))
+		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
+		require.Equal(t, OutcomeTypePassed, result.Outcome.Type)
 	})
 }
