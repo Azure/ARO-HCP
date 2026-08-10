@@ -26,7 +26,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -65,6 +67,7 @@ var _ = Describe("ARO HCP Service", func() {
 			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.Tags[metadataapi.TagClusterMaxCreationDuration] = to.Ptr((clusterCreationTimeout - time.Minute).String())
 
 			By("deploying customer infrastructure (NSG, VNet, subnet, KeyVault)")
 			suffix := rand.String(6)
