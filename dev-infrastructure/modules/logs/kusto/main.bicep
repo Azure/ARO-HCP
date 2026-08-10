@@ -48,6 +48,8 @@ var db = {
 
 var databases = [db.serviceLogs, db.hostedControlPlaneLogs, db.monitoringEvents]
 
+var dummyScript = '.create-or-alter function with (docstring = \'dummy function to run last and to remove permission\') dummyFunction() {print \'dummy\'}'
+
 var allServiceLogsTablesKQL = {
   backendLogs: loadTextContent('tables/backendLogs.kql')
   containerlogs: loadTextContent('tables/containerLogs.kql')
@@ -186,12 +188,27 @@ module databaseUserScripts 'database-users.bicep' = [
   }
 ]
 
-// The deploying identity (global MSI) retains Database Admin on all databases
-// from RetainPermissionOnScriptCompletion used by table-creation scripts above.
-// Database Admin is the minimum role for `.create-or-alter entity_group` (Kusto
-// docs). Do not scope down to a lesser role; the entity-groups pipeline step
-// (kustoctl) requires it to sync cross-cluster entity groups on all three
-// databases (ServiceLogs, HostedControlPlaneLogs, MonitoringEvents).
+// 5. Remove the caller principal
+// THIS MUST BE THE LAST SCRIPT TO RUN
+module removePermission 'script.bicep' = [
+  for (database, i) in databases: {
+    name: '${database}-removePermission-${i}'
+    params: {
+      kustoName: kustoName
+      databaseName: databases[i]
+      scriptName: 'removePermissionScript'
+      scriptContent: dummyScript
+      principalPermissionsAction: 'RemovePermissionOnScriptCompletion'
+      continueOnErrors: false
+    }
+    dependsOn: [
+      databaseUserScripts
+      serviceLogsTables
+      hostedControlPlaneLogsTables
+      monitoringEventsTables
+    ]
+  }
+]
 
 // Outputs mirror original contract
 output id string = cluster.outputs.id
