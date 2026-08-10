@@ -139,5 +139,6 @@ See [CI Execution](execution.md#periodic-jobs) for why these jobs exist and how 
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
 - [CI Operations](operations.md)
+- [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md)
 - [Test Test Tenant Access](../sops/test-test-tenant-access.md)
 - [E2E Test Code](../../test/e2e/)
