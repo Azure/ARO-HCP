@@ -73,18 +73,6 @@ clouds:
               # US-geography cluster (hcp-{env}-{geoShort} convention), separate from
               # the uksouth hcp-stg-uk-* cluster.
               kustoName: "hcp-{{ .ctx.environment }}-us-1"
-          # uksouth: the kustoName default below (in stg.defaults.kusto) points at
-          # the "-2" cluster it had to be recreated as (b7b54161a), but that commit
-          # only overrode kustoName, not rg. The base config.yaml template still
-          # resolves rg to the un-suffixed "hcp-kusto-stg-uk", so the region-pipeline
-          # "kusto" step (which scopes its ARM deployment to `{{ .kusto.rg }}`) looks
-          # up Microsoft.Kusto/clusters/hcp-stg-uk-2 in the wrong resource group and
-          # fails with ResourceNotFound (AROSLSRE-1744). Pin rg here, scoped to just
-          # uksouth, so westus3 (which inherits the un-suffixed rg templating
-          # correctly for its own "us-1" cluster) is unaffected.
-          uksouth:
-            kusto:
-              rg: "hcp-kusto-stg-uk-2"
         defaults:
           # Carry the environment in the subscription display names for stage, so the
           # stg subscriptions are distinguishable from the identically-named prod ones.
@@ -101,7 +89,7 @@ clouds:
               displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - SVC"
           # This must be defined here, so our ci jobs can know this
           kusto:
-            kustoName: "hcp-stg-uk-2"
+            kustoName: "hcp-stg-uk-3"
           # Transient STG-global "V2" names for the parallel infra in the dedicated
           # hcp-stg-global sub during coexistence. Removed at decommission.
           stgGlobalV2:
