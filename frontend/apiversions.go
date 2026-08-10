@@ -17,7 +17,7 @@ package main
 // This will invoke the init() function in each
 // API version package so it can register itself.
 import (
-	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
-	_ "github.com/Azure/ARO-HCP/internal/api/v20251223preview"
-	_ "github.com/Azure/ARO-HCP/internal/api/v20260630preview"
+	_ "github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
+	_ "github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
+	_ "github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 )

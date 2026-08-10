@@ -30,71 +30,71 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestMutateCluster(t *testing.T) {
-	afecRegistered := &arm.Subscription{
-		Properties: &arm.SubscriptionProperties{
-			RegisteredFeatures: &[]arm.Feature{
+	afecRegistered := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{
+			RegisteredFeatures: &[]coreapi.Feature{
 				{
-					Name:  ptr.To(api.FeatureExperimentalReleaseFeatures),
+					Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
 					State: ptr.To("Registered"),
 				},
 			},
 		},
 	}
-	noAFEC := &arm.Subscription{
-		Properties: &arm.SubscriptionProperties{},
+	noAFEC := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{},
 	}
 
 	tests := []struct {
 		name                              string
-		subscription                      *arm.Subscription
+		subscription                      *coreapi.Subscription
 		tags                              map[string]string
 		expectErrors                      []utils.ExpectedError
 		expectZeroFeatures                bool
-		expectedControlPlaneAvailability  api.ControlPlaneAvailability
-		expectedControlPlanePodSizing     api.ControlPlanePodSizing
+		expectedControlPlaneAvailability  coreapi.ControlPlaneAvailability
+		expectedControlPlanePodSizing     coreapi.ControlPlanePodSizing
 		expectedControlPlaneOperatorImage string
 	}{
 		{
 			name:               "nil subscription ignores all tags",
 			subscription:       nil,
-			tags:               map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			tags:               map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:               "no AFEC registered ignores all tags",
 			subscription:       noAFEC,
-			tags:               map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			tags:               map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:                             "AFEC registered with single-replica tag only",
 			subscription:                     afecRegistered,
-			tags:                             map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane)},
+			tags:                             map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane)},
 			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
+			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
 		},
 		{
 			name:                          "AFEC registered with size-override tag only",
 			subscription:                  afecRegistered,
-			tags:                          map[string]string{api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			tags:                          map[string]string{metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 			expectErrors:                  []utils.ExpectedError{},
-			expectedControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+			expectedControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing,
 		},
 		{
 			name:                             "AFEC registered with both tags",
 			subscription:                     afecRegistered,
-			tags:                             map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			tags:                             map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
-			expectedControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
+			expectedControlPlanePodSizing:    coreapi.MinimalControlPlanePodSizing,
 		},
 		{
 			name:               "AFEC registered but no tags",
@@ -106,28 +106,28 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:                          "AFEC registered with case insensitive tag keys - size-override",
 			subscription:                  afecRegistered,
-			tags:                          map[string]string{"ARO-HCP.Experimental.Cluster.Size-Override": string(api.MinimalControlPlanePodSizing)},
+			tags:                          map[string]string{"ARO-HCP.Experimental.Cluster.Size-Override": string(coreapi.MinimalControlPlanePodSizing)},
 			expectErrors:                  []utils.ExpectedError{},
-			expectedControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+			expectedControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing,
 		},
 		{
 			name:                             "AFEC registered with case insensitive tag keys - single-replica",
 			subscription:                     afecRegistered,
-			tags:                             map[string]string{"ARO-HCP.Experimental.Cluster.Single-Replica": string(api.SingleReplicaControlPlane)},
+			tags:                             map[string]string{"ARO-HCP.Experimental.Cluster.Single-Replica": string(coreapi.SingleReplicaControlPlane)},
 			expectErrors:                     []utils.ExpectedError{},
-			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
+			expectedControlPlaneAvailability: coreapi.SingleReplicaControlPlane,
 		},
 		{
 			name:               "AFEC registered but tag values are empty strings",
 			subscription:       afecRegistered,
-			tags:               map[string]string{api.TagClusterSingleReplica: "", api.TagClusterSizeOverride: ""},
+			tags:               map[string]string{metadataapi.TagClusterSingleReplica: "", metadataapi.TagClusterSizeOverride: ""},
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:         "AFEC registered but single-replica tag has invalid value",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterSingleReplica: "yes"},
+			tags:         map[string]string{metadataapi.TagClusterSingleReplica: "yes"},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "Invalid value"},
 			},
@@ -135,7 +135,7 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:         "AFEC registered but single-replica tag rejects true",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterSingleReplica: "true"},
+			tags:         map[string]string{metadataapi.TagClusterSingleReplica: "true"},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "Invalid value"},
 			},
@@ -143,7 +143,7 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:         "AFEC registered but size-override tag has invalid value",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterSizeOverride: "1"},
+			tags:         map[string]string{metadataapi.TagClusterSizeOverride: "1"},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "Invalid value"},
 			},
@@ -151,7 +151,7 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:         "AFEC registered with unrecognized experimental tag",
 			subscription: afecRegistered,
-			tags:         map[string]string{"aro-hcp.experimental.cluster.unknown-feature": string(api.SingleReplicaControlPlane)},
+			tags:         map[string]string{"aro-hcp.experimental.cluster.unknown-feature": string(coreapi.SingleReplicaControlPlane)},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "unrecognized experimental tag"},
 			},
@@ -159,14 +159,14 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:                          "AFEC registered with only size-override after removing single-replica",
 			subscription:                  afecRegistered,
-			tags:                          map[string]string{api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			tags:                          map[string]string{metadataapi.TagClusterSizeOverride: string(coreapi.MinimalControlPlanePodSizing)},
 			expectErrors:                  []utils.ExpectedError{},
-			expectedControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+			expectedControlPlanePodSizing: coreapi.MinimalControlPlanePodSizing,
 		},
 		{
 			name:         "AFEC registered with unrecognized experimental tag in mixed case",
 			subscription: afecRegistered,
-			tags:         map[string]string{"ARO-HCP.Experimental.Cluster.Unknown-Feature": string(api.SingleReplicaControlPlane)},
+			tags:         map[string]string{"ARO-HCP.Experimental.Cluster.Unknown-Feature": string(coreapi.SingleReplicaControlPlane)},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "unrecognized experimental tag"},
 			},
@@ -181,7 +181,7 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:         "valid tag alongside unrecognized experimental tag fails",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), "aro-hcp.experimental.cluster.unknown": "value"},
+			tags:         map[string]string{metadataapi.TagClusterSingleReplica: string(coreapi.SingleReplicaControlPlane), "aro-hcp.experimental.cluster.unknown": "value"},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "unrecognized experimental tag"},
 			},
@@ -196,28 +196,28 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:                              "AFEC registered with CPO image override tag",
 			subscription:                      afecRegistered,
-			tags:                              map[string]string{api.TagClusterCPOImageOverride: "quay.io/openshift/cpo:latest"},
+			tags:                              map[string]string{metadataapi.TagClusterCPOImageOverride: "quay.io/openshift/cpo:latest"},
 			expectErrors:                      []utils.ExpectedError{},
 			expectedControlPlaneOperatorImage: "quay.io/openshift/cpo:latest",
 		},
 		{
 			name:                              "AFEC registered with CPO image override tag with digest",
 			subscription:                      afecRegistered,
-			tags:                              map[string]string{api.TagClusterCPOImageOverride: "quay.io/openshift/cpo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"},
+			tags:                              map[string]string{metadataapi.TagClusterCPOImageOverride: "quay.io/openshift/cpo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"},
 			expectErrors:                      []utils.ExpectedError{},
 			expectedControlPlaneOperatorImage: "quay.io/openshift/cpo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 		},
 		{
 			name:               "AFEC registered with empty CPO image override tag",
 			subscription:       afecRegistered,
-			tags:               map[string]string{api.TagClusterCPOImageOverride: ""},
+			tags:               map[string]string{metadataapi.TagClusterCPOImageOverride: ""},
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:         "AFEC registered with whitespace-only CPO image override tag",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterCPOImageOverride: "  "},
+			tags:         map[string]string{metadataapi.TagClusterCPOImageOverride: "  "},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "Invalid value"},
 			},
@@ -225,7 +225,7 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:               "no AFEC registered ignores CPO image override tag",
 			subscription:       noAFEC,
-			tags:               map[string]string{api.TagClusterCPOImageOverride: "quay.io/openshift/cpo:latest"},
+			tags:               map[string]string{metadataapi.TagClusterCPOImageOverride: "quay.io/openshift/cpo:latest"},
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
@@ -239,14 +239,14 @@ func TestMutateCluster(t *testing.T) {
 		{
 			name:               "AFEC registered with max-creation-duration tag is recognized",
 			subscription:       afecRegistered,
-			tags:               map[string]string{api.TagClusterMaxCreationDuration: "19m"},
+			tags:               map[string]string{metadataapi.TagClusterMaxCreationDuration: "19m"},
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:               "no AFEC registered ignores max-creation-duration tag",
 			subscription:       noAFEC,
-			tags:               map[string]string{api.TagClusterMaxCreationDuration: "19m"},
+			tags:               map[string]string{metadataapi.TagClusterMaxCreationDuration: "19m"},
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
@@ -261,8 +261,8 @@ func TestMutateCluster(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cluster := &api.HCPOpenShiftCluster{
-				TrackedResource: arm.TrackedResource{
+			cluster := &coreapi.HCPOpenShiftCluster{
+				TrackedResource: coreapi.TrackedResource{
 					Tags: tt.tags,
 				},
 			}
@@ -276,7 +276,7 @@ func TestMutateCluster(t *testing.T) {
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 
 			if tt.expectZeroFeatures {
-				if cluster.ServiceProviderProperties.ExperimentalFeatures != (api.ExperimentalFeatures{}) {
+				if cluster.ServiceProviderProperties.ExperimentalFeatures != (coreapi.ExperimentalFeatures{}) {
 					t.Errorf("expected zero ExperimentalFeatures, got %+v", cluster.ServiceProviderProperties.ExperimentalFeatures)
 				}
 				return
@@ -298,23 +298,23 @@ func TestMutateCluster(t *testing.T) {
 }
 
 func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
-	afecRegistered := &arm.Subscription{
-		Properties: &arm.SubscriptionProperties{
-			RegisteredFeatures: &[]arm.Feature{
+	afecRegistered := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{
+			RegisteredFeatures: &[]coreapi.Feature{
 				{
-					Name:  ptr.To(api.FeatureExperimentalReleaseFeatures),
+					Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
 					State: ptr.To("Registered"),
 				},
 			},
 		},
 	}
-	noAFEC := &arm.Subscription{
-		Properties: &arm.SubscriptionProperties{},
+	noAFEC := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{},
 	}
 
 	tests := []struct {
 		name             string
-		subscription     *arm.Subscription
+		subscription     *coreapi.Subscription
 		tags             map[string]string
 		op               operation.Operation
 		expectErrors     []utils.ExpectedError
@@ -338,7 +338,7 @@ func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:             "AFEC registered with max-creation-duration tag overrides default",
 			subscription:     afecRegistered,
-			tags:             map[string]string{api.TagClusterMaxCreationDuration: "19m"},
+			tags:             map[string]string{metadataapi.TagClusterMaxCreationDuration: "19m"},
 			op:               operation.Operation{Type: operation.Create},
 			expectDeadline:   true,
 			expectedDuration: 19 * time.Minute,
@@ -354,7 +354,7 @@ func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:             "no AFEC ignores max-creation-duration tag, uses default",
 			subscription:     noAFEC,
-			tags:             map[string]string{api.TagClusterMaxCreationDuration: "19m"},
+			tags:             map[string]string{metadataapi.TagClusterMaxCreationDuration: "19m"},
 			op:               operation.Operation{Type: operation.Create},
 			expectDeadline:   true,
 			expectedDuration: 60 * time.Minute,
@@ -362,7 +362,7 @@ func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:         "AFEC registered with invalid duration value",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterMaxCreationDuration: "not-a-duration"},
+			tags:         map[string]string{metadataapi.TagClusterMaxCreationDuration: "not-a-duration"},
 			op:           operation.Operation{Type: operation.Create},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "must be a valid Go duration string"},
@@ -378,7 +378,7 @@ func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:             "AFEC registered with empty string tag uses default",
 			subscription:     afecRegistered,
-			tags:             map[string]string{api.TagClusterMaxCreationDuration: ""},
+			tags:             map[string]string{metadataapi.TagClusterMaxCreationDuration: ""},
 			op:               operation.Operation{Type: operation.Create},
 			expectDeadline:   true,
 			expectedDuration: 60 * time.Minute,
@@ -394,7 +394,7 @@ func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:             "AFEC registered with compound duration",
 			subscription:     afecRegistered,
-			tags:             map[string]string{api.TagClusterMaxCreationDuration: "1h30m"},
+			tags:             map[string]string{metadataapi.TagClusterMaxCreationDuration: "1h30m"},
 			op:               operation.Operation{Type: operation.Create},
 			expectDeadline:   true,
 			expectedDuration: 90 * time.Minute,
@@ -402,7 +402,7 @@ func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:         "AFEC registered with duration less than one minute is rejected",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterMaxCreationDuration: "30s"},
+			tags:         map[string]string{metadataapi.TagClusterMaxCreationDuration: "30s"},
 			op:           operation.Operation{Type: operation.Create},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "must be at least 1m0s"},
@@ -411,7 +411,7 @@ func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:         "AFEC registered with zero duration is rejected",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterMaxCreationDuration: "0s"},
+			tags:         map[string]string{metadataapi.TagClusterMaxCreationDuration: "0s"},
 			op:           operation.Operation{Type: operation.Create},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "must be at least 1m0s"},
@@ -420,7 +420,7 @@ func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:         "AFEC registered with negative duration is rejected",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagClusterMaxCreationDuration: "-5m"},
+			tags:         map[string]string{metadataapi.TagClusterMaxCreationDuration: "-5m"},
 			op:           operation.Operation{Type: operation.Create},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "must be at least 1m0s"},
@@ -429,7 +429,7 @@ func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:             "AFEC registered with exactly one minute is accepted",
 			subscription:     afecRegistered,
-			tags:             map[string]string{api.TagClusterMaxCreationDuration: "1m"},
+			tags:             map[string]string{metadataapi.TagClusterMaxCreationDuration: "1m"},
 			op:               operation.Operation{Type: operation.Create},
 			expectDeadline:   true,
 			expectedDuration: time.Minute,
@@ -441,8 +441,8 @@ func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cluster := &api.HCPOpenShiftCluster{
-				TrackedResource: arm.TrackedResource{
+			cluster := &coreapi.HCPOpenShiftCluster{
+				TrackedResource: coreapi.TrackedResource{
 					Tags: tt.tags,
 				},
 			}
@@ -486,70 +486,70 @@ func TestAdmitCluster_Update(t *testing.T) {
 		clusterName       = "test-cluster"
 	)
 
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	serviceProviderResourceID := api.Must(azcorearm.ParseResourceID(
+	serviceProviderResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		clusterResourceID.String() + "/serviceProviderClusters/default"))
 
-	serviceProviderClusterStatusWithActiveControlPlaneVersion := func(fullVersion string) api.ServiceProviderClusterStatus {
-		return api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []api.HCPClusterActiveVersion{{Version: ptr.To(api.Must(semver.ParseTolerant(fullVersion)))}},
+	serviceProviderClusterStatusWithActiveControlPlaneVersion := func(fullVersion string) coreapi.ServiceProviderClusterStatus {
+		return coreapi.ServiceProviderClusterStatus{
+			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+				ActiveVersions: []coreapi.HCPClusterActiveVersion{{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(fullVersion)))}},
 			},
 		}
 	}
 
-	serviceProviderClusterStatusWithActiveControlPlaneVersions := func(fullVersions ...string) api.ServiceProviderClusterStatus {
-		active := make([]api.HCPClusterActiveVersion, 0, len(fullVersions))
+	serviceProviderClusterStatusWithActiveControlPlaneVersions := func(fullVersions ...string) coreapi.ServiceProviderClusterStatus {
+		active := make([]coreapi.HCPClusterActiveVersion, 0, len(fullVersions))
 		for _, v := range fullVersions {
-			active = append(active, api.HCPClusterActiveVersion{Version: ptr.To(api.Must(semver.ParseTolerant(v)))})
+			active = append(active, coreapi.HCPClusterActiveVersion{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(v)))})
 		}
-		return api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{ActiveVersions: active},
+		return coreapi.ServiceProviderClusterStatus{
+			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{ActiveVersions: active},
 		}
 	}
 
-	makeTestNodePool := func(name, versionID string) *api.HCPOpenShiftClusterNodePool {
-		nodePoolResourceID := api.Must(azcorearm.ParseResourceID(
+	makeTestNodePool := func(name, versionID string) *coreapi.HCPOpenShiftClusterNodePool {
+		nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			clusterResourceID.String() + "/nodePools/" + name))
-		return &api.HCPOpenShiftClusterNodePool{
-			CosmosMetadata: arm.CosmosMetadata{
+		return &coreapi.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID:   nodePoolResourceID,
 				PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID),
 			},
-			TrackedResource: arm.NewTrackedResource(nodePoolResourceID, "eastus"),
-			Properties: api.HCPOpenShiftClusterNodePoolProperties{
-				Version: api.NodePoolVersionProfile{ID: versionID},
+			TrackedResource: coreapi.NewTrackedResource(nodePoolResourceID, "eastus"),
+			Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+				Version: coreapi.NodePoolVersionProfile{ID: versionID},
 			},
 		}
 	}
 
-	makeServiceProviderNodePool := func(nodePoolName string, activeFullVersions ...string) *api.ServiceProviderNodePool {
-		npResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/" + nodePoolName))
-		spResourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
-			npResourceID.String(), api.ServiceProviderNodePoolResourceTypeName, api.ServiceProviderNodePoolResourceName)))
-		active := make([]api.HCPNodePoolActiveVersion, 0, len(activeFullVersions))
+	makeServiceProviderNodePool := func(nodePoolName string, activeFullVersions ...string) *coreapi.ServiceProviderNodePool {
+		npResourceID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/" + nodePoolName))
+		spResourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+			npResourceID.String(), coreapi.ServiceProviderNodePoolResourceTypeName, coreapi.ServiceProviderNodePoolResourceName)))
+		active := make([]coreapi.HCPNodePoolActiveVersion, 0, len(activeFullVersions))
 		for _, v := range activeFullVersions {
-			active = append(active, api.HCPNodePoolActiveVersion{Version: ptr.To(api.Must(semver.ParseTolerant(v)))})
+			active = append(active, coreapi.HCPNodePoolActiveVersion{Version: ptr.To(metadataapi.Must(semver.ParseTolerant(v)))})
 		}
-		return &api.ServiceProviderNodePool{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: spResourceID, PartitionKey: strings.ToLower(spResourceID.SubscriptionID)},
-			Status: api.ServiceProviderNodePoolStatus{
-				NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{ActiveVersions: active},
+		return &coreapi.ServiceProviderNodePool{
+			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spResourceID, PartitionKey: strings.ToLower(spResourceID.SubscriptionID)},
+			Status: coreapi.ServiceProviderNodePoolStatus{
+				NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{ActiveVersions: active},
 			},
 		}
 	}
 
-	kmsEtcdProfile := func(keyVersion string) api.EtcdProfile {
-		return api.EtcdProfile{
-			DataEncryption: api.EtcdDataEncryptionProfile{
-				KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-				CustomerManaged: &api.CustomerManagedEncryptionProfile{
-					Kms: &api.KmsEncryptionProfile{
-						ActiveKey: api.KmsKey{
+	kmsEtcdProfile := func(keyVersion string) coreapi.EtcdProfile {
+		return coreapi.EtcdProfile{
+			DataEncryption: coreapi.EtcdDataEncryptionProfile{
+				KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+				CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+					Kms: &coreapi.KmsEncryptionProfile{
+						ActiveKey: coreapi.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
 							Version:   keyVersion,
@@ -564,20 +564,20 @@ func TestAdmitCluster_Update(t *testing.T) {
 		name                         string
 		oldClusterVersionID          string
 		channelGroup                 string
-		etcd                         api.EtcdProfile
+		etcd                         coreapi.EtcdProfile
 		options                      []string
-		serviceProviderClusterStatus api.ServiceProviderClusterStatus
-		nodePools                    []*api.HCPOpenShiftClusterNodePool
-		serviceProviderNodePools     []*api.ServiceProviderNodePool
-		newClusterFromOld            func(*api.HCPOpenShiftCluster) //This method uses a copy of the oldCluster, changes are applied to that copy.
+		serviceProviderClusterStatus coreapi.ServiceProviderClusterStatus
+		nodePools                    []*coreapi.HCPOpenShiftClusterNodePool
+		serviceProviderNodePools     []*coreapi.ServiceProviderNodePool
+		newClusterFromOld            func(*coreapi.HCPOpenShiftCluster) //This method uses a copy of the oldCluster, changes are applied to that copy.
 		expectErrors                 []utils.ExpectedError
 	}{
 		{
 			name:                         "empty desired version skips admission",
 			oldClusterVersionID:          "4.10",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("np1", "4.10.0")},
-			newClusterFromOld: func(oldCopy *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("np1", "4.10.0")},
+			newClusterFromOld: func(oldCopy *coreapi.HCPOpenShiftCluster) {
 				oldCopy.CustomerProperties.Version.ID = ""
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -586,14 +586,14 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "unchanged version skips admission",
 			oldClusterVersionID:          "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
 			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
 			name:                         "unparsable old version id",
 			oldClusterVersionID:          "4.x",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "4.22"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -604,7 +604,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "skips skew vs lowest when old minor matches lowest active cluster version",
 			oldClusterVersionID:          "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "4.23"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -613,7 +613,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 4.22 to 5.0 with active cluster version 4.22",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -622,7 +622,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 5.1 when old minor below lowest active cluster version",
 			oldClusterVersionID:          "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.1"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -633,7 +633,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.24 when old minor below lowest active cluster version",
 			oldClusterVersionID:          "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "4.24"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -644,7 +644,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects version below highest active cluster version",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "4.21"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -655,7 +655,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows upgrade across adjacent active cluster minors",
 			oldClusterVersionID:          "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.22", "4.21"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "4.22"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -664,7 +664,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects skip minor vs lowest when fleet spans minors",
 			oldClusterVersionID:          "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.20", "4.22"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "4.22"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -675,8 +675,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects when node pool over two minors behind",
 			oldClusterVersionID:          "4.20",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.17.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.17.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "4.21"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -687,7 +687,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows no-op version with node pools in skew",
 			oldClusterVersionID:          "4.20",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
-			nodePools: []*api.HCPOpenShiftClusterNodePool{
+			nodePools: []*coreapi.HCPOpenShiftClusterNodePool{
 				makeTestNodePool("workers", "4.18.0"),
 				makeTestNodePool("infra", "4.20.3"),
 				makeTestNodePool("spot", "4.20.1"),
@@ -698,8 +698,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 4.22 to 5.0 node pool 4.22",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -708,8 +708,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 4.22 to 5.0 node pool 4.21",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.21.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.21.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -718,8 +718,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 4.23 to 5.1 node pool 4.22",
 			oldClusterVersionID:          "4.23",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.1"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -728,8 +728,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 4.23 to 5.1 node pool 4.23",
 			oldClusterVersionID:          "4.23",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.1"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -738,8 +738,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 5.1 to 5.2 node pool 4.23",
 			oldClusterVersionID:          "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("5.1"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.2"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -748,8 +748,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.22 to 5.0 node pool 4.20",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -760,8 +760,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.23 to 5.1 node pool 4.21",
 			oldClusterVersionID:          "4.23",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.21.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.21.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.1"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -772,8 +772,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.22 to 5.0 node pool 4.23",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -784,11 +784,11 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.22 to 5.0 mixed node pool minors",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools: []*api.HCPOpenShiftClusterNodePool{
+			nodePools: []*coreapi.HCPOpenShiftClusterNodePool{
 				makeTestNodePool("workers", "4.22.0"),
 				makeTestNodePool("legacy", "4.20.0"),
 			},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -799,9 +799,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.22 to 5.0 sp node pool behind customer minor",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
+			serviceProviderNodePools:     []*coreapi.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -812,9 +812,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects minor upgrade sp node pool two minors behind",
 			oldClusterVersionID:          "4.20",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
-			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
+			serviceProviderNodePools:     []*coreapi.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "4.21"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -825,9 +825,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "rejects 4.22 to 5.0 incompatible lowest active cluster version",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.0", "4.17.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
+			serviceProviderNodePools:     []*coreapi.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.0", "4.17.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -838,9 +838,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "allows 4.22 to 5.0 compatible active cluster versions",
 			oldClusterVersionID:          "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.1", "4.22.0")},
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			nodePools:                    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
+			serviceProviderNodePools:     []*coreapi.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.1", "4.22.0")},
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Version.ID = "5.0"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -850,9 +850,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 			oldClusterVersionID:          "4.22",
 			channelGroup:                 "nightly",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22.0-0.nightly-multi-2026-06-29-132714"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -861,9 +861,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change allowed at 4.22",
 			oldClusterVersionID:          "4.22",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22.4"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -872,9 +872,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change allowed at 5.0",
 			oldClusterVersionID:          "4.22",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("5.0.1"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -883,9 +883,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change blocked at 4.21",
 			oldClusterVersionID:          "4.21",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.5"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -896,9 +896,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change allowed during upgrade with lowest >= 4.22.4",
 			oldClusterVersionID:          "4.22",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.23.0", "4.22.4"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -907,9 +907,9 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "kms key version change blocked during upgrade with lowest < 4.22.0",
 			oldClusterVersionID:          "4.22",
 			etcd:                         kmsEtcdProfile("old-version"),
-			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.22.0", "4.21.15"),
-			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+			newClusterFromOld: func(c *coreapi.HCPOpenShiftCluster) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
 			},
 			expectErrors: []utils.ExpectedError{
@@ -920,7 +920,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			name:                         "no error when kms key version unchanged on old cluster",
 			oldClusterVersionID:          "4.21",
 			etcd:                         kmsEtcdProfile("same-version"),
-			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			options:                      []string{metadataapi.APIVersionOption(metadataapi.APIVersionV20260630Preview)},
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.0"),
 			expectErrors:                 []utils.ExpectedError{},
 		},
@@ -930,12 +930,12 @@ func TestAdmitCluster_Update(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			serviceProviderCluster := &api.ServiceProviderCluster{
-				CosmosMetadata: api.CosmosMetadata{ResourceID: serviceProviderResourceID, PartitionKey: strings.ToLower(serviceProviderResourceID.SubscriptionID)},
+			serviceProviderCluster := &coreapi.ServiceProviderCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: serviceProviderResourceID, PartitionKey: strings.ToLower(serviceProviderResourceID.SubscriptionID)},
 				Status:         tt.serviceProviderClusterStatus,
 			}
 
-			spByName := map[string]*api.ServiceProviderNodePool{}
+			spByName := map[string]*coreapi.ServiceProviderNodePool{}
 			for _, sp := range tt.serviceProviderNodePools {
 				spByName[sp.ResourceID.Parent.Name] = sp
 			}
@@ -953,13 +953,13 @@ func TestAdmitCluster_Update(t *testing.T) {
 			}
 
 			etcd := tt.etcd
-			if etcd == (api.EtcdProfile{}) {
+			if etcd == (coreapi.EtcdProfile{}) {
 				etcd = kmsEtcdProfile("v1")
 			}
-			oldCluster := &api.HCPOpenShiftCluster{
-				TrackedResource: arm.NewTrackedResource(clusterResourceID, "eastus"),
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{ID: tt.oldClusterVersionID, ChannelGroup: tt.channelGroup},
+			oldCluster := &coreapi.HCPOpenShiftCluster{
+				TrackedResource: coreapi.NewTrackedResource(clusterResourceID, "eastus"),
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Version: coreapi.VersionProfile{ID: tt.oldClusterVersionID, ChannelGroup: tt.channelGroup},
 					Etcd:    etcd,
 				},
 			}
@@ -982,23 +982,23 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 
 	const subscriptionID = "6b690bec-0c16-4ecb-8f67-781caf40bba7"
 
-	subnetID := api.Must(azcorearm.ParseResourceID(
+	subnetID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID + "/resourceGroups/customer/providers/Microsoft.Network/virtualNetworks/vnet/subnets/cluster-subnet"))
-	otherSubnetID := api.Must(azcorearm.ParseResourceID(
+	otherSubnetID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID + "/resourceGroups/other/providers/Microsoft.Network/virtualNetworks/vnet/subnets/other"))
-	nsgID := api.Must(azcorearm.ParseResourceID(
+	nsgID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID + "/resourceGroups/customer/providers/Microsoft.Network/networkSecurityGroups/cluster-nsg"))
-	otherNsgID := api.Must(azcorearm.ParseResourceID(
+	otherNsgID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID + "/resourceGroups/other/providers/Microsoft.Network/networkSecurityGroups/other-nsg"))
 
-	makeCluster := func(name, managedResourceGroup string, subnet, nsg *azcorearm.ResourceID) *api.HCPOpenShiftCluster {
-		resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf(
+	makeCluster := func(name, managedResourceGroup string, subnet, nsg *azcorearm.ResourceID) *coreapi.HCPOpenShiftCluster {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf(
 			"/subscriptions/%s/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s",
 			subscriptionID, name)))
-		return &api.HCPOpenShiftCluster{
-			TrackedResource: arm.NewTrackedResource(resourceID, "eastus"),
-			CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-				Platform: api.CustomerPlatformProfile{
+		return &coreapi.HCPOpenShiftCluster{
+			TrackedResource: coreapi.NewTrackedResource(resourceID, "eastus"),
+			CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+				Platform: coreapi.CustomerPlatformProfile{
 					ManagedResourceGroup:   managedResourceGroup,
 					SubnetID:               subnet,
 					NetworkSecurityGroupID: nsg,
@@ -1007,14 +1007,14 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 		}
 	}
 
-	makeNodePool := func(clusterName, nodePoolName string, subnet *azcorearm.ResourceID) *api.HCPOpenShiftClusterNodePool {
-		resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf(
+	makeNodePool := func(clusterName, nodePoolName string, subnet *azcorearm.ResourceID) *coreapi.HCPOpenShiftClusterNodePool {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf(
 			"/subscriptions/%s/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/hcpOpenShiftClusterNodePools/%s",
 			subscriptionID, clusterName, nodePoolName)))
-		return &api.HCPOpenShiftClusterNodePool{
-			TrackedResource: arm.NewTrackedResource(resourceID, "eastus"),
-			Properties: api.HCPOpenShiftClusterNodePoolProperties{
-				Platform: api.NodePoolPlatformProfile{
+		return &coreapi.HCPOpenShiftClusterNodePool{
+			TrackedResource: coreapi.NewTrackedResource(resourceID, "eastus"),
+			Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+				Platform: coreapi.NodePoolPlatformProfile{
 					SubnetID: subnet,
 				},
 			},
@@ -1023,9 +1023,9 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 
 	tests := []struct {
 		name                  string
-		subscriptionClusters  []*api.HCPOpenShiftCluster
-		subscriptionNodePools []*api.HCPOpenShiftClusterNodePool
-		newCluster            *api.HCPOpenShiftCluster
+		subscriptionClusters  []*coreapi.HCPOpenShiftCluster
+		subscriptionNodePools []*coreapi.HCPOpenShiftClusterNodePool
+		newCluster            *coreapi.HCPOpenShiftCluster
 		expectErrors          []utils.ExpectedError
 	}{
 		{
@@ -1036,7 +1036,7 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 		},
 		{
 			name: "create rejects duplicate subnet",
-			subscriptionClusters: []*api.HCPOpenShiftCluster{
+			subscriptionClusters: []*coreapi.HCPOpenShiftCluster{
 				makeCluster("existing-cluster", "mrg-existing", subnetID, nsgID),
 			},
 			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, otherNsgID),
@@ -1046,7 +1046,7 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 		},
 		{
 			name: "create rejects duplicate network security group",
-			subscriptionClusters: []*api.HCPOpenShiftCluster{
+			subscriptionClusters: []*coreapi.HCPOpenShiftCluster{
 				makeCluster("existing-cluster", "mrg-existing", subnetID, nsgID),
 			},
 			newCluster: makeCluster("new-cluster", "mrg-new", otherSubnetID, nsgID),
@@ -1056,7 +1056,7 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 		},
 		{
 			name: "create rejects duplicate managed resource group",
-			subscriptionClusters: []*api.HCPOpenShiftCluster{
+			subscriptionClusters: []*coreapi.HCPOpenShiftCluster{
 				makeCluster("existing-cluster", "shared-mrg", subnetID, nsgID),
 			},
 			newCluster: makeCluster("new-cluster", "shared-mrg", otherSubnetID, otherNsgID),
@@ -1066,10 +1066,10 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 		},
 		{
 			name: "create rejects duplicate subnet used by node pool",
-			subscriptionClusters: []*api.HCPOpenShiftCluster{
+			subscriptionClusters: []*coreapi.HCPOpenShiftCluster{
 				makeCluster("existing-cluster", "mrg-existing", otherSubnetID, nsgID),
 			},
-			subscriptionNodePools: []*api.HCPOpenShiftClusterNodePool{
+			subscriptionNodePools: []*coreapi.HCPOpenShiftClusterNodePool{
 				makeNodePool("existing-cluster", "workers", subnetID),
 			},
 			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, otherNsgID),
@@ -1079,7 +1079,7 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 		},
 		{
 			name: "create allows distinct platform values",
-			subscriptionClusters: []*api.HCPOpenShiftCluster{
+			subscriptionClusters: []*coreapi.HCPOpenShiftCluster{
 				makeCluster("existing-cluster", "mrg-existing", subnetID, nsgID),
 			},
 			newCluster:   makeCluster("new-cluster", "mrg-new", otherSubnetID, otherNsgID),
@@ -1087,7 +1087,7 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 		},
 		{
 			name: "create with nil new platform resource IDs returns required errors",
-			subscriptionClusters: []*api.HCPOpenShiftCluster{
+			subscriptionClusters: []*coreapi.HCPOpenShiftCluster{
 				makeCluster("existing-cluster", "mrg-existing", subnetID, nsgID),
 			},
 			newCluster: makeCluster("new-cluster", "mrg-new", nil, nil),
@@ -1098,7 +1098,7 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 		},
 		{
 			name: "create with existing cluster missing platform resource IDs returns internal errors",
-			subscriptionClusters: []*api.HCPOpenShiftCluster{
+			subscriptionClusters: []*coreapi.HCPOpenShiftCluster{
 				makeCluster("existing-cluster", "mrg-existing", nil, nil),
 			},
 			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, nsgID),
@@ -1109,10 +1109,10 @@ func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
 		},
 		{
 			name: "create with existing node pool missing subnet returns internal error",
-			subscriptionClusters: []*api.HCPOpenShiftCluster{
+			subscriptionClusters: []*coreapi.HCPOpenShiftCluster{
 				makeCluster("existing-cluster", "mrg-existing", otherSubnetID, nsgID),
 			},
-			subscriptionNodePools: []*api.HCPOpenShiftClusterNodePool{
+			subscriptionNodePools: []*coreapi.HCPOpenShiftClusterNodePool{
 				makeNodePool("existing-cluster", "workers", nil),
 			},
 			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, otherNsgID),

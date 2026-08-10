@@ -23,9 +23,10 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,10 +37,10 @@ type stampApprovalRequest struct {
 }
 
 type StampApprovalHandler struct {
-	fleetDBClient database.FleetDBClient
+	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
 
-func NewStampApprovalHandler(fleetDBClient database.FleetDBClient) *StampApprovalHandler {
+func NewStampApprovalHandler(fleetDBClient fleetcosmosstorage.FleetDBClient) *StampApprovalHandler {
 	return &StampApprovalHandler{
 		fleetDBClient: fleetDBClient,
 	}
@@ -51,9 +52,9 @@ func (h *StampApprovalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	var body stampApprovalRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		return arm.NewCloudError(
+		return coreapi.NewCloudError(
 			http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidRequestContent, "",
+			coreapi.CloudErrorCodeInvalidRequestContent, "",
 			"The request content was invalid and could not be deserialized: %q", err,
 		)
 	}
@@ -69,8 +70,8 @@ func (h *StampApprovalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	stampsCRUD := h.fleetDBClient.Stamps()
 	existing, err := stampsCRUD.Get(ctx, stampIdentifier)
 	if err != nil {
-		if database.IsNotFoundError(err) {
-			return arm.NewCloudError(http.StatusNotFound, arm.CloudErrorCodeNotFound, "", "Stamp %q not found", stampIdentifier)
+		if cosmosstorageutils.IsNotFoundError(err) {
+			return coreapi.NewCloudError(http.StatusNotFound, coreapi.CloudErrorCodeNotFound, "", "Stamp %q not found", stampIdentifier)
 		}
 		return utils.TrackError(fmt.Errorf("failed to get stamp: %w", err))
 	}
@@ -81,7 +82,7 @@ func (h *StampApprovalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Check if this is a no-op (idempotent)
-	existingCondition := apimeta.FindStatusCondition(existing.Status.Conditions, string(fleet.StampConditionApproved))
+	existingCondition := apimeta.FindStatusCondition(existing.Status.Conditions, string(fleetapi.StampConditionApproved))
 	if existingCondition != nil &&
 		existingCondition.Status == conditionStatus &&
 		existingCondition.Reason == body.Reason &&
@@ -92,7 +93,7 @@ func (h *StampApprovalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	updated := existing.DeepCopy()
 	apimeta.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
-		Type:               string(fleet.StampConditionApproved),
+		Type:               string(fleetapi.StampConditionApproved),
 		Status:             conditionStatus,
 		Reason:             body.Reason,
 		Message:            body.Message,
@@ -100,8 +101,8 @@ func (h *StampApprovalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	})
 
 	if _, err := stampsCRUD.Replace(ctx, updated, existing, nil); err != nil {
-		if database.IsPreconditionFailedError(err) {
-			return arm.NewCloudError(http.StatusConflict, arm.CloudErrorCodeConflict, "", "ETag conflict, retry the operation")
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return coreapi.NewCloudError(http.StatusConflict, coreapi.CloudErrorCodeConflict, "", "ETag conflict, retry the operation")
 		}
 		return utils.TrackError(err)
 	}
@@ -111,18 +112,18 @@ func (h *StampApprovalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 }
 
 func validateApprovalRequest(body stampApprovalRequest) error {
-	var details []arm.CloudErrorBody
+	var details []coreapi.CloudErrorBody
 
 	if len(body.Reason) == 0 {
-		details = append(details, arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeInvalidRequestContent,
+		details = append(details, coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeInvalidRequestContent,
 			Target:  "reason",
 			Message: "reason is required",
 		})
 	}
 	if len(body.Message) == 0 {
-		details = append(details, arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeInvalidRequestContent,
+		details = append(details, coreapi.CloudErrorBody{
+			Code:    coreapi.CloudErrorCodeInvalidRequestContent,
 			Target:  "message",
 			Message: "message is required",
 		})
@@ -131,5 +132,5 @@ func validateApprovalRequest(body stampApprovalRequest) error {
 	if len(details) == 0 {
 		return nil
 	}
-	return arm.NewContentValidationError(details)
+	return coreapi.NewContentValidationError(details)
 }

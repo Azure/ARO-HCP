@@ -67,6 +67,7 @@ type Options struct {
 	outputBicep             string
 	includedAlerts          map[string][]string
 	namespaceFilters        map[string][]string
+	internalSubFilter       InternalSubscriptionFilterConfig
 	labelsToExtract         []string
 	ruleFiles               []alertingRuleFile
 	outputReplacements      []Replacements
@@ -87,8 +88,20 @@ type PrometheusRulesConfig struct {
 	GroupNamePrefix           string         `json:"groupNamePrefix,omitempty"`
 }
 
+// InternalSubscriptionFilterConfig configures post-expression filtering of
+// internal (e2e/dev/test) subscriptions. When enabled, alerts that carry the
+// label exclude_internal_subscriptions: "true" have their PromQL expression
+// wrapped with an `unless on(subscription_id) <Table>` clause. The recording
+// rule referenced by Table must exist in the Azure Monitor Workspace; if it
+// does not, the unless is a no-op (empty set excludes nothing).
+type InternalSubscriptionFilterConfig struct {
+	Enabled bool   `json:"enabled,omitempty"`
+	Table   string `json:"table,omitempty"`
+}
+
 type CliConfig struct {
-	PrometheusRules PrometheusRulesConfig `json:"prometheusRules"`
+	PrometheusRules            PrometheusRulesConfig            `json:"prometheusRules"`
+	InternalSubscriptionFilter InternalSubscriptionFilterConfig `json:"internalSubscriptionFilter,omitempty"`
 }
 
 func NewOptions() *Options {
@@ -159,6 +172,11 @@ func (o *Options) Complete(configFilePath string, promtoolPath string) error {
 	o.outputBicep = path.Join(baseDirectory, config.PrometheusRules.OutputBicep)
 	o.groupNamePrefix = config.PrometheusRules.GroupNamePrefix
 	o.labelsToExtract = append([]string{}, config.PrometheusRules.LabelsToExtract...)
+
+	o.internalSubFilter = config.InternalSubscriptionFilter
+	if o.internalSubFilter.Enabled && o.internalSubFilter.Table == "" {
+		return fmt.Errorf("internalSubscriptionFilter is enabled but no table (recording rule metric) is configured")
+	}
 
 	// Convert includedAlertsByGroup to a map
 	o.includedAlerts = make(map[string][]string)
@@ -481,6 +499,25 @@ param location string = resourceGroup().location
 					labels[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
 				}
 
+				// Check if this alert opts in to internal subscription filtering.
+				// The label is a build-time directive consumed by the generator;
+				// strip it so it does not appear in the deployed Azure Monitor rule.
+				//
+				// CONTRACT: alerts using this label MUST retain subscription_id in
+				// their output vector (via by(..., subscription_id, ...) or no
+				// aggregation). If a future alert aggregates subscription_id away,
+				// the unless clause silently becomes a no-op instead of filtering.
+				excludeInternalSubs := false
+				if val, exists := labels["exclude_internal_subscriptions"]; exists {
+					delete(labels, "exclude_internal_subscriptions")
+					switch ptr.Deref(val, "") {
+					case "true":
+						excludeInternalSubs = true
+					default:
+						return fmt.Errorf("alert %q has exclude_internal_subscriptions=%q; only \"true\" is valid", rule.Alert, ptr.Deref(val, ""))
+					}
+				}
+
 				annotations := map[string]*string{}
 				for k, v := range rule.Annotations {
 					annotations[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
@@ -550,6 +587,16 @@ param location string = resourceGroup().location
 							return fmt.Errorf("failed to normalize expression for alert %s in group %s: %w", rule.Alert, group.Name, err)
 						}
 						exprStr = normalized
+					}
+					if excludeInternalSubs && o.internalSubFilter.Enabled {
+						exprStr = fmt.Sprintf("(%s) unless on(subscription_id) %s", exprStr, o.internalSubFilter.Table)
+						normalized, parseErr := normalizeExpr(exprStr)
+						if parseErr != nil {
+							return fmt.Errorf("alert %q: internal subscription filter produced invalid PromQL: %w", rule.Alert, parseErr)
+						}
+						exprStr = normalized
+					} else if excludeInternalSubs && !o.internalSubFilter.Enabled {
+						return fmt.Errorf("alert %q has exclude_internal_subscriptions label but internalSubscriptionFilter is not enabled in the config", rule.Alert)
 					}
 					severity, err := severityFor(labels)
 					if err != nil {

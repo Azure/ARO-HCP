@@ -36,7 +36,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -46,10 +46,11 @@ import (
 
 var _ = Describe("Customer", func() {
 	DescribeTable("should upgrade and update a nodepool",
+		labels.MIContainers(1),
 		func(ctx context.Context, nodePoolMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
-			targetMinorVersion := api.Must(semver.ParseTolerant(targetMinor))
-			nodePoolMinorVersion := api.Must(semver.ParseTolerant(nodePoolMinor))
+			targetMinorVersion := metadataapi.Must(semver.ParseTolerant(targetMinor))
+			nodePoolMinorVersion := metadataapi.Must(semver.ParseTolerant(nodePoolMinor))
 
 			var (
 				nodePoolInitialVersion string
@@ -247,6 +248,7 @@ var _ = Describe("Customer", func() {
 	// so Cincinnati upgrade edges are irrelevant. The backend only validates that the target
 	// version exists in Cincinnati, not that an edge exists from the current version.
 	DescribeTable("should upgrade a nodepool to a version without Cincinnati upgrade edge",
+		labels.MIContainers(1),
 		func(ctx context.Context, minor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 
@@ -262,7 +264,7 @@ var _ = Describe("Customer", func() {
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to get latest version in minor %s", minor)
 
-			clusterVersion := api.Must(semver.ParseTolerant(clusterInstallVersion))
+			clusterVersion := metadataapi.Must(semver.ParseTolerant(clusterInstallVersion))
 			Expect(toVersion.LTE(clusterVersion)).To(BeTrue(),
 				"target version %s must not exceed control plane version %s", toVersion, clusterVersion)
 
@@ -379,6 +381,7 @@ var _ = Describe("Customer", func() {
 	// kubelet to be 2 minor versions behind kube-apiserver, and HCP nodepools use Replace
 	// strategy, so no step-through requirement exists.
 	DescribeTable("should upgrade a nodepool skipping one minor version (+2)",
+		labels.MIContainers(1),
 		func(ctx context.Context, nodePoolMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 
@@ -526,6 +529,7 @@ var _ = Describe("Customer", func() {
 	// backward edges, so a downgrade exercises a version change without a Cincinnati upgrade
 	// path. HCP nodepools use Replace strategy — nodes are recreated, not upgraded in-place.
 	DescribeTable("should downgrade a nodepool version",
+		labels.MIContainers(1),
 		func(ctx context.Context, minor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 
@@ -656,6 +660,7 @@ var _ = Describe("Customer", func() {
 	// as CP, then downgrades 2 minors. The N-2 skew policy allows the node pool to be
 	// 2 minor versions behind the control plane.
 	DescribeTable("should downgrade a nodepool to a lower minor version",
+		labels.MIContainers(1),
 		func(ctx context.Context, cpMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 

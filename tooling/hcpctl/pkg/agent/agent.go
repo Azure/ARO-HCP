@@ -300,6 +300,10 @@ func (s *Session) SessionID() string {
 	return s.inner.SessionID
 }
 
+// ResetHistory is a no-op for the Copilot provider — the Copilot SDK
+// manages conversation context internally within the CLI subprocess.
+func (s *Session) ResetHistory() {}
+
 // SendAndWait sends a prompt to the session and blocks until the agent is idle.
 // If ctx is cancelled, the in-flight work is aborted.
 // Returns the final assistant message content.

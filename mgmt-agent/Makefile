@@ -76,7 +76,7 @@ record-override: $(YQ) $(ORAS)
 record-latest-override: $(YQ)
 	@../hack/record-latest-image-override.sh \
 		"$(ARO_HCP_IMAGE_ACR)" "$(ARO_HCP_IMAGE_REGISTRY)" \
-		"$(MGMT_AGENT_GENERATED_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
+		"$(MGMT_AGENT_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
 		"mgmtAgent" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
 .PHONY: record-latest-override
 

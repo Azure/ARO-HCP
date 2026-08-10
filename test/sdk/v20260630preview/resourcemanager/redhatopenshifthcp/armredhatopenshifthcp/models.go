@@ -8,14 +8,14 @@ import "time"
 
 // APIProfile - Information about the API of a cluster.
 type APIProfile struct {
+	// The internet visibility of the OpenShift API server
+	Visibility *Visibility
+
 	// READ-ONLY; URL endpoint for the API server
 	URL *string
 
 	// The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries.
 	AuthorizedCIDRs []*string
-
-	// The internet visibility of the OpenShift API server
-	Visibility *Visibility
 }
 
 // AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
@@ -175,12 +175,11 @@ type ErrorResponse struct {
 
 // EtcdDataEncryptionProfile - The ETCD data encryption settings.
 type EtcdDataEncryptionProfile struct {
+	// REQUIRED; Specify the key management strategy used for the encryption key that encrypts the ETCD data.
+	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
+
 	// Specify customer managed encryption key details. Required when keyManagementMode is "CustomerManaged".
 	CustomerManaged *CustomerManagedEncryptionProfile
-
-	// Specify the key management strategy used for the encryption key that encrypts the ETCD data. By default, "PlatformManaged"
-	// is used.
-	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
 }
 
 // EtcdDataEncryptionProfileUpdate - The ETCD data encryption settings.
@@ -990,7 +989,9 @@ type OsDiskProfile struct {
 	// Details on how to create a Disk Encryption Set can be found here: https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
 	EncryptionSetID *string
 
-	// The OS disk size in GiB
+	// The OS disk size in GiB. Maximum is 4095 GiB for Managed disks. For Ephemeral disks, the maximum is 2040 GiB; Azure may
+	// enforce a lower effective limit based on the selected VM size's local cache,
+	// temp, or NVMe capacity.
 	SizeGiB *int32
 }
 

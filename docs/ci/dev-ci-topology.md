@@ -21,7 +21,7 @@ Today `topology-dev-ci.yaml`'s `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entr
 - `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged`
   - Deploys shared dev/CI network resources, the `opstool` AKS cluster, and the shared Prometheus monitoring stack.
 - `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota`
-  - Deploys the `tenant-quota-collector` workload that monitors Azure quotas relevant to CI capacity.
+  - Deploys the historically named `tenant-quota-collector`, the extensible DEV CI telemetry exporter.
 - `Microsoft.Azure.ARO.HCP.DevCI.Gateway`
   - Deploys the shared Istio gateway and DNS wiring for `opstool`.
 - `Microsoft.Azure.ARO.HCP.DevCI.CertManager`
@@ -56,33 +56,52 @@ The current `dev-ci` topology intentionally does not own several adjacent pieces
 
 - Prow jobs, ci-operator configuration, step-registry workflows, and Boskos inventory remain in `openshift/release`.
 - The on-demand DEV RP footprint created during local E2E jobs is still provisioned by the release-side workflow, not by `topology-dev-ci.yaml`.
-- Static consumer artifacts such as `dev-infrastructure/openshift-ci/msi-mock-pool.yaml` are still generated separately.
-- The full lifecycle of the pooled MSI mock service principals is not yet fully declarative.
+- Static consumer artifacts such as `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`
+  and `arm-helper-pool.yaml` are still generated separately.
 
 For the runtime lease model itself, see [CI Identity Leasing](identity-leasing.md).
 
 ## The Current Mixed-Management Boundary
 
-The sharpest mixed-management boundary today is the DEV MSI mock service-principal pool used by local E2E jobs.
+The DEV MSI mock and ARM helper service-principal pools used by local E2E jobs
+are managed declaratively on the Azure side, with only the release-side consumer
+artifacts left outside the rollout.
 
-- The `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint owns the customer-subscription RBAC side for the pooled principals, using principal IDs from `config/config-dev-ci.yaml`. Because those grants require subscription Owner, they are applied on demand rather than by the postsubmit (see [The Privileged Entrypoint](#the-privileged-entrypoint)).
-- `make create-msi-mock-pool` is still a hybrid operator path:
-  - `dev-infrastructure/scripts/create-kv-cert.sh` (invoked from `dev-infrastructure/Makefile`) ensures the Key Vault certificate footprint via `az keyvault certificate create`.
-  - `dev-infrastructure/scripts/create-sp-for-rbac.sh` and `dev-infrastructure/Makefile` still create or update the Entra app and service principal objects and apply the home-subscription grants.
-- `make populate-msi-mock-pool` still performs live Entra lookups and writes the static `dev-infrastructure/openshift-ci/msi-mock-pool.yaml` catalog that release-side jobs consume.
-- `openshift/release` still owns the Boskos inventory and lease contract for the `aro-hcp-msi-mock-cs-sp-dev` resource type.
+- The `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint owns the pool end to end on the Azure side:
+  - `dev-infrastructure/templates/mock-identity-apps.bicep` creates/updates both
+    pooled Entra app families from `.ci.dev.mockIdentities.pool` and
+    `.ci.dev.mockIdentities.armHelperPool`. It configures no auth on the apps.
+  - The DEV `pin-mock-certs` and INT `pin-mock-certs-int` Shell steps run
+    `tooling/entra-app-credentials` immediately after the corresponding app
+    deployment. They create missing certificates and register each current
+    Key Vault certificate as a pinned `keyCredential`; existing certificates and
+    policies remain untouched. The DEV step uses separate CLI invocations for
+    the named identities, MSI mock pool, and ARM helper pool.
+    Templatize runs these steps with the invoking OWNERS member's Azure CLI
+    credentials.
+  - `dev-infrastructure/templates/mock-identity-rbac.bicep` resolves each
+    principal's object ID via Microsoft Graph and applies the home- and
+    E2E-subscription grants. Both pools receive DEV home-subscription grants so
+    their members can be tested in personal development environments. Principal
+    IDs are no longer stored in `config/config-dev-ci.yaml`. Because those grants
+    require subscription Owner, they are applied on demand rather than by the
+    postsubmit (see [The Privileged Entrypoint](#the-privileged-entrypoint)).
+- What remains outside the rollout:
+  - `make populate-msi-mock-pool` and `make populate-arm-helper-pool` perform live
+    Entra lookups and write the static catalogs consumed by release-side jobs.
+  - `openshift/release` still owns the Boskos inventories and lease contracts.
 
-That means pool changes still span multiple control planes today: the `dev-ci` topology, local operator scripts, and release-side CI configuration.
+So the Entra objects, certificates, certificate pinning, and RBAC are
+single-sourced in the topology; the remaining spread is limited to
+release-side Boskos/catalog wiring.
 
 ## Long-Term Direction
 
-The intended end state is to replace this mixed model with a single declarative producer and generated consumer artifacts:
+The Azure-side intended state is now in place: a single privileged rollout owns
+the app/SP, certificate, pinning, and RBAC lifecycle, driven by one source of
+truth in `config/config-dev-ci.yaml`. The remaining work to close the loop:
 
-- the pool definition would live in one canonical source of truth
-- the rollout would own the pool lifecycle end to end
-- downstream consumer artifacts such as Boskos inventory and the static pool catalog would be generated from that source instead of being updated separately
-
-That is not the current behavior on this branch. Until that migration is designed and validated carefully, the mixed model above remains the supported operating model.
+- generate downstream consumer artifacts (the static pool catalog and the release-side Boskos inventory) from that same source instead of updating them separately
 
 ## Operator Entry Points
 
@@ -93,7 +112,7 @@ make dev-ci-local-run
 make dev-ci-privileged-local-run
 ```
 
-Use the first command for the standalone `dev-ci` postsubmit surface (shared network, `opstool` AKS, monitoring, gateway, cert-manager, CIHealth, quota) — it no longer touches the CI bot identities. Use the second — **an Owner-only, on-demand run performed by an OWNERS-group member** — when the CI bot Entra identities need to be created/reconciled or their secrets rotated, or when the subscription-scoped custom roles and role assignments need to be applied; that entrypoint does both, in order.
+Use the first command for the standalone `dev-ci` postsubmit surface (shared network, `opstool` AKS, monitoring, gateway, cert-manager, CIHealth, quota) — it no longer touches the CI bot identities. Use the second — **an Owner-only, on-demand run performed by an OWNERS-group member** — when mock Entra applications, certificates, pinned credentials, or subscription-scoped RBAC need to be created or reconciled. Certificate rotation is a separate, explicitly disruptive CLI procedure.
 
 ## Where To Look
 
@@ -104,12 +123,13 @@ When you need to change or debug the standalone `dev-ci` topology, start here:
 - `dev-infrastructure/dev-ci/cluster/opstool-aks-pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
-- `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam`
+- `dev-infrastructure/configurations/mock-identity-apps.tmpl.bicepparam`
+- `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
 - `dev-infrastructure/Makefile`
-- `dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh`
+- `dev-infrastructure/openshift-ci/populate-mock-identity-pool.sh`
 - [CI Identity Leasing](identity-leasing.md)
-- [CI Quota Monitoring](quota-monitoring.md)
-- [Opstool Cluster Guide](../ops/opstool-cluster-guide.md)
+- [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
+- [Opstool CI Platform](opstool.md)
 
 ## See Also
 

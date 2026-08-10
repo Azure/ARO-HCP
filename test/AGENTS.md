@@ -235,15 +235,15 @@ Every test MUST include appropriate labels from these categories:
 - `labels.TeardownValidation`: Post-test validation
 - `labels.CoreInfraService`: Gates rollout of ARO-HCP components
 - `labels.AroRpApiCompatible`: Can run against both ARO HCP RP and ARM endpoint (dev environment compatible)
+- `labels.AllowRetry`: Marks a test as safe to auto-retry during an EV2 Stage/Prod gating run when it fails due to a known, actively tracked issue. Temporary by design (tracked in AROSLSRE-1721): every use must have an owner and a tracking issue in an inline comment, and must be removed once the underlying issue is fixed.
 
 ### Optional Environment Labels:
 - `labels.DevelopmentOnly`
 - `labels.IntegrationOnly`
 - `labels.StageAndProdOnly`
 
-### Resource Demand Labels (when applicable):
-- `labels.MIDemandHigh`: Needs multiple managed identity containers
-- `labels.MIDemandMedium`: Needs more than one container
+### Resource Demand Labels (required on every spec):
+- `labels.MIContainers(N)`: Declares how many managed identity containers the test needs (0 for tests that don't use MI containers). Enforced by `verify-mi-containers` CI check and runtime scheduler.
 
 ### Speed Labels (when applicable):
 - `labels.Slow`: For tests that take significantly longer than average
@@ -255,6 +255,7 @@ It("should create cluster successfully",
     labels.Critical, 
     labels.Positive, 
     labels.CreateCluster,
+    labels.MIContainers(1),
     func(ctx context.Context) {
         // test code
     })

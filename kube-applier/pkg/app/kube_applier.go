@@ -33,7 +33,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/component-base/metrics/legacyregistry"
 
-	"github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -140,8 +140,8 @@ func (o *Options) runControllersUnderLeaderElection(
 	// scoped to this pod's MC; Listers() lists exactly that container's *Desires.
 	listers := o.KubeApplierDBClient.Listers()
 
-	applyInformer := informers.NewApplyDesireInformer(listers.ApplyDesires(), o.KubeApplierDBClient)
-	readInformer := informers.NewReadDesireInformer(listers.ReadDesires(), o.KubeApplierDBClient)
+	applyInformer := kubeapplierinformers.NewApplyDesireInformer(listers.ApplyDesires(), o.KubeApplierDBClient)
+	readInformer := kubeapplierinformers.NewReadDesireInformer(listers.ReadDesires(), o.KubeApplierDBClient)
 
 	collector := newDesireCollector(
 		applyInformer.GetStore(),

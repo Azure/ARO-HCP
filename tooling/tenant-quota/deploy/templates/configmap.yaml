@@ -9,6 +9,15 @@ data:
     interval: "5m"
     timeout: "30s"
     cacheTTL: "24h"
+    prow:
+      enabled: {{ .Values.prow.enabled }}
+      baseURL: "{{ .Values.prow.baseURL }}"
+      interval: "{{ .Values.prow.interval }}"
+      retention: "{{ .Values.prow.retention }}"
+      repository:
+        org: "{{ .Values.prow.repository.org }}"
+        name: "{{ .Values.prow.repository.name }}"
+      excludeJobs: {{ .Values.prow.excludeJobs | toJson }}
     tenants:
       {{- range .Values.tenants }}
       - tenantId: "{{ .tenantId }}"

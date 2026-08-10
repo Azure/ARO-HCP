@@ -22,9 +22,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 )
 
 func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
@@ -32,22 +32,22 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 		name         string
 		resourceID   string
 		resourceType string
-		newDocument  func() (any, *database.TypedDocument)
+		newDocument  func() (any, *cosmosstorageutils.TypedDocument)
 	}{
 		{
 			name:         "cluster",
-			resourceID:   api.TestClusterResourceID,
-			resourceType: api.ClusterResourceType.String(),
-			newDocument: func() (any, *database.TypedDocument) {
-				resourceID := mustParseResourceID(t, api.TestClusterResourceID)
+			resourceID:   coreapitesting.TestClusterResourceID,
+			resourceType: coreapi.ClusterResourceType.String(),
+			newDocument: func() (any, *cosmosstorageutils.TypedDocument) {
+				resourceID := mustParseResourceID(t, coreapitesting.TestClusterResourceID)
 				createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-				obj := &api.HCPOpenShiftCluster{
-					TrackedResource: arm.TrackedResource{
-						Resource: arm.Resource{
+				obj := &coreapi.HCPOpenShiftCluster{
+					TrackedResource: coreapi.TrackedResource{
+						Resource: coreapi.Resource{
 							ID:   resourceID,
 							Name: resourceID.Name,
-							Type: api.ClusterResourceType.String(),
-							SystemData: &arm.SystemData{
+							Type: coreapi.ClusterResourceType.String(),
+							SystemData: &coreapi.SystemData{
 								CreatedBy:      "cluster-created-by",
 								LastModifiedBy: "cluster-last-modified-by",
 								CreatedAt:      &createdAt,
@@ -55,23 +55,23 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 						},
 					},
 				}
-				return obj, newTypedDocument(t, resourceID, api.ClusterResourceType.String(), obj)
+				return obj, newTypedDocument(t, resourceID, coreapi.ClusterResourceType.String(), obj)
 			},
 		},
 		{
 			name:         "nodepool",
-			resourceID:   api.TestNodePoolResourceID,
-			resourceType: api.NodePoolResourceType.String(),
-			newDocument: func() (any, *database.TypedDocument) {
-				resourceID := mustParseResourceID(t, api.TestNodePoolResourceID)
+			resourceID:   coreapitesting.TestNodePoolResourceID,
+			resourceType: coreapi.NodePoolResourceType.String(),
+			newDocument: func() (any, *cosmosstorageutils.TypedDocument) {
+				resourceID := mustParseResourceID(t, coreapitesting.TestNodePoolResourceID)
 				createdAt := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
-				obj := &api.HCPOpenShiftClusterNodePool{
-					TrackedResource: arm.TrackedResource{
-						Resource: arm.Resource{
+				obj := &coreapi.HCPOpenShiftClusterNodePool{
+					TrackedResource: coreapi.TrackedResource{
+						Resource: coreapi.Resource{
 							ID:   resourceID,
 							Name: resourceID.Name,
-							Type: api.NodePoolResourceType.String(),
-							SystemData: &arm.SystemData{
+							Type: coreapi.NodePoolResourceType.String(),
+							SystemData: &coreapi.SystemData{
 								CreatedBy:      "nodepool-created-by",
 								LastModifiedBy: "nodepool-last-modified-by",
 								CreatedAt:      &createdAt,
@@ -79,23 +79,23 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 						},
 					},
 				}
-				return obj, newTypedDocument(t, resourceID, api.NodePoolResourceType.String(), obj)
+				return obj, newTypedDocument(t, resourceID, coreapi.NodePoolResourceType.String(), obj)
 			},
 		},
 		{
 			name:         "external-auth",
-			resourceID:   api.TestExternalAuthResourceID,
-			resourceType: api.ExternalAuthResourceType.String(),
-			newDocument: func() (any, *database.TypedDocument) {
-				resourceID := mustParseResourceID(t, api.TestExternalAuthResourceID)
+			resourceID:   coreapitesting.TestExternalAuthResourceID,
+			resourceType: coreapi.ExternalAuthResourceType.String(),
+			newDocument: func() (any, *cosmosstorageutils.TypedDocument) {
+				resourceID := mustParseResourceID(t, coreapitesting.TestExternalAuthResourceID)
 				createdAt := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
-				obj := &api.HCPOpenShiftClusterExternalAuth{
-					ProxyResource: arm.ProxyResource{
-						Resource: arm.Resource{
+				obj := &coreapi.HCPOpenShiftClusterExternalAuth{
+					ProxyResource: coreapi.ProxyResource{
+						Resource: coreapi.Resource{
 							ID:   resourceID,
 							Name: resourceID.Name,
-							Type: api.ExternalAuthResourceType.String(),
-							SystemData: &arm.SystemData{
+							Type: coreapi.ExternalAuthResourceType.String(),
+							SystemData: &coreapi.SystemData{
 								CreatedBy:      "external-auth-created-by",
 								LastModifiedBy: "external-auth-last-modified-by",
 								CreatedAt:      &createdAt,
@@ -103,7 +103,7 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 						},
 					},
 				}
-				return obj, newTypedDocument(t, resourceID, api.ExternalAuthResourceType.String(), obj)
+				return obj, newTypedDocument(t, resourceID, coreapi.ExternalAuthResourceType.String(), obj)
 			},
 		},
 	}
@@ -156,14 +156,14 @@ func TestRedactTypedDocument_RedactsSupportedResourceTypes(t *testing.T) {
 }
 
 func TestRedactTypedDocument_ReturnsNestedFieldTypeError(t *testing.T) {
-	resourceID := mustParseResourceID(t, api.TestClusterResourceID)
-	doc := &database.TypedDocument{
-		BaseDocument: database.BaseDocument{
+	resourceID := mustParseResourceID(t, coreapitesting.TestClusterResourceID)
+	doc := &cosmosstorageutils.TypedDocument{
+		BaseDocument: cosmosstorageutils.BaseDocument{
 			ID: resourceID.Name,
 		},
 		PartitionKey: resourceID.SubscriptionID,
 		ResourceID:   resourceID,
-		ResourceType: api.ClusterResourceType.String(),
+		ResourceType: coreapi.ClusterResourceType.String(),
 		Properties:   json.RawMessage(`{"systemData":{"createdBy":123}}`),
 	}
 
@@ -179,7 +179,7 @@ func TestRedactTypedDocument_ReturnsNestedFieldTypeError(t *testing.T) {
 	}
 }
 
-func newTypedDocument(t *testing.T, resourceID *azcorearm.ResourceID, resourceType string, properties any) *database.TypedDocument {
+func newTypedDocument(t *testing.T, resourceID *azcorearm.ResourceID, resourceType string, properties any) *cosmosstorageutils.TypedDocument {
 	t.Helper()
 
 	propertiesBytes, err := json.Marshal(properties)
@@ -187,8 +187,8 @@ func newTypedDocument(t *testing.T, resourceID *azcorearm.ResourceID, resourceTy
 		t.Fatalf("marshal properties: %v", err)
 	}
 
-	return &database.TypedDocument{
-		BaseDocument: database.BaseDocument{
+	return &cosmosstorageutils.TypedDocument{
+		BaseDocument: cosmosstorageutils.BaseDocument{
 			ID: resourceID.Name,
 		},
 		PartitionKey: resourceID.SubscriptionID,

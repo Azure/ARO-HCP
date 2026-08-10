@@ -16,9 +16,7 @@ package e2e
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -38,15 +36,13 @@ import (
 // v2026-06-30-preview API version smoke test — verifying cluster creation,
 // credentials, and cluster health — to avoid creating multiple clusters in CI.
 var _ = Describe("Customer", func() {
-	// Deadline for v20260630preview API deployment in non-dev environments
-	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-07-31T00:00:00Z"))
-
 	It("should create a cluster with private ingress using v20260630preview and verify the ingress is internal",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "private-ingress"
@@ -55,8 +51,18 @@ var _ = Describe("Customer", func() {
 
 			tc := framework.NewTestContext()
 
+			By("checking API version availability")
+			apiAvailable, err := tc.IsHCPAPIVersionAvailable(ctx, "2026-06-30-preview")
+			Expect(err).NotTo(HaveOccurred(), "failed to check API version availability")
+			if !apiAvailable {
+				if time.Now().After(framework.V20260630PreviewDeploymentDeadline) {
+					Fail(fmt.Sprintf("API version 2026-06-30-preview should be fully available by %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
+				}
+				Skip("API version 2026-06-30-preview is not fully available in this environment")
+			}
+
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				err = tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
@@ -89,10 +95,10 @@ var _ = Describe("Customer", func() {
 				framework.ClusterCreationTimeout,
 			)
 			if isAPINotDeployedError(err) {
-				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
+				if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
+					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
 				}
-				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
+				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with private ingress", customerClusterName)
 
@@ -113,37 +119,8 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("Cluster created with private ingress", "clusterName", customerClusterName)
 
 			By("deploying test VM in the same VNet for connectivity verification")
-			sshPublicKey, _, err := framework.GenerateSSHKeyPair()
-			Expect(err).NotTo(HaveOccurred(), "failed to generate SSH key pair for test VM")
-
-			vmName := fmt.Sprintf("%s-test-vm", customerClusterName)
-			vmSize, err := tc.SelectVMSize(ctx, framework.JumpboxVMSizeSelector())
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve a jumpbox VM size for private ingress test")
-
-			var deployErr error
-			for attempt := 0; attempt < 3; attempt++ {
-				if attempt > 0 {
-					time.Sleep(20 * time.Second)
-				}
-				_, deployErr = tc.CreateBicepTemplateAndWait(ctx,
-					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
-					framework.WithDeploymentName("test-vm"),
-					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-					framework.WithClusterResourceGroup(*resourceGroup.Name),
-					framework.WithParameters(map[string]any{
-						"vmName":       vmName,
-						"vnetName":     clusterParams.VnetName,
-						"subnetName":   clusterParams.SubnetName,
-						"sshPublicKey": sshPublicKey,
-						"vmSize":       vmSize,
-					}),
-					framework.WithTimeout(30*time.Minute),
-				)
-				if deployErr == nil || strings.Contains(deployErr.Error(), "SkuNotAvailable") {
-					break
-				}
-			}
-			Expect(deployErr).NotTo(HaveOccurred(), "failed to deploy test VM for private ingress verification")
+			vmName, _, err := tc.DeployTestVM(ctx, TestArtifactsFS, *resourceGroup.Name, customerClusterName, clusterParams.VnetName, clusterParams.SubnetName)
+			Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM for private ingress verification")
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams20260630()
@@ -205,41 +182,10 @@ var _ = Describe("Customer", func() {
 			}, 10*time.Minute, 15*time.Second).Should(Succeed())
 
 			By("verifying ingress is NOT reachable from outside the VNet")
-			err = testIngressConnectivity(ctx, appURL, 10*time.Second)
+			err = framework.TestHTTPSConnectivity(ctx, appURL, 10*time.Second, true)
 			Expect(err).To(HaveOccurred(),
 				"private ingress should not be reachable from outside the VNet, but connection succeeded")
 			GinkgoLogr.Info("Confirmed ingress is not reachable from outside the VNet")
 		},
 	)
 })
-
-// testIngressConnectivity attempts an HTTPS connection to the given URL.
-// Returns nil if the connection succeeds, or an error if it fails.
-// Redirects are disabled to avoid false positives from OAuth redirects.
-func testIngressConnectivity(ctx context.Context, url string, timeout time.Duration) error {
-	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(timeoutCtx, "GET", url, nil)
-	if err != nil {
-		return err
-	}
-
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return nil
-}

@@ -3,9 +3,9 @@ SHELL = /bin/bash
 
 # VERSION determines which API version to generate with autorest.
 # The default value for VERSION should be the latest API version.
-VERSION ?= v20260630preview
+VERSION ?= v20260901preview
 
-AUTOREST_OUTPUT_DIR = ../internal/api/${VERSION}/generated
+AUTOREST_OUTPUT_DIR = ../internal/azureapi/${VERSION}/generated
 
 SPEC_BASE_DIR = redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters
 API_SPEC_PATHS = $(shell find $(SPEC_BASE_DIR) -type f -name "openapi.json" 2>/dev/null | sort)

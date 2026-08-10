@@ -27,13 +27,13 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // AFECsToValidationOptions converts the API logic into validation compatible options.
 // Feature names are normalized to lowercase for case-insensitive comparison.
-func AFECsToValidationOptions(features []arm.Feature) []string {
+func AFECsToValidationOptions(features []coreapi.Feature) []string {
 	ret := []string{}
 
 	for _, curr := range features {
@@ -50,22 +50,22 @@ func AFECsToValidationOptions(features []arm.Feature) []string {
 
 // BuildValidationOptions combines AFEC feature flags and the ARM API version
 // into a single options slice for operation.Operation.Options.
-func BuildValidationOptions(features []arm.Feature, apiVersion api.APIVersion) []string {
+func BuildValidationOptions(features []coreapi.Feature, apiVersion metadataapi.APIVersion) []string {
 	options := AFECsToValidationOptions(features)
 	//apiVersion can be empty if this is call from within the backend
 	// as backend doesn't have this context
 	if apiVersion != "" {
-		options = append(options, api.APIVersionOption(apiVersion))
+		options = append(options, metadataapi.APIVersionOption(apiVersion))
 	}
 	return options
 }
 
 var (
-	toTrackedResourceResource = func(oldObj *arm.TrackedResource) *arm.Resource { return &oldObj.Resource }
-	toTrackedResourceLocation = func(oldObj *arm.TrackedResource) *string { return &oldObj.Location }
+	toTrackedResourceResource = func(oldObj *coreapi.TrackedResource) *coreapi.Resource { return &oldObj.Resource }
+	toTrackedResourceLocation = func(oldObj *coreapi.TrackedResource) *string { return &oldObj.Location }
 )
 
-func validateTrackedResource(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.TrackedResource) field.ErrorList {
+func validateTrackedResource(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.TrackedResource) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//Resource
@@ -81,14 +81,14 @@ func validateTrackedResource(ctx context.Context, op operation.Operation, fldPat
 }
 
 var (
-	toResourceID         = func(oldObj *arm.Resource) *azcorearm.ResourceID { return oldObj.ID }
-	toResourceName       = func(oldObj *arm.Resource) *string { return &oldObj.Name }
-	toResourceType       = func(oldObj *arm.Resource) *string { return &oldObj.Type }
-	toResourceSystemData = func(oldObj *arm.Resource) *arm.SystemData { return oldObj.SystemData }
+	toResourceID         = func(oldObj *coreapi.Resource) *azcorearm.ResourceID { return oldObj.ID }
+	toResourceName       = func(oldObj *coreapi.Resource) *string { return &oldObj.Name }
+	toResourceType       = func(oldObj *coreapi.Resource) *string { return &oldObj.Type }
+	toResourceSystemData = func(oldObj *coreapi.Resource) *coreapi.SystemData { return oldObj.SystemData }
 )
 
 // Version                 VersionProfile              `json:"version,omitempty"`
-func validateResource(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.Resource) field.ErrorList {
+func validateResource(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.Resource) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ID         string      `json:"id,omitempty"`
@@ -116,12 +116,12 @@ func validateResource(ctx context.Context, op operation.Operation, fldPath *fiel
 }
 
 var (
-	toSystemDataCreatedAt     = func(oldObj *arm.SystemData) *time.Time { return oldObj.CreatedAt }
-	toSystemDataCreatedBy     = func(oldObj *arm.SystemData) *string { return &oldObj.CreatedBy }
-	toSystemDataCreatedByType = func(oldObj *arm.SystemData) *arm.CreatedByType { return &oldObj.CreatedByType }
+	toSystemDataCreatedAt     = func(oldObj *coreapi.SystemData) *time.Time { return oldObj.CreatedAt }
+	toSystemDataCreatedBy     = func(oldObj *coreapi.SystemData) *string { return &oldObj.CreatedBy }
+	toSystemDataCreatedByType = func(oldObj *coreapi.SystemData) *coreapi.CreatedByType { return &oldObj.CreatedByType }
 )
 
-func validateSystemData(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.SystemData) field.ErrorList {
+func validateSystemData(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.SystemData) field.ErrorList {
 	if newObj == nil {
 		return nil
 	}

@@ -46,9 +46,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/informers"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/apply_desire"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/read_desire_manager"
 )
@@ -90,7 +90,7 @@ type Step interface {
 // joint backend+kube-applier test can swap in an implementation that shares
 // storage with the backend's MockDBClient.
 type Harness struct {
-	KubeApplierDBClient database.KubeApplierDBClient
+	KubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient
 	Dyn                 dynamic.Interface
 	Namespace           string
 }
@@ -212,7 +212,7 @@ func (tc TestCase) RunCase(t *testing.T, cfg *rest.Config) {
 	createNamespace(ctx, t, dyn, namespace)
 	t.Cleanup(func() { deleteNamespace(context.Background(), t, dyn, namespace) })
 
-	mock := databasetesting.NewMockKubeApplierDBClient()
+	mock := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 	stop := startControllers(ctx, t, mock, dyn)
 	defer stop()
 
@@ -229,14 +229,14 @@ func (tc TestCase) RunCase(t *testing.T, cfg *rest.Config) {
 
 // startControllers wires the three kube-applier controllers in-process and
 // runs them. Returns a stop function the caller defers.
-func startControllers(parent context.Context, t *testing.T, kac database.KubeApplierDBClient, dyn dynamic.Interface) func() {
+func startControllers(parent context.Context, t *testing.T, kac kubeappliercosmosstorage.KubeApplierDBClient, dyn dynamic.Interface) func() {
 	t.Helper()
 	ctx, cancel := context.WithCancel(parent)
 
 	listers := kac.Listers()
 
-	applyInformer := informers.NewApplyDesireInformerWithRelistDuration(listers.ApplyDesires(), kac, fastRelist)
-	readInformer := informers.NewReadDesireInformerWithRelistDuration(listers.ReadDesires(), kac, fastRelist)
+	applyInformer := kubeapplierinformers.NewApplyDesireInformerWithRelistDuration(listers.ApplyDesires(), kac, fastRelist)
+	readInformer := kubeapplierinformers.NewReadDesireInformerWithRelistDuration(listers.ReadDesires(), kac, fastRelist)
 
 	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, dyn, kac, apply_desire.Config{})
 	require.NoError(t, err)

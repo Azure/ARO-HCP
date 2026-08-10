@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/internal/testutil"
 	"github.com/Azure/ARO-HCP/test/util/junit"
@@ -167,8 +167,8 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	workspaces := map[string]azcorearm.ResourceID{
-		workspaceSvc: *api.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", o.SubscriptionID, regionRG, svcWorkspace))),
-		workspaceHcp: *api.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", o.SubscriptionID, regionRG, hcpWorkspace))),
+		workspaceSvc: *metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", o.SubscriptionID, regionRG, svcWorkspace))),
+		workspaceHcp: *metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", o.SubscriptionID, regionRG, hcpWorkspace))),
 	}
 
 	queries, err := loadQueriesConfig()
@@ -324,7 +324,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				results = resp.Data.Result
 			}
 
-			panelCharts = append(panelCharts, buildChartData(q.Title, q.Description, q.Query, q.Unit, queryErr, results, o.TimeWindow, q.MinPeakThreshold))
+			panelCharts = append(panelCharts, buildChartData(q, queryErr, results, o.TimeWindow))
 		}
 
 		// filename must match the Spyglass HTML lens regex .*-summary.*\.html

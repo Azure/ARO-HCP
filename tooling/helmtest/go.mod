@@ -3,9 +3,9 @@ module github.com/Azure/ARO-HCP/tooling/helmtest
 go 1.25.7
 
 require (
-	github.com/Azure/ARO-Tools/config v0.0.0-20260715002326-2555e1130350
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260720175808-ca2cea2cb707
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260715002326-2555e1130350
+	github.com/Azure/ARO-Tools/config v0.0.0-20260807054659-4a463f5d83c7
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260807054659-4a463f5d83c7
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260807054659-4a463f5d83c7
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
 	helm.sh/helm/v4 v4.1.4
@@ -17,14 +17,14 @@ require (
 require (
 	cel.dev/expr v0.25.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260715002326-2555e1130350 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260715002326-2555e1130350 // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260807054659-4a463f5d83c7 // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260807054659-4a463f5d83c7 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
@@ -71,7 +71,7 @@ require (
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/btree v1.1.3 // indirect
-	github.com/google/cel-go v0.28.0 // indirect
+	github.com/google/cel-go v0.29.0 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/pprof v0.0.0-20260507013755-92041b743c96 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -150,6 +150,7 @@ require (
 	golang.org/x/tools v0.45.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/grpc v1.82.1 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

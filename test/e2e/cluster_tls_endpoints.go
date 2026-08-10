@@ -46,6 +46,8 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
+		labels.AllowRetry, // owner: @ynikiten, tracking: ARO-25838. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 
 			const (

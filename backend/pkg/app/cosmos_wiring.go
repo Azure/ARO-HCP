@@ -20,14 +20,17 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // NewCosmosDatabaseClient creates the shared Cosmos DatabaseClient that
 // is passed into the per-container wiring functions below.
 func NewCosmosDatabaseClient(cosmosDBURL string, cosmosDBName string, azCoreClientOptions azcore.ClientOptions) (*azcosmos.DatabaseClient, error) {
-	client, err := database.NewCosmosDatabaseClient(cosmosDBURL, cosmosDBName, azCoreClientOptions)
+	client, err := corecosmosstorage.NewCosmosDatabaseClient(cosmosDBURL, cosmosDBName, azCoreClientOptions)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create Azure Cosmos database client: %w", err))
 	}
@@ -36,13 +39,13 @@ func NewCosmosDatabaseClient(cosmosDBURL string, cosmosDBName string, azCoreClie
 
 // NewCosmosDBClients returns data-plane clients for
 // ARM resource documents (Resources container) and billing documents (Billing container).
-func NewCosmosDBClients(cosmosDatabaseClient *azcosmos.DatabaseClient) (database.ResourcesDBClient, database.BillingDBClient, error) {
-	resourcesDBClient, err := database.NewResourcesDBClient(cosmosDatabaseClient)
+func NewCosmosDBClients(cosmosDatabaseClient *azcosmos.DatabaseClient) (corecosmosstorage.ResourcesDBClient, billingcosmosstorage.BillingDBClient, error) {
+	resourcesDBClient, err := corecosmosstorage.NewResourcesDBClient(cosmosDatabaseClient)
 	if err != nil {
 		return nil, nil, utils.TrackError(fmt.Errorf("failed to create resources database client: %w", err))
 	}
 
-	billingDBClient, err := database.NewBillingDBClient(cosmosDatabaseClient)
+	billingDBClient, err := billingcosmosstorage.NewBillingDBClient(cosmosDatabaseClient)
 	if err != nil {
 		return nil, nil, utils.TrackError(fmt.Errorf("failed to create billing database client: %w", err))
 	}
@@ -50,8 +53,8 @@ func NewCosmosDBClients(cosmosDatabaseClient *azcosmos.DatabaseClient) (database
 	return resourcesDBClient, billingDBClient, nil
 }
 
-func NewFleetDBClient(cosmosDatabaseClient *azcosmos.DatabaseClient) (database.FleetDBClient, error) {
-	fleetClient, err := database.NewFleetDBClient(cosmosDatabaseClient)
+func NewFleetDBClient(cosmosDatabaseClient *azcosmos.DatabaseClient) (fleetcosmosstorage.FleetDBClient, error) {
+	fleetClient, err := fleetcosmosstorage.NewFleetDBClient(cosmosDatabaseClient)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create Fleet DBClient: %w", err))
 	}
@@ -72,7 +75,7 @@ func NewFleetDBClient(cosmosDatabaseClient *azcosmos.DatabaseClient) (database.F
 // next call without restarting the backend.
 func NewKubeApplierDBClients(
 	cosmosDatabaseClient *azcosmos.DatabaseClient,
-	mcLister database.ManagementClusterLister,
-) database.KubeApplierDBClients {
-	return database.NewKubeApplierDBClients(cosmosDatabaseClient, mcLister)
+	mcLister kubeappliercosmosstorage.ManagementClusterLister,
+) kubeappliercosmosstorage.KubeApplierDBClients {
+	return kubeappliercosmosstorage.NewKubeApplierDBClients(cosmosDatabaseClient, mcLister)
 }

@@ -29,9 +29,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -50,16 +51,16 @@ func TestSerialConsoleHandler(t *testing.T) {
 		name               string
 		resourceID         string
 		vmName             string
-		setupData          func(context.Context, *testing.T, *databasetesting.MockResourcesDBClient, *azcorearm.ResourceID)
+		setupData          func(context.Context, *testing.T, *corecosmosstoragetesting.MockResourcesDBClient, *azcorearm.ResourceID)
 		mockFPA            *mockFPACredentialRetriever
 		expectedStatusCode int
 		expectedError      string
 	}{
 		{
 			name:       "missing vmName parameter",
-			resourceID: api.TestClusterResourceID,
+			resourceID: coreapitesting.TestClusterResourceID,
 			vmName:     "",
-			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *databasetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
+			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
 			},
 			mockFPA:            &mockFPACredentialRetriever{},
 			expectedStatusCode: http.StatusBadRequest,
@@ -67,9 +68,9 @@ func TestSerialConsoleHandler(t *testing.T) {
 		},
 		{
 			name:       "invalid vmName format",
-			resourceID: api.TestClusterResourceID,
+			resourceID: coreapitesting.TestClusterResourceID,
 			vmName:     "-invalid-vm-name",
-			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *databasetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
+			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
 			},
 			mockFPA:            &mockFPACredentialRetriever{},
 			expectedStatusCode: http.StatusBadRequest,
@@ -77,9 +78,9 @@ func TestSerialConsoleHandler(t *testing.T) {
 		},
 		{
 			name:       "HCP cluster not found in database",
-			resourceID: api.TestClusterResourceID,
+			resourceID: coreapitesting.TestClusterResourceID,
 			vmName:     "test-vm",
-			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *databasetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
+			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
 			},
 			mockFPA:            &mockFPACredentialRetriever{},
 			expectedStatusCode: http.StatusInternalServerError,
@@ -87,21 +88,21 @@ func TestSerialConsoleHandler(t *testing.T) {
 		},
 		{
 			name:       "subscription not found",
-			resourceID: api.TestClusterResourceID,
+			resourceID: coreapitesting.TestClusterResourceID,
 			vmName:     "test-vm",
-			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *databasetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
+			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
 				// Create HCP cluster with InternalID
-				internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
+				internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
 				require.NoError(t, err)
-				hcp := &api.HCPOpenShiftCluster{
-					CosmosMetadata: arm.CosmosMetadata{
+				hcp := &coreapi.HCPOpenShiftCluster{
+					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   resourceID,
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
-					TrackedResource: arm.TrackedResource{
-						Resource: arm.Resource{ID: resourceID},
+					TrackedResource: coreapi.TrackedResource{
+						Resource: coreapi.Resource{ID: resourceID},
 					},
-					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 						ClusterServiceID: &internalID,
 					},
 				}
@@ -114,21 +115,21 @@ func TestSerialConsoleHandler(t *testing.T) {
 		},
 		{
 			name:       "FPA credential retrieval fails",
-			resourceID: api.TestClusterResourceID,
+			resourceID: coreapitesting.TestClusterResourceID,
 			vmName:     "test-vm",
-			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *databasetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
+			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *corecosmosstoragetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
 				// Create HCP cluster with InternalID
-				internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
+				internalID, err := metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
 				require.NoError(t, err)
-				hcp := &api.HCPOpenShiftCluster{
-					CosmosMetadata: arm.CosmosMetadata{
+				hcp := &coreapi.HCPOpenShiftCluster{
+					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   resourceID,
 						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
-					TrackedResource: arm.TrackedResource{
-						Resource: arm.Resource{ID: resourceID},
+					TrackedResource: coreapi.TrackedResource{
+						Resource: coreapi.Resource{ID: resourceID},
 					},
-					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 						ClusterServiceID: &internalID,
 					},
 				}
@@ -137,15 +138,15 @@ func TestSerialConsoleHandler(t *testing.T) {
 
 				// Create subscription with tenant ID
 				tenantID := "test-tenant-id"
-				subscriptionResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + resourceID.SubscriptionID))
-				subscription := &arm.Subscription{
-					CosmosMetadata: arm.CosmosMetadata{
+				subscriptionResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + resourceID.SubscriptionID))
+				subscription := &coreapi.Subscription{
+					CosmosMetadata: coreapi.CosmosMetadata{
 						ResourceID:   subscriptionResourceID,
 						PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 					},
 					ResourceID: subscriptionResourceID,
-					State:      arm.SubscriptionStateRegistered,
-					Properties: &arm.SubscriptionProperties{
+					State:      coreapi.SubscriptionStateRegistered,
+					Properties: &coreapi.SubscriptionProperties{
 						TenantId: &tenantID,
 					},
 				}
@@ -165,7 +166,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 			// Setup database and test data
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 			// Parse resource ID and add to context
 			resourceID, err := azcorearm.ParseResourceID(tt.resourceID)
@@ -200,7 +201,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 
 				// Check if it's a CloudError when status is 400 or 404
 				if tt.expectedStatusCode == http.StatusBadRequest || tt.expectedStatusCode == http.StatusNotFound {
-					var cloudErr *arm.CloudError
+					var cloudErr *coreapi.CloudError
 					if !errors.As(err, &cloudErr) {
 						t.Errorf("Expected CloudError but got %T: %v", err, err)
 						return
@@ -228,7 +229,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 func TestSerialConsoleHandler_InvalidResourceID(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 	mockFPA := &mockFPACredentialRetriever{}
 
 	handler := NewHCPSerialConsoleHandler(mockResourcesDBClient, mockFPA)
@@ -246,7 +247,7 @@ func TestSerialConsoleHandler_InvalidResourceID(t *testing.T) {
 	}
 
 	// Should be a CloudError with 400 status
-	var cloudErr *arm.CloudError
+	var cloudErr *coreapi.CloudError
 	if !errors.As(err, &cloudErr) {
 		t.Errorf("Expected CloudError but got %T: %v", err, err)
 		return

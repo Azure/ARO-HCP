@@ -17,16 +17,15 @@ package apihelpers
 import (
 	"time"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 // CancelOperation updates relevant fields to indicate the operation is canceled.
-func CancelOperation(operation *api.Operation, now time.Time) {
+func CancelOperation(operation *coreapi.Operation, now time.Time) {
 	operation.LastTransitionTime = now
-	operation.Status = arm.ProvisioningStateCanceled
-	operation.Error = &arm.CloudErrorBody{
-		Code:    arm.CloudErrorCodeCanceled,
+	operation.Status = coreapi.ProvisioningStateCanceled
+	operation.Error = &coreapi.CloudErrorBody{
+		Code:    coreapi.CloudErrorCodeCanceled,
 		Message: "This operation was superseded by another",
 	}
 }

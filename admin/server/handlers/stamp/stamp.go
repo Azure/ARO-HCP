@@ -18,31 +18,32 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // Stamp is the API response for a stamp, without CosmosMetadata.
 type Stamp struct {
-	ResourceID string            `json:"resourceId"`
-	Spec       fleet.StampSpec   `json:"spec"`
-	Status     fleet.StampStatus `json:"status"`
+	ResourceID string               `json:"resourceId"`
+	Spec       fleetapi.StampSpec   `json:"spec"`
+	Status     fleetapi.StampStatus `json:"status"`
 }
 
 func validateStampIdentifier(stampIdentifier string) error {
-	if _, err := fleet.ToStampResourceID(stampIdentifier); err != nil {
-		return arm.NewCloudError(
+	if _, err := fleetapi.ToStampResourceID(stampIdentifier); err != nil {
+		return coreapi.NewCloudError(
 			http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidRequestContent, "stampIdentifier",
+			coreapi.CloudErrorCodeInvalidRequestContent, "stampIdentifier",
 			"Invalid stamp identifier: %q", stampIdentifier,
 		)
 	}
 	return nil
 }
 
-func toStamp(s *fleet.Stamp) (Stamp, error) {
+func toStamp(s *fleetapi.Stamp) (Stamp, error) {
 	if s.ResourceID == nil {
 		return Stamp{}, fmt.Errorf("stamp has nil resourceId")
 	}
@@ -55,10 +56,10 @@ func toStamp(s *fleet.Stamp) (Stamp, error) {
 
 // StampListHandler handles GET /admin/v1/stamps.
 type StampListHandler struct {
-	fleetDBClient database.FleetDBClient
+	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
 
-func NewStampListHandler(fleetDBClient database.FleetDBClient) *StampListHandler {
+func NewStampListHandler(fleetDBClient fleetcosmosstorage.FleetDBClient) *StampListHandler {
 	return &StampListHandler{
 		fleetDBClient: fleetDBClient,
 	}
@@ -88,16 +89,16 @@ func (h *StampListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) err
 		stamps = []Stamp{}
 	}
 
-	_, err = arm.WriteJSONResponse(w, http.StatusOK, stamps)
+	_, err = coreapi.WriteJSONResponse(w, http.StatusOK, stamps)
 	return utils.TrackError(err)
 }
 
 // StampGetHandler handles GET /admin/v1/stamps/{stampIdentifier}.
 type StampGetHandler struct {
-	fleetDBClient database.FleetDBClient
+	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
 
-func NewStampGetHandler(fleetDBClient database.FleetDBClient) *StampGetHandler {
+func NewStampGetHandler(fleetDBClient fleetcosmosstorage.FleetDBClient) *StampGetHandler {
 	return &StampGetHandler{
 		fleetDBClient: fleetDBClient,
 	}
@@ -113,8 +114,8 @@ func (h *StampGetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) erro
 
 	stamp, err := h.fleetDBClient.Stamps().Get(ctx, stampIdentifier)
 	if err != nil {
-		if database.IsNotFoundError(err) {
-			return arm.NewCloudError(http.StatusNotFound, arm.CloudErrorCodeNotFound, "", "Stamp %q not found", stampIdentifier)
+		if cosmosstorageutils.IsNotFoundError(err) {
+			return coreapi.NewCloudError(http.StatusNotFound, coreapi.CloudErrorCodeNotFound, "", "Stamp %q not found", stampIdentifier)
 		}
 		return utils.TrackError(fmt.Errorf("failed to get stamp: %w", err))
 	}
@@ -124,6 +125,6 @@ func (h *StampGetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) erro
 		return utils.TrackError(fmt.Errorf("failed to convert stamp: %w", err))
 	}
 
-	_, err = arm.WriteJSONResponse(w, http.StatusOK, resp)
+	_, err = coreapi.WriteJSONResponse(w, http.StatusOK, resp)
 	return utils.TrackError(err)
 }

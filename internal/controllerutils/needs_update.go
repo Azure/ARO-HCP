@@ -23,8 +23,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // needsUpdateEqualities is a copy of equality.Semantic with extra equality functions for types
@@ -43,9 +43,9 @@ import (
 var needsUpdateEqualities = func() conversion.Equalities {
 	e := equality.Semantic.Copy()
 	if err := e.AddFuncs(
-		// arm.CosmosMetadata: only compare ResourceID. CosmosETag is server-assigned and
+		// coreapi.CosmosMetadata: only compare ResourceID. CosmosETag is server-assigned and
 		// ExistingCosmosUID is an in-memory bridge.
-		func(a, b arm.CosmosMetadata) bool {
+		func(a, b coreapi.CosmosMetadata) bool {
 			return ResourceIDsEqual(a.ResourceID, b.ResourceID)
 		},
 		// *azcorearm.ResourceID: compare by string so unrelated parent pointer chains don't
@@ -57,12 +57,12 @@ var needsUpdateEqualities = func() conversion.Equalities {
 		func(a, b azcorearm.ResourceID) bool {
 			return a.String() == b.String()
 		},
-		// api.InternalID (value): compare by canonical path.
-		func(a, b api.InternalID) bool {
+		// metadataapi.InternalID (value): compare by canonical path.
+		func(a, b metadataapi.InternalID) bool {
 			return a.Path() == b.Path()
 		},
-		// *api.InternalID (pointer): nil-safe path comparison.
-		func(a, b *api.InternalID) bool {
+		// *metadataapi.InternalID (pointer): nil-safe path comparison.
+		func(a, b *metadataapi.InternalID) bool {
 			if a == nil && b == nil {
 				return true
 			}

@@ -29,12 +29,12 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -79,7 +79,7 @@ func TestControllerNotifications(t *testing.T) {
 		}()
 
 		resourcesDBClient := testInfo.ResourcesDBClient()
-		backendInformers := informers.NewBackendInformersWithRelistDuration(ctx, resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient, testInfo.BillingDBClient().BillingGlobalListers(), ptr.To(100*time.Millisecond))
+		backendInformers := coreinformers.NewBackendInformersWithRelistDuration(ctx, resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient, testInfo.BillingDBClient().BillingGlobalListers(), ptr.To(100*time.Millisecond))
 
 		_, activeOperationLister := backendInformers.ActiveOperations()
 		testSyncer := newTestController(activeOperationLister)
@@ -96,13 +96,13 @@ func TestControllerNotifications(t *testing.T) {
 			backendErrCh <- nil
 		}()
 
-		clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic"))
+		clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic"))
 		frontendClientAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, "2024-06-10-preview")
 
-		subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(clusterResourceID.SubscriptionID))
-		subscriptionJSONBytes := api.Must(artifacts.ReadFile("artifacts/subscription-32350638-2403-4bc9-a36e-4922c8c99b52.json"))
+		subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(clusterResourceID.SubscriptionID))
+		subscriptionJSONBytes := metadataapi.Must(artifacts.ReadFile("artifacts/subscription-32350638-2403-4bc9-a36e-4922c8c99b52.json"))
 		require.NoError(t, frontendClientAccessor.CreateOrUpdate(ctx, subscriptionResourceID.String(), subscriptionJSONBytes))
-		clusterJSONBytes := api.Must(artifacts.ReadFile("artifacts/cluster-basic.json"))
+		clusterJSONBytes := metadataapi.Must(artifacts.ReadFile("artifacts/cluster-basic.json"))
 		err = frontendClientAccessor.CreateOrUpdate(ctx, clusterResourceID.String(), clusterJSONBytes)
 		require.NoError(t, err)
 
@@ -130,7 +130,7 @@ type testController struct {
 	synced       chan struct{}
 }
 
-func newTestController(activeOperationLister listers.ActiveOperationLister) *testController {
+func newTestController(activeOperationLister corelisters.ActiveOperationLister) *testController {
 	c := &testController{
 		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		observedKeys:    sync.Map{},

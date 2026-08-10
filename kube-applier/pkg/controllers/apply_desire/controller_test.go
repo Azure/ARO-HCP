@@ -30,21 +30,20 @@ import (
 	"k8s.io/client-go/dynamic/fake"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/util/workqueue"
-	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
 )
 
 // testMgmtClusterID is the resourceID stamped into Spec.ManagementCluster.
-var testMgmtClusterID = api.Must(azcorearm.ParseResourceID(
+var testMgmtClusterID = metadataapi.Must(azcorearm.ParseResourceID(
 	"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1"))
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -64,34 +63,27 @@ func fakeDynamic(t *testing.T, gvrToListKind map[schema.GroupVersionResource]str
 	return fake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrToListKind)
 }
 
-func configMapTarget(name string) kubeapplier.ResourceReference {
-	return kubeapplier.ResourceReference{
+func configMapTarget(name string) kubeapplierapi.ResourceReference {
+	return kubeapplierapi.ResourceReference{
 		Group: "", Version: "v1", Resource: "configmaps", Namespace: "default", Name: name,
 	}
 }
 
 // newCadenceController builds a controller wired only with the fields the
-// cadence tests touch: a real workqueue, the supplied cfg (defaults
-// applied), and a TimeBasedChecker fed by cfg.Clock. dyn/informer/writer
-// stay nil because these tests never reach SyncOnce far enough to need
-// them — except the error-requeue test, which substitutes its own erroring
-// fetcher.
+// cadence tests touch: a real workqueue and the supplied cfg (defaults
+// applied). dyn/informer/writer stay nil because these tests never reach
+// SyncOnce far enough to need them — except the error-requeue test, which
+// substitutes its own erroring fetcher.
 func newCadenceController(t *testing.T, cfg Config) *ApplyDesireController {
 	t.Helper()
 	cfg = cfg.withDefaults()
-	checker := controllerutils.NewTimeBasedCooldownChecker(cfg.CooldownPeriod)
-	checker.SetClock(cfg.Clock)
-	deleteChecker := controllerutils.NewTimeBasedCooldownChecker(cfg.DeleteCooldownPeriod)
-	deleteChecker.SetClock(cfg.Clock)
 	return &ApplyDesireController{
 		name: "ApplyDesireController",
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[keys.ApplyDesireKey](),
 			workqueue.TypedRateLimitingQueueConfig[keys.ApplyDesireKey]{Name: "test"},
 		),
-		cfg:            cfg,
-		cooldown:       checker,
-		deleteCooldown: deleteChecker,
+		cfg: cfg,
 	}
 }
 
@@ -99,29 +91,29 @@ func newCadenceController(t *testing.T, cfg Config) *ApplyDesireController {
 // Used to drive processNext down the AddRateLimited path.
 type errFetcher struct{ err error }
 
-func (f *errFetcher) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplier.ApplyDesire, error) {
+func (f *errFetcher) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplierapi.ApplyDesire, error) {
 	return nil, f.err
 }
 
 // staticFetcher implements desirestatuswriter.Fetcher by returning a deep-copy
 // of the pre-loaded desire. Tests wire it into the controller so SyncOnce
 // always has an object to work with.
-type staticFetcher struct{ desire *kubeapplier.ApplyDesire }
+type staticFetcher struct{ desire *kubeapplierapi.ApplyDesire }
 
-func (f *staticFetcher) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplier.ApplyDesire, error) {
+func (f *staticFetcher) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplierapi.ApplyDesire, error) {
 	return f.desire.DeepCopy(), nil
 }
 
 // capturingReplacer implements desirestatuswriter.Replacer by storing the
 // latest status write so tests can assert on the resulting conditions.
-type capturingReplacer struct{ last *kubeapplier.ApplyDesire }
+type capturingReplacer struct{ last *kubeapplierapi.ApplyDesire }
 
-func (r *capturingReplacer) Replace(_ context.Context, d *kubeapplier.ApplyDesire) error {
+func (r *capturingReplacer) Replace(_ context.Context, d *kubeapplierapi.ApplyDesire) error {
 	r.last = d.DeepCopy()
 	return nil
 }
 
-func mustKey(t *testing.T, d *kubeapplier.ApplyDesire) keys.ApplyDesireKey {
+func mustKey(t *testing.T, d *kubeapplierapi.ApplyDesire) keys.ApplyDesireKey {
 	t.Helper()
 	key, err := keys.ApplyDesireKeyFromResourceID(d.GetResourceID())
 	if err != nil {
@@ -134,22 +126,22 @@ func mustKey(t *testing.T, d *kubeapplier.ApplyDesire) keys.ApplyDesireKey {
 // TargetItem and kubeContent JSON. Pass nil kubeContent to exercise the
 // empty-kubeContent PreCheck. Pass a partial target to exercise the
 // targetItem-validation PreChecks.
-func newApplyDesire(t *testing.T, name string, target kubeapplier.ResourceReference, kubeContent []byte) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, name string, target kubeapplierapi.ResourceReference, kubeContent []byte) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	d := &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+	d := &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 				"00000000-0000-0000-0000-000000000001", "rg", "cluster", name,
 			)),
 		},
-		Spec: kubeapplier.ApplyDesireSpec{
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: testMgmtClusterID,
-			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
 			TargetItem:        target,
 		},
 	}
 	if kubeContent != nil {
-		d.Spec.ServerSideApply = &kubeapplier.ServerSideApplyConfig{
+		d.Spec.ServerSideApply = &kubeapplierapi.ServerSideApplyConfig{
 			KubeContent: &runtime.RawExtension{Raw: kubeContent},
 		}
 	}
@@ -159,7 +151,7 @@ func newApplyDesire(t *testing.T, name string, target kubeapplier.ResourceRefere
 // withEtag is a tiny helper for cadence tests that need to construct
 // before/after pairs distinguishable by the change-detection signal the
 // controller uses (CosmosETag).
-func withEtag(d *kubeapplier.ApplyDesire, etag string) *kubeapplier.ApplyDesire {
+func withEtag(d *kubeapplierapi.ApplyDesire, etag string) *kubeapplierapi.ApplyDesire {
 	d.CosmosETag = azcore.ETag(etag)
 	return d
 }
@@ -231,19 +223,19 @@ func TestApplyDesired_PreCheckErrors(t *testing.T) {
 
 	cases := []struct {
 		name        string
-		target      kubeapplier.ResourceReference
+		target      kubeapplierapi.ResourceReference
 		kubeContent []byte
 		wantSubstr  string
 	}{
 		{
 			name:        "missing version in targetItem",
-			target:      kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"},
+			target:      kubeapplierapi.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"},
 			kubeContent: validKubeContent,
 			wantSubstr:  "version, resource, and name",
 		},
 		{
 			name:        "missing resource in targetItem",
-			target:      kubeapplier.ResourceReference{Version: "v1", Namespace: "default", Name: "x"},
+			target:      kubeapplierapi.ResourceReference{Version: "v1", Namespace: "default", Name: "x"},
 			kubeContent: validKubeContent,
 			wantSubstr:  "version, resource, and name",
 		},
@@ -276,10 +268,8 @@ func TestApplyDesired_PreCheckErrors(t *testing.T) {
 	}
 }
 
-// TestHandleAdd_QueuesImmediately covers bot-directive case 1: a brand-new
-// ApplyDesire bypasses the cooldown gate and goes onto the workqueue right
-// away, even though Add events with the same key arriving back-to-back
-// could in principle be spammed.
+// TestHandleAdd_QueuesImmediately verifies that a brand-new ApplyDesire
+// goes onto the workqueue immediately.
 func TestHandleAdd_QueuesImmediately(t *testing.T) {
 	c := newCadenceController(t, Config{})
 	desire := newApplyDesire(t, "ok", configMapTarget("hello"), nil)
@@ -295,15 +285,9 @@ func TestHandleAdd_QueuesImmediately(t *testing.T) {
 	}
 }
 
-// TestHandleUpdate_EtagChangeQueuesImmediately covers bot-directive case 2:
-// when Cosmos etag differs between the previous and current snapshots, the
-// controller treats the update as a real content change and queues
-// immediately — bypassing the cooldown gate so users see their content
-// reflected fast.
-//
-// Etag (rather than spec deep-equals) is the right signal because Cosmos
-// bumps it on every mutation, and the backend's GenericWatchingController
-// uses the same convention.
+// TestHandleUpdate_EtagChangeQueuesImmediately verifies that when Cosmos
+// etag differs, the controller treats the update as a content change and
+// queues immediately.
 func TestHandleUpdate_EtagChangeQueuesImmediately(t *testing.T) {
 	c := newCadenceController(t, Config{})
 
@@ -320,9 +304,8 @@ func TestHandleUpdate_EtagChangeQueuesImmediately(t *testing.T) {
 	}
 }
 
-// TestProcessNext_ErrorRequeues covers bot-directive case 3: when SyncOnce
-// returns an error, processNext rate-limits a requeue. The rate limiter
-// (not the cooldown gate) drives retry timing, so retries happen quickly.
+// TestProcessNext_ErrorRequeues verifies that when SyncOnce returns an
+// error, processNext rate-limits a requeue.
 func TestProcessNext_ErrorRequeues(t *testing.T) {
 	c := newCadenceController(t, Config{})
 	c.fetcher = &errFetcher{err: errors.New("cosmos boom")}
@@ -340,69 +323,23 @@ func TestProcessNext_ErrorRequeues(t *testing.T) {
 	}
 }
 
-// TestHandleUpdate_UnchangedEtagGatedByCooldown covers bot-directive case 4:
-// when etag is unchanged (the informer's resync, or our own status write
-// fed back), handleUpdate consults the cooldown gate. The first call passes
-// through (no prior record); subsequent calls within the configured window
-// are dropped; once the clock advances past the window, the gate reopens.
-//
-// In production this is what makes "unchanged content reconciles slowly"
-// — the informer fires resyncs frequently, but only one in CooldownPeriod
-// makes it onto the workqueue.
-func TestHandleUpdate_UnchangedEtagGatedByCooldown(t *testing.T) {
-	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	fc := clocktesting.NewFakePassiveClock(t0)
-
-	c := newCadenceController(t, Config{
-		CooldownPeriod: 2 * time.Second,
-		Clock:          fc,
-	})
+// TestHandleUpdate_UnchangedEtagQueues verifies that unchanged-etag updates
+// (informer resyncs) still enqueue the key. The informer's ResyncPeriod
+// controls how often these fire; the controller does not gate them further.
+func TestHandleUpdate_UnchangedEtagQueues(t *testing.T) {
+	c := newCadenceController(t, Config{})
 
 	oldDesire := withEtag(newApplyDesire(t, "ok", configMapTarget("hello"), nil), "v1")
 	newDesire := withEtag(newApplyDesire(t, "ok", configMapTarget("hello"), nil), "v1")
 	key := mustKey(t, newDesire)
 
-	// drain consumes everything currently on the queue and returns the keys
-	// in order, so each phase of the test starts from an empty queue.
-	drain := func() []keys.ApplyDesireKey {
-		var got []keys.ApplyDesireKey
-		for c.queue.Len() > 0 {
-			k, shut := c.queue.Get()
-			if shut {
-				t.Fatalf("queue shut down unexpectedly")
-			}
-			got = append(got, k)
-			c.queue.Done(k)
-			c.queue.Forget(k)
-		}
-		return got
-	}
-
-	// First unchanged-etag update: no prior record, gate allows.
 	c.handleUpdate(oldDesire, newDesire)
-	if got := drain(); len(got) != 1 || got[0] != key {
-		t.Fatalf("first unchanged-etag update queued %v, want [%v]", got, key)
+	if got := c.queue.Len(); got != 1 {
+		t.Fatalf("queue.Len after unchanged-etag update = %d, want 1", got)
 	}
-
-	// 1.5s later: still inside the 2s cooldown. Gate denies.
-	fc.SetTime(t0.Add(1500 * time.Millisecond))
-	c.handleUpdate(oldDesire, newDesire)
-	if got := drain(); len(got) != 0 {
-		t.Errorf("at 1.5s (cooldown=2s) drained %v, want none", got)
-	}
-
-	// 2.1s later (past cooldown): gate reopens.
-	fc.SetTime(t0.Add(2100 * time.Millisecond))
-	c.handleUpdate(oldDesire, newDesire)
-	if got := drain(); len(got) != 1 || got[0] != key {
-		t.Fatalf("at 2.1s (past cooldown) drained %v, want [%v]", got, key)
-	}
-
-	// Immediately after the gate just fired, the next window starts from
-	// 2.1s and the gate is closed again until 4.1s.
-	c.handleUpdate(oldDesire, newDesire)
-	if got := drain(); len(got) != 0 {
-		t.Errorf("immediately after pass-through drained %v, want none", got)
+	gotKey, _ := c.queue.Get()
+	if gotKey != key {
+		t.Errorf("queued key = %v, want %v", gotKey, key)
 	}
 }
 
@@ -437,7 +374,7 @@ func TestSyncOnce_AppliedKubeGenerationSetOnSuccess(t *testing.T) {
 	c := &ApplyDesireController{
 		dyn:     dyn,
 		fetcher: fetcher,
-		writer: desirestatuswriter.New[kubeapplier.ApplyDesire, keys.ApplyDesireKey, *kubeapplier.ApplyDesire](
+		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](
 			fetcher, replacer,
 		),
 	}
@@ -479,7 +416,7 @@ func TestSyncOnce_AppliedKubeGenerationNilOnFailure(t *testing.T) {
 	c := &ApplyDesireController{
 		dyn:     dyn,
 		fetcher: fetcher,
-		writer: desirestatuswriter.New[kubeapplier.ApplyDesire, keys.ApplyDesireKey, *kubeapplier.ApplyDesire](
+		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](
 			fetcher, replacer,
 		),
 	}
@@ -504,17 +441,17 @@ func TestSyncOnce_AppliedKubeGenerationNilOnFailure(t *testing.T) {
 
 // newDeleteDesire builds an ApplyDesire with Type=Delete and a populated
 // TargetItem. Used to exercise the evaluateDelete state machine.
-func newDeleteDesire(t *testing.T, name string, target kubeapplier.ResourceReference) *kubeapplier.ApplyDesire {
+func newDeleteDesire(t *testing.T, name string, target kubeapplierapi.ResourceReference) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 				"00000000-0000-0000-0000-000000000001", "rg", "cluster", name,
 			)),
 		},
-		Spec: kubeapplier.ApplyDesireSpec{
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: testMgmtClusterID,
-			Type:              kubeapplier.ApplyDesireTypeDelete,
+			Type:              kubeapplierapi.ApplyDesireTypeDelete,
 			TargetItem:        target,
 		},
 	}
@@ -552,12 +489,12 @@ func TestEvaluateDelete_TargetGoneIsSuccessful(t *testing.T) {
 	})
 	c := &ApplyDesireController{dyn: dyn}
 
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "missing",
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	if got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful); got == nil ||
+	if got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful); got == nil ||
 		got.Status != metav1.ConditionTrue {
 		t.Errorf("Successful=%v, want True (target absent)", got)
 	}
@@ -571,17 +508,17 @@ func TestEvaluateDelete_TargetWithDeletionTimestampWaits(t *testing.T) {
 		newConfigMap("doomed", "default", true))
 	c := &ApplyDesireController{dyn: dyn}
 
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "doomed",
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
 	if got == nil || got.Status != metav1.ConditionFalse {
 		t.Fatalf("Successful=%v, want False (waiting)", got)
 	}
-	if got.Reason != kubeapplier.ConditionReasonWaitingForDeletion {
-		t.Errorf("Reason = %q, want %q", got.Reason, kubeapplier.ConditionReasonWaitingForDeletion)
+	if got.Reason != kubeapplierapi.ConditionReasonWaitingForDeletion {
+		t.Errorf("Reason = %q, want %q", got.Reason, kubeapplierapi.ConditionReasonWaitingForDeletion)
 	}
 	if !strings.Contains(got.Message, "doomed-uid") {
 		t.Errorf("Message %q does not contain UID", got.Message)
@@ -623,13 +560,13 @@ func TestEvaluateDelete_PresentNoTSIssuesDelete_ThenWaitsForFinalizers(t *testin
 	})
 
 	c := &ApplyDesireController{dyn: dyn}
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "d1",
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
-	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplier.ConditionReasonWaitingForDeletion {
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplierapi.ConditionReasonWaitingForDeletion {
 		t.Errorf("Successful=%v, want False/WaitingForDeletion", got)
 	}
 }
@@ -645,13 +582,13 @@ func TestEvaluateDelete_DeleteAPIErrorClassifiesAsKubeAPIError(t *testing.T) {
 		return true, nil, apierrors.NewServiceUnavailable("apiserver unavailable")
 	})
 	c := &ApplyDesireController{dyn: dyn}
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "d2",
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
-	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplier.ConditionReasonKubeAPIError {
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplierapi.ConditionReasonKubeAPIError {
 		t.Errorf("Successful=%v, want False/KubeAPIError", got)
 	}
 }
@@ -659,13 +596,13 @@ func TestEvaluateDelete_DeleteAPIErrorClassifiesAsKubeAPIError(t *testing.T) {
 func TestEvaluateDelete_BadTargetIsPreCheckFailed(t *testing.T) {
 	dyn := fake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), nil)
 	c := &ApplyDesireController{dyn: dyn}
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		// Missing Resource and Name.
 	})
 	mutate := c.evaluateDelete(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
-	if got == nil || got.Reason != kubeapplier.ConditionReasonPreCheckFailed {
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	if got == nil || got.Reason != kubeapplierapi.ConditionReasonPreCheckFailed {
 		t.Errorf("Successful=%v, want PreCheckFailed", got)
 	}
 }

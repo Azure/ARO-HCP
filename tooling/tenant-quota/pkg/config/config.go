@@ -16,10 +16,14 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 const (
@@ -28,6 +32,8 @@ const (
 	DefaultCacheTTL            = 24 * time.Hour
 	DefaultRoleAssignmentLimit = 4000
 	DefaultScope               = "https://graph.microsoft.com/.default"
+	DefaultProwInterval        = 5 * time.Minute
+	DefaultProwRetention       = 24 * time.Hour
 )
 
 type Config struct {
@@ -35,10 +41,28 @@ type Config struct {
 	Timeout  string         `yaml:"timeout"`
 	CacheTTL string         `yaml:"cacheTTL,omitempty"`
 	Tenants  []TenantConfig `yaml:"tenants"`
+	Prow     ProwConfig     `yaml:"prow,omitempty"`
 
 	intervalDuration time.Duration
 	timeoutDuration  time.Duration
 	cacheTTLDuration time.Duration
+}
+
+type ProwConfig struct {
+	Enabled     bool                 `yaml:"enabled"`
+	BaseURL     string               `yaml:"baseURL"`
+	Interval    string               `yaml:"interval,omitempty"`
+	Retention   string               `yaml:"retention,omitempty"`
+	Repository  ProwRepositoryConfig `yaml:"repository"`
+	ExcludeJobs []string             `yaml:"excludeJobs,omitempty"`
+
+	intervalDuration  time.Duration
+	retentionDuration time.Duration
+}
+
+type ProwRepositoryConfig struct {
+	Org  string `yaml:"org"`
+	Name string `yaml:"name"`
 }
 
 type TenantConfig struct {
@@ -89,6 +113,9 @@ func (c *Config) Validate() error {
 	if err := parseDuration(c.CacheTTL, DefaultCacheTTL, &c.cacheTTLDuration, "cacheTTL"); err != nil {
 		return err
 	}
+	if err := c.Prow.validate(); err != nil {
+		return err
+	}
 
 	if len(c.Tenants) == 0 {
 		return fmt.Errorf("at least one tenant must be configured")
@@ -123,6 +150,40 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+func (c *ProwConfig) validate() error {
+	if err := parseDuration(c.Interval, DefaultProwInterval, &c.intervalDuration, "prow.interval"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.Retention, DefaultProwRetention, &c.retentionDuration, "prow.retention"); err != nil {
+		return err
+	}
+	if !c.Enabled {
+		return nil
+	}
+
+	parsedURL, err := url.Parse(strings.TrimSpace(c.BaseURL))
+	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return fmt.Errorf("prow.baseURL must be a valid HTTP or HTTPS URL")
+	}
+	if strings.TrimSpace(c.Repository.Org) == "" {
+		return fmt.Errorf("prow.repository.org is required")
+	}
+	if strings.TrimSpace(c.Repository.Name) == "" {
+		return fmt.Errorf("prow.repository.name is required")
+	}
+
+	excludedJobs := sets.New[string]()
+	for i, jobName := range c.ExcludeJobs {
+		normalized := strings.TrimSpace(jobName)
+		if normalized == "" {
+			return fmt.Errorf("prow.excludeJobs[%d] must not be empty", i)
+		}
+		excludedJobs.Insert(normalized)
+	}
+	c.ExcludeJobs = sets.List(excludedJobs)
+	return nil
+}
+
 func parseDuration(raw string, defaultVal time.Duration, dst *time.Duration, name string) error {
 	if raw == "" {
 		*dst = defaultVal
@@ -149,6 +210,14 @@ func (c *Config) GetTimeout() time.Duration {
 
 func (c *Config) GetCacheTTL() time.Duration {
 	return c.cacheTTLDuration
+}
+
+func (c *ProwConfig) GetInterval() time.Duration {
+	return c.intervalDuration
+}
+
+func (c *ProwConfig) GetRetention() time.Duration {
+	return c.retentionDuration
 }
 
 // HasSubscriptions returns true if any tenant has subscription quota monitoring configured.

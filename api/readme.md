@@ -30,7 +30,7 @@ These are the global settings for generating server-side models.
 
 ``` yaml
 namespace: redhatopenshift
-project-folder: ../internal/api
+project-folder: ../internal/azureapi
 output-folder: $(project-folder)/$(tag)/generated
 
 go:
@@ -49,6 +49,14 @@ Additional options to reduce unused code as much as possible.
 go:
   inject-spans: false
   remove-unreferenced-types: true
+```
+
+### Tag v20260901preview
+
+These settings apply only when `--tag=v20260901preview` is specified on the command line.
+
+``` yaml $(tag) == 'v20260901preview'
+input-file: redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2026-09-01-preview/openapi.json
 ```
 
 ### Tag v20260630preview

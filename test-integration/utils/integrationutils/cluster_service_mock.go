@@ -38,7 +38,7 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadump"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -396,7 +396,7 @@ func clusterHrefFromClusterServiceSubResource(fileContent []byte) (string, error
 
 func addFakeAzureIdentityData(clusterServiceCluster any) (*csarhcpv1alpha1.Cluster, error) {
 	// the API is so hard to work with that we'll make it a map[string]any to manipulate it
-	inJSON, err := datadumpcontrollers.MarshalClusterServiceAny(clusterServiceCluster)
+	inJSON, err := datadump.MarshalClusterServiceAny(clusterServiceCluster)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal cluster-service type: %w", err)
 	}
@@ -467,7 +467,7 @@ func (s *ClusterServiceMock) saveClusterServiceMockData(ctx context.Context) err
 					return fmt.Errorf("failed to create directory %s: %w", dirname, err)
 				}
 
-				clusterServiceBytes, err := datadumpcontrollers.MarshalClusterServiceAny(currCluster)
+				clusterServiceBytes, err := datadump.MarshalClusterServiceAny(currCluster)
 				if err != nil {
 					return fmt.Errorf("failed to marshal cluster: %w", err)
 				}
@@ -530,7 +530,7 @@ func mergeClusterServiceReturn(history []any) ([]byte, error) {
 	// we need to merge the history together, but the CS types resist that, so taking it all back to maps is easier.
 	dest := map[string]any{}
 	for _, curr := range history {
-		clusterServiceJSON, err := datadumpcontrollers.MarshalClusterServiceAny(curr)
+		clusterServiceJSON, err := datadump.MarshalClusterServiceAny(curr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal cluster-service type: %w", err)
 		}

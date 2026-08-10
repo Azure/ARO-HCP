@@ -1,0 +1,120 @@
+rule_files:
+- serviceMemoryResources-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# ServiceMemoryDrift - alert fires when usage > 1.5x request (using frontend as example)
+- interval: 1m
+  input_series:
+  - series: 'container_memory_working_set_bytes{container="frontend", namespace="aro-hcp", pod="frontend-0", cluster="test"}'
+    values: "220200960+0x20"
+  - series: 'kube_pod_container_resource_requests{container="frontend", namespace="aro-hcp", pod="frontend-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+    values: "134217728+0x20"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: ServiceMemoryDrift
+    exp_alerts:
+    - exp_labels:
+        alertname: ServiceMemoryDrift
+        severity: warning
+        team: hcp-sl
+        component: service-memory
+        cluster: test
+        container: frontend
+        namespace: aro-hcp
+        pod: frontend-0
+      exp_annotations:
+        summary: frontend in aro-hcp exceeds 1.5x its memory request on cluster test. pod:frontend-0
+        description: |
+          Container frontend in pod frontend-0 (namespace aro-hcp) on cluster test is using 164.1% of its memory request for more than 15 minutes.
+          This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md
+        owning_team: hcp-sl
+# ServiceMemoryDrift - no alert when usage is below 1.5x
+- interval: 1m
+  input_series:
+  - series: 'container_memory_working_set_bytes{container="frontend", namespace="aro-hcp", pod="frontend-0", cluster="test"}'
+    values: "134217728+0x20"
+  - series: 'kube_pod_container_resource_requests{container="frontend", namespace="aro-hcp", pod="frontend-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+    values: "134217728+0x20"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: ServiceMemoryDrift
+    exp_alerts: []
+# ServiceMemoryDrift - alert fires for kube-applier namespace too
+- interval: 1m
+  input_series:
+  - series: 'container_memory_working_set_bytes{container="kube-applier", namespace="kube-applier", pod="kube-applier-0", cluster="test"}'
+    values: "220200960+0x20"
+  - series: 'kube_pod_container_resource_requests{container="kube-applier", namespace="kube-applier", pod="kube-applier-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+    values: "134217728+0x20"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: ServiceMemoryDrift
+    exp_alerts:
+    - exp_labels:
+        alertname: ServiceMemoryDrift
+        severity: warning
+        team: hcp-sl
+        component: service-memory
+        cluster: test
+        container: kube-applier
+        namespace: kube-applier
+        pod: kube-applier-0
+      exp_annotations:
+        summary: kube-applier in kube-applier exceeds 1.5x its memory request on cluster test. pod:kube-applier-0
+        description: |
+          Container kube-applier in pod kube-applier-0 (namespace kube-applier) on cluster test is using 164.1% of its memory request for more than 15 minutes.
+          This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md
+        owning_team: hcp-sl
+# ServiceMemoryDrift - no alert for namespaces outside the regex
+- interval: 1m
+  input_series:
+  - series: 'container_memory_working_set_bytes{container="coredns", namespace="kube-system", pod="coredns-0", cluster="test"}'
+    values: "220200960+0x20"
+  - series: 'kube_pod_container_resource_requests{container="coredns", namespace="kube-system", pod="coredns-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+    values: "134217728+0x20"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: ServiceMemoryDrift
+    exp_alerts: []
+# ServiceMemoryTrend - alert fires when predict_linear projects > 2x request
+- interval: 1m
+  input_series:
+  - series: 'container_memory_working_set_bytes{container="maestro", namespace="maestro", pod="maestro-0", cluster="test"}'
+    # Starts at 134217728 (128Mi) and grows by 1048576 (1Mi) per minute over 6h+30m
+    values: "134217728+1048576x390"
+  - series: 'kube_pod_container_resource_requests{container="maestro", namespace="maestro", pod="maestro-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+    values: "134217728+0x390"
+  alert_rule_test:
+  - eval_time: 390m
+    alertname: ServiceMemoryTrend
+    exp_alerts:
+    - exp_labels:
+        alertname: ServiceMemoryTrend
+        severity: info
+        team: hcp-sl
+        component: service-memory
+        cluster: test
+        container: maestro
+        namespace: maestro
+        pod: maestro-0
+      exp_annotations:
+        summary: maestro in maestro memory trending toward 2x its request on cluster test. pod:maestro-0
+        description: |
+          Container maestro in pod maestro-0 (namespace maestro) on cluster test memory is growing steadily.
+          At the current rate over the past 6 hours, it will exceed 2x its memory request within 4 hours.
+          Investigate for potential memory leaks or increased workload.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md
+        owning_team: hcp-sl
+# ServiceMemoryTrend - no alert when memory is stable
+- interval: 1m
+  input_series:
+  - series: 'container_memory_working_set_bytes{container="maestro", namespace="maestro", pod="maestro-0", cluster="test"}'
+    values: "134217728+0x390"
+  - series: 'kube_pod_container_resource_requests{container="maestro", namespace="maestro", pod="maestro-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+    values: "134217728+0x390"
+  alert_rule_test:
+  - eval_time: 390m
+    alertname: ServiceMemoryTrend
+    exp_alerts: []

@@ -21,9 +21,9 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 )
 
 const (
@@ -37,19 +37,19 @@ var _ controllerutils.CooldownChecker = (*RegistrationAwareCooldown)(nil)
 // that are not yet Ready, mirroring the backend's
 // ActiveOperationBasedChecker pattern for clusters with active operations.
 type RegistrationAwareCooldown struct {
-	managementClusterLister listers.ManagementClusterLister
+	managementClusterLister fleetlisters.ManagementClusterLister
 	registeredTimer         *controllerutils.TimeBasedCooldownChecker
 	unregisteredTimer       *controllerutils.TimeBasedCooldownChecker
 }
 
 func DefaultRegistrationAwareCooldown(
-	managementClusterLister listers.ManagementClusterLister,
+	managementClusterLister fleetlisters.ManagementClusterLister,
 ) *RegistrationAwareCooldown {
 	return NewRegistrationAwareCooldown(managementClusterLister, DefaultRegisteredCooldown, DefaultUnregisteredCooldown)
 }
 
 func NewRegistrationAwareCooldown(
-	managementClusterLister listers.ManagementClusterLister,
+	managementClusterLister fleetlisters.ManagementClusterLister,
 	registeredCooldown, unregisteredCooldown time.Duration,
 ) *RegistrationAwareCooldown {
 	return &RegistrationAwareCooldown{
@@ -75,7 +75,7 @@ func (c *RegistrationAwareCooldown) CanSync(ctx context.Context, key any) bool {
 		return c.unregisteredTimer.CanSync(ctx, key)
 	}
 
-	if apimeta.IsStatusConditionTrue(managementCluster.Status.Conditions, string(fleet.ManagementClusterConditionReady)) {
+	if apimeta.IsStatusConditionTrue(managementCluster.Status.Conditions, string(fleetapi.ManagementClusterConditionReady)) {
 		return c.registeredTimer.CanSync(ctx, key)
 	}
 	return c.unregisteredTimer.CanSync(ctx, key)

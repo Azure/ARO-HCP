@@ -68,7 +68,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for more than 5 minutes.'
           title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for more than 5 minutes.'
         }
-        expression: 'sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job"}))) > 0'
+        expression: 'sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed",prometheus="prometheus/prometheus"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job",prometheus="prometheus/prometheus"}))) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1717,18 +1717,101 @@ resource svcFrontendPathLatency 'Microsoft.AlertsManagement/prometheusRuleGroups
         enabled: true
         labels: {
           component: 'frontend'
-          severity: 'info'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'FrontendPathLatency/{{ $labels.cluster }}/{{ $labels.method }}/{{ $labels.route }}'
-          description: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 30 minutes.'
-          info: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 30 minutes.'
+          description: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 5 minutes.'
+          info: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 5 minutes.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
           summary: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
           title: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
         }
-        expression: 'histogram_quantile(0.99, sum by (le, route, method) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))) > 1'
+        expression: 'histogram_quantile(0.99, sum by (le, route, method, cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])))) > 1'
         for: 'PT1M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource svcServiceMemoryResourcesRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'svc-service-memory-resources-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ServiceMemoryDrift'
+        enabled: true
+        labels: {
+          component: 'service-memory'
+          severity: 'warning'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'ServiceMemoryDrift/{{ $labels.cluster }}/{{ $labels.container }}/{{ $labels.pod }}/{{ $labels.namespace }}'
+          description: '''Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} is using {{ $value | humanizePercentage }} of its memory request for more than 15 minutes.
+This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
+'''
+          info: '''Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} is using {{ $value | humanizePercentage }} of its memory request for more than 15 minutes.
+This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
+'''
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md'
+          summary: '{{ $labels.container }} in {{ $labels.namespace }} exceeds 1.5x its memory request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+          title: '{{ $labels.container }} in {{ $labels.namespace }} exceeds 1.5x its memory request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+        }
+        expression: '(container_memory_working_set_bytes{container!="",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"} / on (namespace, pod, container, cluster) group_left () max by (namespace, pod, container, cluster) (kube_pod_container_resource_requests{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate",resource="memory"})) > 1.5'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ServiceMemoryTrend'
+        enabled: true
+        labels: {
+          component: 'service-memory'
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'ServiceMemoryTrend/{{ $labels.cluster }}/{{ $labels.container }}/{{ $labels.pod }}/{{ $labels.namespace }}'
+          description: '''Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} memory is growing steadily.
+At the current rate over the past 6 hours, it will exceed 2x its memory request within 4 hours.
+Investigate for potential memory leaks or increased workload.
+'''
+          info: '''Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) on cluster {{ $labels.cluster }} memory is growing steadily.
+At the current rate over the past 6 hours, it will exceed 2x its memory request within 4 hours.
+Investigate for potential memory leaks or increased workload.
+'''
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/service-memory-resources.md'
+          summary: '{{ $labels.container }} in {{ $labels.namespace }} memory trending toward 2x its request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+          title: '{{ $labels.container }} in {{ $labels.namespace }} memory trending toward 2x its request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+        }
+        expression: '(predict_linear(container_memory_working_set_bytes{container!="",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate"}[6h], 4 * 3600) / on (namespace, pod, container, cluster) group_left () max by (namespace, pod, container, cluster) (kube_pod_container_resource_requests{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|clusters-service|fleet|kube-applier|maestro|mgmt-agent|prometheus|secret-sync-controller|sessiongate",resource="memory"})) > 2'
+        for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]

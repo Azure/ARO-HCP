@@ -47,11 +47,11 @@ metadata:
   name: multicluster-engine-operator-config
   namespace: 'multicluster-engine'
 ---
-# Source: multicluster-engine/templates/multicluster-engin-2jizw78jh572r0kmnx26lw5n2uj0ws375neqnn6jtbr7.clusterrole.yaml
+# Source: multicluster-engine/templates/multicluster-engine-92lsw4ygrj90991gtruh0w98lza00paesv8kq64cv48.clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: multicluster-engin-2jizw78jh572r0kmnx26lw5n2uj0ws375neqnn6jtbr7
+  name: multicluster-engine-92lsw4ygrj90991gtruh0w98lza00paesv8kq64cv48
 rules:
 - apiGroups:
   - ""
@@ -1194,6 +1194,7 @@ rules:
 - apiGroups:
   - console.openshift.io
   resources:
+  - consolenotifications
   - consoleplugins
   - consolequickstarts
   verbs:
@@ -3349,15 +3350,15 @@ rules:
   - update
   - watch
 ---
-# Source: multicluster-engine/templates/multicluster-engin-2jizw78jh572r0kmnx26lw5n2uj0ws375neqnn6jtbr7.clusterrolebinding.yaml
+# Source: multicluster-engine/templates/multicluster-engine-92lsw4ygrj90991gtruh0w98lza00paesv8kq64cv48.clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: multicluster-engin-2jizw78jh572r0kmnx26lw5n2uj0ws375neqnn6jtbr7
+  name: multicluster-engine-92lsw4ygrj90991gtruh0w98lza00paesv8kq64cv48
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: multicluster-engin-2jizw78jh572r0kmnx26lw5n2uj0ws375neqnn6jtbr7
+  name: multicluster-engine-92lsw4ygrj90991gtruh0w98lza00paesv8kq64cv48
 subjects:
 - kind: ServiceAccount
   name: multicluster-engine-operator
@@ -3572,7 +3573,7 @@ spec:
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
         - name: OPERATOR_VERSION
-          value: 2.11.4
+          value: 2.11.5
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
         image: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'

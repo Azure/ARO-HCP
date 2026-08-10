@@ -42,6 +42,8 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
+		labels.AllowRetry, // owner: @raelga, tracking: ARO-28611. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "cilium-cluster"

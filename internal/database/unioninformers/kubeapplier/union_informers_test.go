@@ -28,11 +28,12 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
 const (
@@ -43,11 +44,11 @@ const (
 )
 
 var (
-	mgmtAID = api.Must(azcorearm.ParseResourceID(
+	mgmtAID = metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
-	mgmtBID = api.Must(azcorearm.ParseResourceID(
+	mgmtBID = metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/2/managementclusters/mgmt-b"))
-	mgmtUnregistered = api.Must(azcorearm.ParseResourceID(
+	mgmtUnregistered = metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/9/managementclusters/mgmt-z"))
 )
 
@@ -358,34 +359,34 @@ func TestUnionDesireInformer_ConcurrentAddRemoveVsRead(t *testing.T) {
 // UnionKubeApplierInformers (aggregator) — end-to-end via real informers
 // ============================================================================
 
-func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: mustParseID(t, idStr), PartitionKey: strings.ToLower(mgmt.String())},
-		Spec: kubeapplier.ApplyDesireSpec{
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: mustParseID(t, idStr), PartitionKey: strings.ToLower(mgmt.String())},
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: mgmt,
-			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
-			ServerSideApply:   &kubeapplier.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)}},
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			ServerSideApply:   &kubeapplierapi.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)}},
 		},
 	}
 }
 
-// buildPerMCInformers constructs a started informers.KubeApplierInformers
+// buildPerMCInformers constructs a started kubeapplierinformers.KubeApplierInformers
 // against a mock DB containing the supplied seed ApplyDesires for the given
 // management cluster. The mock isolates each MC into its own container, so
 // listing-by-MC and per-MC informer wiring both work correctly.
-func buildPerMCInformers(t *testing.T, ctx context.Context, seed ...*kubeapplier.ApplyDesire) informers.KubeApplierInformers {
+func buildPerMCInformers(t *testing.T, ctx context.Context, seed ...*kubeapplierapi.ApplyDesire) kubeapplierinformers.KubeApplierInformers {
 	t.Helper()
 	resources := make([]any, 0, len(seed))
 	for _, d := range seed {
 		resources = append(resources, d)
 	}
-	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, resources)
+	mock, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, resources)
 	if err != nil {
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
 	}
 	relist := 250 * time.Millisecond
-	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &relist)
+	info := kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &relist)
 	go info.RunWithContext(ctx)
 	apply, _ := info.ApplyDesires()
 	read, _ := info.ReadDesires()
@@ -411,15 +412,15 @@ func TestUnionKubeApplierInformers_EndToEnd(t *testing.T) {
 
 	subA := buildPerMCInformers(t, ctx,
 		newApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 			mgmtAID),
 		newApplyDesire(t,
-			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
+			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
 			mgmtAID),
 	)
 	subB := buildPerMCInformers(t, ctx,
 		newApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
 			mgmtBID),
 	)
 

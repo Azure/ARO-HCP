@@ -43,11 +43,10 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
@@ -67,74 +66,45 @@ const FieldManager = "aro-hcp-kube-applier"
 // Mirrors the backend convention (e.g. NodepoolVersionControllerName).
 const ApplyDesireControllerName = "ApplyDesireController"
 
-// DefaultCooldownPeriod is the minimum interval between two reconciles
-// of an unchanged ApplyDesire. The informer's handler resync fires
-// frequently (at the informer's check period); the cooldown gate is what
-// turns that into a slow re-reconcile. 10 minutes matches the bot
-// directive on PR #5076: "resync without change relatively slow (say 10
-// minutes on a resync)".
-//
-// Real content changes — Add events and Update events with a different
-// Cosmos etag — bypass this gate so users see their content reflected fast.
-const DefaultCooldownPeriod = 10 * time.Minute
+// DefaultResyncPeriod is the maximum interval between two reconciles of an
+// unchanged ApplyDesire. If content changes (etag differs), the controller
+// reconciles immediately; otherwise the informer re-delivers the item
+// after this duration so drift from the desired state is detected.
+const DefaultResyncPeriod = 10 * time.Minute
 
-// DefaultDeleteCooldownPeriod is the minimum interval between two reconciles
-// of an unchanged ApplyDesire with Type=Delete. Delete desires need more
-// frequent resyncs (every 60 seconds) so that stuck finalizers or
-// reappearing objects are noticed promptly.
-const DefaultDeleteCooldownPeriod = 1 * time.Minute
-
-// Config tunes the ApplyDesireController's cooldown behavior. Zero-valued
-// fields take the Default* constants below; tests pass shorter durations
-// and a fake clock.
+// Config tunes the ApplyDesireController's resync behavior. Zero-valued
+// fields take the Default* constants below; tests pass shorter durations.
 type Config struct {
-	// CooldownPeriod is the minimum time between two reconciles of an
-	// unchanged desire. See DefaultCooldownPeriod for the rationale.
-	CooldownPeriod time.Duration
-	// DeleteCooldownPeriod is the minimum time between two reconciles of
-	// an unchanged Type=Delete desire. See DefaultDeleteCooldownPeriod.
-	DeleteCooldownPeriod time.Duration
-	// Clock is the time source used by the cooldown gate. nil =
-	// utilsclock.RealClock{}.
-	Clock utilsclock.PassiveClock
+	// ResyncPeriod is the maximum time between two reconciles of an
+	// unchanged desire. See DefaultResyncPeriod for the rationale.
+	ResyncPeriod time.Duration
 }
 
 func (c Config) withDefaults() Config {
-	if c.CooldownPeriod == 0 {
-		c.CooldownPeriod = DefaultCooldownPeriod
-	}
-	if c.DeleteCooldownPeriod == 0 {
-		c.DeleteCooldownPeriod = DefaultDeleteCooldownPeriod
-	}
-	if c.Clock == nil {
-		c.Clock = utilsclock.RealClock{}
+	if c.ResyncPeriod == 0 {
+		c.ResyncPeriod = DefaultResyncPeriod
 	}
 	return c
 }
 
 // ApplyDesireController reconciles ApplyDesires by SSA-applying spec.kubeContent.
 //
-// Reconcile cadence (mirrors backend's GenericWatchingController):
+// Reconcile cadence:
 //
-//   - Add events queue immediately.
-//   - Update events whose Cosmos etag differs from the previous version
-//     queue immediately. Etag-unchanged updates (informer resyncs, or our
-//     own status writes feeding back) are routed through the cooldown gate.
-//   - The cooldown gate (controllerutils.TimeBasedCooldownChecker) lets each key through
-//     at most once per CooldownPeriod, so unchanged desires reconcile on
-//     a slow cadence regardless of how often the informer resyncs.
+//   - Add and Update events queue immediately.
+//   - The informer's ResyncPeriod (set to cfg.ResyncPeriod) controls how
+//     often unchanged items are re-delivered, guaranteeing periodic
+//     reconciliation.
 //   - On error the workqueue's rate limiter requeues the key with backoff.
 type ApplyDesireController struct {
 	name                string
 	applyDesireInformer cache.SharedIndexInformer
-	fetcher             desirestatuswriter.Fetcher[kubeapplier.ApplyDesire, keys.ApplyDesireKey]
+	fetcher             desirestatuswriter.Fetcher[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey]
 	dyn                 dynamic.Interface
-	writer              desirestatuswriter.StatusWriter[kubeapplier.ApplyDesire, keys.ApplyDesireKey]
+	writer              desirestatuswriter.StatusWriter[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey]
 	queue               workqueue.TypedRateLimitingInterface[keys.ApplyDesireKey]
 
-	cfg            Config
-	cooldown       controllerutils.CooldownChecker
-	deleteCooldown controllerutils.CooldownChecker
+	cfg Config
 }
 
 // NewApplyDesireController wires up the informer event handler and returns a
@@ -146,25 +116,21 @@ type ApplyDesireController struct {
 // resource ID rather than a sentinel parent.
 //
 // cfg's zero values get the Default* constants. Production callers may pass
-// Config{} directly; tests substitute shorter durations and a fake clock.
+// Config{} directly; tests substitute shorter durations.
 func NewApplyDesireController(
 	applyDesireInformer cache.SharedIndexInformer,
 	dyn dynamic.Interface,
-	crudByParent database.KubeApplierApplyDesireCRUD,
+	crudByParent kubeappliercosmosstorage.KubeApplierApplyDesireCRUD,
 	cfg Config,
 ) (*ApplyDesireController, error) {
 	cfg = cfg.withDefaults()
 	fetcher := &applyDesireFetcher{crudByParent: crudByParent}
-	cooldownChecker := controllerutils.NewTimeBasedCooldownChecker(cfg.CooldownPeriod)
-	cooldownChecker.SetClock(cfg.Clock)
-	deleteCooldownChecker := controllerutils.NewTimeBasedCooldownChecker(cfg.DeleteCooldownPeriod)
-	deleteCooldownChecker.SetClock(cfg.Clock)
 	c := &ApplyDesireController{
 		name:                ApplyDesireControllerName,
 		applyDesireInformer: applyDesireInformer,
 		fetcher:             fetcher,
 		dyn:                 dyn,
-		writer: desirestatuswriter.New[kubeapplier.ApplyDesire, keys.ApplyDesireKey, *kubeapplier.ApplyDesire](
+		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](
 			fetcher,
 			&applyDesireReplacer{crudByParent: crudByParent},
 		),
@@ -172,17 +138,18 @@ func NewApplyDesireController(
 			workqueue.DefaultTypedControllerRateLimiter[keys.ApplyDesireKey](),
 			workqueue.TypedRateLimitingQueueConfig[keys.ApplyDesireKey]{Name: ApplyDesireControllerName},
 		),
-		cfg:            cfg,
-		cooldown:       cooldownChecker,
-		deleteCooldown: deleteCooldownChecker,
+		cfg: cfg,
 	}
 
-	// Register the event handler at construction so events are delivered to
-	// the queue before the informer starts pumping. Adding it inside Run()
-	// races with the initial sync.
-	if _, err := applyDesireInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	logger := utils.DefaultLogger()
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(ApplyDesireControllerName)...)
+
+	if _, err := applyDesireInformer.AddEventHandlerWithOptions(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(obj any) { c.handleAdd(obj) },
 		UpdateFunc: func(oldObj, newObj any) { c.handleUpdate(oldObj, newObj) },
+	}, cache.HandlerOptions{
+		Logger:       &logger,
+		ResyncPeriod: &cfg.ResyncPeriod,
 	}); err != nil {
 		return nil, fmt.Errorf("register informer handler: %w", err)
 	}
@@ -190,11 +157,6 @@ func NewApplyDesireController(
 }
 
 // Run starts threadiness workers. It returns when ctx is cancelled.
-//
-// There is no separate poll goroutine: the informer's handler resync
-// (configured via the informer factory's ResyncPeriod) fires periodic
-// Update events for every cached desire, and handleUpdate routes those
-// through the cooldown gate.
 func (c *ApplyDesireController) Run(ctx context.Context, threadiness int) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
@@ -211,68 +173,29 @@ func (c *ApplyDesireController) Run(ctx context.Context, threadiness int) {
 	<-ctx.Done()
 }
 
-// handleAdd queues every observed Add unconditionally. A new ApplyDesire
-// has never been reconciled, so the cooldown gate has nothing to compare
-// against; treat Adds the same way the backend's GenericWatchingController
-// does — as "changed" and immediate.
+// handleAdd queues every observed Add unconditionally.
 func (c *ApplyDesireController) handleAdd(obj any) {
-	d, ok := obj.(*kubeapplier.ApplyDesire)
+	d, ok := obj.(*kubeapplierapi.ApplyDesire)
 	if !ok {
 		return
 	}
 	c.enqueue(d)
 }
 
-// handleUpdate queues immediately when the Cosmos etag differs (real
-// content change) and consults the cooldown gate when it doesn't (informer
-// resync or our own status-write feedback). Etag is the right signal for
-// "changed" because Cosmos bumps it on every persisted mutation, including
-// the status writes the controller itself produces — those still re-trigger
-// reconcile (we want to see Successful conditions converge), but only at
-// cooldown cadence, not in a tight feedback loop.
-func (c *ApplyDesireController) handleUpdate(oldObj, newObj any) {
-	oldD, oldOK := oldObj.(*kubeapplier.ApplyDesire)
-	newD, newOK := newObj.(*kubeapplier.ApplyDesire)
-	if !oldOK || !newOK {
+// handleUpdate enqueues the key unconditionally. The informer's
+// ResyncPeriod controls how often unchanged items are re-delivered.
+func (c *ApplyDesireController) handleUpdate(_, newObj any) {
+	newD, newOK := newObj.(*kubeapplierapi.ApplyDesire)
+	if !newOK {
 		return
 	}
-	changed := oldD.GetEtag() != newD.GetEtag()
-	c.enqueueWithCooldown(newD, changed)
+	c.enqueue(newD)
 }
 
-// enqueue is the unconditional path used for Add events.
-func (c *ApplyDesireController) enqueue(d *kubeapplier.ApplyDesire) {
-	key, err := keys.ApplyDesireKeyFromResourceID(d.GetResourceID())
-	if err != nil {
-		// Should not happen for a desire produced by our own informers, but
-		// don't poison the queue if it does.
-		utilruntime.HandleError(err)
-		return
-	}
-	c.queue.Add(key)
-}
-
-// enqueueWithCooldown queues unconditionally on changed=true and consults
-// the cooldown gate otherwise. Type=Delete desires use the shorter
-// deleteCooldown (1 minute default) so stuck finalizers are noticed
-// promptly; all other types use the standard cooldown (10 minutes).
-// A cooldown rejection is silent; the next resync (or a real change)
-// will get its turn.
-func (c *ApplyDesireController) enqueueWithCooldown(d *kubeapplier.ApplyDesire, changed bool) {
+func (c *ApplyDesireController) enqueue(d *kubeapplierapi.ApplyDesire) {
 	key, err := keys.ApplyDesireKeyFromResourceID(d.GetResourceID())
 	if err != nil {
 		utilruntime.HandleError(err)
-		return
-	}
-	if changed {
-		c.queue.Add(key)
-		return
-	}
-	cd := c.cooldown
-	if d.Spec.Type == kubeapplier.ApplyDesireTypeDelete {
-		cd = c.deleteCooldown
-	}
-	if !cd.CanSync(context.TODO(), key) {
 		return
 	}
 	c.queue.Add(key)
@@ -314,7 +237,7 @@ func (c *ApplyDesireController) processNext(ctx context.Context) bool {
 //     until the target disappears.
 func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesireKey) error {
 	desire, err := c.fetcher.Fetch(ctx, key)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
@@ -325,7 +248,7 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 	}
 
 	switch desire.Spec.Type {
-	case kubeapplier.ApplyDesireTypeServerSideApply:
+	case kubeapplierapi.ApplyDesireTypeServerSideApply:
 		applied, syncErr := c.applyDesired(ctx, desire)
 
 		// Capture the metadata.generation of the Kubernetes object returned by
@@ -336,17 +259,17 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 			appliedKubeGeneration = &gen
 		}
 
-		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplier.ApplyDesire) {
+		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, syncErr)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
 			d.Status.AppliedKubeGeneration = appliedKubeGeneration
 		})
-	case kubeapplier.ApplyDesireTypeDelete:
+	case kubeapplierapi.ApplyDesireTypeDelete:
 		mutate := c.evaluateDelete(ctx, desire)
 		return c.writer.UpdateStatus(ctx, key, mutate)
 	default:
 		syncErr := conditions.NewPreCheckError(fmt.Errorf("unknown desire type %q", desire.Spec.Type))
-		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplier.ApplyDesire) {
+		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, syncErr)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
 		})
@@ -361,7 +284,7 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 // PreCheckError is returned for pre-flight failures (parse, missing fields)
 // so they classify as PreCheckFailed; everything else is treated as a
 // kube-apiserver error.
-func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier.ApplyDesire) (*unstructured.Unstructured, error) {
+func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplierapi.ApplyDesire) (*unstructured.Unstructured, error) {
 	target := d.Spec.TargetItem
 	if len(target.Resource) == 0 || len(target.Version) == 0 || len(target.Name) == 0 {
 		return nil, conditions.NewPreCheckError(errors.New("spec.targetItem requires version, resource, and name"))
@@ -405,11 +328,11 @@ func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier
 //	                           re-issue get
 //	                             not found              -> Successful=True
 //	                             has deletion timestamp  -> WaitingForDeletion
-func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeapplier.ApplyDesire) desirestatuswriter.MutateFunc[kubeapplier.ApplyDesire] {
+func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeapplierapi.ApplyDesire) desirestatuswriter.MutateFunc[kubeapplierapi.ApplyDesire] {
 	target := d.Spec.TargetItem
 	if len(target.Resource) == 0 || len(target.Version) == 0 || len(target.Name) == 0 {
 		err := conditions.NewPreCheckError(errors.New("spec.targetItem requires version, resource, and name"))
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}
@@ -424,14 +347,14 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 
 	got, getErr := kubeResourceAccessor.Get(ctx, target.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(getErr) {
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, nil)
 			conditions.SetDegraded(&d.Status.Conditions, nil)
 		}
 	}
 	if getErr != nil {
 		err := fmt.Errorf("get target: %w", getErr)
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}
@@ -439,7 +362,7 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 
 	if dt := got.GetDeletionTimestamp(); dt != nil {
 		uid := got.GetUID()
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessfulWaitingForDeletion(&d.Status.Conditions, *dt, uid)
 			conditions.SetDegraded(&d.Status.Conditions, nil)
 		}
@@ -447,13 +370,13 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 
 	if delErr := kubeResourceAccessor.Delete(ctx, target.Name, metav1.DeleteOptions{}); delErr != nil {
 		if apierrors.IsNotFound(delErr) {
-			return func(d *kubeapplier.ApplyDesire) {
+			return func(d *kubeapplierapi.ApplyDesire) {
 				conditions.SetSuccessful(&d.Status.Conditions, nil)
 				conditions.SetDegraded(&d.Status.Conditions, nil)
 			}
 		}
 		err := fmt.Errorf("delete target: %w", delErr)
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}
@@ -463,14 +386,14 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 	// "waiting for finalizers" message.
 	post, postErr := kubeResourceAccessor.Get(ctx, target.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(postErr) {
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, nil)
 			conditions.SetDegraded(&d.Status.Conditions, nil)
 		}
 	}
 	if postErr != nil {
 		err := fmt.Errorf("post-delete get: %w", postErr)
-		return func(d *kubeapplier.ApplyDesire) {
+		return func(d *kubeapplierapi.ApplyDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}
@@ -481,7 +404,7 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 		now := metav1.NewTime(time.Now())
 		dt = &now
 	}
-	return func(d *kubeapplier.ApplyDesire) {
+	return func(d *kubeapplierapi.ApplyDesire) {
 		conditions.SetSuccessfulWaitingForDeletion(&d.Status.Conditions, *dt, uid)
 		conditions.SetDegraded(&d.Status.Conditions, nil)
 	}
@@ -521,12 +444,12 @@ func isClientError(err error) bool {
 // from the lister cache here would lose the second of two back-to-back
 // status writes to a PreconditionFailed.
 type applyDesireFetcher struct {
-	crudByParent database.KubeApplierApplyDesireCRUD
+	crudByParent kubeappliercosmosstorage.KubeApplierApplyDesireCRUD
 }
 
-var _ desirestatuswriter.Fetcher[kubeapplier.ApplyDesire, keys.ApplyDesireKey] = &applyDesireFetcher{}
+var _ desirestatuswriter.Fetcher[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey] = &applyDesireFetcher{}
 
-func (f *applyDesireFetcher) Fetch(ctx context.Context, key keys.ApplyDesireKey) (*kubeapplier.ApplyDesire, error) {
+func (f *applyDesireFetcher) Fetch(ctx context.Context, key keys.ApplyDesireKey) (*kubeapplierapi.ApplyDesire, error) {
 	crud, err := key.CRUD(f.crudByParent)
 	if err != nil {
 		return nil, fmt.Errorf("crud for key %v: %w", key, err)
@@ -539,12 +462,12 @@ func (f *applyDesireFetcher) Fetch(ctx context.Context, key keys.ApplyDesireKey)
 // from each desire's resourceID at Replace time so a single Replacer can
 // serve desires across many parents.
 type applyDesireReplacer struct {
-	crudByParent database.KubeApplierApplyDesireCRUD
+	crudByParent kubeappliercosmosstorage.KubeApplierApplyDesireCRUD
 }
 
-var _ desirestatuswriter.Replacer[kubeapplier.ApplyDesire] = &applyDesireReplacer{}
+var _ desirestatuswriter.Replacer[kubeapplierapi.ApplyDesire] = &applyDesireReplacer{}
 
-func (r *applyDesireReplacer) Replace(ctx context.Context, desired *kubeapplier.ApplyDesire) error {
+func (r *applyDesireReplacer) Replace(ctx context.Context, desired *kubeapplierapi.ApplyDesire) error {
 	key, err := keys.ApplyDesireKeyFromResourceID(desired.GetResourceID())
 	if err != nil {
 		return fmt.Errorf("derive key for replace: %w", err)

@@ -154,6 +154,28 @@ images:
     targets:
     - jsonPath: defaults.imageSync.ocMirror.image.digest
       filePath: ../../config/config.yaml
+  # Tenant Quota Collector image
+  tenant-quota:
+    group: aro-ci-images
+    source:
+      image: arohcpsvcdev.azurecr.io/tenant-quota-collector
+      tagPattern: "^[a-f0-9]{7}$"
+      versionLabel: vcs-ref
+      useAuth: true
+    targets:
+    - jsonPath: clouds.dev.defaults.opstool.tenantQuota.image.digest
+      filePath: ../../config/config-dev-ci.yaml
+  # CIHealth image
+  cihealth:
+    group: aro-ci-images
+    source:
+      image: quay.io/roivaz/cihealth
+      tagPattern: "^[a-f0-9]{7}$"
+      versionLabel: vcs-ref
+      multiArch: true
+    targets:
+    - jsonPath: clouds.dev.defaults.opstool.cihealth.image.digest
+      filePath: ../../config/config-dev-ci.yaml
   # Prometheus images
   prometheus-operator:
     group: prom-stack

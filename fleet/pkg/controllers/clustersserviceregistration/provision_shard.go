@@ -21,23 +21,23 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-func schedulingPolicyToShardStatus(policy fleet.ManagementClusterSchedulingPolicy) (string, error) {
+func schedulingPolicyToShardStatus(policy fleetapi.ManagementClusterSchedulingPolicy) (string, error) {
 	switch policy {
-	case fleet.ManagementClusterSchedulingPolicySchedulable:
+	case fleetapi.ManagementClusterSchedulingPolicySchedulable:
 		return ocm.CSProvisionShardStatusActive, nil
-	case fleet.ManagementClusterSchedulingPolicyUnschedulable:
+	case fleetapi.ManagementClusterSchedulingPolicyUnschedulable:
 		return ocm.CSProvisionShardStatusMaintenance, nil
 	default:
 		return "", fmt.Errorf("unknown scheduling policy: %q", policy)
 	}
 }
 
-func buildProvisionShardForCreate(managementCluster *fleet.ManagementCluster, region string) (*arohcpv1alpha1.ProvisionShardBuilder, error) {
+func buildProvisionShardForCreate(managementCluster *fleetapi.ManagementCluster, region string) (*arohcpv1alpha1.ProvisionShardBuilder, error) {
 	if managementCluster.Status.AKSResourceID == nil {
 		return nil, fmt.Errorf("AKSResourceID is required")
 	}
@@ -94,7 +94,7 @@ func buildProvisionShardForCreate(managementCluster *fleet.ManagementCluster, re
 // provisionShardStatusUpdateBuilder builds a patch that only sets the shard status.
 // All other fields are immutable after create in CS.
 // If the shard is already in the desired state, returns nil.
-func provisionShardStatusUpdateBuilder(shard *arohcpv1alpha1.ProvisionShard, policy fleet.ManagementClusterSchedulingPolicy) (*arohcpv1alpha1.ProvisionShardBuilder, error) {
+func provisionShardStatusUpdateBuilder(shard *arohcpv1alpha1.ProvisionShard, policy fleetapi.ManagementClusterSchedulingPolicy) (*arohcpv1alpha1.ProvisionShardBuilder, error) {
 	newStatus, err := schedulingPolicyToShardStatus(policy)
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func provisionShardStatusUpdateBuilder(shard *arohcpv1alpha1.ProvisionShard, pol
 // searchByIdentityKeys scans all provision shards for a match on both AKS
 // resource ID and consumer name. Both keys must point to the same shard. A
 // partial match (only one key matches) or a duplicate is an error.
-func searchByIdentityKeys(ctx context.Context, clustersServiceClient ProvisionShardClient, aksResourceID, consumerName string) (*api.InternalID, *arohcpv1alpha1.ProvisionShard, error) {
+func searchByIdentityKeys(ctx context.Context, clustersServiceClient ProvisionShardClient, aksResourceID, consumerName string) (*metadataapi.InternalID, *arohcpv1alpha1.ProvisionShard, error) {
 	var found *arohcpv1alpha1.ProvisionShard
 
 	iter := clustersServiceClient.ListProvisionShards()
@@ -133,7 +133,7 @@ func searchByIdentityKeys(ctx context.Context, clustersServiceClient ProvisionSh
 	if found == nil {
 		return nil, nil, nil
 	}
-	shardID, err := api.NewInternalID(found.HREF())
+	shardID, err := metadataapi.NewInternalID(found.HREF())
 	if err != nil {
 		return nil, nil, fmt.Errorf("parsing provision shard HREF: %w", err)
 	}

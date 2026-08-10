@@ -1,98 +1,69 @@
-# tenant-quota
+# DEV CI Telemetry Exporter (`tenant-quota`)
 
-`tenant-quota` is the `opstool` workload that collects Azure quota data and exposes it as Prometheus metrics.
+`tenant-quota` is the historical name of the extensible DEV CI telemetry exporter running on the standalone `opstool` AKS cluster. It began by collecting tenant and subscription quota data, but its scope is growing beyond quota-only telemetry.
 
-It currently covers two domains:
+Current examples include tenant capacity, subscription quota, E2E resource-group expiry, and Prow job outcomes and durations. The design supports additional CI telemetry sources without turning this README into a fixed collector or metric inventory.
 
-- Azure AD / Entra directory quota per tenant
-- Azure subscription quota usage and limits for configured subscriptions and regions
+For alert response, routing, and monitoring maintenance, use the canonical [DEV CI Monitoring and Alert Response](../../docs/ci/dev-ci-monitoring.md) runbook.
 
-The workload is deployed to the standalone `opstool` AKS cluster and ships its metrics through the shared `opstool` Prometheus stack into the `opstool` Azure Monitor Workspace.
+## Collection Sources of Truth
 
-## What It Collects
+Use the implementation and deployment sources rather than maintaining a copied inventory here:
 
-### Tenant directory quota
-
-For each configured tenant with `directoryQuota: true`, the collector queries Microsoft Graph and exports:
-
-- `tenant_quota_usage_percentage`
-- `tenant_quota_total`
-- `tenant_quota_used`
-- `tenant_remaining_capacity`
-
-These metrics are labeled with:
-
-- `tenant_id`
-- `tenant_name`
-
-### Subscription quota
-
-For each configured subscription, the collector resolves the subscription ID at runtime and exports:
-
-- `azure_quota_usage`
-- `azure_quota_limit`
-
-These metrics are labeled with:
-
-- `source`
-- `subscription_id`
-- `subscription_name`
-- `region`
-- `quota_name`
-- `localized_name`
-
-The current subscription quota sources are:
-
-- `rbac` for role assignment count versus the configured role assignment limit
-- `compute` for Azure Compute regional usage quotas
-- `network` for Azure Network regional usage quotas
+- [`main.go`](main.go) registers the collectors run by the process and defines its HTTP endpoints.
+- [`pkg/`](pkg/) contains collector, metric, configuration, and credential behavior.
+- [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml), under `opstool.tenantQuota`, is the source of truth for deployed configuration.
 
 ## Runtime Model
 
-At startup the process loads the rendered runtime config, validates credentials, starts watching mounted secret files, resolves subscription IDs when needed, starts the collector loops, and serves the HTTP endpoints.
+At startup the process loads the rendered runtime config, validates credentials, starts watching mounted secret files, resolves subscription IDs when needed, starts the registered collector loops, and serves its HTTP endpoints.
 
-The source of truth for the current startup flow, HTTP handlers, and runtime defaults is:
+The detailed startup, configuration, credentials, and rendered deployment behavior is defined in:
 
-- `main.go`
-- `pkg/config/config.go`
-- `pkg/credentials/provider.go`
-- `deploy/config.yaml.tmpl`
+- [`main.go`](main.go)
+- [`pkg/config/config.go`](pkg/config/config.go)
+- [`pkg/credentials/provider.go`](pkg/credentials/provider.go)
+- [`deploy/config.yaml.tmpl`](deploy/config.yaml.tmpl)
+
+The service listens on port `8080` and exposes `/healthz`, `/readyz`, `/version`, and `/metrics`.
 
 ## Deployment Layout
 
-The rollout is owned by `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` in `pipeline.yaml`.
+The rollout is owned by `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` in [`pipeline.yaml`](pipeline.yaml).
 
 The pipeline:
 
-- reads shared outputs from `dev-infrastructure/templates/output-opstool-cluster.bicep`
-- deploys the Helm chart using `deploy/values.yaml.tmpl`
-- deploys Azure Monitor rule groups from `alerting.bicep`
+- reads shared outputs from [`dev-infrastructure/templates/output-opstool-cluster.bicep`](../../dev-infrastructure/templates/output-opstool-cluster.bicep)
+- deploys the Helm chart using [`deploy/values.yaml.tmpl`](deploy/values.yaml.tmpl)
+- deploys Azure Monitor rule groups from [`alerting.bicep`](alerting.bicep)
 
-## Configuration Source Of Truth
+For cluster architecture, shared monitoring, identity, secret, and workload patterns, see [Opstool CI Platform](../../docs/ci/opstool.md).
 
-The source of truth for deployed configuration is `config/config-dev-ci.yaml`, under `opstool.tenantQuota`.
+## Configuration Source of Truth
 
-Do not update tenant definitions in `deploy/values.yaml`. That file is only static chart defaults.
+The source of truth for deployed configuration is [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml), under `opstool.tenantQuota`.
 
-Subscription IDs are resolved at runtime from the configured subscription display names rather than stored in the config.
+Do not update tenant definitions in `deploy/values.yaml`. That file contains static chart defaults.
 
-## Secrets And Credential Reload
+Subscription IDs are resolved at runtime from configured subscription display names rather than stored in the config.
+
+## Secrets and Credential Reload
 
 Client secrets live in the `opstool` workload Key Vault and are mounted into the pod with the CSI Secret Store driver.
 
-The credential reload behavior is defined in `pkg/credentials/provider.go`.
+Credential reload behavior is defined in [`pkg/credentials/provider.go`](pkg/credentials/provider.go). A Key Vault secret update can be picked up without restarting the pod when the CSI-mounted file refreshes and the process rereads the invalidated credential on its next use.
 
-In short, a Key Vault secret update can be picked up without restarting the pod, as long as the CSI-mounted file is refreshed and the process rereads the invalidated credential on its next use.
+## Alerting
 
-## Alerts
+[`alerting.bicep`](alerting.bicep) is the source of truth for alert names, expressions, thresholds, durations, annotations, and routing. Rules are deployed into the `opstool` Azure Monitor Workspace and use the shared `opstool-pagerduty` Action Group supplied by the `DevCI.Unprivileged` rollout.
 
-Alert rules are defined in `alerting.bicep` and deployed into the `opstool` Azure Monitor Workspace. Notifications use the shared `opstool-email-alerts` Action Group provided by the `DevCI.Unprivileged` rollout.
+Do not duplicate the evolving alert catalog in this README. See [DEV CI Monitoring and Alert Response](../../docs/ci/dev-ci-monitoring.md) for response and maintenance procedures.
 
 ## Local Development
 
 Run all commands from `tooling/tenant-quota`.
 
-The `Makefile` is the source of truth for the supported local development and image workflow targets.
+The [`Makefile`](Makefile) is the source of truth for supported local-development and image-workflow targets.
 
 Example local workflow:
 
@@ -122,12 +93,12 @@ cd tooling/tenant-quota
 ./scripts/manage-service-principals.sh --list
 ```
 
-This script is the supported path for creating and reconciling the service principals, role assignments, and Key Vault secrets used by the collector.
+This script is the supported path for creating and reconciling the service principals, role assignments, and Key Vault secrets used by the exporter.
 
 After adding or changing a tenant:
 
-1. Update `config/config-dev-ci.yaml`.
-2. Redeploy the `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint via `make dev-ci-local-run` (for a targeted redeploy, run just the `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` service group).
+1. Update [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml).
+2. Redeploy the `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint with `make dev-ci-local-run`. For a targeted redeploy, run only the `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` service group.
 
 ### Renew a client secret
 
@@ -152,4 +123,4 @@ If needed, the script can also restart the deployment:
 ./scripts/renew-sp-secret.sh --tenant RedHat0 --restart
 ```
 
-Because the runtime now watches mounted secret files, restart should normally be optional and mainly useful as a recovery step if the rotated secret does not propagate promptly.
+Because the runtime watches mounted secret files, a restart should normally be optional and is mainly a recovery step if the rotated secret does not propagate promptly.

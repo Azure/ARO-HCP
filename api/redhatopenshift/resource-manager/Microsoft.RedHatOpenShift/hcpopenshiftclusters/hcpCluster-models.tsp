@@ -305,7 +305,7 @@ model IngressProfile {
   type?: IngressType = IngressType.Public;
 }
 
-/** The internet visibility of the OpenShift API server. */
+/** The internet visibility of the OpenShift API server */
 union Visibility {
   string,
 
@@ -627,8 +627,15 @@ model EtcdDataEncryptionProfile {
   /** Specify the key management strategy used for the encryption key that encrypts the ETCD data.
    * By default, "PlatformManaged" is used.
    */
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "keyManagementMode")
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  keyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
+  optionalKeyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
+
+  /** Specify the key management strategy used for the encryption key that encrypts the ETCD data. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  keyManagementMode: EtcdDataEncryptionKeyManagementModeType;
 
   /** Specify customer managed encryption key details.
    * Required when keyManagementMode is "CustomerManaged".
@@ -717,6 +724,7 @@ union EtcdDataEncryptionKeyManagementModeType {
   CustomerManaged: "CustomerManaged",
 
   /** Platform managed encryption key management mode type. */
+  @removed(Versions.v2026_06_30_preview)
   PlatformManaged: "PlatformManaged",
 }
 
@@ -900,10 +908,18 @@ model NodePoolPlatformProfile {
 
 /** The settings and configuration options for OSDisk */
 model OsDiskProfile {
+  /** The OS disk size in GiB */
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "sizeGiB")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @minValue(64)
+  noMaxSizeGiB?: int32 = 64;
+
   /** The OS disk size in GiB. Maximum is 4095 GiB for Managed disks. For Ephemeral disks,
    * the maximum is 2040 GiB; Azure may enforce a lower effective limit based on the
    * selected VM size's local cache, temp, or NVMe capacity.
    */
+  @added(Versions.v2026_06_30_preview)
   @visibility(Lifecycle.Read, Lifecycle.Create)
   @minValue(64)
   @maxValue(4095)
@@ -1010,6 +1026,13 @@ scalar DiskEncryptionSetResourceId
  *   HCP cluster credentials
  * =======================================
  */
+
+/** HCP cluster admin credential request body */
+@added(Versions.v2026_09_01_preview)
+model HcpOpenShiftClusterAdminCredentialRequest {
+  /** PEM encoded certificate request */
+  certificateSigningRequest?: string;
+}
 
 /** HCP cluster admin credential */
 model HcpOpenShiftClusterAdminCredential {

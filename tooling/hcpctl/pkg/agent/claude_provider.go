@@ -170,9 +170,15 @@ type ClaudeSession struct {
 	systemPrompt string
 	tools        []anthropic.ToolUnionParam
 	toolHandlers map[string]func(ctx context.Context, params json.RawMessage) (string, error)
-	messages     []anthropic.MessageParam
-	sessionID    string
-	logger       logr.Logger
+	// messages is the active API context sent to the model on each turn.
+	// ResetHistory clears this to bound context growth between phases.
+	messages []anthropic.MessageParam
+	// archivedMessages is the full, append-only transcript of the session.
+	// It is never cleared by ResetHistory so that SaveConversation can
+	// persist the complete conversation for later inspection.
+	archivedMessages []anthropic.MessageParam
+	sessionID        string
+	logger           logr.Logger
 }
 
 // SessionID returns the unique identifier for this session.
@@ -187,18 +193,29 @@ func (s *ClaudeSession) SessionID() string {
 func (s *ClaudeSession) SendAndWait(ctx context.Context, prompt string) (string, error) {
 	s.logger.V(1).Info("Sending message to Claude session.", "promptLength", len(prompt))
 
-	// Add user message to conversation history.
-	s.messages = append(s.messages, anthropic.NewUserMessage(
-		anthropic.NewTextBlock(prompt),
-	))
+	// Add user message to both the active API context and the archived
+	// transcript. archivedMessages survives ResetHistory so the full
+	// conversation can still be persisted by SaveConversation.
+	userMsg := anthropic.NewUserMessage(anthropic.NewTextBlock(prompt))
+	s.messages = append(s.messages, userMsg)
+	s.archivedMessages = append(s.archivedMessages, userMsg)
 
 	// Tool-use loop.
 	for {
 		params := anthropic.MessageNewParams{
 			Model:     s.model,
 			MaxTokens: claudeMaxTokens,
+			// Mark the system prompt as an ephemeral cache breakpoint. The
+			// system prompt is identical across every turn, so Anthropic
+			// prompt caching lets subsequent requests reuse it, cutting
+			// input-token cost and latency for repeated calls.
 			System: []anthropic.TextBlockParam{
-				{Text: s.systemPrompt},
+				{
+					Text: s.systemPrompt,
+					CacheControl: anthropic.CacheControlEphemeralParam{
+						TTL: anthropic.CacheControlEphemeralTTLTTL5m,
+					},
+				},
 			},
 			Messages: s.messages,
 		}
@@ -219,8 +236,10 @@ func (s *ClaudeSession) SendAndWait(ctx context.Context, prompt string) (string,
 			"outputTokens", resp.Usage.OutputTokens,
 		)
 
-		// Add assistant response to conversation history.
-		s.messages = append(s.messages, resp.ToParam())
+		// Add assistant response to both the active context and the archive.
+		assistantMsg := resp.ToParam()
+		s.messages = append(s.messages, assistantMsg)
+		s.archivedMessages = append(s.archivedMessages, assistantMsg)
 
 		// If stop reason is not tool_use, extract text and return.
 		if resp.StopReason != anthropic.StopReasonToolUse {
@@ -233,8 +252,11 @@ func (s *ClaudeSession) SendAndWait(ctx context.Context, prompt string) (string,
 			return "", err
 		}
 
-		// Add tool results as user message and continue the loop.
-		s.messages = append(s.messages, anthropic.NewUserMessage(toolResults...))
+		// Add tool results as a user message to both the active context and
+		// the archive, then continue the loop.
+		toolResultMsg := anthropic.NewUserMessage(toolResults...)
+		s.messages = append(s.messages, toolResultMsg)
+		s.archivedMessages = append(s.archivedMessages, toolResultMsg)
 	}
 }
 
@@ -293,14 +315,33 @@ func (s *ClaudeSession) processToolUseBlocks(ctx context.Context, resp *anthropi
 	return results, nil
 }
 
-// SaveConversation writes the conversation history to a JSON file.
+// ResetHistory clears the active conversation context. This is used
+// between analysis phases (e.g. before review rounds) to prevent the
+// accumulated context from exceeding the model's token limit. Only the
+// active context (s.messages) is cleared; the archived transcript
+// (s.archivedMessages) is preserved so SaveConversation can still persist
+// the complete conversation. The system prompt, tools, and tool handlers
+// are also preserved.
+func (s *ClaudeSession) ResetHistory() {
+	s.logger.V(1).Info("Resetting Claude active conversation context; archived transcript preserved.",
+		"clearedMessageCount", len(s.messages),
+		"archivedMessageCount", len(s.archivedMessages),
+	)
+	s.messages = nil
+}
+
+// SaveConversation writes the full archived conversation transcript to a
+// JSON file. It persists s.archivedMessages (the append-only transcript)
+// rather than s.messages (the active context), so the complete
+// conversation is saved even after ResetHistory has trimmed the active
+// context between phases.
 func (s *ClaudeSession) SaveConversation(path string) {
-	if len(s.messages) == 0 {
+	if len(s.archivedMessages) == 0 {
 		s.logger.Info("No conversation messages to save.")
 		return
 	}
 
-	data, err := json.MarshalIndent(s.messages, "", "  ")
+	data, err := json.MarshalIndent(s.archivedMessages, "", "  ")
 	if err != nil {
 		s.logger.Error(err, "Failed to marshal conversation for saving.")
 		return

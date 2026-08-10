@@ -447,6 +447,12 @@ func parseIPServiceTag(tag string) IPServiceTag => {
   tag: split(tag, ':')[1]
 }
 
+// Expects each CSV entry to be in 'key=value' format. Malformed entries
+// (missing '=') will cause a runtime split-index error in Bicep.
+@export()
+func csvTagsToObject(tagsCSV string) object =>
+  toObject(csvToArray(tagsCSV), tag => split(tag, '=')[0], tag => split(tag, '=')[1])
+
 // Function to safely truncate strings, ensuring no trailing dashes or problematic characters
 @export()
 func safeTake(input string, maxLength int) string =>

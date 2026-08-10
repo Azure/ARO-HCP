@@ -42,16 +42,56 @@ clouds:
                     memory: 2Gi
       stg:
         # this is the MSFT STAGE environment
+        regions:
+          # westus3: second STG region, born on the dedicated hcp-stg-global sub with
+          # its "…2" global names (AROSLSRE-1657). uksouth stays on hcp-global.
+          westus3:
+            global:
+              subscription:
+                key: hcp-stg-global
+              keyVault:
+                name: "arohcp{{ .ctx.environment }}2-global"
+            acr:
+              svc:
+                name: "arohcpsvc{{ .ctx.environment }}2"
+              ocp:
+                name: "arohcpocp{{ .ctx.environment }}2"
+            geneva:
+              actions:
+                keyVault:
+                  name: "arohcp{{ .ctx.environment }}2-geneva-kv"
+            oidc:
+              storageAccount:
+                name: "arohcp{{ .ctx.environment }}2oidc{{ .ctx.regionShort }}"
+              frontdoor:
+                name: "arohcp{{ .ctx.environment }}2"
+                keyVault:
+                  name: "ah-{{ .ctx.environment }}2-afd"
+            monitoring:
+              grafanaName: "arohcp-{{ .ctx.environment }}2"
+            kusto:
+              # US-geography cluster (hcp-{env}-{geoShort} convention), separate from
+              # the uksouth hcp-stg-uk-* cluster.
+              kustoName: "hcp-{{ .ctx.environment }}-us-1"
         defaults:
+          # Carry the environment in the subscription display names for stage, so the
+          # stg subscriptions are distinguishable from the identically-named prod ones.
+          # The base config.yaml default omits the environment, so prod is unchanged;
+          # this only overrides stage, matching the global sub which already includes it.
+          svc:
+            subscription:
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - SVC"
+          mgmt:
+            subscription:
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - MGMT - {{ .ctx.stamp }}"
+          serviceKeyVault:
+            subscription:
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - SVC"
           # This must be defined here, so our ci jobs can know this
           kusto:
-            kustoName: "hcp-stg-uk-2"
-          # TRANSIENT — STG-global "V2" migration: real globally-unique names +
-          # dedicated DNS zones for the parallel infra deployed into the dedicated
-          # STG-global subscription during coexistence. Overrides the public.defaults
-          # empty-sentinel; only stg gets real values. "2" suffix is the only literal
-          # vs the canonical names. Live stg.defaults names (acr.svc.name etc.) are
-          # untouched until cutover. Removed at decommission.
+            kustoName: "hcp-stg-uk-3"
+          # Transient STG-global "V2" names for the parallel infra in the dedicated
+          # hcp-stg-global sub during coexistence. Removed at decommission.
           stgGlobalV2:
             acrSvcName: "arohcpsvc{{ .ctx.environment }}2"
             acrOcpName: "arohcpocp{{ .ctx.environment }}2"
@@ -60,26 +100,15 @@ clouds:
             frontDoorName: "arohcp{{ .ctx.environment }}2"
             frontDoorKeyVaultName: "ah-{{ .ctx.environment }}2-afd"
             oidcStorageAccountName: "arohcp{{ .ctx.environment }}2oidc{{ .ctx.regionShort }}"
-            # DNS: dedicated stg zones (delegated from azure.com via SafeDNS),
-            # replacing the shared aro-hcp.azure.com / aroapp-hcp.io. Owned by the
-            # DNS track (AROSLSRE-1204) — confirm before deploy.
+            # Dedicated stg parent zones (replace the shared aro-hcp.azure.com / aroapp-hcp.io).
             svcParentZoneName: "aro-hcp-{{ .ctx.environment }}.azure.com"
             cxParentZoneName: "aroapp-hcp-{{ .ctx.environment }}.azure.com"
-            # New Kusto cluster (live stg is hcp-stg-uk-2; this is the next one).
+            # V2 stg Kusto cluster.
             kustoName: "hcp-{{ .ctx.environment }}-uk-3"
-            # New Grafana workspace (live stg is arohcp-stg; this is the V2 one).
-            # Globally unique — must differ from the live name to avoid NameNotUnique.
+            # V2 Grafana workspace (globally unique, differs from the live name).
             grafanaName: "arohcp-{{ .ctx.environment }}2"
-            # New workspace must be created on v13: Azure retired v11 for new
-            # creation on 2026-06-15, so only major versions 12/13 are accepted.
-            # The live grandfathered workspace stays on 11 (shared monitoring value).
-            grafanaMajorVersion: "13"
-            # Dedicated STG billing Kusto in the new hcp-stg-global sub. Distinct from
-            # the shared billing.kusto.* (which Billing.Global keeps managing for stg),
-            # so the shared cluster is never touched. The SKU is E8a_v4 because the
-            # shared billing.kusto.sku (E8ads_v5) is not offered in uksouth, where this
-            # dedicated cluster lives. Consumed only by the transient Billing.StgGlobal
-            # bicepparam; promoted into stg.defaults billing.kusto.* at cutover.
+            # Dedicated stg billing Kusto in hcp-stg-global (E8a_v4; E8ads_v5 is not
+            # offered in uksouth). Consumed by the transient Billing.StgGlobal bicepparam.
             billingKustoName: "arohcpHoBo{{ .ctx.environment }}"
             billingKustoSku: "Standard_E8a_v4"
           # E2E
@@ -116,9 +145,33 @@ clouds:
             audit:
               connectSocket: true
         regions:
+          eastus2:
+            e2e:
+              regionTest:
+                # eastus2 is pinned to the Test-Tenant sub ("ARO HCP E2E") because
+                # the RH-tenant PROD subs (Prod-00/Prod-01) have every RP-allowed
+                # x64 general-purpose VM SKU restricted (NotAvailableForSubscription)
+                # in this region, which makes node pool creation fail there. The
+                # Test-Tenant sub is unrestricted in eastus2 (it also backs the
+                # eastus2euap canary), so routing eastus2 to it unblocks the gating
+                # job. Revert once the RH subs' SKU restriction is lifted (ARO-28614).
+                allowedSubscriptions: "ARO HCP E2E"
           eastus2euap:
+            e2e:
+              regionTest:
+                # Canary: eastus2euap is pinned to the Test-Tenant sub, the only
+                # PROD sub onboarded into the canary program. This currently
+                # matches the gating job's baseline ALLOWED_SUBSCRIPTIONS, so it
+                # is a no-op until the non-canary regions are switched to the RH
+                # PROD subs (ARO-28614).
+                allowedSubscriptions: "ARO HCP E2E"
             kusto:
               location: "eastus2"
+            # Canary/EUAP replica: keep its regional data endpoint disabled so it
+            # doesn't serve co-located prod pulls (AROSLSRE-1592).
+            acr:
+              ocp:
+                replicationState: false
           switzerlandnorth:
             kusto:
               kustoName: "hcp-prod-ch-2"

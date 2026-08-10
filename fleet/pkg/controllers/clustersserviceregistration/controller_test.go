@@ -31,43 +31,44 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 const testAKSResourceID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"
 
-func testStamp(identifier string, approved bool) *fleet.Stamp {
-	resourceID := api.Must(fleet.ToStampResourceID(identifier))
-	stamp := &fleet.Stamp{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(identifier)},
+func testStamp(identifier string, approved bool) *fleetapi.Stamp {
+	resourceID := metadataapi.Must(fleetapi.ToStampResourceID(identifier))
+	stamp := &fleetapi.Stamp{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(identifier)},
 		ResourceID:     resourceID,
 	}
 	if approved {
 		apimeta.SetStatusCondition(&stamp.Status.Conditions, metav1.Condition{
-			Type:   string(fleet.StampConditionApproved),
+			Type:   string(fleetapi.StampConditionApproved),
 			Status: metav1.ConditionTrue,
-			Reason: string(fleet.StampConditionReasonAutoApproved),
+			Reason: string(fleetapi.StampConditionReasonAutoApproved),
 		})
 	}
 	return stamp
 }
 
-func testManagementCluster(stampIdentifier string) *fleet.ManagementCluster {
-	resourceID := api.Must(fleet.ToManagementClusterResourceID(stampIdentifier))
-	aksResourceID := api.Must(azcorearm.ParseResourceID(testAKSResourceID))
-	dnsZoneResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
-	placeholderShardID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder"))
-	return &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(stampIdentifier)},
+func testManagementCluster(stampIdentifier string) *fleetapi.ManagementCluster {
+	resourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stampIdentifier))
+	aksResourceID := metadataapi.Must(azcorearm.ParseResourceID(testAKSResourceID))
+	dnsZoneResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
+	placeholderShardID := metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder"))
+	return &fleetapi.ManagementCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(stampIdentifier)},
 		ResourceID:     resourceID,
-		Spec: fleet.ManagementClusterSpec{
-			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
+		Spec: fleetapi.ManagementClusterSpec{
+			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
-		Status: fleet.ManagementClusterStatus{
+		Status: fleetapi.ManagementClusterStatus{
 			AKSResourceID:                                        aksResourceID,
 			PublicDNSZoneResourceID:                              dnsZoneResourceID,
 			HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
@@ -116,14 +117,14 @@ func TestReconcileProvisionShard(t *testing.T) {
 		newHREF    = "/api/aro_hcp/v1alpha1/provision_shards/new"
 	)
 
-	storedID := api.Must(api.NewInternalID(storedHREF))
-	foundID := api.Must(api.NewInternalID(foundHREF))
-	notFound := api.Must(ocmerrors.NewError().Status(404).Build())
-	serverError := api.Must(ocmerrors.NewError().Status(500).Build())
+	storedID := metadataapi.Must(metadataapi.NewInternalID(storedHREF))
+	foundID := metadataapi.Must(metadataapi.NewInternalID(foundHREF))
+	notFound := metadataapi.Must(ocmerrors.NewError().Status(404).Build())
+	serverError := metadataapi.Must(ocmerrors.NewError().Status(500).Build())
 
 	tests := []struct {
 		name              string
-		managementCluster *fleet.ManagementCluster
+		managementCluster *fleetapi.ManagementCluster
 		setupCS           func(ctrl *gomock.Controller) ProvisionShardClient
 		wantHREF          string
 		wantErrContains   string
@@ -182,7 +183,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		},
 		{
 			name: "initial registration, shard already in CS: adopts it",
-			managementCluster: func() *fleet.ManagementCluster {
+			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster("s1")
 				managementCluster.Status.ClusterServiceProvisionShardID = nil
 				return managementCluster
@@ -194,33 +195,33 @@ func TestReconcileProvisionShard(t *testing.T) {
 						testShard(t, foundHREF, testAKSResourceID, testConsumerName),
 					}, nil),
 				)
-				mock.EXPECT().UpdateProvisionShard(gomock.Any(), foundID, gomock.Any()).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(foundHREF).Build()), nil)
+				mock.EXPECT().UpdateProvisionShard(gomock.Any(), foundID, gomock.Any()).Return(metadataapi.Must(arohcpv1alpha1.NewProvisionShard().HREF(foundHREF).Build()), nil)
 				return mock
 			},
 			wantHREF: foundHREF,
 		},
 		{
 			name: "initial registration, no shard in CS: creates new shard",
-			managementCluster: func() *fleet.ManagementCluster {
+			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster("s1")
 				managementCluster.Status.ClusterServiceProvisionShardID = nil
 				return managementCluster
 			}(),
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
-				newID := api.Must(api.NewInternalID(newHREF))
+				newID := metadataapi.Must(metadataapi.NewInternalID(newHREF))
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().ListProvisionShards().Return(
 					ocm.NewSimpleProvisionShardListIterator(nil, nil),
 				)
-				mock.EXPECT().PostProvisionShard(gomock.Any(), gomock.Any()).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(newHREF).Build()), nil)
-				mock.EXPECT().UpdateProvisionShard(gomock.Any(), newID, gomock.Any()).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(newHREF).Build()), nil)
+				mock.EXPECT().PostProvisionShard(gomock.Any(), gomock.Any()).Return(metadataapi.Must(arohcpv1alpha1.NewProvisionShard().HREF(newHREF).Build()), nil)
+				mock.EXPECT().UpdateProvisionShard(gomock.Any(), newID, gomock.Any()).Return(metadataapi.Must(arohcpv1alpha1.NewProvisionShard().HREF(newHREF).Build()), nil)
 				return mock
 			},
 			wantHREF: newHREF,
 		},
 		{
 			name: "initial registration, list error: error",
-			managementCluster: func() *fleet.ManagementCluster {
+			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster("s1")
 				managementCluster.Status.ClusterServiceProvisionShardID = nil
 				return managementCluster
@@ -266,7 +267,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		},
 		{
 			name: "initial registration, partial match AKS only: error",
-			managementCluster: func() *fleet.ManagementCluster {
+			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster("s1")
 				managementCluster.Status.ClusterServiceProvisionShardID = nil
 				return managementCluster
@@ -284,7 +285,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		},
 		{
 			name: "initial registration, partial match consumer only: error",
-			managementCluster: func() *fleet.ManagementCluster {
+			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster("s1")
 				managementCluster.Status.ClusterServiceProvisionShardID = nil
 				return managementCluster
@@ -302,7 +303,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		},
 		{
 			name: "initial registration, duplicate shards: error",
-			managementCluster: func() *fleet.ManagementCluster {
+			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster("s1")
 				managementCluster.Status.ClusterServiceProvisionShardID = nil
 				return managementCluster
@@ -321,10 +322,10 @@ func TestReconcileProvisionShard(t *testing.T) {
 		},
 		{
 			name: "initial registration, unschedulable MC: skips post-create status update",
-			managementCluster: func() *fleet.ManagementCluster {
+			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster("s1")
 				managementCluster.Status.ClusterServiceProvisionShardID = nil
-				managementCluster.Spec.SchedulingPolicy = fleet.ManagementClusterSchedulingPolicyUnschedulable
+				managementCluster.Spec.SchedulingPolicy = fleetapi.ManagementClusterSchedulingPolicyUnschedulable
 				return managementCluster
 			}(),
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
@@ -333,7 +334,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 					ocm.NewSimpleProvisionShardListIterator(nil, nil),
 				)
 				mock.EXPECT().PostProvisionShard(gomock.Any(), gomock.Any()).Return(
-					api.Must(arohcpv1alpha1.NewProvisionShard().HREF(newHREF).Status(ocm.CSProvisionShardStatusMaintenance).Build()), nil,
+					metadataapi.Must(arohcpv1alpha1.NewProvisionShard().HREF(newHREF).Status(ocm.CSProvisionShardStatusMaintenance).Build()), nil,
 				)
 				return mock
 			},
@@ -341,7 +342,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		},
 		{
 			name: "initial registration, invalid scheduling policy: error",
-			managementCluster: func() *fleet.ManagementCluster {
+			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster("s1")
 				managementCluster.Status.ClusterServiceProvisionShardID = nil
 				managementCluster.Spec.SchedulingPolicy = "InvalidPolicy"
@@ -396,13 +397,13 @@ func TestSyncOnce(t *testing.T) {
 	const stampID = "s1"
 
 	storedHREF := "/api/aro_hcp/v1alpha1/provision_shards/placeholder"
-	storedID := api.Must(api.NewInternalID(storedHREF))
+	storedID := metadataapi.Must(metadataapi.NewInternalID(storedHREF))
 
 	tests := []struct {
 		name                   string
-		stamp                  *fleet.Stamp
+		stamp                  *fleetapi.Stamp
 		stampMissingFromLister bool
-		managementCluster      *fleet.ManagementCluster
+		managementCluster      *fleetapi.ManagementCluster
 		setupCS                func(ctrl *gomock.Controller) ProvisionShardClient
 		wantErr                bool
 		wantCondition          string
@@ -433,9 +434,9 @@ func TestSyncOnce(t *testing.T) {
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
-			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
+			wantCondition:  string(fleetapi.ManagementClusterConditionClustersServiceRegistered),
 			wantCondStatus: metav1.ConditionFalse,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationFailed),
 		},
 		{
 			name:              "first reconcile error: sets failure condition",
@@ -447,19 +448,19 @@ func TestSyncOnce(t *testing.T) {
 				return mock
 			},
 			wantErr:        true,
-			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
+			wantCondition:  string(fleetapi.ManagementClusterConditionClustersServiceRegistered),
 			wantCondStatus: metav1.ConditionFalse,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationFailed),
 		},
 		{
 			name:  "transient error with existing True condition: stays True with CheckFailed",
 			stamp: testStamp(stampID, true),
-			managementCluster: func() *fleet.ManagementCluster {
+			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster(stampID)
 				apimeta.SetStatusCondition(&managementCluster.Status.Conditions, metav1.Condition{
-					Type:   string(fleet.ManagementClusterConditionClustersServiceRegistered),
+					Type:   string(fleetapi.ManagementClusterConditionClustersServiceRegistered),
 					Status: metav1.ConditionTrue,
-					Reason: string(fleet.ManagementClusterConditionReasonRegistered),
+					Reason: string(fleetapi.ManagementClusterConditionReasonRegistered),
 				})
 				return managementCluster
 			}(),
@@ -469,9 +470,9 @@ func TestSyncOnce(t *testing.T) {
 				return mock
 			},
 			wantErr:        true,
-			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
+			wantCondition:  string(fleetapi.ManagementClusterConditionClustersServiceRegistered),
 			wantCondStatus: metav1.ConditionTrue,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationCheckFailed),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationCheckFailed),
 		},
 		{
 			name:              "shard exists, status updated: sets Registered condition",
@@ -483,31 +484,31 @@ func TestSyncOnce(t *testing.T) {
 				mock.EXPECT().UpdateProvisionShard(gomock.Any(), storedID, gomock.Any()).Return(testShard(t, storedHREF, testAKSResourceID, testConsumerName), nil)
 				return mock
 			},
-			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
+			wantCondition:  string(fleetapi.ManagementClusterConditionClustersServiceRegistered),
 			wantCondStatus: metav1.ConditionTrue,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistered),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistered),
 		},
 		{
 			name:              "stored shard disappeared (404): hard error, sets failure condition",
 			stamp:             testStamp(stampID, true),
 			managementCluster: testManagementCluster(stampID),
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
-				notFound := api.Must(ocmerrors.NewError().Status(404).Build())
+				notFound := metadataapi.Must(ocmerrors.NewError().Status(404).Build())
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, notFound)
 				return mock
 			},
 			wantErr:        true,
-			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
+			wantCondition:  string(fleetapi.ManagementClusterConditionClustersServiceRegistered),
 			wantCondStatus: metav1.ConditionFalse,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistrationFailed),
 		},
 		{
 			name:  "unschedulable MC: sets Registered condition with maintenance status",
 			stamp: testStamp(stampID, true),
-			managementCluster: func() *fleet.ManagementCluster {
+			managementCluster: func() *fleetapi.ManagementCluster {
 				managementCluster := testManagementCluster(stampID)
-				managementCluster.Spec.SchedulingPolicy = fleet.ManagementClusterSchedulingPolicyUnschedulable
+				managementCluster.Spec.SchedulingPolicy = fleetapi.ManagementClusterSchedulingPolicyUnschedulable
 				return managementCluster
 			}(),
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
@@ -516,9 +517,9 @@ func TestSyncOnce(t *testing.T) {
 				mock.EXPECT().UpdateProvisionShard(gomock.Any(), storedID, gomock.Any()).Return(testShard(t, storedHREF, testAKSResourceID, testConsumerName), nil)
 				return mock
 			},
-			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
+			wantCondition:  string(fleetapi.ManagementClusterConditionClustersServiceRegistered),
 			wantCondStatus: metav1.ConditionTrue,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistered),
+			wantCondReason: string(fleetapi.ManagementClusterConditionReasonRegistered),
 		},
 	}
 
@@ -531,12 +532,12 @@ func TestSyncOnce(t *testing.T) {
 			if tt.managementCluster != nil {
 				resources = append(resources, tt.managementCluster)
 			}
-			mockDB, err := databasetesting.NewMockFleetDBClientWithResources(ctx, resources)
+			mockDB, err := fleetcosmosstoragetesting.NewMockFleetDBClientWithResources(ctx, resources)
 			if err != nil {
 				t.Fatalf("failed to create mock DB: %v", err)
 			}
 
-			stamps := map[string]*fleet.Stamp{}
+			stamps := map[string]*fleetapi.Stamp{}
 			if !tt.stampMissingFromLister {
 				stamps[tt.stamp.GetStampIdentifier()] = tt.stamp
 			}
@@ -563,7 +564,7 @@ func TestSyncOnce(t *testing.T) {
 			}
 
 			if len(tt.wantCondition) > 0 {
-				managementCluster, err := mockDB.Stamps().ManagementClusters(stampID).Get(ctx, fleet.ManagementClusterResourceName)
+				managementCluster, err := mockDB.Stamps().ManagementClusters(stampID).Get(ctx, fleetapi.ManagementClusterResourceName)
 				if err != nil {
 					t.Fatalf("failed to re-read MC: %v", err)
 				}
@@ -584,21 +585,21 @@ func TestSyncOnce(t *testing.T) {
 }
 
 type fakeStampLister struct {
-	stamps map[string]*fleet.Stamp
+	stamps map[string]*fleetapi.Stamp
 }
 
-func (f *fakeStampLister) List(ctx context.Context) ([]*fleet.Stamp, error) {
-	var result []*fleet.Stamp
+func (f *fakeStampLister) List(ctx context.Context) ([]*fleetapi.Stamp, error) {
+	var result []*fleetapi.Stamp
 	for _, s := range f.stamps {
 		result = append(result, s)
 	}
 	return result, nil
 }
 
-func (f *fakeStampLister) Get(ctx context.Context, stampIdentifier string) (*fleet.Stamp, error) {
+func (f *fakeStampLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.Stamp, error) {
 	s, ok := f.stamps[stampIdentifier]
 	if !ok {
-		return nil, database.NewNotFoundError()
+		return nil, cosmosstorageutils.NewNotFoundError()
 	}
 	return s, nil
 }

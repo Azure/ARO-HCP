@@ -46,6 +46,12 @@ type LLMSession interface {
 	// assistant text content.
 	SendAndWait(ctx context.Context, prompt string) (string, error)
 
+	// ResetHistory clears accumulated conversation messages so that the
+	// next SendAndWait call starts with a fresh context. Providers that
+	// manage conversation state server-side (e.g. Copilot SDK) may
+	// implement this as a no-op.
+	ResetHistory()
+
 	// SaveConversation writes the conversation history to a JSON file at
 	// the given path. This is best-effort: implementations should log
 	// errors rather than return them.

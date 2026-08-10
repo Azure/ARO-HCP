@@ -23,43 +23,44 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
-func newTestExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
-	return &api.HCPOpenShiftClusterExternalAuth{
-		Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-			Issuer: api.TokenIssuerProfile{
+func newTestExternalAuth() *coreapi.HCPOpenShiftClusterExternalAuth {
+	return &coreapi.HCPOpenShiftClusterExternalAuth{
+		Properties: coreapi.HCPOpenShiftClusterExternalAuthProperties{
+			Issuer: coreapi.TokenIssuerProfile{
 				URL:       "https://issuer.example.com",
 				Audiences: []string{"aud1", "aud2"},
 				CA:        "test-ca-cert",
 			},
-			Clients: []api.ExternalAuthClientProfile{
+			Clients: []coreapi.ExternalAuthClientProfile{
 				{
-					Component: api.ExternalAuthClientComponentProfile{
+					Component: coreapi.ExternalAuthClientComponentProfile{
 						Name:                "console",
 						AuthClientNamespace: "openshift-console",
 					},
 					ClientID:    "client-id-1",
 					ExtraScopes: []string{"email", "profile"},
-					Type:        api.ExternalAuthClientTypePublic,
+					Type:        metadataapi.ExternalAuthClientTypePublic,
 				},
 			},
-			Claim: api.ExternalAuthClaimProfile{
-				Mappings: api.TokenClaimMappingsProfile{
-					Username: api.UsernameClaimProfile{
+			Claim: coreapi.ExternalAuthClaimProfile{
+				Mappings: coreapi.TokenClaimMappingsProfile{
+					Username: coreapi.UsernameClaimProfile{
 						Claim:        "email",
-						PrefixPolicy: api.UsernameClaimPrefixPolicyNoPrefix,
+						PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyNoPrefix,
 					},
-					Groups: &api.GroupClaimProfile{
+					Groups: &coreapi.GroupClaimProfile{
 						Claim:  "groups",
 						Prefix: "oidc:",
 					},
 				},
-				ValidationRules: []api.TokenClaimValidationRule{
+				ValidationRules: []coreapi.TokenClaimValidationRule{
 					{
-						Type: api.TokenValidationRuleTypeRequiredClaim,
-						RequiredClaim: api.TokenRequiredClaim{
+						Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
+						RequiredClaim: coreapi.TokenRequiredClaim{
 							Claim:         "hd",
 							RequiredValue: "example.com",
 						},
@@ -169,11 +170,11 @@ func TestExternalAuthUpdateDispatchConfigFromCSRoundTrip(t *testing.T) {
 	assert.Equal(t, desiredHash, actualHash)
 
 	require.Len(t, actualConfig.Claim.ValidationRules, 1)
-	assert.Equal(t, api.TokenValidationRuleTypeRequiredClaim, actualConfig.Claim.ValidationRules[0].Type)
+	assert.Equal(t, metadataapi.TokenValidationRuleTypeRequiredClaim, actualConfig.Claim.ValidationRules[0].Type)
 	assert.Equal(t, "hd", actualConfig.Claim.ValidationRules[0].RequiredClaim.Claim)
 	assert.Equal(t, "example.com", actualConfig.Claim.ValidationRules[0].RequiredClaim.RequiredValue)
 	require.Len(t, actualConfig.Clients, 1)
-	assert.Equal(t, api.ExternalAuthClientTypePublic, actualConfig.Clients[0].Type)
+	assert.Equal(t, metadataapi.ExternalAuthClientTypePublic, actualConfig.Clients[0].Type)
 }
 
 func TestExternalAuthUpdateDispatchConfigFromCSRoundTripNoGroups(t *testing.T) {
@@ -201,14 +202,14 @@ func TestExternalAuthUpdateDispatchConfigFromCSRoundTripNoGroups(t *testing.T) {
 
 func TestExternalAuthUpdateDispatchConfigFromCSRoundTripMultipleClients(t *testing.T) {
 	ea := newTestExternalAuth()
-	ea.Properties.Clients = append(ea.Properties.Clients, api.ExternalAuthClientProfile{
-		Component: api.ExternalAuthClientComponentProfile{
+	ea.Properties.Clients = append(ea.Properties.Clients, coreapi.ExternalAuthClientProfile{
+		Component: coreapi.ExternalAuthClientComponentProfile{
 			Name:                "cli",
 			AuthClientNamespace: "openshift-cli",
 		},
 		ClientID:    "aaa-first-alphabetically",
 		ExtraScopes: []string{"openid"},
-		Type:        api.ExternalAuthClientTypeConfidential,
+		Type:        metadataapi.ExternalAuthClientTypeConfidential,
 	})
 
 	csBuilder, err := BuildCSExternalAuth(context.Background(), ea, true)
@@ -264,18 +265,18 @@ func TestExternalAuthUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 
 func TestExternalAuthUpdateDispatchConfigClientPreservesOrderFromRP(t *testing.T) {
 	ea := newTestExternalAuth()
-	ea.Properties.Clients = []api.ExternalAuthClientProfile{
+	ea.Properties.Clients = []coreapi.ExternalAuthClientProfile{
 		{
-			Component:   api.ExternalAuthClientComponentProfile{Name: "z-component", AuthClientNamespace: "ns-z"},
+			Component:   coreapi.ExternalAuthClientComponentProfile{Name: "z-component", AuthClientNamespace: "ns-z"},
 			ClientID:    "zzz-client",
 			ExtraScopes: []string{"openid"},
-			Type:        api.ExternalAuthClientTypePublic,
+			Type:        metadataapi.ExternalAuthClientTypePublic,
 		},
 		{
-			Component:   api.ExternalAuthClientComponentProfile{Name: "a-component", AuthClientNamespace: "ns-a"},
+			Component:   coreapi.ExternalAuthClientComponentProfile{Name: "a-component", AuthClientNamespace: "ns-a"},
 			ClientID:    "aaa-client",
 			ExtraScopes: []string{"email"},
-			Type:        api.ExternalAuthClientTypePublic,
+			Type:        metadataapi.ExternalAuthClientTypePublic,
 		},
 	}
 
@@ -289,11 +290,11 @@ func TestExternalAuthUpdateDispatchConfigClientPreservesOrderFromRP(t *testing.T
 
 func TestExternalAuthUpdateDispatchConfigPrefixPolicyNone(t *testing.T) {
 	ea := newTestExternalAuth()
-	ea.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyNone
+	ea.Properties.Claim.Mappings.Username.PrefixPolicy = metadataapi.UsernameClaimPrefixPolicyNone
 
 	config, err := externalAuthUpdateDispatchConfigFromRP(ea)
 	require.NoError(t, err)
-	assert.Equal(t, api.UsernameClaimPrefixPolicyNone, config.Claim.Mappings.Username.PrefixPolicy)
+	assert.Equal(t, metadataapi.UsernameClaimPrefixPolicyNone, config.Claim.Mappings.Username.PrefixPolicy)
 }
 
 func TestExternalAuthUpdateDispatchConfigValidationRulesFromRP(t *testing.T) {
@@ -303,7 +304,7 @@ func TestExternalAuthUpdateDispatchConfigValidationRulesFromRP(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, config.Claim.ValidationRules, 1)
-	assert.Equal(t, api.TokenValidationRuleTypeRequiredClaim, config.Claim.ValidationRules[0].Type)
+	assert.Equal(t, metadataapi.TokenValidationRuleTypeRequiredClaim, config.Claim.ValidationRules[0].Type)
 	assert.Equal(t, "hd", config.Claim.ValidationRules[0].RequiredClaim.Claim)
 	assert.Equal(t, "example.com", config.Claim.ValidationRules[0].RequiredClaim.RequiredValue)
 }
@@ -323,7 +324,7 @@ func TestExternalAuthUpdateDispatchConfigValidationRulesFromCS(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, config.Claim.ValidationRules, 1)
-	assert.Equal(t, api.TokenValidationRuleTypeRequiredClaim, config.Claim.ValidationRules[0].Type)
+	assert.Equal(t, metadataapi.TokenValidationRuleTypeRequiredClaim, config.Claim.ValidationRules[0].Type)
 	assert.Equal(t, "hd", config.Claim.ValidationRules[0].RequiredClaim.Claim)
 	assert.Equal(t, "example.com", config.Claim.ValidationRules[0].RequiredClaim.RequiredValue)
 }
@@ -345,8 +346,8 @@ func TestExternalAuthUpdateDispatchConfigClientTypeConversionFromCS(t *testing.T
 	require.NoError(t, err)
 
 	require.Len(t, config.Clients, 2)
-	assert.Equal(t, api.ExternalAuthClientTypePublic, config.Clients[0].Type)
-	assert.Equal(t, api.ExternalAuthClientTypeConfidential, config.Clients[1].Type)
+	assert.Equal(t, metadataapi.ExternalAuthClientTypePublic, config.Clients[0].Type)
+	assert.Equal(t, metadataapi.ExternalAuthClientTypeConfidential, config.Clients[1].Type)
 }
 
 func TestExternalAuthUpdateDispatchConfigFromCSUnknownClientType(t *testing.T) {
@@ -375,7 +376,7 @@ func TestConvertTokenClaimValidationRuleRPToCS(t *testing.T) {
 		{
 			name: "RequiredClaim maps to CS builder",
 			rule: externalAuthUpdateDispatchConfigValidationRule{
-				Type: api.TokenValidationRuleTypeRequiredClaim,
+				Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
 				RequiredClaim: externalAuthUpdateDispatchConfigRequiredClaim{
 					Claim:         "hd",
 					RequiredValue: "example.com",
@@ -385,7 +386,7 @@ func TestConvertTokenClaimValidationRuleRPToCS(t *testing.T) {
 		{
 			name: "unsupported type returns error",
 			rule: externalAuthUpdateDispatchConfigValidationRule{
-				Type: api.TokenValidationRuleType("Unsupported"),
+				Type: metadataapi.TokenValidationRuleType("Unsupported"),
 				RequiredClaim: externalAuthUpdateDispatchConfigRequiredClaim{
 					Claim:         "hd",
 					RequiredValue: "example.com",
@@ -438,7 +439,7 @@ func TestExternalAuthUpdateDispatchConfigApplyToCSBuilder(t *testing.T) {
 						ComponentNamespace: "openshift-console",
 						ClientID:           "client-id-1",
 						ExtraScopes:        []string{"email", "profile"},
-						Type:               api.ExternalAuthClientTypePublic,
+						Type:               metadataapi.ExternalAuthClientTypePublic,
 					},
 				},
 				Claim: externalAuthUpdateDispatchConfigClaim{
@@ -446,7 +447,7 @@ func TestExternalAuthUpdateDispatchConfigApplyToCSBuilder(t *testing.T) {
 						Username: externalAuthUpdateDispatchConfigUsernameClaim{
 							Claim:        "email",
 							Prefix:       "",
-							PrefixPolicy: api.UsernameClaimPrefixPolicyNoPrefix,
+							PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyNoPrefix,
 						},
 						Groups: &externalAuthUpdateDispatchConfigGroupsClaim{
 							Claim:  "groups",
@@ -455,7 +456,7 @@ func TestExternalAuthUpdateDispatchConfigApplyToCSBuilder(t *testing.T) {
 					},
 					ValidationRules: []externalAuthUpdateDispatchConfigValidationRule{
 						{
-							Type: api.TokenValidationRuleTypeRequiredClaim,
+							Type: metadataapi.TokenValidationRuleTypeRequiredClaim,
 							RequiredClaim: externalAuthUpdateDispatchConfigRequiredClaim{
 								Claim:         "hd",
 								RequiredValue: "example.com",
@@ -500,7 +501,7 @@ func TestExternalAuthUpdateDispatchConfigApplyToCSBuilder(t *testing.T) {
 					Mappings: externalAuthUpdateDispatchConfigClaimMappings{
 						Username: externalAuthUpdateDispatchConfigUsernameClaim{
 							Claim:        "sub",
-							PrefixPolicy: api.UsernameClaimPrefixPolicyNone,
+							PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyNone,
 						},
 					},
 				},
@@ -522,17 +523,17 @@ func TestExternalAuthUpdateDispatchConfigApplyToCSBuilder(t *testing.T) {
 				Clients: []externalAuthUpdateDispatchConfigClient{
 					{
 						ClientID: "public-client",
-						Type:     api.ExternalAuthClientTypePublic,
+						Type:     metadataapi.ExternalAuthClientTypePublic,
 					},
 					{
 						ClientID: "confidential-client",
-						Type:     api.ExternalAuthClientTypeConfidential,
+						Type:     metadataapi.ExternalAuthClientTypeConfidential,
 					},
 				},
 				Claim: externalAuthUpdateDispatchConfigClaim{
 					Mappings: externalAuthUpdateDispatchConfigClaimMappings{
 						Username: externalAuthUpdateDispatchConfigUsernameClaim{
-							PrefixPolicy: api.UsernameClaimPrefixPolicyNone,
+							PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyNone,
 						},
 					},
 				},
@@ -565,7 +566,7 @@ func TestExternalAuthUpdateDispatchConfigApplyToCSBuilder(t *testing.T) {
 				Clients: []externalAuthUpdateDispatchConfigClient{
 					{
 						ClientID: "client-id-1",
-						Type:     api.ExternalAuthClientType("Unknown"),
+						Type:     metadataapi.ExternalAuthClientType("Unknown"),
 					},
 				},
 			},
@@ -578,12 +579,12 @@ func TestExternalAuthUpdateDispatchConfigApplyToCSBuilder(t *testing.T) {
 				Claim: externalAuthUpdateDispatchConfigClaim{
 					Mappings: externalAuthUpdateDispatchConfigClaimMappings{
 						Username: externalAuthUpdateDispatchConfigUsernameClaim{
-							PrefixPolicy: api.UsernameClaimPrefixPolicyNone,
+							PrefixPolicy: metadataapi.UsernameClaimPrefixPolicyNone,
 						},
 					},
 					ValidationRules: []externalAuthUpdateDispatchConfigValidationRule{
 						{
-							Type: api.TokenValidationRuleType("Unsupported"),
+							Type: metadataapi.TokenValidationRuleType("Unsupported"),
 							RequiredClaim: externalAuthUpdateDispatchConfigRequiredClaim{
 								Claim:         "hd",
 								RequiredValue: "example.com",
@@ -622,15 +623,15 @@ func TestExternalAuthUpdateDispatchConfigApplyToCSBuilder(t *testing.T) {
 func TestConvertExternalAuthClientTypeRPToCSAndCSToRP(t *testing.T) {
 	t.Parallel()
 
-	rpToCS, err := convertExternalAuthClientTypeRPToCS(api.ExternalAuthClientTypePublic)
+	rpToCS, err := convertExternalAuthClientTypeRPToCS(metadataapi.ExternalAuthClientTypePublic)
 	require.NoError(t, err)
 	assert.Equal(t, arohcpv1alpha1.ExternalAuthClientTypePublic, rpToCS)
 
 	csToRP, err := convertExternalAuthClientTypeCSToRP(arohcpv1alpha1.ExternalAuthClientTypeConfidential)
 	require.NoError(t, err)
-	assert.Equal(t, api.ExternalAuthClientTypeConfidential, csToRP)
+	assert.Equal(t, metadataapi.ExternalAuthClientTypeConfidential, csToRP)
 
-	_, err = convertExternalAuthClientTypeRPToCS(api.ExternalAuthClientType("Unknown"))
+	_, err = convertExternalAuthClientTypeRPToCS(metadataapi.ExternalAuthClientType("Unknown"))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrUnknownValue)
 

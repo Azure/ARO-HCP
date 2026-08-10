@@ -26,6 +26,8 @@ spec:
         - "--health-address=:{{ .Values.health.port }}"
         - "--ksm-image={{ .Values.ksmImage.registry }}/{{ .Values.ksmImage.repository }}@{{ .Values.ksmImage.digest }}"
         - "--log-verbosity={{ .Values.logVerbosity }}"
+        - "--node-health-configmap={{ .Values.nodeHealth.configMapName }}"
+        - "--node-health-config-key={{ .Values.nodeHealth.configKey }}"
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         name: mgmt-agent-controller
         env:
@@ -69,6 +71,7 @@ spec:
         volumeMounts: []
       volumes: []
       serviceAccountName: {{ .Values.serviceAccount.name }}
+      priorityClassName: service-lifecycle-critical
       terminationGracePeriodSeconds: 10
       nodeSelector:
       {{- with .Values.nodeSelector }}

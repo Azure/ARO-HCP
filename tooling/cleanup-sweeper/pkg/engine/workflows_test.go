@@ -43,6 +43,7 @@ func TestWorkflowBuilders(t *testing.T) {
 					context.Background(),
 					"00000000-0000-0000-0000-000000000000",
 					workflowsTestCredential{},
+					workflowsTestCredential{},
 					WorkflowOptions{
 						DryRun:      true,
 						Wait:        true,
@@ -64,6 +65,35 @@ func TestWorkflowBuilders(t *testing.T) {
 				}
 				if builtWorkflow.Parallelism != 7 || !builtWorkflow.DryRun || !builtWorkflow.Wait {
 					t.Fatalf("unexpected workflow options: %+v", builtWorkflow)
+				}
+			},
+		},
+		{
+			name: "role assignments workflow defaults graph credential to arm credential when nil",
+			execute: func(_ *testing.T) (interface{}, error) {
+				return RoleAssignmentsSweeperWorkflow(
+					context.Background(),
+					"00000000-0000-0000-0000-000000000000",
+					workflowsTestCredential{},
+					nil,
+					WorkflowOptions{
+						DryRun:      true,
+						Wait:        true,
+						Parallelism: 7,
+					},
+				)
+			},
+			assertions: func(t *testing.T, workflow interface{}, err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("expected no error while building workflow with nil graph credential, got %v", err)
+				}
+				builtWorkflow, ok := workflow.(*runner.Engine)
+				if !ok || builtWorkflow == nil {
+					t.Fatalf("expected *runner.Engine workflow")
+				}
+				if len(builtWorkflow.Steps) != 2 {
+					t.Fatalf("expected two steps, got %d", len(builtWorkflow.Steps))
 				}
 			},
 		},
