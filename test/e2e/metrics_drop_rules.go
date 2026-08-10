@@ -60,10 +60,13 @@ type prometheusResult struct {
 	Value  []any             `json:"value"`
 }
 
-var componentPositiveControls = map[string]string{
-	"etcd":               "etcd_server_has_leader",
-	"kubeAPIServer":      "apiserver_current_inflight_requests",
-	"openshiftAPIServer": "apiserver_current_inflight_requests",
+var componentJobLabels = map[string]string{
+	"etcd":                       "etcd",
+	"kubeAPIServer":              "kube-apiserver",
+	"kubeControllerManager":      "kube-controller-manager",
+	"openshiftAPIServer":         "openshift-apiserver",
+	"openshiftControllerManager": "openshift-controller-manager",
+	"cvo":                        "cluster-version-operator",
 }
 
 func parseDropRules() ([]dropRule, error) {
@@ -244,19 +247,19 @@ var _ = Describe("SRE Metrics Set", func() {
 			httpClient := &http.Client{Timeout: 30 * time.Second}
 
 			for _, rule := range rules {
-				positiveMetric, hasPositive := componentPositiveControls[rule.Component]
+				jobLabel, hasJob := componentJobLabels[rule.Component]
 
 				By(fmt.Sprintf("verifying drop rule for %s (regex: %s)", rule.Component, rule.Regex))
 
-				if hasPositive {
-					By(fmt.Sprintf("waiting for positive control metric %s from %s", positiveMetric, rule.Component))
+				if hasJob {
+					By(fmt.Sprintf("waiting for up{job=%q} from %s", jobLabel, rule.Component))
 					Eventually(func(g Gomega) {
-						controlQuery := fmt.Sprintf(`count(%s)`, positiveMetric)
+						controlQuery := fmt.Sprintf(`up{job="%s"}`, jobLabel)
 						resp, err := amwQuery(ctx, httpClient, cred, endpoint, controlQuery)
 						g.Expect(err).NotTo(HaveOccurred(), "positive control query failed for %s", rule.Component)
-						g.Expect(resp.Data.Result).NotTo(BeEmpty(), "positive control metric %s not yet present for %s — metrics may not be flowing", positiveMetric, rule.Component)
+						g.Expect(resp.Data.Result).NotTo(BeEmpty(), "up{job=%q} not yet present for %s — metrics may not be flowing", jobLabel, rule.Component)
 					}).WithTimeout(10*time.Minute).WithPolling(30*time.Second).Should(Succeed(),
-						"timed out waiting for positive control metric %s for component %s", positiveMetric, rule.Component)
+						"timed out waiting for up{job=%q} for component %s", jobLabel, rule.Component)
 				}
 
 				By(fmt.Sprintf("asserting dropped series are absent: %s", dropRuleToPromQL(rule)))
