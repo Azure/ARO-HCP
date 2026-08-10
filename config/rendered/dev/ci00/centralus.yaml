@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:7699b62af13be17cfb3022054e83cbc8fa68b92c886599a17e63fa5fced15c58
+      digest: sha256:f963866fc6bce1af9d777564d7e4a0f968b8bbd7846f123b5d562e5b8fabeb8b
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:6e09b7f2cf4091f074569bfcd645cced1375395b2ce111cfe3f2cb659afdd242
+      digest: sha256:3b287baf421e9e10303e0e85c6e3f1d2c3cf9589fb622136b3daaf46098e29d5
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -172,7 +172,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci00
   image:
-    digest: sha256:d7f643f4f1a1f44cbe5d6adb71ec89931c0c1c0a5ad704e341a2b3a62d8ba046
+    digest: sha256:c6ab0e25331fd54603eab42b3405836ede08b675a849f7126656e854a7aef618
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -453,7 +453,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:99bf7bd6a156e9deb3cbf943345710d64c621f9600d62666c3f9be8481f7da3a
+    digest: sha256:d79597fbc15abf7956c1c8ccfb0aa28014fc8d5b65c6bb2fc2cdbe1b24d8897e
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -473,7 +473,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:a71e05da9a3d0e56ad1e8e6f957c1546b3020a47ce46d0614025c12c2c7dce8b
+      digest: sha256:99f3e03124cbcd02c26e1e163b88cc9ca99a97889cc6ae39ee7177a588be101a
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -505,7 +505,7 @@ kubeApplier:
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:dea4ec46b0d97261cedd62ab6235e6aa6002e5aac8fab87b80d41e57f9658f82
+    digest: sha256:b1473b04f721c0e2a44bc7bc09b6ce3d0e31fd93f7dbaa4533fd656bb1135c92
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
   k8s:
@@ -1119,14 +1119,14 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:6c9a836847b7992bf4b62e4abbcf1abca396c8766b4736cbeecf43c85921dfeb
+    digest: sha256:dced4f4b66d87ed0b1542ef15c4e59b5c7542c96dd660f367632a5cddfae4d7b
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:1e959bed1cbfaf165fef00818235110674327c568d93fafa2027233aa331a9cc
+    digest: sha256:edb3971e68f5545fa3dc80708581ee6701854504b2c42ec64f500797b693dcd9
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:a611f6c4f62b7f9a281bda0ae7390264e8f4be21f4751710e1feb90956ffad23
+    digest: sha256:6772a276c45f9f5831607dc8188bf6e5adbeb303abcb483c911bdf504f92d847
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9
