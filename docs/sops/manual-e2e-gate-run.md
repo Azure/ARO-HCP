@@ -60,7 +60,7 @@ Every command below needs the values on one row of this table.
 
 - `az login` completed for the tenant in the table above, with access to the `arohcpdev-global` Key Vault holding the `prow-token` secret. Verify the active account with `az account show`.
 - `AZURE_TOKEN_CREDENTIALS=dev` exported. The make target does **not** set it, and without it the Key Vault lookup fails.
-- `yq` installed.
+- `yq` installed (used by the make targets) and `jq` installed (used in step 1).
 - `HEAD` pushed to a remote — the `e2e` target hard-fails otherwise.
 - The rollout's ARO-HCP commit present on `origin` (Prow clones `Azure/ARO-HCP`).
 
@@ -73,11 +73,13 @@ Only needed when retrying a rollout gate. Find the Prow run EV2 triggered. EV2-t
 ```bash
 curl -s "https://prow.ci.openshift.org/prowjobs.js?omit=decoration_config,pod_spec" \
   | jq -r '.items[] | select(.spec.job=="branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel")
-           | {state:.status.state, sha:.spec.refs.base_sha,
-              region:.metadata.annotations["ev2.rollout/region"],
-              build:.metadata.annotations["ev2.rollout/build"],
-              sdp:.metadata.annotations["ev2.rollout/sdp-pipelines"],
-              url:.status.url}'
+           | {state:          .status.state,
+              base_sha:       .spec.refs.base_sha,
+              region:         .metadata.annotations["ev2.rollout/region"],
+              build:          .metadata.annotations["ev2.rollout/build"],
+              "sdp-pipelines": .metadata.annotations["ev2.rollout/sdp-pipelines"],
+              "ARO-HCP":       .metadata.annotations["ev2.rollout/ARO-HCP"],
+              url:            .status.url}'
 ```
 
 Substitute the Prow job name for the environment being gated from the [Environment Reference](#environment-reference) table.
