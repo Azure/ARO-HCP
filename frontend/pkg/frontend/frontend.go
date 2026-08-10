@@ -345,7 +345,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return utils.TrackError(err)
 	}
 
-	var certificateRequest string
+	var certificateSigningRequest string
 	if apiVersion.GE(metadataapi.APIVersionV20260901Preview) {
 		body, err := BodyFromContext(ctx)
 		if err != nil {
@@ -359,14 +359,14 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 		var errs field.ErrorList
 		if credentialRequest == nil {
-			errs = append(errs, field.Required(field.NewPath("certificateRequest"), ""))
-		} else if credentialRequest.CertificateRequest == "" {
-			errs = append(errs, field.Required(field.NewPath("certificateRequest"), ""))
+			errs = append(errs, field.Required(field.NewPath("certificateSigningRequest"), ""))
+		} else if credentialRequest.CertificateSigningRequest == "" {
+			errs = append(errs, field.Required(field.NewPath("certificateSigningRequest"), ""))
 		}
 		if err := coreapi.CloudErrorFromFieldErrors(errs); err != nil {
 			return err
 		}
-		certificateRequest = credentialRequest.CertificateRequest
+		certificateSigningRequest = credentialRequest.CertificateSigningRequest
 	}
 
 	cluster, err := f.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
@@ -399,9 +399,9 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		request.Header.Get(coreapi.HeaderNameClientObjectID),
 		request.Header.Get(coreapi.HeaderNameAsyncNotificationURI),
 		correlationData)
-	if certificateRequest != "" {
+	if certificateSigningRequest != "" {
 		operationDoc.SystemAdminCredentialRequest = &coreapi.OperationSystemAdminCredentialRequest{
-			CertificateSigningRequest: certificateRequest,
+			CertificateSigningRequest: certificateSigningRequest,
 		}
 	}
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))

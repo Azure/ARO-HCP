@@ -39,6 +39,6 @@ func (v version) UnmarshalHCPOpenShiftClusterAdminCredentialRequest(data []byte)
 		return nil, err
 	}
 	return &coreapi.HCPOpenShiftClusterAdminCredentialRequest{
-		CertificateRequest: metadataapi.Deref(versionedRequest.CertificateSigningRequest),
+		CertificateSigningRequest: metadataapi.Deref(versionedRequest.CertificateSigningRequest),
 	}, nil
 }
