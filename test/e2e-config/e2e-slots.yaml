@@ -7,34 +7,35 @@ environments:
     pools:
     # Jobs choose the runtime region; `region` is only the default when no runtime override is provided.
     # Identity containers are provisioned in westus3.
+    # Each managed subscription keeps 300 containers split into five 60-container job slots.
     - subscription_name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
       region: westus3
       region_mode: runtime-selected
       resource_type: aro-hcp-dev-shard0-slot
-      slot_count: 6
+      slot_count: 5
       identity_container_prefix: aro-hcp-msi-container-dev-shard0
-      identity_container_count: 50
+      identity_container_count: 60
     - subscription_name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
       region: westus3
       region_mode: runtime-selected
       resource_type: aro-hcp-dev-shard1-slot
-      slot_count: 6
+      slot_count: 5
       identity_container_prefix: aro-hcp-msi-container-dev-shard1
-      identity_container_count: 50
+      identity_container_count: 60
     - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 02"
       region: westus3
       region_mode: runtime-selected
       resource_type: aro-hcp-dev-shard2-slot
-      slot_count: 6
+      slot_count: 5
       identity_container_prefix: aro-hcp-msi-container-dev-shard2
-      identity_container_count: 50
+      identity_container_count: 60
     - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 03"
       region: westus3
       region_mode: runtime-selected
       resource_type: aro-hcp-dev-shard3-slot
-      slot_count: 6
+      slot_count: 5
       identity_container_prefix: aro-hcp-msi-container-dev-shard3
-      identity_container_count: 50
+      identity_container_count: 60
     - subscription_name: "Hypershift Managed Azure"
       region: westus3
       region_mode: runtime-selected
