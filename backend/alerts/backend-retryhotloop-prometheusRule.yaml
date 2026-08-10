@@ -15,6 +15,8 @@ spec:
       component: backend
     rules:
     - alert: BackendControllerRetryHotLoop
+      # TODO: Validation controllers are temporarily excluded until a
+      # dedicated mechanism to track controller-specific failures is in place.
       # A ratio of retries to total adds that is rate-independent:
       # it stays high regardless of item count or backoff delay.
       # A ratio > 0.5 sustained for 10 minutes means more than half
@@ -23,13 +25,13 @@ spec:
         (
           sum by (name, cluster) (
             max without(prometheus_replica) (
-              rate(workqueue_retries_total{namespace="aro-hcp"}[10m])
+              rate(workqueue_retries_total{namespace="aro-hcp", name!~"clustervalidation.*|nodepoolvalidation.*"}[10m])
             )
           )
           /
           sum by (name, cluster) (
             max without(prometheus_replica) (
-              rate(workqueue_adds_total{namespace="aro-hcp"}[10m])
+              rate(workqueue_adds_total{namespace="aro-hcp", name!~"clustervalidation.*|nodepoolvalidation.*"}[10m])
             )
           )
         ) > 0.5
