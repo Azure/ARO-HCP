@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -163,9 +162,12 @@ var _ = Describe("ARO HCP Service", func() {
 					lastConsistentlyState = state
 				}
 				if state == hcpsdk20251223preview.ProvisioningStateFailed {
-					body, _ := json.MarshalIndent(resp.HcpOpenShiftCluster, "", "  ")
-					GinkgoLogr.Info("cluster entered Failed during Consistently check — dumping full ARM response for root cause analysis (ARO-28755)",
-						"responseBody", string(body))
+					if body, err := json.MarshalIndent(resp.HcpOpenShiftCluster, "", "  "); err != nil {
+						GinkgoLogr.Error(err, "failed to marshal ARM response for diagnostics (ARO-28755)")
+					} else {
+						GinkgoLogr.Info("cluster entered Failed during Consistently check — dumping full ARM response for root cause analysis (ARO-28755)",
+							"responseBody", string(body))
+					}
 				}
 				g.Expect(state).NotTo(Equal(hcpsdk20251223preview.ProvisioningStateFailed),
 					"cluster entered terminal Failed state — CS inflight validation should retry, not fail terminally (ARO-25805)")
@@ -221,9 +223,12 @@ var _ = Describe("ARO HCP Service", func() {
 					lastEventuallyState = state
 				}
 				if state == hcpsdk20251223preview.ProvisioningStateFailed {
-					body, _ := json.MarshalIndent(resp.HcpOpenShiftCluster, "", "  ")
-					GinkgoLogr.Info("cluster entered Failed after role assignment deployment — dumping full ARM response for root cause analysis (ARO-28755)",
-						"responseBody", string(body))
+					if body, err := json.MarshalIndent(resp.HcpOpenShiftCluster, "", "  "); err != nil {
+						GinkgoLogr.Error(err, "failed to marshal ARM response for diagnostics (ARO-28755)")
+					} else {
+						GinkgoLogr.Info("cluster entered Failed after role assignment deployment — dumping full ARM response for root cause analysis (ARO-28755)",
+							"responseBody", string(body))
+					}
 				}
 				g.Expect(state).NotTo(Equal(hcpsdk20251223preview.ProvisioningStateFailed),
 					"cluster entered terminal Failed state after role assignment deployment — see preceding log for full ARM response (ARO-28755)")
