@@ -695,7 +695,7 @@ resourceGroups:
     aksCluster:
       configRef: svc.aks.name
     action: IstioUpgrade
-    timeout: 30m
+    timeout: 60m
     dependsOn:
     - resourceGroup: service
       step: prometheus
