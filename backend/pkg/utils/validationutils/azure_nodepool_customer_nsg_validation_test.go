@@ -136,8 +136,9 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		subnets := azureclient.NewMockSubnetsClient(ctrl)
-		subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestSubnetName, nil).Return(
-			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID), nil,
+		expectWorkerAndIntegrationSubnets(subnets,
+			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID),
+			subnetWithoutNSG(integrationSubnet),
 		)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(
@@ -167,12 +168,13 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		require.Contains(t, err.Error(), "DenyAnyAny")
 	})
 
-	t.Run("Deny to IP in subnet fails without Allow", func(t *testing.T) {
+	t.Run("Deny to IP in cluster subnet fails without Allow", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		subnets := azureclient.NewMockSubnetsClient(ctrl)
-		subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestSubnetName, nil).Return(
-			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID), nil,
+		expectWorkerAndIntegrationSubnets(subnets,
+			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID),
+			subnetWithoutNSG(integrationSubnet),
 		)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(
@@ -200,6 +202,91 @@ func TestAzureCustomerNSGValidation(t *testing.T) {
 		err := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "DenyILB")
+	})
+
+	t.Run("Deny Any to vnet-integration CIDR on outbound fails", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		subnets := azureclient.NewMockSubnetsClient(ctrl)
+		expectWorkerAndIntegrationSubnets(subnets,
+			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID),
+			subnetWithoutNSG(integrationSubnet),
+		)
+		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
+		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(
+			armnetwork.SecurityGroupsClientGetResponse{
+				SecurityGroup: armnetwork.SecurityGroup{
+					Properties: &armnetwork.SecurityGroupPropertiesFormat{
+						SecurityRules: []*armnetwork.SecurityRule{{
+							Name: ptr.To("DenyToIntegration"),
+							Properties: &armnetwork.SecurityRulePropertiesFormat{
+								Priority:                 ptr.To(int32(110)),
+								Access:                   ptr.To(armnetwork.SecurityRuleAccessDeny),
+								Direction:                ptr.To(armnetwork.SecurityRuleDirectionOutbound),
+								Protocol:                 ptr.To(armnetwork.SecurityRuleProtocolTCP),
+								SourceAddressPrefix:      ptr.To("*"),
+								DestinationAddressPrefix: ptr.To(integrationSubnet),
+								DestinationPortRanges:    []*string{ptr.To("443"), ptr.To("6443")},
+							},
+						}},
+					},
+				},
+			}, nil,
+		)
+
+		v := UserProvidedNodePoolNetworkSecurityGroupValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		err := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "DenyToIntegration")
+	})
+
+	t.Run("Deny Any to cluster machine subnet when NP uses different subnet fails", func(t *testing.T) {
+		t.Parallel()
+		const npSubnetCIDR = "10.0.2.0/24"
+		const clusterSubnetCIDR = "10.0.0.0/24"
+		npSubnetName := "np-subnet"
+		npSubnetID := "/subscriptions/" + coreapitesting.TestSubscriptionID + "/resourceGroups/" + coreapitesting.TestResourceGroupName +
+			"/providers/Microsoft.Network/virtualNetworks/" + coreapitesting.TestVirtualNetworkName + "/subnets/" + npSubnetName
+
+		ctrl := gomock.NewController(t)
+		subnets := azureclient.NewMockSubnetsClient(ctrl)
+		subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, npSubnetName, nil).Return(
+			subnetWithNSG(npSubnetCIDR, coreapitesting.TestNetworkSecurityGroupResourceID), nil,
+		)
+		subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestSubnetName, nil).Return(
+			subnetWithoutNSG(clusterSubnetCIDR), nil,
+		)
+		subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestVnetIntegrationSubnetName, nil).Return(
+			subnetWithoutNSG(integrationSubnet), nil,
+		)
+		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
+		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(
+			armnetwork.SecurityGroupsClientGetResponse{
+				SecurityGroup: armnetwork.SecurityGroup{
+					Properties: &armnetwork.SecurityGroupPropertiesFormat{
+						SecurityRules: []*armnetwork.SecurityRule{{
+							Name: ptr.To("DenyToClusterSubnet"),
+							Properties: &armnetwork.SecurityRulePropertiesFormat{
+								Priority:                 ptr.To(int32(110)),
+								Access:                   ptr.To(armnetwork.SecurityRuleAccessDeny),
+								Direction:                ptr.To(armnetwork.SecurityRuleDirectionOutbound),
+								Protocol:                 ptr.To(armnetwork.SecurityRuleProtocolTCP),
+								SourceAddressPrefix:      ptr.To("*"),
+								DestinationAddressPrefix: ptr.To(clusterSubnetCIDR),
+								DestinationPortRanges:    []*string{ptr.To("443"), ptr.To("6443")},
+							},
+						}},
+					},
+				},
+			}, nil,
+		)
+
+		np := testNodePool()
+		np.Properties.Platform.SubnetID = metadataapi.Must(azcorearm.ParseResourceID(npSubnetID))
+		v := UserProvidedNodePoolNetworkSecurityGroupValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		err := v.Validate(context.Background(), testCluster(), testNSGSubscription(), np)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "DenyToClusterSubnet")
 	})
 
 	t.Run("empty security rules on attached NSGs", func(t *testing.T) {

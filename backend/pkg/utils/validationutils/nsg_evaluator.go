@@ -48,25 +48,35 @@ type NSGSecurityRule struct {
 }
 
 // validateOutboundNSGRules validates outbound NSG rules so worker nodes
-// can reach the kube-apiserver internal load balancer (typically TCP 443/6443).
-// The ILB private IP usually lives in the worker subnet, so Denys to that subnet
-// (or Any→Any covering the ports) are treated as blocking KAS access.
+// can reach the control plane (typically TCP 443/6443; see outboundNSGPorts).
+//
+// workerSubnetCIDRs are the worker (node-pool or cluster) address spaces that
+// originate egress. destinationCIDRs are the address spaces those workers must
+// reach for KAS (cluster machine subnet and, when present, vnet-integration).
+// Denys from workers to those destinations, or Any→Any covering the ports, are
+// treated as blocking KAS access.
 //
 //  1. Broad Deny (source Any → destination Any covering the ports) fails unless a
 //     higher-priority Allow covers the denied traffic (including Allow Any→Any).
-//  2. Deny whose destination overlaps any worker subnet CIDR (the subnet itself,
-//     any IP inside it, or VirtualNetwork): requires a higher-priority Allow that
-//     permits traffic to that destination (specific CIDR/IP/tag, or Allow Any).
-func (v *AzureCustomerNSGValidation) validateOutboundNSGRules(rules []NSGSecurityRule, workerSubnetCIDRs []string, ports []int32) error {
+//  2. Deny whose source can match a worker and whose destination overlaps any
+//     destinationCIDR (the subnet itself, any IP inside it, or VirtualNetwork):
+//     requires a higher-priority Allow that permits that worker traffic to the
+//     denied destination (specific CIDR/IP/tag, or Allow Any).
+func (v *AzureCustomerNSGValidation) validateOutboundNSGRules(rules []NSGSecurityRule, workerSubnetCIDRs, destinationCIDRs []string, ports []int32) error {
 	workerSubnets, err := parsePrefixes(workerSubnetCIDRs, "worker subnet")
 	if err != nil {
 		return err
 	}
-	if err := validateBroadDenyAnyAny(rules, workerSubnets, ports); err != nil {
+	destinations, err := parsePrefixes(destinationCIDRs, "destination subnet")
+	if err != nil {
 		return err
 	}
-	for i, subnet := range workerSubnets {
-		if err := validateDenyOverlappingSubnet(rules, subnet, workerSubnetCIDRs[i], ports); err != nil {
+	sorted := sortByPriority(rules)
+	if err := validateBroadDenyAnyAny(sorted, workerSubnets, ports); err != nil {
+		return err
+	}
+	for i, dest := range destinations {
+		if err := validateDenyOverlappingSubnet(sorted, workerSubnets, dest, destinationCIDRs[i], ports); err != nil {
 			return err
 		}
 	}
@@ -75,8 +85,8 @@ func (v *AzureCustomerNSGValidation) validateOutboundNSGRules(rules []NSGSecurit
 
 // validateInboundNSGRules validates inbound NSG rules so
 // traffic from worker nodes toward the vnet integration path used for KAS is
-// not blocked on the given ports (typically TCP 8443). Fails when an
-// inbound Deny covers any of those ports and matches any of:
+// not blocked on the given ports (typically TCP 443/8443; see inboundNSGPorts).
+// Fails when an inbound Deny covers any of those ports and matches any of:
 //
 //  1. source Any → destination Any
 //  2. source Any → destination VirtualNetwork / vnet-integration subnet
@@ -196,13 +206,13 @@ func destinationIsVNetOrAnySubnet(prefixes []string, subnets []netip.Prefix) boo
 	return false
 }
 
-// validateBroadDenyAnyAny validates outbound NSG rules that deny source Any to destination Any covering the ports.
+// validateBroadDenyAnyAny validates outbound NSG rules that deny source Any to
+// destination Any covering the ports. rules must already be sorted by priority.
 // A higher-priority Allow that covers the denied traffic for every worker subnet
 // prefix (including Allow Any→Any) compensates and the Deny is accepted.
-func validateBroadDenyAnyAny(rules []NSGSecurityRule, workerSubnets []netip.Prefix, ports []int32) error {
-	sorted := sortByPriority(rules)
-	for i := range sorted {
-		deny := &sorted[i]
+func validateBroadDenyAnyAny(sortedRules []NSGSecurityRule, workerSubnets []netip.Prefix, ports []int32) error {
+	for i := range sortedRules {
+		deny := &sortedRules[i]
 		if !isDeny(deny) || !protocolMatchesTCP(deny.Protocol) {
 			continue
 		}
@@ -213,7 +223,7 @@ func validateBroadDenyAnyAny(rules []NSGSecurityRule, workerSubnets []netip.Pref
 		if len(blockedPorts) == 0 {
 			continue
 		}
-		if hasHigherPriorityAllowForAllSubnets(sorted[:i], deny, blockedPorts, workerSubnets) {
+		if hasHigherPriorityAllowForAllSubnets(sortedRules[:i], deny, blockedPorts, workerSubnets) {
 			continue
 		}
 		return fmt.Errorf(
@@ -224,29 +234,39 @@ func validateBroadDenyAnyAny(rules []NSGSecurityRule, workerSubnets []netip.Pref
 	return nil
 }
 
-func validateDenyOverlappingSubnet(rules []NSGSecurityRule, subnet netip.Prefix, workerSubnetCIDR string, ports []int32) error {
-	sorted := sortByPriority(rules)
-	for i := range sorted {
-		deny := &sorted[i]
+// validateDenyOverlappingSubnet validates outbound Denys whose destination
+// overlaps dest (a KAS destination prefix). rules must already be sorted by
+// priority. Only Denys whose source can match a worker are considered; Allow
+// compensation is evaluated against those workers.
+func validateDenyOverlappingSubnet(sortedRules []NSGSecurityRule, workerSubnets []netip.Prefix, dest netip.Prefix, destinationCIDR string, ports []int32) error {
+	for i := range sortedRules {
+		deny := &sortedRules[i]
 		if !isDeny(deny) || !protocolMatchesTCP(deny.Protocol) {
 			continue
 		}
-		if !sourceMatchesSubnet(deny.SourceAddressPrefixes, subnet) {
-			continue
-		}
-		if !destinationOverlapsSubnet(deny.DestinationAddressPrefixes, subnet) {
+		if !destinationOverlapsSubnet(deny.DestinationAddressPrefixes, dest) {
 			continue
 		}
 		blockedPorts := matchingPorts(deny.DestinationPortRanges, ports)
 		if len(blockedPorts) == 0 {
 			continue
 		}
-		if !hasHigherPriorityAllowForDeny(sorted[:i], deny, blockedPorts, subnet) {
-			return fmt.Errorf(
-				"outbound NSG rule %q (priority %d) denies egress to a destination overlapping worker subnet %s covering ports %s; remove/narrow the Deny",
-				deny.Name, deny.Priority, workerSubnetCIDR, formatPorts(blockedPorts),
-			)
+		affected := make([]netip.Prefix, 0, len(workerSubnets))
+		for _, worker := range workerSubnets {
+			if sourceMatchesSubnet(deny.SourceAddressPrefixes, worker) {
+				affected = append(affected, worker)
+			}
 		}
+		if len(affected) == 0 {
+			continue
+		}
+		if hasHigherPriorityAllowForAllSubnets(sortedRules[:i], deny, blockedPorts, affected) {
+			continue
+		}
+		return fmt.Errorf(
+			"outbound NSG rule %q (priority %d) denies egress to a destination overlapping subnet %s covering ports %s; remove/narrow the Deny",
+			deny.Name, deny.Priority, destinationCIDR, formatPorts(blockedPorts),
+		)
 	}
 	return nil
 }
@@ -328,12 +348,15 @@ func isInternetTag(p string) bool {
 	return strings.EqualFold(strings.TrimSpace(p), azureTagInternet)
 }
 
-func protocolMatchesTCP(protocol string) bool {
+// isAnyProtocol reports whether the NSG protocol field is a wildcard.
+// Azure uses "" or "*" for any protocol — not the address service tag "Any".
+func isAnyProtocol(protocol string) bool {
 	p := strings.TrimSpace(protocol)
-	if isAnyAddressPrefix(p) {
-		return true
-	}
-	return strings.EqualFold(p, "Tcp")
+	return p == "" || p == "*"
+}
+
+func protocolMatchesTCP(protocol string) bool {
+	return isAnyProtocol(protocol) || strings.EqualFold(strings.TrimSpace(protocol), "Tcp")
 }
 
 // sourceMatchesSubnet reports whether a rule's source could apply to traffic
@@ -383,9 +406,30 @@ func sourceSpecificallyFromWorker(prefixes []string, workerSubnet netip.Prefix) 
 // destinationIsVNetOrSubnet reports whether destination targets VirtualNetwork
 // or the given subnet CIDR/IP (not merely Any).
 func destinationIsVNetOrSubnet(prefixes []string, subnet netip.Prefix) bool {
+	return destinationMatchesSubnet(prefixes, subnet, false)
+}
+
+// destinationOverlapsSubnet reports whether destination could apply to traffic
+// toward subnet, treating empty and Any/*/wildcard as a match.
+func destinationOverlapsSubnet(prefixes []string, subnet netip.Prefix) bool {
+	return destinationMatchesSubnet(prefixes, subnet, true)
+}
+
+// destinationMatchesSubnet reports whether destination prefixes apply to subnet.
+// When matchAny is true, an empty prefix list or Any/*/wildcard counts as a match
+// (outbound overlap semantics). When false, those are ignored and only
+// VirtualNetwork (for private subnets) or concrete CIDR/IP overlap counts
+// (inbound specific-destination semantics).
+func destinationMatchesSubnet(prefixes []string, subnet netip.Prefix, matchAny bool) bool {
+	if len(prefixes) == 0 {
+		return matchAny
+	}
 	for _, p := range prefixes {
 		p = strings.TrimSpace(p)
 		if isAnyAddressPrefix(p) {
+			if matchAny {
+				return true
+			}
 			continue
 		}
 		if isInternetTag(p) {
@@ -436,35 +480,6 @@ func sourcesOverlap(allowPrefixes, denyPrefixes []string, subnet netip.Prefix) b
 			continue
 		}
 		if allowCoversPrefix(allowPrefixes, denyPrefix) || (sourceMatchesSubnet(allowPrefixes, subnet) && denyPrefix.Overlaps(subnet)) {
-			return true
-		}
-	}
-	return false
-}
-
-func destinationOverlapsSubnet(prefixes []string, subnet netip.Prefix) bool {
-	if len(prefixes) == 0 {
-		return true
-	}
-	for _, p := range prefixes {
-		p = strings.TrimSpace(p)
-		if isAnyAddressPrefix(p) {
-			return true
-		}
-		if isInternetTag(p) {
-			continue
-		}
-		if isVirtualNetworkTag(p) {
-			if isPrivateAddr(subnet.Addr()) {
-				return true
-			}
-			continue
-		}
-		rulePrefix, err := parsePrefixOrAddr(p)
-		if err != nil {
-			continue
-		}
-		if rulePrefix.Overlaps(subnet) {
 			return true
 		}
 	}

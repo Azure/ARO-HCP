@@ -17,6 +17,7 @@ package validationutils
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"k8s.io/utils/ptr"
 
@@ -28,29 +29,35 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// KASPorts are the kube-apiserver ports workers must reach (HTTPS / kubelet).
-var KASPorts = []int32{443, 6443}
+// outboundNSGPorts are TCP ports checked on the worker-subnet NSG (egress).
+// Workers must reach the control plane on these ports (port "*" also blocks):
+//
+//   - 443: HTTPS to the private router (Konnectivity / Ignition via SWIFT)
+//   - 6443: kube-apiserver (kubelet / API clients)
+var outboundNSGPorts = []int32{443, 6443}
 
-var vnetIntegrationSubnetInternalPorts = []int32{8443}
+// inboundNSGPorts are TCP ports checked on the vnet-integration-subnet NSG
+// (ingress). Worker → vnet-integration traffic on these ports must not be
+// denied (port "*" also blocks):
+//
+//   - 8443: additional HTTPS path used on the private-router hop
+//   - 443: HTTPS into the private router (Konnectivity / Ignition via SWIFT)
+var inboundNSGPorts = []int32{8443, 443}
 
 // AzureCustomerNSGValidation checks that customer-attached NSGs do not block
 // worker-node access to the hosted kube-apiserver (KAS).
 //
-// Worker nodes must reach KAS over TCP 443 and 6443 (HTTPS/kubelet). In ARO-HCP
-// that private path typically goes from the node pool subnet to the KAS internal
-// load balancer (often via the vnet-integration subnet). An NSG Deny on either
-// hop fails node bootstrap and ongoing control-plane communication, so we
+// An NSG Deny on the worker→control-plane path fails node bootstrap, so we
 // reject the node pool before create proceeds.
 //
-// The two subnets may have different NSGs attached:
+// Outbound checks run on the worker-subnet NSG (node-pool subnet, or cluster
+// subnet when the node pool has none). On outboundNSGPorts (including port
+// "*"), Deny Any→Any, Deny Any→cluster machine subnet CIDRs/IPs, and Deny
+// Any→vnet-integration CIDRs/IPs are rejected.
 //
-//   - Outbound (validateOutboundNSGRules) on the node-pool-subnet NSG: workers
-//     must be able to egress to KAS on 443/6443.
-//   - Inbound (validateInboundNSGRules) on the vnet-integration-subnet NSG:
-//     inbound rules must not block worker → vnet-integration traffic on those
-//     ports. A higher-priority Allow compensates a Deny.
-//
-// If a subnet has no NSG attached, validation for that subnet is skipped.
+// Inbound checks run on the vnet-integration-subnet NSG: rules must not block
+// worker → vnet-integration traffic on inboundNSGPorts. A higher-priority
+// Allow compensates a Deny.
 type AzureCustomerNSGValidation struct {
 	smiClientBuilder azureclient.ServiceManagedIdentityClientBuilder
 }
@@ -65,7 +72,7 @@ func (v *AzureCustomerNSGValidation) Name() string {
 	return "AzureCustomerNSGValidation"
 }
 
-// Validate checks outbound rules on the node-pool-subnet NSG and inbound rules
+// Validate checks outbound rules on the worker-subnet NSG and inbound rules
 // on the vnet-integration-subnet NSG. Each subnet is skipped when it has no NSG.
 func (v *AzureCustomerNSGValidation) Validate(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, _ *coreapi.Subscription, nodePool *coreapi.HCPOpenShiftClusterNodePool) error {
 	smiResourceID := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
@@ -92,13 +99,15 @@ func (v *AzureCustomerNSGValidation) Validate(ctx context.Context, cluster *core
 		return nsgClient, nil
 	}
 
-	// Node pool subnet (falls back to the parent cluster subnet when unset).
+	// Worker subnet: node-pool subnet if set, otherwise cluster subnet.
 	workerSubnetID := nodePool.Properties.Platform.SubnetID
 	if workerSubnetID == nil {
 		workerSubnetID = cluster.CustomerProperties.Platform.SubnetID
 	}
-	if workerSubnetID == nil {
-		return utils.TrackError(fmt.Errorf("node pool has no subnet ID"))
+
+	clusterSubnetID := cluster.CustomerProperties.Platform.SubnetID
+	if clusterSubnetID == nil {
+		return utils.TrackError(fmt.Errorf("cluster has no subnet ID"))
 	}
 
 	workerSubnet, err := v.getSubnet(ctx, subnetsClient, workerSubnetID)
@@ -114,6 +123,42 @@ func (v *AzureCustomerNSGValidation) Validate(ctx context.Context, cluster *core
 		return utils.TrackError(fmt.Errorf("node pool subnet: %w", err))
 	}
 
+	// Cluster machine subnet CIDRs
+	clusterPrefixes := workerPrefixes
+	if !strings.EqualFold(workerSubnetID.String(), clusterSubnetID.String()) {
+		clusterSubnet, err := v.getSubnet(ctx, subnetsClient, clusterSubnetID)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("cluster subnet: %w", err))
+		}
+		clusterPrefixes, err = v.subnetAddressPrefixes(clusterSubnet.Properties)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("cluster subnet: %w", err))
+		}
+	}
+
+	// Outbound destinations: cluster machine subnet + vnet-integration (when set).
+	// Any→Any is always evaluated inside validateOutboundNSGRules.
+	outboundDestinationPrefixes := append([]string(nil), clusterPrefixes...)
+
+	vnetIntegrationSubnetID := cluster.CustomerProperties.Platform.VnetIntegrationSubnetID
+	var vnetIntegrationPrefixes []string
+	var vnetIntegrationNSGID *azcorearm.ResourceID
+	if vnetIntegrationSubnetID != nil {
+		vnetIntegrationSubnet, err := v.getSubnet(ctx, subnetsClient, vnetIntegrationSubnetID)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		vnetIntegrationPrefixes, err = v.subnetAddressPrefixes(vnetIntegrationSubnet.Properties)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("vnet-integration subnet: %w", err))
+		}
+		vnetIntegrationNSGID, err = v.nsgIDFromSubnet(vnetIntegrationSubnet.Properties)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("vnet-integration subnet: %w", err))
+		}
+		outboundDestinationPrefixes = append(outboundDestinationPrefixes, vnetIntegrationPrefixes...)
+	}
+
 	if workerNSGID != nil {
 		client, err := getNSGClient()
 		if err != nil {
@@ -123,29 +168,12 @@ func (v *AzureCustomerNSGValidation) Validate(ctx context.Context, cluster *core
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		err = v.validateOutboundNSGRules(outbound, workerPrefixes, KASPorts)
+		err = v.validateOutboundNSGRules(outbound, workerPrefixes, outboundDestinationPrefixes, outboundNSGPorts)
 		if err != nil {
 			return utils.TrackError(err)
 		}
 	}
 
-	// Vnet-integration subnet
-	vnetIntegrationSubnetID := cluster.CustomerProperties.Platform.VnetIntegrationSubnetID
-	if vnetIntegrationSubnetID == nil {
-		return nil
-	}
-	vnetIntegrationSubnet, err := v.getSubnet(ctx, subnetsClient, vnetIntegrationSubnetID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	vnetIntegrationPrefixes, err := v.subnetAddressPrefixes(vnetIntegrationSubnet.Properties)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("vnet-integration subnet: %w", err))
-	}
-	vnetIntegrationNSGID, err := v.nsgIDFromSubnet(vnetIntegrationSubnet.Properties)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("vnet-integration subnet: %w", err))
-	}
 	if vnetIntegrationNSGID == nil {
 		return nil
 	}
@@ -158,7 +186,7 @@ func (v *AzureCustomerNSGValidation) Validate(ctx context.Context, cluster *core
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	err = v.validateInboundNSGRules(inbound, workerPrefixes, vnetIntegrationPrefixes, vnetIntegrationSubnetInternalPorts)
+	err = v.validateInboundNSGRules(inbound, workerPrefixes, vnetIntegrationPrefixes, inboundNSGPorts)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -207,7 +235,7 @@ func (v *AzureCustomerNSGValidation) listNSGSecurityRules(ctx context.Context, n
 		return nil, nil, fmt.Errorf("failed to get network security group %q: %w", nsgID.String(), err)
 	}
 	if resp.Properties == nil {
-		return nil, nil, nil
+		return nil, nil, fmt.Errorf("network security group %q has no properties", nsgID.String())
 	}
 	outbound = v.convertSecurityRules(resp.Properties.SecurityRules, armnetwork.SecurityRuleDirectionOutbound)
 	inbound = v.convertSecurityRules(resp.Properties.SecurityRules, armnetwork.SecurityRuleDirectionInbound)
