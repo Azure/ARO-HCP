@@ -658,7 +658,7 @@ data:
         sourceLabels: ["__name__"]
     kubeAPIServer:
       - action:       "drop"
-        regex:        "apiserver_request_total;(watch|connect)"
+        regex:        "apiserver_request_total;(WATCH|CONNECT)"
         sourceLabels: ["__name__", "verb"]
       - action:       "keep"
         regex:        "aggregator_unavailable_apiservice|apiserver_(admission_(controller|step)_admission_duration_seconds_.*|client_certificate_expiration_seconds_(bucket|count|sum)|current_inflight_requests|flowcontrol_(current_inqueue_requests|dispatched_requests_total|request_(execution_seconds_(bucket|count|sum)|queue_length_after_enqueue_(bucket|count|sum)|wait_duration_seconds_(bucket|count|sum)))|longrunning_requests|request_(body_size_bytes_.*|duration_seconds_.*|sli_duration_seconds_(bucket|count|sum)|slo_duration_seconds_.*|terminations_total|total)|response_sizes_.*|storage_objects)|etcd_request_errors_total|go_gc_duration_seconds(_sum|_count)?|go_goroutines|go_memstats_(alloc_bytes(_total)?|heap_(alloc|inuse)_bytes|mallocs_total|stack_inuse_bytes)|grpc_(client|server)_(handled|started|msg_received|msg_sent)_total|kubernetes_build_info|process_(cpu_seconds_total|resident_memory_bytes)|rest_client_(request_duration_seconds_(bucket|count|sum)|requests_total)|workqueue_(adds_total|depth|queue_duration_seconds_(bucket|count|sum)|retries_total|work_duration_seconds_(bucket|count|sum))"

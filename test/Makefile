@@ -27,9 +27,14 @@ update-go-fixtures:
 update: $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS) update-go-fixtures
 .PHONY: update
 
+SRE_METRICS_SET_SRC = $(TEST_DIR)../hypershiftoperator/deploy/templates/sre-metrics-set.configmap.yaml
+SRE_METRICS_SET_COPY = $(TEST_DIR)e2e/test-artifacts/sre-metrics-set.configmap.yaml
+$(SRE_METRICS_SET_COPY): $(SRE_METRICS_SET_SRC)
+	cp $< $@
+
 TEST_SOURCES = $(shell find $(TEST_DIR) -name '*.go' -o -name '*.json' -o -name '*.bicep')
 ARO_HCP_TESTS = $(TEST_DIR)aro-hcp-tests
-$(ARO_HCP_TESTS): $(TEST_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS)
+$(ARO_HCP_TESTS): $(TEST_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS) $(SRE_METRICS_SET_COPY)
 	cd $(TEST_DIR) && go build -o $@ ./cmd/aro-hcp-tests
 
 PROW_JOB_EXECUTOR_SOURCES = $(shell find $(TEST_DIR) -name '*.go')

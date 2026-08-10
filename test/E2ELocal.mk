@@ -20,8 +20,17 @@ ifndef E2E_ARTIFACT_DIR
 endif
 SNAPSHOT_RENDERED_CONFIG := $(shell mktemp)
 
-e2e-local/run-test: $(ARO_HCP_TESTS)
+AMW_RENDERED_CONFIG := $(shell mktemp)
+
+e2e-local/run-test: $(ARO_HCP_TESTS) $(TEMPLATIZE)
 	$(MAKE) -C $(DIR) -f $(THIS) .e2e-local/setup
+	$(TEMPLATIZE) configuration render \
+	  --service-config-file $(CONFIG_FILE) \
+	  --skip-schema-validation \
+	  --cloud $(ARO_HCP_CLOUD) \
+	  --environment $(DEPLOY_ENV) \
+	  --dev-settings-file $(DEV_SETTINGS_FILE) \
+	  --output "$(AMW_RENDERED_CONFIG)"
 	export LOCATION="$${LOCATION:-${REGION}}"; \
 	export AROHCP_ENV="development"; \
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
@@ -29,6 +38,8 @@ e2e-local/run-test: $(ARO_HCP_TESTS)
 	export FRONTEND_ADDRESS=$${FRONTEND_ADDRESS:-http://localhost:8443}; \
 	export ADMIN_API_ADDRESS=$${ADMIN_API_ADDRESS:-http://localhost:8444}; \
 	export ARTIFACT_DIR="$(E2E_ARTIFACT_DIR)"; \
+	export AMW_REGION_RG="$$(yq .regionRG < $(AMW_RENDERED_CONFIG))"; \
+	export AMW_HCP_WORKSPACE_NAME="$$(yq .monitoring.hcpWorkspaceName < $(AMW_RENDERED_CONFIG))"; \
 	$(ARO_HCP_TESTS) run-test "$$TEST_NAME"
 .PHONY: e2e-local/run-test
 

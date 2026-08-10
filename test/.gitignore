@@ -2,4 +2,5 @@ e2e.test
 *e2e-setup.json
 /aro-hcp-tests
 /e2e/test-artifacts/generated-test-artifacts/
+/e2e/test-artifacts/sre-metrics-set.configmap.yaml
 /prow-job-executor
