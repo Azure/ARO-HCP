@@ -16,7 +16,9 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -160,6 +162,11 @@ var _ = Describe("ARO HCP Service", func() {
 					GinkgoLogr.Info("cluster provisioning state", "state", state)
 					lastConsistentlyState = state
 				}
+				if state == hcpsdk20251223preview.ProvisioningStateFailed {
+					body, _ := json.MarshalIndent(resp.HcpOpenShiftCluster, "", "  ")
+					GinkgoLogr.Info("cluster entered Failed during Consistently check — dumping full ARM response for root cause analysis (ARO-28755)",
+						"responseBody", string(body))
+				}
 				g.Expect(state).NotTo(Equal(hcpsdk20251223preview.ProvisioningStateFailed),
 					"cluster entered terminal Failed state — CS inflight validation should retry, not fail terminally (ARO-25805)")
 			}, consistentlyLoopDuration, 30*time.Second).Should(Succeed())
@@ -213,8 +220,13 @@ var _ = Describe("ARO HCP Service", func() {
 					GinkgoLogr.Info("cluster provisioning state", "state", state)
 					lastEventuallyState = state
 				}
+				if state == hcpsdk20251223preview.ProvisioningStateFailed {
+					body, _ := json.MarshalIndent(resp.HcpOpenShiftCluster, "", "  ")
+					GinkgoLogr.Info("cluster entered Failed after role assignment deployment — dumping full ARM response for root cause analysis (ARO-28755)",
+						"responseBody", string(body))
+				}
 				g.Expect(state).NotTo(Equal(hcpsdk20251223preview.ProvisioningStateFailed),
-					"cluster entered terminal Failed state after role assignment deployment")
+					"cluster entered terminal Failed state after role assignment deployment — see preceding log for full ARM response (ARO-28755)")
 				g.Expect(state).To(Equal(hcpsdk20251223preview.ProvisioningStateSucceeded),
 					"cluster has not yet reached Succeeded state")
 			}, clusterCreationTimeout-consistentlyLoopDuration, 30*time.Second).Should(Succeed(),
