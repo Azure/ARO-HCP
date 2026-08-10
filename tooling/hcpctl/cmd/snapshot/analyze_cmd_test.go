@@ -40,6 +40,8 @@ func (s *fakeAnalysisSession) SendAndWait(context.Context, string) (string, erro
 	return "", nil
 }
 
+func (s *fakeAnalysisSession) ResetHistory() {}
+
 func (s *fakeAnalysisSession) Usage() agent.UsageReport {
 	return s.usage.Clone()
 }
@@ -112,8 +114,12 @@ func TestWriteUsageReport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat usage report: %v", err)
 	}
-	if gotMode := info.Mode().Perm(); gotMode != 0o644 {
-		t.Errorf("usage report mode = %o, want 644", gotMode)
+	gotMode := info.Mode().Perm()
+	if gotMode&0o600 != 0o600 {
+		t.Errorf("usage report mode = %o, want owner read/write permissions", gotMode)
+	}
+	if unexpected := gotMode &^ 0o644; unexpected != 0 {
+		t.Errorf("usage report mode = %o, includes unexpected permissions %o", gotMode, unexpected)
 	}
 }
 
