@@ -194,7 +194,7 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*coreapi.HCPOpenShift
 
 	externalExternalAuthFromRequest := versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
 	if err := json.Unmarshal(body, &externalExternalAuthFromRequest); err != nil {
-		return nil, utils.TrackError(err)
+		return nil, utils.TrackError(coreapi.NewInvalidRequestContentError(err))
 	}
 	newInternalExternalAuth, err := externalExternalAuthFromRequest.ConvertToInternal(nil)
 	if err != nil {
@@ -369,7 +369,7 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 	// Exact user request
 	externalExternalAuthFromRequest := versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
 	if err := json.Unmarshal(body, &externalExternalAuthFromRequest); err != nil {
-		return nil, utils.TrackError(err)
+		return nil, utils.TrackError(coreapi.NewInvalidRequestContentError(err))
 	}
 
 	newInternalExternalAuth, err := externalExternalAuthFromRequest.ConvertToInternal(oldInternalExternalAuth)
