@@ -17,6 +17,7 @@ package version
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -104,6 +105,13 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 		return utils.TrackError(err)
 	}
 
+	// Mirror the observed HostedCluster's status.version.desired.channels onto
+	// the ServiceProviderCluster. Cluster admission consumes this list to decide
+	// whether a requested version.id has a reachable update channel. Doing the
+	// mirroring here keeps the frontend (and therefore admission) free of any
+	// management-cluster access; see internal/admission/CLAUDE.md.
+	newDesiredChannels := getHostedClusterDesiredVersionChannels(hostedCluster)
+
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
@@ -117,14 +125,20 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	// the represented version. Two independent reads/parses of the same version produce different
 	// pointer addresses, which previously caused a Replace on every reconciliation cycle even
 	// when the active versions were semantically identical.
+	//
+	// DesiredVersionChannels is a plain []string, so slices.Equal compares it by value.
 	oldActiveVersions := cachedServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
-	if !controllerutil.NeedsUpdate(oldActiveVersions, newActiveVersions) {
+	oldDesiredChannels := cachedServiceProviderCluster.Status.DesiredVersionChannels
+	if !controllerutil.NeedsUpdate(oldActiveVersions, newActiveVersions) && slices.Equal(oldDesiredChannels, newDesiredChannels) {
 		return nil
 	}
 	logger := utils.LoggerFromContext(ctx)
-	logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", newActiveVersions)
+	logger.Info("Active versions or desired channels changed",
+		"oldActiveVersions", oldActiveVersions, "newActiveVersions", newActiveVersions,
+		"oldDesiredChannels", oldDesiredChannels, "newDesiredChannels", newDesiredChannels)
 	replacement := cachedServiceProviderCluster.DeepCopy()
 	replacement.Status.ControlPlaneVersion.ActiveVersions = newActiveVersions
+	replacement.Status.DesiredVersionChannels = newDesiredChannels
 	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 	if err != nil {
@@ -179,4 +193,21 @@ func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx con
 		}
 	}
 	return activeVersions, nil
+}
+
+// getHostedClusterDesiredVersionChannels returns the observed
+// status.version.desired.channels of the HostedCluster, or nil when the version
+// status has not been reported yet (Status.Version is nil on freshly created
+// clusters before the control plane reports a desired release).
+//
+// A channel only appears in status.version.desired.channels when the cluster's
+// current desired release has a valid upgrade edge to a release served by that
+// channel. Mirroring this list onto ServiceProviderCluster.Status therefore lets
+// DB-free cluster admission reject a version.id change whose target channel is
+// not reachable, without the frontend ever reaching the management cluster.
+func getHostedClusterDesiredVersionChannels(hostedCluster *hsv1beta1.HostedCluster) []string {
+	if hostedCluster.Status.Version == nil {
+		return nil
+	}
+	return hostedCluster.Status.Version.Desired.Channels
 }

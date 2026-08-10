@@ -813,7 +813,8 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 | | Object | Fields |
 |---|--------|--------|
 | Read | ReadDesire (HostedCluster) | <ul><li>`Status.ControlPlaneVersion.History`</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ControlPlaneVersion.ActiveVersions`** = [{Version, State}, ...]</li></ul> |
+| Read | ReadDesire (HostedCluster) | <ul><li>`Status.Version.Desired.Channels`</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ControlPlaneVersion.ActiveVersions`** = [{Version, State}, ...]</li><li>**`Status.DesiredVersionChannels`** = ["stable-4.19", ...] (mirrored from HostedCluster `status.version.desired.channels` for DB-free cluster admission)</li></ul> |
 
 #### TriggerControlPlaneUpgrade
 

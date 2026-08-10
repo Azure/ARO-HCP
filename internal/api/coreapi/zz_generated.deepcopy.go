@@ -2083,6 +2083,11 @@ func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderCluster
 		}
 	}
 	in.ControlPlaneVersion.DeepCopyInto(&out.ControlPlaneVersion)
+	if in.DesiredVersionChannels != nil {
+		in, out := &in.DesiredVersionChannels, &out.DesiredVersionChannels
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Validations != nil {
 		in, out := &in.Validations, &out.Validations
 		*out = make([]v1.Condition, len(*in))
