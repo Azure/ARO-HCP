@@ -105,7 +105,7 @@ func TestRetriableStatusCodes(t *testing.T) {
 		{"400 on DELETE does not retry", http.MethodDelete, http.StatusBadRequest, "", false},
 		{"403 on POST /servicePrincipals retries (eventual consistency)", http.MethodPost, http.StatusForbidden, "https://graph.microsoft.com/v1.0/servicePrincipals", true},
 		{"403 on POST /applications does not retry", http.MethodPost, http.StatusForbidden, "https://graph.microsoft.com/v1.0/applications", false},
-		{"403 on POST addPassword does not retry", http.MethodPost, http.StatusForbidden, "", false},
+		{"403 on POST addPassword retries (eventual consistency)", http.MethodPost, http.StatusForbidden, "", true},
 		{"403 on GET /servicePrincipals does not retry", http.MethodGet, http.StatusForbidden, "https://graph.microsoft.com/v1.0/servicePrincipals", false},
 		{"403 on DELETE does not retry", http.MethodDelete, http.StatusForbidden, "", false},
 		{"500 does not retry", http.MethodPost, http.StatusInternalServerError, "", false},
