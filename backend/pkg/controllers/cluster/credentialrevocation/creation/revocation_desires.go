@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -55,6 +56,7 @@ func NewRevocationDesiresController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	backendInformers coreinformers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	applyDesireLister dblisters.ApplyDesireLister,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
@@ -72,6 +74,7 @@ func NewRevocationDesiresController(
 		"SystemAdminCredentialRevocationDesires",
 		resourcesDBClient,
 		backendInformers,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)

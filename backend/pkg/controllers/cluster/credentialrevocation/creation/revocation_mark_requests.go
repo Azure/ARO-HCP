@@ -60,6 +60,7 @@ func NewRevocationMarkRequestsController(
 		"SystemAdminCredentialRevocationMarkRequests",
 		resourcesDBClient,
 		backendInformers,
+		nil,
 		1*time.Minute,
 		syncer,
 	)

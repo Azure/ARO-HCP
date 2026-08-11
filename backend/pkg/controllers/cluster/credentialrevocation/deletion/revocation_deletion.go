@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -49,6 +50,7 @@ func NewRevocationDeletionController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	backendInformers coreinformers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 
@@ -62,6 +64,7 @@ func NewRevocationDeletionController(
 		"SystemAdminCredentialRevocationDeletion",
 		resourcesDBClient,
 		backendInformers,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)

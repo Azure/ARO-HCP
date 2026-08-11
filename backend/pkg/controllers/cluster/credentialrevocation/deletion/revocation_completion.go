@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -57,6 +58,7 @@ func NewRevocationCompletionController(
 	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	backendInformers coreinformers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
 	syncer := &revocationCompletion{
@@ -69,6 +71,7 @@ func NewRevocationCompletionController(
 		"SystemAdminCredentialRevocationCompletion",
 		resourcesDBClient,
 		backendInformers,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)
