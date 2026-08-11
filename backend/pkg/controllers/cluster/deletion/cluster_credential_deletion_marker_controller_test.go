@@ -48,7 +48,6 @@ func newTestCredentialRequest(t *testing.T, credName string, opts ...func(*corea
 			PartitionKey: strings.ToLower(testSubscriptionID),
 		},
 		Spec: coreapi.SystemAdminCredentialRequestSpec{
-			Username:    "test-user",
 			OperationID: "test-op",
 		},
 	}

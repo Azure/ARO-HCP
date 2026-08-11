@@ -146,7 +146,6 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 						PartitionKey: strings.ToLower(testSubscriptionID),
 					},
 					Spec: coreapi.SystemAdminCredentialRequestSpec{
-						Username:    "test-user",
 						OperationID: testOperationName,
 					},
 				}
@@ -175,7 +174,6 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 						PartitionKey: strings.ToLower(testSubscriptionID),
 					},
 					Spec: coreapi.SystemAdminCredentialRequestSpec{
-						Username:    "test-user",
 						OperationID: testOperationName,
 					},
 				}
@@ -210,7 +208,6 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 						PartitionKey: strings.ToLower(testSubscriptionID),
 					},
 					Spec: coreapi.SystemAdminCredentialRequestSpec{
-						Username:    "test-user",
 						OperationID: testOperationName,
 					},
 				}
