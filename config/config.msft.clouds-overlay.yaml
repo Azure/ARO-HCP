@@ -87,9 +87,14 @@ clouds:
           serviceKeyVault:
             subscription:
               displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - SVC"
-          # This must be defined here, so our ci jobs can know this
+          # This must be defined here, so our ci jobs can know this.
+          # This is the LIVE (V1) cluster in rg hcp-kusto-stg-uk of the
+          # `Azure Red Hat OpenShift v4.x - HCP Global` sub, which uksouth deploys
+          # into. Do NOT set it to hcp-stg-uk-3 — that is the transient V2 cluster
+          # under stgGlobalV2, in the separate hcp-stg-global sub. Both subs have an
+          # rg named hcp-kusto-stg-uk, and Kusto cluster names are globally unique.
           kusto:
-            kustoName: "hcp-stg-uk-3"
+            kustoName: "hcp-stg-uk-2"
           # Transient STG-global "V2" names for the parallel infra in the dedicated
           # hcp-stg-global sub during coexistence. Removed at decommission.
           stgGlobalV2:
