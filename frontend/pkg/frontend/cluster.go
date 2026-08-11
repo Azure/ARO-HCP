@@ -214,7 +214,7 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 
 	externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(nil)
 	if err := json.Unmarshal(body, &externalClusterFromRequest); err != nil {
-		return nil, utils.TrackError(err)
+		return nil, utils.TrackError(coreapi.NewInvalidRequestContentError(err))
 	}
 	newInternalCluster, err := externalClusterFromRequest.ConvertToInternal(nil)
 	if err != nil {
@@ -487,7 +487,7 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *coreap
 	// Exact user request
 	externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(nil)
 	if err := json.Unmarshal(body, &externalClusterFromRequest); err != nil {
-		return nil, utils.TrackError(err)
+		return nil, utils.TrackError(coreapi.NewInvalidRequestContentError(err))
 	}
 
 	newInternalCluster, err := externalClusterFromRequest.ConvertToInternal(oldInternalCluster)

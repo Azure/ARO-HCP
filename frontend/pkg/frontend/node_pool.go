@@ -195,7 +195,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*co
 
 	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
 	if err := json.Unmarshal(body, &externalNodePoolFromRequest); err != nil {
-		return nil, utils.TrackError(err)
+		return nil, utils.TrackError(coreapi.NewInvalidRequestContentError(err))
 	}
 	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal(nil)
 	if err != nil {
@@ -397,7 +397,7 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *core
 	// Exact user request
 	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
 	if err := json.Unmarshal(body, &externalNodePoolFromRequest); err != nil {
-		return nil, utils.TrackError(err)
+		return nil, utils.TrackError(coreapi.NewInvalidRequestContentError(err))
 	}
 
 	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal(oldInternalNodePool)
