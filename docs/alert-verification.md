@@ -15,7 +15,7 @@ With [alert-tester][alert-tester-repo] we have a fast approach to verify alerts 
 
 > [!NOTE]
 >
-> In staging, integration, and production environments, Grafana is restricted to the **MSFT Corp VPN**. Ensure you are connected to the VPN before running `atest` commands against non-dev Grafana instances.
+> In staging, integration, and production environments, Grafana may be restricted to the **MSFT Corp VPN**. If you cannot reach a non-dev Grafana instance, ensure you are connected to the VPN before further troubleshooting.
 
 ## Verifying alerts with [alert-tester][alert-tester-repo]
 

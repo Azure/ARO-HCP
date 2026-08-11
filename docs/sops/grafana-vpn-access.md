@@ -2,7 +2,7 @@
 
 ## Overview
 
-Azure Managed Grafana instances in staging, integration, and production environments are configured with `publicNetworkAccess: Disabled`. This restricts access to users connected to the MSFT Corp VPN. Dev environment Grafana instances remain publicly accessible.
+Azure Managed Grafana instances in staging, integration, and production environments can be configured with `publicNetworkAccess: Disabled`, which restricts access to users connected to the MSFT Corp VPN. Dev environment Grafana instances are publicly accessible.
 
 ## Prerequisites
 
@@ -22,7 +22,7 @@ Azure Managed Grafana instances in staging, integration, and production environm
 |---------|---------------|------------|
 | Cannot reach Grafana URL (timeout/connection refused) | VPN not connected | Connect to MSFT Corp VPN and retry |
 | 403 Forbidden or network error | Connected to guest/partner network instead of Corp VPN | Switch to the MSFT Corp VPN |
-| Dev environment works but staging/prod does not | Dev has public access enabled; staging/int/prod require VPN | Connect to VPN for non-dev environments |
+| Dev environment works but staging/prod does not | Dev has public access enabled; staging/int/prod may require VPN | Connect to VPN for non-dev environments |
 | VPN connected but still cannot access | DNS resolution issue | Flush DNS cache and retry; verify VPN routes include Azure endpoints |
 
 ## Related Documentation

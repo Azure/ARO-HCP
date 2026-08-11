@@ -193,7 +193,7 @@ To diagnose slow provisioning, cross-reference this dashboard with cluster servi
 
 ### From Grafana UI
 
-> **Note**: In non-dev environments, Grafana requires **MSFT Corp VPN** connectivity.
+> **Note**: In non-dev environments, Grafana may require **MSFT Corp VPN** connectivity.
 
 1. Log into Grafana for your target environment (dev/cspr/int/stg/prod)
 2. Navigate to **Dashboards** → **Performance & Scale** folder
