@@ -48,7 +48,7 @@ type dispatchRequestCredential struct {
 // Operation documents relevant to this controller will have the following values:
 //
 //	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
-//	     Request: RequestCredential
+//	     Request: OperationRequestSystemAdminCredentialRequest ("RequestCredential")
 //	      Status: Accepted
 //	  SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID: nil
 func NewDispatchRequestCredentialController(

@@ -200,7 +200,7 @@ func (m *MockResourcesDBClient) addController(ctx context.Context, controller *c
 		return err
 	case armhelpers.ResourceTypeEqual(parentType, coreapi.SystemAdminCredentialRequestResourceType):
 		if resourceID.Parent.Parent == nil {
-			return fmt.Errorf("credential request controller is missing grandparent cluster ID")
+			return fmt.Errorf("system admin credential request controller is missing grandparent cluster ID")
 		}
 		clusterName := resourceID.Parent.Parent.Name
 		credentialName := resourceID.Parent.Name
@@ -209,7 +209,7 @@ func (m *MockResourcesDBClient) addController(ctx context.Context, controller *c
 		return err
 	case armhelpers.ResourceTypeEqual(parentType, coreapi.SystemAdminCredentialRevocationResourceType):
 		if resourceID.Parent.Parent == nil {
-			return fmt.Errorf("credential revocation controller is missing grandparent cluster ID")
+			return fmt.Errorf("system admin credential revocation controller is missing grandparent cluster ID")
 		}
 		clusterName := resourceID.Parent.Parent.Name
 		revocationName := resourceID.Parent.Name
@@ -223,10 +223,10 @@ func (m *MockResourcesDBClient) addController(ctx context.Context, controller *c
 func (m *MockResourcesDBClient) addSystemAdminCredentialRequest(ctx context.Context, cred *coreapi.SystemAdminCredentialRequest) error {
 	resourceID := cred.GetResourceID()
 	if resourceID == nil {
-		return fmt.Errorf("credential request is missing resource ID")
+		return fmt.Errorf("system admin credential request is missing resource ID")
 	}
 	if resourceID.Parent == nil {
-		return fmt.Errorf("credential request is missing parent cluster ID")
+		return fmt.Errorf("system admin credential request is missing parent cluster ID")
 	}
 	clusterName := resourceID.Parent.Name
 	credCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).SystemAdminCredentialRequests(clusterName)
@@ -237,10 +237,10 @@ func (m *MockResourcesDBClient) addSystemAdminCredentialRequest(ctx context.Cont
 func (m *MockResourcesDBClient) addSystemAdminCredentialRevocation(ctx context.Context, revocation *coreapi.SystemAdminCredentialRevocation) error {
 	resourceID := revocation.GetResourceID()
 	if resourceID == nil {
-		return fmt.Errorf("credential revocation is missing resource ID")
+		return fmt.Errorf("system admin credential revocation is missing resource ID")
 	}
 	if resourceID.Parent == nil {
-		return fmt.Errorf("credential revocation is missing parent cluster ID")
+		return fmt.Errorf("system admin credential revocation is missing parent cluster ID")
 	}
 	clusterName := resourceID.Parent.Name
 	revocationCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).SystemAdminCredentialRevocations(clusterName)

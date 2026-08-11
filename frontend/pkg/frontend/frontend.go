@@ -345,6 +345,10 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return utils.TrackError(err)
 	}
 
+	// Starting with v20260901, callers provide a CSR in the request body and we
+	// store it on the Cosmos operation. This lets us distinguish at the operation
+	// level whether the new admin credential API path (CSR-based) or the legacy
+	// Cluster Service break-glass path is in use.
 	var certificateSigningRequest string
 	if apiVersion.GE(metadataapi.APIVersionV20260901Preview) {
 		body, err := BodyFromContext(ctx)
@@ -1042,6 +1046,10 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	var responseBody []byte
 
+	// If the operation carries a SystemAdminCredentialRequest, it used the new
+	// CSR-based admin credential API and the credential is assembled from Cosmos.
+	// Otherwise, fall back to the legacy Cluster Service break-glass credential
+	// path identified by the operation's InternalID kind.
 	switch {
 	case operation.SystemAdminCredentialRequest != nil:
 		adminCred, err := f.assembleAdminCredentialFromCosmos(ctx, operation)
@@ -1106,10 +1114,10 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 }
 
 // assembleAdminCredentialFromCosmos looks up the SystemAdminCredentialRequest
-// Cosmos document pointed to by Operation.InternalID and assembles a kubeconfig
-// from its signed certificate and the serving CA bundle from the
-// ServiceProviderCluster. The kubeconfig does not include the private key;
-// the service never has access to it for security reasons. The caller must
+// Cosmos document referenced by Operation.SystemAdminCredentialRequest and
+// assembles a kubeconfig from its signed certificate and the serving CA bundle
+// from the ServiceProviderCluster. The kubeconfig does not include the private
+// key; the service never has access to it for security reasons. The caller must
 // combine this kubeconfig with the private key they hold client-side.
 func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *coreapi.Operation) (*coreapi.HCPOpenShiftClusterAdminCredential, error) {
 	if op.SystemAdminCredentialRequest == nil || op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID == nil {

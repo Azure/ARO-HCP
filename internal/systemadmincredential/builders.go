@@ -45,7 +45,8 @@ const (
 	defaultExpirationSeconds = int32(86400)
 
 	// customerBreakGlassSignerSuffix is the HyperShift signer name suffix.
-	// This is HyperShift's contract, not ours to rename.
+	// Defined by HyperShift in pkg/controllers/certificates/signers.go
+	// (SignerNameForHC builds "<namespace>.<suffix>").
 	customerBreakGlassSignerSuffix = "customer-break-glass"
 
 	// customerBreakGlassRevocationSignerClass is the signer class for CRR.
@@ -78,7 +79,7 @@ func BuildCSR(owner *azcorearm.ResourceID, credName, hcpNamespace string, csrPEM
 
 	return &certificatesv1.CertificateSigningRequest{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "certificates.k8s.io/v1",
+			APIVersion: certificatesv1.SchemeGroupVersion.String(),
 			Kind:       "CertificateSigningRequest",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -102,7 +103,7 @@ func BuildCSRApproval(owner *azcorearm.ResourceID, credName, hcpNamespace string
 	requireOwner(owner)
 	return &certificatesv1alpha1.CertificateSigningRequestApproval{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "certificates.hypershift.openshift.io/v1alpha1",
+			APIVersion: certificatesv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "CertificateSigningRequestApproval",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -119,7 +120,7 @@ func BuildRevocationRequest(owner *azcorearm.ResourceID, revokeOpSuffix, hcpName
 	requireOwner(owner)
 	return &certificatesv1alpha1.CertificateRevocationRequest{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "certificates.hypershift.openshift.io/v1alpha1",
+			APIVersion: certificatesv1alpha1.SchemeGroupVersion.String(),
 			Kind:       "CertificateRevocationRequest",
 		},
 		ObjectMeta: metav1.ObjectMeta{

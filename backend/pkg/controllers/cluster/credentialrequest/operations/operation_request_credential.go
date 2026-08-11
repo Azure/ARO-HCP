@@ -46,7 +46,7 @@ type operationRequestCredentialPoll struct {
 // Operation documents relevant to this controller will have the following values:
 //
 //	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
-//	     Request: RequestCredential
+//	     Request: OperationRequestSystemAdminCredentialRequest ("RequestCredential")
 //	      Status: any non-terminal value
 //	  SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID: set
 func NewOperationRequestCredentialPollController(
