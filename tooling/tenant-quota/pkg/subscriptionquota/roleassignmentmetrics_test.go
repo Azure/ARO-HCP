@@ -45,7 +45,20 @@ func (t *roleAssignmentMetricsTestTransport) Do(req *http.Request) (*http.Respon
 	return t.do(req)
 }
 
+type trackingReadCloser struct {
+	io.Reader
+	closed bool
+}
+
+func (r *trackingReadCloser) Close() error {
+	r.closed = true
+	return nil
+}
+
 func TestRoleAssignmentMetricsClientGet(t *testing.T) {
+	body := &trackingReadCloser{Reader: strings.NewReader(
+		`{"roleAssignmentsCurrentCount":123,"roleAssignmentsLimit":8000,"roleAssignmentsRemainingCount":7877}`,
+	)}
 	transport := &roleAssignmentMetricsTestTransport{
 		do: func(req *http.Request) (*http.Response, error) {
 			if req.Method != http.MethodGet {
@@ -62,10 +75,8 @@ func TestRoleAssignmentMetricsClientGet(t *testing.T) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
-				Body: io.NopCloser(strings.NewReader(
-					`{"roleAssignmentsCurrentCount":123,"roleAssignmentsLimit":8000,"roleAssignmentsRemainingCount":7877}`,
-				)),
-				Request: req,
+				Body:       body,
+				Request:    req,
 			}, nil
 		},
 	}
@@ -90,6 +101,9 @@ func TestRoleAssignmentMetricsClientGet(t *testing.T) {
 	}
 	if got.limit != 8000 {
 		t.Fatalf("limit = %d, want 8000", got.limit)
+	}
+	if !body.closed {
+		t.Fatal("response body was not closed")
 	}
 }
 
@@ -146,15 +160,17 @@ func TestRoleAssignmentMetricsClientGetErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			var body *trackingReadCloser
 			transport := &roleAssignmentMetricsTestTransport{
 				do: func(req *http.Request) (*http.Response, error) {
 					if tc.transport != nil {
 						return nil, tc.transport
 					}
+					body = &trackingReadCloser{Reader: strings.NewReader(tc.body)}
 					return &http.Response{
 						StatusCode: tc.statusCode,
 						Header:     http.Header{"Content-Type": []string{"application/json"}},
-						Body:       io.NopCloser(strings.NewReader(tc.body)),
+						Body:       body,
 						Request:    req,
 					}, nil
 				},
@@ -176,7 +192,10 @@ func TestRoleAssignmentMetricsClientGetErrors(t *testing.T) {
 				t.Fatal("Get() error = nil, want error")
 			}
 			if !strings.Contains(err.Error(), tc.wantErrSub) {
-				t.Fatalf("Get() error = %q, want substring %q", err, tc.wantErrSub)
+				t.Fatalf("Get() error = %v, want substring %q", err, tc.wantErrSub)
+			}
+			if tc.transport == nil && !body.closed {
+				t.Fatal("response body was not closed")
 			}
 		})
 	}

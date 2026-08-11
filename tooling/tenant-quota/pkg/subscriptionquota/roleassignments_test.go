@@ -117,7 +117,7 @@ func TestRoleAssignmentSourceErrors(t *testing.T) {
 				t.Fatalf("Collect() returned %d errors, want 1", len(errs))
 			}
 			if !strings.Contains(errs[0].Error(), tc.wantErrSub) {
-				t.Fatalf("Collect() error = %q, want substring %q", errs[0], tc.wantErrSub)
+				t.Fatalf("Collect() error = %v, want substring %q", errs[0], tc.wantErrSub)
 			}
 		})
 	}
