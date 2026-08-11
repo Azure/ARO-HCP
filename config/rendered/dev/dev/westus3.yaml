@@ -1052,8 +1052,8 @@ svc:
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
     istioctlVersion: 1.30.3
     tag: prod-stable
-    targetVersion: asm-1-28
-    versions: asm-1-28
+    targetVersion: asm-1-29
+    versions: asm-1-29
   monitoringApiGroup: monitoring.coreos.com
   nsp:
     accessMode: Learning

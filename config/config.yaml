@@ -1811,6 +1811,9 @@ clouds:
             jaeger:
               deploy: false
             applyKubeletFixes: false
+            monitoringApiGroup: "azmonitoring.coreos.com"
+            amaMetrics:
+              kubestate: "true"
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
@@ -1921,6 +1924,9 @@ clouds:
             jaeger:
               deploy: false
             applyKubeletFixes: false
+            monitoringApiGroup: "azmonitoring.coreos.com"
+            amaMetrics:
+              kubestate: "true"
           # SVC
           svc:
             subscription:

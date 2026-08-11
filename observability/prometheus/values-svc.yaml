@@ -93,7 +93,7 @@ prometheusSpec:
     region: "{{ .region }}"
     environment: "{{ .environmentName }}"
   remoteWriteUrl: "__dcrRemoteWriteUrl__"
-  hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
+  hcpRemoteWriteUrl: "NONE"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   maximumStartupDurationSeconds: 360
   resources:

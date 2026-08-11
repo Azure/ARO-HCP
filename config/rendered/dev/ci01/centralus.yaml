@@ -683,7 +683,7 @@ mgmt:
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
   amaMetrics:
-    kubestate: "false"
+    kubestate: "true"
   applyKubeletFixes: false
   defaultStorageClassSkuName: PremiumV2_LRS
   hcpBackups:
@@ -694,7 +694,7 @@ mgmt:
     storageAccountContainerName: backups
   jaeger:
     deploy: false
-  monitoringApiGroup: monitoring.coreos.com
+  monitoringApiGroup: azmonitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-j7654321-mgmt-1

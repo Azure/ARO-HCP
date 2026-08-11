@@ -1,4 +1,4 @@
-{{- if eq .Values.monitoringApiGroup "monitoring.coreos.com" }}
+{{- if or (eq .Values.monitoringApiGroup "monitoring.coreos.com") (ne .Values.prometheusSpec.hcpRemoteWriteUrl "NONE") }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

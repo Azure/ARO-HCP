@@ -68473,29 +68473,6 @@ spec:
       - sourceLabels: [hostedcontrolplane]
         regex: '^ocm-arohcpdev.*'
         action: drop
-  - url: '__hcpDcrRemoteWriteUrl__'
-    azureAd:
-      cloud: AzurePublic
-      sdk: {}
-    queueConfig:
-      capacity: 50000
-      maxShards: 50
-      minShards: 1
-      maxSamplesPerSend: 10000
-      batchSendDeadline: 60s
-      minBackoff: 30ms
-      maxBackoff: 256s
-    metadataConfig:
-      send: false
-    # Combined into a single rule because sequential keep rules are AND
-    # (a metric must match all rules to survive), but we need OR — keep if
-    # either namespace or hostedcontrolplane matches ocm-*.
-    # See https://github.com/prometheus/prometheus/issues/3996
-    writeRelabelConfigs:
-      - sourceLabels: [namespace, hostedcontrolplane]
-        separator: ;
-        regex: '(ocm-arohcpdev[^;]*;.*|.*;ocm-arohcpdev.*)'
-        action: keep
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus/rules-1.14/alertmanager.rules.yaml
 apiVersion: monitoring.coreos.com/v1
