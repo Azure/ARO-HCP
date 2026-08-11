@@ -16,7 +16,9 @@ package frontend
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
@@ -362,10 +364,13 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		}
 
 		var errs field.ErrorList
+		csrPath := field.NewPath("certificateSigningRequest")
 		if credentialRequest == nil {
-			errs = append(errs, field.Required(field.NewPath("certificateSigningRequest"), ""))
+			errs = append(errs, field.Required(csrPath, ""))
 		} else if credentialRequest.CertificateSigningRequest == "" {
-			errs = append(errs, field.Required(field.NewPath("certificateSigningRequest"), ""))
+			errs = append(errs, field.Required(csrPath, ""))
+		} else {
+			errs = append(errs, validateCSRSubject(credentialRequest.CertificateSigningRequest, csrPath)...)
 		}
 		if err := coreapi.CloudErrorFromFieldErrors(errs); err != nil {
 			return err
@@ -1162,6 +1167,35 @@ func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *co
 		ExpirationTimestamp: cred.Spec.ExpirationTimestamp.Time,
 		Kubeconfig:          string(kubeconfigBytes),
 	}, nil
+}
+
+const (
+	requiredCSRCommonName   = "system:customer-break-glass:system-admin"
+	requiredCSROrganization = "system:masters"
+)
+
+func validateCSRSubject(csrPEM string, fldPath *field.Path) field.ErrorList {
+	var errs field.ErrorList
+
+	block, _ := pem.Decode([]byte(csrPEM))
+	if block == nil || block.Type != "CERTIFICATE REQUEST" {
+		return append(errs, field.Invalid(fldPath, "", "failed to decode PEM block as CERTIFICATE REQUEST"))
+	}
+	csr, err := x509.ParseCertificateRequest(block.Bytes)
+	if err != nil {
+		return append(errs, field.Invalid(fldPath, "", fmt.Sprintf("failed to parse certificate request: %v", err)))
+	}
+
+	if csr.Subject.CommonName != requiredCSRCommonName {
+		errs = append(errs, field.Invalid(fldPath, csr.Subject.CommonName,
+			fmt.Sprintf("subject common name must be %q", requiredCSRCommonName)))
+	}
+	if len(csr.Subject.Organization) != 1 || csr.Subject.Organization[0] != requiredCSROrganization {
+		errs = append(errs, field.Invalid(fldPath, csr.Subject.Organization,
+			fmt.Sprintf("subject organization must be exactly [%q]", requiredCSROrganization)))
+	}
+
+	return errs
 }
 
 func featuresMap(features *[]coreapi.Feature) map[string]string {
