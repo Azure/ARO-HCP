@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -142,16 +143,30 @@ func (p *ClaudeProvider) CreateProviderSession(ctx context.Context, logger logr.
 	sessionID := fmt.Sprintf("claude-%d", time.Now().UnixNano())
 	logger = logger.WithValues("sessionID", sessionID)
 	logger.Info("Created Claude session.", "model", model)
+	backend := p.cfg.Backend
+	if backend == "" {
+		backend = ClaudeBackendAPI
+	}
+	provider := "anthropic"
+	dimensions := map[string]string{"backend": backend}
+	if backend == ClaudeBackendVertex {
+		provider = "google-vertex-ai"
+		if p.cfg.VertexRegion != "" {
+			dimensions["region"] = p.cfg.VertexRegion
+		}
+	}
 
 	return &ClaudeSession{
-		client:       p.client,
-		model:        model,
-		systemPrompt: fullSystemPrompt,
-		tools:        tools,
-		toolHandlers: buildToolHandlerMap(cfg.Tools),
-		messages:     nil,
-		sessionID:    sessionID,
-		logger:       logger,
+		client:          p.client,
+		model:           model,
+		systemPrompt:    fullSystemPrompt,
+		tools:           tools,
+		toolHandlers:    buildToolHandlerMap(cfg.Tools),
+		messages:        nil,
+		sessionID:       sessionID,
+		logger:          logger,
+		usageProvider:   provider,
+		usageDimensions: dimensions,
 	}, nil
 }
 
@@ -179,11 +194,22 @@ type ClaudeSession struct {
 	archivedMessages []anthropic.MessageParam
 	sessionID        string
 	logger           logr.Logger
+	usageMu          sync.RWMutex
+	usage            UsageReport
+	usageProvider    string
+	usageDimensions  map[string]string
 }
 
 // SessionID returns the unique identifier for this session.
 func (s *ClaudeSession) SessionID() string {
 	return s.sessionID
+}
+
+// Usage returns the aggregate token usage observed by this session.
+func (s *ClaudeSession) Usage() UsageReport {
+	s.usageMu.RLock()
+	defer s.usageMu.RUnlock()
+	return s.usage.Clone()
 }
 
 // SendAndWait sends a user prompt and blocks until Claude finishes responding,
@@ -233,8 +259,13 @@ func (s *ClaudeSession) SendAndWait(ctx context.Context, prompt string) (string,
 		s.logger.V(3).Info("Claude API responded.",
 			"stopReason", resp.StopReason,
 			"inputTokens", resp.Usage.InputTokens,
+			"cacheReadInputTokens", resp.Usage.CacheReadInputTokens,
+			"cacheWriteInputTokens", resp.Usage.CacheCreationInputTokens,
 			"outputTokens", resp.Usage.OutputTokens,
 		)
+		s.usageMu.Lock()
+		s.usage.Add(usageBreakdownFromClaudeResponse(s.usageProvider, s.usageDimensions, resp))
+		s.usageMu.Unlock()
 
 		// Add assistant response to both the active context and the archive.
 		assistantMsg := resp.ToParam()
@@ -257,6 +288,65 @@ func (s *ClaudeSession) SendAndWait(ctx context.Context, prompt string) (string,
 		toolResultMsg := anthropic.NewUserMessage(toolResults...)
 		s.messages = append(s.messages, toolResultMsg)
 		s.archivedMessages = append(s.archivedMessages, toolResultMsg)
+	}
+}
+
+func usageBreakdownFromClaudeResponse(provider string, baseDimensions map[string]string, resp *anthropic.Message) UsageBreakdown {
+	dimensions := cloneStringMap(baseDimensions)
+	if dimensions == nil {
+		dimensions = make(map[string]string)
+	}
+	if resp.Usage.ServiceTier != "" {
+		dimensions["serviceTier"] = string(resp.Usage.ServiceTier)
+	}
+	if resp.Usage.InferenceGeo != "" {
+		dimensions["inferenceGeo"] = resp.Usage.InferenceGeo
+	}
+
+	cacheWriteByTTL := make(map[string]int64)
+	if resp.Usage.CacheCreation.Ephemeral5mInputTokens > 0 {
+		cacheWriteByTTL["5m"] = resp.Usage.CacheCreation.Ephemeral5mInputTokens
+	}
+	if resp.Usage.CacheCreation.Ephemeral1hInputTokens > 0 {
+		cacheWriteByTTL["1h"] = resp.Usage.CacheCreation.Ephemeral1hInputTokens
+	}
+	if len(cacheWriteByTTL) == 0 {
+		cacheWriteByTTL = nil
+	}
+
+	outputDetails := make(map[string]int64)
+	if resp.Usage.OutputTokensDetails.ThinkingTokens > 0 {
+		outputDetails["reasoning"] = resp.Usage.OutputTokensDetails.ThinkingTokens
+	}
+	if len(outputDetails) == 0 {
+		outputDetails = nil
+	}
+
+	additionalUnits := make(map[string]float64)
+	if resp.Usage.ServerToolUse.WebSearchRequests > 0 {
+		additionalUnits["webSearchRequests"] = float64(resp.Usage.ServerToolUse.WebSearchRequests)
+	}
+	if resp.Usage.ServerToolUse.WebFetchRequests > 0 {
+		additionalUnits["webFetchRequests"] = float64(resp.Usage.ServerToolUse.WebFetchRequests)
+	}
+	if len(additionalUnits) == 0 {
+		additionalUnits = nil
+	}
+
+	return UsageBreakdown{
+		Provider:   provider,
+		Model:      string(resp.Model),
+		Dimensions: dimensions,
+		Requests:   1,
+		Tokens: TokenUsage{
+			UncachedInputTokens:        resp.Usage.InputTokens,
+			CacheReadInputTokens:       resp.Usage.CacheReadInputTokens,
+			CacheWriteInputTokens:      resp.Usage.CacheCreationInputTokens,
+			CacheWriteInputTokensByTTL: cacheWriteByTTL,
+			OutputTokens:               resp.Usage.OutputTokens,
+			OutputTokenDetails:         outputDetails,
+		},
+		AdditionalUnits: additionalUnits,
 	}
 }
 

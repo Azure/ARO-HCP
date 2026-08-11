@@ -74,13 +74,41 @@ The agent runs through several phases:
 
 ### Analyze output
 
-The command writes three files to the output directory (defaults to the data
-directory, overridable with `--output`):
+After a successful analysis, the command writes four files to the output
+directory (defaults to the data directory, overridable with `--output`):
 
 - `analysis.json` — the fully hydrated causal chain as structured JSON.
 - `analysis.md` — the chain rendered as a readable markdown document.
 - `conversation.json` — the full conversation history with the agent,
   including all prompts, responses, and tool calls.
+- `usage.json` — aggregate LLM usage with a breakdown by provider, model, and
+  pricing dimensions. Token counts distinguish uncached input, cache reads,
+  cache writes, and output. Cache writes include a TTL breakdown when the
+  provider reports one (for example, Anthropic's `5m` and `1h` tiers).
+  Copilot usage is captured from the live SDK event stream and includes
+  automatic conversation-compaction requests.
+
+Once an LLM session has been created, `usage.json` is also written on a
+best-effort basis when analysis fails or is cancelled. This preserves usage
+from completed requests that may already be billable. `conversation.json` is
+likewise saved best-effort on unsuccessful runs; `analysis.json` and
+`analysis.md` are success-only outputs.
+
+The report also preserves provider-reported billing units and non-token usage,
+such as server-side tool requests. The token categories are normalized to be
+mutually exclusive, so a cost calculator can apply the appropriate rate to
+each category without double-counting cached input. Pricing is intentionally
+not embedded in hcpctl because it varies by provider, model, backend, service
+tier, region, contract, and date. The `breakdown` entries preserve the pricing
+dimensions reported by the selected provider and backend. The top-level
+`startedAt` and `endedAt` fields identify the usage interval so a consumer can
+select rates effective at that time. Contract-specific rates and any pricing
+context that the provider does not report must be supplied by the external
+price book.
+
+The aggregate token categories, additional units, and provider-reported costs
+are also logged in the `Analysis complete` message at the default verbosity
+level.
 
 ## Debugging with conversation.json
 

@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -152,10 +153,16 @@ type SessionConfig struct {
 // the conversation can be saved even if the CLI process is no longer
 // available (e.g. after ctrl-C kills the subprocess).
 type Session struct {
-	inner        *copilot.Session
-	client       *CopilotClient
-	logger       logr.Logger
-	lastMessages json.RawMessage
+	inner           *copilot.Session
+	client          *CopilotClient
+	logger          logr.Logger
+	lastMessages    json.RawMessage
+	usageMu         sync.RWMutex
+	usage           UsageReport
+	usageProvider   string
+	usageDimensions map[string]string
+	usageModel      string
+	seenUsageKeys   map[string]struct{}
 }
 
 // CreateSession creates a new Copilot session for an analysis run.
@@ -201,12 +208,26 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 
 	logger = logger.WithValues("sessionID", session.SessionID)
 	logger.Info("Created Copilot session.")
+	usageProvider := "github-copilot"
+	usageDimensions := map[string]string{"backend": "github"}
+	if c.cfg.AuthMode == CopilotAuthModeBYOK {
+		usageProvider = "azure-ai-foundry"
+		usageDimensions["backend"] = "byok"
+	}
 
 	s := &Session{
-		inner:  session,
-		client: c,
-		logger: logger,
+		inner:           session,
+		client:          c,
+		logger:          logger,
+		usageProvider:   usageProvider,
+		usageDimensions: usageDimensions,
+		usageModel:      sessionCfg.Model,
+		seenUsageKeys:   make(map[string]struct{}),
 	}
+	// Register before the first SendAndWait. The SDK dispatches handlers in
+	// registration order, so all preceding usage events are recorded before
+	// SendAndWait's temporary session.idle handler returns to the caller.
+	s.inner.On(s.recordUsageEvent)
 
 	// When verbosity is high enough, trace every session event for debugging.
 	if c.cfg.Verbosity >= 5 {
@@ -304,6 +325,13 @@ func (s *Session) SessionID() string {
 // manages conversation context internally within the CLI subprocess.
 func (s *Session) ResetHistory() {}
 
+// Usage returns the aggregate token usage observed from live session events.
+func (s *Session) Usage() UsageReport {
+	s.usageMu.RLock()
+	defer s.usageMu.RUnlock()
+	return s.usage.Clone()
+}
+
 // SendAndWait sends a prompt to the session and blocks until the agent is idle.
 // If ctx is cancelled, the in-flight work is aborted.
 // Returns the final assistant message content.
@@ -383,12 +411,197 @@ func (s *Session) snapshotMessages() {
 		s.logger.Error(err, "Failed to snapshot session messages.")
 		return
 	}
+	// Replay any persisted usage-bearing events as a fallback. Live events have
+	// already been recorded, so stable request/event identities suppress them.
+	for _, event := range events {
+		s.recordUsageEvent(event)
+	}
 	data, err := json.MarshalIndent(events, "", "  ")
 	if err != nil {
 		s.logger.Error(err, "Failed to marshal session messages for snapshot.")
 		return
 	}
 	s.lastMessages = data
+}
+
+// recordUsageEvent aggregates billable requests from the live event stream.
+// assistant.usage events are ephemeral and unavailable through GetEvents, so
+// they must be captured as they are delivered. Compaction usage is emitted on
+// a distinct session.compaction_complete event and represents a separate LLM
+// request.
+func (s *Session) recordUsageEvent(event copilot.SessionEvent) {
+	switch event.Data.(type) {
+	case *copilot.AssistantUsageData, *copilot.SessionCompactionCompleteData:
+	default:
+		return
+	}
+
+	keys := copilotUsageEventKeys(event)
+	s.usageMu.Lock()
+	defer s.usageMu.Unlock()
+	entry, ok := usageBreakdownFromCopilotEvent(event, s.usageProvider, s.usageDimensions, s.usageModel)
+	if !ok {
+		return
+	}
+	if s.seenUsageKeys == nil {
+		s.seenUsageKeys = make(map[string]struct{})
+	}
+	duplicate := false
+	for _, key := range keys {
+		if _, seen := s.seenUsageKeys[key]; seen {
+			duplicate = true
+		}
+		s.seenUsageKeys[key] = struct{}{}
+	}
+	if duplicate {
+		return
+	}
+	if entry.Model != "" {
+		s.usageModel = entry.Model
+	}
+	s.usage.Add(entry)
+}
+
+// usageReportFromCopilotEvents aggregates a supplied event stream. Production
+// sessions call recordUsageEvent from Session.On; this helper keeps conversion
+// and deduplication directly testable without starting the Copilot CLI.
+func usageReportFromCopilotEvents(events []copilot.SessionEvent, provider string, baseDimensions map[string]string) UsageReport {
+	s := &Session{
+		usageProvider:   provider,
+		usageDimensions: baseDimensions,
+		seenUsageKeys:   make(map[string]struct{}),
+	}
+	for _, event := range events {
+		s.recordUsageEvent(event)
+	}
+	return s.Usage()
+}
+
+func usageBreakdownFromCopilotEvent(event copilot.SessionEvent, provider string, baseDimensions map[string]string, fallbackModel string) (UsageBreakdown, bool) {
+	switch data := event.Data.(type) {
+	case *copilot.AssistantUsageData:
+		dimensions := cloneStringMap(baseDimensions)
+		if dimensions == nil {
+			dimensions = make(map[string]string)
+		}
+		if data.APIEndpoint != nil {
+			dimensions["apiEndpoint"] = string(*data.APIEndpoint)
+		}
+
+		outputDetails := make(map[string]int64)
+		if data.ReasoningTokens != nil && *data.ReasoningTokens > 0 {
+			outputDetails["reasoning"] = *data.ReasoningTokens
+		}
+		if len(outputDetails) == 0 {
+			outputDetails = nil
+		}
+
+		providerReportedCosts := make(map[string]float64)
+		if data.Cost != nil {
+			providerReportedCosts["modelMultiplier"] = *data.Cost
+		}
+		if data.CopilotUsage != nil {
+			providerReportedCosts["nanoAIU"] = data.CopilotUsage.TotalNanoAiu
+		}
+		if len(providerReportedCosts) == 0 {
+			providerReportedCosts = nil
+		}
+		tokens := normalizedCopilotTokenUsage(data.InputTokens, data.OutputTokens, data.CacheReadTokens, data.CacheWriteTokens)
+		tokens.OutputTokenDetails = outputDetails
+
+		return UsageBreakdown{
+			Provider:              provider,
+			Model:                 data.Model,
+			Dimensions:            dimensions,
+			Requests:              1,
+			Tokens:                tokens,
+			ProviderReportedCosts: providerReportedCosts,
+		}, true
+
+	case *copilot.SessionCompactionCompleteData:
+		if data.CompactionTokensUsed == nil {
+			return UsageBreakdown{}, false
+		}
+		// Count reported usage even when compaction itself failed: the model
+		// request completed far enough to report usage and may still be billed.
+		compaction := data.CompactionTokensUsed
+		model := fallbackModel
+		if compaction.Model != nil {
+			model = *compaction.Model
+		}
+		providerReportedCosts := make(map[string]float64)
+		if compaction.CopilotUsage != nil {
+			providerReportedCosts["nanoAIU"] = compaction.CopilotUsage.TotalNanoAiu
+		}
+		if len(providerReportedCosts) == 0 {
+			providerReportedCosts = nil
+		}
+
+		return UsageBreakdown{
+			Provider:              provider,
+			Model:                 model,
+			Dimensions:            cloneStringMap(baseDimensions),
+			Requests:              1,
+			Tokens:                normalizedCopilotTokenUsage(compaction.InputTokens, compaction.OutputTokens, compaction.CacheReadTokens, compaction.CacheWriteTokens),
+			ProviderReportedCosts: providerReportedCosts,
+		}, true
+	}
+
+	return UsageBreakdown{}, false
+}
+
+func normalizedCopilotTokenUsage(input, output, cacheRead, cacheWrite *int64) TokenUsage {
+	inputTokens := int64Value(input)
+	cacheReadTokens := int64Value(cacheRead)
+	uncachedInputTokens := inputTokens - cacheReadTokens
+	if uncachedInputTokens < 0 {
+		uncachedInputTokens = 0
+	}
+
+	return TokenUsage{
+		UncachedInputTokens:   uncachedInputTokens,
+		CacheReadInputTokens:  cacheReadTokens,
+		CacheWriteInputTokens: int64Value(cacheWrite),
+		OutputTokens:          int64Value(output),
+	}
+}
+
+func int64Value(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
+}
+
+func copilotUsageEventKeys(event copilot.SessionEvent) []string {
+	keys := make([]string, 0, 4)
+	addKey := func(kind, value string) {
+		if value != "" {
+			keys = append(keys, kind+":"+value)
+		}
+	}
+
+	switch data := event.Data.(type) {
+	case *copilot.AssistantUsageData:
+		if data.APICallID != nil {
+			addKey("api-call", *data.APICallID)
+		}
+		if data.ServiceRequestID != nil {
+			addKey("service-request", *data.ServiceRequestID)
+		}
+		if data.ProviderCallID != nil {
+			addKey("provider-request", *data.ProviderCallID)
+		}
+	case *copilot.SessionCompactionCompleteData:
+		if data.ServiceRequestID != nil {
+			addKey("service-request", *data.ServiceRequestID)
+		}
+		if data.RequestID != nil {
+			addKey("provider-request", *data.RequestID)
+		}
+	}
+	addKey("event", event.ID)
+	return keys
 }
 
 // SaveConversation writes the most recent conversation snapshot to a JSON
