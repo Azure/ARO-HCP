@@ -22,7 +22,7 @@ Azure Managed Grafana instances in staging, integration, and production environm
 |---------|---------------|------------|
 | Cannot reach Grafana URL (timeout/connection refused) | VPN not connected | Connect to MSFT Corp VPN and retry |
 | 403 Forbidden or network error | Connected to guest/partner network instead of Corp VPN | Switch to the MSFT Corp VPN |
-| Dev environment works but staging/prod does not | Dev has public access enabled; staging/int/prod may require VPN | Connect to VPN for non-dev environments |
+| Dev environment works but staging/int/prod does not | Dev has public access enabled; staging/int/prod may require VPN | Connect to VPN for non-dev environments |
 | VPN connected but still cannot access | DNS resolution issue | Flush DNS cache and retry; verify VPN routes include Azure endpoints |
 
 ## Related Documentation
