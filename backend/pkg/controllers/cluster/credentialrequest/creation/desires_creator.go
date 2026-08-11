@@ -51,9 +51,8 @@ type desiresCreator struct {
 var _ controllerutils.SystemAdminCredentialRequestSyncer = (*desiresCreator)(nil)
 
 // NewDesiresCreatorController returns a CredentialRequestWatchingController that
-// creates the per-credential ApplyDesires (CSR, CSRApproval, 2 RBAC bundles) and
-// ReadDesire (CSR) for individual SystemAdminCredentialRequest documents that are
-// pending.
+// creates the per-credential ApplyDesires (CSR, CSRApproval) and ReadDesire (CSR)
+// for individual SystemAdminCredentialRequest documents that are pending.
 //
 // The controller also fires on ReadDesire changes and consults the ApplyDesire /
 // ReadDesire listers before writing so it skips the create entirely when a desire

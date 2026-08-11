@@ -48,8 +48,8 @@ var _ controllerutils.SystemAdminCredentialRevocationSyncer = (*revocationDesire
 
 // NewRevocationDesiresController returns a RevocationWatchingController that
 // manages the CertificateRevocationRequest (CRR) desires used to revoke a
-// cluster's already-issued certificates. It creates the RBAC, CRR ApplyDesire,
-// and CRR ReadDesire so the hosted cluster can process the revocation. Observing
+// cluster's already-issued certificates. It creates the CRR ApplyDesire and
+// CRR ReadDesire so the hosted cluster can process the revocation. Observing
 // the CRR for confirmation and marking the revocation complete is handled by the
 // separate revocation-completion controller.
 func NewRevocationDesiresController(
