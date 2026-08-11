@@ -27,9 +27,9 @@ const (
 	rsaKeyBits = 4096
 )
 
-// GenerateKeypair generates an RSA keypair and returns PEM-encoded public and
-// private key bytes.
-func GenerateKeypair() (publicPEM, privatePEM []byte, err error) {
+// GenerateKeypair generates an RSA keypair and returns the PEM-encoded public
+// key and the PEM-encoded private key.
+func GenerateKeypair() ([]byte, []byte, error) {
 	key, err := rsa.GenerateKey(rand.Reader, rsaKeyBits)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate RSA key: %w", err)
@@ -39,7 +39,7 @@ func GenerateKeypair() (publicPEM, privatePEM []byte, err error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal private key: %w", err)
 	}
-	privatePEM = pem.EncodeToMemory(&pem.Block{
+	privatePEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "PRIVATE KEY",
 		Bytes: privDER,
 	})
@@ -48,7 +48,7 @@ func GenerateKeypair() (publicPEM, privatePEM []byte, err error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal public key: %w", err)
 	}
-	publicPEM = pem.EncodeToMemory(&pem.Block{
+	publicPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: pubDER,
 	})

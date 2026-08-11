@@ -47,7 +47,7 @@ type dispatchRevokeCredentials struct {
 // Operation documents relevant to this controller will have the following values:
 //
 //	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
-//	     Request: RevokeCredentials
+//	     Request: OperationRequestSystemAdminCredentialRevocation ("RevokeCredentials")
 //	      Status: Accepted
 //	  SystemAdminCredentialRevocation: nil
 func NewDispatchRevokeCredentialsController(
