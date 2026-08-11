@@ -113,7 +113,7 @@ spec:
             memory: 128Mi
 ---
 # Source: aro-hcp-exporter/templates/servicemonitor.yaml
-apiVersion: azmonitoring.coreos.com/v1
+apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: 'aro-hcp-exporter'

@@ -656,7 +656,9 @@ defaults:
           repository: thanos/thanos
           tag: v0.41.0
           sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6 # v0.42.2 (2026-07-16 20:22)
-    monitoringApiGroup: "azmonitoring.coreos.com"
+    monitoringApiGroup: "monitoring.coreos.com"
+    amaMetrics:
+      kubestate: "false"
   # MGMT cluster specifics
   mgmt:
     stamps:
@@ -790,6 +792,8 @@ defaults:
           tag: v0.41.0
           sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6 # v0.42.2 (2026-07-16 20:22)
     monitoringApiGroup: "monitoring.coreos.com"
+    amaMetrics:
+      kubestate: "false"
   # Backend
   backend:
     image:
@@ -1822,6 +1826,9 @@ clouds:
                 vmSize: Standard_D4ds_v6
             jaeger:
               deploy: true
+            monitoringApiGroup: "azmonitoring.coreos.com"
+            amaMetrics:
+              kubestate: "true"
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
@@ -1931,3 +1938,6 @@ clouds:
                 vmSize: Standard_D4ds_v6
             jaeger:
               deploy: true
+            monitoringApiGroup: "azmonitoring.coreos.com"
+            amaMetrics:
+              kubestate: "true"

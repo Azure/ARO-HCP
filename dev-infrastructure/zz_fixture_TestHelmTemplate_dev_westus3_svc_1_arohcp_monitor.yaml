@@ -67580,10 +67580,10 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-svc-resources
-  name: helmtest-svc-resources-kube-state-metrics
+    release: dev-westus3-svc-1-arohcp-monitor
+  name: dev-westus3-svc-1-arohcp-monitor-kube-state-metrics
   namespace: prometheus
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus-operator/serviceaccount.yaml
@@ -67595,11 +67595,11 @@ metadata:
   labels:
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app: kube-prometheus-stack-operator
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -67626,10 +67626,10 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-svc-resources
-  name: helmtest-svc-resources-kube-state-metrics
+    release: dev-westus3-svc-1-arohcp-monitor
+  name: dev-westus3-svc-1-arohcp-monitor-kube-state-metrics
 rules:
 
 - apiGroups: ["certificates.k8s.io"]
@@ -67780,11 +67780,11 @@ metadata:
   labels:
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app: kube-prometheus-stack-operator
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -67931,17 +67931,17 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-svc-resources
-  name: helmtest-svc-resources-kube-state-metrics
+    release: dev-westus3-svc-1-arohcp-monitor
+  name: dev-westus3-svc-1-arohcp-monitor-kube-state-metrics
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: helmtest-svc-resources-kube-state-metrics
+  name: dev-westus3-svc-1-arohcp-monitor-kube-state-metrics
 subjects:
 - kind: ServiceAccount
-  name: helmtest-svc-resources-kube-state-metrics
+  name: dev-westus3-svc-1-arohcp-monitor-kube-state-metrics
   namespace: prometheus
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus-operator/clusterrolebinding.yaml
@@ -67952,11 +67952,11 @@ metadata:
   labels:
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app: kube-prometheus-stack-operator
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -67988,7 +67988,7 @@ subjects:
 apiVersion: v1
 kind: Service
 metadata:
-  name: helmtest-svc-resources-kube-state-metrics
+  name: dev-westus3-svc-1-arohcp-monitor-kube-state-metrics
   namespace: prometheus
   labels:    
     helm.sh/chart: kube-state-metrics-5.31.0
@@ -67996,9 +67996,9 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-svc-resources
+    release: dev-westus3-svc-1-arohcp-monitor
   annotations:
 spec:
   type: "ClusterIP"
@@ -68010,7 +68010,7 @@ spec:
   
   selector:    
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus-operator/service.yaml
 apiVersion: v1
@@ -68021,11 +68021,11 @@ metadata:
   labels:
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app: kube-prometheus-stack-operator
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -68037,14 +68037,14 @@ spec:
     targetPort: https
   selector:
     app: kube-prometheus-stack-operator
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
   type: "ClusterIP"
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/charts/kube-state-metrics/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: helmtest-svc-resources-kube-state-metrics
+  name: dev-westus3-svc-1-arohcp-monitor-kube-state-metrics
   namespace: prometheus
   labels:    
     helm.sh/chart: kube-state-metrics-5.31.0
@@ -68052,14 +68052,14 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-svc-resources
+    release: dev-westus3-svc-1-arohcp-monitor
 spec:
   selector:
     matchLabels:      
       app.kubernetes.io/name: kube-state-metrics
-      app.kubernetes.io/instance: helmtest-svc-resources
+      app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
   replicas: 1
   strategy:
     type: RollingUpdate
@@ -68072,13 +68072,13 @@ spec:
         app.kubernetes.io/component: metrics
         app.kubernetes.io/part-of: kube-state-metrics
         app.kubernetes.io/name: kube-state-metrics
-        app.kubernetes.io/instance: helmtest-svc-resources
+        app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
         app.kubernetes.io/version: "2.15.0"
-        release: helmtest-svc-resources
+        release: dev-westus3-svc-1-arohcp-monitor
     spec:
       automountServiceAccountToken: true
       hostNetwork: false
-      serviceAccountName: helmtest-svc-resources-kube-state-metrics
+      serviceAccountName: dev-westus3-svc-1-arohcp-monitor-kube-state-metrics
       securityContext:
         fsGroup: 65534
         runAsGroup: 65534
@@ -68136,11 +68136,11 @@ metadata:
   labels:
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app: kube-prometheus-stack-operator
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -68151,17 +68151,17 @@ spec:
   selector:
     matchLabels:
       app: kube-prometheus-stack-operator
-      release: "helmtest-svc-resources"
+      release: "dev-westus3-svc-1-arohcp-monitor"
   template:
     metadata:
       labels:
         
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/instance: helmtest-svc-resources
+        app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
         app.kubernetes.io/version: "70.4.1"
         app.kubernetes.io/part-of: kube-prometheus-stack
         chart: kube-prometheus-stack-70.4.1
-        release: "helmtest-svc-resources"
+        release: "dev-westus3-svc-1-arohcp-monitor"
         heritage: "Helm"
         app: kube-prometheus-stack-operator
         app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -68169,14 +68169,14 @@ spec:
     spec:
       containers:
         - name: kube-prometheus-stack
-          image: "mcr.microsoft.com/oss/v2/prometheus/prometheus-operator:v0.81.0@sha256:sha256:test123"
+          image: "mcr.microsoft.com/oss/v2/prometheus/prometheus-operator:v0.81.0@sha256:1234567890"
           imagePullPolicy: "IfNotPresent"
           args:
             - --kubelet-service=kube-system/prometheus-kubelet
             - --kubelet-endpoints=true
             - --kubelet-endpointslice=false
             - --localhost=127.0.0.1
-            - --prometheus-config-reloader=mcr.microsoft.com/oss/v2/prometheus/prometheus-config-reloader:v0.81.0@sha256:sha256:test456
+            - --prometheus-config-reloader=mcr.microsoft.com/oss/v2/prometheus/prometheus-config-reloader:v0.81.0@sha256:1234567890
             - --config-reloader-cpu-request=0
             - --config-reloader-cpu-limit=0
             - --config-reloader-memory-request=0
@@ -68267,11 +68267,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -68308,11 +68308,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -68362,14 +68362,8 @@ metadata:
   name: prometheus
   namespace: 'prometheus'
 spec:
-  image: 'mcr.microsoft.com/oss/v2/prometheus/prometheus@sha256:sha256:testabc'
+  image: 'mcr.microsoft.com/oss/v2/prometheus/prometheus@sha256:1234567890'
   version: '' # todo: can this be removed? we control the version via image
-  resources:
-    requests:
-      cpu: '20'
-      memory: '1Gi'
-    limits:
-      memory: '100Gi'
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -68412,7 +68406,7 @@ spec:
   serviceAccountName: prometheus
   serviceMonitorNamespaceSelector: {}
   serviceMonitorSelector: {}
-  shards: 2
+  shards: 1
   storage:
     volumeClaimTemplate:
       spec:
@@ -68507,11 +68501,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -68650,11 +68644,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -68682,11 +68676,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -68750,11 +68744,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -68778,11 +68772,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -68805,11 +68799,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -68832,11 +68826,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -68859,11 +68853,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -68886,11 +68880,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -68975,11 +68969,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -69043,11 +69037,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -69068,11 +69062,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -69101,11 +69095,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -69170,11 +69164,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -69429,11 +69423,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -69552,11 +69546,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -69666,11 +69660,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -69738,11 +69732,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -69918,11 +69912,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -69961,11 +69955,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -70044,11 +70038,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -70382,11 +70376,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -70412,11 +70406,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -70469,11 +70463,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -70562,11 +70556,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
 spec:
   groups:
@@ -70846,7 +70840,7 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: helmtest-svc-resources-kube-state-metrics
+  name: dev-westus3-svc-1-arohcp-monitor-kube-state-metrics
   namespace: prometheus
   labels:    
     helm.sh/chart: kube-state-metrics-5.31.0
@@ -70854,15 +70848,15 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-svc-resources
+    release: dev-westus3-svc-1-arohcp-monitor
 spec:
   jobLabel: app.kubernetes.io/name  
   selector:
     matchLabels:      
       app.kubernetes.io/name: kube-state-metrics
-      app.kubernetes.io/instance: helmtest-svc-resources
+      app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
   endpoints:
     - port: http
       honorLabels: true
@@ -70876,11 +70870,11 @@ metadata:
   labels:
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app: kube-prometheus-stack-operator
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -70901,7 +70895,7 @@ spec:
   selector:
     matchLabels:
       app: kube-prometheus-stack-operator
-      release: "helmtest-svc-resources"
+      release: "dev-westus3-svc-1-arohcp-monitor"
   namespaceSelector:
     matchNames:
       - "prometheus"
@@ -70920,11 +70914,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -70942,11 +70936,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -70972,11 +70966,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -71002,11 +70996,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -71032,11 +71026,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -71062,11 +71056,11 @@ metadata:
     app: kube-prometheus-stack-admission-create
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -71079,11 +71073,11 @@ spec:
         app: kube-prometheus-stack-admission-create
         
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/instance: helmtest-svc-resources
+        app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
         app.kubernetes.io/version: "70.4.1"
         app.kubernetes.io/part-of: kube-prometheus-stack
         chart: kube-prometheus-stack-70.4.1
-        release: "helmtest-svc-resources"
+        release: "dev-westus3-svc-1-arohcp-monitor"
         heritage: "Helm"
         app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
         app.kubernetes.io/component: prometheus-operator-webhook
@@ -71128,11 +71122,11 @@ metadata:
     app: kube-prometheus-stack-admission-patch
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-svc-resources
+    app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-svc-resources"
+    release: "dev-westus3-svc-1-arohcp-monitor"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -71145,11 +71139,11 @@ spec:
         app: kube-prometheus-stack-admission-patch
         
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/instance: helmtest-svc-resources
+        app.kubernetes.io/instance: dev-westus3-svc-1-arohcp-monitor
         app.kubernetes.io/version: "70.4.1"
         app.kubernetes.io/part-of: kube-prometheus-stack
         chart: kube-prometheus-stack-70.4.1
-        release: "helmtest-svc-resources"
+        release: "dev-westus3-svc-1-arohcp-monitor"
         heritage: "Helm"
         app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
         app.kubernetes.io/component: prometheus-operator-webhook

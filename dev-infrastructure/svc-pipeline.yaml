@@ -633,6 +633,64 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: cluster-output
+  - name: prometheus
+    # Deploy prometheus first since istio depends on its CRDs
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Helm
+    timeout: 10m
+    releaseName: 'arohcp-monitor'
+    releaseNamespace: 'prometheus'
+    namespaceFiles:
+    - ../observability/prometheus/namespace.svc.yaml
+    chartDir: ../observability/prometheus/deploy
+    valuesFile: ../observability/prometheus/values-svc.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    inputVariables:
+      dcrRemoteWriteUrl:
+        resourceGroup: service
+        step: cluster-output
+        name: dcrRemoteWriteUrl
+      hcpDcrRemoteWriteUrl:
+        resourceGroup: service
+        step: cluster-output
+        name: hcpDcrRemoteWriteUrl
+      prometheusUAMIClientId:
+        resourceGroup: service
+        step: cluster-output
+        name: prometheusUAMIClientId
+    dependsOn:
+    - resourceGroup: service
+      step: upgrade-aks-cluster
+    - resourceGroup: service
+      step: image-registry-policy
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: cleanup-prometheus-pvc
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: ./cleanup-prometheus-pvc.sh
+    workingDir: ./scripts
+    dependsOn:
+    - resourceGroup: service
+      step: prometheus
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: istio-config
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
@@ -650,7 +708,7 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
-      step: upgrade-aks-cluster
+      step: prometheus
     identityFrom:
       resourceGroup: global
       step: output
@@ -689,7 +747,7 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
-      step: upgrade-aks-cluster
+      step: prometheus
     identityFrom:
       resourceGroup: global
       step: output
@@ -779,7 +837,7 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
-      step: upgrade-aks-cluster
+      step: prometheus
     inputVariables:
       tenantId:
         resourceGroup: service
@@ -897,6 +955,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: upgrade-aks-cluster
+    - resourceGroup: service
+      step: prometheus
     - resourceGroup: service
       step: mirror-exporter-image
     - resourceGroup: service

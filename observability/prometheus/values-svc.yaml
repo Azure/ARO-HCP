@@ -30,11 +30,13 @@ kube-prometheus-stack:
   kubeApiServer:
     enabled: false
   kubeStateMetrics:
-    enabled: true # OSS prometheus scrapes kube-state-metrics so the HCP ksm are routed to the hcp Azure Monitor Workspace
+    enabled: {{ eq .svc.monitoringApiGroup "monitoring.coreos.com" }}
+  defaultRules:
+    create: {{ eq .svc.monitoringApiGroup "monitoring.coreos.com" }}
   prometheus:
     enabled: false # Prometheus is deployed using templates/prometheus.yaml
   prometheusOperator:
-    enabled: true
+    enabled: {{ eq .svc.monitoringApiGroup "monitoring.coreos.com" }}
     fullnameOverride: ""
     image:
       registry: "{{ .svc.prometheus.prometheusOperator.image.registry }}"
