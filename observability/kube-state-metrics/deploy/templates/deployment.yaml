@@ -28,9 +28,13 @@ spec:
       - name: kube-state-metrics
         image: '{{ .Values.image.registry }}/{{ .Values.image.repository }}@sha256:{{ .Values.image.digest }}'
         args:
-        - --resources=certificatesigningrequests
+        - --resources={{ join "," .Values.resources }}
+        {{- if .Values.metricAllowlist }}
         - --metric-allowlist={{ join "," .Values.metricAllowlist }}
+        {{- end }}
+        {{- if .Values.customResourceState }}
         - --custom-resource-state-config-file=/etc/customresourcestate/config.yaml
+        {{- end }}
         ports:
         - name: http-metrics
           containerPort: 8080
@@ -56,10 +60,12 @@ spec:
             memory: 64Mi
           limits:
             memory: 256Mi
+        {{- if .Values.customResourceState }}
         volumeMounts:
         - name: crs-config
           mountPath: /etc/customresourcestate
           readOnly: true
+        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -82,7 +88,9 @@ spec:
         operator: Equal
         value: "true"
         effect: NoSchedule
+      {{- if .Values.customResourceState }}
       volumes:
       - name: crs-config
         configMap:
           name: kube-state-metrics-crs-config
+      {{- end }}

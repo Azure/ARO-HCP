@@ -82,6 +82,10 @@ data:
     podannotations = "30s"
   debug-mode: |-
     enabled = false
+  ksm-config: |-
+    resources = ""
+    labels_allow_list = ""
+    annotations_allow_list = ""
 metadata:
   name: ama-metrics-settings-configmap
   namespace: kube-system

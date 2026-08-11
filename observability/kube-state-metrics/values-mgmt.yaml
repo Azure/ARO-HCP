@@ -5,6 +5,9 @@ image:
   repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
   digest: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
 
+resources:
+- certificatesigningrequests
+
 metricAllowlist:
 - hostedClusterAPI_kubeapiserver_available
 - hostedClusterAPI_available
