@@ -34,6 +34,7 @@ clouds:
         globalMSIName: "global-rollout-identity"
       dns:
         regionalSubdomain: "{{ .ctx.regionShort }}"
+      entraAppOwnerIds: "e4022ba9-7428-4de4-9afa-f40c521c1a33,cc1cceaf-e7fa-4cbb-9379-f6fbd70c9cf1,28c69853-0f40-49de-ad85-b9de0165e5b6,c1824db4-7152-429b-a58a-2170eaa74a53,772a02e3-1df6-48dd-86ab-dfe98438ab1e,9ff7a250-d897-41ee-982e-dc4ec28c4920,1daf5200-78ea-454d-84a1-a15f98876f5d,2a42baa4-f7b2-4856-8bc7-67fe5327cae7,55236c0a-cada-46da-8985-8282535f77ac,48522ac4-74b2-426d-b56c-4a4abca49d12,770ce6b0-5afe-472d-ac0d-1fae72acc4e4,d2f4cb88-b929-4f6c-8944-221108a41f57,f5b85e91-2303-4094-9cd1-73dab9585935,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c,71185b05-072a-4683-ab19-0fb016b58101" # aro-hcp-owners members
       opstool:
         aks:
           name: "opstool-{{ .ctx.regionShort }}"

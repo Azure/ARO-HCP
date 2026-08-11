@@ -1,5 +1,7 @@
 using '../templates/mock-identity-apps.bicep'
 
+param ownerIds = '{{ .entraAppOwnerIds }}'
+
 param identities = [
   {
     applicationName: '{{ .ci.dev.mockIdentities.firstParty.applicationName }}'
