@@ -14,6 +14,8 @@
 
 package client
 
+//go:generate $MOCKGEN -typed -source=check_access_v2_client_builder.go -destination=mock_check_access_v2_client_builder.go -package client CheckAccessV2ClientBuilder
+
 import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	checkaccessv2 "github.com/Azure/checkaccess-v2-go-sdk/client"

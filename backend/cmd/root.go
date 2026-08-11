@@ -356,6 +356,13 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 			fpaTokenCredRetriever, azureConfig.CloudEnvironment.CheckAccessV2Endpoint(f.AzureLocation),
 			azureConfig.CloudEnvironment.CheckAccessV2Scope(), azureConfig.CloudEnvironment.AZCoreClientOptions(),
 		)
+
+		// Throttle our per-tenant call rate to stay under the real FPA identity's documented CheckAccessV2 limit of 500 requests/second per tenant.
+		checkAccessV2ClientBuilder = azureclient.NewRateLimitedCheckAccessV2ClientBuilder(
+			checkAccessV2ClientBuilder,
+			azureclient.CheckAccessV2RealFPARateLimiterQPS,
+			azureclient.CheckAccessV2RealFPARateLimiterBurst,
+		)
 	} else {
 		// In ARO-HCP environments where we don't have a real FPA, we use the Azure Permissions Manager identity to create the Check Access V2 client
 		azureARMPermissionsManagerIdentityTokenCredentialRetriever, err := newInsecureAzurePermissionsManagerIdentityTokenCredentialRetriever(
@@ -371,6 +378,13 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 			azureConfig.CloudEnvironment.CheckAccessV2Scope(), azureConfig.CloudEnvironment.AZCoreClientOptions(),
 		)
 
+		// Throttle our per-tenant call rate to stay under the Azure Permissions Manager identity's documented CheckAccessV2 limit of 25 requests per 5 seconds per tenant.
+		checkAccessV2ClientBuilder = azureclient.NewRateLimitedCheckAccessV2ClientBuilder(
+			checkAccessV2ClientBuilder,
+			azureclient.CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS,
+			azureclient.CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst,
+		)
+
 		// In ARO-HCP environments where we don't have a real FPA, we use the HardcodedIdentityFPAMIDataplaneClientBuilder to create the FPA MI dataplane client builder
 		fpaMIDataplaneClientBuilder, err = newHardcodedIdentityFPAMIDataplaneClientBuilder(
 			f.InsecureAzureManagedIdentityMockCertificateBundlePath, f.InsecureAzureManagedIdentityMockClientID, f.InsecureAzureManagedIdentityMockServicePrincipalID, f.InsecureAzureManagedIdentityMockTenantID,
@@ -384,6 +398,10 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
 
 	azCoreClientOptions := *azureConfig.CloudEnvironment.AZCoreClientOptions()
+	miDataplaneBasedIdentityAccessTokenRetrieverBuilder := azureclient.NewMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(
+		fpaMIDataplaneClientBuilder,
+		azCoreClientOptions,
+	)
 
 	cosmosDatabaseClient, err := app.NewCosmosDatabaseClient(
 		f.AzureCosmosDBURL,
@@ -441,11 +459,13 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		BackendIdentityAzureCachedReaders:  backendIdentityAzureCachedReaders,
 		ExitOnPanic:                        f.ExitOnPanic,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
-		SMIClientBuilder:                   smiClientBuilder,
-		CheckAccessV2ClientBuilder:         checkAccessV2ClientBuilder,
-		ClusterScopedIdentitiesConfig:      clusterScopedIdentitiesConfig,
-		MetricsRegisterer:                  legacyregistry.Registerer(),
-		MetricsGatherer:                    legacyregistry.DefaultGatherer,
+		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
+		SMIClientBuilder:              smiClientBuilder,
+		CheckAccessV2ClientBuilder:    checkAccessV2ClientBuilder,
+		ClusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
+		CloudEnvironment:              azureConfig.CloudEnvironment,
+		MetricsRegisterer:             legacyregistry.Registerer(),
+		MetricsGatherer:               legacyregistry.DefaultGatherer,
 	}
 
 	return backendOptions, nil
