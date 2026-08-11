@@ -1037,18 +1037,18 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:3b287baf421e9e10303e0e85c6e3f1d2c3cf9589fb622136b3daaf46098e29d5 # v2.16.3-559 (2026-08-10 13:36)
+        digest: sha256:18b7ef14a6e81c0bfe3e6417eb77b4eed6325ba54ae2d0ed8f826740807d181e # v2.16.3-559 (2026-08-11 03:34)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:f963866fc6bce1af9d777564d7e4a0f968b8bbd7846f123b5d562e5b8fabeb8b # v2.11.5-607 (2026-08-10 13:33)
+        digest: sha256:d5735b3c6b16e432c0a05bf19108d38aaad0cca159d6996c799ae1a4c5fe852b # v2.11.5-607 (2026-08-10 18:20)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:c6ab0e25331fd54603eab42b3405836ede08b675a849f7126656e854a7aef618 # b825c0ba330e97d41413ac0deeec1dacbcba8793 (2026-08-10 14:15)
+      digest: sha256:4f0533400265c8b4934a581f81a019a9fc2ad4da6f5744a955ae789577334912 # a3bf2ad7de4f965564c6387d8da47ca9b94f018e (2026-08-10 19:58)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1110,7 +1110,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:99f3e03124cbcd02c26e1e163b88cc9ca99a97889cc6ae39ee7177a588be101a # abd32d8 (2026-08-10 13:41)
+        digest: sha256:98feedfc21e69c8e305d6db2bee9d203ec33a82aa363dacf7d2603a655efc20d # 9b7ba35 (2026-08-11 03:51)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
