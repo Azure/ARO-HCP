@@ -4,7 +4,7 @@ Grafana is deployed using a Managed Grafana instance. Data is available via prec
 
 ## Prerequisites
 
-In staging, integration, and production environments, public network access to the Azure Managed Grafana instance is disabled. You must be connected to the **MSFT Corp VPN** to access Grafana in those environments. In dev environments, Grafana remains publicly accessible.
+In staging, integration, and production environments, public network access to the Azure Managed Grafana instance may be disabled. If so, you must be connected to the **MSFT Corp VPN** to access Grafana. Dev environment Grafana instances are publicly accessible.
 
 ## Managing Dashboards
 
