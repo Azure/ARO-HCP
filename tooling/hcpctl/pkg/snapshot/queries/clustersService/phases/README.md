@@ -17,13 +17,14 @@ uninstalling:
 | 2026-05-15T08:25:38.041Z | updating cluster 'cid' state to 'ready'          |
 | 2026-05-15T08:40:32.633Z | updating cluster 'cid' state to 'uninstalling'   |
 
-Node pools do something similar, without an uninstalling phase:
+Node pools follow a similar pattern, and also transition to `uninstalling` during deletion:
 
 | timestamp                | msg                                                                           |
 |--------------------------|-------------------------------------------------------------------------------|
 | 2026-05-15T08:28:47.214Z | Node pool 'np' created for cluster 'cid' with state 'validating'              |
 | 2026-05-15T08:28:52.068Z | Node pool 'np' for cluster 'cid' state updated from 'pending' to 'installing' |
 | 2026-05-15T08:37:43.07Z  | Node pool 'np' for cluster 'cid' state updated from 'installing' to 'ready'   |
+| 2026-05-15T08:40:33.500Z | Node pool 'np' for cluster 'cid' state updated from 'ready' to 'uninstalling' |
 
 ## Where to Go Next
 
@@ -32,3 +33,7 @@ If the cluster or node pool:
 - reaches `pending` but not `installing`, review `logs/clustersService/provisionSteps.md` to see which provision step is stuck or failing.
 - reaches `installing` but not `ready`, review `logs/clustersService/logs.md` paying attention to timestamps, and review `conditions/hypershift/hostedClusterConditions.md` or `conditions/hypershift/nodePoolConditions.md` for the next layer of the stack.
 - reaches `ready` in Clusters Service but the ARM create operation stays `Provisioning`, review `conditions/backend/resourceControllerConditions.md` and `conditions/hypershift/hostedClusterConditions.md`.
+
+If the **cluster** reaches `uninstalling` but never completes, review `logs/clustersService/logs.md` for repeated `Not continuing to the next destructor` messages, and check `conditions/acm/managedClusterConditions.md` for the ManagedCluster stuck pending deletion. Review `events/acm/klusterletEvents.md` for K8s events and `logs/acm/klusterletLogs.md` for addon pre-delete pod evictions or scheduling failures that may be blocking the destruct chain.
+
+If a **node pool** reaches `uninstalling` but never completes, review `logs/clustersService/logs.md` for repeated `destructor ... has not completed yet` messages. The node pool destruct chain has 3 steps: ManifestWork deletion (waiting for HyperShift to clean up the NodePool CR), NSG subnet dissociation, and DB cleanup. If stuck at the ManifestWork step, check `conditions/hypershift/nodePoolConditions.md` for the NodePool CR state on the management cluster.
