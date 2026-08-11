@@ -74,6 +74,8 @@ func (c *roleAssignmentMetricsClient) Get(ctx context.Context) (roleAssignmentMe
 	if err != nil {
 		return roleAssignmentMetrics{}, fmt.Errorf("get role assignment metrics: %w", err)
 	}
+	defer resp.Body.Close()
+
 	if !runtime.HasStatusCode(resp, http.StatusOK) {
 		return roleAssignmentMetrics{}, runtime.NewResponseError(resp)
 	}
