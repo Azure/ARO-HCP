@@ -624,11 +624,19 @@ resourceGroups:
     releaseNamespace: 'prometheus'
     chartDir: ../observability/kube-state-metrics/deploy
     valuesFile: ../observability/kube-state-metrics/values-mgmt.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
     - resourceGroup: management
       step: image-registry-policy
+    - resourceGroup: management
+      step: prometheus
     identityFrom:
       resourceGroup: global
       step: output

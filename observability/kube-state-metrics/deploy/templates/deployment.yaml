@@ -26,7 +26,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: kube-state-metrics
-        image: '{{ .Values.image.registry }}/{{ .Values.image.repository }}@sha256:{{ .Values.image.digest }}'
+        image: '{{ .Values.image.registry }}/{{ .Values.image.repository }}@sha256:{{ .Values.image.sha }}'
         args:
         - --resources=certificatesigningrequests
         - --metric-allowlist={{ join "," .Values.metricAllowlist }}

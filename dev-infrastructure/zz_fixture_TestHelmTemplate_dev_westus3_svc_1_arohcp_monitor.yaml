@@ -68092,7 +68092,7 @@ spec:
         - --port=8080
         - --resources=certificatesigningrequests,configmaps,cronjobs,daemonsets,deployments,endpoints,horizontalpodautoscalers,ingresses,jobs,leases,limitranges,mutatingwebhookconfigurations,namespaces,networkpolicies,nodes,persistentvolumeclaims,persistentvolumes,poddisruptionbudgets,pods,replicasets,replicationcontrollers,resourcequotas,secrets,services,statefulsets,storageclasses,validatingwebhookconfigurations,volumeattachments
         imagePullPolicy: IfNotPresent
-        image: mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics:v2.15.0@sha256:1234567890
+        image: mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics:v2.15.0@9b99d6e6e3a52eeb24295f1ebbb62dd2f415b1665ca2235e259bdf79792876de
         ports:
         - containerPort: 8080
           name: "http"
@@ -68467,29 +68467,6 @@ spec:
       - sourceLabels: [hostedcontrolplane]
         regex: '^ocm-arohcpdev.*'
         action: drop
-  - url: '__hcpDcrRemoteWriteUrl__'
-    azureAd:
-      cloud: AzurePublic
-      sdk: {}
-    queueConfig:
-      capacity: 50000
-      maxShards: 50
-      minShards: 1
-      maxSamplesPerSend: 10000
-      batchSendDeadline: 60s
-      minBackoff: 30ms
-      maxBackoff: 256s
-    metadataConfig:
-      send: false
-    # Combined into a single rule because sequential keep rules are AND
-    # (a metric must match all rules to survive), but we need OR — keep if
-    # either namespace or hostedcontrolplane matches ocm-*.
-    # See https://github.com/prometheus/prometheus/issues/3996
-    writeRelabelConfigs:
-      - sourceLabels: [namespace, hostedcontrolplane]
-        separator: ;
-        regex: '(ocm-arohcpdev[^;]*;.*|.*;ocm-arohcpdev.*)'
-        action: keep
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus/rules-1.14/alertmanager.rules.yaml
 apiVersion: monitoring.coreos.com/v1

@@ -954,7 +954,7 @@
           "additionalProperties": false,
           "properties": {
             "image": {
-              "$ref": "#/definitions/containerImage"
+              "$ref": "#/definitions/containerImageSha"
             }
           }
         },

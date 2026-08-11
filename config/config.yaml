@@ -665,7 +665,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:9b99d6e6e3a52eeb24295f1ebbb62dd2f415b1665ca2235e259bdf79792876de # v2.20.0 (2026-08-25 00:57)
+          sha: 9b99d6e6e3a52eeb24295f1ebbb62dd2f415b1665ca2235e259bdf79792876de # v2.20.0 (2026-08-25 00:57)
       admissionWebhook:
         patch:
           image:
@@ -799,7 +799,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:9b99d6e6e3a52eeb24295f1ebbb62dd2f415b1665ca2235e259bdf79792876de # v2.20.0 (2026-08-25 00:57)
+          sha: 9b99d6e6e3a52eeb24295f1ebbb62dd2f415b1665ca2235e259bdf79792876de # v2.20.0 (2026-08-25 00:57)
       admissionWebhook:
         patch:
           image:
@@ -1844,6 +1844,10 @@ clouds:
                 osDiskSizeGB: 64
             jaeger:
               deploy: false
+            applyKubeletFixes: false
+            monitoringApiGroup: "azmonitoring.coreos.com"
+            amaMetrics:
+              kubestate: "true"
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
@@ -1953,6 +1957,10 @@ clouds:
                 osDiskSizeGB: 64
             jaeger:
               deploy: false
+            applyKubeletFixes: false
+            monitoringApiGroup: "azmonitoring.coreos.com"
+            amaMetrics:
+              kubestate: "true"
           # SVC
           svc:
             subscription:

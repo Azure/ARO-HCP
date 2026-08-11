@@ -80,7 +80,7 @@ kube-prometheus-stack:
     image:
       registry: "{{ .svc.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .svc.prometheus.kubeStateMetrics.image.repository }}"
-      sha: "{{ .svc.prometheus.kubeStateMetrics.image.digest }}"
+      sha: "{{ .svc.prometheus.kubeStateMetrics.image.sha }}"
 # this is our own config for the files in templates/
 prometheusSpec:
   image:
@@ -93,7 +93,7 @@ prometheusSpec:
     region: "{{ .region }}"
     environment: "{{ .environmentName }}"
   remoteWriteUrl: "__dcrRemoteWriteUrl__"
-  hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
+  hcpRemoteWriteUrl: "NONE"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   maximumStartupDurationSeconds: 360
   resources:
