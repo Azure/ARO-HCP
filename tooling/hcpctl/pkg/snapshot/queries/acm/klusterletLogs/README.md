@@ -2,10 +2,10 @@
 
 ## Summary
 
-Lists pod lifecycle events from the klusterlet namespace (`klusterlet-<cluster-id>`) as observed by the
-mgmt-agent PodWatcher. These are container log entries (not K8s Event objects) from the `mgmt-agent`
-namespace where `log.msg == 'pod event'`, providing pod-level detail including status reason, phase,
-and node placement.
+Lists pod lifecycle snapshots from the klusterlet namespace (`klusterlet-<cluster-id>`) via
+`kubernetesResourceSnapshots`. These are full Pod object snapshots emitted by the mgmt-agent PodWatcher
+on Add, Delete, and container state transitions, providing pod-level detail including status reason,
+phase, and node placement.
 
 ## What to Look For
 

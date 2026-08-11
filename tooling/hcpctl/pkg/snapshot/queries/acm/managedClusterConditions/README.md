@@ -2,9 +2,9 @@
 
 ## Summary
 
-Extracts a point-in-time snapshot of ManagedCluster conditions from the last mgmt-agent ResourceWatcher
-emission within the current phase's time window. The ManagedCluster CR is cluster-scoped and named by the
-CS cluster ID.
+Extracts a point-in-time snapshot of ManagedCluster conditions from the most recent
+`kubernetesResourceSnapshots` entry within the current phase's time window. The ManagedCluster CR is
+cluster-scoped and named by the CS cluster ID.
 
 ## What to Look For
 

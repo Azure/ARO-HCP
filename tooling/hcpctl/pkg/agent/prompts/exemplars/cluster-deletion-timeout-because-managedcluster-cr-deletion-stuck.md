@@ -111,22 +111,20 @@ indicating the klusterlet lost contact with the hub while addon cleanup was stil
 
 #### Proof 1: Log Snippet
 
-Query the ManagedCluster CR conditions from mgmt-agent ResourceWatcher to see the ManagedCluster state:
+Query the ManagedCluster CR conditions from `kubernetesResourceSnapshots` to see the ManagedCluster state:
 
 ```kql
 // manifest.json: kusto_cluster
 // manifest.json: cs_cluster_id (retrieve OCM cluster ID from the clustersService/cid snapshot query
 //   or from manifest.json; it is the opaque hash like '2r9nhugpbdko2vai55lv2ikki9h9958r')
-cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('ServiceLogs').table('containerLogs')
+cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('ServiceLogs').table('kubernetesResourceSnapshots')
 | where timestamp between (datetime(2026-07-01) .. datetime(2026-07-03))
-| where container_name == 'mgmt-agent-controller'
-| where tostring(log.msg) == 'resource event'
-| where tostring(log.object.kind) == 'ManagedCluster'
-| where tostring(log.name) == '2r9nhugpbdko2vai55lv2ikki9h9958r'
-| summarize content=take_any(log.object), observedTime=take_any(timestamp) by event=tostring(log.event)
-| top 1 by observedTime desc
-| mv-expand condition = content.status.conditions
-| project observedTime, type=tostring(condition.type), status=tostring(condition.status), reason=tostring(condition.reason), message=tostring(condition.message)
+| where objectKind == 'ManagedCluster'
+| where name == '2r9nhugpbdko2vai55lv2ikki9h9958r'
+| summarize content=arg_max(timestamp, object) by event
+| top 1 by content desc
+| mv-expand condition = object.status.conditions
+| project observedTime=content, type=tostring(condition.type), status=tostring(condition.status), reason=tostring(condition.reason), message=tostring(condition.message)
 ```
 
 | observedTime               | type                              | status  | reason                          | message                                            |
@@ -180,24 +178,24 @@ uninstall job was being evicted.
 
 #### Proof 2: Log Snippet
 
-The mgmt-agent PodWatcher confirms addon pods were repeatedly evicted in the klusterlet namespace:
+Pod snapshots from `kubernetesResourceSnapshots` confirm addon pods were repeatedly evicted in the klusterlet namespace:
 
 ```kql
 // manifest.json: kusto_cluster
 // manifest.json: cs_cluster_id
-cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('ServiceLogs').table('containerLogs')
+cluster('https://hcp-stg-uk-2.uksouth.kusto.windows.net').database('ServiceLogs').table('kubernetesResourceSnapshots')
 | where timestamp between (datetime(2026-07-01) .. datetime(2026-07-03))
-| where namespace_name == 'mgmt-agent' and log.msg == 'pod event'
-| where log.namespace == 'klusterlet-2r9nhugpbdko2vai55lv2ikki9h9958r'
-| where tostring(log.object.status.reason) == 'Evicted'
+| where objectKind == 'Pod'
+| where namespace == 'klusterlet-2r9nhugpbdko2vai55lv2ikki9h9958r'
+| where tostring(object.status.reason) == 'Evicted'
 | project
     timestamp,
-    pod_name = tostring(log.name),
-    event = tostring(log.event),
-    reason = tostring(log.object.status.reason),
-    message = tostring(log.object.status.message),
-    phase = tostring(log.object.status.phase),
-    node = tostring(log.object.spec.nodeName)
+    pod_name = name,
+    event,
+    reason = tostring(object.status.reason),
+    message = tostring(object.status.message),
+    phase = tostring(object.status.phase),
+    node = tostring(object.spec.nodeName)
 | order by timestamp asc
 ```
 
