@@ -26,7 +26,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -47,7 +49,11 @@ var _ = Describe("ARO HCP Service", func() {
 				customerVnetSubnetName = "customer-vnet-subnet1"
 				customerClusterName    = "delayed-rbac-cluster"
 
-				clusterCreationTimeout   = 45 * time.Minute
+				// This test needs extra time beyond the default because it deliberately
+				// delays role assignments: 3m Consistently check + ~0.5m RBAC deployment
+				// + up to ~4m for CS retry and Azure RBAC propagation. Observed max delta
+				// over 24 CI runs is ~15m; 16m provides a small buffer.
+				clusterCreationTimeout   = framework.ClusterCreationTimeout + 16*time.Minute
 				consistentlyLoopDuration = 3 * time.Minute
 			)
 			tc := framework.NewTestContext()
@@ -65,6 +71,7 @@ var _ = Describe("ARO HCP Service", func() {
 			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.Tags[metadataapi.TagClusterMaxCreationDuration] = to.Ptr((clusterCreationTimeout - time.Minute).String())
 
 			By("deploying customer infrastructure (NSG, VNet, subnet, KeyVault)")
 			suffix := rand.String(6)
