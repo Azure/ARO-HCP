@@ -69,7 +69,7 @@ images:
   acm-operator:
     group: hypershift-stack
     source:
-      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
+      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
       repoVersionUpgrade:
         repoPrefix: "acm-operator-bundle-acm-"
@@ -79,7 +79,7 @@ images:
   acm-mce:
     group: hypershift-stack
     source:
-      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
+      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
       repoVersionUpgrade:
         repoPrefix: "mce-operator-bundle-mce-"
