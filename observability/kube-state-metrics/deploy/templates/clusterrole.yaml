@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-state-metrics-crs
+  labels:
+    app.kubernetes.io/name: kube-state-metrics-crs
+rules:
+- apiGroups: ["certificates.k8s.io"]
+  resources: ["certificatesigningrequests"]
+  verbs: ["list", "watch"]
+{{- range .Values.rbac.extraRules }}
+- apiGroups: {{ toYaml .apiGroups | nindent 4 }}
+  resources: {{ toYaml .resources | nindent 4 }}
+  verbs: {{ toYaml .verbs | nindent 4 }}
+{{- end }}
