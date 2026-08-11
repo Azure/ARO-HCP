@@ -18,6 +18,16 @@ type APIProfile struct {
 	AuthorizedCIDRs []*string
 }
 
+// ActiveVersion represents a version of a resource.
+type ActiveVersion struct {
+	// READ-ONLY; The version of the resource
+	Version *string
+
+	// READ-ONLY; The state of this version (e.g. "Completed", "Partial"). Only present for cluster control plane versions; omitted
+	// for node pool versions.
+	State *string
+}
+
 // AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
 // identities)
 type AzureResourceManagerCommonTypesManagedServiceIdentityUpdate struct {
@@ -1056,6 +1066,9 @@ type Resource struct {
 
 // ResourceStatus represents the observed status of the resource.
 type ResourceStatus struct {
+	// READ-ONLY; The activeVersions of a resource
+	ActiveVersions []*ActiveVersion
+
 	// READ-ONLY; The conditions on the resource
 	Conditions []*Condition
 }

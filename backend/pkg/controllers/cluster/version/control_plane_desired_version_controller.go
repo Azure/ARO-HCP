@@ -261,7 +261,7 @@ func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controller
 // unsupported OpenShift v5+ jumps, more-than-one minor skew, and node-pool minor-version skew for a
 // y-stream upgrade. Active versions do not influence which version is selected; that is done by
 // selectControlPlaneVersion.
-func (c *controlPlaneVersionSyncer) validateRequestedMinorVersionChange(ctx context.Context, key controllerutils.HCPClusterKey, customerDesiredMinor string, activeVersions []coreapi.HCPClusterActiveVersion) error {
+func (c *controlPlaneVersionSyncer) validateRequestedMinorVersionChange(ctx context.Context, key controllerutils.HCPClusterKey, customerDesiredMinor string, activeVersions []coreapi.ServiceProviderClusterActiveVersion) error {
 	if len(activeVersions) == 0 {
 		return nil
 	}

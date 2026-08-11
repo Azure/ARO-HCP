@@ -210,6 +210,11 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, spnp.Status.NodePoolVersion.ActiveVersions, 1)
 				assert.True(t, semver.MustParse("4.19.15").EQ(*spnp.Status.NodePoolVersion.ActiveVersions[0].Version))
+
+				np, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
+				require.NoError(t, err)
+				require.Len(t, np.Status.ActiveVersions, 1)
+				assert.True(t, semver.MustParse("4.19.15").EQ(*np.Status.ActiveVersions[0].Version))
 			},
 		},
 		{
@@ -230,6 +235,12 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 				require.Len(t, spnp.Status.NodePoolVersion.ActiveVersions, 2)
 				assert.True(t, semver.MustParse("4.19.15").EQ(*spnp.Status.NodePoolVersion.ActiveVersions[0].Version))
 				assert.True(t, semver.MustParse("4.19.7").EQ(*spnp.Status.NodePoolVersion.ActiveVersions[1].Version))
+
+				np, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
+				require.NoError(t, err)
+				require.Len(t, np.Status.ActiveVersions, 2)
+				assert.True(t, semver.MustParse("4.19.15").EQ(*np.Status.ActiveVersions[0].Version))
+				assert.True(t, semver.MustParse("4.19.7").EQ(*np.Status.ActiveVersions[1].Version))
 			},
 		},
 		{
@@ -308,6 +319,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 
 			syncer := &nodePoolActiveVersionSyncer{
 				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+				nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
 				resourcesDBClient:             mockDB,
 				readDesireLister:              &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
 			}
@@ -339,6 +351,7 @@ func TestNodePoolActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testing.T
 
 	syncer := &nodePoolActiveVersionSyncer{
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
 		resourcesDBClient:             mockDB,
 		readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 			Desires: []*kubeapplierapi.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.7")},

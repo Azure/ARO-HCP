@@ -46,6 +46,7 @@ const NodePoolActiveVersionsControllerName = "NodePoolActiveVersions"
 // NodePool CR replaces the previous round-trip through Cluster Service.
 type nodePoolActiveVersionSyncer struct {
 	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
+	nodePoolLister                corelisters.NodePoolLister
 	resourcesDBClient             corecosmosstorage.ResourcesDBClient
 	readDesireLister              kubeapplierlisters.ReadDesireLister
 }
@@ -62,8 +63,10 @@ func NewNodePoolActiveVersionController(
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {
 	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
+	_, nodePoolLister := informers.NodePools()
 	syncer := &nodePoolActiveVersionSyncer{
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		nodePoolLister:                nodePoolLister,
 		resourcesDBClient:             resourcesDBClient,
 		readDesireLister:              readDesireLister,
 	}
@@ -135,23 +138,45 @@ func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controll
 		return nil
 	}
 
-	if !internalcontrollerutils.NeedsUpdate(cachedServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions, newActiveVersions) {
-		return nil
+	if internalcontrollerutils.NeedsUpdate(cachedServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions, newActiveVersions) {
+		logger.Info("Active versions changed",
+			"oldActiveVersions", cachedServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions,
+			"newActiveVersions", newActiveVersions)
+		replacement := cachedServiceProviderNodePool.DeepCopy()
+		replacement.Status.NodePoolVersion.ActiveVersions = newActiveVersions
+		_, err = c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName).Replace(ctx, replacement, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			// the cache will update eventually since we're out of date and we'll enter this controller again. No need to fail.
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
+		}
 	}
 
-	logger.Info("Active versions changed",
-		"oldActiveVersions", cachedServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions,
-		"newActiveVersions", newActiveVersions)
-	replacement := cachedServiceProviderNodePool.DeepCopy()
-	replacement.Status.NodePoolVersion.ActiveVersions = newActiveVersions
-	_, err = c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName).Replace(ctx, replacement, nil)
-	if cosmosstorageutils.IsPreconditionFailedError(err) {
-		// the cache will update eventually since we're out of date and we'll enter this controller again. No need to fail.
+	// Write active versions onto the customer-facing node pool document so the
+	// frontend can serve them without an extra Cosmos read.
+	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
+	newHCPActiveVersions := hcpNodePoolActiveVersionFromServiceProviderActiveVersions(newActiveVersions)
+	if internalcontrollerutils.NeedsUpdate(cachedNodePool.Status.ActiveVersions, newHCPActiveVersions) {
+		nodePoolReplacement := cachedNodePool.DeepCopy()
+		nodePoolReplacement.Status.ActiveVersions = newHCPActiveVersions
+		nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
+		_, err = nodePoolCRUD.Replace(ctx, nodePoolReplacement, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to replace NodePool with active versions: %w", err))
+		}
+	}
+
 	return nil
 }
 
@@ -161,7 +186,7 @@ func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controll
 // KubeletVersion / readiness counts), so we dedupe; entries whose OCPVersion is
 // empty or unparseable are skipped with an Info log so a single malformed row
 // doesn't poison the rest of the list.
-func activeVersionsFromNodeVersions(ctx context.Context, nodeVersions []hsv1beta1.NodeVersion) ([]coreapi.HCPNodePoolActiveVersion, error) {
+func activeVersionsFromNodeVersions(ctx context.Context, nodeVersions []hsv1beta1.NodeVersion) ([]coreapi.ServiceProviderNodePoolActiveVersion, error) {
 	logger := utils.LoggerFromContext(ctx)
 	seen := map[string]struct{}{}
 	parsed := []semver.Version{}
@@ -184,9 +209,17 @@ func activeVersionsFromNodeVersions(ctx context.Context, nodeVersions []hsv1beta
 	semver.Sort(parsed)
 	slices.Reverse(parsed)
 
-	out := make([]coreapi.HCPNodePoolActiveVersion, 0, len(parsed))
+	out := make([]coreapi.ServiceProviderNodePoolActiveVersion, 0, len(parsed))
 	for i := range parsed {
-		out = append(out, coreapi.HCPNodePoolActiveVersion{Version: &parsed[i]})
+		out = append(out, coreapi.ServiceProviderNodePoolActiveVersion{Version: &parsed[i]})
 	}
 	return out, nil
+}
+
+func hcpNodePoolActiveVersionFromServiceProviderActiveVersions(activeVersions []coreapi.ServiceProviderNodePoolActiveVersion) []coreapi.HCPNodePoolActiveVersion {
+	var versions []coreapi.HCPNodePoolActiveVersion
+	for _, activeVersion := range activeVersions {
+		versions = append(versions, coreapi.HCPNodePoolActiveVersion(activeVersion))
+	}
+	return versions
 }

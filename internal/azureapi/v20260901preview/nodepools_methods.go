@@ -325,7 +325,7 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *coreapi.HCPOpenShiftCluste
 				// Use Ptr (not PtrOrNil) to ensure int32 zero value is preserved in JSON response.
 				Replicas:                metadataapi.Ptr(from.Properties.Replicas),
 				NodeDrainTimeoutMinutes: from.Properties.NodeDrainTimeoutMinutes,
-				Status:                  metadataapi.PtrOrNil(newNodePoolResourceStatus(&from.Status)),
+				Status:                  newNodePoolResourceStatus(&from.Status),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},
@@ -355,11 +355,33 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *coreapi.HCPOpenShiftCluste
 	return out
 }
 
-func newNodePoolResourceStatus(from *coreapi.HCPOpenShiftClusterNodePoolStatus) generated.ResourceStatus {
+func newNodePoolResourceStatus(from *coreapi.HCPOpenShiftClusterNodePoolStatus) *generated.NodePoolResourceStatus {
 	if from == nil {
-		return generated.ResourceStatus{}
+		return nil
 	}
-	return generated.ResourceStatus{
-		Conditions: newConditions(from.UserFacingConditions),
+	conditions := newConditions(from.UserFacingConditions)
+	activeVersions := newNodePoolActiveVersions(from.ActiveVersions)
+	if conditions == nil && activeVersions == nil {
+		return nil
 	}
+	return &generated.NodePoolResourceStatus{
+		Conditions:     conditions,
+		ActiveVersions: activeVersions,
+	}
+}
+
+func newNodePoolActiveVersions(from []coreapi.HCPNodePoolActiveVersion) []*generated.NodePoolActiveVersion {
+	if len(from) == 0 {
+		return nil
+	}
+	out := make([]*generated.NodePoolActiveVersion, 0, len(from))
+	for _, av := range from {
+		if av.Version == nil {
+			continue
+		}
+		out = append(out, &generated.NodePoolActiveVersion{
+			Version: metadataapi.PtrOrNil(av.Version.String()),
+		})
+	}
+	return out
 }

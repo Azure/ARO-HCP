@@ -131,10 +131,10 @@ func mustSemverPtr(s string) *semver.Version {
 
 // nodePoolActiveVersions builds a []coreapi.HCPNodePoolActiveVersion from a list of
 // version strings, representing the node pool's currently-active versions.
-func nodePoolActiveVersions(versions ...string) []coreapi.HCPNodePoolActiveVersion {
-	out := make([]coreapi.HCPNodePoolActiveVersion, 0, len(versions))
+func nodePoolActiveVersions(versions ...string) []coreapi.ServiceProviderNodePoolActiveVersion {
+	out := make([]coreapi.ServiceProviderNodePoolActiveVersion, 0, len(versions))
 	for _, v := range versions {
-		out = append(out, coreapi.HCPNodePoolActiveVersion{Version: mustSemverPtr(v)})
+		out = append(out, coreapi.ServiceProviderNodePoolActiveVersion{Version: mustSemverPtr(v)})
 	}
 	return out
 }

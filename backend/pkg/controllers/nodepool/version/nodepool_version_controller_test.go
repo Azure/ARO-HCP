@@ -536,7 +536,7 @@ func TestNodePoolVersionSyncer_NeedsWork(t *testing.T) {
 		spc := &coreapi.ServiceProviderCluster{}
 		for _, v := range versions {
 			version := semver.MustParse(v)
-			spc.Status.ControlPlaneVersion.ActiveVersions = append(spc.Status.ControlPlaneVersion.ActiveVersions, coreapi.HCPClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
+			spc.Status.ControlPlaneVersion.ActiveVersions = append(spc.Status.ControlPlaneVersion.ActiveVersions, coreapi.ServiceProviderClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
 		}
 		return spc
 	}
@@ -910,10 +910,10 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			desiredVersion := semver.MustParse(tt.desiredVersion)
 
 			// Build ServiceProviderNodePool with active versions
-			var nodePoolActiveVersions []coreapi.HCPNodePoolActiveVersion
+			var nodePoolActiveVersions []coreapi.ServiceProviderNodePoolActiveVersion
 			for _, v := range tt.activeVersions {
 				version := semver.MustParse(v)
-				nodePoolActiveVersions = append(nodePoolActiveVersions, coreapi.HCPNodePoolActiveVersion{Version: &version})
+				nodePoolActiveVersions = append(nodePoolActiveVersions, coreapi.ServiceProviderNodePoolActiveVersion{Version: &version})
 			}
 			spNodePool := &coreapi.ServiceProviderNodePool{
 				Status: coreapi.ServiceProviderNodePoolStatus{
@@ -924,10 +924,10 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			}
 
 			// Build ServiceProviderCluster with control plane versions
-			var cpActiveVersions []coreapi.HCPClusterActiveVersion
+			var cpActiveVersions []coreapi.ServiceProviderClusterActiveVersion
 			for _, v := range tt.controlPlaneVersions {
 				version := semver.MustParse(v)
-				cpActiveVersions = append(cpActiveVersions, coreapi.HCPClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
+				cpActiveVersions = append(cpActiveVersions, coreapi.ServiceProviderClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
 			}
 			spCluster := &coreapi.ServiceProviderCluster{
 				Status: coreapi.ServiceProviderClusterStatus{
@@ -1493,7 +1493,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 	existing, getErr := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if getErr == nil {
 		replacement := existing.DeepCopy()
-		replacement.Status.ControlPlaneVersion.ActiveVersions = []coreapi.HCPClusterActiveVersion{
+		replacement.Status.ControlPlaneVersion.ActiveVersions = []coreapi.ServiceProviderClusterActiveVersion{
 			{Version: &cpVersion, State: configv1.CompletedUpdate},
 		}
 		_, err := spcCRUD.Replace(ctx, replacement, nil)
@@ -1509,7 +1509,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 		},
 		Status: coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []coreapi.HCPClusterActiveVersion{
+				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{
 					{Version: &cpVersion, State: configv1.CompletedUpdate},
 				},
 			},
@@ -1538,7 +1538,7 @@ func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context,
 		},
 		Status: coreapi.ServiceProviderNodePoolStatus{
 			NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
-				ActiveVersions: []coreapi.HCPNodePoolActiveVersion{
+				ActiveVersions: []coreapi.ServiceProviderNodePoolActiveVersion{
 					{Version: &version},
 				},
 			},

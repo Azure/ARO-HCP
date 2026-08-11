@@ -104,7 +104,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		)))
 		parsedVersion, err := semver.ParseTolerant(version)
 		require.NoError(t, err)
-		activeVersions := []coreapi.HCPClusterActiveVersion{{Version: ptr.To(parsedVersion)}}
+		activeVersions := []coreapi.ServiceProviderClusterActiveVersion{{Version: ptr.To(parsedVersion)}}
 		return &coreapi.ServiceProviderCluster{
 			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 			Spec: coreapi.ServiceProviderClusterSpec{

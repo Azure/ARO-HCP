@@ -799,5 +799,4 @@ func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceI
 	internalNodePool.ID = resourceID
 
 	return internalNodePool, nil
-
 }

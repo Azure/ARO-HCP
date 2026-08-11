@@ -47,6 +47,37 @@ func (a *APIProfile) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaller interface for type ActiveVersion.
+func (a ActiveVersion) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "state", a.State)
+	populate(objectMap, "version", a.Version)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type ActiveVersion.
+func (a *ActiveVersion) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", a, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "state":
+			err = unpopulate(val, "State", &a.State)
+			delete(rawMsg, key)
+		case "version":
+			err = unpopulate(val, "Version", &a.Version)
+			delete(rawMsg, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", a, err)
+		}
+	}
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaller interface for type AzureResourceManagerCommonTypesManagedServiceIdentityUpdate.
 func (a AzureResourceManagerCommonTypesManagedServiceIdentityUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
@@ -2561,6 +2592,7 @@ func (r *Resource) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type ResourceStatus.
 func (r ResourceStatus) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
+	populate(objectMap, "activeVersions", r.ActiveVersions)
 	populate(objectMap, "conditions", r.Conditions)
 	return json.Marshal(objectMap)
 }
@@ -2574,6 +2606,9 @@ func (r *ResourceStatus) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
+		case "activeVersions":
+			err = unpopulate(val, "ActiveVersions", &r.ActiveVersions)
+			delete(rawMsg, key)
 		case "conditions":
 			err = unpopulate(val, "Conditions", &r.Conditions)
 			delete(rawMsg, key)

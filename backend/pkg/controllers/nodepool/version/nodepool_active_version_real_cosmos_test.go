@@ -144,6 +144,7 @@ func TestNodePoolActiveVersionSyncer_RealCosmosFixture(t *testing.T) {
 
 	syncer := &nodePoolActiveVersionSyncer{
 		serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+		nodePoolLister:                &corelistertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
 		resourcesDBClient:             mockDB,
 		readDesireLister: &kubeapplierlistertesting.SliceReadDesireLister{
 			Desires: []*kubeapplierapi.ReadDesire{readDesire},

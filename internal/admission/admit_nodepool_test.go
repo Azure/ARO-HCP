@@ -391,7 +391,7 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 				},
 				Status: coreapi.ServiceProviderNodePoolStatus{
 					NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
-						ActiveVersions: []coreapi.HCPNodePoolActiveVersion{
+						ActiveVersions: []coreapi.ServiceProviderNodePoolActiveVersion{
 							{Version: &version},
 						},
 					},
@@ -400,7 +400,7 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 			admissionContext.ServiceProviderCluster = &coreapi.ServiceProviderCluster{
 				Status: coreapi.ServiceProviderClusterStatus{
 					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-						ActiveVersions: []coreapi.HCPClusterActiveVersion{
+						ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{
 							{Version: &version},
 						},
 					},
@@ -892,10 +892,10 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			}
 
 			// Build ServiceProviderNodePool with active versions
-			var activeVersions []coreapi.HCPNodePoolActiveVersion
+			var activeVersions []coreapi.ServiceProviderNodePoolActiveVersion
 			for _, v := range tt.activeVersions {
 				ver := semver.MustParse(v)
-				activeVersions = append(activeVersions, coreapi.HCPNodePoolActiveVersion{Version: &ver})
+				activeVersions = append(activeVersions, coreapi.ServiceProviderNodePoolActiveVersion{Version: &ver})
 			}
 			var desiredVer *semver.Version
 			if tt.desiredVersion != "" {
@@ -916,10 +916,10 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			}
 
 			// Build ServiceProviderCluster with active versions
-			var clusterActiveVersions []coreapi.HCPClusterActiveVersion
+			var clusterActiveVersions []coreapi.ServiceProviderClusterActiveVersion
 			for _, v := range tt.clusterVersions {
 				ver := semver.MustParse(v)
-				clusterActiveVersions = append(clusterActiveVersions, coreapi.HCPClusterActiveVersion{Version: &ver})
+				clusterActiveVersions = append(clusterActiveVersions, coreapi.ServiceProviderClusterActiveVersion{Version: &ver})
 			}
 			spCluster := &coreapi.ServiceProviderCluster{
 				Status: coreapi.ServiceProviderClusterStatus{
@@ -966,7 +966,7 @@ func TestAdmitNodePool_AllowsDifferentChannelGroupClusterAndNodePool(t *testing.
 		},
 		Status: coreapi.ServiceProviderNodePoolStatus{
 			NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
-				ActiveVersions: []coreapi.HCPNodePoolActiveVersion{{Version: &ver}},
+				ActiveVersions: []coreapi.ServiceProviderNodePoolActiveVersion{{Version: &ver}},
 			},
 		},
 	}
@@ -975,7 +975,7 @@ func TestAdmitNodePool_AllowsDifferentChannelGroupClusterAndNodePool(t *testing.
 	spCluster := &coreapi.ServiceProviderCluster{
 		Status: coreapi.ServiceProviderClusterStatus{
 			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []coreapi.HCPClusterActiveVersion{{Version: &clusterVer}},
+				ActiveVersions: []coreapi.ServiceProviderClusterActiveVersion{{Version: &clusterVer}},
 			},
 		},
 	}
