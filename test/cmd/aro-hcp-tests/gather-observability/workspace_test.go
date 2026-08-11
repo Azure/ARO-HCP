@@ -16,9 +16,13 @@ package gatherobservability
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
 )
 
 func mustParseResourceID(sub, rg, name string) *azcorearm.ResourceID {
@@ -63,6 +67,161 @@ func TestAlertBelongsToWorkspace(t *testing.T) {
 			got := alertBelongsToWorkspace(a, *ws)
 			if got != tt.want {
 				t.Errorf("alertBelongsToWorkspace() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsWorkspaceTargeted(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		monitoringWorkspace string
+		want                bool
+	}{
+		{
+			name:                "azure_monitor_workspace",
+			monitoringWorkspace: "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Monitor/accounts/svc-westus3",
+			want:                true,
+		},
+		{
+			name:                "azure_monitor_workspace_case_insensitive",
+			monitoringWorkspace: "/subscriptions/sub-123/resourceGroups/my-rg/providers/microsoft.monitor/accounts/svc-westus3",
+			want:                true,
+		},
+		{
+			name:                "cosmos_db_account",
+			monitoringWorkspace: "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.DocumentDB/databaseAccounts/my-cosmos",
+			want:                false,
+		},
+		{
+			name:                "kusto_cluster",
+			monitoringWorkspace: "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Kusto/clusters/my-kusto",
+			want:                false,
+		},
+		{
+			name:                "empty_string",
+			monitoringWorkspace: "",
+			want:                false,
+		},
+		{
+			name:                "unparseable_string",
+			monitoringWorkspace: "not-a-resource-id",
+			want:                false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			a := alert{Metadata: alertMetadata{MonitoringWorkspace: tt.monitoringWorkspace}}
+			got := isWorkspaceTargeted(a)
+			if got != tt.want {
+				t.Errorf("isWorkspaceTargeted() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildInfraAlertData(t *testing.T) {
+	t.Parallel()
+
+	sev3 := armalertsmanagement.SeveritySev3
+	allAlerts := []alert{
+		{
+			Alert:    alertData{Name: "PrometheusAlert1", Severity: sev3},
+			Metadata: alertMetadata{MonitoringWorkspace: "/subscriptions/s/resourceGroups/rg/providers/Microsoft.Monitor/accounts/svc"},
+		},
+		{
+			Alert:    alertData{Name: "CosmosAlert", Severity: sev3},
+			Metadata: alertMetadata{MonitoringWorkspace: "/subscriptions/s/resourceGroups/rg/providers/Microsoft.DocumentDB/databaseAccounts/cosmos"},
+		},
+		{
+			Alert:    alertData{Name: "KustoAlert", Severity: sev3},
+			Metadata: alertMetadata{MonitoringWorkspace: "/subscriptions/s/resourceGroups/rg/providers/Microsoft.Kusto/clusters/kusto"},
+		},
+		{
+			Alert:    alertData{Name: "PrometheusAlert2", Severity: sev3},
+			Metadata: alertMetadata{MonitoringWorkspace: "/subscriptions/s/resourceGroups/rg/providers/Microsoft.Monitor/accounts/hcp"},
+		},
+	}
+	metricRules := []string{"CosmosAlert", "KustoAlert"}
+
+	result := buildInfraAlertData(allAlerts, metricRules, -1, nil)
+
+	if result.Type != workspaceInfra {
+		t.Errorf("Type = %q, want %q", result.Type, workspaceInfra)
+	}
+	if len(result.FiredAlerts) != 2 {
+		t.Fatalf("FiredAlerts count = %d, want 2", len(result.FiredAlerts))
+	}
+	names := []string{result.FiredAlerts[0].Alert.Name, result.FiredAlerts[1].Alert.Name}
+	slices.Sort(names)
+	if names[0] != "CosmosAlert" || names[1] != "KustoAlert" {
+		t.Errorf("FiredAlerts names = %v, want [CosmosAlert KustoAlert]", names)
+	}
+	for _, a := range result.FiredAlerts {
+		if a.Metadata.MonitoringWorkspaceType != workspaceInfra {
+			t.Errorf("alert %q MonitoringWorkspaceType = %q, want %q", a.Alert.Name, a.Metadata.MonitoringWorkspaceType, workspaceInfra)
+		}
+	}
+	if !slices.Equal(result.AlertRules, metricRules) {
+		t.Errorf("AlertRules = %v, want %v", result.AlertRules, metricRules)
+	}
+}
+
+func TestUniqueResourceGroups(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		workspaces map[string]azcorearm.ResourceID
+		want       sets.Set[string]
+	}{
+		{
+			name: "same_resource_group_deduped",
+			workspaces: map[string]azcorearm.ResourceID{
+				"svc": *mustParseResourceID("sub-1", "rg-1", "svc-ws"),
+				"hcp": *mustParseResourceID("sub-1", "rg-1", "hcp-ws"),
+			},
+			want: sets.New[string]("/subscriptions/sub-1/resourceGroups/rg-1"),
+		},
+		{
+			name: "different_resource_groups",
+			workspaces: map[string]azcorearm.ResourceID{
+				"svc": *mustParseResourceID("sub-1", "rg-1", "svc-ws"),
+				"hcp": *mustParseResourceID("sub-1", "rg-2", "hcp-ws"),
+			},
+			want: sets.New[string](
+				"/subscriptions/sub-1/resourceGroups/rg-1",
+				"/subscriptions/sub-1/resourceGroups/rg-2",
+			),
+		},
+		{
+			name: "different_subscriptions",
+			workspaces: map[string]azcorearm.ResourceID{
+				"svc": *mustParseResourceID("sub-1", "rg-1", "svc-ws"),
+				"hcp": *mustParseResourceID("sub-2", "rg-1", "hcp-ws"),
+			},
+			want: sets.New[string](
+				"/subscriptions/sub-1/resourceGroups/rg-1",
+				"/subscriptions/sub-2/resourceGroups/rg-1",
+			),
+		},
+		{
+			name:       "empty_workspaces",
+			workspaces: map[string]azcorearm.ResourceID{},
+			want:       sets.New[string](),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := uniqueResourceGroups(tt.workspaces)
+			if !got.Equal(tt.want) {
+				t.Errorf("uniqueResourceGroups() = %v, want %v", sets.List(got), sets.List(tt.want))
 			}
 		})
 	}
