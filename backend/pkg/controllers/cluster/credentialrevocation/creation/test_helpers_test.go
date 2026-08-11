@@ -113,7 +113,6 @@ func createTestCredentialRequest(t *testing.T, db *corecosmosstoragetesting.Mock
 			PartitionKey: strings.ToLower(testSubscriptionID),
 		},
 		Spec: coreapi.SystemAdminCredentialRequestSpec{
-			Username:    "test-user",
 			OperationID: testOperationName,
 		},
 	}

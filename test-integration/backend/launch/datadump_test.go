@@ -113,7 +113,6 @@ func TestDataDumpControllerWithClusterAndCredentialRequest(t *testing.T) {
 				PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 			},
 			Spec: coreapi.SystemAdminCredentialRequestSpec{
-				Username:    "system:admin:test-cred-0001",
 				OperationID: "test-op-cred",
 			},
 		}

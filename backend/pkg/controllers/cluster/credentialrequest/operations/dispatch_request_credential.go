@@ -172,13 +172,6 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 	// embedded in CSR and CertificateSigningRequestApproval object names).
 	credName := strings.ReplaceAll(uuid.New().String(), "-", "")[:16]
 
-	// Determine the username from the operation's client identity.
-	username := operation.ClientID
-	if username == "" {
-		username = "system-admin"
-	}
-	username = fmt.Sprintf("system:customer-break-glass:%s", username)
-
 	// Build the credential resource ID.
 	credResourceID, err := coreapi.ToSystemAdminCredentialRequestResourceID(
 		operation.ExternalID.SubscriptionID,
@@ -197,7 +190,6 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 			PartitionKey: strings.ToLower(operation.ExternalID.SubscriptionID),
 		},
 		Spec: coreapi.SystemAdminCredentialRequestSpec{
-			Username:                     username,
 			CreationTimestamp:            metav1.NewTime(c.clock.Now()),
 			ExpirationTimestamp:          metav1.NewTime(c.clock.Now().Add(24 * time.Hour)),
 			OperationID:                  operationIDStr,
