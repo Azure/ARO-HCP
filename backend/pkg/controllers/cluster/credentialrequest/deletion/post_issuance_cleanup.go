@@ -116,9 +116,8 @@ func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.
 	}
 
 	credName := cred.ResourceID.Name
-	waitingFor, err := kubeapplierhelpers.DeleteDesires(ctx, kubeApplierClient, kubeapplierhelpers.CredentialRequestDesireParent(credName),
-		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-		func(desireName string) bool { return isCredentialDesire(desireName, credName) })
+	waitingFor, err := kubeapplierhelpers.DeleteAllChildDesires(ctx, kubeApplierClient, kubeapplierhelpers.CredentialRequestDesireParent(credName),
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return err
 	}
@@ -130,10 +129,4 @@ func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.
 
 	logger.Info("post-issuance cleanup complete", "credential", credName)
 	return nil
-}
-
-// isCredentialDesire returns true if the desire name contains the credential
-// name as a suffix component (e.g. "systemAdminCredentialCSR-<credName>").
-func isCredentialDesire(desireName, credName string) bool {
-	return strings.Contains(strings.ToLower(desireName), strings.ToLower(credName))
 }

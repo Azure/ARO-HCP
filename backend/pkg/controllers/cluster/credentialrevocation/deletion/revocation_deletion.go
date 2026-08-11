@@ -107,16 +107,14 @@ func (c *revocationDeletion) SyncOnce(ctx context.Context, key controllerutils.S
 		return nil
 	}
 
-	suffix := revocation.Spec.RevokeOpSuffix
-	waitingFor, err := kubeapplierhelpers.DeleteDesires(ctx, kubeApplierClient, kubeapplierhelpers.RevocationDesireParent(key.RevocationName),
-		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-		func(desireName string) bool { return isRevocationDesire(desireName, suffix) })
+	waitingFor, err := kubeapplierhelpers.DeleteAllChildDesires(ctx, kubeApplierClient, kubeapplierhelpers.RevocationDesireParent(key.RevocationName),
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return err
 	}
 	if len(waitingFor) > 0 {
 		logger.Info("waiting for management-cluster teardown of the revocation's desires",
-			"revokeOpSuffix", suffix, "managementCluster", mcResourceID.String(),
+			"managementCluster", mcResourceID.String(),
 			"waitingFor", strings.Join(waitingFor, "; "))
 		return nil
 	}
@@ -126,13 +124,6 @@ func (c *revocationDeletion) SyncOnce(ctx context.Context, key controllerutils.S
 	if err := revocationCRUD.Delete(ctx, key.RevocationName); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to delete SystemAdminCredentialRevocation: %w", err))
 	}
-	logger.Info("deleted revocation after tearing down its desires", "revokeOpSuffix", suffix)
+	logger.Info("deleted revocation after tearing down its desires")
 	return nil
-}
-
-// isRevocationDesire reports whether a desire name belongs to the revocation
-// identified by suffix. Every revocation desire (CRR ApplyDesire/ReadDesire and
-// the CRR RBAC ApplyDesires) is named with the revocation's unique suffix.
-func isRevocationDesire(desireName, suffix string) bool {
-	return strings.Contains(strings.ToLower(desireName), strings.ToLower(suffix))
 }

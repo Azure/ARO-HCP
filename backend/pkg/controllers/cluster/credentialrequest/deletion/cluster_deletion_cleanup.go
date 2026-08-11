@@ -123,10 +123,8 @@ func (c *credentialRequestDeletion) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
-	// Delete every desire nested under this SystemAdminCredentialRequest.
-	waitingFor, err := kubeapplierhelpers.DeleteDesires(ctx, kubeApplierClient, kubeapplierhelpers.CredentialRequestDesireParent(key.CredentialName),
-		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-		func(string) bool { return true })
+	waitingFor, err := kubeapplierhelpers.DeleteAllChildDesires(ctx, kubeApplierClient, kubeapplierhelpers.CredentialRequestDesireParent(key.CredentialName),
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return err
 	}
