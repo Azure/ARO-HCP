@@ -26,7 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -100,7 +100,7 @@ var _ = Describe("Customer", func() {
 
 			// Deployed RP may not yet admit max-deletion-duration; drop it so create
 			// is not rejected as an unrecognized experimental tag.
-			delete(clusterParams.Tags, api.TagClusterMaxDeletionDuration)
+			delete(clusterParams.Tags, metadataapi.TagClusterMaxDeletionDuration)
 
 			networkClientFactory, err := tc.GetARMNetworkClientFactory(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to get ARM network client factory")
@@ -303,7 +303,7 @@ func customerNSGValidationBeginNodePoolCreate(ctx context.Context, tc interface{
 	nodePoolParams.Replicas = int32(2)
 	nodePoolParams.VMSize = vmSize
 	// Avoid max-creation-duration forcing a terminal Failed during the stuck-provisioning window.
-	delete(nodePoolParams.Tags, api.TagNodePoolMaxCreationDuration)
+	delete(nodePoolParams.Tags, metadataapi.TagNodePoolMaxCreationDuration)
 
 	nodePool := framework.BuildNodePoolFromParams20251223(nodePoolParams, tc.Location())
 	_, err := nodePoolClient.BeginCreateOrUpdate(
