@@ -121,6 +121,9 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 		apihelpers.CancelOperation(replacement, c.clock.Now())
 
 		_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -147,6 +150,9 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 			}
 			replacement.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID = cred.ResourceID
 			_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
+			if cosmosstorageutils.IsPreconditionFailedError(err) {
+				return nil
+			}
 			if err != nil {
 				return utils.TrackError(err)
 			}
@@ -161,7 +167,9 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 		return fmt.Errorf("operation %s has no CertificateSigningRequest", operation.OperationID.Name)
 	}
 
-	// Generate a credential name: first 16 hex chars of a new UUID.
+	// Generate a credential name: first 16 hex chars of a new UUID, shortened
+	// to stay within Kubernetes name length limits (the credential name is
+	// embedded in CSR and CertificateSigningRequestApproval object names).
 	credName := strings.ReplaceAll(uuid.New().String(), "-", "")[:16]
 
 	// Determine the username from the operation's client identity.
@@ -210,6 +218,9 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 	replacement.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID = credResourceID
 
 	_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
