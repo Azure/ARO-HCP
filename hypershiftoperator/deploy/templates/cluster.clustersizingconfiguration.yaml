@@ -210,6 +210,8 @@ spec:
       to: 999998
     effects:
       kasGoMemLimit: 72GiB
+      maximumMutatingRequestsInflight: 1000
+      maximumRequestsInflight: 3000
       resourceRequests:
       - containerName: kube-apiserver
         deploymentName: kube-apiserver
