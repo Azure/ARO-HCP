@@ -15,10 +15,10 @@
 package kubeapplierhelpers
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -173,21 +173,36 @@ func EnsureApplyDesire(
 		},
 	}
 
-	// Consult the lister first: if an ApplyDesire already exists with the desired
-	// content there is nothing to do, and we skip the Cosmos write.
 	existing, err := parent.getApplyDesire(ctx, applyDesireLister, subscriptionID, resourceGroupName, hcpClusterName, desireName)
-	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+	switch {
+	case err != nil && !cosmosstorageutils.IsNotFoundError(err):
 		return utils.TrackError(fmt.Errorf("get ApplyDesire %s from lister: %w", desireName, err))
-	}
-	if existing != nil && applyDesireSpecEqual(existing.Spec, desire.Spec) {
+	case existing == nil:
+		_, err := crud.Create(ctx, desire, nil)
+		switch {
+		case cosmosstorageutils.IsConflictError(err):
+			return nil
+		case err != nil:
+			return utils.TrackError(fmt.Errorf("create ApplyDesire %s: %w", desireName, err))
+		}
+		logger.Info("created ApplyDesire", "desire", desireName, "targetResource", target.Resource, "targetName", target.Name)
+		return nil
+	case !applyDesireSpecEqual(existing.Spec, desire.Spec):
+		replacement := existing.DeepCopy()
+		replacement.Spec = desire.Spec
+		replacement.Status = kubeapplierapi.ApplyDesireStatus{}
+		_, err := crud.Replace(ctx, replacement, nil)
+		switch {
+		case cosmosstorageutils.IsPreconditionFailedError(err):
+			return nil
+		case err != nil:
+			return utils.TrackError(fmt.Errorf("replace ApplyDesire %s: %w", desireName, err))
+		}
+		logger.Info("replaced ApplyDesire", "desire", desireName, "targetResource", target.Resource, "targetName", target.Name)
+		return nil
+	default:
 		return nil
 	}
-
-	if _, err := crud.Create(ctx, desire, nil); err != nil && !cosmosstorageutils.IsConflictError(err) {
-		return utils.TrackError(fmt.Errorf("create ApplyDesire %s: %w", desireName, err))
-	}
-	logger.Info("created ApplyDesire", "desire", desireName, "targetResource", target.Resource, "targetName", target.Name)
-	return nil
 }
 
 // ensureReadDesire creates the named ReadDesire nested under parent unless a
@@ -222,21 +237,36 @@ func EnsureReadDesire(
 		},
 	}
 
-	// Consult the lister first: if a ReadDesire already exists with the desired
-	// content there is nothing to do, and we skip the Cosmos write.
 	existing, err := parent.getReadDesire(ctx, readDesireLister, subscriptionID, resourceGroupName, hcpClusterName, desireName)
-	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+	switch {
+	case err != nil && !cosmosstorageutils.IsNotFoundError(err):
 		return utils.TrackError(fmt.Errorf("get ReadDesire %s from lister: %w", desireName, err))
-	}
-	if existing != nil && readDesireSpecEqual(existing.Spec, desire.Spec) {
+	case existing == nil:
+		_, err := crud.Create(ctx, desire, nil)
+		switch {
+		case cosmosstorageutils.IsConflictError(err):
+			return nil
+		case err != nil:
+			return utils.TrackError(fmt.Errorf("create ReadDesire %s: %w", desireName, err))
+		}
+		logger.Info("created ReadDesire", "desire", desireName, "targetResource", target.Resource, "targetName", target.Name)
+		return nil
+	case !readDesireSpecEqual(existing.Spec, desire.Spec):
+		replacement := existing.DeepCopy()
+		replacement.Spec = desire.Spec
+		replacement.Status = kubeapplierapi.ReadDesireStatus{}
+		_, err := crud.Replace(ctx, replacement, nil)
+		switch {
+		case cosmosstorageutils.IsPreconditionFailedError(err):
+			return nil
+		case err != nil:
+			return utils.TrackError(fmt.Errorf("replace ReadDesire %s: %w", desireName, err))
+		}
+		logger.Info("replaced ReadDesire", "desire", desireName, "targetResource", target.Resource, "targetName", target.Name)
+		return nil
+	default:
 		return nil
 	}
-
-	if _, err := crud.Create(ctx, desire, nil); err != nil && !cosmosstorageutils.IsConflictError(err) {
-		return utils.TrackError(fmt.Errorf("create ReadDesire %s: %w", desireName, err))
-	}
-	logger.Info("created ReadDesire", "desire", desireName, "targetResource", target.Resource, "targetName", target.Name)
-	return nil
 }
 
 // applyDesireSpecEqual reports whether an existing ApplyDesire spec already
@@ -259,27 +289,27 @@ func applyDesireSpecEqual(existing, desired kubeapplierapi.ApplyDesireSpec) bool
 	if desired.ServerSideApply != nil && desired.ServerSideApply.KubeContent != nil {
 		desiredRaw = desired.ServerSideApply.KubeContent.Raw
 	}
-	return bytes.Equal(existingRaw, desiredRaw)
+	return jsonBytesEqual(existingRaw, desiredRaw)
 }
 
 // readDesireSpecEqual reports whether an existing ReadDesire spec already matches
 // the desired spec (same management cluster and target), so callers can avoid a
 // redundant Cosmos write.
+func jsonBytesEqual(a, b []byte) bool {
+	if len(a) == 0 && len(b) == 0 {
+		return true
+	}
+	var aVal, bVal interface{}
+	if err := json.Unmarshal(a, &aVal); err != nil {
+		return false
+	}
+	if err := json.Unmarshal(b, &bVal); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(aVal, bVal)
+}
+
 func readDesireSpecEqual(existing, desired kubeapplierapi.ReadDesireSpec) bool {
 	return controllerutil.ResourceIDsEqual(existing.ManagementCluster, desired.ManagementCluster) &&
 		existing.TargetItem == desired.TargetItem
-}
-
-// targetRefForKubeObject builds a kube-applier ResourceReference for a typed
-// Kubernetes object by deriving the resource name from its kind.
-func TargetRefForKubeObject(obj systemadmincredential.KubeObject) kubeapplierapi.ResourceReference {
-	gvk := obj.GetObjectKind().GroupVersionKind()
-	resource := strings.ToLower(gvk.Kind) + "s"
-	return kubeapplierapi.ResourceReference{
-		Group:     gvk.Group,
-		Version:   gvk.Version,
-		Resource:  resource,
-		Namespace: obj.GetNamespace(),
-		Name:      obj.GetName(),
-	}
 }
