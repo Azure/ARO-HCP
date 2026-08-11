@@ -38,6 +38,7 @@ import (
 type revocationDesires struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
+	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	applyDesireLister            dblisters.ApplyDesireLister
 	readDesireLister             dblisters.ReadDesireLister
@@ -60,11 +61,13 @@ func NewRevocationDesiresController(
 	applyDesireLister dblisters.ApplyDesireLister,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
+	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 
 	syncer := &revocationDesires{
 		resourcesDBClient:            resourcesDBClient,
 		kubeApplierDBClients:         kubeApplierDBClients,
+		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		applyDesireLister:            applyDesireLister,
 		readDesireLister:             readDesireLister,
@@ -97,7 +100,7 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 		return nil
 	}
 
-	cluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}

@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -196,9 +197,15 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tc.setupDB(t, ctx, db)
 
+			var clusters []*coreapi.HCPOpenShiftCluster
+			cluster, clusterErr := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+			if clusterErr == nil {
+				clusters = append(clusters, cluster)
+			}
 			syncer := &operationRevokeCredentialsPoll{
 				clock:             fakeClock,
 				resourcesDBClient: db,
+				clusterLister:     &corelistertesting.SliceClusterLister{Clusters: clusters},
 			}
 
 			key := controllerutils.OperationKey{

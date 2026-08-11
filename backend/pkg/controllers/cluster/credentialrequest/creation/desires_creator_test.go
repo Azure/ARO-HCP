@@ -291,9 +291,14 @@ func TestDesiresCreator_SyncOnce(t *testing.T) {
 				kubeApplierClients.Register(testManagementClusterResourceID, mockKubeApplierClient)
 			}
 
+			var clusters []*coreapi.HCPOpenShiftCluster
+			if c, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName); err == nil {
+				clusters = append(clusters, c)
+			}
 			syncer := &desiresCreator{
 				resourcesDBClient:            db,
 				kubeApplierDBClients:         kubeApplierClients,
+				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: clusters},
 				serviceProviderClusterLister: tt.spcLister,
 				applyDesireLister:            &kubeapplierlistertesting.SliceApplyDesireLister{},
 				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{},
