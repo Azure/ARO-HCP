@@ -29,7 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -55,7 +54,6 @@ var _ controllerutils.SystemAdminCredentialRevocationSyncer = (*revocationComple
 // that desire creation and revocation completion are independent concerns.
 func NewRevocationCompletionController(
 	clock utilsclock.PassiveClock,
-	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	backendInformers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,

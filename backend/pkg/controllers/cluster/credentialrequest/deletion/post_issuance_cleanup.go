@@ -47,7 +47,6 @@ var _ controllerutils.SystemAdminCredentialRequestSyncer = (*postIssuanceCleanup
 // ReadDesires once an individual credential reaches Issued or Failed condition,
 // freeing MC resources. The teardown reuses the shared deleteDesires helper.
 func NewPostIssuanceCleanupController(
-	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	backendInformers coreinformers.BackendInformers,
@@ -100,6 +99,7 @@ func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.
 	// checks: if the mapping is not available yet we wait to be retriggered.
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		logger.Info("ServiceProviderCluster not found, waiting")
 		return nil
 	}
 	if err != nil {
@@ -107,11 +107,13 @@ func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.
 	}
 	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 	if mcResourceID == nil {
+		logger.Info("ServiceProviderCluster has no ManagementClusterResourceID, waiting")
 		return nil
 	}
 
 	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if kubeApplierClient == nil {
+		logger.Info("kube-applier client not available for management cluster, waiting", "managementCluster", mcResourceID.String())
 		return nil
 	}
 

@@ -148,7 +148,11 @@ func (c *operationRevokeCredentialsPoll) SynchronizeOperation(ctx context.Contex
 			return operationbase.PostAsyncNotification(ctx, client, op)
 		}
 	}
-	if err := operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateSucceeded, nil, notifyFn); err != nil {
+	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, coreapi.ProvisioningStateSucceeded, nil, notifyFn)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
+	if err != nil {
 		return utils.TrackError(err)
 	}
 

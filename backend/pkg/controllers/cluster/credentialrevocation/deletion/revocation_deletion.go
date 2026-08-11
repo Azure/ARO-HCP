@@ -46,7 +46,6 @@ var _ controllerutils.SystemAdminCredentialRevocationSyncer = (*revocationDeleti
 // the SystemAdminCredentialRevocation document. The RevokeCredentials operation
 // completes once the document no longer exists.
 func NewRevocationDeletionController(
-	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	backendInformers coreinformers.BackendInformers,

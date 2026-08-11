@@ -217,9 +217,7 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 		return utils.TrackError(err)
 	}
 
-	logger.Info("dispatched SystemAdminCredential",
-		"credential_name", credName,
-		"credential_resource_id", credResourceID.String())
+	logger.Info("dispatched SystemAdminCredential", "credential_name", credName, "credential_resource_id", credResourceID.String())
 
 	return nil
 }

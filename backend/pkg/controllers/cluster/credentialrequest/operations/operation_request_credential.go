@@ -142,6 +142,9 @@ func (c *operationRequestCredentialPoll) SynchronizeOperation(ctx context.Contex
 		}
 	}
 	err = operationbase.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, oldOperation, newOperationStatus, newOperationError, notifyFn)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}

@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -47,7 +46,6 @@ var _ controllerutils.SystemAdminCredentialRevocationSyncer = (*revocationMarkRe
 // on the revocation.
 func NewRevocationMarkRequestsController(
 	clock utilsclock.PassiveClock,
-	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	backendInformers coreinformers.BackendInformers,
 ) controllerutils.Controller {
