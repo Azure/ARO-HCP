@@ -8419,7 +8419,7 @@ spec:
   provider: azure
 ---
 # Source: clusters-service/templates/servicemonitor.yaml
-apiVersion: azmonitoring.coreos.com/v1
+apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: clusters-service

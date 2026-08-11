@@ -690,6 +690,8 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
+  amaMetrics:
+    kubestate: "false"
   applyKubeletFixes: true
   defaultStorageClassSkuName: PremiumV2_LRS
   hcpBackups:
@@ -744,7 +746,7 @@ mgmt:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: thanos/thanos
-        sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
+        sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6
         tag: v0.41.0
   rg: hcp-underlay-dev-westus3-mgmt-1
   stampIdentifier: "1"
@@ -1057,14 +1059,16 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
+  amaMetrics:
+    kubestate: "false"
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
     istioctlVersion: 1.30.4
     tag: prod-stable
-    targetVersion: asm-1-28
-    versions: asm-1-28
-  monitoringApiGroup: azmonitoring.coreos.com
+    targetVersion: asm-1-29
+    versions: asm-1-29
+  monitoringApiGroup: monitoring.coreos.com
   nsp:
     accessMode: Learning
     name: nsp-usw3-svc
@@ -1115,7 +1119,7 @@ svc:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: thanos/thanos
-        sha: b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
+        sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6
         tag: v0.41.0
   rg: hcp-underlay-dev-westus3-svc
   subscription:
