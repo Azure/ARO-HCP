@@ -1,0 +1,68 @@
+monitoringApiGroup: "{{ .mgmt.monitoringApiGroup }}"
+
+image:
+  registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
+  repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
+  digest: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
+
+metricAllowlist:
+- hostedClusterAPI_kubeapiserver_available
+- hostedClusterAPI_available
+- hostedClusterAPI_progressing
+- hostedClusterAPI_valid_azure_kms_config
+
+rbac:
+  extraRules:
+  - apiGroups: ["hypershift.openshift.io"]
+    resources: ["hostedclusters"]
+    verbs: ["list", "watch"]
+
+customResourceState:
+  config:
+    spec:
+      resources:
+      - groupVersionKind:
+          group: hypershift.openshift.io
+          kind: "HostedCluster"
+          version: "v1beta1"
+        metricNamePrefix: hostedClusterAPI
+        labelsFromPath:
+          name: [metadata, name]
+          namespace: [metadata, namespace]
+          api_url: [spec, services, "[service=APIServer]", servicePublishingStrategy, route, hostname]
+          _id: [spec, clusterID]
+          subscription_id: [spec, platform, azure, subscriptionID]
+          resource_id: [metadata, annotations, "azure.microsoft.com/hcp-cluster-azure-resource-id"]
+        metrics:
+        - name: "kubeapiserver_available"
+          help: "KubeAPIServer availability condition"
+          each:
+            type: StateSet
+            stateSet:
+              path: [status, conditions, "[type=KubeAPIServerAvailable]", status]
+              labelName: status
+              list: ["True", "False", "Unknown"]
+        - name: "available"
+          help: "Cluster availability condition"
+          each:
+            type: StateSet
+            stateSet:
+              path: [status, conditions, "[type=Available]", status]
+              labelName: status
+              list: ["True", "False", "Unknown"]
+        - name: "progressing"
+          help: "Cluster progressing condition"
+          each:
+            type: StateSet
+            stateSet:
+              path: [status, conditions, "[type=Progressing]", status]
+              labelName: status
+              list: ["True", "False", "Unknown"]
+        - name: "valid_azure_kms_config"
+          help: "Azure KMS configuration validity condition"
+          each:
+            type: StateSet
+            stateSet:
+              path: [status, conditions, "[type=ValidAzureKMSConfig]", status]
+              labelName: status
+              list: ["True", "False", "Unknown"]
