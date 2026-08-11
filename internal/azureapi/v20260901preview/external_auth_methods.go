@@ -304,7 +304,7 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *coreapi.HCPOpenShiftCl
 			SystemData: metadataapi.PtrOrNil(newSystemData(from.SystemData)),
 			Properties: &generated.ExternalAuthProperties{
 				ProvisioningState: metadataapi.PtrOrNil(generated.ExternalAuthProvisioningState(from.Properties.ProvisioningState)),
-				Status:            newResourceStatus(from.Status.Conditions),
+				Status:            metadataapi.PtrOrNil(newExternalAuthResourceStatus(&from.Status)),
 				Issuer:            metadataapi.PtrOrNil(newTokenIssuerProfile(&from.Properties.Issuer)),
 				Claim:             metadataapi.PtrOrNil(newExternalAuthClaimProfile(&from.Properties.Claim)),
 			},
@@ -320,4 +320,13 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *coreapi.HCPOpenShiftCl
 		})
 	}
 	return out
+}
+
+func newExternalAuthResourceStatus(from *coreapi.HCPOpenShiftClusterExternalAuthStatus) generated.ResourceStatus {
+	if from == nil {
+		return generated.ResourceStatus{}
+	}
+	return generated.ResourceStatus{
+		Conditions: newConditions(from.UserFacingConditions),
+	}
 }

@@ -325,7 +325,7 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *coreapi.HCPOpenShiftCluste
 				// Use Ptr (not PtrOrNil) to ensure int32 zero value is preserved in JSON response.
 				Replicas:                metadataapi.Ptr(from.Properties.Replicas),
 				NodeDrainTimeoutMinutes: from.Properties.NodeDrainTimeoutMinutes,
-				Status:                  newResourceStatus(from.Status.Conditions),
+				Status:                  metadataapi.PtrOrNil(newNodePoolResourceStatus(&from.Status)),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},
@@ -353,4 +353,13 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *coreapi.HCPOpenShiftCluste
 	}
 
 	return out
+}
+
+func newNodePoolResourceStatus(from *coreapi.HCPOpenShiftClusterNodePoolStatus) generated.ResourceStatus {
+	if from == nil {
+		return generated.ResourceStatus{}
+	}
+	return generated.ResourceStatus{
+		Conditions: newConditions(from.UserFacingConditions),
+	}
 }

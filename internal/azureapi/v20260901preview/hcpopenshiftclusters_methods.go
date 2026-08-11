@@ -261,14 +261,35 @@ func newKmsKey(from *coreapi.KmsKey) generated.KmsKey {
 }
 
 func newConditions(from []metav1.Condition) []*generated.Condition {
-	// TODO (bvesel): propose a method for how we want to translate our internal metav1.Conditions type to this external
-	// type.  Until then, we'll plumb it with empty data.
-	return []*generated.Condition{}
+	if from == nil {
+		return nil
+	}
+
+	out := make([]*generated.Condition, 0, len(from))
+	for i := range from {
+		c := from[i]
+		cond := &generated.Condition{
+			Type:    metadataapi.Ptr(generated.ConditionType(c.Type)),
+			Status:  metadataapi.Ptr(generated.StatusType(c.Status)),
+			Reason:  metadataapi.Ptr(c.Reason),
+			Message: metadataapi.Ptr(c.Message),
+		}
+		if !c.LastTransitionTime.IsZero() {
+			t := c.LastTransitionTime.Time
+			cond.LastTransitionTime = &t
+		}
+		out = append(out, cond)
+	}
+
+	return out
 }
 
-func newResourceStatus(from []metav1.Condition) *generated.ResourceStatus {
-	return &generated.ResourceStatus{
-		Conditions: newConditions(from),
+func newClusterResourceStatus(from *coreapi.HCPOpenShiftClusterStatus) generated.ResourceStatus {
+	if from == nil {
+		return generated.ResourceStatus{}
+	}
+	return generated.ResourceStatus{
+		Conditions: newConditions(from.UserFacingConditions),
 	}
 }
 
@@ -379,7 +400,7 @@ func (v version) NewHCPOpenShiftCluster(from *coreapi.HCPOpenShiftCluster) corea
 				ClusterImageRegistry:    metadataapi.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
 				Etcd:                    metadataapi.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
-				Status:                  newResourceStatus(from.Status.Conditions),
+				Status:                  metadataapi.PtrOrNil(newClusterResourceStatus(&from.Status)),
 				CryptoRestrictions:      metadataapi.PtrOrNil(generated.CryptoRestrictions(from.CustomerProperties.CryptoRestrictions)),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
