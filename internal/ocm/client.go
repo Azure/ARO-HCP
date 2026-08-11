@@ -31,7 +31,6 @@ import (
 
 // CS cluster property keys and values used in the Cluster Service API.
 const (
-	CSPropertyProvisionShardID = "provision_shard_id"
 	CSPropertyNoopProvision    = "provisioner_noop_provision"
 	CSPropertyNoopDeprovision  = "provisioner_noop_deprovision"
 	CSPropertySingleReplica    = "hosted_cluster_single_replica"
