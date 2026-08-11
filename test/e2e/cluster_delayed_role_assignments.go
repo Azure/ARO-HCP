@@ -49,12 +49,11 @@ var _ = Describe("ARO HCP Service", func() {
 				customerVnetSubnetName = "customer-vnet-subnet1"
 				customerClusterName    = "delayed-rbac-cluster"
 
-				// Cluster creation takes longer than the default 20m because this
-				// test deliberately delays role assignments by consistentlyLoopDuration,
-				// causing CS to retry inflight checks until RBAC propagates. Todd Wolff
-				// observed ~28.5m in manual runs (PR #4760); 45m gives headroom for
-				// variable Azure RBAC propagation and CI load.
-				clusterCreationTimeout   = 45 * time.Minute
+				// This test needs extra time beyond the default because it deliberately
+				// delays role assignments: 3m Consistently check + ~0.5m RBAC deployment
+				// + up to ~4m for CS retry and Azure RBAC propagation. Observed max delta
+				// over 24 CI runs is ~15m; 16m provides a small buffer.
+				clusterCreationTimeout   = framework.ClusterCreationTimeout + 16*time.Minute
 				consistentlyLoopDuration = 3 * time.Minute
 			)
 			tc := framework.NewTestContext()
