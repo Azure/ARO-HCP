@@ -64,7 +64,7 @@ func NewCollector(cfg *config.Config, logger *slog.Logger,
 
 	if len(sources) == 0 {
 		sources = []QuotaSource{
-			NewRoleAssignmentSource(cfg.Tenants),
+			NewRoleAssignmentSource(),
 			&ComputeQuotaSource{},
 			&NetworkQuotaSource{},
 		}
