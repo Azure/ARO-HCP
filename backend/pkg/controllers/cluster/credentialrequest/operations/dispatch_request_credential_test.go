@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -164,9 +165,16 @@ func TestDispatchRequestCredential_SynchronizeOperation(t *testing.T) {
 			db, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tc.resources)
 			require.NoError(t, err)
 
+			var clusters []*coreapi.HCPOpenShiftCluster
+			for _, r := range tc.resources {
+				if c, ok := r.(*coreapi.HCPOpenShiftCluster); ok {
+					clusters = append(clusters, c)
+				}
+			}
 			syncer := &dispatchRequestCredential{
 				clock:             fakeClock,
 				resourcesDBClient: db,
+				clusterLister:     &corelistertesting.SliceClusterLister{Clusters: clusters},
 			}
 
 			key := controllerutils.OperationKey{

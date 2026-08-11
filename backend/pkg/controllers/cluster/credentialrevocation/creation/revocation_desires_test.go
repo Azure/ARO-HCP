@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -80,8 +81,13 @@ func TestRevocationDesires_SyncOnce(t *testing.T) {
 			db := corecosmosstoragetesting.NewMockResourcesDBClient()
 			tc.setupDB(db)
 
+			var clusters []*coreapi.HCPOpenShiftCluster
+			if c, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName); err == nil {
+				clusters = append(clusters, c)
+			}
 			syncer := &revocationDesires{
 				resourcesDBClient: db,
+				clusterLister:     &corelistertesting.SliceClusterLister{Clusters: clusters},
 			}
 
 			err := syncer.SyncOnce(ctx, testKey)

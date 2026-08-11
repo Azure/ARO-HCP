@@ -42,6 +42,7 @@ import (
 type desiresCreator struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
+	clusterLister                corelisters.ClusterLister
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	applyDesireLister            dblisters.ApplyDesireLister
 	readDesireLister             dblisters.ReadDesireLister
@@ -64,6 +65,7 @@ func NewDesiresCreatorController(
 	backendInformers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
+	_, clusterLister := backendInformers.Clusters()
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
@@ -71,6 +73,7 @@ func NewDesiresCreatorController(
 	syncer := &desiresCreator{
 		resourcesDBClient:            resourcesDBClient,
 		kubeApplierDBClients:         kubeApplierDBClients,
+		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		applyDesireLister:            applyDesireLister,
 		readDesireLister:             readDesireLister,
@@ -103,7 +106,7 @@ func (c *desiresCreator) needsWork(cluster *coreapi.HCPOpenShiftCluster, cred *c
 func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
 	}

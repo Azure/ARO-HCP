@@ -28,12 +28,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type operationRevokeCredentialsPoll struct {
 	clock              utilsclock.PassiveClock
 	resourcesDBClient  corecosmosstorage.ResourcesDBClient
+	clusterLister      corelisters.ClusterLister
 	notificationClient *http.Client
 }
 
@@ -47,12 +49,14 @@ type operationRevokeCredentialsPoll struct {
 func NewOperationRevokeCredentialsPollController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	clusterLister corelisters.ClusterLister,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationRevokeCredentialsPoll{
 		clock:              clock,
 		resourcesDBClient:  resourcesDBClient,
+		clusterLister:      clusterLister,
 		notificationClient: notificationClient,
 	}
 
@@ -117,11 +121,15 @@ func (c *operationRevokeCredentialsPoll) SynchronizeOperation(ctx context.Contex
 
 	// The revocation document is gone: revocation is complete. Clear the cluster
 	// sentinel and mark the operation Succeeded.
-	cluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
+	cachedCluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
 	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 		return utils.TrackError(err)
 	}
-	if err == nil && cluster.ServiceProviderProperties.RevokeCredentialsOperationID == operation.OperationID.Name {
+	if err == nil && cachedCluster.ServiceProviderProperties.RevokeCredentialsOperationID == operation.OperationID.Name {
+		cluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
+		if err != nil {
+			return utils.TrackError(err)
+		}
 		clusterReplacement := cluster.DeepCopy()
 		clusterReplacement.ServiceProviderProperties.RevokeCredentialsOperationID = ""
 		if _, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Replace(ctx, clusterReplacement, nil); err != nil {

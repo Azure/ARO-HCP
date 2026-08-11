@@ -27,12 +27,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type dispatchRevokeCredentials struct {
 	clock             utilsclock.PassiveClock
 	resourcesDBClient corecosmosstorage.ResourcesDBClient
+	clusterLister     corelisters.ClusterLister
 }
 
 // NewDispatchRevokeCredentialsController returns a Controller that handles the
@@ -53,11 +55,13 @@ type dispatchRevokeCredentials struct {
 func NewDispatchRevokeCredentialsController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	clusterLister corelisters.ClusterLister,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &dispatchRevokeCredentials{
 		clock:             clock,
 		resourcesDBClient: resourcesDBClient,
+		clusterLister:     clusterLister,
 	}
 
 	controller := controllerutils.NewGenericOperationController(
@@ -99,7 +103,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 		return nil
 	}
 
-	cluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
+	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}

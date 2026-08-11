@@ -476,11 +476,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	adminCredentialsDispatchRequestCredentialController := credentialrequestoperations.NewDispatchRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
+		clusterLister,
 		activeOperationInformer,
 	)
 	adminCredentialsDispatchRevokeCredentialsController := credentialrevocationoperations.NewDispatchRevokeCredentialsController(
 		b.clock,
 		b.options.ResourcesDBClient,
+		clusterLister,
 		activeOperationInformer,
 	)
 	adminCredentialsOperationRequestCredentialPollController := credentialrequestoperations.NewOperationRequestCredentialPollController(
@@ -492,6 +494,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	adminCredentialsOperationRevokeCredentialsPollController := credentialrevocationoperations.NewOperationRevokeCredentialsPollController(
 		b.clock,
 		b.options.ResourcesDBClient,
+		clusterLister,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
