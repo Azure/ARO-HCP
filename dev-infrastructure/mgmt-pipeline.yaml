@@ -612,6 +612,23 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: kube-state-metrics-crs
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    timeout: 5m
+    releaseName: 'kube-state-metrics-crs'
+    releaseNamespace: 'prometheus'
+    chartDir: ../observability/kube-state-metrics/deploy
+    valuesFile: ../observability/kube-state-metrics/values-mgmt.yaml
+    dependsOn:
+    - resourceGroup: management
+      step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: cleanup-prometheus-pvc
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell

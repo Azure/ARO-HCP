@@ -74,6 +74,7 @@ ignore:
 - 'observability/arobit/deploy/templates/forwarder-servicemonitor.yaml'
 - 'observability/prometheus/deploy/templates/prometheus.podmonitor.yaml'
 - 'tooling/aro-hcp-exporter/deploy/templates/servicemonitor.yaml'
+- 'observability/kube-state-metrics/deploy/templates/servicemonitor.yaml'
 - 'velero/deploy/templates/node-agent-podmonitor.yaml'
 - 'velero/deploy/templates/velero-podmonitor.yaml'
 rules:
