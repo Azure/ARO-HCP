@@ -53,7 +53,6 @@ var _ controllerutils.SystemAdminCredentialRevocationSyncer = (*revocationDesire
 // the CRR for confirmation and marking the revocation complete is handled by the
 // separate revocation-completion controller.
 func NewRevocationDesiresController(
-	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	backendInformers coreinformers.BackendInformers,

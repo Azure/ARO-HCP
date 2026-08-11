@@ -501,20 +501,17 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	adminCredentialsIssuanceObserverController := credentialrequestcreation.NewIssuanceObserverController(
 		b.clock,
 		b.options.ResourcesDBClient,
-		activeOperationLister,
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
 	adminCredentialsDesiresCreatorController := credentialrequestcreation.NewDesiresCreatorController(
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
 	adminCredentialsPostIssuanceCleanupController := credentialrequestdeletion.NewPostIssuanceCleanupController(
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		backendInformers,
@@ -522,12 +519,10 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	adminCredentialsRevokedGCController := credentialrequestdeletion.NewRevokedGCController(
 		b.clock,
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		backendInformers,
 	)
 	adminCredentialsClusterDeletionCleanupController := credentialrequestdeletion.NewClusterDeletionCleanupController(
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		backendInformers,
@@ -535,12 +530,10 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	systemAdminCredentialRevocationMarkRequestsController := credentialrevocationcreation.NewRevocationMarkRequestsController(
 		b.clock,
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		backendInformers,
 	)
 	systemAdminCredentialRevocationDesiresController := credentialrevocationcreation.NewRevocationDesiresController(
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		backendInformers,
@@ -550,14 +543,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	systemAdminCredentialRevocationCompletionController := credentialrevocationdeletion.NewRevocationCompletionController(
 		b.clock,
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
 	systemAdminCredentialRevocationDeletionController := credentialrevocationdeletion.NewRevocationDeletionController(
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		backendInformers,

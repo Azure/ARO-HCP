@@ -54,7 +54,6 @@ var _ controllerutils.SystemAdminCredentialRequestSyncer = (*credentialRequestDe
 // The desire teardown is performed by the shared deleteDesires helper, which is
 // also used by the post-issuance-cleanup and revocation-deletion controllers.
 func NewClusterDeletionCleanupController(
-	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	backendInformers coreinformers.BackendInformers,

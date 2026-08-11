@@ -58,7 +58,6 @@ var _ controllerutils.SystemAdminCredentialRequestSyncer = (*desiresCreator)(nil
 // ReadDesire listers before writing so it skips the create entirely when a desire
 // already exists with the desired content.
 func NewDesiresCreatorController(
-	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	backendInformers coreinformers.BackendInformers,
@@ -132,6 +131,7 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 	// return and wait to be retriggered.
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
+		logger.Info("ServiceProviderCluster not found, waiting")
 		return nil
 	}
 	if err != nil {
@@ -139,6 +139,7 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 	}
 	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 	if mcResourceID == nil {
+		logger.Info("ServiceProviderCluster has no ManagementClusterResourceID, waiting")
 		return nil
 	}
 
@@ -150,6 +151,7 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 
 	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if kubeApplierClient == nil {
+		logger.Info("kube-applier client not available for management cluster, waiting", "managementCluster", mcResourceID.String())
 		return nil
 	}
 
