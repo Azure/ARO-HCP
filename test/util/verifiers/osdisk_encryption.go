@@ -16,6 +16,7 @@ package verifiers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -66,7 +67,7 @@ func (v verifyVMOSDiskCustomerEncryption) Verify(ctx context.Context, _ *rest.Co
 		}
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("OS disk encryption verification failed for %d/%d VMs: %v", len(errs), len(workerVMs), errs)
+		return fmt.Errorf("OS disk encryption verification failed for %d/%d VMs: %w", len(errs), len(workerVMs), errors.Join(errs...))
 	}
 	return nil
 }
