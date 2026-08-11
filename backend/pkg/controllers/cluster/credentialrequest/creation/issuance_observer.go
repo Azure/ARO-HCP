@@ -143,6 +143,9 @@ func (c *issuanceObserver) observeCSR(
 	replacement.Status.SignedCertificate = signedCert
 
 	_, err = credCRUD.Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to update credential to Issued: %w", err))
 	}
@@ -166,6 +169,9 @@ func (c *issuanceObserver) failCredential(
 	})
 
 	_, err := credCRUD.Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to update credential to Failed: %w", err))
 	}

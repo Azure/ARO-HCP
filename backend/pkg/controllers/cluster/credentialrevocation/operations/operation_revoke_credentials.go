@@ -132,7 +132,11 @@ func (c *operationRevokeCredentialsPoll) SynchronizeOperation(ctx context.Contex
 		}
 		clusterReplacement := cluster.DeepCopy()
 		clusterReplacement.ServiceProviderProperties.RevokeCredentialsOperationID = ""
-		if _, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Replace(ctx, clusterReplacement, nil); err != nil {
+		_, err = c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Replace(ctx, clusterReplacement, nil)
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to clear RevokeCredentialsOperationID: %w", err))
 		}
 	}

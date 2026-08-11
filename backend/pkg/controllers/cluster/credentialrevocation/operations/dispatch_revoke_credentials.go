@@ -160,7 +160,11 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	}
 	replacement.Status = coreapi.ProvisioningStateDeleting
 	replacement.LastTransitionTime = c.clock.Now()
-	if _, err := c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil); err != nil {
+	_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(err) {
+		return nil
+	}
+	if err != nil {
 		return utils.TrackError(err)
 	}
 
