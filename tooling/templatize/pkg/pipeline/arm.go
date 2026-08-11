@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/ARO-Tools/pipelines/types"
 	"github.com/Azure/ARO-Tools/tools/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -58,7 +60,13 @@ func newArmClient(subscriptionID, region string, bicepClient *bicep.LSPClient) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to get credentials: %w", err)
 	}
-	deploymentClient, err := armresources.NewDeploymentsClient(subscriptionID, cred, nil)
+	deploymentClient, err := armresources.NewDeploymentsClient(subscriptionID, cred, &azcorearm.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			PerCallPolicies: []policy.Policy{
+				newLROPollerRetryDeploymentNotFoundPolicy(),
+			},
+		},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deployment client: %w", err)
 	}
