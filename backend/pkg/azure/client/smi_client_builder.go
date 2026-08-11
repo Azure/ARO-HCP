@@ -80,7 +80,7 @@ func (b *serviceManagedIdentityClientBuilder) credentialsForServiceManagedIdenti
 	}
 	resp, err := miDataplaneClient.GetUserAssignedIdentitiesCredentials(ctx, dataplaneRequest)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(fmt.Errorf("failed to get user assigned identities credentials: %w", err))
 	}
 	if len(resp.ExplicitIdentities) == 0 {
 		return nil, utils.TrackError(fmt.Errorf("managed identities data plane returned no credentials for the cluster's service managed identity '%s'", smiResourceID.String()))
@@ -92,7 +92,7 @@ func (b *serviceManagedIdentityClientBuilder) credentialsForServiceManagedIdenti
 func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error) {
 	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(fmt.Errorf("failed to get credentials for service managed identity: %w", err))
 	}
 	return armmsi.NewUserAssignedIdentitiesClient(subscriptionID, creds, b.azCoreARMClientOptions)
 }
@@ -112,7 +112,7 @@ func (b *serviceManagedIdentityClientBuilder) NetworkSecurityGroupsClient(ctx co
 	}
 
 	// We instantiate the SecurityGroupsClient using the
-	// the credentials we obtained from the Managed Identities Data Plane Service.
+	// credentials we obtained from the Managed Identities Data Plane Service.
 	return armnetwork.NewSecurityGroupsClient(subscriptionID, creds, b.azCoreARMClientOptions)
 }
 

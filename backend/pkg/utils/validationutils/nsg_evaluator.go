@@ -47,96 +47,174 @@ type NSGSecurityRule struct {
 	DestinationPortRanges      []string
 }
 
+// requiredNSGPath is traffic that must not be blocked by an uncompensated Deny rule.
+type requiredNSGPath struct {
+	worker      netip.Prefix
+	workerCIDR  string
+	destination netip.Prefix
+	destCIDR    string
+	port        int32
+}
+
 // validateOutboundNSGRules validates outbound NSG rules so worker nodes
 // can reach the control plane (typically TCP 443/6443; see outboundNSGPorts).
 //
 // workerSubnetCIDRs are the worker (node-pool or cluster) address spaces that
 // originate egress. destinationCIDRs are the address spaces those workers must
-// reach for KAS (cluster machine subnet and, when present, vnet-integration).
-// Denys from workers to those destinations, or Any→Any covering the ports, are
-// treated as blocking KAS access.
-//
-//  1. Broad Deny (source Any → destination Any covering the ports) fails unless a
-//     higher-priority Allow covers the denied traffic (including Allow Any→Any).
-//  2. Deny whose source can match a worker and whose destination overlaps any
-//     destinationCIDR (the subnet itself, any IP inside it, or VirtualNetwork):
-//     requires a higher-priority Allow that permits that worker traffic to the
-//     denied destination (specific CIDR/IP/tag, or Allow Any).
+// reach for KAS (cluster machine subnet).
 func (v *AzureCustomerNSGValidation) validateOutboundNSGRules(rules []NSGSecurityRule, workerSubnetCIDRs, destinationCIDRs []string, ports []int32) error {
-	workerSubnets, err := parsePrefixes(workerSubnetCIDRs, "worker subnet")
+	paths, err := buildRequiredNSGPaths(workerSubnetCIDRs, "worker subnet", destinationCIDRs, "destination subnet", ports)
 	if err != nil {
 		return err
 	}
-	destinations, err := parsePrefixes(destinationCIDRs, "destination subnet")
-	if err != nil {
-		return err
-	}
-	sorted := sortByPriority(rules)
-	if err := validateBroadDenyAnyAny(sorted, workerSubnets, ports); err != nil {
-		return err
-	}
-	for i, dest := range destinations {
-		if err := validateDenyOverlappingSubnet(sorted, workerSubnets, dest, destinationCIDRs[i], ports); err != nil {
-			return err
-		}
-	}
-	return nil
+	return validateRequiredNSGPaths(rules, paths, nsgDirectionOutbound)
 }
 
 // validateInboundNSGRules validates inbound NSG rules so
 // traffic from worker nodes toward the vnet integration path used for KAS is
 // not blocked on the given ports (typically TCP 443/8443; see inboundNSGPorts).
-// Fails when an inbound Deny covers any of those ports and matches any of:
-//
-//  1. source Any → destination Any
-//  2. source Any → destination VirtualNetwork / vnet-integration subnet
-//  3. source worker subnet (or VirtualNetwork) → destination Any
-//  4. source worker subnet (or VirtualNetwork) → destination VirtualNetwork / vnet-integration subnet
 //
 // workerSubnetCIDRs identify worker-sourced traffic.
 // vnetIntegrationSubnetCIDRs are the vnet-integration subnet address spaces
 // whose NSG is being evaluated; must be non-empty.
-//
-// A higher-priority Allow that covers the denied traffic (including Allow Any→Any)
-// compensates and the Deny is accepted. Denys that do not match any of the given
-// ports are ignored.
 func (v *AzureCustomerNSGValidation) validateInboundNSGRules(rules []NSGSecurityRule, workerSubnetCIDRs, vnetIntegrationSubnetCIDRs []string, ports []int32) error {
-	workerSubnets, err := parsePrefixes(workerSubnetCIDRs, "worker subnet")
+	paths, err := buildRequiredNSGPaths(workerSubnetCIDRs, "worker subnet", vnetIntegrationSubnetCIDRs, "vnet-integration subnet", ports)
 	if err != nil {
 		return err
 	}
-	vnetIntegrationSubnets, err := parsePrefixes(vnetIntegrationSubnetCIDRs, "vnet-integration subnet")
-	if err != nil {
-		return err
-	}
+	return validateRequiredNSGPaths(rules, paths, nsgDirectionInbound)
+}
 
+type nsgDirection int
+
+const (
+	nsgDirectionOutbound nsgDirection = iota
+	nsgDirectionInbound
+)
+
+func buildRequiredNSGPaths(workerCIDRs []string, workerLabel string, destCIDRs []string, destLabel string, ports []int32) ([]requiredNSGPath, error) {
+	workers, err := parsePrefixes(workerCIDRs, workerLabel)
+	if err != nil {
+		return nil, err
+	}
+	destinations, err := parsePrefixes(destCIDRs, destLabel)
+	if err != nil {
+		return nil, err
+	}
+	paths := make([]requiredNSGPath, 0, len(workers)*len(destinations)*len(ports))
+	for i, worker := range workers {
+		for j, dest := range destinations {
+			for _, port := range ports {
+				paths = append(paths, requiredNSGPath{
+					worker:      worker,
+					workerCIDR:  workerCIDRs[i],
+					destination: dest,
+					destCIDR:    destCIDRs[j],
+					port:        port,
+				})
+			}
+		}
+	}
+	return paths, nil
+}
+
+// validateRequiredNSGPaths checks that every required path is not blocked by an
+// uncompensated Deny rule. Rules are evaluated in Azure priority order; a
+// higher-priority Allow that covers the Deny compensates it.
+func validateRequiredNSGPaths(rules []NSGSecurityRule, paths []requiredNSGPath, direction nsgDirection) error {
 	sorted := sortByPriority(rules)
-	for i := range sorted {
-		deny := &sorted[i]
-		if !isDeny(deny) || !protocolMatchesTCP(deny.Protocol) {
-			continue
+	requiredPorts := requiredPortsFromPaths(paths)
+	for _, path := range paths {
+		for i := range sorted {
+			deny := &sorted[i]
+			if !isDeny(deny) || !protocolMatchesTCP(deny.Protocol) {
+				continue
+			}
+			if !denyMatchesPath(deny, path) {
+				continue
+			}
+			if hasHigherPriorityAllowForDeny(sorted[:i], deny, []int32{path.port}, path.worker) {
+				continue
+			}
+			return pathBlockedError(deny, path, direction, requiredPorts)
 		}
-
-		blockedPorts := matchingPorts(deny.DestinationPortRanges, ports)
-		if len(blockedPorts) == 0 {
-			continue
-		}
-
-		reason := inboundDenyBlocksWorkerToVnetIntegrationKASReason(deny, workerSubnets, vnetIntegrationSubnets)
-		if reason == "" {
-			continue
-		}
-		// Compensate only when Allow covers every worker prefix this Deny actually hits.
-		affected := workerSubnetsAffectedByInboundDeny(deny, workerSubnets, vnetIntegrationSubnets)
-		if hasHigherPriorityAllowForAllSubnets(sorted[:i], deny, blockedPorts, affected) {
-			continue
-		}
-		return fmt.Errorf(
-			"inbound NSG rule %q (priority %d) %s covering ports %s; remove/narrow the Deny",
-			deny.Name, deny.Priority, reason, formatPorts(blockedPorts),
-		)
 	}
 	return nil
+}
+
+func requiredPortsFromPaths(paths []requiredNSGPath) []int32 {
+	if len(paths) == 0 {
+		return nil
+	}
+	seen := make(map[int32]struct{}, len(paths))
+	var ports []int32
+	for _, path := range paths {
+		if _, ok := seen[path.port]; ok {
+			continue
+		}
+		seen[path.port] = struct{}{}
+		ports = append(ports, path.port)
+	}
+	return ports
+}
+
+func denyMatchesPath(deny *NSGSecurityRule, path requiredNSGPath) bool {
+	if !sourceMatchesSubnet(deny.SourceAddressPrefixes, path.worker) {
+		return false
+	}
+	if !destinationOverlapsSubnet(deny.DestinationAddressPrefixes, path.destination) {
+		return false
+	}
+	return portRangesMatch(deny.DestinationPortRanges, path.port)
+}
+
+func pathBlockedError(deny *NSGSecurityRule, path requiredNSGPath, direction nsgDirection, requiredPorts []int32) error {
+	blockedPorts := matchingPorts(deny.DestinationPortRanges, requiredPorts)
+	if len(blockedPorts) == 0 {
+		blockedPorts = []int32{path.port}
+	}
+	portStr := formatPorts(blockedPorts)
+	switch direction {
+	case nsgDirectionOutbound:
+		if isAnyAddressPrefixes(deny.SourceAddressPrefixes) && isAnyAddressPrefixes(deny.DestinationAddressPrefixes) {
+			return fmt.Errorf(
+				"outbound NSG rule %q (priority %d) denies source Any to destination Any covering ports %s; remove/narrow the Deny",
+				deny.Name, deny.Priority, portStr,
+			)
+		}
+		return fmt.Errorf(
+			"outbound NSG rule %q (priority %d) denies egress to a destination overlapping subnet %s covering ports %s; remove/narrow the Deny",
+			deny.Name, deny.Priority, path.destCIDR, portStr,
+		)
+	case nsgDirectionInbound:
+		reason := inboundDenyReason(deny, path)
+		return fmt.Errorf(
+			"inbound NSG rule %q (priority %d) %s covering ports %s; remove/narrow the Deny",
+			deny.Name, deny.Priority, reason, portStr,
+		)
+	default:
+		return fmt.Errorf("NSG rule %q (priority %d) blocks required path on port %s", deny.Name, deny.Priority, portStr)
+	}
+}
+
+func inboundDenyReason(deny *NSGSecurityRule, path requiredNSGPath) string {
+	srcAny := isAnyAddressPrefixes(deny.SourceAddressPrefixes)
+	dstAny := isAnyAddressPrefixes(deny.DestinationAddressPrefixes)
+	srcWorker := sourceSpecificallyFromWorker(deny.SourceAddressPrefixes, path.worker)
+	dstVNetOrIntegration := destinationIsVNetOrSubnet(deny.DestinationAddressPrefixes, path.destination)
+
+	switch {
+	case srcAny && dstAny:
+		return "denies source Any to destination Any (blocks worker to vnet-integration)"
+	case srcAny && dstVNetOrIntegration:
+		return "denies source Any to destination VirtualNetwork/vnet-integration subnet (blocks worker to vnet-integration)"
+	case srcWorker && dstAny:
+		return "denies source worker subnet to destination Any (blocks worker to vnet-integration)"
+	case srcWorker && dstVNetOrIntegration:
+		return "denies source worker subnet to destination VirtualNetwork/vnet-integration subnet (blocks worker to vnet-integration)"
+	default:
+		return "denies required worker to vnet-integration traffic"
+	}
 }
 
 func parsePrefixes(cidrs []string, label string) ([]netip.Prefix, error) {
@@ -152,137 +230,6 @@ func parsePrefixes(cidrs []string, label string) ([]netip.Prefix, error) {
 		out = append(out, prefix)
 	}
 	return out, nil
-}
-
-// inboundDenyBlocksWorkerToVnetIntegrationKASReason returns the reason why an inbound Deny blocks worker to vnet-integration/KAS path.
-// If the Deny does not block the path, an empty string is returned.
-func inboundDenyBlocksWorkerToVnetIntegrationKASReason(deny *NSGSecurityRule, workerSubnets, vnetIntegrationSubnets []netip.Prefix) string {
-	srcAny := isAnyAddressPrefixes(deny.SourceAddressPrefixes)
-	dstAny := isAnyAddressPrefixes(deny.DestinationAddressPrefixes)
-	srcWorker := sourceSpecificallyFromAnySubnet(deny.SourceAddressPrefixes, workerSubnets)
-	dstVNetOrIntegration := destinationIsVNetOrAnySubnet(deny.DestinationAddressPrefixes, vnetIntegrationSubnets)
-
-	switch {
-	case srcAny && dstAny:
-		return "denies source Any to destination Any (blocks worker to vnet-integration)"
-	case srcAny && dstVNetOrIntegration:
-		return "denies source Any to destination VirtualNetwork/vnet-integration subnet (blocks worker to vnet-integration)"
-	case srcWorker && dstAny:
-		return "denies source worker subnet to destination Any (blocks worker to vnet-integration)"
-	case srcWorker && dstVNetOrIntegration:
-		return "denies source worker subnet to destination VirtualNetwork/vnet-integration subnet (blocks worker to vnet-integration)"
-	default:
-		return ""
-	}
-}
-
-func sourceSpecificallyFromAnySubnet(prefixes []string, subnets []netip.Prefix) bool {
-	for i := range subnets {
-		if sourceSpecificallyFromWorker(prefixes, subnets[i]) {
-			return true
-		}
-	}
-	return false
-}
-
-// workerSubnetsAffectedByInboundDeny returns the worker prefixes for which the
-// Deny alone would be considered blocking toward the vnet-integration path.
-func workerSubnetsAffectedByInboundDeny(deny *NSGSecurityRule, workerSubnets, vnetIntegrationSubnets []netip.Prefix) []netip.Prefix {
-	affected := make([]netip.Prefix, 0, len(workerSubnets))
-	for _, subnet := range workerSubnets {
-		if inboundDenyBlocksWorkerToVnetIntegrationKASReason(deny, []netip.Prefix{subnet}, vnetIntegrationSubnets) != "" {
-			affected = append(affected, subnet)
-		}
-	}
-	return affected
-}
-
-func destinationIsVNetOrAnySubnet(prefixes []string, subnets []netip.Prefix) bool {
-	for i := range subnets {
-		if destinationIsVNetOrSubnet(prefixes, subnets[i]) {
-			return true
-		}
-	}
-	return false
-}
-
-// validateBroadDenyAnyAny validates outbound NSG rules that deny source Any to
-// destination Any covering the ports. rules must already be sorted by priority.
-// A higher-priority Allow that covers the denied traffic for every worker subnet
-// prefix (including Allow Any→Any) compensates and the Deny is accepted.
-func validateBroadDenyAnyAny(sortedRules []NSGSecurityRule, workerSubnets []netip.Prefix, ports []int32) error {
-	for i := range sortedRules {
-		deny := &sortedRules[i]
-		if !isDeny(deny) || !protocolMatchesTCP(deny.Protocol) {
-			continue
-		}
-		if !isAnyAddressPrefixes(deny.SourceAddressPrefixes) || !isAnyAddressPrefixes(deny.DestinationAddressPrefixes) {
-			continue
-		}
-		blockedPorts := matchingPorts(deny.DestinationPortRanges, ports)
-		if len(blockedPorts) == 0 {
-			continue
-		}
-		if hasHigherPriorityAllowForAllSubnets(sortedRules[:i], deny, blockedPorts, workerSubnets) {
-			continue
-		}
-		return fmt.Errorf(
-			"outbound NSG rule %q (priority %d) denies source Any to destination Any covering ports %s; remove/narrow the Deny",
-			deny.Name, deny.Priority, formatPorts(blockedPorts),
-		)
-	}
-	return nil
-}
-
-// validateDenyOverlappingSubnet validates outbound Denys whose destination
-// overlaps dest (a KAS destination prefix). rules must already be sorted by
-// priority. Only Denys whose source can match a worker are considered; Allow
-// compensation is evaluated against those workers.
-func validateDenyOverlappingSubnet(sortedRules []NSGSecurityRule, workerSubnets []netip.Prefix, dest netip.Prefix, destinationCIDR string, ports []int32) error {
-	for i := range sortedRules {
-		deny := &sortedRules[i]
-		if !isDeny(deny) || !protocolMatchesTCP(deny.Protocol) {
-			continue
-		}
-		if !destinationOverlapsSubnet(deny.DestinationAddressPrefixes, dest) {
-			continue
-		}
-		blockedPorts := matchingPorts(deny.DestinationPortRanges, ports)
-		if len(blockedPorts) == 0 {
-			continue
-		}
-		affected := make([]netip.Prefix, 0, len(workerSubnets))
-		for _, worker := range workerSubnets {
-			if sourceMatchesSubnet(deny.SourceAddressPrefixes, worker) {
-				affected = append(affected, worker)
-			}
-		}
-		if len(affected) == 0 {
-			continue
-		}
-		if hasHigherPriorityAllowForAllSubnets(sortedRules[:i], deny, blockedPorts, affected) {
-			continue
-		}
-		return fmt.Errorf(
-			"outbound NSG rule %q (priority %d) denies egress to a destination overlapping subnet %s covering ports %s; remove/narrow the Deny",
-			deny.Name, deny.Priority, destinationCIDR, formatPorts(blockedPorts),
-		)
-	}
-	return nil
-}
-
-// hasHigherPriorityAllowForAllSubnets reports whether a higher-priority Allow
-// covers the Deny for every given worker subnet prefix.
-func hasHigherPriorityAllowForAllSubnets(higherPriorityRules []NSGSecurityRule, deny *NSGSecurityRule, ports []int32, workerSubnets []netip.Prefix) bool {
-	if len(workerSubnets) == 0 {
-		return false
-	}
-	for _, subnet := range workerSubnets {
-		if !hasHigherPriorityAllowForDeny(higherPriorityRules, deny, ports, subnet) {
-			return false
-		}
-	}
-	return true
 }
 
 // hasHigherPriorityAllowForDeny reports whether a higher-priority Allow covers

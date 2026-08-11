@@ -417,7 +417,60 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 		require.Contains(t, err.Error(), clusterSubnet)
 	})
 
-	t.Run("Deny worker subnet to vnet-integration fails", func(t *testing.T) {
+	t.Run("outbound Denys to SWIFT are ignored when destinations are cluster only", func(t *testing.T) {
+		t.Parallel()
+		npSubnet := "10.0.2.0/24"
+		clusterSubnet := "10.0.0.0/24"
+		swiftSubnet := "10.0.1.0/24"
+		swiftIP := "10.0.1.4"
+
+		cases := []struct {
+			name string
+			rule NSGSecurityRule
+		}{
+			{
+				name: "Any to SWIFT subnet",
+				rule: NSGSecurityRule{
+					Name: "DenyAnyToSwift", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+					SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{swiftSubnet},
+					DestinationPortRanges: []string{"443", "6443"},
+				},
+			},
+			{
+				name: "worker to SWIFT subnet",
+				rule: NSGSecurityRule{
+					Name: "DenyWorkerToSwift", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+					SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{swiftSubnet},
+					DestinationPortRanges: []string{"443", "6443"},
+				},
+			},
+			{
+				name: "Any to SWIFT IP",
+				rule: NSGSecurityRule{
+					Name: "DenyAnyToSwiftIP", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+					SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{swiftIP},
+					DestinationPortRanges: []string{"443", "6443"},
+				},
+			},
+			{
+				name: "worker to SWIFT IP",
+				rule: NSGSecurityRule{
+					Name: "DenyWorkerToSwiftIP", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+					SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{swiftIP},
+					DestinationPortRanges: []string{"443", "6443"},
+				},
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				require.NoError(t, v.validateOutboundNSGRules([]NSGSecurityRule{tc.rule}, []string{npSubnet}, []string{clusterSubnet}, ports))
+			})
+		}
+	})
+
+	t.Run("Deny worker subnet to vnet-integration is ignored when destinations are cluster only", func(t *testing.T) {
 		t.Parallel()
 		npSubnet := "10.0.2.0/24"
 		clusterSubnet := "10.0.0.0/24"
@@ -427,10 +480,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{integration},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		err := v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet, integration}, ports)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "DenyWorkerToIntegration")
-		require.Contains(t, err.Error(), integration)
+		require.NoError(t, v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports))
 	})
 
 	t.Run("Deny unrelated source to cluster subnet is ignored", func(t *testing.T) {
@@ -445,12 +495,59 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 		}}
 		require.NoError(t, v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports))
 	})
+
+	t.Run("Deny worker subnet to Any fails", func(t *testing.T) {
+		t.Parallel()
+		rules := []NSGSecurityRule{{
+			Name: "DenyWorkerToAny", Priority: 110, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"*"},
+			DestinationPortRanges: []string{"443", "6443"},
+		}}
+		err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "DenyWorkerToAny")
+	})
+
+	t.Run("Deny node-pool subnet to Any fails when destinations are cluster only", func(t *testing.T) {
+		t.Parallel()
+		clusterSubnet := "10.0.0.0/24"
+		npSubnet := "10.0.2.0/24"
+		rules := []NSGSecurityRule{{
+			Name: "DenyNPToAny", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{"*"},
+			DestinationPortRanges: []string{"443", "6443"},
+		}}
+		err := v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "DenyNPToAny")
+	})
+}
+
+func TestValidateOutboundNSGRules_NodePoolSubnet(t *testing.T) {
+	t.Parallel()
+	ports := []int32{443, 6443}
+	npSubnet := "10.0.2.0/24"
+	clusterSubnet := "10.0.0.0/24"
+
+	v := &AzureCustomerNSGValidation{}
+
+	t.Run("Deny Any to Any fails", func(t *testing.T) {
+		t.Parallel()
+		rules := []NSGSecurityRule{{
+			Name: "DenyAnyAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "*",
+			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
+			DestinationPortRanges: []string{"*"},
+		}}
+		err := v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "DenyAnyAny")
+	})
 }
 
 func TestValidateInboundNSGRules(t *testing.T) {
 	t.Parallel()
 	subnet := "10.0.0.0/24"
-	ports := []int32{443, 6443}
+	ports := inboundNSGPorts
 
 	v := &AzureCustomerNSGValidation{}
 
@@ -474,7 +571,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		rules := []NSGSecurityRule{{
 			Name: "DenyAnyToIntegration", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{integration},
-			DestinationPortRanges: []string{"443", "6443"},
+			DestinationPortRanges: []string{"8443", "443"},
 		}}
 		err := v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports)
 		require.Error(t, err)
@@ -503,7 +600,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		rules := []NSGSecurityRule{{
 			Name: "DenyAnyToVNet", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
-			DestinationPortRanges: []string{"443", "6443"},
+			DestinationPortRanges: []string{"8443", "443"},
 		}}
 		err := v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports)
 		require.Error(t, err)
@@ -519,7 +616,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		rules := []NSGSecurityRule{{
 			Name: "DenyAnyToOther", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{other},
-			DestinationPortRanges: []string{"443", "6443"},
+			DestinationPortRanges: []string{"8443", "443"},
 		}}
 		require.NoError(t, v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports))
 	})
@@ -537,7 +634,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			{
 				Name: "DenyAnyToIntegration", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{integration},
-				DestinationPortRanges: []string{"443", "6443"},
+				DestinationPortRanges: []string{"8443", "443"},
 			},
 		}
 		require.NoError(t, v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports))
@@ -575,7 +672,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		rules := []NSGSecurityRule{{
 			Name: "DenyWorkerToIntegration", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{worker}, DestinationAddressPrefixes: []string{integration},
-			DestinationPortRanges: []string{"443", "6443"},
+			DestinationPortRanges: []string{"8443", "443"},
 		}}
 		err := v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports)
 		require.Error(t, err)
@@ -591,9 +688,39 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		rules := []NSGSecurityRule{{
 			Name: "DenyWorkerToOther", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{worker}, DestinationAddressPrefixes: []string{other},
-			DestinationPortRanges: []string{"443", "6443"},
+			DestinationPortRanges: []string{"8443", "443"},
 		}}
 		require.NoError(t, v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports))
+	})
+
+	t.Run("Deny node-pool subnet to Any fails", func(t *testing.T) {
+		t.Parallel()
+		npSubnet := "10.0.2.0/24"
+		integration := "10.0.1.0/24"
+		rules := []NSGSecurityRule{{
+			Name: "DenyNPToAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{"*"},
+			DestinationPortRanges: []string{"8443", "443"},
+		}}
+		err := v.validateInboundNSGRules(rules, []string{npSubnet}, []string{integration}, ports)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "DenyNPToAny")
+		require.Contains(t, err.Error(), "destination Any")
+	})
+
+	t.Run("Deny node-pool subnet to vnet-integration subnet fails", func(t *testing.T) {
+		t.Parallel()
+		npSubnet := "10.0.2.0/24"
+		integration := "10.0.1.0/24"
+		rules := []NSGSecurityRule{{
+			Name: "DenyNPToIntegration", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{integration},
+			DestinationPortRanges: []string{"8443", "443"},
+		}}
+		err := v.validateInboundNSGRules(rules, []string{npSubnet}, []string{integration}, ports)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "DenyNPToIntegration")
+		require.Contains(t, err.Error(), "vnet-integration")
 	})
 
 	t.Run("Deny worker IP to worker subnet fails", func(t *testing.T) {
@@ -691,17 +818,17 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		require.NoError(t, v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports))
 	})
 
-	t.Run("Deny worker to VirtualNetwork on only 6443 fails", func(t *testing.T) {
+	t.Run("Deny worker to VirtualNetwork on only 8443 fails", func(t *testing.T) {
 		t.Parallel()
 		rules := []NSGSecurityRule{{
-			Name: "Deny6443", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+			Name: "Deny8443", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
-			DestinationPortRanges: []string{"6443"},
+			DestinationPortRanges: []string{"8443"},
 		}}
 		err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "Deny6443")
-		require.Contains(t, err.Error(), "6443")
+		require.Contains(t, err.Error(), "Deny8443")
+		require.Contains(t, err.Error(), "8443")
 	})
 
 	t.Run("Deny worker to VirtualNetwork on only 443 fails", func(t *testing.T) {
