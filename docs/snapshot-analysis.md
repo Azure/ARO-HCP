@@ -125,7 +125,7 @@ including the last completed turn.
 
 When analyzing `pull-ci` jobs for a pull request, set `$AZURE_CONFIG_DIR` to
 an `az` login for the Red Hat tenant, and provide `$AZURE_TOKEN_CREDENTIALS`
-as `AzureCLICredentials`. The GitHub Copilot authentication mode will retain
+as `AzureCLICredential`. The GitHub Copilot authentication mode will retain
 whichever credentials are available for the `copilot` CLI, _not_ the Azure
 credentials provided via environment variables for authentication to Kusto,
 etc. This allows authentication to the Red Hat tenant for Kusto queries and
