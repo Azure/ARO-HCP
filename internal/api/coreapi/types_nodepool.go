@@ -124,6 +124,21 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	// The operation node pool create controller uses this value to decide about marking the install as failed.
 	// The e2e tests set this value to one minute less than the default timeout.
 	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
+
+	// MarketplaceImage overrides the default RHCOS image for node pool VMs with
+	// an Azure Marketplace image. Set via the experimental tag
+	// "aro-hcp.experimental.nodepool.marketplace-image" as a URN
+	// (publisher:offer:sku:version). Immutable after creation.
+	// Written by: Frontend PUT NodePool (Create) via admission
+	MarketplaceImage *MarketplaceImage `json:"marketplaceImage,omitempty"`
+}
+
+// MarketplaceImage identifies an Azure Marketplace VM image by its URN components.
+type MarketplaceImage struct {
+	Publisher string `json:"publisher"`
+	Offer     string `json:"offer"`
+	SKU       string `json:"sku"`
+	Version   string `json:"version"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.
