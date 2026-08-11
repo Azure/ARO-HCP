@@ -27,6 +27,7 @@ import (
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 
 // SystemAdminCredentialRevocationSyncer is the interface that revocation-watching controllers must
@@ -52,6 +53,7 @@ func NewSystemAdminCredentialRevocationWatchingController(
 	name string,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	backendInformers coreinformers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer SystemAdminCredentialRevocationSyncer,
 ) Controller {
@@ -68,6 +70,13 @@ func NewSystemAdminCredentialRevocationWatchingController(
 		revocationInformer, _ := backendInformers.SystemAdminCredentialRevocations()
 		err := controller.QueueForInformers(resyncDuration, revocationInformer)
 		if err != nil {
+			panic(err) // coding error
+		}
+	}
+
+	if kubeApplierInformers != nil {
+		readDesireInformer, _ := kubeApplierInformers.ReadDesires()
+		if err := controller.QueueForInformersWithMaxDepth(resyncDuration, 1, readDesireInformer); err != nil {
 			panic(err) // coding error
 		}
 	}

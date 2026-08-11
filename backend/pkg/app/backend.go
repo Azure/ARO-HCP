@@ -541,6 +541,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		backendInformers,
+		unionKubeApplierInformers,
 		unionApplyDesireLister,
 		unionReadDesireLister,
 	)
@@ -549,6 +550,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		b.options.ResourcesDBClient,
 		backendInformers,
+		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
 	systemAdminCredentialRevocationDeletionController := credentialrevocationdeletion.NewRevocationDeletionController(
@@ -556,6 +558,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 
 	operationClusterCreateController := clusteroperations.NewOperationClusterCreateController(
