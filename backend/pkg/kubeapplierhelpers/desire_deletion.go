@@ -16,6 +16,7 @@ package kubeapplierhelpers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -25,22 +26,20 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// deleteDesires tears down every desire the matches predicate selects: each
-// ApplyDesire is flipped to Type=Delete so the kube-applier removes the applied
-// object from the management cluster and, once the delete reports success, the
-// desire document is removed; the matching ReadDesires are then deleted directly.
+// DeleteAllChildDesires tears down every ApplyDesire and ReadDesire under
+// parent. Each ApplyDesire is flipped to Type=Delete so the kube-applier
+// removes the applied object from the management cluster and, once the delete
+// reports success, the desire document is removed; ReadDesires are deleted
+// directly.
 //
-// It returns a slice of human-readable reasons describing what teardown is still
-// waiting for — one entry per desire that has not finished deleting yet. An empty
-// slice means teardown is complete. Callers join the reasons into a single wait
-// message. This helper is shared by the cluster-deletion-cleanup,
-// post-issuance-cleanup, and revocation-deletion controllers.
-func DeleteDesires(
+// It returns a slice of human-readable reasons describing what teardown is
+// still waiting for — one entry per desire that has not finished deleting yet.
+// An empty slice means teardown is complete.
+func DeleteAllChildDesires(
 	ctx context.Context,
 	kubeApplierClient kubeappliercosmosstorage.KubeApplierDBClient,
 	parent DesireParent,
 	subscriptionID, resourceGroupName, hcpClusterName string,
-	matches func(desireName string) bool,
 ) ([]string, error) {
 	applyCRUD, err := parent.applyDesireCRUD(kubeApplierClient, subscriptionID, resourceGroupName, hcpClusterName)
 	if err != nil {
@@ -59,39 +58,45 @@ func DeleteDesires(
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("list ApplyDesires: %w", err))
 	}
+	var errs []error
 	for _, desire := range applyIter.Items(ctx) {
 		desireName := desire.ResourceID.Name
-		if !matches(desireName) {
-			continue
-		}
 		removed, err := removeApplyDesireForDeletion(ctx, desireName, applyCRUD)
 		if err != nil {
-			return nil, err
+			errs = append(errs, utils.TrackError(err))
+			continue
 		}
 		if !removed {
 			waitingFor = append(waitingFor, fmt.Sprintf("ApplyDesire %q", desireName))
 		}
 	}
 	if err := applyIter.GetError(); err != nil {
-		return nil, utils.TrackError(fmt.Errorf("iterate ApplyDesires: %w", err))
+		errs = append(errs, utils.TrackError(fmt.Errorf("iterate ApplyDesires: %w", err)))
+	}
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+	if len(waitingFor) > 0 {
+		return waitingFor, nil
 	}
 
-	// Step 2: delete each matching ReadDesire directly.
+	// Step 2: all ApplyDesires are gone — delete ReadDesires.
 	readIter, err := readCRUD.List(ctx, nil)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("list ReadDesires: %w", err))
 	}
 	for _, desire := range readIter.Items(ctx) {
 		desireName := desire.ResourceID.Name
-		if !matches(desireName) {
-			continue
-		}
 		if err := readCRUD.Delete(ctx, strings.ToLower(desireName)); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-			return nil, utils.TrackError(fmt.Errorf("delete ReadDesire %s: %w", desireName, err))
+			errs = append(errs, utils.TrackError(fmt.Errorf("delete ReadDesire %s: %w", desireName, err)))
+			continue
 		}
 	}
 	if err := readIter.GetError(); err != nil {
-		return nil, utils.TrackError(fmt.Errorf("iterate ReadDesires: %w", err))
+		errs = append(errs, utils.TrackError(fmt.Errorf("iterate ReadDesires: %w", err)))
+	}
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
 	}
 
 	return waitingFor, nil
