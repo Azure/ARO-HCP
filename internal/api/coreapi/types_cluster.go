@@ -182,7 +182,7 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
 
 	// MSIIdentitiesEarliestRecheckTime is the earliest time at which
-	// FetchMSIIdentitiesInfo should re-query the Managed Identities Data Plane
+	// FetchMSIIdentitiesInfo controller should re-query the Managed Identities Data Plane
 	// for ClientID/PrincipalID of Identity.UserAssignedIdentities. Nil means
 	// recheck immediately. The same recheck time applies across all entries in
 	// that map.

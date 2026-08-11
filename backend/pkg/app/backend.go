@@ -36,11 +36,11 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
 	credentialsoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentials/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
@@ -894,7 +894,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
-	fetchMSIIdentitiesInfoController := controllers.NewFetchMSIIdentitiesInfoController(
+	fetchMSIIdentitiesInfoController := clusteridentity.NewFetchMSIIdentitiesInfoController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		backendInformers,
