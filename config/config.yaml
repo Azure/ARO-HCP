@@ -428,7 +428,7 @@ defaults:
     # to chage "" to >- when you add a value.
     grafanaRoles: ""
     crossTenantSecurityGroup: ""
-    grafanaPublicNetworkAccess: "Disabled"
+    grafanaPublicNetworkAccess: "Enabled"
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
     amwScaling:
