@@ -350,6 +350,13 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20240610(
 		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s", resourceGroupName, clusterName), startTime, finishTime)
 	}()
 
+	if OnResourceGroupCreated != nil && parameters.ManagedResourceGroupName != "" {
+		OnResourceGroupCreated(parameters.ManagedResourceGroupName)
+	}
+	if OnHCPClusterCreated != nil && parameters.ClusterName != "" {
+		OnHCPClusterCreated(resourceGroupName, parameters.ClusterName)
+	}
+
 	cluster := BuildHCPClusterFromParams20240610(parameters, tc.Location())
 
 	if _, err := CreateHCPClusterAndWait20240610(

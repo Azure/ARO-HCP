@@ -46,6 +46,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -361,4 +362,42 @@ func GetTestRunnerPublicIP(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("public IP echo service returned invalid IP %q", ip)
 	}
 	return ip, nil
+}
+
+// FetchAdminKubeconfig requests a temporary admin kubeconfig for the named
+// cluster and returns it as a YAML string. It uses the same Azure credentials
+// and client options as the test framework's invocation context, so it can be
+// called from outside a Ginkgo test node (e.g. in the deploy command).
+func FetchAdminKubeconfig(ctx context.Context, subscriptionID, resourceGroupName, clusterName string, timeout time.Duration) (string, error) {
+	creds, err := invocationContext().getAzureCredentials()
+	if err != nil {
+		return "", fmt.Errorf("getting Azure credentials: %w", err)
+	}
+
+	clientFactory, err := hcpsdk20251223preview.NewClientFactory(subscriptionID, creds, invocationContext().getHCPClientFactoryOptions())
+	if err != nil {
+		return "", fmt.Errorf("creating HCP client factory: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout %f minutes exceeded waiting for admin credential for cluster %q in resource group %q", timeout.Minutes(), clusterName, resourceGroupName))
+	defer cancel()
+
+	poller, err := clientFactory.NewHcpOpenShiftClustersClient().BeginRequestAdminCredential(ctx, resourceGroupName, clusterName, nil)
+	if err != nil {
+		return "", fmt.Errorf("starting admin credential request for cluster %q: %w", clusterName, err)
+	}
+
+	result, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: StandardPollInterval})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return "", fmt.Errorf("timed out waiting for admin credential for cluster %q in resource group %q, caused by: %w, error: %w", clusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		return "", fmt.Errorf("waiting for admin credential for cluster %q: %w", clusterName, err)
+	}
+
+	if result.Kubeconfig == nil {
+		return "", fmt.Errorf("admin credential response for cluster %q contained nil kubeconfig", clusterName)
+	}
+
+	return *result.Kubeconfig, nil
 }
