@@ -22,6 +22,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	azurecheckaccessv2client "github.com/Azure/checkaccess-v2-go-sdk/client"
 
@@ -147,7 +148,7 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) roleActionsForOpera
 	if len(roleDefinitionsResourceIDs) == 0 {
 		return nil, utils.TrackError(fmt.Errorf("no role definitions configured for operator identity %q", operatorName))
 	}
-	roleDefinitions, err := fetchRoleDefinitions(ctx, roleDefinitionsResourceIDs, v.backendIdentityAzureCachedReaders)
+	roleDefinitions, err := v.fetchRoleDefinitions(ctx, roleDefinitionsResourceIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -159,11 +160,24 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) roleDataActionsForO
 	if len(roleDefinitionsResourceIDs) == 0 {
 		return nil, nil
 	}
-	roleDefinitions, err := fetchRoleDefinitions(ctx, roleDefinitionsResourceIDs, v.backendIdentityAzureCachedReaders)
+	roleDefinitions, err := v.fetchRoleDefinitions(ctx, roleDefinitionsResourceIDs)
 	if err != nil {
 		return nil, err
 	}
 	return azurehelpers.UnionDataActions(roleDefinitions)
+}
+
+// fetchRoleDefinitions fetches the role definitions for the given resource IDs.
+func (v *ControlPlaneIdentitiesPermissionsClusterValidation) fetchRoleDefinitions(ctx context.Context, resourceIDs []*azcorearm.ResourceID) ([]armauthorization.RoleDefinition, error) {
+	roleDefinitions := make([]armauthorization.RoleDefinition, 0, len(resourceIDs))
+	for _, resourceID := range resourceIDs {
+		response, err := v.backendIdentityAzureCachedReaders.RoleDefinitionsCachedReader.GetCachedByID(ctx, resourceID.String(), nil)
+		if err != nil {
+			return nil, utils.TrackError(fmt.Errorf("failed to get role definition %q: %w", resourceID.String(), err))
+		}
+		roleDefinitions = append(roleDefinitions, response.RoleDefinition)
+	}
+	return roleDefinitions, nil
 }
 
 func (v *ControlPlaneIdentitiesPermissionsClusterValidation) accessTokenForIdentity(ctx context.Context, clusterIdentityURL string, identity *azcorearm.ResourceID) (azcore.AccessToken, error) {
