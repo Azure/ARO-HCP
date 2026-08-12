@@ -51,7 +51,7 @@ func TestBuildApplyDesiresFromSchedules(t *testing.T) {
 
 	veleroSchedules := []*velerov1api.Schedule{}
 	for _, schedule := range schedules {
-		veleroSchedules = append(veleroSchedules, NewScheduledBackup(clusterID, hostedClusterNamespace, controlPlaneNamespace, schedule, false))
+		veleroSchedules = append(veleroSchedules, NewScheduledBackup(clusterID, "", hostedClusterNamespace, controlPlaneNamespace, schedule, false))
 	}
 	desires, err := buildApplyDesiresFromSchedules("test-sub", "test-rg", "test-cluster", managementClusterResourceID, veleroSchedules)
 	require.NoError(t, err)

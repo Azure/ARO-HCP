@@ -162,11 +162,16 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
 
+	kmsKeyFingerprint := ""
+	if cm := cachedCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; cm != nil && cm.Kms != nil && cm.Kms.ActiveKey.Version != "" {
+		kmsKeyFingerprint = backup.AzureKMSKeyFingerprint(cm.Kms.ActiveKey.VaultName, cm.Kms.ActiveKey.Name, cm.Kms.ActiveKey.Version)
+	}
+
 	configSchedules := c.backupConfig.Schedules()
 	schedules := make([]*velerov1.Schedule, 0, len(configSchedules))
 	for _, scheduleConfig := range configSchedules {
 		paused := c.backupConfig.BackupScheduleState == coreapi.BackupScheduleStateDisabled || clusterPaused
-		schedule := NewScheduledBackup(resourceID, hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, paused)
+		schedule := NewScheduledBackup(resourceID, kmsKeyFingerprint, hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, paused)
 		schedules = append(schedules, schedule)
 	}
 

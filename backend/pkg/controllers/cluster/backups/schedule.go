@@ -26,17 +26,22 @@ import (
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 )
 
-func NewScheduledBackup(resourceID, hostedClusterNamespace, controlPlaneNamespace string, backupScheduleConfig BackupScheduleConfig, paused bool) *velerov1api.Schedule {
+func NewScheduledBackup(resourceID, kmsKeyFingerprint, hostedClusterNamespace, controlPlaneNamespace string, backupScheduleConfig BackupScheduleConfig, paused bool) *velerov1api.Schedule {
 	namePrefix := hostedClusterNamespace
 	scheduleName := fmt.Sprintf("%s-%s", namePrefix, backupScheduleConfig.Name)
-	clusterBackup := backup.NewBackup(scheduleName, resourceID, backupScheduleConfig.TTL, hostedClusterNamespace, controlPlaneNamespace)
+	clusterBackup := backup.NewBackup(scheduleName, resourceID, kmsKeyFingerprint, backupScheduleConfig.TTL, hostedClusterNamespace, controlPlaneNamespace)
+	annotations := map[string]string{
+		controllerutils.HcpClusterAzureResourceIdAnnotation: resourceID,
+	}
+	if kmsKeyFingerprint != "" {
+		annotations[controllerutils.HcpClusterKmsKeyFingerprintAnnotation] = kmsKeyFingerprint
+	}
+
 	schedule := builder.ForSchedule("velero", scheduleName).
 		CronSchedule(backupScheduleConfig.Schedule).
 		Template(clusterBackup.Spec).
 		ObjectMeta(func(object metav1.Object) {
-			object.SetAnnotations(map[string]string{
-				controllerutils.HcpClusterAzureResourceIdAnnotation: resourceID,
-			})
+			object.SetAnnotations(annotations)
 		})
 	s := schedule.Result()
 	s.Spec.Paused = paused
