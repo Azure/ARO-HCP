@@ -62,6 +62,18 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
+// OnResourceGroupCreated, when non-nil, is called by framework functions each
+// time a customer or managed resource group is created. It is intended for
+// in-process callers (e.g. the deploy command) that need to collect resource
+// group names. The callback must be concurrency-safe.
+var OnResourceGroupCreated func(name string)
+
+// OnHCPClusterCreated, when non-nil, is called by CreateHCPClusterFromParam*
+// functions with the customer resource group name and cluster name. It is
+// intended for in-process callers (e.g. the deploy command) that need to
+// observe where clusters are deployed. The callback must be concurrency-safe.
+var OnHCPClusterCreated func(resourceGroupName, clusterName string)
+
 type perItOrDescribeTestContext struct {
 	perBinaryInvocationTestContext *perBinaryInvocationTestContext
 
@@ -453,6 +465,9 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 		tc.knownResourceGroups = append(tc.knownResourceGroups, resourceGroupName)
 	}()
 	ginkgo.GinkgoLogr.Info("creating resource group", "resourceGroup", resourceGroupName)
+	if OnResourceGroupCreated != nil {
+		OnResourceGroupCreated(resourceGroupName)
+	}
 
 	if len(tc.perBinaryInvocationTestContext.sharedDir) > 0 {
 		resourceGroupCleanupFilename := filepath.Join(tc.perBinaryInvocationTestContext.sharedDir, "tracked-resource-group_"+resourceGroupName)
@@ -1273,6 +1288,15 @@ func (tc *perItOrDescribeTestContext) SubscriptionID(ctx context.Context) (strin
 
 func (tc *perItOrDescribeTestContext) AzureCredential() (azcore.TokenCredential, error) {
 	return tc.perBinaryInvocationTestContext.getAzureCredentials()
+}
+
+// GetAzureCredentials returns the Azure credential for the current binary
+// invocation. It uses the same credential selection logic as the test
+// framework (CLI, service principal, or default chain depending on env vars)
+// and is safe to call from outside a Ginkgo test context, e.g. in pre/post
+// test setup code in the deploy command.
+func GetAzureCredentials() (azcore.TokenCredential, error) {
+	return invocationContext().getAzureCredentials()
 }
 
 func (tc *perItOrDescribeTestContext) TenantID() string {
