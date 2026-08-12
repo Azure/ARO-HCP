@@ -143,6 +143,15 @@ func (c *controlPlaneInitialVersionSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
+	// Experimental exact-version pin: when the customer pinned an exact control
+	// plane version, use it directly as the desired version and skip
+	// Cincinnati/gateway resolution entirely.
+	if exact := existingCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
+		logger.Info("Using pinned exact control plane version", "exactVersion", exact.String())
+		desiredVersion := *exact
+		return c.reportDesiredVersionResolution(ctx, key, controlPlaneInitialVersionControllerName, cachedServiceProviderCluster, &desiredVersion, nil)
+	}
+
 	cincinnatiClient := c.cincinnatiClientForCluster(ctx, key)
 
 	customerDesiredMinor := existingCluster.CustomerProperties.Version.ID

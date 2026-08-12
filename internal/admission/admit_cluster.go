@@ -87,7 +87,67 @@ func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContex
 	// ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, mutateClusterServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, validation.ToClusterServiceProviderProperties))...)
 
+	// Relocate an exact version supplied through version.id onto the
+	// experimental features. Runs after mutateClusterServiceProviderProperties
+	// (which seeds ExperimentalFeatures from tags) because it needs both the
+	// customer-facing version.id and the service-provider ExperimentalFeatures.
+	errs = append(errs, mutateClusterControlPlaneExactVersion(ctx, admissionContext, op, newObj)...)
+
 	return errs
+}
+
+// mutateClusterControlPlaneExactVersion relocates an exact control plane
+// version that the customer supplied through version.id onto
+// ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion.
+//
+// It only acts when the ExperimentalReleaseFeatures AFEC is registered, the
+// control-plane-exact-version tag is present (its value may be empty — the tag
+// then acts as a bare enable flag), and version.id carries a patch component
+// (e.g. "4.17.3"). In that case version.id is reduced to its
+// "<major>.<minor>" release line and the full version is stored as the exact
+// version. When the tag value itself already carried a full semantic version,
+// mutateClusterExperimentalFeatures has set the field; a patch-bearing
+// version.id takes precedence and overwrites it here.
+//
+// Tags are read from admissionContext.OriginalCluster (the pre-mutation source
+// of truth) while version.id is read from and written back to the object being
+// mutated. Malformed version.id values are left untouched so the parse error is
+// reported once by static validation rather than duplicated here.
+func mutateClusterControlPlaneExactVersion(_ context.Context, admissionContext *ClusterAdmissionContext, _ operation.Operation, newObj *coreapi.HCPOpenShiftCluster) field.ErrorList {
+	subscription := admissionContext.Subscription
+	if subscription == nil || !subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures) {
+		return nil
+	}
+
+	var tags map[string]string
+	if admissionContext.OriginalCluster != nil {
+		tags = admissionContext.OriginalCluster.Tags
+	}
+	if !hasTag(tags, metadataapi.TagClusterControlPlaneExactVersion) {
+		return nil
+	}
+
+	versionID := newObj.CustomerProperties.Version.ID
+	if len(versionID) == 0 {
+		return nil
+	}
+	// Only relocate when version.id carries a patch component (e.g. "4.17.3");
+	// a bare "<major>.<minor>" has nothing to move.
+	if len(strings.SplitN(versionID, ".", 3)) < 3 {
+		return nil
+	}
+	parsed, err := semver.ParseTolerant(versionID)
+	if err != nil {
+		return nil
+	}
+	majorMinor, err := versionMajorMinor(versionID)
+	if err != nil {
+		return nil
+	}
+
+	newObj.CustomerProperties.Version.ID = majorMinor
+	newObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &parsed
+	return nil
 }
 
 // mutateClusterServiceProviderProperties applies mutations that live on the
@@ -141,7 +201,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxDeletionDuration)
+	knownTags := sets.New(metadataapi.TagClusterSingleReplica, metadataapi.TagClusterSizeOverride, metadataapi.TagClusterCPOImageOverride, metadataapi.TagClusterControlPlaneExactVersion, metadataapi.TagClusterMaxCreationDuration, metadataapi.TagClusterMaxDeletionDuration)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), metadataapi.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -190,6 +250,24 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 		}
 	}
 
+	// The exact-version tag may pin the control plane to a full semantic
+	// version directly through its value. A non-empty value must be a valid
+	// semantic version. The tag may also be supplied with an empty value to
+	// act purely as an enable flag, in which case the exact version is taken
+	// from the cluster's version.id by mutateClusterControlPlaneExactVersion.
+	exactVersionValue := lookupTag(tags, metadataapi.TagClusterControlPlaneExactVersion)
+	if exactVersionValue != "" {
+		parsed, err := semver.Parse(exactVersionValue)
+		if err != nil {
+			errs = append(errs, field.Invalid(
+				tagsPath.Key(metadataapi.TagClusterControlPlaneExactVersion), exactVersionValue,
+				"must be a valid semantic version (e.g. \"4.17.3\")",
+			))
+		} else {
+			experimentalFeatures.ControlPlaneExactVersion = &parsed
+		}
+	}
+
 	if len(errs) > 0 {
 		return errs
 	}
@@ -207,6 +285,19 @@ func lookupTag(tags map[string]string, key string) string {
 		}
 	}
 	return ""
+}
+
+// hasTag reports whether the given tag key is present (case-insensitive),
+// regardless of its value. Unlike lookupTag it distinguishes an empty-valued
+// tag from an absent one, which the exact-version relocation relies on to treat
+// the tag as a bare enable flag.
+func hasTag(tags map[string]string, key string) bool {
+	for k := range tags {
+		if strings.EqualFold(k, key) {
+			return true
+		}
+	}
+	return false
 }
 
 const defaultCreateOperationCompletionDeadlineDuration = 60 * time.Minute
