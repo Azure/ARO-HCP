@@ -1,7 +1,6 @@
 #!/bin/bash
-# Provision a baseline ARO HCP environment from the base branch.
-# Used as the first phase of upgrade-path validation: the environment
-# is created from main, then upgraded to the PR branch in a subsequent step.
+# Provision an ARO HCP environment from a published main-branch revision.
+# Used for upgrade baselines and periodic regional provisioning healthchecks.
 #
 # Called by the aro-hcp-provision-from-main step-registry wrapper.
 # Callers must set: CLUSTER_PROFILE_DIR, ARO_HCP_DEPLOY_ENV, SHARED_DIR,
@@ -13,27 +12,29 @@ set -o pipefail
 # shellcheck source=hack/ci/az-login.sh
 source "$(dirname "$0")/az-login.sh"
 
-# Check out the base branch to provision the baseline environment.
-# The container has the PR merge commit baked in; we rewind to the base
-# so Bicep templates, Helm charts, config, and pipeline definitions all
-# come from what the PR is being merged into.
+# Check out the main-branch revision to provision.
+# Presubmits rewind the PR merge commit to its base, while periodics and
+# rehearsals fetch main because they do not have an ARO-HCP PULL_BASE_SHA.
 #
-# Prow sets PULL_BASE_SHA to the exact base-branch commit used for the
-# merge. That commit is already in the local clone, so no fetch needed.
-# Rehearsal runs (JOB_NAME prefixed with "rehearse-") fetch main
-# explicitly, since PULL_BASE_SHA belongs to the openshift/release repo.
+# Prow sets PULL_BASE_SHA to the exact base-branch commit used for a
+# presubmit merge. That commit is already in the local clone, so no fetch
+# is needed. Periodic and rehearsal runs fetch main explicitly.
 IS_REHEARSAL=false
 if [[ "${JOB_NAME:-}" == rehearse-* ]]; then
   IS_REHEARSAL=true
 fi
 
-if [[ "${IS_REHEARSAL}" == "true" ]]; then
-  echo "Rehearsal detected (JOB_NAME=${JOB_NAME:-unset}), fetching main ..."
+if [[ "${IS_REHEARSAL}" == "true" || "${JOB_TYPE:-}" == "periodic" ]]; then
+  if [[ "${IS_REHEARSAL}" == "true" ]]; then
+    echo "Rehearsal detected (JOB_NAME=${JOB_NAME:-unset}), fetching main ..."
+  else
+    echo "Periodic job detected (JOB_NAME=${JOB_NAME:-unset}), fetching main ..."
+  fi
   git fetch https://github.com/Azure/ARO-HCP.git main
   git checkout -f FETCH_HEAD
 else
   if [[ -z "${PULL_BASE_SHA:-}" ]]; then
-    echo "ERROR: PULL_BASE_SHA is not set and this is not a rehearsal. Cannot determine base commit."
+    echo "ERROR: PULL_BASE_SHA is not set for this non-periodic, non-rehearsal job. Cannot determine base commit."
     exit 1
   fi
   if ! git cat-file -e "${PULL_BASE_SHA}" 2>/dev/null; then
