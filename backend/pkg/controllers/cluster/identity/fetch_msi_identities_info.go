@@ -25,11 +25,13 @@ import (
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -37,7 +39,7 @@ import (
 )
 
 const (
-	fetchMSIIdentitiesInfoControllerName = "FetchMSIIdentitiesInfo"
+	FetchMSIIdentitiesInfoControllerName = "FetchMSIIdentitiesInfo"
 
 	// msiIdentitiesRecheckInterval is the base interval before re-querying the
 	// Managed Identities Data Plane when ClientID/PrincipalID are already
@@ -46,9 +48,16 @@ const (
 	msiIdentitiesRecheckJitter   = 0.5
 )
 
+// identityToFetch describes one MSI identity that should be resolved via the
+// Managed Identities Data Plane.
+type identityToFetch struct {
+	operatorName string
+	resourceID   *azcorearm.ResourceID
+}
+
 // fetchMSIIdentitiesInfoSyncer fetches ClientID and PrincipalID for the
 // cluster's MSI-based user-assigned managed identities and writes them onto
-// HCPOpenShiftCluster.Identity.UserAssignedIdentities in Cosmos.
+// ServiceProviderCluster.Status.MSIManagedIdentities in Cosmos.
 type fetchMSIIdentitiesInfoSyncer struct {
 	clock                       utilsclock.PassiveClock
 	resourcesDBClient           corecosmosstorage.ResourcesDBClient
@@ -59,13 +68,13 @@ var _ controllerutils.ClusterSyncer = (*fetchMSIIdentitiesInfoSyncer)(nil)
 
 // NewFetchMSIIdentitiesInfoController creates a cluster-watching controller
 // that resolves ClientID and PrincipalID for every MSI-based identity of
-// the cluster and persists them in the .identity section of the cluster resource
-// in Cosmos.
+// the cluster and persists them on ServiceProviderCluster.Status.MSIManagedIdentities.
 //
 // These MSI-based identities are the cluster's control plane operator
-// managed identities and the cluster's service managed identity. The
-// Frontend stores their resource IDs under Identity.UserAssignedIdentities. This
-// controller fills in ClientID and PrincipalID for each one of them.
+// managed identities and the cluster's service managed identity. Their
+// resource IDs come from
+// CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.
+// This controller fills in ClientID and PrincipalID for each one of them.
 // To do so, it calls the Managed Identities Data Plane service. In environments
 // where the real Managed Identities Data Plane service is not available, a fake
 // implementation of the Managed Identities Data Plane client is used, which
@@ -75,27 +84,28 @@ var _ controllerutils.ClusterSyncer = (*fetchMSIIdentitiesInfoSyncer)(nil)
 //
 // On each SyncOnce the controller:
 //  1. Via needsWork, skips Managed Identities Data Plane calls when
-//     ServiceProviderProperties.MSIIdentitiesEarliestRecheckTime is still in the
-//     future. That recheck time is shared across every entry in
-//     Identity.UserAssignedIdentities.
-//  2. Collects every identity resource ID from Identity.UserAssignedIdentities.
+//     ServiceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime is
+//     still in the future. That recheck time is shared across every entry in
+//     MSIManagedIdentities.Identities.
+//  2. Collects every identity resource ID from
+//     CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
+//     (control plane operators and service managed identity).
 //  3. Calls the Managed Identities Data Plane (or the fake client implementation
 //     in environments where the real Managed Identities Data Plane service
 //     is not available) once with the set of identities.
 //  4. Matches each returned credential by ResourceID (case-insensitive.
 //     ARM IDs are case-insensitive and response order is not assumed)
 //     and sets ClientID and PrincipalID when the dataplane returns
-//     non-empty values.
-//  5. On a fully successful dataplane fetch, it sets
-//     MSIIdentitiesEarliestRecheckTime on the in-memory replacement to now plus
-//     a long jittered interval.
-//  6. Replaces the HCPCluster document only when the identity map or recheck
-//     time changed. needsWork only observes MSIIdentitiesEarliestRecheckTime
-//     from Cosmos, so a wait is introduced only after a successful Replace
-//     persists it. If Replace fails (or hits a precondition failure), the new
-//     MSIIdentitiesEarliestRecheckTime is not stored. The workqueue requeues and
-//     the next needsWork still sees the previously persisted value (typically
-//     nil or already past), so the controller does not wait out the long recheck
+//     non-empty values. Resource IDs are stored lowercased in SPC.
+//  5. On a fully successful dataplane fetch, it sets EarliestRecheckTime on the
+//     in-memory replacement to now plus a long jittered interval.
+//  6. Replaces the ServiceProviderCluster document only when the identities map
+//     or recheck time changed. needsWork only observes EarliestRecheckTime from
+//     Cosmos, so a wait is introduced only after a successful Replace persists
+//     it. If Replace fails (or hits a precondition failure), the new
+//     EarliestRecheckTime is not stored. The workqueue requeues and the next
+//     needsWork still sees the previously persisted value (typically nil or
+//     already past), so the controller does not wait out the long recheck
 //     interval after write failures either.
 func NewFetchMSIIdentitiesInfoController(
 	clock utilsclock.PassiveClock,
@@ -114,7 +124,7 @@ func NewFetchMSIIdentitiesInfoController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		fetchMSIIdentitiesInfoControllerName,
+		FetchMSIIdentitiesInfoControllerName,
 		resourcesDBClient,
 		backendInformers,
 		nil,
@@ -127,15 +137,14 @@ func NewFetchMSIIdentitiesInfoController(
 
 // needsWork reports whether the Managed Identities Data Plane should be
 // queried for MSI identity metadata. It returns false when the cluster is
-// deleting, or when the MSIIdentitiesEarliestRecheckTime persisted on the
-// cluster is still in the future. A nil MSIIdentitiesEarliestRecheckTime means
-// recheck immediately.
-func (c *fetchMSIIdentitiesInfoSyncer) needsWork(existingCluster *coreapi.HCPOpenShiftCluster) bool {
+// deleting, or when EarliestRecheckTime persisted on the ServiceProviderCluster
+// is still in the future. A nil EarliestRecheckTime means recheck immediately.
+func (c *fetchMSIIdentitiesInfoSyncer) needsWork(existingCluster *coreapi.HCPOpenShiftCluster, existingSPC *coreapi.ServiceProviderCluster) bool {
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
 
-	earliestRecheckTime := existingCluster.ServiceProviderProperties.MSIIdentitiesEarliestRecheckTime
+	earliestRecheckTime := existingSPC.Status.MSIManagedIdentities.EarliestRecheckTime
 	if earliestRecheckTime != nil && c.clock.Now().Before(earliestRecheckTime.Time) {
 		return false
 	}
@@ -154,17 +163,30 @@ func (c *fetchMSIIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key control
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 
-	if !c.needsWork(existingCluster) {
+	spcCRUD := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	existingSPC, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil // SPC doesn't exist yet, no work to do
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+
+	if !c.needsWork(existingCluster, existingSPC) {
+		return nil
+	}
+
+	identitiesToFetch, err := collectIdentitiesToFetch(existingCluster)
+	if err != nil {
+		return err
+	}
+	if len(identitiesToFetch) == 0 {
 		return nil
 	}
 
 	var identitiesToSyncResourceIDStrs []string
-	for identityResourceIDStr := range existingCluster.Identity.UserAssignedIdentities {
-		if len(identityResourceIDStr) == 0 {
-			// This should not happen, so if it does, we return an error instead of accumulating it.
-			return utils.TrackError(fmt.Errorf("unexpected empty identity Resource ID string"))
-		}
-		identitiesToSyncResourceIDStrs = append(identitiesToSyncResourceIDStrs, identityResourceIDStr)
+	for _, identity := range identitiesToFetch {
+		identitiesToSyncResourceIDStrs = append(identitiesToSyncResourceIDStrs, identity.resourceID.String())
 	}
 
 	// On environments where the real Managed Identities Data Plane service is not available, a
@@ -188,8 +210,7 @@ func (c *fetchMSIIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key control
 		return utils.TrackError(fmt.Errorf("unexpected number of Managed Identities Data Plane Credentials. Expected: %d, Received: %d", len(identitiesToSyncResourceIDStrs), len(fpaMIDataplaneCredentials.ExplicitIdentities)))
 	}
 
-	replacement := existingCluster.DeepCopy()
-
+	credentialsByLowerResourceID := make(map[string]dataplane.UserAssignedIdentityCredentials, len(fpaMIDataplaneCredentials.ExplicitIdentities))
 	for idx, fpaMIDataplaneCredential := range fpaMIDataplaneCredentials.ExplicitIdentities {
 		if fpaMIDataplaneCredential.ResourceID == nil || len(*fpaMIDataplaneCredential.ResourceID) == 0 {
 			// The MIDataplane service should not return a nil or empty Resource ID. This is the case even when the identity does not exist in Azure.
@@ -201,26 +222,33 @@ func (c *fetchMSIIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key control
 				ptr.Deref(fpaMIDataplaneCredential.ObjectID, ""),
 			))
 		}
-		credentialResourceID := *fpaMIDataplaneCredential.ResourceID
+		credentialsByLowerResourceID[strings.ToLower(*fpaMIDataplaneCredential.ResourceID)] = fpaMIDataplaneCredential
+	}
 
-		// Match case-insensitively: ARM resource IDs are case-insensitive and the
-		// MI dataplane may return a different casing than Cosmos, as well as different order than
-		// how it's been requested.
-		// We do not store the Resource ID lowercased because the resource id ends up exposed to the end-user in the Cluster payload API response
-		// in the `identity` section and we want to preserve the casing as received from the original request.
-		_, replacementIdentity, ok := c.findUserAssignedIdentityByResourceID(replacement.Identity.UserAssignedIdentities, credentialResourceID)
+	replacementIdentities := make(map[string]*coreapi.ServiceProviderClusterMSIManagedIdentity, len(identitiesToFetch))
+	for _, identity := range identitiesToFetch {
+		lowerResourceIDStr := strings.ToLower(identity.resourceID.String())
+		credential, ok := credentialsByLowerResourceID[lowerResourceIDStr]
 		if !ok {
-			// The MIDataplane service should return a Resource ID that matches one of the identities in the cluster's identities. That is even if the identity actually does not exist anymore in Azure.
+			// The MIDataplane service should return a Resource ID that matches one of the identities requested. That is even if the identity actually does not exist anymore in Azure.
 			// If it does not, we return an error instead of accumulating it.
-			return utils.TrackError(fmt.Errorf("unexpected Managed Identities Data Plane Credential %s Resource ID is not found in the cluster's identities", credentialResourceID))
+			return utils.TrackError(fmt.Errorf("unexpected Managed Identities Data Plane Credential %s Resource ID is not found in the cluster's identities", identity.resourceID.String()))
 		}
 
+		lowerResourceID := metadataapi.Must(azcorearm.ParseResourceID(lowerResourceIDStr))
 		// For ClientID and PrincipalID of the identity, we set the value returned from the MIDataplane service. This includes the cases where the
 		// value is nil or empty. At the moment of writing this (2026-08-11), when the actual identity does not exist in Azure, the MIDataplane service
 		// returns null for ClientID and PrincipalID.
-		replacementIdentity.ClientID = fpaMIDataplaneCredential.ClientID
-		replacementIdentity.PrincipalID = fpaMIDataplaneCredential.ObjectID
+		replacementIdentities[lowerResourceIDStr] = &coreapi.ServiceProviderClusterMSIManagedIdentity{
+			OperatorName: identity.operatorName,
+			ResourceID:   lowerResourceID,
+			ClientID:     credential.ClientID,
+			PrincipalID:  credential.ObjectID,
+		}
 	}
+
+	replacement := existingSPC.DeepCopy()
+	replacement.Status.MSIManagedIdentities.Identities = replacementIdentities
 
 	// Set an earliest recheck time for the controller so we do not hit the Managed Identities Data Plane service too often.
 	// The value below is only honored once Replace persists it. A Replace failure leaves Cosmos unchanged, so needsWork will still see the
@@ -233,39 +261,57 @@ func (c *fetchMSIIdentitiesInfoSyncer) SyncOnce(ctx context.Context, key control
 		msiIdentitiesRecheckInterval,
 		msiIdentitiesRecheckJitter,
 	)))
-	replacement.ServiceProviderProperties.MSIIdentitiesEarliestRecheckTime = &earliestRecheckAt
+	replacement.Status.MSIManagedIdentities.EarliestRecheckTime = &earliestRecheckAt
 
-	identitiesUnchanged := equality.Semantic.DeepEqual(replacement.Identity.UserAssignedIdentities, existingCluster.Identity.UserAssignedIdentities)
-	recheckUnchanged := equality.Semantic.DeepEqual(replacement.ServiceProviderProperties.MSIIdentitiesEarliestRecheckTime, existingCluster.ServiceProviderProperties.MSIIdentitiesEarliestRecheckTime)
+	identitiesUnchanged := equality.Semantic.DeepEqual(replacement.Status.MSIManagedIdentities.Identities, existingSPC.Status.MSIManagedIdentities.Identities)
+	recheckUnchanged := equality.Semantic.DeepEqual(replacement.Status.MSIManagedIdentities.EarliestRecheckTime, existingSPC.Status.MSIManagedIdentities.EarliestRecheckTime)
 	if identitiesUnchanged && recheckUnchanged {
 		return nil
 	}
 
-	_, err = c.resourcesDBClient.HCPClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName).Replace(ctx, replacement, nil)
+	_, err = spcCRUD.Replace(ctx, replacement, nil)
 	if cosmosstorageutils.IsPreconditionFailedError(err) {
-		// Status (including any new MSIIdentitiesEarliestRecheckTime) was not written.
+		// Status (including any new EarliestRecheckTime) was not written.
 		// needsWork will still see the previously persisted value.
 		return nil
 	}
 	if err != nil {
-		// Same as precondition failure: MSIIdentitiesEarliestRecheckTime was not
+		// Same as precondition failure: EarliestRecheckTime was not
 		// persisted, so needsWork will still see the previously persisted value.
-		return utils.TrackError(fmt.Errorf("failed to replace HCPCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}
 
 	return nil
 }
 
-// findUserAssignedIdentityByResourceID looks up an identity using a
-// case-insensitive ResourceID match. ARM resource IDs are case-insensitive
-// and the MI dataplane may return a different casing than Cosmos.
-// It returns the Cosmos map key (preserving stored casing), the matching
-// identity value (or nil if not found), and whether a match was found.
-func (c *fetchMSIIdentitiesInfoSyncer) findUserAssignedIdentityByResourceID(identities map[string]*coreapi.UserAssignedIdentity, resourceIDStr string) (string, *coreapi.UserAssignedIdentity, bool) {
-	for k, v := range identities {
-		if strings.EqualFold(k, resourceIDStr) {
-			return k, v, true
+// collectIdentitiesToFetch returns the control-plane operator identities and
+// the service managed identity that should be resolved via the Managed
+// Identities Data Plane.
+func collectIdentitiesToFetch(cluster *coreapi.HCPOpenShiftCluster) ([]identityToFetch, error) {
+	var identities []identityToFetch
+
+	for operatorName, operatorIdentityResourceID := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		if operatorIdentityResourceID == nil {
+			continue
 		}
+		if len(operatorIdentityResourceID.String()) == 0 {
+			return nil, utils.TrackError(fmt.Errorf("unexpected empty identity Resource ID string for control plane operator %q", operatorName))
+		}
+		identities = append(identities, identityToFetch{
+			operatorName: operatorName,
+			resourceID:   operatorIdentityResourceID,
+		})
 	}
-	return "", nil, false
+
+	if serviceManagedIdentity := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity; serviceManagedIdentity != nil {
+		if len(serviceManagedIdentity.String()) == 0 {
+			return nil, utils.TrackError(fmt.Errorf("unexpected empty identity Resource ID string for service managed identity"))
+		}
+		identities = append(identities, identityToFetch{
+			operatorName: "",
+			resourceID:   serviceManagedIdentity,
+		})
+	}
+
+	return identities, nil
 }

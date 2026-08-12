@@ -219,6 +219,45 @@ type ServiceProviderClusterStatus struct {
 	// AzureResources tracks the lifecycle of Azure resources associated with
 	// the cluster, including deny assignments and the managed resource group.
 	AzureResources AzureResources `json:"azureResources,omitempty"`
+
+	// MSIManagedIdentities holds ClientID and PrincipalID resolved from the
+	// Managed Identities Data Plane for the cluster's MSI-based user-assigned
+	// identities (control plane operator identities and the service managed
+	// identity). Map keys and ResourceID values are stored lowercased.
+	// Written by: FetchMSIIdentitiesInfo
+	MSIManagedIdentities ServiceProviderClusterMSIManagedIdentities `json:"msiManagedIdentities,omitempty"`
+}
+
+// ServiceProviderClusterMSIManagedIdentities holds MSI identity metadata
+// resolved by FetchMSIIdentitiesInfo and consumed by IdentityMigration to
+// populate HCPOpenShiftCluster.Identity.UserAssignedIdentities.
+type ServiceProviderClusterMSIManagedIdentities struct {
+	// EarliestRecheckTime is the earliest time at which FetchMSIIdentitiesInfo
+	// should re-query the Managed Identities Data Plane for ClientID/PrincipalID.
+	// Nil means recheck immediately. The same recheck time applies across all
+	// entries in Identities.
+	// Written by: FetchMSIIdentitiesInfo
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+
+	// Identities is keyed by the lowercased ARM resource ID of each
+	// user-assigned managed identity.
+	// Written by: FetchMSIIdentitiesInfo
+	Identities map[string]*ServiceProviderClusterMSIManagedIdentity `json:"identities,omitempty"`
+}
+
+// ServiceProviderClusterMSIManagedIdentity is the resolved metadata for a
+// single MSI-based user-assigned managed identity.
+type ServiceProviderClusterMSIManagedIdentity struct {
+	// OperatorName is the control-plane operator name this identity is bound
+	// to. Empty when the identity is the cluster service managed identity.
+	OperatorName string `json:"operatorName,omitempty"`
+	// ResourceID is the lowercased ARM resource ID of the user-assigned
+	// managed identity.
+	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
+	// ClientID is the Azure AD application/client ID of the identity.
+	ClientID *string `json:"clientId,omitempty"`
+	// PrincipalID is the Azure AD object/principal ID of the identity.
+	PrincipalID *string `json:"principalId,omitempty"`
 }
 
 // AzureResources groups the Azure resource references associated with a cluster.

@@ -16,23 +16,19 @@ package properties
 
 import (
 	"context"
-	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 const (
@@ -43,19 +39,19 @@ const (
 )
 
 func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
+	mixedCaseIdentityResourceID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/Test-RG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/Test-Identity"
+
 	testCases := []struct {
 		name                        string
 		cachedCluster               *coreapi.HCPOpenShiftCluster // cluster in cache, nil means use same as existingCluster
 		existingCluster             *coreapi.HCPOpenShiftCluster // cluster in cosmos
-		csCluster                   *arohcpv1alpha1.Cluster
-		csError                     error
-		expectCosmosGet             bool
-		expectCSCall                bool
-		expectCosmosUpdate          bool
+		existingSPC                 *coreapi.ServiceProviderCluster
 		expectError                 bool
 		expectedHasIdentity         bool
 		expectedIdentityCount       int
 		expectedIdentityResourceIDs []string
+		expectedClientID            *string
+		expectedPrincipalID         *string
 	}{
 		{
 			name: "cache indicates no work needed - identity already set",
@@ -68,9 +64,6 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 						},
 					},
 				}
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
-					"test-operator": metadataapi.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
-				}
 			}),
 			existingCluster: newTestClusterForIdentityMigration(func(c *coreapi.HCPOpenShiftCluster) {
 				c.Identity = &coreapi.ManagedServiceIdentity{
@@ -81,23 +74,25 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 						},
 					},
 				}
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
-					"test-operator": metadataapi.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
-				}
 			}),
-			expectCosmosGet:             false,
-			expectCSCall:                false,
-			expectCosmosUpdate:          false,
 			expectError:                 false,
 			expectedHasIdentity:         true,
 			expectedIdentityCount:       1,
 			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            stringPtr(testClientID),
+			expectedPrincipalID:         stringPtr(testPrincipalID),
 		},
 		{
 			name:          "cache says work needed but live data has identity",
-			cachedCluster: newTestClusterForIdentityMigration(), // cache has no identity
+			cachedCluster: newTestClusterForIdentityMigration(func(c *coreapi.HCPOpenShiftCluster) {
+				c.Identity = &coreapi.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
+						testIdentityResourceID: {},
+					},
+				}
+			}),
 			existingCluster: newTestClusterForIdentityMigration(func(c *coreapi.HCPOpenShiftCluster) {
-				// cosmos has identity (cache is stale)
+				// cosmos has identity filled (cache is stale)
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
 						testIdentityResourceID: {
@@ -106,17 +101,13 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 						},
 					},
 				}
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
-					"test-operator": metadataapi.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
-				}
 			}),
-			expectCosmosGet:             true,
-			expectCSCall:                false,
-			expectCosmosUpdate:          false,
 			expectError:                 false,
 			expectedHasIdentity:         true,
 			expectedIdentityCount:       1,
 			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            stringPtr(testClientID),
+			expectedPrincipalID:         stringPtr(testPrincipalID),
 		},
 		{
 			name: "no work to do - identity already populated",
@@ -129,80 +120,112 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 						},
 					},
 				}
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
-					"test-operator": metadataapi.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
-				}
 			}),
-			expectCosmosGet:             false,
-			expectCSCall:                false,
-			expectCosmosUpdate:          false,
 			expectError:                 false,
 			expectedHasIdentity:         true,
 			expectedIdentityCount:       1,
 			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            stringPtr(testClientID),
+			expectedPrincipalID:         stringPtr(testPrincipalID),
 		},
 		{
-			name:                  "error reading from cluster-service",
-			existingCluster:       newTestClusterForIdentityMigration(),
-			csError:               fmt.Errorf("connection refused"),
-			expectCosmosGet:       true,
-			expectCSCall:          true,
-			expectCosmosUpdate:    false,
-			expectError:           true,
-			expectedHasIdentity:   false,
+			name: "no work to do - identity is nil",
+			existingCluster: newTestClusterForIdentityMigration(),
+			existingSPC:     newTestSPCWithMSIIdentity("test-operator", testIdentityResourceID, testClientID, testPrincipalID),
+			expectError:     false,
+			expectedHasIdentity: false,
 			expectedIdentityCount: 0,
 		},
 		{
-			name:                        "success - migrate identity when nil",
-			existingCluster:             newTestClusterForIdentityMigration(),
-			csCluster:                   buildCSClusterWithIdentity(testIdentityResourceID, testClientID, testPrincipalID),
-			expectCosmosGet:             true,
-			expectCSCall:                true,
-			expectCosmosUpdate:          true,
-			expectError:                 false,
-			expectedHasIdentity:         true,
-			expectedIdentityCount:       1,
-			expectedIdentityResourceIDs: []string{testIdentityResourceID},
-		},
-		{
-			name: "success - migrate identity when empty map",
+			name: "success - fill ClientID/PrincipalID from SPC",
 			existingCluster: newTestClusterForIdentityMigration(func(c *coreapi.HCPOpenShiftCluster) {
 				c.Identity = &coreapi.ManagedServiceIdentity{
-					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{},
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
+						testIdentityResourceID: {},
+					},
 				}
 			}),
-			csCluster:                   buildCSClusterWithIdentity(testIdentityResourceID, testClientID, testPrincipalID),
-			expectCosmosGet:             true,
-			expectCSCall:                true,
-			expectCosmosUpdate:          true,
+			existingSPC:                 newTestSPCWithMSIIdentity("test-operator", testIdentityResourceID, testClientID, testPrincipalID),
 			expectError:                 false,
 			expectedHasIdentity:         true,
 			expectedIdentityCount:       1,
 			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            stringPtr(testClientID),
+			expectedPrincipalID:         stringPtr(testPrincipalID),
 		},
 		{
-			name: "success - migrate identity when Identity is set but UserAssignedIdentities is nil",
+			name: "success - fill nil identity map entry from SPC",
 			existingCluster: newTestClusterForIdentityMigration(func(c *coreapi.HCPOpenShiftCluster) {
 				c.Identity = &coreapi.ManagedServiceIdentity{
-					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
+						testIdentityResourceID: nil,
+					},
 				}
 			}),
-			csCluster:                   buildCSClusterWithIdentity(testIdentityResourceID, testClientID, testPrincipalID),
-			expectCosmosGet:             true,
-			expectCSCall:                true,
-			expectCosmosUpdate:          true,
+			existingSPC:                 newTestSPCWithMSIIdentity("test-operator", testIdentityResourceID, testClientID, testPrincipalID),
 			expectError:                 false,
 			expectedHasIdentity:         true,
 			expectedIdentityCount:       1,
 			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            stringPtr(testClientID),
+			expectedPrincipalID:         stringPtr(testPrincipalID),
+		},
+		{
+			name: "preserves mixed-case identity keys and looks up SPC by lowercase",
+			existingCluster: newTestClusterForIdentityMigration(func(c *coreapi.HCPOpenShiftCluster) {
+				c.Identity = &coreapi.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
+						mixedCaseIdentityResourceID: {},
+					},
+				}
+			}),
+			existingSPC:                 newTestSPCWithMSIIdentity("test-operator", mixedCaseIdentityResourceID, testClientID, testPrincipalID),
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{mixedCaseIdentityResourceID},
+			expectedClientID:            stringPtr(testClientID),
+			expectedPrincipalID:         stringPtr(testPrincipalID),
+		},
+		{
+			name: "keeps identity keys unchanged when SPC has no matching entry",
+			existingCluster: newTestClusterForIdentityMigration(func(c *coreapi.HCPOpenShiftCluster) {
+				c.Identity = &coreapi.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
+						testIdentityResourceID: {},
+					},
+				}
+			}),
+			existingSPC:                 newTestSPC(),
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            nil,
+			expectedPrincipalID:         nil,
+		},
+		{
+			name: "keeps identity keys unchanged when SPC is missing",
+			existingCluster: newTestClusterForIdentityMigration(func(c *coreapi.HCPOpenShiftCluster) {
+				c.Identity = &coreapi.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
+						testIdentityResourceID: {},
+					},
+				}
+			}),
+			existingSPC:                 nil,
+			expectError:                 false,
+			expectedHasIdentity:         true,
+			expectedIdentityCount:       1,
+			expectedIdentityResourceIDs: []string{testIdentityResourceID},
+			expectedClientID:            nil,
+			expectedPrincipalID:         nil,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
 
 			// Setup mock DB
 			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
@@ -222,20 +245,19 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 				Clusters: []*coreapi.HCPOpenShiftCluster{cachedCluster},
 			}
 
-			// Setup mock CS client
-			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-
-			if tc.expectCSCall {
-				mockCSClient.EXPECT().
-					GetCluster(gomock.Any(), metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))).
-					Return(tc.csCluster, tc.csError)
+			var spcList []*coreapi.ServiceProviderCluster
+			if tc.existingSPC != nil {
+				spcList = []*coreapi.ServiceProviderCluster{tc.existingSPC}
+			}
+			sliceSPCLister := &corelistertesting.SliceServiceProviderClusterLister{
+				ServiceProviderClusters: spcList,
 			}
 
 			// Create syncer
 			syncer := &identityMigrationSyncer{
-				clusterLister:        sliceClusterLister,
-				resourcesDBClient:    mockResourcesDBClient,
-				clusterServiceClient: mockCSClient,
+				clusterLister:                sliceClusterLister,
+				serviceProviderClusterLister: sliceSPCLister,
+				resourcesDBClient:            mockResourcesDBClient,
 			}
 
 			// Execute
@@ -260,8 +282,24 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 				require.NotNil(t, updatedCluster.Identity)
 				assert.Len(t, updatedCluster.Identity.UserAssignedIdentities, tc.expectedIdentityCount)
 				for _, expectedID := range tc.expectedIdentityResourceIDs {
-					_, exists := updatedCluster.Identity.UserAssignedIdentities[expectedID]
+					identity, exists := updatedCluster.Identity.UserAssignedIdentities[expectedID]
 					assert.True(t, exists, "expected identity %s to exist", expectedID)
+					if !exists {
+						continue
+					}
+					require.NotNil(t, identity)
+					if tc.expectedClientID == nil {
+						assert.True(t, identity.ClientID == nil || len(*identity.ClientID) == 0)
+					} else {
+						require.NotNil(t, identity.ClientID)
+						assert.Equal(t, *tc.expectedClientID, *identity.ClientID)
+					}
+					if tc.expectedPrincipalID == nil {
+						assert.True(t, identity.PrincipalID == nil || len(*identity.PrincipalID) == 0)
+					} else {
+						require.NotNil(t, identity.PrincipalID)
+						assert.Equal(t, *tc.expectedPrincipalID, *identity.PrincipalID)
+					}
 				}
 			} else {
 				if updatedCluster.Identity != nil {
@@ -280,28 +318,37 @@ func newTestClusterForIdentityMigration(opts ...func(*coreapi.HCPOpenShiftCluste
 	return cluster
 }
 
-// buildCSClusterWithIdentity creates a mock Cluster Service cluster with managed identity information.
-func buildCSClusterWithIdentity(identityResourceID, clientID, principalID string) *arohcpv1alpha1.Cluster {
-	cluster, err := arohcpv1alpha1.NewCluster().
-		Azure(arohcpv1alpha1.NewAzure().
-			OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
-				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
-					ControlPlaneOperatorsManagedIdentities(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder{
-						"test-operator": arohcpv1alpha1.NewAzureControlPlaneManagedIdentity().
-							ResourceID(identityResourceID).
-							ClientID(clientID).
-							PrincipalID(principalID),
-					}).
-					DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
-					ManagedIdentitiesDataPlaneIdentityUrl("")))).
-		Console(arohcpv1alpha1.NewClusterConsole().URL(testConsoleURL)).
-		DNS(arohcpv1alpha1.NewDNS().BaseDomain(testBaseDomain)).
-		DomainPrefix(testBaseDomainPrefix).
-		Build()
-	if err != nil {
-		panic(err)
+func newTestSPC() *coreapi.ServiceProviderCluster {
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
+	))
+	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		coreapi.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName),
+	))
+	return &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   spcResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
+		},
 	}
-	return cluster
+}
+
+func newTestSPCWithMSIIdentity(operatorName, identityResourceID, clientID, principalID string) *coreapi.ServiceProviderCluster {
+	spc := newTestSPC()
+	lowerResourceIDStr := strings.ToLower(identityResourceID)
+	spc.Status.MSIManagedIdentities = coreapi.ServiceProviderClusterMSIManagedIdentities{
+		Identities: map[string]*coreapi.ServiceProviderClusterMSIManagedIdentity{
+			lowerResourceIDStr: {
+				OperatorName: operatorName,
+				ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(lowerResourceIDStr)),
+				ClientID:     stringPtr(clientID),
+				PrincipalID:  stringPtr(principalID),
+			},
+		},
+	}
+	return spc
 }
 
 func stringPtr(s string) *string {

@@ -180,21 +180,6 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// (or DeletionTimestamp + 12h when DeleteOperationCompletionTimeout is nil).
 	// Written by: Frontend DELETE Cluster
 	DeleteOperationCompletionDeadline *metav1.Time `json:"deleteOperationCompletionDeadline,omitempty"`
-
-	// MSIIdentitiesEarliestRecheckTime is the earliest time at which
-	// FetchMSIIdentitiesInfo controller should re-query the Managed Identities Data Plane
-	// for ClientID/PrincipalID of Identity.UserAssignedIdentities. Nil means
-	// recheck immediately. The same recheck time applies across all entries in
-	// that map.
-	// This allows the controller to avoid repeatedly hitting the Managed
-	// Identities Data Plane to recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another
-	// concern, jitter of 50% is considered normal so that any storms are quickly
-	// dissipated. Additionally, long recheck times are recommended for resources
-	// outside of their active phases. Order of at least six hours is, with
-	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfoController
-	MSIIdentitiesEarliestRecheckTime *metav1.Time `json:"msiIdentitiesEarliestRecheckTime,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.

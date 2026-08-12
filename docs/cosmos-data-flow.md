@@ -917,14 +917,29 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 **File:** [identity_migration.go](../backend/pkg/controllers/cluster/properties/identity_migration.go)
 **Trigger:** Cluster informer, 60-minute resync
 **Gate (NeedsWork on Cluster):**
-- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
-- `Cluster.Identity` == nil, OR `len(Cluster.Identity.UserAssignedIdentities)` == 0, OR any entry has empty ClientID/PrincipalID, OR entries don't match `CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities`
+- `Cluster.Identity` != nil and `len(Cluster.Identity.UserAssignedIdentities)` > 0, AND
+- any Identity.UserAssignedIdentities entry is nil or has empty ClientID/PrincipalID
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`Identity` (NeedsWork: must be nil, or `Identity.UserAssignedIdentities` empty, or entries incomplete)</li><li>`Identity.UserAssignedIdentities` (NeedsWork: each must have non-empty ClientID/PrincipalID)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities` (NeedsWork: entries must match Identity map)</li></ul> |
-| Read | Cluster Service | <ul><li>`GetCluster` -> `GetClusterServiceUserAssignedIdentities`</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Identity.UserAssignedIdentities`** = migrated map from CS</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`Identity.UserAssignedIdentities` (iterated; keys preserved with original casing)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.MSIManagedIdentities.Identities` (lookup by lowercased Identity map key)</li></ul> |
+| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`Identity.UserAssignedIdentities[key].ClientID` / `PrincipalID`** = from SPC when a lowercased match exists; keys absent from SPC are left unchanged</li></ul> |
+
+#### FetchMSIIdentitiesInfo
+
+**File:** [fetch_msi_identities_info.go](../backend/pkg/controllers/cluster/identity/fetch_msi_identities_info.go)
+**Trigger:** Cluster informer, 1-minute resync
+**Gate (needsWork):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `ServiceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime` is nil or in the past
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.MSIManagedIdentities.EarliestRecheckTime` (NeedsWork)</li><li>`Status.MSIManagedIdentities.Identities` (deep-equal before write)</li></ul> |
+| Read | Managed Identities Data Plane | <ul><li>`GetUserAssignedIdentitiesCredentials`</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.MSIManagedIdentities.Identities`** = map keyed by lowercased resource ID (`OperatorName`, `ResourceID`, `ClientID`, `PrincipalID`)</li><li>**`Status.MSIManagedIdentities.EarliestRecheckTime`** = now + jittered 12h interval</li></ul> |
 
 ---
 
@@ -1289,7 +1304,7 @@ Each entry links to every actor that writes the field.
 |-------|------|
 | [Frontend: PUT Cluster (Create)](#put-cluster-create) | Rebuilt via `completeClusterIdentity` |
 | [Frontend: PUT/PATCH Cluster (Update)](#put-cluster-update) | Rebuilt via `completeClusterIdentity` with old data |
-| [IdentityMigration](#identitymigration) | Migrated from CS for clusters with incomplete identity |
+| [IdentityMigration](#identitymigration) | Fills ClientID/PrincipalID on existing Identity keys from ServiceProviderCluster.Status.MSIManagedIdentities |
 
 ### `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp`
 
@@ -1426,6 +1441,14 @@ Single writer, but tracks the namespace containing the HostedCluster CR and user
 | [ServiceProviderClusterPropertiesSync](#serviceproviderclusterpropertiessync) | Sets to `<hostedClusterNamespace>-<hostedClusterName>` (dots replaced by dashes) |
 
 Single writer, but tracks the namespace containing control plane pods (etcd, kube-apiserver, etc.) on the management cluster.
+
+### `ServiceProviderCluster.Status.MSIManagedIdentities`
+
+| Actor | When |
+|-------|------|
+| [FetchMSIIdentitiesInfo](#fetchmsiidentitiesinfo) | Sets Identities (lowercased resource ID keys) and EarliestRecheckTime from Managed Identities Data Plane |
+
+Single writer. Read by [IdentityMigration](#identitymigration) to populate `HCPOpenShiftCluster.Identity.UserAssignedIdentities`.
 
 ### `ServiceProviderCluster.Status.Validations`
 

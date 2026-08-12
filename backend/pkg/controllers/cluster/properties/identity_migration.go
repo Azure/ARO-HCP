@@ -17,8 +17,10 @@ package properties
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -28,41 +30,50 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// identityMigrationSyncer is a Cluster syncer that migrates cluster identity information
-// from Cluster Service to Cosmos DB. It ensures that the Identity.UserAssignedIdentities
-// field is populated for clusters that were created before all identity state was held in Cosmos.
+const IdentityMigrationControllerName = "IdentityMigration"
+
+// identityMigrationSyncer fills ClientID/PrincipalID on
+// HCPOpenShiftCluster.Identity.UserAssignedIdentities from
+// ServiceProviderCluster.Status.MSIManagedIdentities. It iterates the existing
+// Identity map keys (preserving casing) and looks up each one in SPC by
+// lowercased resource ID.
 type identityMigrationSyncer struct {
-	clusterLister        corelisters.ClusterLister
-	resourcesDBClient    corecosmosstorage.ResourcesDBClient
-	clusterServiceClient ocm.ClusterServiceClientSpec
+	clusterLister                corelisters.ClusterLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 }
 
 var _ controllerutils.ClusterSyncer = (*identityMigrationSyncer)(nil)
 
-// NewIdentityMigrationController creates a new controller that migrates identity information
-// from Cluster Service to Cosmos DB.
-// It periodically checks each cluster and populates the Identity.UserAssignedIdentities
-// field if it is not set, using GetClusterServiceUserAssignedIdentities to extract the identity data.
+// NewIdentityMigrationController creates a new controller that fills
+// Identity.UserAssignedIdentities ClientID/PrincipalID from
+// ServiceProviderCluster.Status.MSIManagedIdentities.
+//
+// It periodically checks each cluster and populates Identity.UserAssignedIdentities
+// from ServiceProviderCluster.Status.MSIManagedIdentities when the identity map
+// is missing keys, has empty ClientID/PrincipalID, or has unexpected entries.
+// Map keys in Identity keep the casing from CustomerProperties; SPC lookups use
+// lowercased resource IDs. Keys remain even when SPC does not yet have a matching
+// identity entry.
 func NewIdentityMigrationController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
+	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 
 	syncer := &identityMigrationSyncer{
-		clusterLister:        clusterLister,
-		resourcesDBClient:    resourcesDBClient,
-		clusterServiceClient: clusterServiceClient,
+		clusterLister:                clusterLister,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		resourcesDBClient:            resourcesDBClient,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"IdentityMigration",
+		IdentityMigrationControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
@@ -74,78 +85,24 @@ func NewIdentityMigrationController(
 }
 
 func (c *identityMigrationSyncer) NeedsWork(ctx context.Context, existingCluster *coreapi.HCPOpenShiftCluster) bool {
-	// Check if we have a cluster service ID to query
-	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil || len(existingCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if existingCluster.Identity == nil || len(existingCluster.Identity.UserAssignedIdentities) == 0 {
 		return false
 	}
 
-	// Check if identity information needs to be migrated
-	// Records that have UserAssignedIdentities already have all the identity info stored in cosmos
-	// Records that don't have this information need to be migrated
-	if existingCluster.Identity == nil {
-		return true
-	}
-	if len(existingCluster.Identity.UserAssignedIdentities) == 0 {
-		return true
-	}
-
-	expectedIdentityResourceIDs := map[string]struct{}{}
-	for _, resourceID := range existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
-		if resourceID != nil {
-			expectedIdentityResourceIDs[resourceID.String()] = struct{}{}
-		}
-	}
-	if serviceManagedIdentity := existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity; serviceManagedIdentity != nil {
-		expectedIdentityResourceIDs[serviceManagedIdentity.String()] = struct{}{}
-	}
-
-	for operatorIdentityResourceIDString, userAssignedIdentity := range existingCluster.Identity.UserAssignedIdentities {
+	for _, userAssignedIdentity := range existingCluster.Identity.UserAssignedIdentities {
 		if userAssignedIdentity == nil || len(ptr.Deref(userAssignedIdentity.ClientID, "")) == 0 || len(ptr.Deref(userAssignedIdentity.PrincipalID, "")) == 0 {
-			// try to fill in the information.
-			return true
-		}
-
-		if _, ok := expectedIdentityResourceIDs[operatorIdentityResourceIDString]; !ok {
-			// need to prune
 			return true
 		}
 	}
 
-	for _, operatorIdentityResourceID := range existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
-		if operatorIdentityResourceID == nil {
-			return true
-		}
-		if needsWorkForIdentityKey(existingCluster.Identity.UserAssignedIdentities, operatorIdentityResourceID.String()) {
-			return true
-		}
-	}
-	if serviceManagedIdentity := existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity; serviceManagedIdentity != nil {
-		if needsWorkForIdentityKey(existingCluster.Identity.UserAssignedIdentities, serviceManagedIdentity.String()) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// needsWorkForIdentityKey returns true when the identity at key is missing or has empty
-// client/principal IDs, signalling that the migration controller should fill it in.
-func needsWorkForIdentityKey(userAssignedIdentities map[string]*coreapi.UserAssignedIdentity, key string) bool {
-	identity, ok := userAssignedIdentities[key]
-	if !ok || identity == nil {
-		return true
-	}
-	if len(ptr.Deref(identity.ClientID, "")) == 0 || len(ptr.Deref(identity.PrincipalID, "")) == 0 {
-		return true
-	}
 	return false
 }
 
 // SyncOnce performs a single reconciliation of cluster identity information.
-// It checks if the Identity.UserAssignedIdentities field is unset,
-// and if so, fetches the values from Cluster Service using
-// GetClusterServiceUserAssignedIdentities and updates Cosmos with
-// the Identity.UserAssignedIdentities only.
+// It iterates Identity.UserAssignedIdentities, looks up each key (lowercased)
+// in ServiceProviderCluster.Status.MSIManagedIdentities, and updates
+// ClientID/PrincipalID when SPC has a match. Keys that are absent from SPC
+// remain unchanged.
 func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -178,25 +135,21 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	// Fetch the cluster from Cluster Service
-	csCluster, err := c.clusterServiceClient.GetCluster(ctx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
-	}
-
-	// Use GetClusterServiceUserAssignedIdentities on a deep copy to extract identity data
-	userAssignedIdentities := ocm.GetClusterServiceUserAssignedIdentities(csCluster)
-	if len(userAssignedIdentities) == 0 {
-		// nothing to set
+	existingSPC, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		// SPC may not exist yet; nothing to copy into Identity.
 		return nil
 	}
-
-	// Only assign the Identity.UserAssignedIdentities from the converted cluster
-	replacement := existingCluster.DeepCopy()
-	if replacement.Identity == nil {
-		replacement.Identity = &coreapi.ManagedServiceIdentity{}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
 	}
-	replacement.Identity.UserAssignedIdentities = userAssignedIdentities
+
+	replacement := existingCluster.DeepCopy()
+	updateUserAssignedIdentitiesFromSPC(replacement.Identity.UserAssignedIdentities, existingSPC.Status.MSIManagedIdentities.Identities)
+
+	if equality.Semantic.DeepEqual(existingCluster.Identity, replacement.Identity) {
+		return nil
+	}
 
 	// Write the updated cluster back to Cosmos
 	_, err = clusterCRUD.Replace(ctx, replacement, nil)
@@ -208,6 +161,27 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 
-	logger.Info("migrated identity information from Cluster Service")
+	logger.Info("migrated identity information from ServiceProviderCluster")
 	return nil
+}
+
+// updateUserAssignedIdentitiesFromSPC walks the existing Identity map and, for
+// each key, looks up the lowercased resource ID in SPC. When found, ClientID
+// and PrincipalID are updated in place. Keys missing from SPC are left as-is.
+func updateUserAssignedIdentitiesFromSPC(
+	userAssignedIdentities map[string]*coreapi.UserAssignedIdentity,
+	spcIdentities map[string]*coreapi.ServiceProviderClusterMSIManagedIdentity,
+) {
+	for identityResourceIDStr := range userAssignedIdentities {
+		spcIdentity, ok := spcIdentities[strings.ToLower(identityResourceIDStr)]
+		if !ok || spcIdentity == nil {
+			continue
+		}
+
+		if userAssignedIdentities[identityResourceIDStr] == nil {
+			userAssignedIdentities[identityResourceIDStr] = &coreapi.UserAssignedIdentity{}
+		}
+		userAssignedIdentities[identityResourceIDStr].ClientID = spcIdentity.ClientID
+		userAssignedIdentities[identityResourceIDStr].PrincipalID = spcIdentity.PrincipalID
+	}
 }

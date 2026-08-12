@@ -615,7 +615,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	identityMigrationController := clusterproperties.NewIdentityMigrationController(
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
