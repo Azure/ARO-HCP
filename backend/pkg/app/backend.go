@@ -827,7 +827,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 	azureClusterKeyVaultAccessibilityValidationController := clustervalidation.NewClusterValidationController(
-		validationutils.NewAzureClusterKeyVaultAccessibilityValidation(b.options.FPAClientBuilder),
+		validationutils.NewAzureClusterKeyVaultAccessibilityValidation(b.options.SMIClientBuilder),
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,

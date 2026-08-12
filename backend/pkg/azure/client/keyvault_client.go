@@ -14,17 +14,20 @@
 
 package client
 
-//go:generate $MOCKGEN -typed -source=keyvault_client.go -destination=mock_keyvault_client.go -package client KeyVaultVaultsClient
+//go:generate $MOCKGEN -typed -source=keyvault_client.go -destination=mock_keyvault_client.go -package client KeyVaultKeysClient
 
 import (
 	"context"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 )
 
-type KeyVaultVaultsClient interface {
-	Get(ctx context.Context, resourceGroupName string, vaultName string,
-		options *armkeyvault.VaultsClientGetOptions) (armkeyvault.VaultsClientGetResponse, error)
+// KeyVaultKeysClient is the Key Vault Keys data plane client, addressed
+// directly by vault DNS name rather than by ARM resource ID. This lets
+// callers reach a customer-owned Key Vault without needing to know which
+// resource group or subscription it lives in.
+type KeyVaultKeysClient interface {
+	GetKey(ctx context.Context, name string, version string, options *azkeys.GetKeyOptions) (azkeys.GetKeyResponse, error)
 }
 
-var _ KeyVaultVaultsClient = (*armkeyvault.VaultsClient)(nil)
+var _ KeyVaultKeysClient = (*azkeys.Client)(nil)

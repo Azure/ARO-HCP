@@ -17,27 +17,27 @@ package validationutils
 import (
 	"context"
 	"fmt"
-	"strings"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 )
 
 // AzureClusterKeyVaultAccessibilityValidation validates that the Azure Key Vault
-// used for etcd KMS encryption exists and is network-accessible.
+// used for customer-managed etcd KMS encryption is reachable by the cluster's
+// KMS operator managed identity -- the same identity, over the same data
+// plane path, that etcd itself uses to perform the real encrypt/decrypt
+// operations.
 type AzureClusterKeyVaultAccessibilityValidation struct {
-	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
+	smiClientBuilder azureclient.ServiceManagedIdentityClientBuilder
 }
 
 func NewAzureClusterKeyVaultAccessibilityValidation(
-	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
+	smiClientBuilder azureclient.ServiceManagedIdentityClientBuilder,
 ) *AzureClusterKeyVaultAccessibilityValidation {
 	return &AzureClusterKeyVaultAccessibilityValidation{
-		azureFPAClientBuilder: azureFPAClientBuilder,
+		smiClientBuilder: smiClientBuilder,
 	}
 }
 
@@ -45,74 +45,64 @@ func (a *AzureClusterKeyVaultAccessibilityValidation) Name() string {
 	return "AzureClusterKeyVaultAccessibilityValidation"
 }
 
-func (a *AzureClusterKeyVaultAccessibilityValidation) Validate(
-	ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster,
-) error {
-	kmsProfile := customerManagedKmsProfile(cluster)
-	if kmsProfile == nil {
-		return nil
+func (a *AzureClusterKeyVaultAccessibilityValidation) Validate(ctx context.Context, _ *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster) ValidationResult {
+	if cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode != metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
+		return PassedValidation(coreapi.ControllerConditionReasonAsExpected, "As expected", "Cluster does not use customer-managed KMS encryption.")
 	}
 
-	vaultsClient, err := a.azureFPAClientBuilder.KeyVaultVaultsClient(
-		*clusterSubscription.Properties.TenantId,
-		cluster.ID.SubscriptionID,
-	)
+	// API validation (DiscriminatedUnion) guarantees CustomerManaged != nil
+	// when KeyManagementMode == CustomerManaged. Guard against data corruption.
+	cm := cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged
+	if cm == nil {
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify Key Vault accessibility.",
+			"customer-managed key management mode is set but customer-managed encryption profile is nil",
+			ControllerReportingPolicyTypeError,
+		)
+	}
+
+	if cm.EncryptionType != metadataapi.CustomerManagedEncryptionTypeKMS {
+		return PassedValidation(coreapi.ControllerConditionReasonAsExpected, "As expected", "Cluster does not use KMS encryption.")
+	}
+
+	// API validation (DiscriminatedUnion) guarantees Kms != nil
+	// when EncryptionType == KMS. Guard against data corruption.
+	if cm.Kms == nil {
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify Key Vault accessibility.",
+			"KMS encryption type is set but KMS encryption profile is nil",
+			ControllerReportingPolicyTypeError,
+		)
+	}
+
+	kmsProfile := cm.Kms
+
+	kmsIdentityResourceID := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[string(internalazure.ClusterOperatorIdentifierKMS)]
+	if kmsIdentityResourceID == nil {
+		internalAndUserMsg := fmt.Sprintf("cluster has no %q operator identity configured", internalazure.ClusterOperatorIdentifierKMS)
+		return FailedValidation("KmsIdentityNotConfigured", internalAndUserMsg, internalAndUserMsg)
+	}
+
+	clusterIdentityURL := cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL
+
+	keysClient, err := a.smiClientBuilder.KeyVaultKeysClient(ctx, clusterIdentityURL, kmsIdentityResourceID, kmsProfile.ActiveKey.VaultName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get key vault client: %w", err))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify Key Vault accessibility.",
+			fmt.Sprintf("failed to get key vault client: %s", err),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 
-	resp, err := vaultsClient.Get(ctx, cluster.ID.ResourceGroupName, kmsProfile.ActiveKey.VaultName, nil)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf(
-			"key vault %q is not accessible in resource group %q: %w",
-			kmsProfile.ActiveKey.VaultName, cluster.ID.ResourceGroupName, err))
+	if _, err := keysClient.GetKey(ctx, kmsProfile.ActiveKey.Name, kmsProfile.ActiveKey.Version, nil); err != nil {
+		internalAndUserMsg := fmt.Sprintf(
+			"key vault %q is not accessible to the cluster's KMS operator identity: %s",
+			kmsProfile.ActiveKey.VaultName, err)
+		return FailedValidation("KeyVaultNotAccessible", internalAndUserMsg, internalAndUserMsg)
 	}
 
-	if err := validateKeyVaultNetworkAccess(resp.Vault, kmsProfile); err != nil {
-		return utils.TrackError(err)
-	}
-
-	return nil
-}
-
-func validateKeyVaultNetworkAccess(vault armkeyvault.Vault, kmsProfile *api.KmsEncryptionProfile) error {
-	if vault.Properties == nil {
-		return fmt.Errorf("key vault %q has no properties", *vault.Name)
-	}
-
-	publicAccess := vault.Properties.PublicNetworkAccess
-	isPublicDisabled := publicAccess != nil && strings.EqualFold(*publicAccess, "Disabled")
-
-	if !isPublicDisabled {
-		return nil
-	}
-
-	if kmsProfile.Visibility == api.KeyVaultVisibilityPublic {
-		return fmt.Errorf(
-			"key vault %q has public network access disabled, but the cluster is configured with key vault visibility %q. "+
-				"Either enable public network access on the key vault or configure the cluster with private key vault visibility "+
-				"and ensure a private endpoint and DNS are properly configured",
-			kmsProfile.ActiveKey.VaultName, api.KeyVaultVisibilityPublic)
-	}
-
-	hasPrivateEndpoints := len(vault.Properties.PrivateEndpointConnections) > 0
-	if !hasPrivateEndpoints {
-		return fmt.Errorf(
-			"key vault %q has public network access disabled but no private endpoint connections are configured. "+
-				"Configure a private endpoint and DNS entries so the service can reach the key vault",
-			kmsProfile.ActiveKey.VaultName)
-	}
-
-	return nil
-}
-
-func customerManagedKmsProfile(cluster *api.HCPOpenShiftCluster) *api.KmsEncryptionProfile {
-	etcd := cluster.CustomerProperties.Etcd
-	if etcd.DataEncryption.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
-		return nil
-	}
-	if etcd.DataEncryption.CustomerManaged == nil {
-		return nil
-	}
-	return etcd.DataEncryption.CustomerManaged.Kms
+	return PassedValidation(coreapi.ControllerConditionReasonAsExpected, "As expected", "Key Vault is accessible to the cluster's KMS operator identity.")
 }

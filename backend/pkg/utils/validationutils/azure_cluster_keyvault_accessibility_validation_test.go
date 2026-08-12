@@ -23,48 +23,57 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"k8s.io/utils/ptr"
-
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 )
 
 const (
-	testKeyVaultName = "test-kv"
-	testKeyName      = "etcd-data-kms-encryption-key"
-	testKeyVersion   = "abc123"
+	testKeyVaultName          = "test-kv"
+	testKeyName               = "etcd-data-kms-encryption-key"
+	testKeyVersion            = "abc123"
+	testClusterIdentityURL    = "https://identity.example.com/cluster"
+	testKmsIdentityResourceID = "/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroup + "/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
 )
 
-func newTestCluster(t *testing.T, keyManagementMode api.EtcdDataEncryptionKeyManagementModeType, visibility api.KeyVaultVisibility) *api.HCPOpenShiftCluster {
+func newTestCluster(t *testing.T, keyManagementMode metadataapi.EtcdDataEncryptionKeyManagementModeType, configureKmsIdentity bool) *coreapi.HCPOpenShiftCluster {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
 
-	cluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster := &coreapi.HCPOpenShiftCluster{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   resourceID,
 				Name: testClusterName,
 			},
 			Location: "eastus",
 		},
 	}
+	cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testClusterIdentityURL
 
-	if keyManagementMode == api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
-		cluster.CustomerProperties.Etcd = api.EtcdProfile{
-			DataEncryption: api.EtcdDataEncryptionProfile{
-				KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-				CustomerManaged: &api.CustomerManagedEncryptionProfile{
-					EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-					Kms: &api.KmsEncryptionProfile{
-						Visibility: visibility,
-						ActiveKey: api.KmsKey{
+	if configureKmsIdentity {
+		kmsResourceID := metadataapi.Must(azcorearm.ParseResourceID(testKmsIdentityResourceID))
+		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+			string(internalazure.ClusterOperatorIdentifierKMS): kmsResourceID,
+		}
+	}
+
+	if keyManagementMode == metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
+		cluster.CustomerProperties.Etcd = coreapi.EtcdProfile{
+			DataEncryption: coreapi.EtcdDataEncryptionProfile{
+				KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+				CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+					EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+					Kms: &coreapi.KmsEncryptionProfile{
+						Visibility: metadataapi.KeyVaultVisibilityPublic,
+						ActiveKey: coreapi.KmsKey{
 							Name:      testKeyName,
 							VaultName: testKeyVaultName,
 							Version:   testKeyVersion,
@@ -78,25 +87,6 @@ func newTestCluster(t *testing.T, keyManagementMode api.EtcdDataEncryptionKeyMan
 	return cluster
 }
 
-func makeVaultResponse(publicNetworkAccess string, privateEndpointCount int) armkeyvault.VaultsClientGetResponse {
-	var peConnections []*armkeyvault.PrivateEndpointConnectionItem
-	for i := range privateEndpointCount {
-		peConnections = append(peConnections, &armkeyvault.PrivateEndpointConnectionItem{
-			ID: ptr.To("pe-" + string(rune('0'+i))),
-		})
-	}
-
-	return armkeyvault.VaultsClientGetResponse{
-		Vault: armkeyvault.Vault{
-			Name: ptr.To(testKeyVaultName),
-			Properties: &armkeyvault.VaultProperties{
-				PublicNetworkAccess:        ptr.To(publicNetworkAccess),
-				PrivateEndpointConnections: peConnections,
-			},
-		},
-	}
-}
-
 func TestAzureClusterKeyVaultAccessibilityValidation_Name(t *testing.T) {
 	validation := NewAzureClusterKeyVaultAccessibilityValidation(nil)
 	assert.Equal(t, "AzureClusterKeyVaultAccessibilityValidation", validation.Name())
@@ -107,93 +97,101 @@ func TestAzureClusterKeyVaultAccessibilityValidation_Validate(t *testing.T) {
 	subscription := newTestSubscription()
 
 	tests := []struct {
-		name         string
-		cluster      *api.HCPOpenShiftCluster
-		setupMock    func(builder *azureclient.MockFirstPartyApplicationClientBuilder, vaultsClient *azureclient.MockKeyVaultVaultsClient)
-		wantErr      string
-		wantNoAzCall bool
+		name        string
+		cluster     *coreapi.HCPOpenShiftCluster
+		setupMock   func(builder *azureclient.MockServiceManagedIdentityClientBuilder, keysClient *azureclient.MockKeyVaultKeysClient)
+		wantOutcome OutcomeType
+		wantReason  string
 	}{
 		{
-			name:         "skips validation when not using customer-managed encryption",
-			cluster:      newTestCluster(t, "", api.KeyVaultVisibilityPublic),
-			wantNoAzCall: true,
+			name:        "skips validation when not using customer-managed encryption",
+			cluster:     newTestCluster(t, "", false),
+			wantOutcome: OutcomeTypePassed,
 		},
 		{
-			name:    "succeeds when vault is publicly accessible",
-			cluster: newTestCluster(t, api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, api.KeyVaultVisibilityPublic),
-			setupMock: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, vaultsClient *azureclient.MockKeyVaultVaultsClient) {
-				builder.EXPECT().KeyVaultVaultsClient(testTenantID, testSubscriptionID).Return(vaultsClient, nil)
-				vaultsClient.EXPECT().Get(gomock.Any(), testResourceGroup, testKeyVaultName, nil).
-					Return(makeVaultResponse("Enabled", 0), nil)
-			},
+			name: "returns unknown when customer-managed mode is set but profile is nil",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := newTestCluster(t, metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, true)
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
+				return c
+			}(),
+			wantOutcome: OutcomeTypeUnknown,
+			wantReason:  "InternalError",
 		},
 		{
-			name:    "succeeds when vault is private with private endpoints",
-			cluster: newTestCluster(t, api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, api.KeyVaultVisibilityPrivate),
-			setupMock: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, vaultsClient *azureclient.MockKeyVaultVaultsClient) {
-				builder.EXPECT().KeyVaultVaultsClient(testTenantID, testSubscriptionID).Return(vaultsClient, nil)
-				vaultsClient.EXPECT().Get(gomock.Any(), testResourceGroup, testKeyVaultName, nil).
-					Return(makeVaultResponse("Disabled", 1), nil)
-			},
+			name: "skips validation for non-KMS encryption types",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := newTestCluster(t, metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, true)
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.EncryptionType = "FutureType"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = nil
+				return c
+			}(),
+			wantOutcome: OutcomeTypePassed,
 		},
 		{
-			name:    "fails when vault has public access disabled but cluster configured for public visibility",
-			cluster: newTestCluster(t, api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, api.KeyVaultVisibilityPublic),
-			setupMock: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, vaultsClient *azureclient.MockKeyVaultVaultsClient) {
-				builder.EXPECT().KeyVaultVaultsClient(testTenantID, testSubscriptionID).Return(vaultsClient, nil)
-				vaultsClient.EXPECT().Get(gomock.Any(), testResourceGroup, testKeyVaultName, nil).
-					Return(makeVaultResponse("Disabled", 0), nil)
-			},
-			wantErr: `key vault "test-kv" has public network access disabled, but the cluster is configured with key vault visibility "Public"`,
+			name: "returns unknown when KMS encryption type is set but Kms profile is nil",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := newTestCluster(t, metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, true)
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = nil
+				return c
+			}(),
+			wantOutcome: OutcomeTypeUnknown,
+			wantReason:  "InternalError",
 		},
 		{
-			name:    "fails when vault is private with no private endpoints",
-			cluster: newTestCluster(t, api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, api.KeyVaultVisibilityPrivate),
-			setupMock: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, vaultsClient *azureclient.MockKeyVaultVaultsClient) {
-				builder.EXPECT().KeyVaultVaultsClient(testTenantID, testSubscriptionID).Return(vaultsClient, nil)
-				vaultsClient.EXPECT().Get(gomock.Any(), testResourceGroup, testKeyVaultName, nil).
-					Return(makeVaultResponse("Disabled", 0), nil)
+			name:    "succeeds when the key vault is accessible to the KMS operator identity",
+			cluster: newTestCluster(t, metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, true),
+			setupMock: func(builder *azureclient.MockServiceManagedIdentityClientBuilder, keysClient *azureclient.MockKeyVaultKeysClient) {
+				builder.EXPECT().KeyVaultKeysClient(gomock.Any(), testClusterIdentityURL, gomock.Any(), testKeyVaultName).Return(keysClient, nil)
+				keysClient.EXPECT().GetKey(gomock.Any(), testKeyName, testKeyVersion, nil).Return(azkeys.GetKeyResponse{}, nil)
 			},
-			wantErr: `key vault "test-kv" has public network access disabled but no private endpoint connections are configured`,
+			wantOutcome: OutcomeTypePassed,
 		},
 		{
-			name:    "fails when vault does not exist",
-			cluster: newTestCluster(t, api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, api.KeyVaultVisibilityPublic),
-			setupMock: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, vaultsClient *azureclient.MockKeyVaultVaultsClient) {
-				builder.EXPECT().KeyVaultVaultsClient(testTenantID, testSubscriptionID).Return(vaultsClient, nil)
-				vaultsClient.EXPECT().Get(gomock.Any(), testResourceGroup, testKeyVaultName, nil).
-					Return(armkeyvault.VaultsClientGetResponse{}, errors.New("vault not found"))
-			},
-			wantErr: `key vault "test-kv" is not accessible in resource group "test-rg"`,
+			name:        "fails when the cluster has no KMS operator identity configured",
+			cluster:     newTestCluster(t, metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, false),
+			wantOutcome: OutcomeTypeFailed,
+			wantReason:  "KmsIdentityNotConfigured",
 		},
 		{
-			name:    "fails when client builder returns error",
-			cluster: newTestCluster(t, api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, api.KeyVaultVisibilityPublic),
-			setupMock: func(builder *azureclient.MockFirstPartyApplicationClientBuilder, vaultsClient *azureclient.MockKeyVaultVaultsClient) {
-				builder.EXPECT().KeyVaultVaultsClient(testTenantID, testSubscriptionID).Return(nil, errors.New("credential error"))
+			name:    "reports unknown when the client builder returns an error",
+			cluster: newTestCluster(t, metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, true),
+			setupMock: func(builder *azureclient.MockServiceManagedIdentityClientBuilder, keysClient *azureclient.MockKeyVaultKeysClient) {
+				builder.EXPECT().KeyVaultKeysClient(gomock.Any(), testClusterIdentityURL, gomock.Any(), testKeyVaultName).Return(nil, errors.New("credential error"))
 			},
-			wantErr: "failed to get key vault client",
+			wantOutcome: OutcomeTypeUnknown,
+			wantReason:  "InternalError",
+		},
+		{
+			name:    "fails when the key vault is not accessible to the KMS operator identity",
+			cluster: newTestCluster(t, metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, true),
+			setupMock: func(builder *azureclient.MockServiceManagedIdentityClientBuilder, keysClient *azureclient.MockKeyVaultKeysClient) {
+				builder.EXPECT().KeyVaultKeysClient(gomock.Any(), testClusterIdentityURL, gomock.Any(), testKeyVaultName).Return(keysClient, nil)
+				keysClient.EXPECT().GetKey(gomock.Any(), testKeyName, testKeyVersion, nil).Return(azkeys.GetKeyResponse{}, errors.New("access denied"))
+			},
+			wantOutcome: OutcomeTypeFailed,
+			wantReason:  "KeyVaultNotAccessible",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			mockBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
-			mockVaultsClient := azureclient.NewMockKeyVaultVaultsClient(ctrl)
+			mockBuilder := azureclient.NewMockServiceManagedIdentityClientBuilder(ctrl)
+			mockKeysClient := azureclient.NewMockKeyVaultKeysClient(ctrl)
 
 			if tt.setupMock != nil {
-				tt.setupMock(mockBuilder, mockVaultsClient)
+				tt.setupMock(mockBuilder, mockKeysClient)
 			}
 
 			validation := NewAzureClusterKeyVaultAccessibilityValidation(mockBuilder)
-			err := validation.Validate(ctx, subscription, tt.cluster)
+			result := validation.Validate(ctx, subscription, tt.cluster)
 
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-				assert.ErrorContains(t, err, tt.wantErr)
+			require.NoError(t, result.Validate(), "result should be well-formed")
+			assert.Equal(t, tt.wantOutcome, result.Outcome.Type)
+
+			if tt.wantReason != "" {
+				assert.Equal(t, tt.wantReason, result.Reason())
 			}
 		})
 	}

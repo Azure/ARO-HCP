@@ -19,7 +19,6 @@ package client
 import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/internal/fpa"
@@ -48,7 +47,6 @@ type FirstPartyApplicationClientBuilder interface {
 	ResourceProvidersClient(tenantID string, subscriptionID string) (ResourceProvidersClient, error)
 	ResourceSKUsClient(tenantID string, subscriptionID string) (ResourceSKUsClient, error)
 	UsageClient(tenantID string, subscriptionID string) (UsageClient, error)
-	KeyVaultVaultsClient(tenantID string, subscriptionID string) (KeyVaultVaultsClient, error)
 }
 
 type firstPartyApplicationClientBuilder struct {
@@ -103,15 +101,6 @@ func (b *firstPartyApplicationClientBuilder) UsageClient(tenantID string, subscr
 	}
 
 	return armcompute.NewUsageClient(subscriptionID, creds, b.options)
-}
-
-func (b *firstPartyApplicationClientBuilder) KeyVaultVaultsClient(tenantID string, subscriptionID string) (KeyVaultVaultsClient, error) {
-	creds, err := b.fpaTokenCredRetriever.RetrieveCredential(tenantID)
-	if err != nil {
-		return nil, err
-	}
-
-	return armkeyvault.NewVaultsClient(subscriptionID, creds, b.options)
 }
 
 func (b *firstPartyApplicationClientBuilder) BuilderType() FirstPartyApplicationClientBuilderType {
