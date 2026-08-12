@@ -48,6 +48,9 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet
           pipelinePath: fleet/pipeline.yaml
           purpose: Deploy the Fleet controller.
+        - serviceGroup: Microsoft.Azure.ARO.HCP.CertExporter.Svc
+          pipelinePath: cert-exporter/svc/pipeline.yaml
+          purpose: Deploy the x509 certificate exporter on the service cluster.
         pipelinePath: dev-infrastructure/svc-pipeline.yaml
         purpose: Deploy the service cluster and supporting infrastructure.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
@@ -77,6 +80,9 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet.Registration
           pipelinePath: fleet/registration/pipeline.yaml
           purpose: Register the stamp and management cluster in CosmosDB.
+        - serviceGroup: Microsoft.Azure.ARO.HCP.CertExporter.Mgmt
+          pipelinePath: cert-exporter/mgmt/pipeline.yaml
+          purpose: Deploy the x509 certificate exporter on management clusters.
         pipelinePath: dev-infrastructure/mgmt-pipeline.yaml
         purpose: Deploy a management cluster and backing infrastructure.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
