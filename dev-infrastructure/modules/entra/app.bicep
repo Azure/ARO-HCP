@@ -14,6 +14,9 @@ param uniqueName string = applicationName
 @description('Comma-separated list of owner object IDs for the application and service principal. When empty, Azure AD default behavior applies (caller is added as owner).')
 param ownerIds string = ''
 
+@description('Whether explicit owners are appended to or replace existing owner relationships')
+param ownerRelationshipSemantics 'append' | 'replace' = 'append'
+
 @description('Whether to create the service principal for this application')
 param manageSp bool
 
@@ -54,6 +57,7 @@ resource entraAppWithoutKeyCredentials 'Microsoft.Graph/applications@beta' = if 
   trustedSubjectNameAndIssuers: trustedSubjectNameAndIssuers
   owners: hasExplicitOwners
     ? {
+        relationshipSemantics: ownerRelationshipSemantics
         relationships: ownerIdArray
       }
     : null
@@ -72,6 +76,7 @@ resource entraAppWithKeyCredentials 'Microsoft.Graph/applications@beta' = if (!e
   trustedSubjectNameAndIssuers: trustedSubjectNameAndIssuers
   owners: hasExplicitOwners
     ? {
+        relationshipSemantics: ownerRelationshipSemantics
         relationships: ownerIdArray
       }
     : null
@@ -83,6 +88,7 @@ resource servicePrincipal 'Microsoft.Graph/servicePrincipals@beta' = if (manageS
   appId: empty(keyCredentials) ? entraAppWithoutKeyCredentials.appId : entraAppWithKeyCredentials.appId
   owners: hasExplicitOwners
     ? {
+        relationshipSemantics: ownerRelationshipSemantics
         relationships: ownerIdArray
       }
     : null
