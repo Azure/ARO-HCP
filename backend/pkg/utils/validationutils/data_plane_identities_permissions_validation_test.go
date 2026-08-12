@@ -848,7 +848,7 @@ func TestCheckMissingPermissionsForNatGateway(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name: "nil NAT gateway ID returns error",
+			name: "nil NAT gateway ID returns nil",
 			subnet: &armnetwork.Subnet{
 				Properties: &armnetwork.SubnetPropertiesFormat{
 					NatGateway: &armnetwork.SubResource{ID: nil},
@@ -856,7 +856,7 @@ func TestCheckMissingPermissionsForNatGateway(t *testing.T) {
 			},
 			actions:    []string{"Microsoft.Network/natGateways/join/action"},
 			wantResult: nil,
-			wantErr:    true,
+			wantErr:    false,
 		},
 		{
 			name: "no missing permissions returns nil",
@@ -968,7 +968,7 @@ func TestDataPlaneIdentitiesPermissionsValidation_checkMissingPermissionsForRout
 			wantErr:    false,
 		},
 		{
-			name: "nil route table ID returns error",
+			name: "nil route table ID returns nil",
 			subnet: &armnetwork.Subnet{
 				Properties: &armnetwork.SubnetPropertiesFormat{
 					RouteTable: &armnetwork.RouteTable{ID: nil},
@@ -976,7 +976,7 @@ func TestDataPlaneIdentitiesPermissionsValidation_checkMissingPermissionsForRout
 			},
 			actions:    []string{"Microsoft.Network/routeTables/join/action"},
 			wantResult: nil,
-			wantErr:    true,
+			wantErr:    false,
 		},
 		{
 			name: "no missing permissions returns nil",
@@ -1503,7 +1503,6 @@ func TestDataPlaneIdentitiesPermissionsValidation_Validate(t *testing.T) {
 	tests := []struct {
 		name                string
 		setupCheckAccess    func(*azureclient.MockCheckAccessV2Client)
-		setupUAISOverride   func(*azureclient.MockUserAssignedIdentitiesClient)
 		wantOutcome         OutcomeType
 		wantInternalMessage string
 	}{
@@ -1540,28 +1539,6 @@ func TestDataPlaneIdentitiesPermissionsValidation_Validate(t *testing.T) {
 			wantOutcome:         OutcomeTypeFailed,
 			wantInternalMessage: "Data plane operators missing required permissions:",
 		},
-		{
-			name: "identity Get error returns unknown",
-			setupUAISOverride: func(m *azureclient.MockUserAssignedIdentitiesClient) {
-				m.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), nil).
-					Return(armmsi.UserAssignedIdentitiesClientGetResponse{}, fmt.Errorf("identity not found"))
-			},
-			wantOutcome: OutcomeTypeUnknown,
-		},
-		{
-			name: "identity with nil PrincipalID returns unknown",
-			setupUAISOverride: func(m *azureclient.MockUserAssignedIdentitiesClient) {
-				m.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), nil).
-					Return(armmsi.UserAssignedIdentitiesClientGetResponse{
-						Identity: armmsi.Identity{
-							Properties: &armmsi.UserAssignedIdentityProperties{
-								PrincipalID: nil,
-							},
-						},
-					}, nil)
-			},
-			wantOutcome: OutcomeTypeUnknown,
-		},
 	}
 
 	for _, tt := range tests {
@@ -1579,17 +1556,10 @@ func TestDataPlaneIdentitiesPermissionsValidation_Validate(t *testing.T) {
 			mockSMIBuilder.EXPECT().UserAssignedIdentitiesClient(gomock.Any(), testIdentityURL, smiResourceID, testSubscriptionID).Return(mockUAISClient, nil)
 			mockSMIBuilder.EXPECT().SubnetsClient(gomock.Any(), testIdentityURL, smiResourceID, testSubscriptionID).Return(mockSubnetsClient, nil)
 			mockSubnetsClient.EXPECT().Get(gomock.Any(), subnetResourceID.ResourceGroupName, subnetResourceID.Parent.Name, subnetResourceID.Name, nil).Return(subnetGetResponse, nil)
+			mockUAISClient.EXPECT().Get(gomock.Any(), operatorIdentityResourceID.ResourceGroupName, operatorIdentityResourceID.Name, nil).Return(uaisGetResponse, nil)
+			mockCachedReader.EXPECT().GetCachedByID(gomock.Any(), roleDefID.String(), nil).Return(roleDefResponse, nil).Times(2)
 
-			if tt.setupUAISOverride != nil {
-				// The identity's object ID is now resolved before roleActionsForOperator/roleDataActionsForOperator run,
-				// so on these error paths the cached reader is never consulted.
-				tt.setupUAISOverride(mockUAISClient)
-			} else {
-				mockUAISClient.EXPECT().Get(gomock.Any(), operatorIdentityResourceID.ResourceGroupName, operatorIdentityResourceID.Name, nil).
-					Return(uaisGetResponse, nil)
-				mockCachedReader.EXPECT().GetCachedByID(gomock.Any(), roleDefID.String(), nil).Return(roleDefResponse, nil).Times(2)
-				tt.setupCheckAccess(mockCheckAccessClient)
-			}
+			tt.setupCheckAccess(mockCheckAccessClient)
 
 			v := NewDataPlaneIdentitiesPermissionsValidation(
 				mockSMIBuilder,

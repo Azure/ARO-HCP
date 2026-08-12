@@ -357,18 +357,15 @@ func (v *DataPlaneIdentitiesPermissionsValidation) checkMissingPermissionsForSub
 // checkMissingPermissionsForNatGateway checks whether the given identity has all required permissions on the NAT gateway attached to the cluster subnet. If the subnet has no NAT gateway, it is a no-op.
 // Only actions from roleActions/roleDataActions that are relevant to NAT gateway resources are checked (via intersection with the known NAT gateway action set).
 // It returns:
-//   - (nil, nil) if the subnet has no attached NAT gateway, if the identity has all required permissions, or if none of the role's actions apply to NAT gateway resources.
+//   - (nil, nil) if the subnet has no attached NAT gateway (or the attached NAT gateway has no resource ID), if the identity has all required permissions, or if none of the role's actions apply to NAT gateway resources.
 //   - a non-nil *identityResourceMissingPermissions populated with the NAT gateway resource ID, the identity, and the slice of NotAllowed/Denied decisions, if any permission is missing.
-//   - (nil, error) if the subnet properties or the NAT gateway resource ID are unexpectedly absent, the NAT gateway resource ID cannot be parsed, or the CheckAccessV2 API call fails.
+//   - (nil, error) if the subnet properties are unexpectedly absent, the NAT gateway resource ID cannot be parsed, or the CheckAccessV2 API call fails.
 func (v *DataPlaneIdentitiesPermissionsValidation) checkMissingPermissionsForNatGateway(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, clusterSubnet *armnetwork.Subnet, identity *azcorearm.ResourceID, identityObjectID string, roleActions []string, roleDataActions []string) (*identityResourceMissingPermissions, error) {
 	if clusterSubnet.Properties == nil {
 		return nil, utils.TrackError(fmt.Errorf("subnet properties are nil"))
 	}
-	if clusterSubnet.Properties.NatGateway == nil {
+	if clusterSubnet.Properties.NatGateway == nil || clusterSubnet.Properties.NatGateway.ID == nil {
 		return nil, nil
-	}
-	if clusterSubnet.Properties.NatGateway.ID == nil {
-		return nil, utils.TrackError(fmt.Errorf("NAT gateway ID is nil for subnet"))
 	}
 	natGatewayResourceID, err := azcorearm.ParseResourceID(*clusterSubnet.Properties.NatGateway.ID)
 	if err != nil {
@@ -391,18 +388,15 @@ func (v *DataPlaneIdentitiesPermissionsValidation) checkMissingPermissionsForNat
 // checkMissingPermissionsForRouteTable checks whether the given identity has all required permissions on the route table attached to the cluster subnet. If the subnet has no route table, it is a no-op.
 // Only actions from roleActions/roleDataActions that are relevant to route table resources are checked (via intersection with the known route table action set).
 // It returns:
-//   - (nil, nil) if the subnet has no attached route table, if the identity has all required permissions, or if none of the role's actions apply to route table resources.
+//   - (nil, nil) if the subnet has no attached route table (or the attached route table has no resource ID), if the identity has all required permissions, or if none of the role's actions apply to route table resources.
 //   - a non-nil *identityResourceMissingPermissions populated with the route table resource ID, the identity, and the slice of NotAllowed/Denied decisions, if any permission is missing.
-//   - (nil, error) if the subnet properties or the route table resource ID are unexpectedly absent, the route table resource ID cannot be parsed, or the CheckAccessV2 API call fails.
+//   - (nil, error) if the subnet properties are unexpectedly absent, the route table resource ID cannot be parsed, or the CheckAccessV2 API call fails.
 func (v *DataPlaneIdentitiesPermissionsValidation) checkMissingPermissionsForRouteTable(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, clusterSubnet *armnetwork.Subnet, identity *azcorearm.ResourceID, identityObjectID string, roleActions []string, roleDataActions []string) (*identityResourceMissingPermissions, error) {
 	if clusterSubnet.Properties == nil {
 		return nil, utils.TrackError(fmt.Errorf("subnet properties are nil"))
 	}
-	if clusterSubnet.Properties.RouteTable == nil {
+	if clusterSubnet.Properties.RouteTable == nil || clusterSubnet.Properties.RouteTable.ID == nil {
 		return nil, nil
-	}
-	if clusterSubnet.Properties.RouteTable.ID == nil {
-		return nil, utils.TrackError(fmt.Errorf("route table ID is nil for subnet"))
 	}
 	routeTableResourceID, err := azcorearm.ParseResourceID(*clusterSubnet.Properties.RouteTable.ID)
 	if err != nil {
@@ -553,6 +547,9 @@ func (v *DataPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActio
 // createAuthorizationRequestForDataPlaneIdentity builds a CheckAccessV2 AuthorizationRequest that identifies the subject by Entra object ID rather than by JWT. Note that SubjectAttributes.Groups is
 // intentionally left unset here: unlike the JWT-based path, there is no token to source group claims from, so role assignments granted to a group the identity belongs to (rather than to the identity
 // directly) are not visible to this check.
+//
+// Unlike createAuthorizationRequestForControlPlaneIdentity, this cannot delegate to CheckAccessV2Client.CreateAuthorizationRequest, since that helper builds its request from a JWT and data plane
+// operators have no token to pass. The AuthorizationRequest is therefore constructed manually here, populating Subject.Attributes.ObjectId directly instead.
 func (v *DataPlaneIdentitiesPermissionsValidation) createAuthorizationRequestForDataPlaneIdentity(subject string, resourceID *azcorearm.ResourceID,
 	actions []string, dataActions []string) *azurecheckaccessv2client.AuthorizationRequest {
 	actionInfos := []azurecheckaccessv2client.ActionInfo{}
