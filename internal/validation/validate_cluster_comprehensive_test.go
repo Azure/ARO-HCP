@@ -1471,7 +1471,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "customerProperties.platform"},
 				{Message: "field is immutable", FieldPath: "customerProperties.platform.operatorsAuthentication"},
 				{Message: "field is immutable", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities"},
 				{Message: "field is immutable", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
@@ -1653,7 +1652,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "customerProperties.platform"},
 				{Message: "field is immutable", FieldPath: "customerProperties.platform.subnetId"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.subnetId"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
@@ -1672,7 +1670,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "customerProperties.platform"},
 				{Message: "field is immutable", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{Message: "must belong to the same VNet as subnetId", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
@@ -1691,7 +1688,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "customerProperties.platform"},
 				{Message: "field is immutable", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
@@ -1734,7 +1730,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "customerProperties.platform"},
 				{Message: "field is immutable", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},

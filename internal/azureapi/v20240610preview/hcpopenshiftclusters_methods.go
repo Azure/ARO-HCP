@@ -452,6 +452,8 @@ func preserveUnknownClusterFields(from, to *coreapi.HCPOpenShiftCluster) {
 	}
 	// CryptoRestrictions was added in v2026_06_30_preview
 	to.CustomerProperties.CryptoRestrictions = from.CustomerProperties.CryptoRestrictions
+	// ContainerRegistry was added in v2026_09_01_preview.
+	to.CustomerProperties.Platform.ContainerRegistry = from.CustomerProperties.Platform.ContainerRegistry
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *coreapi.ManagedServiceIdentity {

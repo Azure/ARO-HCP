@@ -44,6 +44,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.CryptoRestrictions = metadataapi.CryptoRestrictionsNone
 		},
 		// VnetIntegrationSubnetID was added in v20251223preview and does not exist in v20240610preview.
+		// ContainerRegistry was added in v20260901preview and does not exist in v20240610preview.
 		func(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j.SubnetID != nil {
@@ -53,6 +54,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 				j.NetworkSecurityGroupID = coreapitesting.FuzzArmResourceID("Microsoft.Network/networkSecurityGroups", coreapitesting.GenName(c))
 			}
 			j.VnetIntegrationSubnetID = nil
+			j.ContainerRegistry = coreapi.ContainerRegistryProfile{}
 		},
 		// DiskType was added in v20251223preview and does not exist in v20240610preview.
 		func(j *coreapi.OSDiskProfile, c randfill.Continue) {

@@ -24,6 +24,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
+	"sigs.k8s.io/randfill"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
@@ -33,7 +35,13 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	t.Logf("seed: %d", seed)
 
 	fuzzer := coreapitesting.FuzzerFor(
-		coreapitesting.CommonRoundTripFuzzFuncs(),
+		append(coreapitesting.CommonRoundTripFuzzFuncs(),
+			// ContainerRegistry does not exist in v20260630preview.
+			func(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
+				c.FillNoCustom(j)
+				j.ContainerRegistry = coreapi.ContainerRegistryProfile{}
+			},
+		),
 		rand.NewSource(seed),
 	)
 

@@ -42,6 +42,11 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.Ingress = coreapi.CustomerIngressProfile{}
 			j.CryptoRestrictions = metadataapi.CryptoRestrictionsNone
 		},
+		// ContainerRegistry was added in v20260901preview and does not exist in v20251223preview.
+		func(j *coreapi.CustomerPlatformProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.ContainerRegistry = coreapi.ContainerRegistryProfile{}
+		},
 	), rand.NewSource(seed))
 
 	for i := 0; i < 200; i++ {

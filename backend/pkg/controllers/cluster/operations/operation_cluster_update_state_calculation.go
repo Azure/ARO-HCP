@@ -25,6 +25,8 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
@@ -411,6 +413,9 @@ func (c *operationClusterUpdate) clusterServiceClusterSpecMatchesDesired(cluster
 	if matches, message := c.clusterServiceClusterNodeDrainTimeoutSpecMatchesDesired(cluster.CustomerProperties.NodeDrainTimeoutMinutes, csCluster); !matches {
 		return false, message
 	}
+	if matches, message := c.clusterServiceClusterContainerRegistryPullMISpecMatchesDesired(cluster.CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity, csCluster); !matches {
+		return false, message
+	}
 	return true, ""
 }
 
@@ -481,6 +486,29 @@ func (c *operationClusterUpdate) clusterServiceClusterNodeDrainTimeoutSpecMatche
 	got := ocm.ClusterUpdateDispatchConfigNodeDrainTimeoutFromCS(csCluster)
 	if got != desired {
 		return false, fmt.Sprintf("Cluster Service nodeDrainGracePeriod is %d minutes, want %d", got, desired)
+	}
+	return true, ""
+}
+
+// clusterServiceClusterContainerRegistryPullMISpecMatchesDesired reports whether
+// Cluster Service container registry pull managed identity matches desired state.
+func (c *operationClusterUpdate) clusterServiceClusterContainerRegistryPullMISpecMatchesDesired(desired *azcorearm.ResourceID, csCluster *arohcpv1alpha1.Cluster) (bool, string) {
+	var desiredStr string
+	if desired != nil {
+		desiredStr = desired.String()
+	}
+
+	got := ocm.ClusterUpdateDispatchConfigContainerRegistryPullMIFromCS(csCluster.Azure())
+	if got != desiredStr {
+		desiredDisplay := desiredStr
+		if desiredDisplay == "" {
+			desiredDisplay = "unset"
+		}
+		gotDisplay := got
+		if gotDisplay == "" {
+			gotDisplay = "unset"
+		}
+		return false, fmt.Sprintf("Cluster Service containerRegistryPullManagedIdentity is %s, want %s", gotDisplay, desiredDisplay)
 	}
 	return true, ""
 }

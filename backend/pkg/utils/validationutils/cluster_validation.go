@@ -27,3 +27,15 @@ type ClusterValidation interface {
 	// Validate validates the Cluster and returns a ValidationResult describing the outcome.
 	Validate(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster) ValidationResult
 }
+
+// InputKeyedClusterValidation is an optional extension of ClusterValidation
+// for validations whose input can change on day-2 updates. The validation
+// controller stores the key in the condition's Message field on success and
+// re-validates when the key changes.
+type InputKeyedClusterValidation interface {
+	ClusterValidation
+	// InputKey returns a string representing the validation-relevant input.
+	// When this value changes between reconciles, the existing True condition
+	// is considered stale and the validation re-runs.
+	InputKey(cluster *coreapi.HCPOpenShiftCluster) string
+}
