@@ -740,6 +740,13 @@ func TestCheckMissingPermissionsForRouteTable(t *testing.T) {
 		wantErr    bool
 	}{
 		{
+			name:       "nil subnet properties returns error",
+			subnet:     &armnetwork.Subnet{Properties: nil},
+			actions:    []string{"Microsoft.Network/routeTables/join/action"},
+			wantResult: nil,
+			wantErr:    true,
+		},
+		{
 			name: "nil route table returns nil",
 			subnet: &armnetwork.Subnet{
 				Properties: &armnetwork.SubnetPropertiesFormat{
@@ -749,6 +756,17 @@ func TestCheckMissingPermissionsForRouteTable(t *testing.T) {
 			actions:    []string{"Microsoft.Network/routeTables/join/action"},
 			wantResult: nil,
 			wantErr:    false,
+		},
+		{
+			name: "nil route table ID returns error",
+			subnet: &armnetwork.Subnet{
+				Properties: &armnetwork.SubnetPropertiesFormat{
+					RouteTable: &armnetwork.RouteTable{ID: nil},
+				},
+			},
+			actions:    []string{"Microsoft.Network/routeTables/join/action"},
+			wantResult: nil,
+			wantErr:    true,
 		},
 		{
 			name: "no missing permissions returns nil",

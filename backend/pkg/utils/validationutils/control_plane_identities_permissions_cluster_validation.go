@@ -103,6 +103,14 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 			ControllerReportingPolicyTypeError,
 		)
 	}
+	if subnet.Properties == nil {
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify control plane identities permissions.",
+			fmt.Sprintf("subnet properties are nil for subnet %s", subnetResourceID),
+			ControllerReportingPolicyTypeError,
+		)
+	}
 
 	var missingPermissions []*identityResourceMissingPermissions
 	for operatorName, identity := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
@@ -283,10 +291,16 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) checkMissingPermiss
 // It returns:
 //   - (nil, nil) if the subnet has no attached route table, if the identity has all required permissions, or if none of the role's actions apply to route table resources.
 //   - a non-nil *IdentityResourceMissingPermissions populated with the route table resource ID, the identity, and the slice of NotAllowed/Denied decisions, if any permission is missing.
-//   - (nil, error) if the route table resource ID cannot be parsed or the CheckAccessV2 API call fails.
+//   - (nil, error) if the subnet properties or the route table resource ID are unexpectedly absent, the route table resource ID cannot be parsed, or the CheckAccessV2 API call fails.
 func (v *ControlPlaneIdentitiesPermissionsClusterValidation) checkMissingPermissionsForRouteTable(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, clusterSubnet *armnetwork.Subnet, identity *azcorearm.ResourceID, roleActions []string, roleDataActions []string, token azcore.AccessToken) (*identityResourceMissingPermissions, error) {
+	if clusterSubnet.Properties == nil {
+		return nil, utils.TrackError(fmt.Errorf("subnet properties are nil"))
+	}
 	if clusterSubnet.Properties.RouteTable == nil {
 		return nil, nil
+	}
+	if clusterSubnet.Properties.RouteTable.ID == nil {
+		return nil, utils.TrackError(fmt.Errorf("route table ID is nil for subnet"))
 	}
 	routeTableResourceID, err := azcorearm.ParseResourceID(*clusterSubnet.Properties.RouteTable.ID)
 	if err != nil {

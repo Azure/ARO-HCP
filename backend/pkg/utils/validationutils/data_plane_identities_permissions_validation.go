@@ -359,10 +359,16 @@ func (v *DataPlaneIdentitiesPermissionsValidation) checkMissingPermissionsForSub
 // It returns:
 //   - (nil, nil) if the subnet has no attached NAT gateway, if the identity has all required permissions, or if none of the role's actions apply to NAT gateway resources.
 //   - a non-nil *identityResourceMissingPermissions populated with the NAT gateway resource ID, the identity, and the slice of NotAllowed/Denied decisions, if any permission is missing.
-//   - (nil, error) if the NAT gateway resource ID cannot be parsed or the CheckAccessV2 API call fails.
+//   - (nil, error) if the subnet properties or the NAT gateway resource ID are unexpectedly absent, the NAT gateway resource ID cannot be parsed, or the CheckAccessV2 API call fails.
 func (v *DataPlaneIdentitiesPermissionsValidation) checkMissingPermissionsForNatGateway(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, clusterSubnet *armnetwork.Subnet, identity *azcorearm.ResourceID, identityObjectID string, roleActions []string, roleDataActions []string) (*identityResourceMissingPermissions, error) {
+	if clusterSubnet.Properties == nil {
+		return nil, utils.TrackError(fmt.Errorf("subnet properties are nil"))
+	}
 	if clusterSubnet.Properties.NatGateway == nil {
 		return nil, nil
+	}
+	if clusterSubnet.Properties.NatGateway.ID == nil {
+		return nil, utils.TrackError(fmt.Errorf("NAT gateway ID is nil for subnet"))
 	}
 	natGatewayResourceID, err := azcorearm.ParseResourceID(*clusterSubnet.Properties.NatGateway.ID)
 	if err != nil {
@@ -387,10 +393,16 @@ func (v *DataPlaneIdentitiesPermissionsValidation) checkMissingPermissionsForNat
 // It returns:
 //   - (nil, nil) if the subnet has no attached route table, if the identity has all required permissions, or if none of the role's actions apply to route table resources.
 //   - a non-nil *identityResourceMissingPermissions populated with the route table resource ID, the identity, and the slice of NotAllowed/Denied decisions, if any permission is missing.
-//   - (nil, error) if the route table resource ID cannot be parsed or the CheckAccessV2 API call fails.
+//   - (nil, error) if the subnet properties or the route table resource ID are unexpectedly absent, the route table resource ID cannot be parsed, or the CheckAccessV2 API call fails.
 func (v *DataPlaneIdentitiesPermissionsValidation) checkMissingPermissionsForRouteTable(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, clusterSubnet *armnetwork.Subnet, identity *azcorearm.ResourceID, identityObjectID string, roleActions []string, roleDataActions []string) (*identityResourceMissingPermissions, error) {
+	if clusterSubnet.Properties == nil {
+		return nil, utils.TrackError(fmt.Errorf("subnet properties are nil"))
+	}
 	if clusterSubnet.Properties.RouteTable == nil {
 		return nil, nil
+	}
+	if clusterSubnet.Properties.RouteTable.ID == nil {
+		return nil, utils.TrackError(fmt.Errorf("route table ID is nil for subnet"))
 	}
 	routeTableResourceID, err := azcorearm.ParseResourceID(*clusterSubnet.Properties.RouteTable.ID)
 	if err != nil {
