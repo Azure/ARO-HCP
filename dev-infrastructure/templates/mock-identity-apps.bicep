@@ -46,6 +46,7 @@ module sharedApps '../modules/entra/app.bicep' = [
       applicationName: identity.applicationName
       uniqueName: toLower(replace(identity.applicationName, ' ', '-'))
       ownerIds: ownerIds
+      ownerRelationshipSemantics: 'replace'
       manageSp: true
     }
   }
@@ -58,6 +59,7 @@ module poolApps '../modules/entra/app.bicep' = [
       applicationName: '${poolAppBaseName}-${i}'
       uniqueName: toLower(replace('${poolAppBaseName}-${i}', ' ', '-'))
       ownerIds: ownerIds
+      ownerRelationshipSemantics: 'replace'
       manageSp: true
     }
   }
@@ -70,6 +72,7 @@ module armHelperPoolApps '../modules/entra/app.bicep' = [
       applicationName: '${armHelperPoolAppBaseName}-${i}'
       uniqueName: toLower(replace('${armHelperPoolAppBaseName}-${i}', ' ', '-'))
       ownerIds: ownerIds
+      ownerRelationshipSemantics: 'replace'
       manageSp: true
     }
   }
