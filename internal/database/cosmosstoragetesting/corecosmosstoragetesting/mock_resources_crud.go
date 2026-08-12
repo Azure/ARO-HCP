@@ -650,12 +650,14 @@ func (m *mockOperationCRUD) ListActiveOperations(options *corecosmosstorage.Reso
 			continue
 		}
 
-		// Filter out terminal states
-		status := cosmosObj.Content.Status
-		if status == coreapi.ProvisioningStateSucceeded ||
-			status == coreapi.ProvisioningStateFailed ||
-			status == coreapi.ProvisioningStateCanceled {
-			continue
+		// Filter out terminal states unless IncludeTerminal is set
+		if options == nil || !options.IncludeTerminal {
+			status := cosmosObj.Content.Status
+			if status == coreapi.ProvisioningStateSucceeded ||
+				status == coreapi.ProvisioningStateFailed ||
+				status == coreapi.ProvisioningStateCanceled {
+				continue
+			}
 		}
 
 		// Apply options filters
