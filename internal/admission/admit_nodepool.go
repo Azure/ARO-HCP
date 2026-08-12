@@ -181,8 +181,8 @@ func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDelete
 }
 
 // AdmitNodePool performs non-static checks of nodepool. Checks that require more information than is contained inside of
-// the nodepool instance itself. For update operations with version changes, include ServiceProviderNodePool and
-// ServiceProviderCluster in the admissionContext to enable version upgrade validation.
+// the nodepool instance itself. ServiceProviderCluster must be specified in the admissionContext (version skew validation).
+// For update operations, ServiceProviderNodePool must also be specified.
 func AdmitNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newNodePool, oldNodePool *coreapi.HCPOpenShiftClusterNodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
@@ -203,10 +203,7 @@ func admitNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmi
 func admitNodePoolVersion(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolVersionProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// Perform update-specific version upgrade validation
-	if op.Type == operation.Update {
-		errs = append(errs, validateNodePoolVersionChange(ctx, admissionContext, op, fldPath.Child("id"), newObj, oldObj)...)
-	}
+	errs = append(errs, validateNodePoolVersionChange(ctx, admissionContext, op, fldPath.Child("id"), newObj, oldObj)...)
 
 	return errs
 }
@@ -241,7 +238,7 @@ func admitNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmiss
 	return errs
 }
 
-// validateNodePoolVersionChange validates that a node pool version change is valid.
+// validateNodePoolVersionChange validates that a node pool version change is valid, at both CREATE and UPDATE time.
 // It checks:
 //   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
 //   - Downgrade: at most -2 minor versions from the highest control plane version
@@ -250,7 +247,7 @@ func admitNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmiss
 func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolVersionProfile) field.ErrorList {
 	spNodePool, spCluster := admissionContext.ServiceProviderNodePool, admissionContext.ServiceProviderCluster
 	// Skip validation if no version is specified or version didn't change
-	if len(newObj.ID) == 0 || newObj.ID == oldObj.ID {
+	if len(newObj.ID) == 0 || (oldObj != nil && newObj.ID == oldObj.ID) {
 		return nil
 	}
 
@@ -262,14 +259,20 @@ func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePo
 		// Return early, it cannot validate an unparseable version
 		return errs
 	}
-	// Skip validation if the newVersion hasn't changed from the desired Version
-	if spNodePool.Spec.NodePoolVersion.DesiredVersion != nil &&
-		newVersion.EQ(*spNodePool.Spec.NodePoolVersion.DesiredVersion) {
-		return nil
+
+	var activeVersions []coreapi.HCPNodePoolActiveVersion
+	if spNodePool != nil {
+		// Skip validation if the newVersion hasn't changed from the desired Version
+		if spNodePool.Spec.NodePoolVersion.DesiredVersion != nil &&
+			newVersion.EQ(*spNodePool.Spec.NodePoolVersion.DesiredVersion) {
+			return nil
+		}
+		activeVersions = spNodePool.Status.NodePoolVersion.ActiveVersions
 	}
 
 	lowestCPVersion, highestCPVersion := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
-	if err := validation.ValidateNodePoolVersionChange(newVersion, spNodePool.Status.NodePoolVersion.ActiveVersions, lowestCPVersion, highestCPVersion, op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures)); err != nil {
+
+	if err := validation.ValidateNodePoolVersionChange(newVersion, activeVersions, lowestCPVersion, highestCPVersion, op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures)); err != nil {
 		errs = append(errs, field.Invalid(fldPath, newObj.ID, err.Error()))
 	}
 

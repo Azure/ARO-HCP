@@ -230,13 +230,12 @@ func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation
 		return nil, fmt.Errorf("cluster is required for admission context")
 	}
 
-	if op.Type == operation.Update {
-		if spCluster == nil {
-			return nil, fmt.Errorf("serviceProviderCluster is required for UPDATE operations")
-		}
-		if spNodePool == nil {
-			return nil, fmt.Errorf("serviceProviderNodePool is required for UPDATE operations")
-		}
+	if spCluster == nil {
+		return nil, fmt.Errorf("serviceProviderCluster is required for %v operations", op.Type)
+	}
+
+	if spNodePool == nil && op.Type == operation.Update {
+		return nil, fmt.Errorf("serviceProviderNodePool is required for %v operations", op.Type)
 	}
 
 	return &admission.NodePoolAdmissionContext{
@@ -286,11 +285,16 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
+	serviceProviderCluster, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, f.resourcesDBClient, resourceID.Parent)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	restOperation := operation.Operation{
 		Type:    operation.Create,
 		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), metadataapi.APIVersion(versionedInterface.String())),
 	}
-	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster, nil, nil)
+	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster, serviceProviderCluster, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
