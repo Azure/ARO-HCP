@@ -1,0 +1,19 @@
+serviceAccount:
+  name: "{{ .certExporter.k8s.serviceAccountName }}"
+pullBinding:
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  scope: "repository:{{ .certExporter.image.repository }}:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__imagePullerMsiTenantId__"
+image:
+  registry: '{{ .acr.svc.name }}.azurecr.io'
+  repository: '{{ .certExporter.image.repository }}'
+  digest: '{{ .certExporter.image.digest }}'
+deployment:
+  resources:
+    requests:
+      cpu: "{{ .certExporter.k8s.resources.requests.cpu }}"
+      memory: "{{ .certExporter.k8s.resources.requests.memory }}"
+    limits:
+      memory: "{{ .certExporter.k8s.resources.limits.memory }}"
+watchNamespace: aks-istio-ingress

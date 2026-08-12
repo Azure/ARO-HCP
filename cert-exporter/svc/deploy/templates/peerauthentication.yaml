@@ -1,0 +1,12 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: cert-exporter-metrics
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-exporter
+  portLevelMtls:
+    9793:
+      mode: PERMISSIVE
