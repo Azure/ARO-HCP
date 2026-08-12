@@ -22,6 +22,10 @@
 @description('Shared mock identity definitions: array of {applicationName, certDns}')
 param identities array
 
+@description('Comma-separated owner object IDs for every mock identity application and service principal')
+@minLength(1)
+param ownerIds string
+
 @description('Number of pooled MSI mock identities to create')
 param poolSize int = 0
 
@@ -42,6 +46,8 @@ module sharedApps '../modules/entra/app.bicep' = [
     params: {
       applicationName: identity.applicationName
       uniqueName: toLower(replace(identity.applicationName, ' ', '-'))
+      ownerIds: ownerIds
+      ownerRelationshipSemantics: 'replace'
       manageSp: true
     }
   }
@@ -53,6 +59,8 @@ module poolApps '../modules/entra/app.bicep' = [
     params: {
       applicationName: '${poolAppBaseName}-${i}'
       uniqueName: toLower(replace('${poolAppBaseName}-${i}', ' ', '-'))
+      ownerIds: ownerIds
+      ownerRelationshipSemantics: 'replace'
       manageSp: true
     }
   }
@@ -64,6 +72,8 @@ module armHelperPoolApps '../modules/entra/app.bicep' = [
     params: {
       applicationName: '${armHelperPoolAppBaseName}-${i}'
       uniqueName: toLower(replace('${armHelperPoolAppBaseName}-${i}', ' ', '-'))
+      ownerIds: ownerIds
+      ownerRelationshipSemantics: 'replace'
       manageSp: true
     }
   }
