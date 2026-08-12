@@ -16,7 +16,6 @@ package version
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -43,24 +42,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
-	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
-
-// channelExistence maps channel group -> minor -> whether GraphClient.ChannelExists returns true.
-type channelExistence map[string]map[string]bool
-
-func mockGraphClient(ctrl *gomock.Controller, existence channelExistence) *cincinnati.MockGraphClient {
-	mc := cincinnati.NewMockGraphClient(ctrl)
-	for channelGroup, minors := range existence {
-		for minor, exists := range minors {
-			mc.EXPECT().ChannelExists(gomock.Any(), channelGroup, minor).Return(exists, nil)
-		}
-	}
-	return mc
-}
 
 func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 	tests := []struct {
@@ -281,15 +266,17 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			tt.mockSetup(mockCincinnatiClient)
 
 			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
-			syncer := &controlPlaneDesiredVersionSyncer{
-				resourcesDBClient:             mockResourcesDBClient,
-				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
-				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+			syncer := &controlPlaneUpgradeVersionSyncer{
+				desiredVersionSyncerCommon: desiredVersionSyncerCommon{
+					resourcesDBClient:            mockResourcesDBClient,
+					graphClient:                  mockGraphClient(ctrl, tt.channelExistence),
+					serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				},
 				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			ctx := context.Background()
-			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, metadataapi.Must(coreapi.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, false)
+			result, err := syncer.upgradeDesiredControlPlaneZVersion(ctx, mockCincinnatiClient, metadataapi.Must(coreapi.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, false)
 
 			assertVersionResult(t, result, err, tt.expectedVersion, tt.expectedError, tt.expectedErrorContains)
 		})
@@ -576,14 +563,16 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			ctx := context.Background()
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tt.cosmosResources)
 			require.NoError(t, err)
-			syncer := &controlPlaneDesiredVersionSyncer{
-				resourcesDBClient:             mockResourcesDBClient,
-				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
-				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+			syncer := &controlPlaneUpgradeVersionSyncer{
+				desiredVersionSyncerCommon: desiredVersionSyncerCommon{
+					resourcesDBClient:            mockResourcesDBClient,
+					graphClient:                  mockGraphClient(ctrl, tt.channelExistence),
+					serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				},
 				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
-			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, metadataapi.Must(coreapi.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, false)
+			result, err := syncer.upgradeDesiredControlPlaneZVersion(ctx, mockCincinnatiClient, metadataapi.Must(coreapi.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, false)
 
 			assertVersionResult(t, result, err, tt.expectedVersion, tt.expectedError, tt.expectedErrorContains)
 		})
@@ -591,7 +580,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 }
 
 // testCosmosClusterWithWorkersNodePoolAtVersion returns a cluster and workers node pool for the subscription, resource group,
-// and cluster name shared by desiredControlPlaneZVersion tests. nodePoolVersionId is properties.version.id on the pool.
+// and cluster name shared by upgradeDesiredControlPlaneZVersion tests. nodePoolVersionId is properties.version.id on the pool.
 // Also seeds an empty ServiceProviderCluster and an empty ServiceProviderNodePool the
 // way the production creator controllers would have populated them.
 func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []any {
@@ -765,13 +754,15 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 			ctx := context.Background()
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tt.cosmosResources)
 			require.NoError(t, err)
-			syncer := &controlPlaneDesiredVersionSyncer{
-				resourcesDBClient:             mockResourcesDBClient,
-				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+			syncer := &controlPlaneUpgradeVersionSyncer{
+				desiredVersionSyncerCommon: desiredVersionSyncerCommon{
+					resourcesDBClient:            mockResourcesDBClient,
+					serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				},
 				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
-			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, metadataapi.Must(coreapi.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, tt.experimentalReleaseFeatures)
+			result, err := syncer.upgradeDesiredControlPlaneZVersion(ctx, mockCincinnatiClient, metadataapi.Must(coreapi.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, tt.experimentalReleaseFeatures)
 
 			assertVersionResult(t, result, err, tt.expectedVersion, tt.expectedError, tt.expectedErrorContains)
 		})
@@ -903,178 +894,19 @@ func TestDesiredControlPlaneZVersion_CrossMajorUpgrade(t *testing.T) {
 			ctx := context.Background()
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, tt.cosmosResources)
 			require.NoError(t, err)
-			syncer := &controlPlaneDesiredVersionSyncer{
-				resourcesDBClient:             mockResourcesDBClient,
-				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
-				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+			syncer := &controlPlaneUpgradeVersionSyncer{
+				desiredVersionSyncerCommon: desiredVersionSyncerCommon{
+					resourcesDBClient:            mockResourcesDBClient,
+					graphClient:                  mockGraphClient(ctrl, tt.channelExistence),
+					serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				},
 				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
-			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, metadataapi.Must(coreapi.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, tt.experimentalReleaseFeatures)
+			result, err := syncer.upgradeDesiredControlPlaneZVersion(ctx, mockCincinnatiClient, metadataapi.Must(coreapi.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, tt.experimentalReleaseFeatures)
 
 			assertVersionResult(t, result, err, tt.expectedVersion, tt.expectedError, tt.expectedErrorContains)
 		})
-	}
-}
-
-func TestDesiredControlPlaneZVersion_InitialVersionSelection(t *testing.T) {
-	tests := []struct {
-		name                  string
-		customerDesiredMinor  string
-		channelGroup          string
-		channelExistence      channelExistence
-		mockSetup             func(*cincinnati.MockClient)
-		expectedVersion       *semver.Version
-		expectedError         bool
-		expectedErrorContains string
-	}{
-		{
-			name:                 "Initial version - prefers gateway over absolute latest",
-			customerDesiredMinor: "4.19",
-			channelGroup:         "stable",
-			channelExistence:     channelExistence{"stable": {"4.20": true}},
-			mockSetup: func(mc *cincinnati.MockClient) {
-				// Query for 4.19 versions from seedVersion (4.19.0)
-				// Cincinnati may return versions from other minors which should be filtered out
-				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), metadataapi.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.19", semver.MustParse("4.19.0")).Return(
-					configv1.Release{Version: "4.19.0"},
-					[]configv1.Release{{Version: "4.19.15"}, {Version: "4.19.22"}, {Version: "4.20.5"}}, // 4.20.5 should be filtered out
-					[]configv1.ConditionalUpdate{},
-					nil,
-				)
-
-				// Returns empty list - 4.19.22 is NOT a gateway to 4.20
-				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), metadataapi.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.20", semver.MustParse("4.19.22")).Return(
-					configv1.Release{Version: "4.19.22"},
-					[]configv1.Release{}, // No path to 4.20
-					[]configv1.ConditionalUpdate{},
-					nil,
-				)
-
-				// Check if 4.19.15 is a gateway to 4.20 - it is
-				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), metadataapi.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.20", semver.MustParse("4.19.15")).Return(
-					configv1.Release{Version: "4.19.15"},
-					[]configv1.Release{{Version: "4.20.5"}},
-					[]configv1.ConditionalUpdate{},
-					nil,
-				)
-			},
-			expectedVersion: ptr.To(semver.MustParse("4.19.15")), // Prefers gateway version over absolute latest
-			expectedError:   false,
-		},
-		{
-			name:                 "Initial version - no updates available, falls back to seedVersion",
-			customerDesiredMinor: "4.19",
-			channelGroup:         "stable",
-			mockSetup: func(mc *cincinnati.MockClient) {
-				// Query for 4.19 versions from seedVersion (4.19.0)
-				// No updates available - Cincinnati returns empty list
-				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), metadataapi.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.19", semver.MustParse("4.19.0")).Return(
-					configv1.Release{Version: "4.19.0"},
-					[]configv1.Release{}, // No newer versions available
-					[]configv1.ConditionalUpdate{},
-					nil,
-				)
-			},
-			expectedVersion: ptr.To(semver.MustParse("4.19.0")), // Falls back to seedVersion
-			expectedError:   false,
-		},
-		{
-			name:                 "Initial version - next minor doesn't exist yet, returns latest",
-			customerDesiredMinor: "4.19",
-			channelGroup:         "stable",
-			channelExistence:     channelExistence{"stable": {"4.20": false}},
-			mockSetup: func(mc *cincinnati.MockClient) {
-				// Query for 4.19 versions from seedVersion (4.19.0)
-				// Cincinnati may return versions from other minors which should be filtered out
-				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), metadataapi.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.19", semver.MustParse("4.19.0")).Return(
-					configv1.Release{Version: "4.19.0"},
-					[]configv1.Release{{Version: "4.19.15"}, {Version: "4.19.22"}, {Version: "4.20.0"}}, // 4.20.0 should be filtered out
-					[]configv1.ConditionalUpdate{},
-					nil,
-				)
-
-				// Since next minor doesn't exist, return latest candidate
-			},
-			expectedVersion: ptr.To(semver.MustParse("4.19.22")), // Returns latest - no next minor to preserve path to
-			expectedError:   false,
-		},
-		{
-			name:                 "Initial version - Cincinnati query error",
-			customerDesiredMinor: "4.19",
-			channelGroup:         "stable",
-			mockSetup: func(mc *cincinnati.MockClient) {
-				// Mock Cincinnati returning an error
-				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), metadataapi.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.19", semver.MustParse("4.19.0")).Return(
-					configv1.Release{},
-					nil,
-					nil,
-					&cvocincinnati.Error{Message: "example error message"},
-				)
-			},
-			expectedVersion:       nil,
-			expectedError:         true,
-			expectedErrorContains: "example error message",
-		},
-		{
-			name:                 "Initial version - Cincinnati version not found",
-			customerDesiredMinor: "4.19",
-			channelGroup:         "stable",
-			mockSetup: func(mc *cincinnati.MockClient) {
-				// Mock Cincinnati returning a VersionNotFound error
-				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), metadataapi.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.19", semver.MustParse("4.19.0")).Return(
-					configv1.Release{},
-					nil,
-					nil,
-					&cvocincinnati.Error{Reason: "VersionNotFound"},
-				)
-			},
-			expectedVersion:       nil,
-			expectedError:         true,
-			expectedErrorContains: "VersionNotFound",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-
-			mockCincinnatiClient := cincinnati.NewMockClient(ctrl)
-			tt.mockSetup(mockCincinnatiClient)
-
-			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
-			syncer := &controlPlaneDesiredVersionSyncer{
-				resourcesDBClient:             mockResourcesDBClient,
-				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
-				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
-				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
-			}
-
-			// Empty active versions - simulating a new cluster
-			activeVersions := []coreapi.HCPClusterActiveVersion{}
-
-			ctx := context.Background()
-			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, metadataapi.Must(coreapi.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, activeVersions, false)
-
-			assertVersionResult(t, result, err, tt.expectedVersion, tt.expectedError, tt.expectedErrorContains)
-		})
-	}
-}
-
-// assertVersionResult is a helper function that validates the result of desiredControlPlaneZVersion
-func assertVersionResult(t *testing.T, result *semver.Version, err error, expectedVersion *semver.Version, expectedError bool, expectedErrorContains string) {
-	if expectedError {
-		assert.Error(t, err)
-		assert.NotEmpty(t, expectedErrorContains)
-		assert.ErrorContains(t, err, expectedErrorContains)
-	} else {
-		assert.NoError(t, err)
-		if expectedVersion == nil {
-			assert.Nil(t, result)
-		} else {
-			assert.NotNil(t, result)
-			assert.True(t, result.EQ(*expectedVersion), "Expected version %q, got %q", expectedVersion.String(), result.String())
-		}
 	}
 }
 
@@ -1249,14 +1081,16 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			mockClientCache := cincinnati.NewMockClientCache(ctrl)
 			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
-			syncer := &controlPlaneDesiredVersionSyncer{
-				readDesireLister:              newValidHostedClusterReadDesireLister(t),
-				resourcesDBClient:             mockResourcesDBClient,
+			syncer := &controlPlaneUpgradeVersionSyncer{
+				desiredVersionSyncerCommon: desiredVersionSyncerCommon{
+					readDesireLister:             newValidHostedClusterReadDesireLister(t),
+					resourcesDBClient:            mockResourcesDBClient,
+					cincinnatiClientCache:        mockClientCache,
+					graphClient:                  mockGraphClient(ctrl, tt.channelExistence),
+					serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				},
 				clusterServiceClient:          mockCS,
 				subscriptionLister:            subscriptionLister,
-				cincinnatiClientCache:         mockClientCache,
-				graphClient:                   mockGraphClient(ctrl, tt.channelExistence),
-				serviceProviderClusterLister:  &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderNodePoolLister: &corelistertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
@@ -1329,182 +1163,6 @@ func createServiceProviderClusterWithActiveAndDesiredVersion(t *testing.T, ctx c
 	require.NoError(t, err)
 }
 
-// boomActiveOperationLister is a test double that returns the configured
-// error from ListActiveOperationsForCluster. It exists so the gating helper
-// can exercise its error-propagation branch without a misbehaving mock DB.
-type boomActiveOperationLister struct {
-	corelisters.ActiveOperationLister
-	err error
-}
-
-func (b *boomActiveOperationLister) Get(_ context.Context, _, _ string) (*coreapi.Operation, error) {
-	return nil, b.err
-}
-
-func (b *boomActiveOperationLister) ListActiveOperationsForCluster(_ context.Context, _, _, _ string) ([]*coreapi.Operation, error) {
-	return nil, b.err
-}
-
-// seedClusterCreateOperation seeds an active Create operation rooted at the
-// given ExternalID into the mock DB so the DB-backed active operation lister
-// can find it.
-func seedClusterCreateOperation(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, externalID *azcorearm.ResourceID, opName string) {
-	t.Helper()
-	opResourceID := metadataapi.Must(azcorearm.ParseResourceID(coreapi.ToOperationResourceIDString(externalID.SubscriptionID, opName)))
-	operationID := metadataapi.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + externalID.SubscriptionID +
-			"/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/" + opName,
-	))
-	op := &coreapi.Operation{
-		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   opResourceID,
-			PartitionKey: strings.ToLower(externalID.SubscriptionID),
-		},
-		Status:      coreapi.ProvisioningStateAccepted,
-		Request:     cosmosstorageutils.OperationRequestCreate,
-		ExternalID:  externalID,
-		OperationID: operationID,
-	}
-	_, err := mockDB.Operations(externalID.SubscriptionID).Create(ctx, op, nil)
-	require.NoError(t, err)
-}
-
-func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testing.T) {
-	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
-	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
-	listerBoom := errors.New("active operation lister exploded")
-
-	newCluster := func(createdAt *time.Time, activeOperationID string) *coreapi.HCPOpenShiftCluster {
-		c := &coreapi.HCPOpenShiftCluster{
-			CosmosMetadata: coreapi.CosmosMetadata{
-				ResourceID: clusterResourceID,
-			},
-			TrackedResource: coreapi.TrackedResource{
-				Resource: coreapi.Resource{
-					ID:   clusterResourceID,
-					Name: testClusterName,
-					Type: coreapi.ClusterResourceType.String(),
-				},
-			},
-			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
-				ActiveOperationID: activeOperationID,
-			},
-		}
-		if createdAt != nil {
-			c.SystemData = &coreapi.SystemData{CreatedAt: createdAt}
-		}
-		return c
-	}
-	newSPC := func(desired *semver.Version) *coreapi.ServiceProviderCluster {
-		return &coreapi.ServiceProviderCluster{
-			Spec: coreapi.ServiceProviderClusterSpec{
-				ControlPlaneVersion: coreapi.ServiceProviderClusterSpecVersion{DesiredVersion: desired},
-			},
-		}
-	}
-
-	tests := []struct {
-		name           string
-		cluster        *coreapi.HCPOpenShiftCluster
-		spc            *coreapi.ServiceProviderCluster
-		seedOperation  bool
-		opLister       func(mockDB *corecosmosstoragetesting.MockResourcesDBClient) corelisters.ActiveOperationLister
-		wantShouldRun  bool
-		wantErrContain string
-	}{
-		{
-			name:          "empty DesiredVersion runs even when create is in flight (gate 1)",
-			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), "op-create-1"),
-			spc:           newSPC(nil),
-			seedOperation: true,
-			wantShouldRun: true,
-		},
-		{
-			name:          "cluster older than grace period runs even with active create (gate 2)",
-			cluster:       newCluster(ptr.To(now.Add(-3*time.Hour)), "op-create-1"),
-			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
-			seedOperation: true,
-			wantShouldRun: true,
-		},
-		{
-			name:          "cluster with no SystemData.CreatedAt runs (treated as old enough)",
-			cluster:       newCluster(nil, "op-create-1"),
-			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
-			seedOperation: true,
-			wantShouldRun: true,
-		},
-		{
-			name:          "cluster younger than grace period with no active create runs (gate 3)",
-			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), ""),
-			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
-			seedOperation: false,
-			wantShouldRun: true,
-		},
-		{
-			name:          "young cluster + DesiredVersion set + active create skips",
-			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), "op-create-1"),
-			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
-			seedOperation: true,
-			wantShouldRun: false,
-		},
-		{
-			name:    "cluster exactly at grace period boundary still skips (boundary is strict >)",
-			cluster: newCluster(ptr.To(now.Add(-clusterCreateGracePeriod)), "op-create-1"),
-			spc:     newSPC(ptr.To(semver.MustParse("4.19.15"))),
-			// active create present so without the boundary-is-strict gate, the
-			// cluster's age would have to push us through.
-			seedOperation: true,
-			wantShouldRun: false,
-		},
-		{
-			// Fail open: if we can't tell whether a Create is in flight we
-			// surface the error to the caller but still report shouldRun=true
-			// so a flaky lister doesn't pin the controller in skip-forever
-			// mode for the rest of the grace window.
-			name:          "active operation lister error is propagated and fails open to shouldRun=true",
-			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), "op-broken"),
-			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
-			seedOperation: false,
-			opLister: func(_ *corecosmosstoragetesting.MockResourcesDBClient) corelisters.ActiveOperationLister {
-				return &boomActiveOperationLister{err: listerBoom}
-			},
-			wantShouldRun:  true,
-			wantErrContain: "failed to get operations",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-			mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
-			if tt.seedOperation {
-				seedClusterCreateOperation(t, ctx, mockDB, clusterResourceID, "op-create-1")
-			}
-			var opLister corelisters.ActiveOperationLister
-			if tt.opLister != nil {
-				opLister = tt.opLister(mockDB)
-			} else {
-				opLister = &corelistertesting.DBActiveOperationLister{ResourcesDBClient: mockDB}
-			}
-			syncer := &controlPlaneDesiredVersionSyncer{
-				clock:                 clocktesting.NewFakePassiveClock(now),
-				resourcesDBClient:     mockDB,
-				activeOperationLister: opLister,
-			}
-
-			gotShouldRun, err := syncer.shouldDetermineDesiredVersion(ctx, tt.cluster, tt.spc)
-			if tt.wantErrContain != "" {
-				require.Error(t, err)
-				assert.ErrorContains(t, err, tt.wantErrContain)
-			} else {
-				require.NoError(t, err)
-			}
-			assert.Equal(t, tt.wantShouldRun, gotShouldRun)
-		})
-	}
-}
-
 // TestControlPlaneDesiredVersionSyncer_SyncOnceSkipsWhenGated verifies the
 // end-to-end skip behaviour: when shouldDetermineDesiredVersion returns false
 // SyncOnce returns nil without touching the SPC DesiredVersion or writing a
@@ -1544,18 +1202,20 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceSkipsWhenGated(t *testing.T) {
 	// Cincinnati must not be consulted on the skip path.
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Times(0)
 
-	syncer := &controlPlaneDesiredVersionSyncer{
-		clock:                        clocktesting.NewFakePassiveClock(now),
-		readDesireLister:             newValidHostedClusterReadDesireLister(t),
-		resourcesDBClient:            mockDB,
-		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
-		clusterServiceClient:         ocm.NewMockClusterServiceClientSpec(ctrl),
+	syncer := &controlPlaneUpgradeVersionSyncer{
+		desiredVersionSyncerCommon: desiredVersionSyncerCommon{
+			clock:                        clocktesting.NewFakePassiveClock(now),
+			readDesireLister:             newValidHostedClusterReadDesireLister(t),
+			resourcesDBClient:            mockDB,
+			serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
+			activeOperationLister:        &corelistertesting.DBActiveOperationLister{ResourcesDBClient: mockDB},
+			cincinnatiClientCache:        mockClientCache,
+		},
+		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(ctrl),
 		subscriptionLister: &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{{
 			ResourceID: metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID)),
 			Properties: &coreapi.SubscriptionProperties{},
 		}}},
-		activeOperationLister: &corelistertesting.DBActiveOperationLister{ResourcesDBClient: mockDB},
-		cincinnatiClientCache: mockClientCache,
 	}
 
 	require.NoError(t, syncer.SyncOnce(ctx, clusterKey))

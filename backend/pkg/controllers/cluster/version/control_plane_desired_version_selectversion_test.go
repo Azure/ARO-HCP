@@ -67,13 +67,15 @@ func TestDesiredControlPlaneZVersion_ZStreamUsesSelectControlPlaneVersion(t *tes
 		`]}`
 	var graphCalled bool
 
-	syncer := &controlPlaneDesiredVersionSyncer{
-		graphClient:  mockGraphClient(ctrl, nil),
+	syncer := &controlPlaneUpgradeVersionSyncer{
+		desiredVersionSyncerCommon: desiredVersionSyncerCommon{
+			graphClient: mockGraphClient(ctrl, nil),
+		},
 		roundTripper: graphResponseRoundTripper(graphJSON, &graphCalled),
 	}
 
 	// cincinnatiClient must NOT be used on the SelectControlPlaneVersion path; give it no expectations.
-	result, err := syncer.desiredControlPlaneZVersion(
+	result, err := syncer.upgradeDesiredControlPlaneZVersion(
 		context.Background(),
 		cincinnati.NewMockClient(ctrl),
 		metadataapi.Must(coreapi.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")),
@@ -111,12 +113,14 @@ func TestDesiredControlPlaneZVersion_NightlyGuardSkipsSelectControlPlaneVersion(
 		nil,
 	)
 
-	syncer := &controlPlaneDesiredVersionSyncer{
-		graphClient:  mockGraphClient(ctrl, channelExistence{"nightly": {"4.20": false}}),
+	syncer := &controlPlaneUpgradeVersionSyncer{
+		desiredVersionSyncerCommon: desiredVersionSyncerCommon{
+			graphClient: mockGraphClient(ctrl, channelExistence{"nightly": {"4.20": false}}),
+		},
 		roundTripper: roundTripper,
 	}
 
-	result, err := syncer.desiredControlPlaneZVersion(
+	result, err := syncer.upgradeDesiredControlPlaneZVersion(
 		context.Background(),
 		mockClient,
 		metadataapi.Must(coreapi.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")),
