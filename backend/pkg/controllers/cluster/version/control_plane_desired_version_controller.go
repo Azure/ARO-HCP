@@ -383,7 +383,7 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 // version and when a MinimumVersions override fails upgrade-safety validation.
 func (c *controlPlaneDesiredVersionSyncer) persistIntentFailedCondition(ctx context.Context, key controllerutils.HCPClusterKey, err error) error {
 	logger := utils.LoggerFromContext(ctx)
-	logger.Error(err, "desired version resolution failed, persisting IntentFailed condition")
+	logger.Error(err, "desired version resolution or validation failed, persisting IntentFailed condition")
 	controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName)
 	return controllerutils.WriteController(ctx, controllerCRUD, controlPlaneDesiredVersionControllerName, key.InitialController,
 		func(ctrl *coreapi.Controller) {

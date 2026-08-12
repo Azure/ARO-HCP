@@ -211,6 +211,16 @@ No writes to Cosmos Resources container.
 |--------|---------------|
 | `ServiceProviderCluster` | <ul><li>**`Spec.BackupState`** = `Enabled` or `Paused` (from request body)</li></ul> |
 
+### Admin API: POST MinimumVersions
+
+**Path:** `POST /admin/v1/hcp/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourceName}/minimumversions`
+**Handler:** `HCPMinimumVersionsHandler` ([minimumversions.go](../admin/server/handlers/hcp/minimumversions.go))
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>Entire document (via `GetOrCreateServiceProviderCluster`, then deep-copied and modified)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ControlPlaneVersion.MinimumVersions`** = parsed versions from request body (nil clears the field; single-field write intent)</li></ul> |
+
 ---
 
 ## 2. Backend Controller Reads and Writes
@@ -819,12 +829,12 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ID`, `.Version.ChannelGroup`</li><li>`SystemData.CreatedAt`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion`</li><li>`Status.ControlPlaneVersion.ActiveVersions`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion`</li><li>`Spec.ControlPlaneVersion.MinimumVersions` (SRE-specified floor, applied after resolving the customer-intent candidate)</li><li>`Status.ControlPlaneVersion.ActiveVersions`</li></ul> |
 | Read | `Subscription` | <ul><li>Registered features (AFEC)</li></ul> |
 | Read | NodePools + ServiceProviderNodePools | <ul><li>For y-stream skew validation</li></ul> |
 | Read | Cincinnati | <ul><li>Version graph resolution</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ControlPlaneVersion.DesiredVersion`** = resolved version</li></ul> |
-| **Write** | **Controller doc** | <ul><li>**`IntentFailed`** condition (True with `VersionUpgradeNotAccepted` / False with `AsExpected`)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ControlPlaneVersion.DesiredVersion`** = resolved version, after applying the `MinimumVersions` override</li></ul> |
+| **Write** | **Controller doc** | <ul><li>**`IntentFailed`** condition (True with `VersionUpgradeNotAccepted` / False with `AsExpected`; also set when a `MinimumVersions` override fails the same upgrade-safety validation as a customer-initiated y-stream upgrade)</li></ul> |
 
 #### ControlPlaneActiveVersions
 
@@ -1437,9 +1447,17 @@ Single writer today (`RequirementsValid` only).
 
 | Actor | When |
 |-------|------|
-| [ControlPlaneDesiredVersion](#controlplanedesiredversion) | Sets/advances based on customer version intent + Cincinnati |
+| [ControlPlaneDesiredVersion](#controlplanedesiredversion) | Sets/advances based on customer version intent + Cincinnati, then overridden by `Spec.ControlPlaneVersion.MinimumVersions` if a higher floor applies |
 
 Single writer, but read by `ClusterClusterServiceCreate` (gate), `OperationClusterUpdate`, and `TriggerControlPlaneUpgrade`.
+
+### `ServiceProviderCluster.Spec.ControlPlaneVersion.MinimumVersions`
+
+| Actor | When |
+|-------|------|
+| [Admin API POST MinimumVersions](#admin-api-post-minimumversions) | SRE sets (or clears, with an empty/omitted list) the minimum-version floor per cluster |
+
+Single writer. Read by [ControlPlaneDesiredVersion](#controlplanedesiredversion), which applies it as a floor over the resolved `DesiredVersion`.
 
 ### `ServiceProviderCluster.Status.ManagementClusterResourceID`
 

@@ -101,6 +101,11 @@ for f in \
     '/\*out = new(v4\.Version)/{n;s/(\*in)\.DeepCopyInto(\*out)/**out = **in/;}' \
     "${f}"
 
+  # Fix slice-type semver.Version fields (semver.Version has no DeepCopyInto method).
+  os::util::sed -E \
+    "/\*out = make\(\[\]v4\.Version, len\(\*in\)\)/{N;N;N;s|\*out = make\(\[\]v4\.Version, len\(\*in\)\)\n[[:space:]]*for i := range \*in \{\n[[:space:]]*\(\*in\)\[i\]\.DeepCopyInto\(&\(\*out\)\[i\]\)\n[[:space:]]*\}|*out = make([]v4.Version, len(*in))\n\t\tcopy(*out, *in)|;}" \
+    "${f}"
+
   # Fix "any" fields: deepcopy-gen generates .DeepCopyany() which does not
   # exist on interface{}. The initial *out = *in already performs a shallow
   # copy so we just reassign the value.

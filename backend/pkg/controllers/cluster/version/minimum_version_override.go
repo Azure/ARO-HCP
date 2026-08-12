@@ -87,9 +87,19 @@ func applyMinimumVersionOverride(selected *semver.Version, activeVersions []core
 		}
 	}
 
-	// If there's a higher-minor minimum, return it (forces y-stream upgrade
-	// regardless of selected).
+	// If there's a higher-minor minimum, it forces a y-stream upgrade to at least
+	// that version. But if selected has already reached (or passed) that minor at
+	// or above the minimum -- e.g. a customer-initiated y-stream upgrade already
+	// resolved a higher patch -- keep selected instead of downgrading it back to
+	// the floor.
 	if higherMinorMin != nil {
+		if selected != nil {
+			higherMinorMinMinor := semver.MustParse(fmt.Sprintf("%d.%d.0", higherMinorMin.Major, higherMinorMin.Minor))
+			selectedMinor := semver.MustParse(fmt.Sprintf("%d.%d.0", selected.Major, selected.Minor))
+			if selectedMinor.GT(higherMinorMinMinor) || (selectedMinor.EQ(higherMinorMinMinor) && selected.GTE(*higherMinorMin)) {
+				return selected
+			}
+		}
 		return higherMinorMin
 	}
 

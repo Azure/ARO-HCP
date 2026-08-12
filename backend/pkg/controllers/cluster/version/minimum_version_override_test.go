@@ -164,6 +164,34 @@ func TestApplyMinimumVersionOverride(t *testing.T) {
 			minimumVersions: []semver.Version{semver.MustParse("4.20.12")},
 			expected:        ptr.To(semver.MustParse("4.20.12")),
 		},
+		{
+			name:            "higher minor minimum: selected already at that minor and >= minimum is kept, not downgraded",
+			selected:        ptr.To(semver.MustParse("4.20.15")),
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			minimumVersions: []semver.Version{semver.MustParse("4.20.12")},
+			expected:        ptr.To(semver.MustParse("4.20.15")),
+		},
+		{
+			name:            "higher minor minimum: selected already at that minor and == minimum is kept",
+			selected:        ptr.To(semver.MustParse("4.20.12")),
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			minimumVersions: []semver.Version{semver.MustParse("4.20.12")},
+			expected:        ptr.To(semver.MustParse("4.20.12")),
+		},
+		{
+			name:            "higher minor minimum: selected at that minor but below the minimum is raised to it",
+			selected:        ptr.To(semver.MustParse("4.20.5")),
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			minimumVersions: []semver.Version{semver.MustParse("4.20.12")},
+			expected:        ptr.To(semver.MustParse("4.20.12")),
+		},
+		{
+			name:            "higher minor minimum: selected already past that minor entirely is kept",
+			selected:        ptr.To(semver.MustParse("4.21.2")),
+			activeVersions:  []coreapi.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			minimumVersions: []semver.Version{semver.MustParse("4.20.12")},
+			expected:        ptr.To(semver.MustParse("4.21.2")),
+		},
 	}
 
 	for _, tt := range tests {
