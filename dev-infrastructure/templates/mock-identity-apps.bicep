@@ -23,6 +23,7 @@
 param identities array
 
 @description('Comma-separated owner object IDs for every mock identity application and service principal')
+@minLength(1)
 param ownerIds string
 
 @description('Number of pooled MSI mock identities to create')

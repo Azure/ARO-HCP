@@ -94,6 +94,7 @@
         },
         "entraAppOwnerIds": {
           "type": "string",
+          "minLength": 1,
           "description": "Comma-separated Entra object IDs that own CI-managed applications and service principals"
         },
         "global": {
