@@ -345,16 +345,9 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) checkNotAllowedAndD
 		return nil, nil
 	}
 
-	authRequest, err := checkAccessV2Client.CreateAuthorizationRequest(resourceID.String(), actions, token.Token)
+	authRequest, err := v.createAuthorizationRequestForControlPlaneIdentity(checkAccessV2Client, token, resourceID, actions, dataActions)
 	if err != nil {
 		return nil, utils.TrackError(err)
-	}
-
-	for _, da := range dataActions {
-		authRequest.Actions = append(authRequest.Actions, azurecheckaccessv2client.ActionInfo{
-			Id:           da,
-			IsDataAction: true,
-		})
 	}
 
 	authDecisionResponse, err := checkAccessV2Client.CheckAccess(ctx, *authRequest)
@@ -408,4 +401,20 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) checkNotAllowedAndD
 	}
 
 	return v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, routeTableResourceID, requiredActions, requiredDataActions, token)
+}
+
+// createAuthorizationRequestForControlPlaneIdentity builds a CheckAccessV2 AuthorizationRequest that identifies the subject by the JWT access token minted for the control plane operator identity via MI Dataplane.
+func (v *ControlPlaneIdentitiesPermissionsClusterValidation) createAuthorizationRequestForControlPlaneIdentity(checkAccessV2Client azureclient.CheckAccessV2Client, token azcore.AccessToken, resourceID *azcorearm.ResourceID,
+	actions []string, dataActions []string) (*azurecheckaccessv2client.AuthorizationRequest, error) {
+	authRequest, err := checkAccessV2Client.CreateAuthorizationRequest(resourceID.String(), actions, token.Token)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	for _, da := range dataActions {
+		authRequest.Actions = append(authRequest.Actions, azurecheckaccessv2client.ActionInfo{
+			Id:           da,
+			IsDataAction: true,
+		})
+	}
+	return authRequest, nil
 }

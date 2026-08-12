@@ -38,6 +38,114 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azure"
 )
 
+func TestCreateAuthorizationRequestForControlPlaneIdentity(t *testing.T) {
+	testResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
+	fakeToken := azcore.AccessToken{Token: "fake-jwt-token"}
+
+	tests := []struct {
+		name            string
+		actions         []string
+		dataActions     []string
+		setupMock       func(*azureclient.MockCheckAccessV2Client)
+		wantActions     []string
+		wantDataActions []string
+		wantErr         bool
+	}{
+		{
+			name:        "actions only",
+			actions:     []string{"Microsoft.Network/networkSecurityGroups/read", "Microsoft.Network/networkSecurityGroups/write"},
+			dataActions: nil,
+			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
+				m.EXPECT().CreateAuthorizationRequest(testResourceID.String(), []string{"Microsoft.Network/networkSecurityGroups/read", "Microsoft.Network/networkSecurityGroups/write"}, fakeToken.Token).
+					Return(&azurecheckaccessv2client.AuthorizationRequest{
+						Actions: []azurecheckaccessv2client.ActionInfo{
+							{Id: "Microsoft.Network/networkSecurityGroups/read"},
+							{Id: "Microsoft.Network/networkSecurityGroups/write"},
+						},
+					}, nil)
+			},
+			wantActions:     []string{"Microsoft.Network/networkSecurityGroups/read", "Microsoft.Network/networkSecurityGroups/write"},
+			wantDataActions: nil,
+		},
+		{
+			name:        "data actions only",
+			actions:     nil,
+			dataActions: []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"},
+			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
+				m.EXPECT().CreateAuthorizationRequest(testResourceID.String(), []string(nil), fakeToken.Token).
+					Return(&azurecheckaccessv2client.AuthorizationRequest{}, nil)
+			},
+			wantActions:     nil,
+			wantDataActions: []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"},
+		},
+		{
+			name:        "both actions and data actions",
+			actions:     []string{"Microsoft.Network/networkSecurityGroups/read"},
+			dataActions: []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"},
+			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
+				m.EXPECT().CreateAuthorizationRequest(testResourceID.String(), []string{"Microsoft.Network/networkSecurityGroups/read"}, fakeToken.Token).
+					Return(&azurecheckaccessv2client.AuthorizationRequest{
+						Actions: []azurecheckaccessv2client.ActionInfo{
+							{Id: "Microsoft.Network/networkSecurityGroups/read"},
+						},
+					}, nil)
+			},
+			wantActions:     []string{"Microsoft.Network/networkSecurityGroups/read"},
+			wantDataActions: []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"},
+		},
+		{
+			name:        "empty actions and data actions",
+			actions:     nil,
+			dataActions: nil,
+			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
+				m.EXPECT().CreateAuthorizationRequest(testResourceID.String(), []string(nil), fakeToken.Token).
+					Return(&azurecheckaccessv2client.AuthorizationRequest{}, nil)
+			},
+			wantActions:     nil,
+			wantDataActions: nil,
+		},
+		{
+			name:    "CreateAuthorizationRequest error returns error",
+			actions: []string{"Microsoft.Network/networkSecurityGroups/read"},
+			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
+				m.EXPECT().CreateAuthorizationRequest(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, fmt.Errorf("request creation failed"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := azureclient.NewMockCheckAccessV2Client(ctrl)
+			if tt.setupMock != nil {
+				tt.setupMock(mockClient)
+			}
+
+			v := &ControlPlaneIdentitiesPermissionsClusterValidation{}
+			result, err := v.createAuthorizationRequestForControlPlaneIdentity(mockClient, fakeToken, testResourceID, tt.actions, tt.dataActions)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			var gotActions, gotDataActions []string
+			for _, a := range result.Actions {
+				if a.IsDataAction {
+					gotDataActions = append(gotDataActions, a.Id)
+				} else {
+					gotActions = append(gotActions, a.Id)
+				}
+			}
+			assert.Equal(t, tt.wantActions, gotActions)
+			assert.Equal(t, tt.wantDataActions, gotDataActions)
+		})
+	}
+}
+
 func TestCheckNotAllowedAndDeniedActionsForResourceID(t *testing.T) {
 	testResourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg")
 	require.NoError(t, err)
