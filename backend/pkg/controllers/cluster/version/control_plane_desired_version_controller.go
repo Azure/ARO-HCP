@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/admission"
@@ -58,6 +60,17 @@ const clusterCreateGracePeriod = 2 * time.Hour
 // controlPlaneDesiredVersionControllerName is the Cosmos controller document ID for this syncer.
 const controlPlaneDesiredVersionControllerName = "ControlPlaneDesiredVersion"
 
+// nightlyChannelGroup is the OpenShift channel group whose builds are published to the CI
+// releasestream API rather than the Cincinnati graph API. controlplaneversion.SelectControlPlaneVersion
+// resolves versions via the graph API (api.openshift.com) and therefore cannot serve nightly; the
+// nightly channel guard in desiredControlPlaneZVersion routes nightly to the internal/cincinnati
+// gateway logic instead.
+const nightlyChannelGroup = "nightly"
+
+// defaultControlPlaneVersionOffset is the offset from the tip of a channel used when selecting a
+// desired control plane version. Offset 0 selects the most recent (tip) release in the channel.
+const defaultControlPlaneVersionOffset uint = 0
+
 // controlPlaneDesiredVersionSyncer is a Cluster syncer that manages control plane desired version.
 // It handles automated (managed) z-stream (patch) upgrades and assists with y-stream (minor)
 // version upgrades by selecting the appropriate z-stream within the user-desired minor version.
@@ -73,6 +86,12 @@ type controlPlaneDesiredVersionSyncer struct {
 
 	cincinnatiClientCache cincinnati.ClientCache
 	graphClient           cincinnati.GraphClient
+
+	// roundTripper is used by controlplaneversion.SelectControlPlaneVersion to query the Cincinnati
+	// graph API for graph-based tip selection on non-nightly channels. Production wiring sets this to
+	// the default HTTP transport. When nil (e.g. unit tests that drive the internal/cincinnati mock)
+	// z-stream selection falls back to the gateway-based FindBestVersionInMinor logic.
+	roundTripper controlplaneversion.RoundTrip
 }
 
 var _ controllerutils.ClusterSyncer = (*controlPlaneDesiredVersionSyncer)(nil)
@@ -97,6 +116,7 @@ func NewControlPlaneDesiredVersionController(
 		readDesireLister:              readDesireLister,
 		cincinnatiClientCache:         cincinnati.NewClientCache(),
 		graphClient:                   cincinnati.NewGraphClient(),
+		roundTripper:                  http.DefaultTransport.RoundTrip,
 		resourcesDBClient:             resourcesDBClient,
 		clusterServiceClient:          clusterServiceClient,
 		subscriptionLister:            subscriptionLister,
@@ -339,6 +359,14 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 	}
 
 	if desiredMinorVersion.EQ(actualLatestMinorVersion) {
+		// Nightly channel guard: controlplaneversion.SelectControlPlaneVersion resolves versions via
+		// the Cincinnati graph API (api.openshift.com), which does not serve the "nightly" channel
+		// group (nightly builds are published to the CI releasestream API). For nightly, skip
+		// graph-based tip selection and fall back to the internal/cincinnati gateway logic, which
+		// understands nightly. The same fallback is used when no roundTripper is configured.
+		if c.roundTripper != nil && channelGroup != nightlyChannelGroup {
+			return c.selectControlPlaneVersion(ctx, channelGroup, desiredMinorVersion, defaultControlPlaneVersionOffset)
+		}
 		return FindBestVersionInMinor(ctx, cincinnatiClient, c.graphClient, channelGroup, desiredMinorVersion, activeVersionList, false)
 	}
 
@@ -366,6 +394,27 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 		"no upgrade path found from %s to %s: no reachable versions in target minor and no gateway version in current minor",
 		actualLatestVersion.String(), desiredMinorVersion.String(),
 	))
+}
+
+// selectControlPlaneVersion resolves the desired control plane version for a minor by querying the
+// OpenShift update service (Cincinnati graph API) for that minor's channel and selecting the release
+// at the given offset from the tip (offset 0 = most recent release). It bridges
+// controlplaneversion.SelectControlPlaneVersion, which returns a configv1.Release, into the
+// *semver.Version used throughout this controller.
+//
+// This must not be called for the nightly channel group: the graph API does not serve nightly
+// builds. See the nightly channel guard in desiredControlPlaneZVersion.
+func (c *controlPlaneDesiredVersionSyncer) selectControlPlaneVersion(ctx context.Context, channelGroup string, minorVersion semver.Version, offset uint) (*semver.Version, error) {
+	channel := fmt.Sprintf("%s-%d.%d", channelGroup, minorVersion.Major, minorVersion.Minor)
+	release, err := controlplaneversion.SelectControlPlaneVersion(ctx, c.roundTripper, nil, channel, offset)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	selected, err := semver.ParseTolerant(release.Version)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse selected control plane version %q for channel %s: %w", release.Version, channel, err))
+	}
+	return &selected, nil
 }
 
 // listClusterAdmissionNodePools prefetches every node pool that is not in the process of being deleted
