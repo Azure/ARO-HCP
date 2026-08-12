@@ -665,14 +665,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	controlPlaneDesiredVersionController := clusterversion.NewControlPlaneDesiredVersionController(
 		b.clock,
 		b.options.ResourcesDBClient,
+		clusterLister,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		serviceProviderClusterLister,
+		nodePoolLister,
 		serviceProviderNodePoolLister,
 		backendInformers,
-		unionKubeApplierInformers,
-		unionReadDesireLister,
-		subscriptionLister,
 	)
 	triggerControlPlaneUpgradeController := clusterversion.NewTriggerControlPlaneUpgradeController(
 		b.clock,

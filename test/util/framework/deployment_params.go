@@ -71,8 +71,11 @@ func resolveDefaultControlPlaneVersion() (string, error) {
 				version = v
 			}
 			channelGroup := DefaultOpenshiftChannelGroup()
-			if channelGroup != "stable" {
-				resolved, err := GetLatestInstallVersion(context.Background(), channelGroup, version)
+			// Nightly cannot be resolved by the RP from a bare major.minor, so look up the exact
+			// build tag. Every other channel group installs with the bare major.minor line and lets
+			// the RP resolve it to a concrete version.
+			if channelGroup == "nightly" {
+				resolved, err := GetLatestNightlyInstallVersion(context.Background(), channelGroup, version)
 				if err != nil {
 					defaultCPVersionErr = err
 					return
@@ -134,16 +137,21 @@ func DefaultOpenshiftNodePoolVersionId() string {
 			return cpVersion
 		}
 
-		// Different channel groups: resolve node pool version from its own channel,
-		// then validate it doesn't exceed control plane version
-		var err error
-		version, err = GetLatestInstallVersion(context.Background(), channelGroup, DefaultOCPVersionId)
-		if err != nil {
-			if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) || errors.Is(err, ErrVersionNotFound) {
-				Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", DefaultOCPVersionId, channelGroup, err.Error()))
-			} else {
-				Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", channelGroup, err.Error()))
+		// Different channel groups: resolve node pool version from its own channel, then validate it
+		// doesn't exceed the control plane version. Nightly needs the exact build tag; every other
+		// channel group installs with the bare major.minor line and lets the RP resolve it.
+		if channelGroup == "nightly" {
+			var err error
+			version, err = GetLatestNightlyInstallVersion(context.Background(), channelGroup, DefaultOCPVersionId)
+			if err != nil {
+				if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) || errors.Is(err, ErrVersionNotFound) {
+					Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", DefaultOCPVersionId, channelGroup, err.Error()))
+				} else {
+					Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", channelGroup, err.Error()))
+				}
 			}
+		} else {
+			version = DefaultOCPVersionId
 		}
 
 		// Validate: node pool version must not exceed control plane version

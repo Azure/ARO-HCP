@@ -1,3 +1,17 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package controlplaneversion
 
 import (
@@ -61,11 +75,11 @@ func TestSelectControlPlaneVersionInstall(t *testing.T) {
 				},
 			},
 			offset:        1,
-			expectedError: "1 releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=fast-4.20, which is not enough for the requested 1 offset.",
+			expectedError: "1 releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=fast-4.20, which is not enough for the requested 1 offset",
 		},
 		{
 			name:          "empty graph",
-			expectedError: "no releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=fast-4.20.",
+			expectedError: "no releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=fast-4.20",
 		},
 	}
 	for _, tt := range tests {
