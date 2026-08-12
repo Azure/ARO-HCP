@@ -269,6 +269,21 @@ defaults:
           memory: 100Mi
         limits:
           memory: unlimited
+  # x509 Certificate Exporter
+  certExporter:
+    image:
+      registry: quay.io
+      repository: enix/x509-certificate-exporter
+      digest: sha256:afef14dc38622a42ef95aca848f12786ced9c26eac7324d0e1598fa8c1f6b68c # v4.2.0 (2026-08-12)
+    k8s:
+      namespace: cert-exporter
+      serviceAccountName: cert-exporter
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
   tenantId: ""
   ev2:
     assistedId:
