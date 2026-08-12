@@ -29,10 +29,13 @@ import (
 
 const (
 	BackupScheduleDesireNamePrefix = "backupschedule-"
+	OndemandBackupDesireNamePrefix = "ondemandbackup-"
 	DesireTagKeySchedule           = "backupschedule"
+	DesireTagKeyOndemandBackup     = "ondemandbackup"
 	VeleroGroup                    = "velero.io"
 	VeleroVersion                  = "v1"
 	VeleroScheduleResource         = "schedules"
+	VeleroBackupResource           = "backups"
 	VeleroNamespace                = "velero"
 	etcdHookName                   = "etcd-snapshot"
 	etcdAppLabel                   = "app"
