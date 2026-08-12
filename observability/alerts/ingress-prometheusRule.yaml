@@ -1,113 +1,117 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: ingress-monitor-alerts
-  namespace: openshift-route-monitor-operator
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: ingress-availability-slo-alerts
+  namespace: monitoring
 spec:
   groups:
-  - name: ingress-monitor-rules
+  # ========================================
+  # Ingress Availability SLO Alerts
+  # ========================================
+  # Multi-window burn-rate alerting adapted for gauge metrics.
+  # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
+  #
+  # SLO: 99.5% ingress canary availability
+  # Error Budget: 0.5% (1 - 0.995)
+  #
+  # Burn rate thresholds:
+  #   Fast (14.4x): 14.4 * 0.005 = 0.072 → error rate > 7.2%
+  #   Medium (6x):  6 * 0.005 = 0.030    → error rate > 3.0%
+  #   Slow (1x):    1 * 0.005 = 0.005    → error rate > 0.5%
+  #
+  # ingress_canary_route_reachable is a gauge (0/1 per canary pod), not a counter.
+  # The 'for' duration provides the short-window check, approximating multi-window
+  # burn rate alerting for gauge metrics (see access-cluster-slo-prometheusRule.yaml).
+  #
+  # Lane: alerts-rp-hcps.yaml → generatedRPHCPPrometheusAlertingRules.bicep
+  #       → icm-action-group-rp (ARO-RP on-call queue)
+  # Per-HCP alerts: correlationId scoped to _id so per-cluster suppression
+  # does not mask failures in other clusters.
+  - name: arohcp_ingress_availability_slo_alerts
+    labels:
+      component: slo
     rules:
-    # Fast burn: 5m/1h windows, 14.4x burn rate → warning (Sev 3, non-KAS UJ per ADR)
-    - alert: UJIngressAvailability1h5m
-      expr: >
-        1 - (
-          sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[5m]))
-          /
-          sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[5m]))
-        ) > (14.4 * (1 - 0.9995))
-        and
-        sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[5m])) > 5
-        and
-        1 - (
-          sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[1h]))
-          /
-          sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[1h]))
-        ) > (14.4 * (1 - 0.9995))
-        and
-        sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[1h])) > 60
-      for: 2m
+    # ----------------------------------------
+    # Fast Burn Alert (IcM Sev 3 — customer-facing UJ degraded)
+    # ----------------------------------------
+    # 14.4x burn rate → >7.2% error rate sustained for 5 minutes
+    # Would exhaust 30-day error budget in ~50 hours
+    - alert: userJourneyIngressAvailability1h5m
+      expr: |
+        errors:ingress_canary:error_rate > 0.072
+      for: 5m
       labels:
+        severity: "3"
+        slo: ingress-availability
         long_window: 1h
-        severity: warning
         short_window: 5m
       annotations:
-        message: "High error budget burn for ingress {{ $labels.probe_url }} (current value: {{ $value }})"
-        runbook_url: https://aka.ms/arohcp-runbook-ingress
-    # Medium burn: 30m/6h windows, 6x burn rate → warning (Sev 3, non-KAS UJ per ADR)
-    - alert: UJIngressAvailability6h30m
-      expr: >
-        1 - (
-          sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[30m]))
-          /
-          sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[30m]))
-        ) > (6 * (1 - 0.9995))
-        and
-        sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[30m])) > 30
-        and
-        1 - (
-          sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[6h]))
-          /
-          sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[6h]))
-        ) > (6 * (1 - 0.9995))
-        and
-        sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[6h])) > 360
-      for: 15m
+        summary: "Ingress canary availability critically degraded (>7.2% pods unreachable)"
+        description: "More than 7.2% of ingress canary pods are unreachable for HCP cluster {{ $labels._id }}, indicating a fast error budget burn (14.4x) that would exhaust the 99.5% SLO budget in ~50 hours."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "{{ $labels._id }}"
+    # ----------------------------------------
+    # Medium Burn Alert (IcM Sev 3)
+    # ----------------------------------------
+    # 6x burn rate → >3.0% error rate sustained for 30 minutes
+    # Would exhaust 30-day error budget in ~5 days
+    - alert: userJourneyIngressAvailability6h30m
+      expr: |
+        errors:ingress_canary:error_rate > 0.030
+      for: 30m
       labels:
+        severity: "3"
+        slo: ingress-availability
         long_window: 6h
-        severity: warning
         short_window: 30m
       annotations:
-        message: "High error budget burn for ingress {{ $labels.probe_url }} (current value: {{ $value }})"
-        runbook_url: https://aka.ms/arohcp-runbook-ingress
-    # Slow burn: 2h/1d windows, 3x burn rate → warning
-    - alert: UJIngressAvailability1d2h
-      expr: >
-        1 - (
-          sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[2h]))
-          /
-          sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[2h]))
-        ) > (3 * (1 - 0.9995))
-        and
-        sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[2h])) > 120
-        and
-        1 - (
-          sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[1d]))
-          /
-          sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[1d]))
-        ) > (3 * (1 - 0.9995))
-        and
-        sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[1d])) > 1440
-      for: 1h
+        summary: "Ingress canary availability degraded (>3% pods unreachable)"
+        description: "More than 3% of ingress canary pods are unreachable for HCP cluster {{ $labels._id }}, indicating a medium error budget burn (6x) that would exhaust the 99.5% SLO budget in ~5 days."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "{{ $labels._id }}"
+    # ----------------------------------------
+    # Slow Burn Alert (IcM Sev 4 — no immediate customer impact)
+    # ----------------------------------------
+    # 1x burn rate → >0.5% error rate sustained for 6 hours
+    # Consuming error budget at exactly the SLO rate — trend alert
+    - alert: userJourneyIngressAvailability3d6h
+      expr: |
+        errors:ingress_canary:error_rate > 0.005
+      for: 6h
       labels:
-        long_window: 1d
-        severity: warning
-        short_window: 2h
-      annotations:
-        message: "High error budget burn for ingress {{ $labels.probe_url }} (current value: {{ $value }})"
-        runbook_url: https://aka.ms/arohcp-runbook-ingress
-    # Very slow burn: 6h/3d windows, 1x burn rate → warning
-    - alert: UJIngressAvailability3d6h
-      expr: >
-        1 - (
-          sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[6h]))
-          /
-          sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[6h]))
-        ) > (1 * (1 - 0.9995))
-        and
-        sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[6h])) > 360
-        and
-        1 - (
-          sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[3d]))
-          /
-          sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[3d]))
-        ) > (1 * (1 - 0.9995))
-        and
-        sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[3d])) > 4320
-      for: 3h
-      labels:
+        severity: "4"
+        slo: ingress-availability
         long_window: 3d
-        severity: warning
         short_window: 6h
       annotations:
-        message: "High error budget burn for ingress {{ $labels.probe_url }} (current value: {{ $value }})"
-        runbook_url: https://aka.ms/arohcp-runbook-ingress
+        summary: "Ingress canary availability trending below SLO (>0.5% pods unreachable)"
+        description: "More than 0.5% of ingress canary pods are unreachable for HCP cluster {{ $labels._id }}, consuming the error budget at the SLO rate. No immediate customer impact but trend requires investigation."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "{{ $labels._id }}"
+  # ========================================
+  # Ingress Controller Degraded Alert
+  # ========================================
+  # Fires when the ingress controller reports a degraded condition.
+  # Complements the canary-based availability alerts with a controller
+  # health perspective. Sev 4 — degraded does not always mean user-visible impact.
+  - name: arohcp_ingress_controller_degraded_alerts
+    labels:
+      component: slo
+    rules:
+    - alert: userJourneyIngressControllerDegraded
+      expr: |
+        errors:ingress_controller:degraded == 1
+      for: 5m
+      labels:
+        severity: "4"
+        slo: ingress-availability
+      annotations:
+        summary: "Ingress controller is in degraded state"
+        description: "The ingress controller for HCP cluster {{ $labels._id }} has reported a degraded condition for more than 5 minutes. Investigate IngressController status and canary probe results."
+        runbook_url: "https://aka.ms/arohcp-runbook-ingress"
+        correlationId: "{{ $labels._id }}"

@@ -1,0 +1,58 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: ingress-availability-slo-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Ingress Availability SLO Recording Rules
+  # ========================================
+  # Metrics source: Managed_Prometheus_hcps-* (HCP AMW, hcps layer)
+  #
+  # SLO: 99.5% ingress canary availability
+  # Error Budget: 0.5% (1 - 0.995)
+  #
+  # Validated on 2026-07-29 against INT AMW (Managed_Prometheus_hcps-uksouth):
+  # - ingress_canary_route_reachable: _id label confirmed, 26 HCP clusters visible,
+  #   emitted by ingress-operator (control plane, authoritative source)
+  # - ingress_controller_conditions: _id label confirmed, condition=available/degraded
+  #
+  # Note: haproxy metrics (Errors, Latency, Traffic, Saturation) are not present
+  # in the HCP AMW — they exist only in the customer cluster's own Prometheus.
+  # A follow-up story is needed to route data plane metrics into AMW.
+  - name: arohcp_ingress_availability_slo_recording_rules
+    interval: 1m
+    rules:
+    # Availability SLI: fraction of canary pods reporting ingress as reachable,
+    # aggregated per HCP cluster.
+    # Ratio format per ADR: good events / total events
+    # Uses sum/count (not min) so that a single pod failure in a redundant setup
+    # does not report the entire cluster as unavailable.
+    - record: availability:ingress_canary:ratio
+      expr: |
+        sum by (_id) (ingress_canary_route_reachable)
+        /
+        count by (_id) (ingress_canary_route_reachable)
+    # Error rate derived from the availability SLI (1 - availability).
+    # Used by burn-rate alert expressions.
+    - record: errors:ingress_canary:error_rate
+      expr: |
+        1
+        -
+        (
+          sum by (_id) (ingress_canary_route_reachable)
+          /
+          count by (_id) (ingress_canary_route_reachable)
+        )
+    # Errors SLI: ingress controller degraded state per HCP cluster.
+    # Value is 0 (healthy) or 1 (degraded). Reflects the ingress controller's
+    # own assessment — a complementary signal to the canary-based availability SLI.
+    - record: errors:ingress_controller:degraded
+      expr: |
+        max by (_id) (ingress_controller_conditions{condition="degraded"})
