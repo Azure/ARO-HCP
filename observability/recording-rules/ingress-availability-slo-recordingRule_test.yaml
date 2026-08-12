@@ -73,7 +73,7 @@ tests:
   - expr: errors:ingress_controller:degraded
     eval_time: 5m
     exp_samples:
-    - labels: 'errors:ingress_controller:degraded{_id="ddd", condition="degraded"}'
+    - labels: 'errors:ingress_controller:degraded{_id="ddd"}'
       value: 1
 # ========================================
 # Test 5: Controller degraded = 0 (healthy)
@@ -86,7 +86,7 @@ tests:
   - expr: errors:ingress_controller:degraded
     eval_time: 5m
     exp_samples:
-    - labels: 'errors:ingress_controller:degraded{_id="eee", condition="degraded"}'
+    - labels: 'errors:ingress_controller:degraded{_id="eee"}'
       value: 0
 # ========================================
 # Test 6: Multiple clusters isolated — each _id gets its own ratio
