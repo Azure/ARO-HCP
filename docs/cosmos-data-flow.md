@@ -505,7 +505,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`CustomerProperties.API.AuthorizedCIDRs`</li><li>`CustomerProperties.NodeDrainTimeoutMinutes`</li><li>`CustomerProperties.Autoscaling.*`</li><li>`CustomerProperties.ImageDigestMirrors`</li><li>`ServiceProviderProperties.ExperimentalFeatures.*`</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`CustomerProperties.API.AuthorizedCIDRs`</li><li>`CustomerProperties.NodeDrainTimeoutMinutes`</li><li>`CustomerProperties.Autoscaling.*`</li><li>`CustomerProperties.ImageDigestMirrors`</li><li>`CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity` (dispatched to CS via `clusterUpdateDispatchConfig`; day-2 set/change/clear)</li><li>`ServiceProviderProperties.ExperimentalFeatures.*`</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Spec.DesiredHostedClusterControlPlaneSize`</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
 | Read | Cluster Service | <ul><li>`GetCluster` (for config comparison)</li></ul> |
@@ -1049,16 +1049,19 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 **File:** [cluster_validation_controller.go](../backend/pkg/controllers/cluster/validation/cluster_validation_controller.go), [nodepool_validation_controller.go](../backend/pkg/controllers/nodepool/validation/nodepool_validation_controller.go)
 **Trigger:** Cluster/NodePool informer, 1-minute resync
 **Gate (shouldProcess on ServiceProviderCluster/ServiceProviderNodePool):**
-- `!meta.IsStatusConditionTrue(ServiceProviderCluster.Status.Validations, validation.Name())` (condition must not yet be True)
+- Condition does not exist or is not True, OR
+- the validation implements `InputKeyedClusterValidation` and its `InputKey(cluster)` differs from the stored `condition.Message` (day-2 input change) — the controller stores the input key in the condition `Message` on success and re-validates when it changes
 - SyncOnce also checks `DeletionTimestamp == nil` on the resource
+
+Keyed validations (implementing `InputKeyedClusterValidation`): `ContainerRegistryPullCredentialsPermissionValidation` — re-runs when the container-registry pull MI resource ID changes on day-2.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `ServiceProviderCluster` | <ul><li>`Status.Validations[<name>]` (shouldProcess: condition must not be True)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.Validations[<name>]` (shouldProcess: condition must not be True; keyed validations also re-run when `InputKey(cluster) != condition.Message`)</li></ul> |
 | Read | `ServiceProviderNodePool` | <ul><li>`Status.Validations[<name>]` (shouldProcess: condition must not be True)</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`CustomerProperties.Platform.ContainerRegistry.PullManagedIdentity` (keyed-validation input for `ContainerRegistryPullCredentialsPermissionValidation`; also the validated resource — CAPZ `assign/action` permission is checked against it via CheckAccess V2)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` (CAPZ identity)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity`</li></ul> |
 | Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.Validations[<name>]`** = condition (True/False)</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.Validations[<name>]`** = condition (True/False). For keyed validations the success condition `Message` holds the input key (e.g. the pull MI resource ID), not a human-readable string.</li></ul> |
 | **Write** | **`ServiceProviderNodePool`** | <ul><li>**`Status.Validations[<name>]`** = condition (True/False)</li></ul> |
 
 #### DegradedAggregators (Cluster / NodePool / ExternalAuth)
