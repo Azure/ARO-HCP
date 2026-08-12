@@ -162,11 +162,32 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
 
+	// Use the KMS key observed in HostedCluster status, not the desired key in
+	// CustomerProperties, which may change before etcd is re-encrypted.
+	// CustomerProperties only indicates whether CMK is configured.
+	kmsKeyFingerprint := ""
+	if cm := cachedCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged; cm != nil && cm.Kms != nil && cm.Kms.ActiveKey.Version != "" {
+		hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
+			ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to get cached HostedCluster: %w", err))
+		}
+		// Leave the fingerprint empty until status reports a key. Continue creating
+		// schedules so a later resync can update them.
+		if hostedCluster != nil {
+			activeKey := hostedCluster.Status.SecretEncryption.ActiveKey.Azure
+			if activeKey.KeyVersion != "" {
+				kmsKeyFingerprint = backup.AzureKMSKeyFingerprint(activeKey.KeyVaultName, activeKey.KeyName, activeKey.KeyVersion)
+			}
+		}
+	}
+
 	configSchedules := c.backupConfig.Schedules()
 	schedules := make([]*velerov1.Schedule, 0, len(configSchedules))
 	for _, scheduleConfig := range configSchedules {
 		paused := c.backupConfig.BackupScheduleState == coreapi.BackupScheduleStateDisabled || clusterPaused
-		schedule := NewScheduledBackup(resourceID, hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, paused)
+		schedule := NewScheduledBackup(resourceID, kmsKeyFingerprint, hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, paused)
 		schedules = append(schedules, schedule)
 	}
 
