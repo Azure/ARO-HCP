@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -25,6 +26,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/backup"
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -113,6 +116,30 @@ var _ = Describe("Customer", func() {
 			By("ensuring the cluster is viable")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability for update")
+
+			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s",
+				metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, clusterName)
+
+			// The admin API is only reachable this way in dev environments; on-demand
+			// backup verification below is skipped in higher environments.
+			devEnv := framework.IsDevelopmentEnvironment()
+			var httpClient *http.Client
+			var adminAPIAddress string
+			if devEnv {
+				By("creating admin API HTTP client")
+				httpClient, adminAPIAddress, err = tc.NewAdminAPIHTTPClient(ctx)
+				Expect(err).NotTo(HaveOccurred(), "failed to create admin API HTTP client")
+
+				By("waiting for backup schedules to be created")
+				Eventually(func() (bool, error) {
+					resp, err := getBackupScheduleViaAdminAPI(ctx, httpClient, adminAPIAddress, hcpResourceID)
+					if err != nil {
+						return false, err
+					}
+					return len(resp.Schedules) > 0, nil
+				}, framework.BackupWaitTimeout, framework.BackupWaitInterval).Should(BeTrue(),
+					"backup schedules should be created for the cluster")
+			}
 
 			By("rotating the KMS key")
 			keyVaultURL := fmt.Sprintf("https://%s.vault.azure.net/", clusterParams.KeyVaultName)
@@ -205,6 +232,11 @@ var _ = Describe("Customer", func() {
 			By("verifying StorageVersionMigration succeeded for re-encryption")
 			err = verifiers.VerifyStorageVersionMigrationSucceeded().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "all StorageVersionMigration resources should reach Succeeded state after KMS key rotation")
+
+			if devEnv {
+				firstRotationFingerprint := backup.AzureKMSKeyFingerprint(clusterParams.KeyVaultName, clusterParams.EtcdEncryptionKeyName, firstKeyVersion)
+				verifyOnDemandBackupForFingerprint(ctx, httpClient, adminAPIAddress, hcpResourceID, firstRotationFingerprint, "first")
+			}
 
 			By("disabling first key version")
 			keyParams := azkeys.UpdateKeyParameters{
@@ -309,6 +341,21 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyStorageVersionMigrationSucceeded().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "all StorageVersionMigration resources should reach Succeeded state after KMS key rotation")
 
+			if devEnv {
+				secondRotationFingerprint := backup.AzureKMSKeyFingerprint(clusterParams.KeyVaultName, clusterParams.EtcdEncryptionKeyName, secondKeyVersion)
+				verifyOnDemandBackupForFingerprint(ctx, httpClient, adminAPIAddress, hcpResourceID, secondRotationFingerprint, "second")
+
+				By("verifying backup schedules still exist after rotation")
+				Eventually(func() (bool, error) {
+					resp, err := getBackupScheduleViaAdminAPI(ctx, httpClient, adminAPIAddress, hcpResourceID)
+					if err != nil {
+						return false, err
+					}
+					return len(resp.Schedules) > 0, nil
+				}, framework.BackupWaitTimeout, framework.BackupWaitInterval).Should(BeTrue(),
+					"backup schedules should still exist after key rotation")
+			}
+
 			By("disabling the old key version (second rotation)")
 			keyParams = azkeys.UpdateKeyParameters{
 				KeyAttributes: &azkeys.KeyAttributes{
@@ -331,3 +378,26 @@ var _ = Describe("Customer", func() {
 		},
 	)
 })
+
+// verifyOnDemandBackupForFingerprint waits for an on-demand backup carrying the
+// given KMS key fingerprint to appear via the admin API, e.g. after a key rotation.
+func verifyOnDemandBackupForFingerprint(ctx context.Context, httpClient *http.Client, adminAPIAddress, resourceID, fingerprint, rotationLabel string) {
+	By(fmt.Sprintf("verifying on-demand backup was created after %s rotation", rotationLabel))
+	Eventually(func() (bool, error) {
+		resp, err := getOnDemandBackupsViaAdminAPI(ctx, httpClient, adminAPIAddress, resourceID)
+		if err != nil {
+			return false, err
+		}
+		for _, b := range resp.Backups {
+			if b.KMSKeyFingerprint == fingerprint {
+				GinkgoLogr.Info("Found on-demand backup with expected fingerprint",
+					"backupName", b.Name,
+					"phase", b.Phase,
+					"fingerprint", b.KMSKeyFingerprint)
+				return true, nil
+			}
+		}
+		return false, nil
+	}, framework.BackupWaitTimeout, framework.BackupWaitInterval).Should(BeTrue(),
+		fmt.Sprintf("on-demand backup with the new key fingerprint should be created after the %s rotation", rotationLabel))
+}

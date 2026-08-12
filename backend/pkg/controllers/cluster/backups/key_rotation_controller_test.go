@@ -486,7 +486,9 @@ func TestKeyRotationBackupSyncer_SyncOnce(t *testing.T) {
 			clusterOpts:      []func(*coreapi.HCPOpenShiftCluster){withKMS},
 			hasPlacement:     true,
 			seedHCReadDesire: completedRotationHC,
-			// 2 syncs: one to create RD, one to create AD
+			// The first sync creates both the ReadDesire and the ApplyDesire; the
+			// second confirms the create-or-update path is idempotent and lets the
+			// recorded fingerprint settle into the refreshed lister snapshot.
 			syncCount: 2,
 			verify: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 				t.Helper()
