@@ -164,7 +164,7 @@ var (
 	errSelectVersionOffsetTooLarge = errors.New("select control plane version: offset beyond channel")
 )
 
-// wrapSelectControlPlaneVersion Error classifies the plain fmt.Errorf messages returned by
+// wrapSelectControlPlaneVersionError classifies the plain fmt.Errorf messages returned by
 // controlplaneversion.SelectControlPlaneVersion into retry-exempt sentinels. Empty-graph and
 // offset-too-large are deterministic and must not be retried; other errors (transport, non-200,
 // decode) are returned unchanged so retryOnTransientError can retry them.

@@ -61,11 +61,11 @@ func TestSelectControlPlaneVersionInstall(t *testing.T) {
 				},
 			},
 			offset:        1,
-			expectedError: "1 releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=fast-4.20, which is not enough for the requested 1 offset.",
+			expectedError: "1 releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=fast-4.20, which is not enough for the requested 1 offset",
 		},
 		{
 			name:          "empty graph",
-			expectedError: "no releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=fast-4.20.",
+			expectedError: "no releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=fast-4.20",
 		},
 	}
 	for _, tt := range tests {

@@ -21,10 +21,10 @@ func SelectControlPlaneVersion(ctx context.Context, roundTripper RoundTrip, upda
 		return nil, err
 	}
 	if len(releases) == 0 {
-		return nil, fmt.Errorf("no releases found in %s.", updateService)
+		return nil, fmt.Errorf("no releases found in %s", updateService)
 	}
 	if int(offset) >= len(releases) {
-		return nil, fmt.Errorf("%d releases found in %s, which is not enough for the requested %d offset.", len(releases), updateService, offset)
+		return nil, fmt.Errorf("%d releases found in %s, which is not enough for the requested %d offset", len(releases), updateService, offset)
 	}
 	return &releases[offset], nil
 }

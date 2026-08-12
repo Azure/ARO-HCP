@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/blang/semver/v4"
+
 	configv1 "github.com/openshift/api/config/v1"
 )
 
