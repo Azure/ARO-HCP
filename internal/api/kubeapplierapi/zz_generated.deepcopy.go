@@ -32,6 +32,13 @@ func (in *ApplyDesire) DeepCopyInto(out *ApplyDesire) {
 	in.CosmosMetadata.DeepCopyInto(&out.CosmosMetadata)
 	in.Spec.DeepCopyInto(&out.Spec)
 	in.Status.DeepCopyInto(&out.Status)
+	if in.Tags != nil {
+		in, out := &in.Tags, &out.Tags
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	return
 }
 
@@ -146,6 +153,13 @@ func (in *ReadDesire) DeepCopyInto(out *ReadDesire) {
 	in.CosmosMetadata.DeepCopyInto(&out.CosmosMetadata)
 	in.Spec.DeepCopyInto(&out.Spec)
 	in.Status.DeepCopyInto(&out.Status)
+	if in.Tags != nil {
+		in, out := &in.Tags, &out.Tags
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	return
 }
 
