@@ -31,10 +31,11 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -113,13 +114,13 @@ func TestMinimumVersionsHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
-			resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
+			resourceID, err := azcorearm.ParseResourceID(coreapitesting.TestClusterResourceID)
 			require.NoError(t, err)
 
 			if tt.existingVersions != nil {
-				existing, err := database.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, resourceID)
+				existing, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, resourceID)
 				require.NoError(t, err)
 				existing.Spec.ControlPlaneVersion.MinimumVersions = tt.existingVersions
 				_, err = mockResourcesDBClient.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Replace(ctx, existing, nil)
@@ -142,7 +143,7 @@ func TestMinimumVersionsHandler(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected error but got none")
 				}
-				var cloudErr *arm.CloudError
+				var cloudErr *coreapi.CloudError
 				if !errors.As(err, &cloudErr) {
 					t.Fatalf("expected CloudError but got %T: %v", err, err)
 				}
@@ -159,7 +160,7 @@ func TestMinimumVersionsHandler(t *testing.T) {
 				t.Fatalf("expected no error but got %v", err)
 			}
 
-			spc, err := mockResourcesDBClient.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+			spc, err := mockResourcesDBClient.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
 
 			var respBody minimumVersionsResponse
@@ -198,15 +199,15 @@ func TestMinimumVersionsHandler(t *testing.T) {
 
 func TestMinimumVersionsHandler_PreservesOtherFields(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
-	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
+	resourceID, err := azcorearm.ParseResourceID(coreapitesting.TestClusterResourceID)
 	require.NoError(t, err)
 
 	// Seed an SPC with a populated Status to confirm the handler does not stomp it.
-	existing, err := database.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, resourceID)
+	existing, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, resourceID)
 	require.NoError(t, err)
-	mgmtResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + api.TestSubscriptionID + "/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"))
+	mgmtResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + coreapitesting.TestSubscriptionID + "/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"))
 	existing.Status.ManagementClusterResourceID = mgmtResourceID
 	_, err = mockResourcesDBClient.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Replace(ctx, existing, nil)
 	require.NoError(t, err)
@@ -221,7 +222,7 @@ func TestMinimumVersionsHandler_PreservesOtherFields(t *testing.T) {
 
 	require.NoError(t, handler.ServeHTTP(recorder, req))
 
-	spc, err := mockResourcesDBClient.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	spc, err := mockResourcesDBClient.ServiceProviderClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	if spc.Status.ManagementClusterResourceID == nil || spc.Status.ManagementClusterResourceID.String() != mgmtResourceID.String() {
 		t.Errorf("expected ManagementClusterResourceID preserved, got %v", spc.Status.ManagementClusterResourceID)
