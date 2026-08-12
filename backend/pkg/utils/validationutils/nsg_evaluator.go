@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	utilnet "k8s.io/apimachinery/pkg/util/net"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // SecurityGroupAccess is the Allow/Deny result of an NSG security rule.
@@ -56,33 +58,9 @@ type requiredNSGPath struct {
 	port        int32
 }
 
-// validateOutboundNSGRules validates outbound NSG rules so worker nodes
-// can reach the control plane (typically TCP 443/6443; see outboundNSGPorts).
-//
-// workerSubnetCIDRs are the worker (node-pool or cluster) address spaces that
-// originate egress. destinationCIDRs are the address spaces those workers must
-// reach for KAS (cluster machine subnet).
-func (v *AzureCustomerNSGValidation) validateOutboundNSGRules(rules []NSGSecurityRule, workerSubnetCIDRs, destinationCIDRs []string, ports []int32) error {
-	paths, err := buildRequiredNSGPaths(workerSubnetCIDRs, "worker subnet", destinationCIDRs, "destination subnet", ports)
-	if err != nil {
-		return err
-	}
-	return validateRequiredNSGPaths(rules, paths, nsgDirectionOutbound)
-}
-
-// validateInboundNSGRules validates inbound NSG rules so
-// traffic from worker nodes toward the vnet integration path used for KAS is
-// not blocked on the given ports (typically TCP 443/8443; see inboundNSGPorts).
-//
-// workerSubnetCIDRs identify worker-sourced traffic.
-// vnetIntegrationSubnetCIDRs are the vnet-integration subnet address spaces
-// whose NSG is being evaluated; must be non-empty.
-func (v *AzureCustomerNSGValidation) validateInboundNSGRules(rules []NSGSecurityRule, workerSubnetCIDRs, vnetIntegrationSubnetCIDRs []string, ports []int32) error {
-	paths, err := buildRequiredNSGPaths(workerSubnetCIDRs, "worker subnet", vnetIntegrationSubnetCIDRs, "vnet-integration subnet", ports)
-	if err != nil {
-		return err
-	}
-	return validateRequiredNSGPaths(rules, paths, nsgDirectionInbound)
+// nsgDenyViolation describes a customer NSG Deny rule that blocks required traffic.
+type nsgDenyViolation struct {
+	Message string
 }
 
 type nsgDirection int
@@ -118,10 +96,10 @@ func buildRequiredNSGPaths(workerCIDRs []string, workerLabel string, destCIDRs [
 	return paths, nil
 }
 
-// validateRequiredNSGPaths checks that every required path is not blocked by an
+// findBlockingNSGDeny checks that every required path is not blocked by an
 // uncompensated Deny rule. Rules are evaluated in Azure priority order; a
 // higher-priority Allow that covers the Deny compensates it.
-func validateRequiredNSGPaths(rules []NSGSecurityRule, paths []requiredNSGPath, direction nsgDirection) error {
+func findBlockingNSGDeny(rules []NSGSecurityRule, paths []requiredNSGPath, direction nsgDirection) (*nsgDenyViolation, error) {
 	sorted := sortByPriority(rules)
 	requiredPorts := requiredPortsFromPaths(paths)
 	for _, path := range paths {
@@ -136,10 +114,10 @@ func validateRequiredNSGPaths(rules []NSGSecurityRule, paths []requiredNSGPath, 
 			if hasHigherPriorityAllowForDeny(sorted[:i], deny, []int32{path.port}, path.worker) {
 				continue
 			}
-			return pathBlockedError(deny, path, direction, requiredPorts)
+			return pathBlockedViolation(deny, path, direction, requiredPorts), nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 func requiredPortsFromPaths(paths []requiredNSGPath) []int32 {
@@ -168,7 +146,7 @@ func denyMatchesPath(deny *NSGSecurityRule, path requiredNSGPath) bool {
 	return portRangesMatch(deny.DestinationPortRanges, path.port)
 }
 
-func pathBlockedError(deny *NSGSecurityRule, path requiredNSGPath, direction nsgDirection, requiredPorts []int32) error {
+func pathBlockedViolation(deny *NSGSecurityRule, path requiredNSGPath, direction nsgDirection, requiredPorts []int32) *nsgDenyViolation {
 	blockedPorts := matchingPorts(deny.DestinationPortRanges, requiredPorts)
 	if len(blockedPorts) == 0 {
 		blockedPorts = []int32{path.port}
@@ -177,23 +155,23 @@ func pathBlockedError(deny *NSGSecurityRule, path requiredNSGPath, direction nsg
 	switch direction {
 	case nsgDirectionOutbound:
 		if isAnyAddressPrefixes(deny.SourceAddressPrefixes) && isAnyAddressPrefixes(deny.DestinationAddressPrefixes) {
-			return fmt.Errorf(
+			return &nsgDenyViolation{Message: fmt.Sprintf(
 				"outbound NSG rule %q (priority %d) denies source Any to destination Any covering ports %s; remove/narrow the Deny",
 				deny.Name, deny.Priority, portStr,
-			)
+			)}
 		}
-		return fmt.Errorf(
+		return &nsgDenyViolation{Message: fmt.Sprintf(
 			"outbound NSG rule %q (priority %d) denies egress to a destination overlapping subnet %s covering ports %s; remove/narrow the Deny",
 			deny.Name, deny.Priority, path.destCIDR, portStr,
-		)
+		)}
 	case nsgDirectionInbound:
 		reason := inboundDenyReason(deny, path)
-		return fmt.Errorf(
+		return &nsgDenyViolation{Message: fmt.Sprintf(
 			"inbound NSG rule %q (priority %d) %s covering ports %s; remove/narrow the Deny",
 			deny.Name, deny.Priority, reason, portStr,
-		)
+		)}
 	default:
-		return fmt.Errorf("NSG rule %q (priority %d) blocks required path on port %s", deny.Name, deny.Priority, portStr)
+		return &nsgDenyViolation{Message: fmt.Sprintf("NSG rule %q (priority %d) blocks required path on port %s", deny.Name, deny.Priority, portStr)}
 	}
 }
 
@@ -218,14 +196,16 @@ func inboundDenyReason(deny *NSGSecurityRule, path requiredNSGPath) string {
 }
 
 func parsePrefixes(cidrs []string, label string) ([]netip.Prefix, error) {
+	// cidrs from Azure should always have at least one CIDR
+	// treat missing CIDRs as an internal error.
 	if len(cidrs) == 0 {
-		return nil, fmt.Errorf("no %s CIDRs provided", label)
+		return nil, utils.TrackError(fmt.Errorf("no %s CIDRs provided", label))
 	}
 	out := make([]netip.Prefix, 0, len(cidrs))
 	for _, cidr := range cidrs {
 		prefix, err := parsePrefixOrAddr(cidr)
 		if err != nil {
-			return nil, fmt.Errorf("invalid %s CIDR %q: %w", label, cidr, err)
+			return nil, utils.TrackError(fmt.Errorf("invalid %s CIDR %q: %w", label, cidr, err))
 		}
 		out = append(out, prefix)
 	}
@@ -554,7 +534,7 @@ func parsePrefixOrAddr(s string) (netip.Prefix, error) {
 	}
 	addr, err := netip.ParseAddr(s)
 	if err != nil {
-		return netip.Prefix{}, fmt.Errorf("invalid IP or CIDR %q", s)
+		return netip.Prefix{}, utils.TrackError(fmt.Errorf("invalid IP or CIDR %q", s))
 	}
 	return netip.PrefixFrom(addr, addr.BitLen()), nil
 }
