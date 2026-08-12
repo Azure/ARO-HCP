@@ -46,6 +46,7 @@ The source of truth for deployed configuration is [`config/config-dev-ci.yaml`](
 Do not update tenant definitions in `deploy/values.yaml`. That file contains static chart defaults.
 
 Subscription IDs are resolved at runtime from configured subscription display names rather than stored in the config.
+Role assignment usage and limits are retrieved directly from Azure rather than configured per subscription.
 
 ## Secrets and Credential Reload
 
