@@ -161,6 +161,20 @@ billing:
     endpoint: ""
   rg: placeholder
   useGlobalMeterIds: false
+certExporter:
+  image:
+    digest: sha256:afef14dc38622a42ef95aca848f12786ced9c26eac7324d0e1598fa8c1f6b68c
+    registry: quay.io
+    repository: enix/x509-certificate-exporter
+  k8s:
+    namespace: cert-exporter
+    resources:
+      limits:
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    serviceAccountName: cert-exporter
 cloud: Public
 cloudEnvironmentName: AzurePublicCloud
 clustersService:
