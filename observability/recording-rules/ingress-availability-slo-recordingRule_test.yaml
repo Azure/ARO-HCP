@@ -1,0 +1,124 @@
+rule_files:
+- ingress-availability-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Test 1: All pods reachable — availability ratio = 1, error rate = 0
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="aaa", host="node1.apps.aro.example.io"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="aaa", host="node2.apps.aro.example.io"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'availability:ingress_canary:ratio{_id="aaa"}'
+      value: 1
+  - expr: errors:ingress_canary:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate{_id="aaa"}'
+      value: 0
+# ========================================
+# Test 2: Half pods unreachable — availability ratio = 0.5, error rate = 0.5
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="bbb", host="node1.apps.aro.example.io"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="bbb", host="node2.apps.aro.example.io"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'availability:ingress_canary:ratio{_id="bbb"}'
+      value: 0.5
+  - expr: errors:ingress_canary:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate{_id="bbb"}'
+      value: 0.5
+# ========================================
+# Test 3: All pods unreachable — availability ratio = 0, error rate = 1
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="ccc", host="node1.apps.aro.example.io"}'
+    values: "0+0x10"
+  - series: 'ingress_canary_route_reachable{_id="ccc", host="node2.apps.aro.example.io"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'availability:ingress_canary:ratio{_id="ccc"}'
+      value: 0
+  - expr: errors:ingress_canary:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate{_id="ccc"}'
+      value: 1
+# ========================================
+# Test 4: Controller degraded = 1
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'ingress_controller_conditions{_id="ddd", condition="degraded"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: errors:ingress_controller:degraded
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_controller:degraded{_id="ddd", condition="degraded"}'
+      value: 1
+# ========================================
+# Test 5: Controller degraded = 0 (healthy)
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'ingress_controller_conditions{_id="eee", condition="degraded"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: errors:ingress_controller:degraded
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_controller:degraded{_id="eee", condition="degraded"}'
+      value: 0
+# ========================================
+# Test 6: Multiple clusters isolated — each _id gets its own ratio
+# ========================================
+- interval: 1m
+  input_series:
+  # fff: 3/3 reachable
+  - series: 'ingress_canary_route_reachable{_id="fff", host="node1.apps.aro.example.io"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="fff", host="node2.apps.aro.example.io"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="fff", host="node3.apps.aro.example.io"}'
+    values: "1+0x10"
+  # ggg: 1/3 reachable
+  - series: 'ingress_canary_route_reachable{_id="ggg", host="node1.apps.aro.example.io"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="ggg", host="node2.apps.aro.example.io"}'
+    values: "0+0x10"
+  - series: 'ingress_canary_route_reachable{_id="ggg", host="node3.apps.aro.example.io"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'availability:ingress_canary:ratio{_id="fff"}'
+      value: 1
+    - labels: 'availability:ingress_canary:ratio{_id="ggg"}'
+      value: 0.3333333333333333
+  - expr: errors:ingress_canary:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate{_id="fff"}'
+      value: 0
+    - labels: 'errors:ingress_canary:error_rate{_id="ggg"}'
+      value: 0.6666666666666667
