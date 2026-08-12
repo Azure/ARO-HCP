@@ -42,44 +42,49 @@ func TestCreateAuthorizationRequestForDataPlaneIdentity(t *testing.T) {
 	testResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
 
 	tests := []struct {
-		name        string
-		subject     string
-		actions     []string
-		dataActions []string
-		wantSubject string
-		wantActions int
+		name            string
+		subject         string
+		actions         []string
+		dataActions     []string
+		wantSubject     string
+		wantActions     []string
+		wantDataActions []string
 	}{
 		{
-			name:        "actions only",
-			subject:     "object-id-1",
-			actions:     []string{"Microsoft.Network/networkSecurityGroups/read", "Microsoft.Network/networkSecurityGroups/write"},
-			dataActions: nil,
-			wantSubject: "object-id-1",
-			wantActions: 2,
+			name:            "actions only",
+			subject:         "object-id-1",
+			actions:         []string{"Microsoft.Network/networkSecurityGroups/read", "Microsoft.Network/networkSecurityGroups/write"},
+			dataActions:     nil,
+			wantSubject:     "object-id-1",
+			wantActions:     []string{"Microsoft.Network/networkSecurityGroups/read", "Microsoft.Network/networkSecurityGroups/write"},
+			wantDataActions: nil,
 		},
 		{
-			name:        "data actions only",
-			subject:     "object-id-2",
-			actions:     nil,
-			dataActions: []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"},
-			wantSubject: "object-id-2",
-			wantActions: 1,
+			name:            "data actions only",
+			subject:         "object-id-2",
+			actions:         nil,
+			dataActions:     []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"},
+			wantSubject:     "object-id-2",
+			wantActions:     nil,
+			wantDataActions: []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"},
 		},
 		{
-			name:        "both actions and data actions",
-			subject:     "object-id-3",
-			actions:     []string{"Microsoft.Network/networkSecurityGroups/read"},
-			dataActions: []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"},
-			wantSubject: "object-id-3",
-			wantActions: 2,
+			name:            "both actions and data actions",
+			subject:         "object-id-3",
+			actions:         []string{"Microsoft.Network/networkSecurityGroups/read"},
+			dataActions:     []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"},
+			wantSubject:     "object-id-3",
+			wantActions:     []string{"Microsoft.Network/networkSecurityGroups/read"},
+			wantDataActions: []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"},
 		},
 		{
-			name:        "empty actions and data actions",
-			subject:     "object-id-4",
-			actions:     nil,
-			dataActions: nil,
-			wantSubject: "object-id-4",
-			wantActions: 0,
+			name:            "empty actions and data actions",
+			subject:         "object-id-4",
+			actions:         nil,
+			dataActions:     nil,
+			wantSubject:     "object-id-4",
+			wantActions:     nil,
+			wantDataActions: nil,
 		},
 	}
 
@@ -90,20 +95,22 @@ func TestCreateAuthorizationRequestForDataPlaneIdentity(t *testing.T) {
 
 			assert.Equal(t, tt.wantSubject, result.Subject.Attributes.ObjectId)
 			assert.Equal(t, testResourceID.String(), result.Resource.Id)
-			assert.Len(t, result.Actions, tt.wantActions)
 
-			dataActionCount := 0
+			var gotActions, gotDataActions []string
 			for _, a := range result.Actions {
 				if a.IsDataAction {
-					dataActionCount++
+					gotDataActions = append(gotDataActions, a.Id)
+				} else {
+					gotActions = append(gotActions, a.Id)
 				}
 			}
-			assert.Equal(t, len(tt.dataActions), dataActionCount)
+			assert.Equal(t, tt.wantActions, gotActions)
+			assert.Equal(t, tt.wantDataActions, gotDataActions)
 		})
 	}
 }
 
-func TestCheckNotAllowedAndDeniedActionsForResourceIDDataPlane(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_checkNotAllowedAndDeniedActionsForResourceID(t *testing.T) {
 	testResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
 
 	tests := []struct {
@@ -230,7 +237,7 @@ func TestCheckNotAllowedAndDeniedActionsForResourceIDDataPlane(t *testing.T) {
 	}
 }
 
-func TestCheckNotAllowedAndDeniedActionsForNetworkSecurityGroupDataPlane(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(t *testing.T) {
 	nsgResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
 
 	tests := []struct {
@@ -301,7 +308,7 @@ func TestCheckNotAllowedAndDeniedActionsForNetworkSecurityGroupDataPlane(t *test
 	}
 }
 
-func TestCheckNotAllowedAndDeniedActionsForVNetDataPlane(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_checkNotAllowedAndDeniedActionsForVNet(t *testing.T) {
 	vnetResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 
 	tests := []struct {
@@ -371,7 +378,7 @@ func TestCheckNotAllowedAndDeniedActionsForVNetDataPlane(t *testing.T) {
 	}
 }
 
-func TestCheckNotAllowedAndDeniedActionsForSubnetDataPlane(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_checkNotAllowedAndDeniedActionsForSubnet(t *testing.T) {
 	subnetResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 
 	tests := []struct {
@@ -441,7 +448,7 @@ func TestCheckNotAllowedAndDeniedActionsForSubnetDataPlane(t *testing.T) {
 	}
 }
 
-func TestCheckNotAllowedAndDeniedActionsForNatGateway(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_checkNotAllowedAndDeniedActionsForNatGateway(t *testing.T) {
 	natGatewayID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/natGateways/test-natgw"
 
 	tests := []struct {
@@ -522,7 +529,7 @@ func TestCheckNotAllowedAndDeniedActionsForNatGateway(t *testing.T) {
 	}
 }
 
-func TestCheckNotAllowedAndDeniedActionsForRouteTableDataPlane(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_checkNotAllowedAndDeniedActionsForRouteTable(t *testing.T) {
 	routeTableID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/routeTables/test-rt"
 
 	tests := []struct {
@@ -603,7 +610,7 @@ func TestCheckNotAllowedAndDeniedActionsForRouteTableDataPlane(t *testing.T) {
 	}
 }
 
-func TestCheckMissingPermissionsForNetworkSecurityGroupDataPlane(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_checkMissingPermissionsForNetworkSecurityGroup(t *testing.T) {
 	nsgResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
 	identityResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"))
 
@@ -672,7 +679,7 @@ func TestCheckMissingPermissionsForNetworkSecurityGroupDataPlane(t *testing.T) {
 	}
 }
 
-func TestCheckMissingPermissionsForVNetDataPlane(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_checkMissingPermissionsForVNet(t *testing.T) {
 	subnetResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 	vnetResourceID := subnetResourceID.Parent
 	identityResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"))
@@ -911,7 +918,7 @@ func TestCheckMissingPermissionsForNatGateway(t *testing.T) {
 	}
 }
 
-func TestCheckMissingPermissionsForRouteTableDataPlane(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_checkMissingPermissionsForRouteTable(t *testing.T) {
 	routeTableID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/routeTables/test-rt"
 	routeTableResourceID := metadataapi.Must(azcorearm.ParseResourceID(routeTableID))
 	identityResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"))
@@ -1013,7 +1020,7 @@ func TestCheckMissingPermissionsForRouteTableDataPlane(t *testing.T) {
 	}
 }
 
-func TestIdentityObjectIDForOperator(t *testing.T) {
+func TestRetrieveIdentityObjectID(t *testing.T) {
 	identityResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-operator-identity"))
 
 	tests := []struct {
@@ -1078,7 +1085,7 @@ func TestIdentityObjectIDForOperator(t *testing.T) {
 			tt.setupMock(mockUAISClient)
 
 			v := &DataPlaneIdentitiesPermissionsValidation{}
-			result, err := v.identityObjectIDForOperator(context.Background(), mockUAISClient, "test-operator", identityResourceID)
+			result, err := v.retrieveIdentityObjectID(context.Background(), mockUAISClient, identityResourceID)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -1091,7 +1098,7 @@ func TestIdentityObjectIDForOperator(t *testing.T) {
 	}
 }
 
-func TestDataPlaneRoleActionsForOperator(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_roleActionsForOperator(t *testing.T) {
 	roleDefID1 := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/11111111-1111-1111-1111-111111111111"))
 	roleDefID2 := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/22222222-2222-2222-2222-222222222222"))
 
@@ -1236,7 +1243,7 @@ func TestDataPlaneRoleActionsForOperator(t *testing.T) {
 	}
 }
 
-func TestDataPlaneRoleDataActionsForOperator(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_roleDataActionsForOperator(t *testing.T) {
 	roleDefID1 := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/11111111-1111-1111-1111-111111111111"))
 
 	tests := []struct {
@@ -1366,7 +1373,7 @@ func TestDataPlaneRoleDataActionsForOperator(t *testing.T) {
 	}
 }
 
-func TestDataPlaneValidate(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_Validate(t *testing.T) {
 	const (
 		testTenantID       = "11111111-1111-1111-1111-111111111111"
 		testSubscriptionID = "00000000-0000-0000-0000-000000000000"
@@ -1537,15 +1544,14 @@ func TestDataPlaneValidate(t *testing.T) {
 			mockSMIBuilder.EXPECT().SubnetsClient(gomock.Any(), testIdentityURL, smiResourceID, testSubscriptionID).Return(mockSubnetsClient, nil)
 			mockSubnetsClient.EXPECT().Get(gomock.Any(), subnetResourceID.ResourceGroupName, subnetResourceID.Parent.Name, subnetResourceID.Name, nil).Return(subnetGetResponse, nil)
 
-			// roleActionsForOperator and roleDataActionsForOperator are resolved before the identity's object ID, so the
-			// cached reader is always consulted, even on the error paths that override UAIS identity resolution below.
-			mockCachedReader.EXPECT().GetCachedByID(gomock.Any(), roleDefID.String(), nil).Return(roleDefResponse, nil).Times(2)
-
 			if tt.setupUAISOverride != nil {
+				// The identity's object ID is now resolved before roleActionsForOperator/roleDataActionsForOperator run,
+				// so on these error paths the cached reader is never consulted.
 				tt.setupUAISOverride(mockUAISClient)
 			} else {
 				mockUAISClient.EXPECT().Get(gomock.Any(), operatorIdentityResourceID.ResourceGroupName, operatorIdentityResourceID.Name, nil).
 					Return(uaisGetResponse, nil)
+				mockCachedReader.EXPECT().GetCachedByID(gomock.Any(), roleDefID.String(), nil).Return(roleDefResponse, nil).Times(2)
 				tt.setupCheckAccess(mockCheckAccessClient)
 			}
 

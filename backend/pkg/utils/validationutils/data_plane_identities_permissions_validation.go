@@ -32,7 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// DataPlaneIdentitiesPermissionsValidation validates that the cluster's data plane operator identities have the RBAC permissions they need over the customer's resources
+// DataPlaneIdentitiesPermissionsValidation validates that the cluster's data plane operator identities have the RBAC permissions they need over the user-provided azure resources
 // (network security group, VNet, subnet, NAT gateway, and route table).
 //
 // Unlike ControlPlaneIdentitiesPermissionsClusterValidation, which mints a JWT for each control-plane operator identity via MI Dataplane and passes that token to CheckAccessV2, this validator identifies
@@ -42,11 +42,11 @@ import (
 // CheckAccessV2 and must use the ObjectId subject path instead. See createAuthorizationRequestForDataPlaneIdentity.
 //
 // Limitation: this ObjectId-only subject means CheckAccessV2 cannot see the identity's Entra group memberships, so this validator only detects permissions granted by role assignments made directly to
-// the identity's principal ID. It misses permissions granted via a role assignment on a group the identity belongs to. This is a direct consequence of how CheckAccessV2 resolves group membership: when
+// the identity's principal ID. It misses permissions granted via a role assignment on a group the identity belongs to. This is a direct consequence of how CheckAccessV2 resolves group membership, when
 // the control-plane path builds its request from a JWT (see the vendored checkaccess-v2-go-sdk's RemotePDPClient.CreateAuthorizationRequest), it populates SubjectAttributes.Groups from the token's
-// "groups" claim (or sets ClaimName to trigger server-side group expansion on claims-overage tokens); with only an ObjectId and no token, there are no group claims to forward, and CheckAccessV2 does
-// not otherwise expand a bare ObjectId's group membership itself. In practice this is expected to be a non-issue: customers are expected to grant RBAC roles directly to the data-plane operator
-// identities (as documented for ARO-HCP), not via group membership, but it should be kept in mind when interpreting a "no missing permissions" result from this validator.
+// "groups" claim (or sets ClaimName to trigger server-side group expansion on claims-overage tokens). With only an ObjectId and no token, there are no group claims to forward, and CheckAccessV2 does
+// not otherwise expand a bare ObjectId's group membership itself. Users of the service are instructed to grant RBAC roles directly to the cluster data plane operator's identities (as documented for ARO-HCP),
+// not via group membership, but it should be kept in mind when interpreting a "no missing permissions" result from this validator.
 type DataPlaneIdentitiesPermissionsValidation struct {
 	smiClientBuilder                  azureclient.ServiceManagedIdentityClientBuilder
 	clusterScopedIdentitiesConfig     *azure.ClusterScopedIdentitiesConfig
@@ -118,10 +118,28 @@ func (v *DataPlaneIdentitiesPermissionsValidation) Validate(ctx context.Context,
 			ControllerReportingPolicyTypeError,
 		)
 	}
+	if subnet.Properties == nil {
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify data plane identities permissions.",
+			fmt.Sprintf("subnet properties are nil for subnet %s", subnetResourceID),
+			ControllerReportingPolicyTypeError,
+		)
+	}
 
 	var missingPermissions []*identityResourceMissingPermissions
 	for operatorName, identity := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
-		results, err := v.findMissingActionsForIdentity(ctx, checkAccessV2Client, userAssignedIdentitiesClient, cluster, operatorName, identity, &subnet.Subnet)
+		identityObjectID, err := v.retrieveIdentityObjectID(ctx, userAssignedIdentitiesClient, identity)
+		if err != nil {
+			return UnknownValidation(
+				"InternalError",
+				"Unable to verify data plane identities permissions.",
+				fmt.Sprintf("failed to retrieve identity %s objectID, belonging to operator %s: %v", identity, operatorName, err),
+				ControllerReportingPolicyTypeError,
+			)
+		}
+
+		results, err := v.findMissingActionsForIdentity(ctx, checkAccessV2Client, identityObjectID, cluster, operatorName, identity, &subnet.Subnet)
 		if err != nil {
 			return UnknownValidation(
 				"InternalError",
@@ -203,34 +221,29 @@ func (v *DataPlaneIdentitiesPermissionsValidation) fetchRoleDefinitions(ctx cont
 	return roleDefinitions, nil
 }
 
-// identityObjectIDForOperator resolves the Entra object ID (PrincipalID) of the given data plane operator identity. This is the CheckAccessV2 subject for data plane operators: unlike control plane operators,
+// retrieveIdentityObjectID resolves the Entra object ID (PrincipalID) of the given data plane operator identity. This is the CheckAccessV2 subject for data plane operators: unlike control plane operators,
 // MI Dataplane cannot mint an access token for them, so CheckAccessV2 must identify the subject by ObjectId instead of by JWT. See createAuthorizationRequestForDataPlaneIdentity.
-func (v *DataPlaneIdentitiesPermissionsValidation) identityObjectIDForOperator(ctx context.Context, userAssignedIdentitiesClient azureclient.UserAssignedIdentitiesClient, operatorName string, identity *azcorearm.ResourceID) (string, error) {
+func (v *DataPlaneIdentitiesPermissionsValidation) retrieveIdentityObjectID(ctx context.Context, userAssignedIdentitiesClient azureclient.UserAssignedIdentitiesClient, identity *azcorearm.ResourceID) (string, error) {
 	operatorIdentity, err := userAssignedIdentitiesClient.Get(ctx, identity.ResourceGroupName, identity.Name, nil)
 	if err != nil {
-		return "", utils.TrackError(fmt.Errorf("failed to get user assigned managed identity for operator %q: %w", operatorName, err))
+		return "", utils.TrackError(fmt.Errorf("failed to get user assigned managed identity %q: %w", identity, err))
 	}
 	if operatorIdentity.Properties == nil {
-		return "", utils.TrackError(fmt.Errorf("properties are nil for user assigned managed identity of operator %q", operatorName))
+		return "", utils.TrackError(fmt.Errorf("properties are nil for user assigned managed identity %q", identity))
 	}
 	if operatorIdentity.Properties.PrincipalID == nil {
-		return "", utils.TrackError(fmt.Errorf("principal ID is nil for user assigned managed identity of operator %q", operatorName))
+		return "", utils.TrackError(fmt.Errorf("principal ID is nil for user assigned managed identity %q", identity))
 	}
 	return *operatorIdentity.Properties.PrincipalID, nil
 }
 
-func (v *DataPlaneIdentitiesPermissionsValidation) findMissingActionsForIdentity(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, userAssignedIdentitiesClient azureclient.UserAssignedIdentitiesClient, cluster *coreapi.HCPOpenShiftCluster, operatorName string, identity *azcorearm.ResourceID, clusterSubnet *armnetwork.Subnet) ([]*identityResourceMissingPermissions, error) {
+func (v *DataPlaneIdentitiesPermissionsValidation) findMissingActionsForIdentity(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, identityObjectID string, cluster *coreapi.HCPOpenShiftCluster, operatorName string, identity *azcorearm.ResourceID, clusterSubnet *armnetwork.Subnet) ([]*identityResourceMissingPermissions, error) {
 	roleActions, err := v.roleActionsForOperator(ctx, operatorName)
 	if err != nil {
 		return nil, err
 	}
 
 	roleDataActions, err := v.roleDataActionsForOperator(ctx, operatorName)
-	if err != nil {
-		return nil, err
-	}
-
-	identityObjectID, err := v.identityObjectIDForOperator(ctx, userAssignedIdentitiesClient, operatorName, identity)
 	if err != nil {
 		return nil, err
 	}
