@@ -38,7 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azure"
 )
 
-func TestCreateAuthorizationRequestForDataPlaneIdentity(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_createAuthorizationRequestForDataPlaneIdentity(t *testing.T) {
 	testResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
 
 	tests := []struct {
@@ -748,7 +748,7 @@ func TestDataPlaneIdentitiesPermissionsValidation_checkMissingPermissionsForVNet
 	}
 }
 
-func TestCheckMissingPermissionsForSubnet(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_checkMissingPermissionsForSubnet(t *testing.T) {
 	subnetResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 	identityResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"))
 
@@ -816,7 +816,7 @@ func TestCheckMissingPermissionsForSubnet(t *testing.T) {
 	}
 }
 
-func TestCheckMissingPermissionsForNatGateway(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_checkMissingPermissionsForNatGateway(t *testing.T) {
 	natGatewayID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/natGateways/test-natgw"
 	natGatewayResourceID := metadataapi.Must(azcorearm.ParseResourceID(natGatewayID))
 	identityResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"))
@@ -1056,7 +1056,7 @@ func TestDataPlaneIdentitiesPermissionsValidation_checkMissingPermissionsForRout
 	}
 }
 
-func TestRetrieveIdentityObjectID(t *testing.T) {
+func TestDataPlaneIdentitiesPermissionsValidation_retrieveIdentityObjectID(t *testing.T) {
 	identityResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-operator-identity"))
 
 	tests := []struct {
