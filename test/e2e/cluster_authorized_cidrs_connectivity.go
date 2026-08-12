@@ -151,9 +151,9 @@ var _ = Describe("Authorized CIDRs", func() {
 				GinkgoWriter.Printf("Connection from unauthorized IP address failed as expected on error: %v\n", err)
 
 				By("verifying VM can access cluster API with credentials")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					framework.GetAdminRESTConfigTimeout,

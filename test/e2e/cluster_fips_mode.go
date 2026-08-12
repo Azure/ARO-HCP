@@ -128,9 +128,9 @@ var _ = Describe("FIPS Mode Support", func() {
 				Expect(*actualHCPCluster.Properties.CryptoRestrictions).To(Equal(v20260630preview.CryptoRestrictionsFIPS), "cryptoRestrictions should be set to 'FIPS'")
 
 				By("getting credentials")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					customerClusterName,
 					framework.GetAdminRESTConfigTimeout,

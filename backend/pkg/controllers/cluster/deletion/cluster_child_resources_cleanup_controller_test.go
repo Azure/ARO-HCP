@@ -439,6 +439,44 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 		},
 		{
+			name:            "orphaned credential-request-subtree resource is skipped",
+			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			childResources:  []any{newTestCredentialRequestController(t, "orphaned-cred-controller")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				cluster := newTestClusterWithNewDeletionApproach(t, nil)
+				untypedCRUD, err := db.UntypedCRUD(*cluster.ID)
+				require.NoError(t, err)
+				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
+				require.NoError(t, err)
+
+				var remainingCount int
+				for range childIterator.Items(ctx) {
+					remainingCount++
+				}
+				require.NoError(t, childIterator.GetError())
+				assert.Equal(t, 1, remainingCount, "expected orphaned credential-request-subtree resource to remain")
+			},
+		},
+		{
+			name:            "orphaned credential-revocation-subtree resource is skipped",
+			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			childResources:  []any{newTestCredentialRevocationController(t, "orphaned-rev-controller")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				cluster := newTestClusterWithNewDeletionApproach(t, nil)
+				untypedCRUD, err := db.UntypedCRUD(*cluster.ID)
+				require.NoError(t, err)
+				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
+				require.NoError(t, err)
+
+				var remainingCount int
+				for range childIterator.Items(ctx) {
+					remainingCount++
+				}
+				require.NoError(t, childIterator.GetError())
+				assert.Equal(t, 1, remainingCount, "expected orphaned credential-revocation-subtree resource to remain")
+			},
+		},
+		{
 			name:            "deletable MCC is deleted while orphaned nodepool-subtree resource is skipped",
 			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestClusterScopedManagementClusterContent("test-mcc"), newTestNodePoolController(t, "orphaned-np-controller")},
@@ -475,6 +513,26 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			name:            "blocks when external auths still exist",
 			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestExternalAuth(t), newTestClusterScopedManagementClusterContent("untouched-mcc")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
+				_, err := mccCRUD.Get(ctx, "untouched-mcc")
+				require.NoError(t, err, "expected child resource to still exist")
+			},
+		},
+		{
+			name:            "blocks when credential requests still exist",
+			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			childResources:  []any{newTestCredentialRequest(t, "cred-1"), newTestClusterScopedManagementClusterContent("untouched-mcc")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
+				_, err := mccCRUD.Get(ctx, "untouched-mcc")
+				require.NoError(t, err, "expected child resource to still exist")
+			},
+		},
+		{
+			name:            "blocks when credential revocations still exist",
+			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			childResources:  []any{newTestCredentialRevocation(t, "revoke-1"), newTestClusterScopedManagementClusterContent("untouched-mcc")},
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
 				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
 				_, err := mccCRUD.Get(ctx, "untouched-mcc")
@@ -592,6 +650,8 @@ func TestIsUnderSkippedSubtree(t *testing.T) {
 	skipSubtreeTypes := []azcorearm.ResourceType{
 		coreapi.NodePoolResourceType,
 		coreapi.ExternalAuthResourceType,
+		coreapi.SystemAdminCredentialRequestResourceType,
+		coreapi.SystemAdminCredentialRevocationResourceType,
 	}
 
 	testCases := []struct {
@@ -637,6 +697,26 @@ func TestIsUnderSkippedSubtree(t *testing.T) {
 		{
 			name:       "externalauth controller is a descendant of a skipped subtree",
 			resourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/externalAuths/auth1/controllers/SomeController",
+			want:       true,
+		},
+		{
+			name:       "credential request is under a skipped subtree",
+			resourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/systemAdminCredentialRequests/cred1",
+			want:       true,
+		},
+		{
+			name:       "credential request controller is a descendant of a skipped subtree",
+			resourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/systemAdminCredentialRequests/cred1/hcpOpenShiftControllers/SomeController",
+			want:       true,
+		},
+		{
+			name:       "credential revocation is under a skipped subtree",
+			resourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/systemAdminCredentialRevocations/rev1",
+			want:       true,
+		},
+		{
+			name:       "credential revocation controller is a descendant of a skipped subtree",
+			resourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/systemAdminCredentialRevocations/rev1/hcpOpenShiftControllers/SomeController",
 			want:       true,
 		},
 	}

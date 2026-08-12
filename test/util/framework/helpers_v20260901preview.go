@@ -16,8 +16,13 @@ package framework
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"embed"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"time"
@@ -26,8 +31,10 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
 
-	"k8s.io/apimachinery/pkg/util/rand"
+	utilrand "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -272,7 +279,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20260901(ctx
 	}()
 
 	// Generate unique deployment names by combining cluster name with random suffix
-	randomSuffix := rand.String(6)
+	randomSuffix := utilrand.String(6)
 	customerInfraDeploymentName := fmt.Sprintf("customer-infra-%s-%s", clusterParams.ClusterName, randomSuffix)
 	managedIdentitiesDeploymentName := fmt.Sprintf("mi-%s-%s", clusterParams.ClusterName, randomSuffix)
 
@@ -758,4 +765,93 @@ func (tc *perItOrDescribeTestContext) get20260901ClientFactoryUnlocked(ctx conte
 	tc.clientFactory20260901 = clientFactory
 
 	return tc.clientFactory20260901, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(
+	ctx context.Context,
+	hcpClient *hcpsdk20260901preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+) (*rest.Config, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during GetAdminRESTConfigForHCPCluster20260901 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
+	defer cancel()
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Collect admin credentials for cluster", startTime, finishTime)
+	}()
+
+	privKey, err := rsa.GenerateKey(cryptorand.Reader, 4096)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate RSA key: %w", err)
+	}
+
+	csrDER, err := x509.CreateCertificateRequest(cryptorand.Reader, &x509.CertificateRequest{
+		Subject: pkix.Name{
+			CommonName:   "system:customer-break-glass:system-admin",
+			Organization: []string{"system:masters"},
+		},
+	}, privKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CSR: %w", err)
+	}
+	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})
+
+	adminCredentialRequestPoller, err := hcpClient.BeginRequestAdminCredential(
+		ctx,
+		resourceGroupName,
+		hcpClusterName,
+		hcpsdk20260901preview.HcpOpenShiftClusterAdminCredentialRequest{
+			CertificateSigningRequest: to.Ptr(string(csrPEM)),
+		},
+		nil,
+	)
+	if err != nil {
+		// Fall back to the old 0240610 mechanism during the transition period.
+		fallbackFactory, fallbackErr := tc.Get20240610ClientFactory(ctx)
+		if fallbackErr != nil {
+			return nil, fmt.Errorf("0901 credential request failed: %w; fallback client factory error: %w", err, fallbackErr)
+		}
+		return tc.GetAdminRESTConfigForHCPCluster20240610(ctx, fallbackFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, hcpClusterName, timeout)
+	}
+
+	operationResult, err := adminCredentialRequestPoller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	if operationResult.Kubeconfig == nil {
+		return nil, fmt.Errorf("kubeconfig content is nil")
+	}
+
+	privKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privKey),
+	})
+
+	kubeconfigData, err := clientcmd.Load([]byte(*operationResult.Kubeconfig))
+	if err != nil {
+		return nil, fmt.Errorf("failed to load kubeconfig: %w", err)
+	}
+	for _, authInfo := range kubeconfigData.AuthInfos {
+		authInfo.ClientKeyData = privKeyPEM
+	}
+
+	restConfig, err := clientcmd.NewDefaultClientConfig(*kubeconfigData, &clientcmd.ConfigOverrides{}).ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	tc.contextLock.Lock()
+	tc.hcpAdminConfigs[resourceGroupName+"/"+hcpClusterName] = restConfig
+	tc.contextLock.Unlock()
+
+	return restConfig, nil
 }
