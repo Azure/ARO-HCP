@@ -58,15 +58,6 @@ For the full list of ci-operator config files and step-registry components, see 
 - review [CI Cleanup](cleanup.md) to understand whether the failure is supposed to fail loudly or be best-effort
 - check for deletion locks, deny assignments, or missing owner components before assuming the cleanup code is wrong
 
-### Regional Provision Failures
-
-- use the regional provision-only healthchecks, not full E2E pass rate, to
-  determine regional health
-- follow [DEV CI Regional Failover And Failback](dev-region-failover.md) for the
-  drain, fallback selection, validation, rollback, and re-enable criteria
-- keep all three DEV presubmit region settings aligned unless the incident owner
-  documents a temporary exception
-
 ### Getting Help
 
 - build-farm or Prow infrastructure issues: [#forum-ocp-testplatform](https://redhat.enterprise.slack.com/archives/CBN38N3MW)

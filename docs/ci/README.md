@@ -108,10 +108,8 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 
 ### [DEV CI Regional Failover And Failback](dev-region-failover.md)
 
-- Provision-health drain and re-enable criteria
-- Manual region switch, validation, and rollback procedure
-- Automated behavior versus operator responsibilities
-- Ownership and escalation paths
+- Review regional provision health and switch the DEV CI region
+- Validate the switch and fail back when appropriate
 
 ### [Opstool CI Platform](opstool.md)
 
