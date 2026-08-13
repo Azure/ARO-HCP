@@ -639,7 +639,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationInformer,
 	)
 
-	clusterServiceMatchingClusterController := mismatch.NewClusterServiceClusterMatchingController(b.options.ResourcesDBClient, subscriptionLister, b.options.ClustersServiceClient)
+	clusterServiceMatchingClusterController := mismatch.NewClusterServiceClusterMatchingController(b.clock, b.options.ResourcesDBClient, subscriptionLister, b.options.ClustersServiceClient)
 	alwaysSuccessClusterValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewAlwaysSuccessValidation(),
 		b.options.ResourcesDBClient,
