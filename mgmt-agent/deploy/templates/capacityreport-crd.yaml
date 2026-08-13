@@ -4,9 +4,6 @@ metadata:
   name: capacityreports.mgmtagent.aro-hcp.azure.com
   labels:
     app.kubernetes.io/name: mgmt-agent
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-5"
 spec:
   group: mgmtagent.aro-hcp.azure.com
   names:

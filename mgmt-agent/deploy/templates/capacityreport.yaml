@@ -1,4 +1,0 @@
-apiVersion: mgmtagent.aro-hcp.azure.com/v1alpha1
-kind: CapacityReport
-metadata:
-  name: cluster

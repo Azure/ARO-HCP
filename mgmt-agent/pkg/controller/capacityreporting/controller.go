@@ -22,6 +22,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -109,6 +110,10 @@ func (c *CapacityReportController) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
+	if err := c.ensureCapacityReport(ctx); err != nil {
+		return err
+	}
+
 	logger.Info("Started")
 	wait.UntilWithContext(ctx, func(ctx context.Context) {
 		start := time.Now()
@@ -121,6 +126,18 @@ func (c *CapacityReportController) Run(ctx context.Context) error {
 	}, reportInterval)
 
 	logger.Info("Shutting down")
+	return nil
+}
+
+// ensureCapacityReport creates the singleton CapacityReport if it does not yet
+// exist. The controller owns this resource; syncOnce only updates its status.
+func (c *CapacityReportController) ensureCapacityReport(ctx context.Context) error {
+	_, err := c.capacityReportClient.MgmtagentV1alpha1().CapacityReports().Create(ctx, &capacityreportv1alpha1.CapacityReport{
+		ObjectMeta: metav1.ObjectMeta{Name: capacityReportResourceName},
+	}, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to ensure capacity report %q exists: %w", capacityReportResourceName, err)
+	}
 	return nil
 }
 
@@ -137,7 +154,7 @@ func (c *CapacityReportController) syncOnce(ctx context.Context) error {
 	defer cancel()
 	applyConfig, collectionErr := c.buildCapacityReportUpdate(collectionCtx, existing.Status, now)
 
-	// The CR is pre-created by the Helm chart, so ApplyStatus is sufficient.
+	// The CR is ensured at controller startup, so ApplyStatus is sufficient.
 	_, err = c.capacityReportClient.MgmtagentV1alpha1().CapacityReports().ApplyStatus(ctx, applyConfig, metav1.ApplyOptions{
 		FieldManager: fieldManager,
 		Force:        true,
