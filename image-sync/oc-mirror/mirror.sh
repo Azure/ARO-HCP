@@ -12,6 +12,7 @@ DOCKER_COMMAND=/usr/local/bin/docker-login.sh az acr login -n "${REGISTRY}"
 IMAGE_SET_CONFIG_FILE="/config/imageset-config.yaml"
 echo "${IMAGE_SET_CONFIG}" | base64 -d | yq eval -P > ${IMAGE_SET_CONFIG_FILE}
 API_VERSION=$(yq eval '.apiVersion' ${IMAGE_SET_CONFIG_FILE})
+ADDITIONAL_FLAGS=""
 if echo "$API_VERSION" | grep -q "^mirror.openshift.io/v2"; then
     ADDITIONAL_FLAGS="--workspace file:///oc-mirror-workspace --v2"
 fi
@@ -33,6 +34,7 @@ dig "${REGISTRY_URL}"
 
 echo "Start mirroring"
 MIRROR_LOG=$(mktemp)
+trap 'rm -f "${MIRROR_LOG}"' EXIT
 /usr/local/bin/oc-mirror-${OC_MIRROR_VERSION} --config ${IMAGE_SET_CONFIG_FILE} ${ADDITIONAL_FLAGS} docker://${REGISTRY_URL} "$@" 2>&1 | tee "${MIRROR_LOG}"
 
 # oc-mirror v2 exits 0 even when every image fails to mirror, so a broken job

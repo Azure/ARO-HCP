@@ -24,7 +24,10 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --password-stdin)
+            # Command substitution already strips trailing newlines; also drop a
+            # trailing CR so a CRLF-terminated token does not corrupt the value.
             PASSWORD="$(cat)"
+            PASSWORD="${PASSWORD%$'\r'}"
             shift
             ;;
         *)
@@ -45,4 +48,10 @@ AUTH_FILE="${XDG_RUNTIME_DIR}/containers/auth.json"
 TMP_AUTH_FILE="${XDG_RUNTIME_DIR}/containers/tmp-auth.json"
 
 jq --arg registry "$REGISTRY_URL" --arg auth "$AUTH" '.auths[$registry] = { "auth": $auth }' "${AUTH_FILE}" > "${TMP_AUTH_FILE}"
-cp "${TMP_AUTH_FILE}" "${AUTH_FILE}"
+# Prefer mv: within a directory it is atomic, so a reader never sees a partial
+# file. The dry-run make targets bind-mount auth.json itself, and rename() over
+# a mount point fails with EBUSY, so fall back to a copy in that case.
+if ! mv "${TMP_AUTH_FILE}" "${AUTH_FILE}" 2>/dev/null; then
+    cp "${TMP_AUTH_FILE}" "${AUTH_FILE}"
+    rm -f "${TMP_AUTH_FILE}"
+fi
