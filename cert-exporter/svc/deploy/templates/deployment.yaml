@@ -38,10 +38,12 @@ spec:
           limits:
             memory: {{ .Values.deployment.resources.limits.memory }}
         args:
-        - --watch-kube-secrets
-        - --secret-type=kubernetes.io/tls
-        - --include-namespace={{ .Values.watchNamespace }}
-        - --listen-address=:9793
+        - --config
+        - /etc/x509-exporter/config.yaml
+        volumeMounts:
+        - name: config
+          mountPath: /etc/x509-exporter
+          readOnly: true
         ports:
         - name: metrics
           containerPort: 9793
@@ -58,3 +60,7 @@ spec:
             port: metrics
           initialDelaySeconds: 5
           periodSeconds: 10
+      volumes:
+      - name: config
+        configMap:
+          name: cert-exporter-config
