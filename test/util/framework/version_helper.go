@@ -34,8 +34,6 @@ var (
 	ErrNightlyReleaseStreamNotFound = errors.New("nightly release stream not found")
 	ErrNoAcceptedNightlyTags        = errors.New("no accepted nightly tags found")
 	ErrNoParseableNightlyTags       = errors.New("no parseable nightly tags found")
-	ErrVersionNotFound              = errors.New("no graph nodes found")
-	ErrNoEdgePairFound              = errors.New("no version pair without upgrade edge found")
 )
 
 const (
@@ -68,27 +66,21 @@ func retryOnTransientError[T any](ctx context.Context, f func() (T, error)) (T, 
 }
 
 // IsVersionNotFoundError returns true if the error indicates a version was not found,
-// whether from Cincinnati, the graph API, or the nightly release stream API.
+// whether from Cincinnati or the nightly release stream API.
 func IsVersionNotFoundError(err error) bool {
 	return cincinnati.IsCincinnatiVersionNotFoundError(err) ||
-		errors.Is(err, ErrVersionNotFound) ||
 		errors.Is(err, ErrNightlyReleaseStreamNotFound) ||
 		errors.Is(err, ErrNoAcceptedNightlyTags) ||
-		errors.Is(err, ErrNoParseableNightlyTags) ||
-		errors.Is(err, errSelectVersionEmptyGraph)
+		errors.Is(err, ErrNoParseableNightlyTags)
 }
 
 func isRetryableVersionError(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
-	if errors.Is(err, ErrVersionNotFound) ||
-		errors.Is(err, ErrNightlyReleaseStreamNotFound) ||
+	if errors.Is(err, ErrNightlyReleaseStreamNotFound) ||
 		errors.Is(err, ErrNoAcceptedNightlyTags) ||
-		errors.Is(err, ErrNoParseableNightlyTags) ||
-		errors.Is(err, ErrNoEdgePairFound) ||
-		errors.Is(err, errSelectVersionEmptyGraph) ||
-		errors.Is(err, errSelectVersionOffsetTooLarge) {
+		errors.Is(err, ErrNoParseableNightlyTags) {
 		return false
 	}
 	if cincinnati.IsCincinnatiVersionNotFoundError(err) {
@@ -96,15 +88,6 @@ func isRetryableVersionError(err error) bool {
 	}
 	return true
 }
-
-var (
-	// errSelectVersionEmptyGraph maps SelectControlPlaneVersion's "no releases found" error to a
-	// sentinel so it can be classified as version-not-found (retry-exempt, caller Skips).
-	errSelectVersionEmptyGraph = errors.New("select control plane version: empty channel graph")
-	// errSelectVersionOffsetTooLarge maps SelectControlPlaneVersion's "not enough for the requested
-	// offset" error to a sentinel so it can be classified as retry-exempt (single-release channel).
-	errSelectVersionOffsetTooLarge = errors.New("select control plane version: offset beyond channel")
-)
 
 // GetLatestNightlyInstallVersion returns the latest accepted nightly tag for the given minor version
 // (for example "4.19" -> "4.19.0-0.nightly-multi-YYYY-MM-DD-HHMMSS"). It supports only the "nightly"
