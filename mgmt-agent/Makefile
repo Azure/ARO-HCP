@@ -19,6 +19,18 @@ MGMT_AGENT_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.
 LDFLAGS = -ldflags "\
 	-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${ARO_HCP_REVISION}"
 
+# K8S Codegen
+KUBE_CODEGEN_TAG=v0.35.3
+KUBE_CODEGEN_SH=hack/kube-codegen.sh
+
+$(KUBE_CODEGEN_SH):
+	curl --fail -o "$@" https://raw.githubusercontent.com/kubernetes/code-generator/refs/tags/${KUBE_CODEGEN_TAG}/kube_codegen.sh
+
+update-codegen: $(KUBE_CODEGEN_SH)
+	KUBE_CODEGEN_SH=$(KUBE_CODEGEN_SH) ./hack/update-codegen.sh
+	make -C .. fmt
+.PHONY: update-codegen
+
 # Default target
 .DEFAULT_GOAL := build
 

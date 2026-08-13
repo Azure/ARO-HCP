@@ -47,6 +47,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog/v2"
+	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
@@ -55,8 +56,10 @@ import (
 
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/capacityreporting"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth"
+	capacityreportclient "github.com/Azure/ARO-HCP/mgmt-agent/pkg/generated/clientset/versioned"
 )
 
 const (
@@ -113,6 +116,7 @@ type completedControllerOptions struct {
 	ctrl                     *controller.SwiftNICController
 	ksmCtrl                  *ksmhcp.KSMHCPController
 	nodeHealth               *nodehealth.Controller
+	capacityReport           *capacityreporting.CapacityReportController
 	resourceWatcher          *controller.ResourceWatcher
 	podWatcher               *controller.PodWatcher
 	configMapWatcher         *controller.ConfigMapWatcher
@@ -251,33 +255,52 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	)
 	nodeHealthConfigKey := o.NodeHealthConfigKey
 	if _, err := nodeHealthCMInformers.Core().V1().ConfigMaps().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			if cm, ok := obj.(*corev1.ConfigMap); ok {
 				nodeHealth.OnConfigMap(cm, nodeHealthConfigKey)
 			}
 		},
-		UpdateFunc: func(_, newObj interface{}) {
+		UpdateFunc: func(_, newObj any) {
 			if cm, ok := newObj.(*corev1.ConfigMap); ok {
 				nodeHealth.OnConfigMap(cm, nodeHealthConfigKey)
 			}
 		},
-		DeleteFunc: func(_ interface{}) {
+		DeleteFunc: func(_ any) {
 			nodeHealth.OnConfigMapDeleted()
 		},
 	}); err != nil {
 		return nil, fmt.Errorf("failed to add node-health ConfigMap handler: %w", err)
 	}
 
+	hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
+	}
+	hsInformers := hypershiftinformers.NewSharedInformerFactory(hsClient, 10*time.Minute)
+
+	metricsClient, err := metricsclientset.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics clientset: %w", err)
+	}
+
+	crClient, err := capacityreportclient.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create capacity report clientset: %w", err)
+	}
+
+	capacityReportCtrl := capacityreporting.NewCapacityReportController(
+		kubeInformers.Core().V1().Nodes(),
+		clusterWideKubeInformers.Core().V1().Pods(),
+		hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
+		metricsClient,
+		crClient,
+		nil,
+	)
+
 	var ksmCtrl *ksmhcp.KSMHCPController
-	var hsInformers hypershiftinformers.SharedInformerFactory
 	var ksmKubeInformers kubeinformers.SharedInformerFactory
 	var dynInformers dynamicinformer.DynamicSharedInformerFactory
 	if o.KSMImage != "" {
-		hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
-		}
-		hsInformers = hypershiftinformers.NewSharedInformerFactory(hsClient, 10*time.Minute)
 		ksmKubeInformers = kubeinformers.NewSharedInformerFactoryWithOptions(kubeClientset, 10*time.Minute,
 			kubeinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
 				opts.LabelSelector = ksmhcp.LabelSelector
@@ -319,6 +342,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			ctrl:                     ctrl,
 			ksmCtrl:                  ksmCtrl,
 			nodeHealth:               nodeHealth,
+			capacityReport:           capacityReportCtrl,
 			resourceWatcher:          resourceWatcher,
 			podWatcher:               podWatcher,
 			configMapWatcher:         configMapWatcher,
@@ -428,9 +452,7 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 			OnStartedLeading: func(ctx context.Context) {
 				logger.Info("acquired leader election lease; starting informers and controllers")
 				o.kubeInformers.Start(ctx.Done())
-				if o.hypershiftInformers != nil {
-					o.hypershiftInformers.Start(ctx.Done())
-				}
+				o.hypershiftInformers.Start(ctx.Done())
 				if o.ksmKubeInformers != nil {
 					o.ksmKubeInformers.Start(ctx.Done())
 				}
@@ -494,6 +516,13 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 						}
 					}()
 				}
+
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.capacityReport.Run(ctx); err != nil {
+						logger.Error(err, "capacity reporting controller failed")
+					}
+				}()
 
 				// Block until the leadership context is cancelled.
 				<-ctx.Done()

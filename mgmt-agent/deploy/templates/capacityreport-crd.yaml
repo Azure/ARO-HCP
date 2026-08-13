@@ -1,0 +1,127 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: capacityreports.mgmtagent.aro-hcp.azure.com
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+spec:
+  group: mgmtagent.aro-hcp.azure.com
+  names:
+    kind: CapacityReport
+    listKind: CapacityReportList
+    plural: capacityreports
+    singular: capacityreport
+  scope: Cluster
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Last Reported
+          type: date
+          jsonPath: .status.lastReportedAt
+        - name: HCP Total
+          type: integer
+          jsonPath: .status.hostedControlPlanes.total
+        - name: HCP Ready
+          type: integer
+          jsonPath: .status.hostedControlPlanes.ready
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            status:
+              type: object
+              properties:
+                lastReportedAt:
+                  type: string
+                  format: date-time
+                nodes:
+                  type: array
+                  maxItems: 32
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - sku
+                  items:
+                    type: object
+                    required:
+                      - sku
+                      - ready
+                      - notReady
+                    properties:
+                      sku:
+                        type: string
+                        maxLength: 253
+                      ready:
+                        type: integer
+                        format: int32
+                        minimum: 0
+                      notReady:
+                        type: integer
+                        format: int32
+                        minimum: 0
+                      allocatable:
+                        description: >-
+                          Sum of node.status.allocatable across ready nodes of this SKU.
+                          NotReady nodes contribute zero.
+                        type: object
+                        maxProperties: 16
+                        additionalProperties:
+                          anyOf:
+                            - type: integer
+                            - type: string
+                          # Standard Kubernetes resource.Quantity validation pattern
+                          pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                          x-kubernetes-int-or-string: true
+                usage:
+                  type: object
+                  maxProperties: 16
+                  additionalProperties:
+                    anyOf:
+                      - type: integer
+                      - type: string
+                    # Standard Kubernetes resource.Quantity validation pattern
+                    pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                    x-kubernetes-int-or-string: true
+                requested:
+                  type: object
+                  maxProperties: 16
+                  additionalProperties:
+                    anyOf:
+                      - type: integer
+                      - type: string
+                    # Standard Kubernetes resource.Quantity validation pattern
+                    pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                    x-kubernetes-int-or-string: true
+                hostedControlPlanes:
+                  type: object
+                  required:
+                    - total
+                    - ready
+                  properties:
+                    total:
+                      type: integer
+                      format: int32
+                      minimum: 0
+                    ready:
+                      type: integer
+                      format: int32
+                      minimum: 0
+                averageHCPFootprint:
+                  type: object
+                  maxProperties: 16
+                  additionalProperties:
+                    anyOf:
+                      - type: integer
+                      - type: string
+                    # Standard Kubernetes resource.Quantity validation pattern
+                    pattern: "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$"
+                    x-kubernetes-int-or-string: true

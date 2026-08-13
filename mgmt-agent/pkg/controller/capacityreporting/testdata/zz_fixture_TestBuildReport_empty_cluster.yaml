@@ -1,0 +1,11 @@
+apiVersion: mgmtagent.aro-hcp.azure.com/v1alpha1
+kind: CapacityReport
+metadata:
+  name: cluster
+status:
+  hostedControlPlanes:
+    ready: 0
+    total: 0
+  lastReportedAt: "2025-01-01T00:00:00Z"
+  requested: {}
+  usage: {}
