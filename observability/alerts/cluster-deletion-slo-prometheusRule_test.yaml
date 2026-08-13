@@ -57,7 +57,7 @@ tests:
         component: slo
       exp_annotations:
         title: "Cluster deletion operation error rate high (>72%)"
-        summary: "svc-1: Cluster deletion operation error rate high (>72%)"
+        summary: "Cluster deletion operation error rate high (>72%)"
         description: "More than 72% of cluster delete operations are in failed or canceled state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
         correlationId: "userJourneyClusterDeletionErrors1h5m/svc-1"
@@ -141,7 +141,7 @@ tests:
         component: slo
       exp_annotations:
         title: "Cluster deletion operation error rate elevated (>30%) for 30+ minutes"
-        summary: "svc-1: Cluster deletion operation error rate elevated (>30%) for 30+ minutes"
+        summary: "Cluster deletion operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of cluster delete operations are in failed or canceled state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
         correlationId: "userJourneyClusterDeletionErrors6h30m/svc-1"
@@ -241,12 +241,12 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: svc-1
-        severity: "3"
+        severity: "4"
         slo: cluster-deletion-errors
         component: slo
       exp_annotations:
         title: "Cluster deletion operation error rate exceeds SLO target (>5%) for 6+ hours"
-        summary: "svc-1: Cluster deletion operation error rate exceeds SLO target (>5%) for 6+ hours"
+        summary: "Cluster deletion operation error rate exceeds SLO target (>5%) for 6+ hours"
         description: "More than 5% of cluster delete operations are in failed or canceled state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
         correlationId: "userJourneyClusterDeletionErrors3d/svc-1"
@@ -339,12 +339,12 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: svc-1
-        severity: "3"
+        severity: "4"
         slo: cluster-deletion-errors
         component: slo
       exp_annotations:
         title: "Cluster deletion operation failure rate exceeds 15% for 30 minutes"
-        summary: "svc-1: Cluster deletion operation failure rate exceeds 15% for 30 minutes"
+        summary: "Cluster deletion operation failure rate exceeds 15% for 30 minutes"
         description: "The cluster deletion operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
         correlationId: "userJourneyClusterDeletionErrorsDegradation/svc-1"
@@ -442,7 +442,7 @@ tests:
         component: slo
       exp_annotations:
         title: "Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)"
-        summary: "svc-1: Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)"
+        summary: "Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)"
         description: "More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Timeliness SLO — on track to exhaust the budget in ~12 hours."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
         correlationId: "userJourneyClusterDeletionLatency1h5m/svc-1"
@@ -498,7 +498,7 @@ tests:
         component: slo
       exp_annotations:
         title: "Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)"
-        summary: "svc-1: Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)"
+        summary: "Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)"
         description: "More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Timeliness SLO — on track to exhaust the budget in ~28 hours."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
         correlationId: "userJourneyClusterDeletionLatency6h30m/svc-1"
@@ -550,9 +550,10 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: svc-1
-        severity: "3"
+        severity: "4"
         slo: cluster-deletion-stuck
         component: slo
+        exclude_internal_subscriptions: "true"
         operation_type: delete
         phase: deleting
         resource_id: stuck1
@@ -560,8 +561,8 @@ tests:
         subscription_id: sub1
       exp_annotations:
         title: "Cluster deletion operation stuck in non-terminal phase for over 1 hour"
-        summary: "svc-1: Cluster deletion operation stuck1 stuck in deleting for over 1 hour"
-        correlationId: "userJourneyClusterDeletionStuckOperation/svc-1/stuck1"
+        summary: "Cluster deletion operation stuck1 stuck in deleting for over 1 hour"
+        correlationId: "userJourneyClusterDeletionStuckOperation/svc-1/sub1"
         description: "Cluster delete operation for stuck1 has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
 # Stuck does NOT fire for operations that are less than 1 hour old
@@ -597,7 +598,7 @@ tests:
         component: slo
       exp_annotations:
         title: "Cluster deletion controller workqueue depth is high"
-        summary: "svc-1: Cluster deletion controller workqueue OperationClusterDelete depth is high"
+        summary: "Cluster deletion controller workqueue OperationClusterDelete depth is high"
         description: "Cluster deletion controller workqueue OperationClusterDelete has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
         correlationId: "userJourneyClusterDeletionQueueDepth/svc-1/OperationClusterDelete"
@@ -610,47 +611,6 @@ tests:
   alert_rule_test:
   - eval_time: 10m
     alertname: userJourneyClusterDeletionQueueDepth
-    exp_alerts: []
-# ─────────────────────────────────────────────────────────────────────────────
-# userJourneyClusterDeletionRetryHotLoop
-# Fires when retry ratio > 50% sustained for 10 minutes.
-# retries grow at 3/min, adds grow at 4/min → rate ratio = 3/4 = 75 % > 50 %.
-# rate([10m]) needs 10+ data points; for: 10m → eval_time: 25m.
-# ─────────────────────────────────────────────────────────────────────────────
-- name: retry_hot_loop_fires_above_50pct
-  interval: 1m
-  input_series:
-  - series: 'workqueue_retries_total{namespace="aro-hcp",name="OperationClusterDelete",cluster="svc-1"}'
-    values: "0+3x30"
-  - series: 'workqueue_adds_total{namespace="aro-hcp",name="OperationClusterDelete",cluster="svc-1"}'
-    values: "0+4x30"
-  alert_rule_test:
-  - eval_time: 25m
-    alertname: userJourneyClusterDeletionRetryHotLoop
-    exp_alerts:
-    - exp_labels:
-        cluster: svc-1
-        name: OperationClusterDelete
-        severity: "4"
-        component: slo
-      exp_annotations:
-        title: "Cluster deletion controller workqueue in retry hot loop"
-        summary: "svc-1: Cluster deletion controller workqueue OperationClusterDelete retry hot loop"
-        description: "Cluster deletion controller workqueue OperationClusterDelete has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
-        runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
-        correlationId: "userJourneyClusterDeletionRetryHotLoop/svc-1/OperationClusterDelete"
-# Retry hot loop does NOT fire when retry ratio is healthy (below 50 %)
-# retries grow at 1/min, adds grow at 4/min → ratio = 25 % < 50 %
-- name: retry_hot_loop_no_fire_healthy_ratio
-  interval: 1m
-  input_series:
-  - series: 'workqueue_retries_total{namespace="aro-hcp",name="OperationClusterDelete",cluster="svc-1"}'
-    values: "0+1x30"
-  - series: 'workqueue_adds_total{namespace="aro-hcp",name="OperationClusterDelete",cluster="svc-1"}'
-    values: "0+4x30"
-  alert_rule_test:
-  - eval_time: 25m
-    alertname: userJourneyClusterDeletionRetryHotLoop
     exp_alerts: []
 # ─────────────────────────────────────────────────────────────────────────────
 # Combined healthy baseline
@@ -734,8 +694,6 @@ tests:
     alertname: userJourneyClusterDeletionStuckOperation
   - eval_time: 10m
     alertname: userJourneyClusterDeletionQueueDepth
-  - eval_time: 10m
-    alertname: userJourneyClusterDeletionRetryHotLoop
 # ─────────────────────────────────────────────────────────────────────────────
 # error_rate recording rule math
 # 8 failed + 2 succeeded = 8/10 = 0.8 (clean decimal, easy to verify)

@@ -1683,7 +1683,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Rolling 1h: failed / (succeeded + failed), with canceled operations excluded. With datasource=All, each selected service-cluster datasource computes its own ratio; use top-level panels for fleet reporting.",
+      "description": "Rolling 1h: (failed + canceled) / (succeeded + failed + canceled). With datasource=All, each selected service-cluster datasource computes its own ratio; use top-level panels for fleet reporting.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1751,12 +1751,90 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "((count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"failed\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"failed\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)) / clamp_min(((count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)) + (count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"failed\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"failed\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0))), 1)) * 100",
+          "expr": "((count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)) / clamp_min(((count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=\"succeeded\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0)) + (count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"delete\", phase=~\"failed|canceled\", cluster=~\"$cluster\", subscription_id!~\"${exclude_subs:raw}\"}) < 3600)) or vector(0))), 1)) * 100",
           "legendFormat": "Failure Ratio (per datasource)",
           "refId": "A"
         }
       ],
       "title": "Failure Ratio by Service Cluster (Rolling 1h)",
+      "transformations": [],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Deletion controller workqueue depth over time. Normal baseline is 0. Sustained depth > 10 for 5+ minutes triggers the QueueDepth alert. Spikes indicate work is accumulating faster than the controller can process it.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent"
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 81
+      },
+      "id": 31,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max by (name, cluster) (\n  max without(prometheus_replica) (\n    workqueue_depth{namespace=\"aro-hcp\", name=\"OperationClusterDelete\", cluster=~\"$cluster\"}\n  )\n)",
+          "legendFormat": "{{cluster}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Deletion Controller Workqueue Depth",
       "transformations": [],
       "type": "timeseries"
     },
@@ -1801,7 +1879,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 81
+        "y": 89
       },
       "id": 30,
       "options": {
