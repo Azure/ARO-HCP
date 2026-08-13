@@ -32,4 +32,15 @@ echo "Inspecting DNS for target registry"
 dig "${REGISTRY_URL}"
 
 echo "Start mirroring"
-/usr/local/bin/oc-mirror-${OC_MIRROR_VERSION} --config ${IMAGE_SET_CONFIG_FILE} ${ADDITIONAL_FLAGS} docker://${REGISTRY_URL} @$
+MIRROR_LOG=$(mktemp)
+/usr/local/bin/oc-mirror-${OC_MIRROR_VERSION} --config ${IMAGE_SET_CONFIG_FILE} ${ADDITIONAL_FLAGS} docker://${REGISTRY_URL} "$@" 2>&1 | tee "${MIRROR_LOG}"
+
+# oc-mirror v2 exits 0 even when every image fails to mirror, so a broken job
+# reports success. Inspect its summary line and fail when nothing was mirrored.
+# The summary is prefixed with a timestamp and log level, e.g.
+#   2026/08/12 23:00:35  [INFO]   :    0 / 4 additional images mirrored: ...
+# Requiring whitespace before the 0 avoids matching counts such as "10 / 20".
+if grep -qE '[[:space:]]0 / [1-9][0-9]* (additional|release|operator) images mirrored' "${MIRROR_LOG}"; then
+    echo "ERROR: oc-mirror reported 0 mirrored images" >&2
+    exit 1
+fi
