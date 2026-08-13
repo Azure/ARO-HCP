@@ -64,7 +64,7 @@ func tagResourceGroupForPersist(ctx context.Context, rgClient *armresources.Reso
 }
 
 func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Command {
-	var kubeconfigPath string
+	var kubeconfigDirPath string
 
 	cmd := &cobra.Command{
 		Use:          "deploy TEST_NAME",
@@ -150,13 +150,13 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 			}
 
 			// end here if we don't need to fetch the kubeconfig
-			if kubeconfigPath != "" {
+			if kubeconfigDirPath != "" {
 				return nil
 			}
 
 			// make sure kubeconfig target dir exists
-			if err := os.MkdirAll(kubeconfigPath, 0755); err != nil {
-				return fmt.Errorf("creating kubeconfig directory %q: %w", kubeconfigPath, err)
+			if err := os.MkdirAll(kubeconfigDirPath, 0755); err != nil {
+				return fmt.Errorf("creating kubeconfig directory %q: %w", kubeconfigDirPath, err)
 			}
 
 			for _, cluster := range clusters {
@@ -165,7 +165,7 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 					fmt.Fprintf(os.Stderr, "deploy: failed to fetch kubeconfig for cluster %q: %v\n", cluster.clusterName, err)
 					continue
 				}
-				kubeconfigFile := filepath.Join(kubeconfigPath, cluster.clusterName+".kubeconfig")
+				kubeconfigFile := filepath.Join(kubeconfigDirPath, cluster.clusterName+".kubeconfig")
 				if err := os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0600); err != nil {
 					fmt.Fprintf(os.Stderr, "deploy: failed to write kubeconfig for cluster %q: %v\n", cluster.clusterName, err)
 				} else {
@@ -177,6 +177,6 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 		},
 	}
 
-	cmd.Flags().StringVar(&kubeconfigPath, "kubeconfig-path", "", "directory to write admin kubeconfigs into (one <cluster-name>.kubeconfig file per cluster)")
+	cmd.Flags().StringVar(&kubeconfigDirPath, "kubeconfig-dir", "", "directory to write admin kubeconfigs into (one <cluster-name>.kubeconfig file per cluster)")
 	return cmd
 }
