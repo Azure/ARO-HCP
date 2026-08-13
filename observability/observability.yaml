@@ -21,6 +21,8 @@ grafana-dashboards:
     path: ./grafana-dashboards/clusters-service
   - name: Maestro
     path: ./grafana-dashboards/maestro/
+  - name: Kube Applier
+    path: ./grafana-dashboards/kube-applier/
   - name: MSI Credential Refresher
     path: ./grafana-dashboards/msi-credential-refresher
   - name: Performance & Scale

@@ -15,14 +15,10 @@
 package app
 
 import (
-	"strings"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 )
@@ -34,16 +30,13 @@ const (
 	OperationResync = "resync"
 )
 
-// Resource type constants for metrics labels
-const (
-	ResourceTypeCluster  = "cluster"
-	ResourceTypeNodePool = "nodepool"
-	ResourceTypeUnknown  = "unknown"
-)
-
 // desireOperationMetrics tracks operation-level metrics for kube-applier desires.
-// These metrics provide visibility into apply/delete/resync operations
-// broken down by resource type (cluster vs nodepool) and success status.
+// These metrics provide visibility into apply/delete/resync operations broken
+// down by the GVR of the target Kubernetes object (group, resource) and the
+// reconciliation outcome (condition status and reason). The GVR is the dimension
+// the applier actually acts on — where RBAC, CRD availability, and admission
+// webhook outcomes diverge — rather than the ARM ownership hierarchy the applier
+// is agnostic to.
 type desireOperationMetrics struct {
 	operationsTotal        *prometheus.CounterVec
 	operationLastTimestamp *prometheus.GaugeVec
@@ -54,95 +47,57 @@ func newDesireOperationMetrics(registerer prometheus.Registerer) *desireOperatio
 		operationsTotal: promauto.With(registerer).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "kube_applier_desire_operations_total",
-				Help: "Total number of desire operations completed, by operation type, resource type, condition status, and reason",
+				Help: "Total number of desire operations completed, by operation type, target GVR (group, resource), condition status, and reason",
 			},
-			[]string{"operation", "resource_type", "status", "reason"},
+			[]string{"operation", "group", "resource", "status", "reason"},
 		),
 		operationLastTimestamp: promauto.With(registerer).NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "kube_applier_desire_operation_last_timestamp_seconds",
-				Help: "Unix timestamp of the last completed operation, by operation type and resource type",
+				Help: "Unix timestamp of the last completed operation, by operation type and target GVR (group, resource)",
 			},
-			[]string{"operation", "resource_type"},
+			[]string{"operation", "group", "resource"},
 		),
 	}
 }
 
 // recordApplyDesireOperation records metrics for an ApplyDesire operation.
 func (m *desireOperationMetrics) recordApplyDesireOperation(desire *kubeapplier.ApplyDesire) {
-	// Guard against nil ResourceID
-	if desire.ResourceID == nil {
-		return
-	}
-
-	resourceType := extractResourceType(desire.ResourceID.String())
-
-	// Determine operation type from the desire's spec
-	var operation string
+	// Determine operation type from the desire's spec.
+	operation := OperationApply
 	if desire.Spec.Type == kubeapplier.ApplyDesireTypeDelete {
+		// ServerSideApply is always "apply" - no create/update distinction.
 		operation = OperationDelete
-	} else {
-		// ServerSideApply is always "apply" - no create/update distinction
-		operation = OperationApply
 	}
 
 	status, reason := getConditionStatusAndReason(desire.Status.Conditions)
-	m.recordOperation(operation, resourceType, status, reason)
+	m.recordOperation(operation, desire.Spec.TargetItem.Group, desire.Spec.TargetItem.Resource, status, reason)
 }
 
 // recordReadDesireOperation records metrics for a ReadDesire operation (resync).
 func (m *desireOperationMetrics) recordReadDesireOperation(desire *kubeapplier.ReadDesire) {
-	// Guard against nil ResourceID
-	if desire.ResourceID == nil {
-		return
-	}
-
-	resourceType := extractResourceType(desire.ResourceID.String())
 	status, reason := getConditionStatusAndReason(desire.Status.Conditions)
-	m.recordOperation(OperationResync, resourceType, status, reason)
+	m.recordOperation(OperationResync, desire.Spec.TargetItem.Group, desire.Spec.TargetItem.Resource, status, reason)
 }
 
 // recordOperation is a helper that records common metrics to avoid duplication
 // between recordApplyDesireOperation and recordReadDesireOperation.
-func (m *desireOperationMetrics) recordOperation(operation, resourceType, status, reason string) {
+func (m *desireOperationMetrics) recordOperation(operation, group, resource, status, reason string) {
 	// Record operation count
 	m.operationsTotal.With(prometheus.Labels{
-		"operation":     operation,
-		"resource_type": resourceType,
-		"status":        status,
-		"reason":        reason,
+		"operation": operation,
+		"group":     group,
+		"resource":  resource,
+		"status":    status,
+		"reason":    reason,
 	}).Inc()
 
 	// Record last operation timestamp
 	m.operationLastTimestamp.With(prometheus.Labels{
-		"operation":     operation,
-		"resource_type": resourceType,
+		"operation": operation,
+		"group":     group,
+		"resource":  resource,
 	}).SetToCurrentTime()
-}
-
-// extractResourceType parses the Cosmos resourceID to determine if this is a
-// cluster or nodepool desire using Azure SDK ResourceID parsing.
-//
-// ResourceID format:
-//
-//	subscriptions/{sub}/resourceGroups/{rg}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{name}/*desires/{desire}
-//	subscriptions/{sub}/resourceGroups/{rg}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{name}/nodepools/{np}/*desires/{desire}
-func extractResourceType(resourceIDStr string) string {
-	parsed, err := azcorearm.ParseResourceID(resourceIDStr)
-	if err != nil {
-		return ResourceTypeUnknown
-	}
-
-	// Check the ResourceType to determine cluster vs nodepool
-	resourceTypeStr := strings.ToLower(parsed.ResourceType.String())
-	if strings.Contains(resourceTypeStr, "nodepools") {
-		return ResourceTypeNodePool
-	}
-	if strings.Contains(resourceTypeStr, "hcpopenshiftclusters") {
-		return ResourceTypeCluster
-	}
-
-	return ResourceTypeUnknown
 }
 
 // getConditionStatusAndReason extracts the status and reason from the "Successful" condition.

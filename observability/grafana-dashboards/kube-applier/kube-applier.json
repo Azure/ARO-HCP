@@ -103,8 +103,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (operation, resource_type) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
-          "legendFormat": "{{operation}}/{{resource_type}}",
+          "expr": "sum by (operation, group, resource) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
+          "legendFormat": "{{operation}} {{group}}/{{resource}}",
           "refId": "A"
         }
       ],
@@ -199,8 +199,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (operation, resource_type) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\", status!=\"True\"}[5m])) / sum by (operation, resource_type) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
-          "legendFormat": "{{operation}}/{{resource_type}}",
+          "expr": "sum by (operation, group, resource) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\", status!=\"True\"}[5m])) / sum by (operation, group, resource) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
+          "legendFormat": "{{operation}} {{group}}/{{resource}}",
           "refId": "A"
         }
       ],
@@ -289,12 +289,12 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (resource_type, status) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
-          "legendFormat": "{{resource_type}} ({{status}})",
+          "expr": "sum by (group, resource, status) (rate(kube_applier_desire_operations_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
+          "legendFormat": "{{group}}/{{resource}} ({{status}})",
           "refId": "A"
         }
       ],
-      "title": "Operations by Resource Type and Status",
+      "title": "Operations by Target Resource (GVR) and Status",
       "type": "timeseries"
     }
   ],
@@ -313,13 +313,13 @@
         },
         "hide": 0,
         "includeAll": false,
-        "label": "Datasource",
+        "label": "Data Source",
         "multi": false,
         "name": "datasource",
         "options": [],
         "query": "prometheus",
         "refresh": 1,
-        "regex": "",
+        "regex": "^Managed_Prometheus_services-.*$",
         "skipUrlSync": false,
         "type": "datasource"
       },
@@ -333,7 +333,7 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(kube_applier_desire_operations_total, cluster)",
+        "definition": "label_values(up, cluster)",
         "hide": 0,
         "includeAll": false,
         "label": "Cluster",
@@ -342,7 +342,7 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(kube_applier_desire_operations_total, cluster)",
+          "query": "label_values(up, cluster)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
