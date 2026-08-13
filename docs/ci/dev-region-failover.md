@@ -7,11 +7,6 @@ improvement.
 The active region is `westus3`; the fallback regions are `centralus` and
 `canadacentral`.
 
-Tracking:
-
-- [ARO-27246](https://redhat.atlassian.net/browse/ARO-27246)
-- [ARO-27248](https://redhat.atlassian.net/browse/ARO-27248)
-
 ## Procedure
 
 1. Review the recent regional provision-healthcheck jobs:
@@ -37,7 +32,9 @@ Tracking:
 
 5. Run the `openshift/release` `make update` workflow and confirm that only the
    intended source and generated job configurations changed.
-6. After the PR merges, confirm that newly created runs of the three jobs use
+6. Before merging, rehearse all three affected jobs and confirm that they use
+   the selected region and complete the provision phase successfully.
+7. After the PR merges, confirm that newly created runs of the three jobs use
    the selected region and complete the provision phase successfully.
 
 The regional healthcheck jobs must continue probing all three regions. Existing
