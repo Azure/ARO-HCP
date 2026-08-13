@@ -20,6 +20,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
@@ -1133,4 +1134,68 @@ func TestShouldExecuteStep(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+func TestStepExecutionTimeout(t *testing.T) {
+	t.Run("default when unset", func(t *testing.T) {
+		d, err := stepExecutionTimeout(&types.ShellStep{})
+		assert.NoError(t, err)
+		assert.Equal(t, defaultStepExecutionTimeout, d)
+	})
+
+	t.Run("istio upgrade 60m", func(t *testing.T) {
+		d, err := stepExecutionTimeout(&types.IstioUpgradeStep{Timeout: "60m"})
+		assert.NoError(t, err)
+		assert.Equal(t, 60*time.Minute, d)
+	})
+
+	t.Run("invalid duration", func(t *testing.T) {
+		_, err := stepExecutionTimeout(&types.IstioUpgradeStep{Timeout: "not-a-duration"})
+		assert.Error(t, err)
+	})
+}
+
+func TestStepExecutionBudget(t *testing.T) {
+	step := &types.IstioUpgradeStep{Timeout: "60m"}
+	perAttempt, err := stepExecutionTimeout(step)
+	assert.NoError(t, err)
+	budget, err := stepExecutionBudget(step)
+	assert.NoError(t, err)
+	assert.Equal(t, perAttempt, budget)
+}
+
+func TestWaitForRetryOrCancel(t *testing.T) {
+	t.Run("completes after duration", func(t *testing.T) {
+		start := time.Now()
+		err := waitForRetryOrCancel(context.Background(), 20*time.Millisecond)
+		assert.NoError(t, err)
+		assert.GreaterOrEqual(t, time.Since(start), 20*time.Millisecond)
+	})
+
+	t.Run("returns when context cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		err := waitForRetryOrCancel(ctx, time.Minute)
+		assert.Error(t, err)
+		assert.Equal(t, context.Canceled, err)
+	})
+
+	t.Run("zero duration is immediate", func(t *testing.T) {
+		err := waitForRetryOrCancel(context.Background(), 0)
+		assert.NoError(t, err)
+	})
+}
+
+func TestPerAttemptTimeoutRespectsParentDeadline(t *testing.T) {
+	parentCtx, parentCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer parentCancel()
+
+	perAttempt := 60 * time.Minute
+	attemptCtx, attemptCancel := context.WithTimeoutCause(parentCtx, perAttempt,
+		fmt.Errorf("exceeded the per-attempt step timeout of %s", perAttempt))
+	defer attemptCancel()
+
+	deadline, ok := attemptCtx.Deadline()
+	assert.True(t, ok)
+	assert.LessOrEqual(t, time.Until(deadline), 50*time.Millisecond)
 }

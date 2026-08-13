@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/go-logr/logr"
 
@@ -99,6 +100,21 @@ func runIstioUpgradeStep(id graph.Identifier, step *types.IstioUpgradeStep, ctx 
 	opts.Tag = configString(tag)
 	opts.IngressIPName = configString(ipName)
 	opts.RegionRG = configString(regionRG)
+
+	if step.Timeout != "" {
+		d, err := time.ParseDuration(step.Timeout)
+		if err != nil {
+			return fmt.Errorf("failed to parse istio upgrade step timeout %q: %w", step.Timeout, err)
+		}
+		if d <= 0 {
+			return fmt.Errorf("istio upgrade step timeout must be positive, got %q", step.Timeout)
+		}
+		opts.OverallTimeout = d
+	} else {
+		// Rely on the pipeline runner context; DefaultUpgradeOptions uses 60m which would
+		// disagree with the runner's 30m default when timeout is unset in YAML.
+		opts.OverallTimeout = 0
+	}
 
 	return istio.RunUpgrade(ctx, opts, aksClient, kubeClient)
 }

@@ -51,6 +51,10 @@ import (
 
 var DefaultDeploymentTimeoutSeconds = 30 * 6
 
+// defaultStepExecutionTimeout caps how long a single pipeline step may run when the
+// step definition does not specify timeout.
+const defaultStepExecutionTimeout = 30 * time.Minute
+
 func compressTimingMetadata() bool {
 	ret, _ := strconv.ParseBool(os.Getenv("COMPRESS_TIMING_METADATA"))
 	return ret
@@ -683,7 +687,20 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Lock()
 					state.Timing[step].StartedAt = time.Now().Format(time.RFC3339)
 					state.Unlock()
-					stepCtx, stepCtxCancel := context.WithTimeoutCause(consumerCtx, 30*time.Minute, errors.New("exceeded the single-step timeout for sanity"))
+					stepDef, stepExists := executionGraph.GetStep(step)
+					if !stepExists {
+						errs <- fmt.Errorf("could not find step definition for %s", step)
+						consumerCancel()
+						return
+					}
+					stepBudgetDuration, stepBudgetErr := stepExecutionBudget(stepDef)
+					if stepBudgetErr != nil {
+						errs <- fmt.Errorf("step %s: %w", step, stepBudgetErr)
+						consumerCancel()
+						return
+					}
+					stepCtx, stepCtxCancel := context.WithTimeoutCause(consumerCtx, stepBudgetDuration,
+						fmt.Errorf("exceeded the step execution budget of %s", stepBudgetDuration))
 					details, runCount, err := executeNode(stepLogger, executor, executionGraph, step, stepCtx, options, state)
 					stepCtxCancel()
 					if details != nil {
@@ -825,21 +842,30 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 			return nil, 0, fmt.Errorf("failed to get topology dir for %s: %w", node.ServiceGroup, err)
 		}
 		pipelineDirectory = filepath.Join(topoDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath))
+		perAttemptTimeout, err := stepExecutionTimeout(step)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to resolve step timeout: %w", err)
+		}
 		for shouldExecuteStep(step, runCount) {
-			output, details, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
+			attemptCtx, attemptCancel := context.WithTimeoutCause(ctx, perAttemptTimeout,
+				fmt.Errorf("exceeded the per-attempt step timeout of %s", perAttemptTimeout))
+			output, details, stepRunErr = executor(node, step, logr.NewContext(attemptCtx, logger), target, &StepRunOptions{
 				BaseRunOptions:    options.BaseRunOptions,
 				PipelineDirectory: pipelineDirectory,
 				RetryAttempt:      runCount,
 				Environment:       options.Environment,
 				Stamp:             options.Stamp,
 			}, state)
+			attemptCancel()
 			runCount++
 			if shouldRetryError(logger, step, stepRunErr) {
 				duration, err := time.ParseDuration(step.AutomatedRetries().DurationBetweenRetries)
 				if err != nil {
 					return nil, 0, fmt.Errorf("failed to parse duration between retries: %w", err)
 				}
-				time.Sleep(duration)
+				if err := waitForRetryOrCancel(ctx, duration); err != nil {
+					return nil, runCount, err
+				}
 			} else {
 				break
 			}
@@ -860,6 +886,63 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	state.Executed.Insert(node)
 	state.Unlock()
 	return details, runCount, nil
+}
+
+func stepTimeoutString(step types.Step) string {
+	switch s := step.(type) {
+	case *types.IstioUpgradeStep:
+		return s.Timeout
+	case *types.HelmStep:
+		return s.Timeout
+	case *types.ShellStep:
+		return s.Timeout
+	case *types.GrafanaDashboardsStep:
+		return s.Timeout
+	case *types.GrafanaManageStep:
+		return s.Timeout
+	case *types.GrafanaDatasourcesStep:
+		return s.Timeout
+	case *types.KustoEntityGroupsStep:
+		return s.Timeout
+	default:
+		return ""
+	}
+}
+
+func stepExecutionTimeout(step types.Step) (time.Duration, error) {
+	raw := stepTimeoutString(step)
+	if raw == "" {
+		return defaultStepExecutionTimeout, nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse timeout %q: %w", raw, err)
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("step timeout must be positive, got %q", raw)
+	}
+	return d, nil
+}
+
+// stepExecutionBudget is the total time allowed for a step, including automated retries
+// and sleep between attempts. EV2 shell steps cap deployment at ~60m, so retries share
+// one window rather than multiplying the per-attempt timeout.
+func stepExecutionBudget(step types.Step) (time.Duration, error) {
+	return stepExecutionTimeout(step)
+}
+
+func waitForRetryOrCancel(ctx context.Context, duration time.Duration) error {
+	if duration <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func shouldExecuteStep(step types.Step, runCount int) bool {
