@@ -48,6 +48,10 @@ var (
 	// exclusively by the upgrade/in-place suite — not part of any happy-path or
 	// api-compat suite.
 	UpgradeInPlace = ginkgo.Label("Upgrade-In-Place")
+	// HypershiftPresubmit marks tests that validate Control Plane Operator (CPO)
+	// behavior. Selected by the hypershift-presubmit/parallel suite so that
+	// HyperShift presubmit PRs can run a targeted subset of ARO-HCP e2e tests.
+	HypershiftPresubmit = ginkgo.Label("Hypershift-Presubmit")
 )
 
 var (
