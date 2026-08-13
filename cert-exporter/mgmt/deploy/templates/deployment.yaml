@@ -38,11 +38,10 @@ spec:
           limits:
             memory: {{ .Values.deployment.resources.limits.memory }}
         args:
-        - --config
-        - /etc/x509-exporter/config.yaml
+        - --config=/etc/x509-certificate-exporter/config.yaml
         volumeMounts:
         - name: config
-          mountPath: /etc/x509-exporter
+          mountPath: /etc/x509-certificate-exporter
           readOnly: true
         ports:
         - name: metrics

@@ -8,11 +8,22 @@ metadata:
 data:
   config.yaml: |
     server:
-      listen: :9793
+      listen: ":9793"
+    log:
+      level: info
+      format: text
     metrics:
       exposeNotBefore: true
     sources:
-      - kind: secret
+      - kind: kubernetes
+        name: cluster-secrets
+        namespaces:
+          include: ["*"]
+          exclude: []
         secrets:
-          - type: kubernetes.io/tls
-            key: tls.crt
+          include: ["*"]
+          exclude: []
+          types:
+            - type: "kubernetes.io/tls"
+              keyPatterns: ["^tls\\.crt$"]
+              format: pem

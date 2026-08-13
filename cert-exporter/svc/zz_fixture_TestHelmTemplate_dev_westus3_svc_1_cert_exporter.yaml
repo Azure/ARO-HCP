@@ -19,17 +19,25 @@ metadata:
 data:
   config.yaml: |
     server:
-      listen: :9793
+      listen: ":9793"
+    log:
+      level: info
+      format: text
     metrics:
       exposeNotBefore: true
     sources:
-      - kind: secret
+      - kind: kubernetes
+        name: cluster-secrets
         namespaces:
-          include:
-            - aks-istio-ingress
+          include: ["aks-istio-ingress"]
+          exclude: []
         secrets:
-          - type: kubernetes.io/tls
-            key: tls.crt
+          include: ["*"]
+          exclude: []
+          types:
+            - type: "kubernetes.io/tls"
+              keyPatterns: ["^tls\\.crt$"]
+              format: pem
 ---
 # Source: cert-exporter/templates/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -119,11 +127,10 @@ spec:
           limits:
             memory: 128Mi
         args:
-        - --config
-        - /etc/x509-exporter/config.yaml
+        - --config=/etc/x509-certificate-exporter/config.yaml
         volumeMounts:
         - name: config
-          mountPath: /etc/x509-exporter
+          mountPath: /etc/x509-certificate-exporter
           readOnly: true
         ports:
         - name: metrics
