@@ -194,7 +194,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 			}, nil,
 		)
 
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyAnyAny")
@@ -229,7 +229,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 			}, nil,
 		)
 
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyILB")
@@ -275,7 +275,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 
 		np := testNodePool()
 		np.Properties.Platform.SubnetID = metadataapi.Must(azcorearm.ParseResourceID(npSubnetID))
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), np)
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyToClusterSubnet")
@@ -292,7 +292,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(emptyNSG(), nil).Times(2)
 
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypePassed, result.Outcome.Type)
 	})
@@ -309,7 +309,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(emptyNSG(), nil)
 		builder := &fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets}
 
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(builder)
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(builder)
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypePassed, result.Outcome.Type)
 		require.Equal(t, 1, builder.nsgClientRequests, "NSG client should be created for worker NSG only")
@@ -346,7 +346,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 			}, nil,
 		)
 
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyAnyAnyIn")
@@ -384,7 +384,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 			}, nil,
 		)
 
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyAnyToIntegration")
@@ -436,7 +436,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 			}, nil,
 		)
 
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypePassed, result.Outcome.Type)
 	})
@@ -470,7 +470,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 			}, nil,
 		)
 
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyWorkerToAny")
@@ -510,7 +510,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		)
 
 		np := nodePoolOnSubnet(npSubnetID)
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), np)
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyNPToCluster")
@@ -550,7 +550,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		)
 
 		np := nodePoolOnSubnet(npSubnetID)
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), np)
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyNPToAny")
@@ -590,7 +590,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		)
 
 		np := nodePoolOnSubnet(npSubnetID)
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), np)
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyAnyAny")
@@ -627,7 +627,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 			}, nil,
 		)
 
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyWorkerToAny")
@@ -665,7 +665,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 			}, nil,
 		)
 
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyWorkerToIntegration")
@@ -707,7 +707,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		)
 
 		np := nodePoolOnSubnet(npSubnetID)
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), np)
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyNPToAny")
@@ -731,7 +731,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		)
 		builder := &fakeSMIClientBuilder{subnetsClient: subnets}
 
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(builder)
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(builder)
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), nodePoolOnSubnet(npSubnetID))
 		require.Equal(t, OutcomeTypePassed, result.Outcome.Type)
 		require.Equal(t, 0, builder.nsgClientRequests, "NSG client should not be created when worker and integration subnets have no NSG")
@@ -768,7 +768,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		)
 		builder := &fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets}
 
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(builder)
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(builder)
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyAnyToIntegration")
@@ -811,7 +811,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		)
 
 		np := nodePoolOnSubnet(npSubnetID)
-		v := UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
+		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), np)
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyNPToIntegration")

@@ -27,22 +27,22 @@ import (
 )
 
 // SecurityGroupAccess is the Allow/Deny result of an NSG security rule.
-type SecurityGroupAccess string
+type securityGroupAccess string
 
 const (
-	SecurityGroupAccessAllow SecurityGroupAccess = "Allow"
-	SecurityGroupAccessDeny  SecurityGroupAccess = "Deny"
+	securityGroupAccessAllow securityGroupAccess = "Allow"
+	securityGroupAccessDeny  securityGroupAccess = "Deny"
 
 	azureTagAny            = "Any"
 	azureTagVirtualNetwork = "VirtualNetwork"
 	azureTagInternet       = "Internet"
 )
 
-// NSGSecurityRule is a simplified NSG security rule used by outbound and inbound evaluators.
-type NSGSecurityRule struct {
+// nsgSecurityRule is a simplified NSG security rule used by outbound and inbound evaluators.
+type nsgSecurityRule struct {
 	Name                       string
 	Priority                   int32
-	Access                     SecurityGroupAccess
+	Access                     securityGroupAccess
 	Protocol                   string
 	SourceAddressPrefixes      []string
 	DestinationAddressPrefixes []string
@@ -63,21 +63,21 @@ type nsgDenyViolation struct {
 	Message string
 }
 
-type nsgDirection int
+type nsgDirection string
 
 const (
-	nsgDirectionOutbound nsgDirection = iota
-	nsgDirectionInbound
+	nsgDirectionOutbound nsgDirection = "Outbound"
+	nsgDirectionInbound  nsgDirection = "Inbound"
 )
 
 func buildRequiredNSGPaths(workerCIDRs []string, workerLabel string, destCIDRs []string, destLabel string, ports []int32) ([]requiredNSGPath, error) {
 	workers, err := parsePrefixes(workerCIDRs, workerLabel)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	destinations, err := parsePrefixes(destCIDRs, destLabel)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	paths := make([]requiredNSGPath, 0, len(workers)*len(destinations)*len(ports))
 	for i, worker := range workers {
@@ -99,7 +99,7 @@ func buildRequiredNSGPaths(workerCIDRs []string, workerLabel string, destCIDRs [
 // findBlockingNSGDeny checks that every required path is not blocked by an
 // uncompensated Deny rule. Rules are evaluated in Azure priority order; a
 // higher-priority Allow that covers the Deny compensates it.
-func findBlockingNSGDeny(rules []NSGSecurityRule, paths []requiredNSGPath, direction nsgDirection) (*nsgDenyViolation, error) {
+func findBlockingNSGDeny(rules []nsgSecurityRule, paths []requiredNSGPath, direction nsgDirection) (*nsgDenyViolation, error) {
 	sorted := sortByPriority(rules)
 	requiredPorts := requiredPortsFromPaths(paths)
 	for _, path := range paths {
@@ -136,7 +136,7 @@ func requiredPortsFromPaths(paths []requiredNSGPath) []int32 {
 	return ports
 }
 
-func denyMatchesPath(deny *NSGSecurityRule, path requiredNSGPath) bool {
+func denyMatchesPath(deny *nsgSecurityRule, path requiredNSGPath) bool {
 	if !sourceMatchesSubnet(deny.SourceAddressPrefixes, path.worker) {
 		return false
 	}
@@ -146,7 +146,7 @@ func denyMatchesPath(deny *NSGSecurityRule, path requiredNSGPath) bool {
 	return portRangesMatch(deny.DestinationPortRanges, path.port)
 }
 
-func pathBlockedViolation(deny *NSGSecurityRule, path requiredNSGPath, direction nsgDirection, requiredPorts []int32) *nsgDenyViolation {
+func pathBlockedViolation(deny *nsgSecurityRule, path requiredNSGPath, direction nsgDirection, requiredPorts []int32) *nsgDenyViolation {
 	blockedPorts := matchingPorts(deny.DestinationPortRanges, requiredPorts)
 	if len(blockedPorts) == 0 {
 		blockedPorts = []int32{path.port}
@@ -175,7 +175,7 @@ func pathBlockedViolation(deny *NSGSecurityRule, path requiredNSGPath, direction
 	}
 }
 
-func inboundDenyReason(deny *NSGSecurityRule, path requiredNSGPath) string {
+func inboundDenyReason(deny *nsgSecurityRule, path requiredNSGPath) string {
 	srcAny := isAnyAddressPrefixes(deny.SourceAddressPrefixes)
 	dstAny := isAnyAddressPrefixes(deny.DestinationAddressPrefixes)
 	srcWorker := sourceSpecificallyFromWorker(deny.SourceAddressPrefixes, path.worker)
@@ -214,7 +214,7 @@ func parsePrefixes(cidrs []string, label string) ([]netip.Prefix, error) {
 
 // hasHigherPriorityAllowForDeny reports whether a higher-priority Allow covers
 // the Deny for worker-relevant traffic on the ports. Allow Any→Any is accepted.
-func hasHigherPriorityAllowForDeny(higherPriorityRules []NSGSecurityRule, deny *NSGSecurityRule, ports []int32, workerSubnet netip.Prefix) bool {
+func hasHigherPriorityAllowForDeny(higherPriorityRules []nsgSecurityRule, deny *nsgSecurityRule, ports []int32, workerSubnet netip.Prefix) bool {
 	for i := range higherPriorityRules {
 		allow := &higherPriorityRules[i]
 		if !isAllow(allow) || !protocolMatchesTCP(allow.Protocol) {
@@ -234,20 +234,20 @@ func hasHigherPriorityAllowForDeny(higherPriorityRules []NSGSecurityRule, deny *
 	return false
 }
 
-func sortByPriority(rules []NSGSecurityRule) []NSGSecurityRule {
-	sorted := append([]NSGSecurityRule(nil), rules...)
+func sortByPriority(rules []nsgSecurityRule) []nsgSecurityRule {
+	sorted := append([]nsgSecurityRule(nil), rules...)
 	sort.SliceStable(sorted, func(i, j int) bool {
 		return sorted[i].Priority < sorted[j].Priority
 	})
 	return sorted
 }
 
-func isDeny(rule *NSGSecurityRule) bool {
-	return strings.EqualFold(string(rule.Access), string(SecurityGroupAccessDeny))
+func isDeny(rule *nsgSecurityRule) bool {
+	return strings.EqualFold(string(rule.Access), string(securityGroupAccessDeny))
 }
 
-func isAllow(rule *NSGSecurityRule) bool {
-	return strings.EqualFold(string(rule.Access), string(SecurityGroupAccessAllow))
+func isAllow(rule *nsgSecurityRule) bool {
+	return strings.EqualFold(string(rule.Access), string(securityGroupAccessAllow))
 }
 
 func isAnyAddressPrefixes(prefixes []string) bool {
@@ -529,12 +529,13 @@ func portRangesMatch(ranges []string, port int32) bool {
 
 func parsePrefixOrAddr(s string) (netip.Prefix, error) {
 	s = strings.TrimSpace(s)
-	if prefix, err := netip.ParsePrefix(s); err == nil {
+	prefix, err := netip.ParsePrefix(s)
+	if err == nil {
 		return prefix, nil
 	}
 	addr, err := netip.ParseAddr(s)
 	if err != nil {
-		return netip.Prefix{}, utils.TrackError(fmt.Errorf("invalid IP or CIDR %q", s))
+		return netip.Prefix{}, utils.TrackError(fmt.Errorf("invalid IP or CIDR %q: %v", s, err))
 	}
 	return netip.PrefixFrom(addr, addr.BitLen()), nil
 }

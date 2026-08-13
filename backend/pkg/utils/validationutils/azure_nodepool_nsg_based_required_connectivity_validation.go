@@ -61,7 +61,7 @@ type AzureNodePoolNSGBasedRequiredConnectivityValidation struct {
 	smiClientBuilder azureclient.ServiceManagedIdentityClientBuilder
 }
 
-func UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(smiClientBuilder azureclient.ServiceManagedIdentityClientBuilder) *AzureNodePoolNSGBasedRequiredConnectivityValidation {
+func NewAzureNodePoolNSGBasedRequiredConnectivityValidation(smiClientBuilder azureclient.ServiceManagedIdentityClientBuilder) *AzureNodePoolNSGBasedRequiredConnectivityValidation {
 	return &AzureNodePoolNSGBasedRequiredConnectivityValidation{
 		smiClientBuilder: smiClientBuilder,
 	}
@@ -144,12 +144,12 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 		)
 	}
 
-	// No subnet-level NSG on the worker subnet: Azure applies no NSG egress rules
-	// at this hop, so there is nothing to inspect for outbound Denys.
+	// If the worker subnet has an nsg attached, then we need to validate outbound rules on the worker-subnet NSG.
+	// If the worker subnet has no nsg attached, then there will be no outbound rules to validate.
 	if workerNSGID != nil {
-		// Check outbound rule destination on default cluster subnet
-		// if worker subnet and cluster subnet are same then workerPrefixes are prefixes of default cluster subnet and use as destination prefix.
-		// if worker subnet and cluster subnet are different then get clusterPrefixes from default cluster subnet and use as destination prefix.
+		// Check outbound rule destination on parent cluster's subnet
+		// if worker subnet and cluster subnet are same then workerPrefixes are prefixes of parent cluster's subnet and use as destination prefix.
+		// if worker subnet and cluster subnet are different then get clusterPrefixes from parent cluster's subnet and use as destination prefix.
 		clusterPrefixes := workerPrefixes
 		if !strings.EqualFold(workerSubnetID.String(), clusterSubnetID.String()) {
 			clusterSubnet, err := v.getSubnet(ctx, subnetsClient, clusterSubnetID)
@@ -212,6 +212,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 	// we check inbound validation on vnet-integration subnet
 	// If the vnet-integration subnet is not present, it means it is
 	// a legacy/non-swift cluster and does not need to check inbound validation.
+	// TODO: Remove this check once we have removed 2024-06-10-preview API support.
 	if vnetIntegrationSubnetID == nil {
 		return PassedValidation(
 			coreapi.ControllerConditionReasonAsExpected,
@@ -343,7 +344,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) nsgIDFromSubnet(su
 	return nsgID, nil
 }
 
-func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) listNSGSecurityRules(ctx context.Context, nsgClient azureclient.NetworkSecurityGroupsClient, nsgID *azcorearm.ResourceID) (outbound, inbound []NSGSecurityRule, err error) {
+func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) listNSGSecurityRules(ctx context.Context, nsgClient azureclient.NetworkSecurityGroupsClient, nsgID *azcorearm.ResourceID) (outbound, inbound []nsgSecurityRule, err error) {
 	resp, err := nsgClient.Get(ctx, nsgID.ResourceGroupName, nsgID.Name, nil)
 	if err != nil {
 		return nil, nil, utils.TrackError(fmt.Errorf("failed to get network security group %q: %w", nsgID.String(), err))
@@ -356,9 +357,9 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) listNSGSecurityRul
 	return outbound, inbound, nil
 }
 
-// convertSecurityRules converts Azure's SecurityRule properties to our NSGSecurityRule type.
-func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) convertSecurityRules(rules []*armnetwork.SecurityRule, direction armnetwork.SecurityRuleDirection) []NSGSecurityRule {
-	var out []NSGSecurityRule
+// convertSecurityRules converts Azure's SecurityRule properties to our nsgSecurityRule type.
+func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) convertSecurityRules(rules []*armnetwork.SecurityRule, direction armnetwork.SecurityRuleDirection) []nsgSecurityRule {
+	var out []nsgSecurityRule
 	for _, rule := range rules {
 		if rule == nil || rule.Properties == nil {
 			continue
@@ -367,15 +368,15 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) convertSecurityRul
 		if props.Direction == nil || *props.Direction != direction {
 			continue
 		}
-		access := SecurityGroupAccessDeny
+		access := securityGroupAccessDeny
 		if props.Access != nil && *props.Access == armnetwork.SecurityRuleAccessAllow {
-			access = SecurityGroupAccessAllow
+			access = securityGroupAccessAllow
 		}
 		protocol := "*"
 		if props.Protocol != nil {
 			protocol = string(*props.Protocol)
 		}
-		out = append(out, NSGSecurityRule{
+		out = append(out, nsgSecurityRule{
 			Name:                       ptr.Deref(rule.Name, ""),
 			Priority:                   ptr.Deref(props.Priority, 0),
 			Access:                     access,
@@ -397,10 +398,10 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) convertSecurityRul
 //
 // Returns a violation when a Deny blocks required traffic; err is reserved for
 // unexpected input or evaluation failures (invalid CIDRs, etc.).
-func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateOutboundNSGRules(rules []NSGSecurityRule, workerSubnetCIDRs, destinationCIDRs []string, ports []int32) (*nsgDenyViolation, error) {
+func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateOutboundNSGRules(rules []nsgSecurityRule, workerSubnetCIDRs, destinationCIDRs []string, ports []int32) (*nsgDenyViolation, error) {
 	paths, err := buildRequiredNSGPaths(workerSubnetCIDRs, "worker subnet", destinationCIDRs, "destination subnet", ports)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	return findBlockingNSGDeny(rules, paths, nsgDirectionOutbound)
 }
@@ -415,10 +416,10 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateOutboundNS
 //
 // Returns a violation when a Deny blocks required traffic; err is reserved for
 // unexpected input or evaluation failures.
-func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateInboundNSGRules(rules []NSGSecurityRule, workerSubnetCIDRs, vnetIntegrationSubnetCIDRs []string, ports []int32) (*nsgDenyViolation, error) {
+func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateInboundNSGRules(rules []nsgSecurityRule, workerSubnetCIDRs, vnetIntegrationSubnetCIDRs []string, ports []int32) (*nsgDenyViolation, error) {
 	paths, err := buildRequiredNSGPaths(workerSubnetCIDRs, "worker subnet", vnetIntegrationSubnetCIDRs, "vnet-integration subnet", ports)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	return findBlockingNSGDeny(rules, paths, nsgDirectionInbound)
 }

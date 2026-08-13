@@ -768,7 +768,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 
 	nodePoolNSGBasedRequiredConnectivityValidationController := nodepoolvalidation.NewNodePoolValidationController(
-		validationutils.UserProvidedNodePoolNSGBasedRequiredConnectivityValidation(b.options.SMIClientBuilder),
+		validationutils.NewAzureNodePoolNSGBasedRequiredConnectivityValidation(b.options.SMIClientBuilder),
 		b.options.ResourcesDBClient,
 		serviceProviderNodePoolLister,
 		backendInformers,

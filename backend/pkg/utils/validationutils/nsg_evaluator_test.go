@@ -42,8 +42,8 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 
 	t.Run("Deny Any to Any fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyAnyAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "*",
+		rules := []nsgSecurityRule{{
+			Name: "DenyAnyAny", Priority: 200, Access: securityGroupAccessDeny, Protocol: "*",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
@@ -55,14 +55,14 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 
 	t.Run("higher-priority Allow Any to Any before Deny passes", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowAnyAnyKAS", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowAnyAnyKAS", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 			{
-				Name: "DenyAnyAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "*",
+				Name: "DenyAnyAny", Priority: 200, Access: securityGroupAccessDeny, Protocol: "*",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
@@ -75,14 +75,14 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 		t.Parallel()
 		npSubnet := "10.0.2.0/24"
 		clusterSubnet := "10.0.0.0/24"
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowWorkerAny", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowWorkerAny", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 			{
-				Name: "DenyAnyAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "*",
+				Name: "DenyAnyAny", Priority: 200, Access: securityGroupAccessDeny, Protocol: "*",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
@@ -94,14 +94,14 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 
 	t.Run("lower-priority Allow Any to Any after Deny does not compensate", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "DenyAnyAny", Priority: 100, Access: SecurityGroupAccessDeny, Protocol: "*",
+				Name: "DenyAnyAny", Priority: 100, Access: securityGroupAccessDeny, Protocol: "*",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
 			{
-				Name: "AllowAnyAnyKAS", Priority: 200, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowAnyAnyKAS", Priority: 200, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
@@ -113,14 +113,14 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 
 	t.Run("Allow to specific IP does not satisfy broad Deny Any to Any", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowSpecific", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowSpecific", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"10.0.0.4"},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 			{
-				Name: "DenyAnyAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "*",
+				Name: "DenyAnyAny", Priority: 200, Access: securityGroupAccessDeny, Protocol: "*",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
@@ -132,8 +132,8 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 
 	t.Run("Deny Any to Any on only 6443 fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyAny6443", Priority: 100, Access: SecurityGroupAccessDeny, Protocol: "*",
+		rules := []nsgSecurityRule{{
+			Name: "DenyAny6443", Priority: 100, Access: securityGroupAccessDeny, Protocol: "*",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"6443"},
 		}}
@@ -145,8 +145,8 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 
 	t.Run("Deny Any to Any on only 443 fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyAny443", Priority: 100, Access: SecurityGroupAccessDeny, Protocol: "*",
+		rules := []nsgSecurityRule{{
+			Name: "DenyAny443", Priority: 100, Access: securityGroupAccessDeny, Protocol: "*",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"443"},
 		}}
@@ -158,8 +158,8 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 
 	t.Run("Deny Any to Any on both 443 and 6443 fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyAnyBoth", Priority: 100, Access: SecurityGroupAccessDeny, Protocol: "*",
+		rules := []nsgSecurityRule{{
+			Name: "DenyAnyBoth", Priority: 100, Access: securityGroupAccessDeny, Protocol: "*",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -172,8 +172,8 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 
 	t.Run("Deny Any to Any on comma-separated 443,6443 fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyAnyComma", Priority: 100, Access: SecurityGroupAccessDeny, Protocol: "*",
+		rules := []nsgSecurityRule{{
+			Name: "DenyAnyComma", Priority: 100, Access: securityGroupAccessDeny, Protocol: "*",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"443,6443"},
 		}}
@@ -184,8 +184,8 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 
 	t.Run("UDP-only Deny Any to Any is ignored", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyUDP", Priority: 100, Access: SecurityGroupAccessDeny, Protocol: "Udp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyUDP", Priority: 100, Access: securityGroupAccessDeny, Protocol: "Udp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
@@ -196,14 +196,14 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 	t.Run("Allow covering only first of multiple worker prefixes does not compensate Deny Any to Any", func(t *testing.T) {
 		t.Parallel()
 		second := "10.1.0.0/24"
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowFirstOnly", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowFirstOnly", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 			{
-				Name: "DenyAnyAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "*",
+				Name: "DenyAnyAny", Priority: 200, Access: securityGroupAccessDeny, Protocol: "*",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
@@ -223,8 +223,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 
 	t.Run("Deny to subnet CIDR without Allow fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenySubnet", Priority: 120, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenySubnet", Priority: 120, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{subnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -236,8 +236,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 
 	t.Run("UDP-only Deny to subnet is ignored", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyUDPSubnet", Priority: 120, Access: SecurityGroupAccessDeny, Protocol: "Udp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyUDPSubnet", Priority: 120, Access: securityGroupAccessDeny, Protocol: "Udp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{subnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -247,8 +247,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 
 	t.Run("Deny to IP inside subnet without Allow fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyILB", Priority: 110, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyILB", Priority: 110, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"VirtualNetwork"}, DestinationAddressPrefixes: []string{"10.0.0.4"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -259,14 +259,14 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 
 	t.Run("higher-priority Allow to IP before Deny to IP passes", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowILB", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowILB", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"10.0.0.4"},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 			{
-				Name: "DenyILB", Priority: 110, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+				Name: "DenyILB", Priority: 110, Access: securityGroupAccessDeny, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"10.0.0.4"},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
@@ -277,14 +277,14 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 
 	t.Run("higher-priority Allow Any to Any satisfies Deny to IP", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowAnyAny", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowAnyAny", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 			{
-				Name: "DenyILB", Priority: 110, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+				Name: "DenyILB", Priority: 110, Access: securityGroupAccessDeny, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"10.0.0.4"},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
@@ -295,14 +295,14 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 
 	t.Run("higher-priority Allow to subnet CIDR covers Deny to IP", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowSubnet", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowSubnet", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{subnet},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 			{
-				Name: "DenyILB", Priority: 110, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+				Name: "DenyILB", Priority: 110, Access: securityGroupAccessDeny, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"10.0.0.4"},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
@@ -313,8 +313,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 
 	t.Run("Deny to IP outside subnet is ignored", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyOther", Priority: 110, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyOther", Priority: 110, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"10.0.1.4"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -324,8 +324,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 
 	t.Run("Deny with source CIDR outside worker subnet is ignored", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyUnrelatedSource", Priority: 110, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyUnrelatedSource", Priority: 110, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"192.168.99.0/24"}, DestinationAddressPrefixes: []string{subnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -335,14 +335,14 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 
 	t.Run("Allow with source CIDR outside worker subnet does not satisfy Deny", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowUnrelatedSource", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowUnrelatedSource", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"192.168.99.0/24"}, DestinationAddressPrefixes: []string{"10.0.0.4"},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 			{
-				Name: "DenyILB", Priority: 110, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+				Name: "DenyILB", Priority: 110, Access: securityGroupAccessDeny, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"10.0.0.4"},
 				DestinationPortRanges: []string{"443", "6443"},
 			},
@@ -354,8 +354,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 
 	t.Run("Deny with source overlapping worker subnet fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyWorkerSource", Priority: 110, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyWorkerSource", Priority: 110, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"10.0.0.4"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -373,8 +373,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 	t.Run("Deny targeting second of multiple worker subnet prefixes fails", func(t *testing.T) {
 		t.Parallel()
 		second := "10.1.0.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenySecondPrefix", Priority: 110, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenySecondPrefix", Priority: 110, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"10.1.0.4"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -388,8 +388,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 		t.Parallel()
 		clusterSubnet := "10.0.0.0/24"
 		npSubnet := "10.0.2.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyClusterSubnet", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyClusterSubnet", Priority: 101, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{clusterSubnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -403,8 +403,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 		t.Parallel()
 		clusterSubnet := "10.0.0.0/24"
 		npSubnet := "10.0.2.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyClusterIP", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyClusterIP", Priority: 101, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"10.0.0.10"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -417,8 +417,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 		t.Parallel()
 		clusterSubnet := "10.0.0.0/24"
 		npSubnet := "10.0.2.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyNPSubnet", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyNPSubnet", Priority: 101, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{npSubnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -430,8 +430,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 		t.Parallel()
 		clusterSubnet := "10.0.0.0/24"
 		npSubnet := "10.0.2.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyWorkerToCluster", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyWorkerToCluster", Priority: 101, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{clusterSubnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -450,36 +450,36 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 
 		cases := []struct {
 			name string
-			rule NSGSecurityRule
+			rule nsgSecurityRule
 		}{
 			{
 				name: "Any to SWIFT subnet",
-				rule: NSGSecurityRule{
-					Name: "DenyAnyToSwift", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+				rule: nsgSecurityRule{
+					Name: "DenyAnyToSwift", Priority: 101, Access: securityGroupAccessDeny, Protocol: "Tcp",
 					SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{swiftSubnet},
 					DestinationPortRanges: []string{"443", "6443"},
 				},
 			},
 			{
 				name: "worker to SWIFT subnet",
-				rule: NSGSecurityRule{
-					Name: "DenyWorkerToSwift", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+				rule: nsgSecurityRule{
+					Name: "DenyWorkerToSwift", Priority: 101, Access: securityGroupAccessDeny, Protocol: "Tcp",
 					SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{swiftSubnet},
 					DestinationPortRanges: []string{"443", "6443"},
 				},
 			},
 			{
 				name: "Any to SWIFT IP",
-				rule: NSGSecurityRule{
-					Name: "DenyAnyToSwiftIP", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+				rule: nsgSecurityRule{
+					Name: "DenyAnyToSwiftIP", Priority: 101, Access: securityGroupAccessDeny, Protocol: "Tcp",
 					SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{swiftIP},
 					DestinationPortRanges: []string{"443", "6443"},
 				},
 			},
 			{
 				name: "worker to SWIFT IP",
-				rule: NSGSecurityRule{
-					Name: "DenyWorkerToSwiftIP", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+				rule: nsgSecurityRule{
+					Name: "DenyWorkerToSwiftIP", Priority: 101, Access: securityGroupAccessDeny, Protocol: "Tcp",
 					SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{swiftIP},
 					DestinationPortRanges: []string{"443", "6443"},
 				},
@@ -489,7 +489,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				violation, err := v.validateOutboundNSGRules([]NSGSecurityRule{tc.rule}, []string{npSubnet}, []string{clusterSubnet}, ports)
+				violation, err := v.validateOutboundNSGRules([]nsgSecurityRule{tc.rule}, []string{npSubnet}, []string{clusterSubnet}, ports)
 				requireNoNSGRuleViolation(t, violation, err)
 			})
 		}
@@ -500,8 +500,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 		npSubnet := "10.0.2.0/24"
 		clusterSubnet := "10.0.0.0/24"
 		integration := "10.0.1.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyWorkerToIntegration", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyWorkerToIntegration", Priority: 101, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{integration},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -514,8 +514,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 		clusterSubnet := "10.0.0.0/24"
 		npSubnet := "10.0.2.0/24"
 		unrelated := "10.9.0.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyUnrelated", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyUnrelated", Priority: 101, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{unrelated}, DestinationAddressPrefixes: []string{clusterSubnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -525,8 +525,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 
 	t.Run("Deny worker subnet to Any fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyWorkerToAny", Priority: 110, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyWorkerToAny", Priority: 110, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -539,8 +539,8 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 		t.Parallel()
 		clusterSubnet := "10.0.0.0/24"
 		npSubnet := "10.0.2.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyNPToAny", Priority: 101, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyNPToAny", Priority: 101, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
@@ -560,8 +560,8 @@ func TestValidateOutboundNSGRules_NodePoolSubnet(t *testing.T) {
 
 	t.Run("Deny Any to Any fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyAnyAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "*",
+		rules := []nsgSecurityRule{{
+			Name: "DenyAnyAny", Priority: 200, Access: securityGroupAccessDeny, Protocol: "*",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
@@ -580,8 +580,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("Deny Any to Any fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyAnyAnyIn", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "*",
+		rules := []nsgSecurityRule{{
+			Name: "DenyAnyAnyIn", Priority: 200, Access: securityGroupAccessDeny, Protocol: "*",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
@@ -595,8 +595,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		t.Parallel()
 		worker := "10.0.0.0/24"
 		integration := "10.0.1.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyAnyToIntegration", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyAnyToIntegration", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{integration},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
@@ -610,8 +610,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		t.Parallel()
 		worker := "10.0.0.0/24"
 		integration := "10.0.1.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyAnyToIntegrationStar", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "*",
+		rules := []nsgSecurityRule{{
+			Name: "DenyAnyToIntegrationStar", Priority: 200, Access: securityGroupAccessDeny, Protocol: "*",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{integration},
 			DestinationPortRanges: []string{"*"},
 		}}
@@ -624,8 +624,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		t.Parallel()
 		worker := "10.0.0.0/24"
 		integration := "10.0.1.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyAnyToVNet", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyAnyToVNet", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
@@ -640,8 +640,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		worker := "10.0.0.0/24"
 		integration := "10.0.1.0/24"
 		other := "10.0.2.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyAnyToOther", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyAnyToOther", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{other},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
@@ -653,14 +653,14 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		t.Parallel()
 		worker := "10.0.0.0/24"
 		integration := "10.0.1.0/24"
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowAnyAny", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "*",
+				Name: "AllowAnyAny", Priority: 100, Access: securityGroupAccessAllow, Protocol: "*",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
 			{
-				Name: "DenyAnyToIntegration", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+				Name: "DenyAnyToIntegration", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{integration},
 				DestinationPortRanges: []string{"8443", "443"},
 			},
@@ -671,8 +671,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("Deny worker subnet to Any fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyWorkerToAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyWorkerToAny", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
@@ -684,8 +684,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("Deny worker subnet to VirtualNetwork fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyWorkerToVNet", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyWorkerToVNet", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
 			DestinationPortRanges: []string{"*"},
 		}}
@@ -698,8 +698,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		t.Parallel()
 		worker := "10.0.0.0/24"
 		integration := "10.0.1.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyWorkerToIntegration", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyWorkerToIntegration", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{worker}, DestinationAddressPrefixes: []string{integration},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
@@ -714,8 +714,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		worker := "10.0.0.0/24"
 		integration := "10.0.1.0/24"
 		other := "10.0.2.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyWorkerToOther", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyWorkerToOther", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{worker}, DestinationAddressPrefixes: []string{other},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
@@ -727,8 +727,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		t.Parallel()
 		npSubnet := "10.0.2.0/24"
 		integration := "10.0.1.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyNPToAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyNPToAny", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
@@ -742,8 +742,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		t.Parallel()
 		npSubnet := "10.0.2.0/24"
 		integration := "10.0.1.0/24"
-		rules := []NSGSecurityRule{{
-			Name: "DenyNPToIntegration", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyNPToIntegration", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{integration},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
@@ -755,8 +755,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("Deny worker IP to worker subnet fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyWorkerToSubnet", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyWorkerToSubnet", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"10.0.0.5"}, DestinationAddressPrefixes: []string{subnet},
 			DestinationPortRanges: []string{"*"},
 		}}
@@ -767,14 +767,14 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("higher-priority Allow Any to Any compensates Deny Any to Any", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowAnyAny", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "*",
+				Name: "AllowAnyAny", Priority: 100, Access: securityGroupAccessAllow, Protocol: "*",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
 			{
-				Name: "DenyAnyAnyIn", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "*",
+				Name: "DenyAnyAnyIn", Priority: 200, Access: securityGroupAccessDeny, Protocol: "*",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
@@ -785,14 +785,14 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("higher-priority Allow Any to Any compensates Deny worker to Any", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowAnyAny", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowAnyAny", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
 			{
-				Name: "DenyWorkerToAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+				Name: "DenyWorkerToAny", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
@@ -803,14 +803,14 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("lower-priority Allow does not compensate Deny", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "DenyAnyAnyIn", Priority: 100, Access: SecurityGroupAccessDeny, Protocol: "*",
+				Name: "DenyAnyAnyIn", Priority: 100, Access: securityGroupAccessDeny, Protocol: "*",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
 			{
-				Name: "AllowAnyAny", Priority: 200, Access: SecurityGroupAccessAllow, Protocol: "*",
+				Name: "AllowAnyAny", Priority: 200, Access: securityGroupAccessAllow, Protocol: "*",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
@@ -822,8 +822,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("Deny from other subnet to Any is ignored", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyOtherToAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyOtherToAny", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"10.0.1.0/24"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
@@ -833,8 +833,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("UDP Deny Any to Any is ignored", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyUDP", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Udp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyUDP", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Udp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
@@ -844,8 +844,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("Deny Any to Any on unrelated port 80 is ignored", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "DenyPort80", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "DenyPort80", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"80"},
 		}}
@@ -855,8 +855,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("Deny worker to VirtualNetwork on only 8443 fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "Deny8443", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "Deny8443", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
 			DestinationPortRanges: []string{"8443"},
 		}}
@@ -868,8 +868,8 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("Deny worker to VirtualNetwork on only 443 fails", func(t *testing.T) {
 		t.Parallel()
-		rules := []NSGSecurityRule{{
-			Name: "Deny443", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+		rules := []nsgSecurityRule{{
+			Name: "Deny443", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
 			DestinationPortRanges: []string{"443"},
 		}}
@@ -891,14 +891,14 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		t.Parallel()
 		second := "10.1.0.0/24"
 		integration := "10.2.0.0/24"
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowFirstOnly", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowFirstOnly", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
 			{
-				Name: "DenySecondToAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+				Name: "DenySecondToAny", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{second}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
@@ -912,20 +912,19 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		t.Parallel()
 		second := "10.1.0.0/24"
 		integration := "10.2.0.0/24"
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowSecond", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowSecond", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{second}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
 			{
-				Name: "DenySecondToAny", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "Tcp",
+				Name: "DenySecondToAny", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{second}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
 		}
 		violation, err := v.validateInboundNSGRules(rules, []string{subnet, second}, []string{integration}, ports)
-		requireNoNSGRuleViolation(t, violation, err)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -933,14 +932,14 @@ func TestValidateInboundNSGRules(t *testing.T) {
 		t.Parallel()
 		second := "10.1.0.0/24"
 		integration := "10.2.0.0/24"
-		rules := []NSGSecurityRule{
+		rules := []nsgSecurityRule{
 			{
-				Name: "AllowFirstOnly", Priority: 100, Access: SecurityGroupAccessAllow, Protocol: "Tcp",
+				Name: "AllowFirstOnly", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
 				SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
 			{
-				Name: "DenyAnyAnyIn", Priority: 200, Access: SecurityGroupAccessDeny, Protocol: "*",
+				Name: "DenyAnyAnyIn", Priority: 200, Access: securityGroupAccessDeny, Protocol: "*",
 				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 				DestinationPortRanges: []string{"*"},
 			},
