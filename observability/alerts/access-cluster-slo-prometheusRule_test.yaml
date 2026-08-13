@@ -198,6 +198,7 @@ tests:
         resource_id: "/sub/3/cluster/stuck"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "4"
+        exclude_internal_subscriptions: "true"
         subscription_id: "sub-3"
       exp_annotations:
         summary: "mgmt-1: Credential operation for /sub/3/cluster/stuck stuck in accepted for over 1 hour"
@@ -410,22 +411,41 @@ tests:
         resource_id: "/sub/7/cluster/stuck-revoke"
         resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "4"
+        exclude_internal_subscriptions: "true"
         subscription_id: "sub-7"
       exp_annotations:
         summary: "mgmt-1: Credential operation for /sub/7/cluster/stuck-revoke stuck in deleting for over 1 hour"
         description: "Credential operation for /sub/7/cluster/stuck-revoke has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
 # ========================================
-# Test 13: Stuck operation does not fire for e2e subscription
+# Test 13: Stuck operation fires for all subscriptions at YAML level
 # ========================================
-# Same pattern as Test 4 but with an e2e subscription_id that should be excluded.
+# Filtering of internal subscriptions happens in the generated bicep (via
+# the generator-injected `unless` clause), not in the source YAML. This test
+# confirms the source expression fires for an e2e subscription, proving that
+# promtool validates the unfiltered logic correctly.
 - interval: 1m
   input_series:
-  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/stuck", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/stuck", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
     values: "0+0x95"
-  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/stuck", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/stuck", subscription_id="00000000-0000-0000-0000-000000000001", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
     values: "1+0x95"
   alert_rule_test:
   - eval_time: 90m
     alertname: userJourneyAccessClusterStuckOperation
-    exp_alerts: []
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyAccessClusterStuckOperation
+        resource_id: /sub/e2e/cluster/stuck
+        subscription_id: "00000000-0000-0000-0000-000000000001"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: requestcredential
+        phase: accepted
+        cluster: mgmt-1
+        severity: "4"
+        component: slo
+        exclude_internal_subscriptions: "true"
+      exp_annotations:
+        summary: "mgmt-1: Credential operation for /sub/e2e/cluster/stuck stuck in accepted for over 1 hour"
+        description: "Credential operation for /sub/e2e/cluster/stuck has been in accepted phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: aka.ms/arohcp-runbook-access-cluster

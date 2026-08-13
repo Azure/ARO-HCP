@@ -25,10 +25,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterupdate"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-	"github.com/Azure/ARO-HCP/internal/api"
+	clusterupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/update"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -77,13 +77,11 @@ func (s *syncClusterClusterServiceUpdateDispatchStep) RunTest(ctx context.Contex
 	cluster, err := stepInput.ResourcesDBClient.HCPClusters(s.key.SubscriptionID, s.key.ResourceGroupName).Get(ctx, s.key.HCPClusterName)
 	require.NoError(t, err)
 
-	clusterLister := &listertesting.SliceClusterLister{Clusters: []*api.HCPOpenShiftCluster{cluster}}
-	activeOperationLister := &listertesting.SliceActiveOperationLister{}
-	subscriptionLister := &listertesting.DBSubscriptionLister{ResourcesDBClient: stepInput.ResourcesDBClient}
+	clusterLister := &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cluster}}
+	subscriptionLister := &corelistertesting.DBSubscriptionLister{ResourcesDBClient: stepInput.ResourcesDBClient}
 	syncer := clusterupdate.NewClusterClusterServiceUpdateDispatchSyncer(
 		stepInput.ResourcesDBClient,
 		stepInput.ClusterServiceMockInfo.MockClusterServiceClient,
-		activeOperationLister,
 		clusterLister,
 		subscriptionLister,
 	)

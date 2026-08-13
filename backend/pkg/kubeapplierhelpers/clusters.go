@@ -25,9 +25,9 @@ import (
 
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,11 +36,11 @@ import (
 // this up via a ReadDesireLister.GetForCluster call.
 //
 // The value is the lowercased form of
-// api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster — the same
+// coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster — the same
 // derivation the writer (create_cluster_scoped_read_desires_controller.go)
 // uses for its desired ReadDesire name. Lowercased so the resourceID path
 // reduces to a stable Cosmos key regardless of case.
-var ReadDesireNameReadonlyHostedCluster = strings.ToLower(string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+var ReadDesireNameReadonlyHostedCluster = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 
 // GetCachedHostedClusterForCluster reads the HostedCluster mirror from the
 // per-cluster ReadDesire. The ReadDesire's Status.KubeContent.Raw carries
@@ -56,11 +56,11 @@ var ReadDesireNameReadonlyHostedCluster = strings.ToLower(string(api.MaestroBund
 // error, or unmarshal failure.
 func GetCachedHostedClusterForCluster(
 	ctx context.Context,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	subscriptionName, resourceGroupName, clusterName string,
 ) (*v1beta1.HostedCluster, error) {
 	readDesire, err := readDesireLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, ReadDesireNameReadonlyHostedCluster)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil, nil
 	}
 	if err != nil {
@@ -90,7 +90,7 @@ func GetCachedHostedClusterForCluster(
 // or an unparseable UUID.
 func GetCachedHostedClusterUUIDForCluster(
 	ctx context.Context,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	subscriptionName, resourceGroupName, clusterName string,
 ) (uuid.UUID, bool, error) {
 	logger := utils.LoggerFromContext(ctx)

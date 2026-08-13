@@ -40,7 +40,8 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/manager"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -163,7 +164,7 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 }
 
 type controllerOptions struct {
-	fleetDBClient                database.FleetDBClient
+	fleetDBClient                fleetcosmosstorage.FleetDBClient
 	clustersServiceClient        ocm.ClusterServiceClientSpec
 	maestroConsumerClientFactory maestroregistration.MaestroConsumerClientFactory
 	leaderElectionLock           resourcelock.Interface
@@ -184,12 +185,12 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentFleet)
 	clientOpts.Cloud = o.cloudConfiguration
 
-	dbClient, err := database.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
+	dbClient, err := corecosmosstorage.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	fleetDBClient, err := database.NewFleetDBClient(dbClient)
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(dbClient)
 	if err != nil {
 		return nil, err
 	}

@@ -163,6 +163,7 @@ param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 
 // Alert rules tag value
 param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
+param aksClusterTags = '{{ .svc.aks.tags }}'
 
 
 param resourceContainerMaxScale = {{ .frontend.cosmosDB.resourceContainerMaxScale }}

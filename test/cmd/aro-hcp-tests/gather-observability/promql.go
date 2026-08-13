@@ -49,15 +49,24 @@ type PanelSpec struct {
 	Queries []QuerySpec `json:"queries" yaml:"queries"`
 }
 
+const (
+	chartTypeLine               = "line"
+	chartTypeFacetedStackedArea = "faceted-stacked-area"
+)
+
 // QuerySpec describes a single PromQL query to execute and chart.
 type QuerySpec struct {
-	Title            string  `json:"title" yaml:"title"`
-	Description      string  `json:"description,omitempty" yaml:"description,omitempty"`
-	Query            string  `json:"query" yaml:"query"`
-	Unit             string  `json:"unit,omitempty" yaml:"unit,omitempty"`
-	Workspace        string  `json:"workspace" yaml:"workspace"` // "svc" or "hcp"
-	Step             string  `json:"step,omitempty" yaml:"step,omitempty"`
-	MinPeakThreshold float64 `json:"minPeakThreshold,omitempty" yaml:"minPeakThreshold,omitempty"`
+	Title            string            `json:"title" yaml:"title"`
+	Description      string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Query            string            `json:"query" yaml:"query"`
+	Unit             string            `json:"unit,omitempty" yaml:"unit,omitempty"`
+	Workspace        string            `json:"workspace" yaml:"workspace"` // "svc" or "hcp"
+	Step             string            `json:"step,omitempty" yaml:"step,omitempty"`
+	MinPeakThreshold float64           `json:"minPeakThreshold,omitempty" yaml:"minPeakThreshold,omitempty"`
+	ChartType        string            `json:"chartType,omitempty" yaml:"chartType,omitempty"`
+	FacetBy          string            `json:"facetBy,omitempty" yaml:"facetBy,omitempty"`
+	StackBy          string            `json:"stackBy,omitempty" yaml:"stackBy,omitempty"`
+	Colors           map[string]string `json:"colors,omitempty" yaml:"colors,omitempty"`
 }
 
 // PrometheusResponse is the top-level Prometheus HTTP API response.
@@ -111,6 +120,18 @@ func parseQueriesConfig(data []byte) (*QueriesConfig, error) {
 			}
 			if q.Step == "" {
 				cfg.Panels[pi].Queries[qi].Step = "60s"
+			}
+			if q.ChartType == "" {
+				cfg.Panels[pi].Queries[qi].ChartType = chartTypeLine
+			}
+			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): chartType must be %q or %q, got %q", pi, p.Title, qi, q.Title, chartTypeLine, chartTypeFacetedStackedArea, cfg.Panels[pi].Queries[qi].ChartType)
+			}
+			if cfg.Panels[pi].Queries[qi].ChartType == chartTypeFacetedStackedArea && q.FacetBy == "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is required when chartType is %q", pi, p.Title, qi, q.Title, chartTypeFacetedStackedArea)
+			}
+			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea && q.FacetBy != "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is only valid with chartType %q", pi, p.Title, qi, q.Title, chartTypeFacetedStackedArea)
 			}
 		}
 	}

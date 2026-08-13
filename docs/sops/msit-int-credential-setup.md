@@ -23,26 +23,25 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
 
 1. **ONLY PERFORM THIS STEP IF NEEDED**. Create the global resource group and keyvault in the `ARO SRE Team - INT (EA Subscription 3)`.  This is not automated so create the global rg and keyvault (`aro-hcp-int-kv`) manually.
 
-1. **Create the INT mock identity certificates**
+1. **Create and pin the INT mock identity certificates**
    The INT mock identity Entra apps and service principals are created
    declaratively by `templates/mock-identity-apps.bicep` (the `mock-identity-apps-int`
    step of the Owner-only `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint,
-   run with `make dev-ci-privileged-local-run`). That template configures the apps
-   for SNI certificate authentication but does **not** create the certificates.
-
-   Create the three certificates in the `aro-hcp-int-kv` Key Vault with the
-   dedicated target (idempotent — existing certs are left untouched):
+   run with `make dev-ci-privileged-local-run`). That template creates the apps
+   but configures **no** authentication on them. The privileged entrypoint
+   deploys the apps, creates any missing certificates in `aro-hcp-int-kv`, pins
+   the current certificates, and then applies RBAC:
 
    ```bash
-   cd dev-infrastructure/
-   make create-int-mock-identity-certs
+   make dev-ci-privileged-local-run
    ```
 
-   This runs `scripts/create-kv-cert.sh` for `intFirstPartyCert`,
-   `intArmHelperCert`, and `intMsiMockCert`, with the subject/DNS names that match
-   `.ci.int.mockIdentities.*.certDns` in `config/config-dev-ci.yaml`. Because the
-   apps use SNI, the certificates can be rotated later without redeploying the
-   Bicep, as long as the subject name is unchanged.
+   The pipeline uses the DNS names in `.ci.int.mockIdentities.*.certDns`.
+   Templatize runs the certificate step with the invoking OWNERS member's Azure
+   CLI credentials. Auth is by pinned leaf **thumbprint**, not SNI. Follow the
+   disruptive rotation procedure in
+   [DEV Mock Identities](../ci/dev-mock-identities.md#disruptive-certificate-rotation)
+   when a certificate must be replaced.
 
 1. **Update configuration**
    If new Entra apps were created, update the configuration, see [configuration](../configuration.md) for details about that process.  You can read the created client IDs with `az ad app list --display-name <applicationName> --query '[0].appId'` for each `.ci.int.mockIdentities.*.applicationName`.
@@ -59,6 +58,9 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
     armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
     armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
     armHelperCertName: intArmHelperCert
+    # Cluster Service ARM Helper - from RH Tenant
+    clustersServiceArmHelperClientId: <aro-hcp-int-cs-arm-helper application ID>
+    clustersServiceArmHelperCertName: intCsArmHelperCert
    ```
 
 1. **Download** the certificates from the `aro-hcp-int-kv`
@@ -75,6 +77,9 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
    # Download the certificate bundles
    az keyvault secret download --vault-name aro-hcp-int-kv --name intArmHelperCert --file intArmHelperCert
    cat intArmHelperCert | base64 -d > intArmHelperCert.pfx
+
+   az keyvault secret download --vault-name aro-hcp-int-kv --name intCsArmHelperCert --file intCsArmHelperCert
+   cat intCsArmHelperCert | base64 -d > intCsArmHelperCert.pfx
 
    az keyvault secret download --vault-name aro-hcp-int-kv --name intFirstPartyCert --file intFirstPartyCert
    cat intFirstPartyCert | base64 -d > intFirstPartyCert.pfx
@@ -93,6 +98,7 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
 
    ```bash
    az keyvault certificate import --vault-name arohcpint-svc-ln --name intArmHelperCert --file intArmHelperCert.pfx
+   az keyvault certificate import --vault-name arohcpint-svc-ln --name intCsArmHelperCert --file intCsArmHelperCert.pfx
    az keyvault certificate import --vault-name arohcpint-svc-ln --name intFirstPartyCert --file intFirstPartyCert.pfx
    az keyvault certificate import --vault-name arohcpint-svc-ln --name intMsiMockCert --file intMsiMockCert.pfx
    ```

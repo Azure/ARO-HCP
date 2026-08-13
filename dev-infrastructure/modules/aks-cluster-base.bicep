@@ -50,7 +50,11 @@ param istioVersions array = []
 param vnetName string
 param nodeSubnetId string
 param podSubnetPrefix string
-param clusterType string
+@description('CSV of key=value tag pairs for the AKS cluster resource (e.g. clusterType=svc-cluster,persist=true)')
+param aksClusterTags string
+
+@description('Owning team tag value for alert rule routing')
+param owningTeamTagValue string
 param workloadIdentities array
 param networkDataplane string
 param networkPolicy string
@@ -70,9 +74,6 @@ param aksKeyVaultName string
 // KV tagging
 param aksKeyVaultTagName string
 param aksKeyVaultTagValue string
-
-// Owning team tag
-param owningTeamTagValue string
 
 // Local Params
 @description('Optional DNS prefix to use with hosted Kubernetes API server FQDN.')
@@ -111,6 +112,9 @@ var networkContributorRoleId = subscriptionResourceId(
   '4d97b98b-1d4f-4787-a291-c67834d212e7'
 )
 
+import {
+  csvTagsToObject
+} from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
 
 //
@@ -260,18 +264,14 @@ var systemPoolZonesArray = systemZoneRedundantMode == 'Enabled' || (systemZoneRe
   ? systemAgentPoolZones
   : null
 
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-preview' = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-04-02-preview' = {
   location: location
   name: aksClusterName
   sku: {
     name: 'Base'
     tier: 'Standard'
   }
-  tags: {
-    persist: 'true'
-    clusterType: clusterType
-    owningTeam: owningTeamTagValue
-  }
+  tags: union(csvTagsToObject(aksClusterTags), { owningTeam: owningTeamTagValue })
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {

@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -142,16 +143,30 @@ func (p *ClaudeProvider) CreateProviderSession(ctx context.Context, logger logr.
 	sessionID := fmt.Sprintf("claude-%d", time.Now().UnixNano())
 	logger = logger.WithValues("sessionID", sessionID)
 	logger.Info("Created Claude session.", "model", model)
+	backend := p.cfg.Backend
+	if backend == "" {
+		backend = ClaudeBackendAPI
+	}
+	provider := "anthropic"
+	dimensions := map[string]string{"backend": backend}
+	if backend == ClaudeBackendVertex {
+		provider = "google-vertex-ai"
+		if p.cfg.VertexRegion != "" {
+			dimensions["region"] = p.cfg.VertexRegion
+		}
+	}
 
 	return &ClaudeSession{
-		client:       p.client,
-		model:        model,
-		systemPrompt: fullSystemPrompt,
-		tools:        tools,
-		toolHandlers: buildToolHandlerMap(cfg.Tools),
-		messages:     nil,
-		sessionID:    sessionID,
-		logger:       logger,
+		client:          p.client,
+		model:           model,
+		systemPrompt:    fullSystemPrompt,
+		tools:           tools,
+		toolHandlers:    buildToolHandlerMap(cfg.Tools),
+		messages:        nil,
+		sessionID:       sessionID,
+		logger:          logger,
+		usageProvider:   provider,
+		usageDimensions: dimensions,
 	}, nil
 }
 
@@ -170,14 +185,31 @@ type ClaudeSession struct {
 	systemPrompt string
 	tools        []anthropic.ToolUnionParam
 	toolHandlers map[string]func(ctx context.Context, params json.RawMessage) (string, error)
-	messages     []anthropic.MessageParam
-	sessionID    string
-	logger       logr.Logger
+	// messages is the active API context sent to the model on each turn.
+	// ResetHistory clears this to bound context growth between phases.
+	messages []anthropic.MessageParam
+	// archivedMessages is the full, append-only transcript of the session.
+	// It is never cleared by ResetHistory so that SaveConversation can
+	// persist the complete conversation for later inspection.
+	archivedMessages []anthropic.MessageParam
+	sessionID        string
+	logger           logr.Logger
+	usageMu          sync.RWMutex
+	usage            UsageReport
+	usageProvider    string
+	usageDimensions  map[string]string
 }
 
 // SessionID returns the unique identifier for this session.
 func (s *ClaudeSession) SessionID() string {
 	return s.sessionID
+}
+
+// Usage returns the aggregate token usage observed by this session.
+func (s *ClaudeSession) Usage() UsageReport {
+	s.usageMu.RLock()
+	defer s.usageMu.RUnlock()
+	return s.usage.Clone()
 }
 
 // SendAndWait sends a user prompt and blocks until Claude finishes responding,
@@ -187,18 +219,29 @@ func (s *ClaudeSession) SessionID() string {
 func (s *ClaudeSession) SendAndWait(ctx context.Context, prompt string) (string, error) {
 	s.logger.V(1).Info("Sending message to Claude session.", "promptLength", len(prompt))
 
-	// Add user message to conversation history.
-	s.messages = append(s.messages, anthropic.NewUserMessage(
-		anthropic.NewTextBlock(prompt),
-	))
+	// Add user message to both the active API context and the archived
+	// transcript. archivedMessages survives ResetHistory so the full
+	// conversation can still be persisted by SaveConversation.
+	userMsg := anthropic.NewUserMessage(anthropic.NewTextBlock(prompt))
+	s.messages = append(s.messages, userMsg)
+	s.archivedMessages = append(s.archivedMessages, userMsg)
 
 	// Tool-use loop.
 	for {
 		params := anthropic.MessageNewParams{
 			Model:     s.model,
 			MaxTokens: claudeMaxTokens,
+			// Mark the system prompt as an ephemeral cache breakpoint. The
+			// system prompt is identical across every turn, so Anthropic
+			// prompt caching lets subsequent requests reuse it, cutting
+			// input-token cost and latency for repeated calls.
 			System: []anthropic.TextBlockParam{
-				{Text: s.systemPrompt},
+				{
+					Text: s.systemPrompt,
+					CacheControl: anthropic.CacheControlEphemeralParam{
+						TTL: anthropic.CacheControlEphemeralTTLTTL5m,
+					},
+				},
 			},
 			Messages: s.messages,
 		}
@@ -216,11 +259,18 @@ func (s *ClaudeSession) SendAndWait(ctx context.Context, prompt string) (string,
 		s.logger.V(3).Info("Claude API responded.",
 			"stopReason", resp.StopReason,
 			"inputTokens", resp.Usage.InputTokens,
+			"cacheReadInputTokens", resp.Usage.CacheReadInputTokens,
+			"cacheWriteInputTokens", resp.Usage.CacheCreationInputTokens,
 			"outputTokens", resp.Usage.OutputTokens,
 		)
+		s.usageMu.Lock()
+		s.usage.Add(usageBreakdownFromClaudeResponse(s.usageProvider, s.usageDimensions, resp))
+		s.usageMu.Unlock()
 
-		// Add assistant response to conversation history.
-		s.messages = append(s.messages, resp.ToParam())
+		// Add assistant response to both the active context and the archive.
+		assistantMsg := resp.ToParam()
+		s.messages = append(s.messages, assistantMsg)
+		s.archivedMessages = append(s.archivedMessages, assistantMsg)
 
 		// If stop reason is not tool_use, extract text and return.
 		if resp.StopReason != anthropic.StopReasonToolUse {
@@ -233,8 +283,70 @@ func (s *ClaudeSession) SendAndWait(ctx context.Context, prompt string) (string,
 			return "", err
 		}
 
-		// Add tool results as user message and continue the loop.
-		s.messages = append(s.messages, anthropic.NewUserMessage(toolResults...))
+		// Add tool results as a user message to both the active context and
+		// the archive, then continue the loop.
+		toolResultMsg := anthropic.NewUserMessage(toolResults...)
+		s.messages = append(s.messages, toolResultMsg)
+		s.archivedMessages = append(s.archivedMessages, toolResultMsg)
+	}
+}
+
+func usageBreakdownFromClaudeResponse(provider string, baseDimensions map[string]string, resp *anthropic.Message) UsageBreakdown {
+	dimensions := cloneStringMap(baseDimensions)
+	if dimensions == nil {
+		dimensions = make(map[string]string)
+	}
+	if resp.Usage.ServiceTier != "" {
+		dimensions["serviceTier"] = string(resp.Usage.ServiceTier)
+	}
+	if resp.Usage.InferenceGeo != "" {
+		dimensions["inferenceGeo"] = resp.Usage.InferenceGeo
+	}
+
+	cacheWriteByTTL := make(map[string]int64)
+	if resp.Usage.CacheCreation.Ephemeral5mInputTokens > 0 {
+		cacheWriteByTTL["5m"] = resp.Usage.CacheCreation.Ephemeral5mInputTokens
+	}
+	if resp.Usage.CacheCreation.Ephemeral1hInputTokens > 0 {
+		cacheWriteByTTL["1h"] = resp.Usage.CacheCreation.Ephemeral1hInputTokens
+	}
+	if len(cacheWriteByTTL) == 0 {
+		cacheWriteByTTL = nil
+	}
+
+	outputDetails := make(map[string]int64)
+	if resp.Usage.OutputTokensDetails.ThinkingTokens > 0 {
+		outputDetails["reasoning"] = resp.Usage.OutputTokensDetails.ThinkingTokens
+	}
+	if len(outputDetails) == 0 {
+		outputDetails = nil
+	}
+
+	additionalUnits := make(map[string]float64)
+	if resp.Usage.ServerToolUse.WebSearchRequests > 0 {
+		additionalUnits["webSearchRequests"] = float64(resp.Usage.ServerToolUse.WebSearchRequests)
+	}
+	if resp.Usage.ServerToolUse.WebFetchRequests > 0 {
+		additionalUnits["webFetchRequests"] = float64(resp.Usage.ServerToolUse.WebFetchRequests)
+	}
+	if len(additionalUnits) == 0 {
+		additionalUnits = nil
+	}
+
+	return UsageBreakdown{
+		Provider:   provider,
+		Model:      string(resp.Model),
+		Dimensions: dimensions,
+		Requests:   1,
+		Tokens: TokenUsage{
+			UncachedInputTokens:        resp.Usage.InputTokens,
+			CacheReadInputTokens:       resp.Usage.CacheReadInputTokens,
+			CacheWriteInputTokens:      resp.Usage.CacheCreationInputTokens,
+			CacheWriteInputTokensByTTL: cacheWriteByTTL,
+			OutputTokens:               resp.Usage.OutputTokens,
+			OutputTokenDetails:         outputDetails,
+		},
+		AdditionalUnits: additionalUnits,
 	}
 }
 
@@ -293,14 +405,33 @@ func (s *ClaudeSession) processToolUseBlocks(ctx context.Context, resp *anthropi
 	return results, nil
 }
 
-// SaveConversation writes the conversation history to a JSON file.
+// ResetHistory clears the active conversation context. This is used
+// between analysis phases (e.g. before review rounds) to prevent the
+// accumulated context from exceeding the model's token limit. Only the
+// active context (s.messages) is cleared; the archived transcript
+// (s.archivedMessages) is preserved so SaveConversation can still persist
+// the complete conversation. The system prompt, tools, and tool handlers
+// are also preserved.
+func (s *ClaudeSession) ResetHistory() {
+	s.logger.V(1).Info("Resetting Claude active conversation context; archived transcript preserved.",
+		"clearedMessageCount", len(s.messages),
+		"archivedMessageCount", len(s.archivedMessages),
+	)
+	s.messages = nil
+}
+
+// SaveConversation writes the full archived conversation transcript to a
+// JSON file. It persists s.archivedMessages (the append-only transcript)
+// rather than s.messages (the active context), so the complete
+// conversation is saved even after ResetHistory has trimmed the active
+// context between phases.
 func (s *ClaudeSession) SaveConversation(path string) {
-	if len(s.messages) == 0 {
+	if len(s.archivedMessages) == 0 {
 		s.logger.Info("No conversation messages to save.")
 		return
 	}
 
-	data, err := json.MarshalIndent(s.messages, "", "  ")
+	data, err := json.MarshalIndent(s.archivedMessages, "", "  ")
 	if err != nil {
 		s.logger.Error(err, "Failed to marshal conversation for saving.")
 		return

@@ -25,13 +25,12 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // CS cluster property keys and values used in the Cluster Service API.
 const (
-	CSPropertyProvisionShardID = "provision_shard_id"
 	CSPropertyNoopProvision    = "provisioner_noop_provision"
 	CSPropertyNoopDeprovision  = "provisioner_noop_deprovision"
 	CSPropertySingleReplica    = "hosted_cluster_single_replica"
@@ -661,8 +660,8 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 
 func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
 
-	if !strings.HasPrefix(versionName, api.OpenShiftVersionPrefix) {
-		versionName = api.OpenShiftVersionPrefix + versionName
+	if !strings.HasPrefix(versionName, metadataapi.OpenShiftVersionPrefix) {
+		versionName = metadataapi.OpenShiftVersionPrefix + versionName
 	}
 	client := csc.conn.AroHCP().V1alpha1().Versions().Version(versionName)
 
@@ -788,7 +787,7 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 			}
 		}
 
-		csVersion = api.OpenShiftVersionPrefix + strings.Join(parts, ".") + prereleasePart
+		csVersion = metadataapi.OpenShiftVersionPrefix + strings.Join(parts, ".") + prereleasePart
 
 		// Only append channel group if it's not empty and not "stable"
 		// Versions will look as:
@@ -809,13 +808,13 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 
 // ConvertOpenShiftVersionNoPrefix strips off openshift-v prefix
 func ConvertOpenShiftVersionNoPrefix(v string) string {
-	return strings.Replace(v, api.OpenShiftVersionPrefix, "", 1)
+	return strings.Replace(v, metadataapi.OpenShiftVersionPrefix, "", 1)
 }
 
 // ConvertOpenShiftVersionAddPrefix adds openshift-v prefix
 func ConvertOpenShiftVersionAddPrefix(v string) string {
-	if len(v) > 0 && !strings.HasPrefix(v, api.OpenShiftVersionPrefix) {
-		return api.OpenShiftVersionPrefix + v
+	if len(v) > 0 && !strings.HasPrefix(v, metadataapi.OpenShiftVersionPrefix) {
+		return metadataapi.OpenShiftVersionPrefix + v
 	}
 	return v
 }

@@ -14,17 +14,24 @@ spec:
     labels:
       component: frontend
     rules:
+    # Early / CI-facing path latency signal (kusto lane).
+    # severity: warning → Sev3 so gather-observability (--severity-threshold Sev3) fails CI.
+    # Short rate window so the alert can fire within a typical e2e run (ARO-28090).
+    # Keep cluster in the aggregation so firings stay per-cluster (correlationId uses $labels.cluster).
+    # Dedup HA Prometheus replicas before summing (same pattern as the control-plane latency dashboard).
     - alert: FrontendPathLatency
       expr: |
         histogram_quantile(0.99,
-          sum by (le, route, method) (
-            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+          sum by (le, route, method, cluster) (
+            max without(prometheus_replica) (
+              rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])
+            )
           )
         ) > 1
       for: 1m
       labels:
-        severity: info
+        severity: warning
       annotations:
-        description: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 30 minutes.'
+        description: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 5 minutes.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
         summary: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'

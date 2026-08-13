@@ -95,13 +95,27 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Lease Configuration](identity-leasing.md#lease-configuration)
 - [Where To Look](identity-leasing.md#where-to-look)
 
-### [CI Quota Monitoring](quota-monitoring.md)
+### [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md)
 
-- [Why Quota Monitoring Matters For CI](quota-monitoring.md#why-quota-monitoring-matters-for-ci)
-- [What tenant-quota Monitors](quota-monitoring.md#what-tenant-quota-monitors)
-- [Where It Runs](quota-monitoring.md#where-it-runs)
-- [Azure Dashboard](quota-monitoring.md#azure-dashboard)
-- [When Quota Is Tight](quota-monitoring.md#when-quota-is-tight)
+- [At A Glance](dev-ci-monitoring.md#at-a-glance)
+- [Architecture](dev-ci-monitoring.md#architecture)
+- [Alert Response Workflow](dev-ci-monitoring.md#alert-response-workflow)
+- [Exporter Health Checks](dev-ci-monitoring.md#exporter-health-checks)
+- [Troubleshooting by Category](dev-ci-monitoring.md#troubleshooting-by-category)
+- [Maintenance](dev-ci-monitoring.md#maintenance)
+- [Validation](dev-ci-monitoring.md#validation)
+- [Sources of Truth](dev-ci-monitoring.md#sources-of-truth)
+
+### [DEV CI Regional Failover And Failback](dev-region-failover.md)
+
+- Review regional provision health and switch the DEV CI region
+- Validate the switch and fail back when appropriate
+
+### [Opstool CI Platform](opstool.md)
+
+- Standalone AKS architecture and rollout model
+- Shared Prometheus, Azure Monitor, identity, and secret infrastructure
+- Workload onboarding pattern for DEV CI tools
 
 ### [CI EV2 Integration](ev2-integration.md)
 
@@ -114,6 +128,19 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Identifying Rollouts From Prow Metadata](ev2-integration.md#identifying-rollouts-from-prow-metadata)
 - [Promotion Gating](ev2-integration.md#promotion-gating)
 - [Where To Look](ev2-integration.md#where-to-look)
+
+### [EV2 Retry Catcher](ev2-retry-catcher.md)
+
+- [Problem](ev2-retry-catcher.md#problem)
+- [Goal](ev2-retry-catcher.md#goal)
+- [Non-goals](ev2-retry-catcher.md#non-goals)
+- [Design](ev2-retry-catcher.md#design)
+- [End-To-End Flow](ev2-retry-catcher.md#end-to-end-flow)
+- [E2E Tagging (ARO-HCP)](ev2-retry-catcher.md#1-e2e-tagging-aro-hcp)
+- [Writing The Retry Facts (ARO-HCP)](ev2-retry-catcher.md#2-writing-the-retry-facts-aro-hcp)
+- [Consuming The Signal (ARO-Tools)](ev2-retry-catcher.md#3-consuming-the-signal-aro-tools)
+- [Expiration Configuration](ev2-retry-catcher.md#expiration-configuration)
+- [Where To Look](ev2-retry-catcher.md#where-to-look)
 
 ### [CI Cleanup](cleanup.md)
 
@@ -189,8 +216,11 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [DEV Mock Identities](dev-mock-identities.md) explains what each DEV mock identity (first-party, ARM helper, MSI mock and its pool) stands in for and why it needs each role it is granted, given the absence of a real FPA and Managed Identities Data Plane.
 - [CI Image Lifecycle](image-lifecycle.md) explains the shared CI build root, job-local image graph, local E2E image injection, and the difference between CI promotion and ACR mirroring.
 - [CI Identity Leasing](identity-leasing.md) explains the managed identity container pool, the MSI mock SP pool, and the current staged model: slot-manager for DEV `e2e-parallel`, legacy ci-operator identity-container leases elsewhere.
-- [CI Quota Monitoring](quota-monitoring.md) explains how Azure quotas that constrain CI are monitored and where to check current usage.
+- [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md) is the canonical Slack and PagerDuty runbook for DEV CI telemetry, alert response, exporter checks, and routing maintenance.
+- [DEV CI Regional Failover And Failback](dev-region-failover.md) defines when and how operators move DEV presubmit provisioning between `westus3`, `centralus`, and `canadacentral`.
+- [Opstool CI Platform](opstool.md) explains the standalone AKS platform, shared monitoring infrastructure, and workload rollout model that host DEV CI tools.
 - [CI EV2 Integration](ev2-integration.md) explains how EV2 selects Prow jobs, authenticates to Gangway, and pins runs to the exact rollout commit.
+- [EV2 Retry Catcher](ev2-retry-catcher.md) explains how a narrow, deliberately labeled set of known-issue test failures triggers an automatic single retry of an EV2 gating run instead of a manual retrigger.
 - [CI Cleanup](cleanup.md) explains why cleanup is intentionally split across strict per-test teardown, targeted environment teardown, and background hygiene.
 - [E2E Testing In CI](e2e-testing.md) explains how to trigger E2E jobs from PRs and how to narrow test selection safely.
 - [Upgrade-Path Presubmit](upgrade-path-presubmit.md) explains the optional `upgrade-e2e-parallel` job that validates main-to-PR infrastructure upgrades, including how to trigger it, interpret failures, and understand its image resolution strategy.

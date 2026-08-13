@@ -25,7 +25,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 )
 
 // AppShortDescriptionName is the human-readable identity used in startup logs
@@ -50,7 +50,7 @@ type Options struct {
 	ManagementCluster *azcorearm.ResourceID
 
 	LeaderElectionLock  resourcelock.Interface
-	KubeApplierDBClient database.KubeApplierDBClient
+	KubeApplierDBClient kubeappliercosmosstorage.KubeApplierDBClient
 	DynamicClient       dynamic.Interface
 
 	MetricsServerListenAddress string

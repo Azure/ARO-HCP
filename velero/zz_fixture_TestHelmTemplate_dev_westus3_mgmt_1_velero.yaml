@@ -225,6 +225,11 @@ rules:
 - apiGroups: ["discovery.k8s.io"]
   resources: ["*"]
   verbs: ["*"]
+- apiGroups: ["multitenancy.acn.azure.com"]
+  resources:
+  - multitenantpodnetworkconfigs
+  - podnetworkinstances
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
 ---
 # Source: velero-hcp-cli/templates/installer-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -323,6 +328,8 @@ driver: disk.csi.azure.com
 deletionPolicy: Retain
 parameters:
   incremental: "true"
+  # instantAccessDurationMinutes documented here https://github.com/kubernetes-sigs/azuredisk-csi-driver/blob/36e24171a3ed6ffa4a5c515e194e00e08c059da5/docs/driver-parameters.md?plain=1#L101
+  instantAccessDurationMinutes: "60" # 60 minutes is the minimum duration for instant access snapshots
 
 ---
 # Source: velero-hcp-cli/templates/kustomize-patch.yaml
@@ -350,6 +357,7 @@ data:
     spec:
       template:
         spec:
+          priorityClassName: service-lifecycle-critical
           nodeSelector:
             aro-hcp.azure.com/role: infra
           tolerations:
@@ -367,13 +375,6 @@ data:
       template:
         spec:
           priorityClassName: service-lifecycle-critical
-          nodeSelector:
-            aro-hcp.azure.com/role: infra
-          tolerations:
-          - key: "infra"
-            operator: "Equal"
-            value: "true"
-            effect: "NoSchedule"
 ---
 # Source: velero-hcp-cli/templates/install-job.yaml
 apiVersion: batch/v1
@@ -427,6 +428,11 @@ spec:
             --backup-location-config useAAD="true",resourceGroup=hcp-underlay-dev-westus3-mgmt-1,storageAccount=__storageAccountName__,subscriptionId=__subscriptionId__ \
             --snapshot-location-config subscriptionId=__subscriptionId__ \
             --image arohcpsvcdev.azurecr.io/oadp/oadp-velero-rhel9@sha256:1234567890 \
+            --concurrent-backups 4 \
+            --velero-pod-mem-limit 0 \
+            --velero-pod-mem-request 1024Mi \
+            --velero-pod-cpu-limit 0 \
+            --velero-pod-cpu-request 1000m \
             --dry-run -o yaml > /manifest/velero.yaml
 
           echo "Manifest generated successfully."

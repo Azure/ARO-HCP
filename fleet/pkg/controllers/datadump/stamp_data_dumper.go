@@ -21,22 +21,22 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
-	"github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const defaultResyncPeriod = 5 * time.Minute
 
 type stampDataDumpSyncer struct {
-	stampLister             listers.StampLister
-	managementClusterLister listers.ManagementClusterLister
+	stampLister             fleetlisters.StampLister
+	managementClusterLister fleetlisters.ManagementClusterLister
 }
 
 func NewStampDataDumpController(
 	stampInformer cache.SharedIndexInformer,
 	managementClusterInformer cache.SharedIndexInformer,
-	stampLister listers.StampLister,
-	managementClusterLister listers.ManagementClusterLister,
+	stampLister fleetlisters.StampLister,
+	managementClusterLister fleetlisters.ManagementClusterLister,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
 ) *fleetcontrollers.StampWatchingController {
 	syncer := &stampDataDumpSyncer{

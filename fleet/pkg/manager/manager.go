@@ -43,8 +43,8 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/datadump"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/lifecycle"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -61,7 +61,7 @@ const (
 // Manager is the fleet controller manager. It runs informers, leader election,
 // and the fleet controllers.
 type Manager struct {
-	FleetDBClient                database.FleetDBClient
+	FleetDBClient                fleetcosmosstorage.FleetDBClient
 	ClustersServiceClient        ocm.ClusterServiceClientSpec
 	MaestroConsumerClientFactory maestroregistration.MaestroConsumerClientFactory
 	LeaderElectionLock           resourcelock.Interface
@@ -162,7 +162,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 ) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	fleetInformers := informers.NewFleetInformers(ctx, m.FleetDBClient.GlobalListers(), m.FleetDBClient)
+	fleetInformers := fleetinformers.NewFleetInformers(ctx, m.FleetDBClient.GlobalListers(), m.FleetDBClient)
 
 	stampInformer, stampLister := fleetInformers.Stamps()
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()

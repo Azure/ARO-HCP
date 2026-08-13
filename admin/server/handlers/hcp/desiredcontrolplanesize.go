@@ -19,9 +19,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -31,10 +30,10 @@ import (
 // is left as-is — so SRE callers can adjust the sizing tier without touching
 // anything else on the document.
 type HCPDesiredControlPlaneSizeHandler struct {
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient corecosmosstorage.ResourcesDBClient
 }
 
-func NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient database.ResourcesDBClient) *HCPDesiredControlPlaneSizeHandler {
+func NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient corecosmosstorage.ResourcesDBClient) *HCPDesiredControlPlaneSizeHandler {
 	return &HCPDesiredControlPlaneSizeHandler{resourcesDBClient: resourcesDBClient}
 }
 
@@ -49,12 +48,12 @@ type desiredControlPlaneSizeRequest struct {
 func (h *HCPDesiredControlPlaneSizeHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) error {
 	resourceID, err := utils.ResourceIDFromContext(request.Context())
 	if err != nil {
-		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "invalid resource identifier in request")
+		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "invalid resource identifier in request")
 	}
 
 	var body desiredControlPlaneSizeRequest
 	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
-		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "invalid JSON body: %v", err)
+		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "invalid JSON body: %v", err)
 	}
 	// A nil body.Size means the caller is clearing the SRE-selected tier; the
 	// cluster update dispatch controller applies the effective size override to
@@ -62,13 +61,13 @@ func (h *HCPDesiredControlPlaneSizeHandler) ServeHTTP(writer http.ResponseWriter
 	// records Status once CS confirms the change. An explicit empty string is
 	// not a valid tier and is rejected separately from the omitted case.
 	if body.Size != nil && *body.Size == "" {
-		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "size must not be empty; omit the field to clear")
+		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "size must not be empty; omit the field to clear")
 	}
-	if body.Size != nil && !api.IsValidHostedClusterControlPlaneSize(*body.Size) {
-		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "size %q must be one of Small, Medium, Large, Xlarge, XXlarge", *body.Size)
+	if body.Size != nil && !coreapi.IsValidHostedClusterControlPlaneSize(*body.Size) {
+		return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "size %q must be one of Small, Medium, Large, Xlarge, XXlarge", *body.Size)
 	}
 
-	existing, err := database.GetOrCreateServiceProviderCluster(request.Context(), h.resourcesDBClient, resourceID)
+	existing, err := corecosmosstorage.GetOrCreateServiceProviderCluster(request.Context(), h.resourcesDBClient, resourceID)
 	if err != nil {
 		return fmt.Errorf("failed to get ServiceProviderCluster: %w", err)
 	}
@@ -81,6 +80,6 @@ func (h *HCPDesiredControlPlaneSizeHandler) ServeHTTP(writer http.ResponseWriter
 		return fmt.Errorf("failed to replace ServiceProviderCluster: %w", err)
 	}
 
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, desiredControlPlaneSizeRequest{Size: body.Size})
+	_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, desiredControlPlaneSizeRequest{Size: body.Size})
 	return utils.TrackError(err)
 }

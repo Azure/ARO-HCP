@@ -4,9 +4,19 @@
 imageRegistry: ""
 imageRepository: "tenant-quota-collector"
 imageTag: ""
+imageDigest: ""
 msiClientId: ""
 secretProvider:
   keyVault: ""
   msiClientId: ""
   tenantId: ""
+prow:
+  enabled: false
+  baseURL: ""
+  interval: "5m"
+  retention: "24h"
+  repository:
+    org: ""
+    name: ""
+  excludeJobs: []
 tenants: []

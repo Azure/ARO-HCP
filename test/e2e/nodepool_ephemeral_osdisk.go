@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -34,15 +33,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// mustParseDate parses a date string in "2006-01-02" format or panics.
-func mustParseDate(s string) time.Time {
-	t, err := time.Parse("2006-01-02", s)
-	if err != nil {
-		panic(fmt.Sprintf("invalid date %q: %v", s, err))
-	}
-	return t
-}
-
 // isAPINotDeployedError returns true if the error indicates the API version
 // has not been rolled out to this region yet.
 func isAPINotDeployedError(err error) bool {
@@ -55,10 +45,6 @@ func isAPINotDeployedError(err error) bool {
 }
 
 var _ = Describe("Nodepool Ephemeral OS Disk", func() {
-	// Set deadline to a reasonable date after which we expect the v20251223preview
-	// API to be deployed. Adjust as needed based on rollout schedule.
-	timeBombDeadline := mustParseDate("2026-04-01")
-
 	BeforeEach(func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
@@ -133,12 +119,6 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				framework.NodePoolCreationTimeout)
 
 			client20251223 := tc.Get20251223ClientFactoryOrDie(ctx)
-			if isAPINotDeployedError(err) {
-				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20251223preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
-				}
-				Fail(fmt.Sprintf("v20251223preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
-			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s with ephemeral OS disk", customerNodePoolName)
 
 			By("verifying nodepool ARM resource has diskType=Ephemeral from LRO result")
@@ -168,9 +148,9 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(*fetched.Properties.AutoRepair).To(BeTrue(), "expected fetched nodepool AutoRepair to be true")
 
 			By("getting credentials to verify cluster health")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,

@@ -31,7 +31,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -147,8 +149,12 @@ func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTCon
 		return fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
-	// Create namespace for the connectivity check
-	namespaceName := "cilium-connectivity-check"
+	// Create namespace for the connectivity check. A random suffix keeps the
+	// namespace (and the cluster-scoped SCC below) unique so the verifier can
+	// be invoked multiple times within a single test without colliding with a
+	// still-terminating namespace from a previous invocation.
+	suffix := rand.String(6)
+	namespaceName := fmt.Sprintf("cilium-connectivity-check-%s", suffix)
 	namespace, err := kubeClient.CoreV1().Namespaces().Create(
 		ctx,
 		&corev1.Namespace{
@@ -206,7 +212,41 @@ func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTCon
 			return fmt.Errorf("failed to read file %s: %w", filePath, err)
 		}
 
-		resource, err := createArbitraryResource(ctx, dynamicClient, namespace.Name, deploymentYAML)
+		resource, err := createArbitraryResource(ctx, dynamicClient, namespace.Name, deploymentYAML,
+			func(obj *unstructured.Unstructured) error {
+				// The connectivity-check SCC is cluster-scoped, so its name must
+				// be unique across repeated invocations. Append the same random
+				// suffix used for the namespace to the SCC's original name rather
+				// than replacing the name entirely, and rewrite its
+				// service-account reference to point at the unique namespace so
+				// the SCC grants access to the correct service account.
+				if obj.GetKind() != "SecurityContextConstraints" {
+					return nil
+				}
+				obj.SetName(fmt.Sprintf("%s-%s", obj.GetName(), suffix))
+				// Preserve the service account names (and any non-service-account
+				// entries) from the YAML, rewriting only the "<namespace>" portion of
+				// each "system:serviceaccount:<namespace>:<name>" user so the SCC
+				// grants access to the correct service accounts in the unique test
+				// namespace instead of hard-coding a single reference.
+				const saPrefix = "system:serviceaccount:"
+				users, _, err := unstructured.NestedStringSlice(obj.Object, "users")
+				if err != nil {
+					return fmt.Errorf("failed to read SCC users field: %w", err)
+				}
+				for idx, user := range users {
+					rest, ok := strings.CutPrefix(user, saPrefix)
+					if !ok {
+						continue
+					}
+					_, saName, ok := strings.Cut(rest, ":")
+					if !ok {
+						continue
+					}
+					users[idx] = saPrefix + namespaceName + ":" + saName
+				}
+				return unstructured.SetNestedStringSlice(obj.Object, users, "users")
+			})
 		if err != nil {
 			return fmt.Errorf("failed to create test resource from %s: %w", filePath, err)
 		}

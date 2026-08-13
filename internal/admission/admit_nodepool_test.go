@@ -31,8 +31,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -44,19 +44,19 @@ func TestMutateNodePool(t *testing.T) {
 	)
 
 	parseID := func(s string) *azcorearm.ResourceID {
-		return api.Must(azcorearm.ParseResourceID(s))
+		return metadataapi.Must(azcorearm.ParseResourceID(s))
 	}
 
 	admissionContextWithClusterSubnet := func(subnetID string) *NodePoolAdmissionContext {
-		c := &api.HCPOpenShiftCluster{}
+		c := &coreapi.HCPOpenShiftCluster{}
 		if subnetID != "" {
 			c.CustomerProperties.Platform.SubnetID = parseID(subnetID)
 		}
 		return &NodePoolAdmissionContext{Clock: utilsclock.RealClock{}, Cluster: c}
 	}
 
-	nodePoolWithSubnet := func(subnetID string) *api.HCPOpenShiftClusterNodePool {
-		np := &api.HCPOpenShiftClusterNodePool{}
+	nodePoolWithSubnet := func(subnetID string) *coreapi.HCPOpenShiftClusterNodePool {
+		np := &coreapi.HCPOpenShiftClusterNodePool{}
 		if subnetID != "" {
 			np.Properties.Platform.SubnetID = parseID(subnetID)
 		}
@@ -67,9 +67,9 @@ func TestMutateNodePool(t *testing.T) {
 		name             string
 		op               operation.Type
 		admissionContext *NodePoolAdmissionContext
-		oldObj           *api.HCPOpenShiftClusterNodePool // nil for create
-		newObj           *api.HCPOpenShiftClusterNodePool
-		expected         *api.HCPOpenShiftClusterNodePool
+		oldObj           *coreapi.HCPOpenShiftClusterNodePool // nil for create
+		newObj           *coreapi.HCPOpenShiftClusterNodePool
+		expected         *coreapi.HCPOpenShiftClusterNodePool
 	}{
 		{
 			name:             "create: nil nodepool subnet defaults to cluster subnet",
@@ -123,18 +123,18 @@ func TestMutateNodePool(t *testing.T) {
 }
 
 func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
-	afecRegistered := &arm.Subscription{
-		Properties: &arm.SubscriptionProperties{
-			RegisteredFeatures: &[]arm.Feature{
+	afecRegistered := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{
+			RegisteredFeatures: &[]coreapi.Feature{
 				{
-					Name:  ptr.To(api.FeatureExperimentalReleaseFeatures),
+					Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
 					State: ptr.To("Registered"),
 				},
 			},
 		},
 	}
-	noAFEC := &arm.Subscription{
-		Properties: &arm.SubscriptionProperties{},
+	noAFEC := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{},
 	}
 
 	fixedNow, _ := time.Parse(time.RFC3339, "2025-01-15T10:00:00Z")
@@ -142,7 +142,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		subscription     *arm.Subscription
+		subscription     *coreapi.Subscription
 		tags             map[string]string
 		op               operation.Operation
 		expectErrors     []utils.ExpectedError
@@ -164,7 +164,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:             "AFEC registered with max-creation-duration tag overrides default",
 			subscription:     afecRegistered,
-			tags:             map[string]string{api.TagNodePoolMaxCreationDuration: "19m"},
+			tags:             map[string]string{metadataapi.TagNodePoolMaxCreationDuration: "19m"},
 			op:               operation.Operation{Type: operation.Create},
 			expectDeadline:   true,
 			expectedDuration: 19 * time.Minute,
@@ -179,7 +179,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:             "no AFEC ignores max-creation-duration tag, uses default",
 			subscription:     noAFEC,
-			tags:             map[string]string{api.TagNodePoolMaxCreationDuration: "19m"},
+			tags:             map[string]string{metadataapi.TagNodePoolMaxCreationDuration: "19m"},
 			op:               operation.Operation{Type: operation.Create},
 			expectDeadline:   true,
 			expectedDuration: 60 * time.Minute,
@@ -187,7 +187,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:         "AFEC registered with invalid duration value",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagNodePoolMaxCreationDuration: "not-a-duration"},
+			tags:         map[string]string{metadataapi.TagNodePoolMaxCreationDuration: "not-a-duration"},
 			op:           operation.Operation{Type: operation.Create},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "must be a valid Go duration string"},
@@ -214,7 +214,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:             "AFEC registered with empty string tag uses default",
 			subscription:     afecRegistered,
-			tags:             map[string]string{api.TagNodePoolMaxCreationDuration: ""},
+			tags:             map[string]string{metadataapi.TagNodePoolMaxCreationDuration: ""},
 			op:               operation.Operation{Type: operation.Create},
 			expectDeadline:   true,
 			expectedDuration: 60 * time.Minute,
@@ -230,7 +230,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:             "AFEC registered with compound duration",
 			subscription:     afecRegistered,
-			tags:             map[string]string{api.TagNodePoolMaxCreationDuration: "1h30m"},
+			tags:             map[string]string{metadataapi.TagNodePoolMaxCreationDuration: "1h30m"},
 			op:               operation.Operation{Type: operation.Create},
 			expectDeadline:   true,
 			expectedDuration: 90 * time.Minute,
@@ -257,7 +257,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:             "valid tag alongside unrecognized experimental tag fails",
 			subscription:     afecRegistered,
-			tags:             map[string]string{api.TagNodePoolMaxCreationDuration: "19m", "aro-hcp.experimental.nodepool.unknown": "value"},
+			tags:             map[string]string{metadataapi.TagNodePoolMaxCreationDuration: "19m", "aro-hcp.experimental.nodepool.unknown": "value"},
 			op:               operation.Operation{Type: operation.Create},
 			expectDeadline:   true,
 			expectedDuration: 19 * time.Minute,
@@ -276,7 +276,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:         "AFEC registered with duration less than one minute is rejected",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagNodePoolMaxCreationDuration: "30s"},
+			tags:         map[string]string{metadataapi.TagNodePoolMaxCreationDuration: "30s"},
 			op:           operation.Operation{Type: operation.Create},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "must be at least 1m0s"},
@@ -285,7 +285,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:         "AFEC registered with zero duration is rejected",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagNodePoolMaxCreationDuration: "0s"},
+			tags:         map[string]string{metadataapi.TagNodePoolMaxCreationDuration: "0s"},
 			op:           operation.Operation{Type: operation.Create},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "must be at least 1m0s"},
@@ -294,7 +294,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:         "AFEC registered with negative duration is rejected",
 			subscription: afecRegistered,
-			tags:         map[string]string{api.TagNodePoolMaxCreationDuration: "-5m"},
+			tags:         map[string]string{metadataapi.TagNodePoolMaxCreationDuration: "-5m"},
 			op:           operation.Operation{Type: operation.Create},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "tags", Message: "must be at least 1m0s"},
@@ -303,7 +303,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 		{
 			name:             "AFEC registered with exactly one minute is accepted",
 			subscription:     afecRegistered,
-			tags:             map[string]string{api.TagNodePoolMaxCreationDuration: "1m"},
+			tags:             map[string]string{metadataapi.TagNodePoolMaxCreationDuration: "1m"},
 			op:               operation.Operation{Type: operation.Create},
 			expectDeadline:   true,
 			expectedDuration: time.Minute,
@@ -312,8 +312,8 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			nodePool := &api.HCPOpenShiftClusterNodePool{
-				TrackedResource: arm.TrackedResource{
+			nodePool := &coreapi.HCPOpenShiftClusterNodePool{
+				TrackedResource: coreapi.TrackedResource{
 					Tags: tt.tags,
 				},
 			}
@@ -321,7 +321,7 @@ func TestMutateNodePoolCreateOperationCompletionDeadline(t *testing.T) {
 				Clock:            fakeClock,
 				Subscription:     tt.subscription,
 				OriginalNodePool: nodePool.DeepCopy(),
-				Cluster:          &api.HCPOpenShiftCluster{},
+				Cluster:          &coreapi.HCPOpenShiftCluster{},
 			}
 			errs := MutateNodePool(context.Background(), admissionContext, tt.op, nodePool, nil)
 
@@ -355,20 +355,20 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 	)
 
 	parseID := func(s string) *azcorearm.ResourceID {
-		return api.Must(azcorearm.ParseResourceID(s))
+		return metadataapi.Must(azcorearm.ParseResourceID(s))
 	}
 
-	cluster := &api.HCPOpenShiftCluster{
-		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-			Platform: api.CustomerPlatformProfile{SubnetID: parseID(clusterSubnet)},
-			Version:  api.VersionProfile{ChannelGroup: "stable"},
+	cluster := &coreapi.HCPOpenShiftCluster{
+		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			Platform: coreapi.CustomerPlatformProfile{SubnetID: parseID(clusterSubnet)},
+			Version:  coreapi.VersionProfile{ChannelGroup: "stable"},
 		},
 	}
 
-	nodePoolWithSubnet := func(subnetID string) *api.HCPOpenShiftClusterNodePool {
-		np := &api.HCPOpenShiftClusterNodePool{
-			Properties: api.HCPOpenShiftClusterNodePoolProperties{
-				Version: api.NodePoolVersionProfile{ChannelGroup: "stable"},
+	nodePoolWithSubnet := func(subnetID string) *coreapi.HCPOpenShiftClusterNodePool {
+		np := &coreapi.HCPOpenShiftClusterNodePool{
+			Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+				Version: coreapi.NodePoolVersionProfile{ChannelGroup: "stable"},
 			},
 		}
 		if subnetID != "" {
@@ -383,24 +383,24 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 		}
 		if withServiceProvider {
 			version := semver.MustParse("4.14.0")
-			admissionContext.ServiceProviderNodePool = &api.ServiceProviderNodePool{
-				Spec: api.ServiceProviderNodePoolSpec{
-					NodePoolVersion: api.ServiceProviderNodePoolSpecVersion{
+			admissionContext.ServiceProviderNodePool = &coreapi.ServiceProviderNodePool{
+				Spec: coreapi.ServiceProviderNodePoolSpec{
+					NodePoolVersion: coreapi.ServiceProviderNodePoolSpecVersion{
 						DesiredVersion: &version,
 					},
 				},
-				Status: api.ServiceProviderNodePoolStatus{
-					NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
-						ActiveVersions: []api.HCPNodePoolActiveVersion{
+				Status: coreapi.ServiceProviderNodePoolStatus{
+					NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
+						ActiveVersions: []coreapi.HCPNodePoolActiveVersion{
 							{Version: &version},
 						},
 					},
 				},
 			}
-			admissionContext.ServiceProviderCluster = &api.ServiceProviderCluster{
-				Status: api.ServiceProviderClusterStatus{
-					ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-						ActiveVersions: []api.HCPClusterActiveVersion{
+			admissionContext.ServiceProviderCluster = &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{
+					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+						ActiveVersions: []coreapi.HCPClusterActiveVersion{
 							{Version: &version},
 						},
 					},
@@ -413,8 +413,8 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 	tests := []struct {
 		name             string
 		op               operation.Type
-		newObj           *api.HCPOpenShiftClusterNodePool
-		oldObj           *api.HCPOpenShiftClusterNodePool
+		newObj           *coreapi.HCPOpenShiftClusterNodePool
+		oldObj           *coreapi.HCPOpenShiftClusterNodePool
 		admissionContext *NodePoolAdmissionContext
 		expectErrors     []utils.ExpectedError
 	}{
@@ -472,7 +472,7 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 // assertNodePoolEqual compares node pools via their JSON representations so
 // that pointers to types with unexported fields (e.g. *azcorearm.ResourceID)
 // are compared by their externally-visible state.
-func assertNodePoolEqual(t *testing.T, expected, actual *api.HCPOpenShiftClusterNodePool) {
+func assertNodePoolEqual(t *testing.T, expected, actual *coreapi.HCPOpenShiftClusterNodePool) {
 	t.Helper()
 	expectedJSON, err := json.MarshalIndent(expected, "", "  ")
 	require.NoError(t, err)
@@ -778,7 +778,7 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			clusterVersions: []string{"5.0.1"},
 			desiredVersion:  "4.22.0",
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "major version changes are not supported"},
+				{FieldPath: "properties.version.id", Message: "node pool version changes are not supported while the control plane is on a different major version (node pool major version 4 vs control plane major version 5)"},
 			},
 		},
 		// Multi-version CP: N-2 skew uses highest CP version
@@ -847,17 +847,17 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			newNodePool := &api.HCPOpenShiftClusterNodePool{
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
-					Version: api.NodePoolVersionProfile{
+			newNodePool := &coreapi.HCPOpenShiftClusterNodePool{
+				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+					Version: coreapi.NodePoolVersionProfile{
 						ID:           tt.newVersion,
 						ChannelGroup: "stable",
 					},
 				},
 			}
-			oldNodePool := &api.HCPOpenShiftClusterNodePool{
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
-					Version: api.NodePoolVersionProfile{
+			oldNodePool := &coreapi.HCPOpenShiftClusterNodePool{
+				Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+					Version: coreapi.NodePoolVersionProfile{
 						ID: func() string {
 							if len(tt.activeVersions) > 0 {
 								return tt.activeVersions[0]
@@ -868,9 +868,9 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 					},
 				},
 			}
-			cluster := &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{
+			cluster := &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Version: coreapi.VersionProfile{
 						ID:           "4.18",
 						ChannelGroup: "stable",
 					},
@@ -882,8 +882,8 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			if tt.allowMajorUpgrades {
 				op = operation.Operation{
 					Type: operation.Update,
-					Options: validation.AFECsToValidationOptions([]arm.Feature{{
-						Name:  ptr.To(api.FeatureExperimentalReleaseFeatures),
+					Options: validation.AFECsToValidationOptions([]coreapi.Feature{{
+						Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
 						State: ptr.To("Registered"),
 					}}),
 				}
@@ -892,38 +892,38 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			}
 
 			// Build ServiceProviderNodePool with active versions
-			var activeVersions []api.HCPNodePoolActiveVersion
+			var activeVersions []coreapi.HCPNodePoolActiveVersion
 			for _, v := range tt.activeVersions {
 				ver := semver.MustParse(v)
-				activeVersions = append(activeVersions, api.HCPNodePoolActiveVersion{Version: &ver})
+				activeVersions = append(activeVersions, coreapi.HCPNodePoolActiveVersion{Version: &ver})
 			}
 			var desiredVer *semver.Version
 			if tt.desiredVersion != "" {
 				v := semver.MustParse(tt.desiredVersion)
 				desiredVer = &v
 			}
-			spNodePool := &api.ServiceProviderNodePool{
-				Spec: api.ServiceProviderNodePoolSpec{
-					NodePoolVersion: api.ServiceProviderNodePoolSpecVersion{
+			spNodePool := &coreapi.ServiceProviderNodePool{
+				Spec: coreapi.ServiceProviderNodePoolSpec{
+					NodePoolVersion: coreapi.ServiceProviderNodePoolSpecVersion{
 						DesiredVersion: desiredVer,
 					},
 				},
-				Status: api.ServiceProviderNodePoolStatus{
-					NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
+				Status: coreapi.ServiceProviderNodePoolStatus{
+					NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
 						ActiveVersions: activeVersions,
 					},
 				},
 			}
 
 			// Build ServiceProviderCluster with active versions
-			var clusterActiveVersions []api.HCPClusterActiveVersion
+			var clusterActiveVersions []coreapi.HCPClusterActiveVersion
 			for _, v := range tt.clusterVersions {
 				ver := semver.MustParse(v)
-				clusterActiveVersions = append(clusterActiveVersions, api.HCPClusterActiveVersion{Version: &ver})
+				clusterActiveVersions = append(clusterActiveVersions, coreapi.HCPClusterActiveVersion{Version: &ver})
 			}
-			spCluster := &api.ServiceProviderCluster{
-				Status: api.ServiceProviderClusterStatus{
-					ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+			spCluster := &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{
+					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
 						ActiveVersions: clusterActiveVersions,
 					},
 				},
@@ -940,17 +940,17 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 }
 
 func TestAdmitNodePool_AllowsDifferentChannelGroupClusterAndNodePool(t *testing.T) {
-	newNodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Version: api.NodePoolVersionProfile{
+	newNodePool := &coreapi.HCPOpenShiftClusterNodePool{
+		Properties: coreapi.HCPOpenShiftClusterNodePoolProperties{
+			Version: coreapi.NodePoolVersionProfile{
 				ID:           "4.17.0",
 				ChannelGroup: "fast",
 			},
 		},
 	}
-	cluster := &api.HCPOpenShiftCluster{
-		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-			Version: api.VersionProfile{
+	cluster := &coreapi.HCPOpenShiftCluster{
+		CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+			Version: coreapi.VersionProfile{
 				ID:           "4.18",
 				ChannelGroup: "stable",
 			},
@@ -958,24 +958,24 @@ func TestAdmitNodePool_AllowsDifferentChannelGroupClusterAndNodePool(t *testing.
 	}
 
 	ver := semver.MustParse("4.17.0")
-	spNodePool := &api.ServiceProviderNodePool{
-		Spec: api.ServiceProviderNodePoolSpec{
-			NodePoolVersion: api.ServiceProviderNodePoolSpecVersion{
+	spNodePool := &coreapi.ServiceProviderNodePool{
+		Spec: coreapi.ServiceProviderNodePoolSpec{
+			NodePoolVersion: coreapi.ServiceProviderNodePoolSpecVersion{
 				DesiredVersion: &ver,
 			},
 		},
-		Status: api.ServiceProviderNodePoolStatus{
-			NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
-				ActiveVersions: []api.HCPNodePoolActiveVersion{{Version: &ver}},
+		Status: coreapi.ServiceProviderNodePoolStatus{
+			NodePoolVersion: coreapi.ServiceProviderNodePoolStatusVersion{
+				ActiveVersions: []coreapi.HCPNodePoolActiveVersion{{Version: &ver}},
 			},
 		},
 	}
 
 	clusterVer := semver.MustParse("4.18.0")
-	spCluster := &api.ServiceProviderCluster{
-		Status: api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []api.HCPClusterActiveVersion{{Version: &clusterVer}},
+	spCluster := &coreapi.ServiceProviderCluster{
+		Status: coreapi.ServiceProviderClusterStatus{
+			ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+				ActiveVersions: []coreapi.HCPClusterActiveVersion{{Version: &clusterVer}},
 			},
 		},
 	}
@@ -995,40 +995,40 @@ func TestAdmitNodePoolOnDelete(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
 
-	makeTestNodePool := func(name string) *api.HCPOpenShiftClusterNodePool {
-		nodePoolResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/" + name))
-		return &api.HCPOpenShiftClusterNodePool{
-			CosmosMetadata: arm.CosmosMetadata{
+	makeTestNodePool := func(name string) *coreapi.HCPOpenShiftClusterNodePool {
+		nodePoolResourceID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/" + name))
+		return &coreapi.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: coreapi.CosmosMetadata{
 				ResourceID: nodePoolResourceID,
 			},
-			TrackedResource: arm.NewTrackedResource(nodePoolResourceID, "eastus"),
+			TrackedResource: coreapi.NewTrackedResource(nodePoolResourceID, "eastus"),
 		}
 	}
 
-	makeDeletingNodePool := func(name string) *api.HCPOpenShiftClusterNodePool {
+	makeDeletingNodePool := func(name string) *coreapi.HCPOpenShiftClusterNodePool {
 		nodePool := makeTestNodePool(name)
-		nodePool.Properties.ProvisioningState = arm.ProvisioningStateDeleting
+		nodePool.Properties.ProvisioningState = coreapi.ProvisioningStateDeleting
 		return nodePool
 	}
 
 	tests := []struct {
 		name                 string
-		existingNodePools    []*api.HCPOpenShiftClusterNodePool
-		nodePoolBeingDeleted *api.HCPOpenShiftClusterNodePool
+		existingNodePools    []*coreapi.HCPOpenShiftClusterNodePool
+		nodePoolBeingDeleted *coreapi.HCPOpenShiftClusterNodePool
 		expectErrors         []utils.ExpectedError
 	}{
 		{
 			name:                 "allows delete when another node pool exists",
-			existingNodePools:    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers"), makeTestNodePool("infra")},
+			existingNodePools:    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers"), makeTestNodePool("infra")},
 			nodePoolBeingDeleted: makeTestNodePool("workers"),
 			expectErrors:         []utils.ExpectedError{},
 		},
 		{
 			name: "allows delete when the only other remaining node pool is being deleted",
-			existingNodePools: []*api.HCPOpenShiftClusterNodePool{
+			existingNodePools: []*coreapi.HCPOpenShiftClusterNodePool{
 				makeDeletingNodePool("workers"),
 				makeTestNodePool("infra"),
 			},
@@ -1037,7 +1037,7 @@ func TestAdmitNodePoolOnDelete(t *testing.T) {
 		},
 		{
 			name:                 "rejects delete of last node pool",
-			existingNodePools:    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers")},
+			existingNodePools:    []*coreapi.HCPOpenShiftClusterNodePool{makeTestNodePool("workers")},
 			nodePoolBeingDeleted: makeTestNodePool("workers"),
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "name", Message: "The last node pool can not be deleted from a cluster."},

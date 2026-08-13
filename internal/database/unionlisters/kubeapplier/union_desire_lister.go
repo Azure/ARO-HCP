@@ -15,14 +15,14 @@
 // Package kubeapplier contains union listers for the kube-applier *Desire
 // types. UnionDesireLister[T] fans every read out to a configurable set of
 // per-management-cluster sublisters keyed by management-cluster resourceID
-// and merges the results, satisfying the same listers.<Type>DesireLister
+// and merges the results, satisfying the same kubeapplierlisters.<Type>DesireLister
 // interface that any single-MC sublister satisfies. Add/Remove maintain the
 // sublister set under a mutex; lookups take a snapshot under RLock so reads
 // never block writes for the full duration of a Cosmos call.
 //
 // Use these when the backend needs a single lister surface that spans every
 // management cluster's container. The simplest sublister to plug in is the
-// indexer-backed listers.NewXxxDesireLister sitting on top of one
+// indexer-backed kubeapplierlisters.NewXxxDesireLister sitting on top of one
 // informers.KubeApplierInformers per management cluster.
 package kubeapplier
 
@@ -33,19 +33,21 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 )
 
 // DesireLister is the type-parameterized contract satisfied by per-MC listers
-// for any of the kube-applier *Desire types. listers.ApplyDesireLister
-// and listers.ReadDesireLister each satisfy DesireLister[<corresponding type>]
+// for any of the kube-applier *Desire types. kubeapplierlisters.ApplyDesireLister
+// and kubeapplierlisters.ReadDesireLister each satisfy DesireLister[<corresponding type>]
 // structurally.
 type DesireLister[T any] interface {
 	List(ctx context.Context) ([]*T, error)
 	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*T, error)
 	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*T, error)
+	GetForSystemAdminCredentialRequest(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string) (*T, error)
+	GetForSystemAdminCredentialRevocation(ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string) (*T, error)
 	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*T, error)
 	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*T, error)
 	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*T, error)
@@ -61,11 +63,11 @@ type UnionDesireLister[T any] struct {
 	sublisters map[string]DesireLister[T] // key = lowercased(rid.String())
 }
 
-// Compile-time checks: the two concrete listers.<Type>DesireLister
+// Compile-time checks: the two concrete kubeapplierlisters.<Type>DesireLister
 // interfaces are each satisfied by *UnionDesireLister[<corresponding type>].
 var (
-	_ listers.ApplyDesireLister = (*UnionDesireLister[kubeapplier.ApplyDesire])(nil)
-	_ listers.ReadDesireLister  = (*UnionDesireLister[kubeapplier.ReadDesire])(nil)
+	_ kubeapplierlisters.ApplyDesireLister = (*UnionDesireLister[kubeapplierapi.ApplyDesire])(nil)
+	_ kubeapplierlisters.ReadDesireLister  = (*UnionDesireLister[kubeapplierapi.ReadDesire])(nil)
 )
 
 // NewUnionDesireLister returns an empty union; call Add to register
@@ -145,11 +147,11 @@ func (u *UnionDesireLister[T]) GetForCluster(
 		if err == nil {
 			return d, nil
 		}
-		if !database.IsNotFoundError(err) {
+		if !cosmosstorageutils.IsNotFoundError(err) {
 			return nil, err
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 // GetForNodePool tries each sublister in turn. First hit wins.
@@ -161,11 +163,43 @@ func (u *UnionDesireLister[T]) GetForNodePool(
 		if err == nil {
 			return d, nil
 		}
-		if !database.IsNotFoundError(err) {
+		if !cosmosstorageutils.IsNotFoundError(err) {
 			return nil, err
 		}
 	}
-	return nil, database.NewNotFoundError()
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
+// GetForSystemAdminCredentialRequest tries each sublister in turn. First hit wins.
+func (u *UnionDesireLister[T]) GetForSystemAdminCredentialRequest(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
+) (*T, error) {
+	for _, sub := range u.snapshot() {
+		d, err := sub.GetForSystemAdminCredentialRequest(ctx, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name)
+		if err == nil {
+			return d, nil
+		}
+		if !cosmosstorageutils.IsNotFoundError(err) {
+			return nil, err
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
+// GetForSystemAdminCredentialRevocation tries each sublister in turn. First hit wins.
+func (u *UnionDesireLister[T]) GetForSystemAdminCredentialRevocation(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
+) (*T, error) {
+	for _, sub := range u.snapshot() {
+		d, err := sub.GetForSystemAdminCredentialRevocation(ctx, subscriptionID, resourceGroupName, clusterName, revocationName, name)
+		if err == nil {
+			return d, nil
+		}
+		if !cosmosstorageutils.IsNotFoundError(err) {
+			return nil, err
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 // ListForManagementCluster delegates to the single sublister registered under

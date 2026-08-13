@@ -21,9 +21,9 @@ import (
 	"path"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/example"
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -45,9 +45,9 @@ func testDoNothingController(t *testing.T, withMock bool) {
 				ResourceGroupName: "partialIllustrator",
 				HCPClusterName:    "damagingKingdom",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
+			ArtifactDir: metadataapi.Must(fs.Sub(artifacts, path.Join("artifacts"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
-				return controllers.NewDoNothingExampleController(input.ResourcesDBClient, input.SubscriptionLister), map[string]any{}
+				return example.NewDoNothingExampleController(input.ResourcesDBClient, input.SubscriptionLister), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
 			},
@@ -59,9 +59,9 @@ func testDoNothingController(t *testing.T, withMock bool) {
 				ResourceGroupName: "shrillEffectiveness",
 				HCPClusterName:    "lavishUnhappiness",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
+			ArtifactDir: metadataapi.Must(fs.Sub(artifacts, path.Join("artifacts"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
-				return controllers.NewDoNothingExampleController(input.ResourcesDBClient, input.SubscriptionLister), map[string]any{}
+				return example.NewDoNothingExampleController(input.ResourcesDBClient, input.SubscriptionLister), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
 			},

@@ -103,7 +103,7 @@ record-override: $(YQ) $(ORAS)
 record-latest-override: $(YQ)
 	@../hack/record-latest-image-override.sh \
 		"$(ARO_HCP_IMAGE_ACR)" "$(ARO_HCP_IMAGE_REGISTRY)" \
-		"$(ADMIN_API_GENERATED_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
+		"$(ADMIN_API_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
 		"adminApi" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
 .PHONY: record-latest-override
 

@@ -20,13 +20,14 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// ManagementClusterStatus mirrors fleet.ManagementClusterStatus but
+// ManagementClusterStatus mirrors fleetapi.ManagementClusterStatus but
 // serializes *azcorearm.ResourceID and *api.InternalID fields as strings.
 type ManagementClusterStatus struct {
 	Conditions                                           []metav1.Condition `json:"conditions,omitempty"`
@@ -45,12 +46,12 @@ type ManagementClusterStatus struct {
 // ManagementCluster is the API response for a management cluster,
 // without CosmosMetadata.
 type ManagementCluster struct {
-	ResourceID string                      `json:"resourceId"`
-	Spec       fleet.ManagementClusterSpec `json:"spec"`
-	Status     ManagementClusterStatus     `json:"status"`
+	ResourceID string                         `json:"resourceId"`
+	Spec       fleetapi.ManagementClusterSpec `json:"spec"`
+	Status     ManagementClusterStatus        `json:"status"`
 }
 
-func toManagementCluster(managementCluster *fleet.ManagementCluster) (ManagementCluster, error) {
+func toManagementCluster(managementCluster *fleetapi.ManagementCluster) (ManagementCluster, error) {
 	if managementCluster.ResourceID == nil {
 		return ManagementCluster{}, fmt.Errorf("management cluster has nil resourceId")
 	}
@@ -65,7 +66,7 @@ func toManagementCluster(managementCluster *fleet.ManagementCluster) (Management
 	}, nil
 }
 
-func toManagementClusterStatus(status fleet.ManagementClusterStatus) (ManagementClusterStatus, error) {
+func toManagementClusterStatus(status fleetapi.ManagementClusterStatus) (ManagementClusterStatus, error) {
 	if status.AKSResourceID == nil {
 		return ManagementClusterStatus{}, fmt.Errorf("management cluster has nil aksResourceID")
 	}
@@ -92,10 +93,10 @@ func toManagementClusterStatus(status fleet.ManagementClusterStatus) (Management
 
 // ManagementClusterGetHandler handles GET /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}.
 type ManagementClusterGetHandler struct {
-	fleetDBClient database.FleetDBClient
+	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
 
-func NewManagementClusterGetHandler(fleetDBClient database.FleetDBClient) *ManagementClusterGetHandler {
+func NewManagementClusterGetHandler(fleetDBClient fleetcosmosstorage.FleetDBClient) *ManagementClusterGetHandler {
 	return &ManagementClusterGetHandler{
 		fleetDBClient: fleetDBClient,
 	}
@@ -112,8 +113,8 @@ func (h *ManagementClusterGetHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 
 	managementCluster, err := h.fleetDBClient.Stamps().ManagementClusters(stampIdentifier).Get(ctx, managementClusterName)
 	if err != nil {
-		if database.IsNotFoundError(err) {
-			return arm.NewCloudError(http.StatusNotFound, arm.CloudErrorCodeNotFound, "",
+		if cosmosstorageutils.IsNotFoundError(err) {
+			return coreapi.NewCloudError(http.StatusNotFound, coreapi.CloudErrorCodeNotFound, "",
 				"Management cluster %q not found for stamp %q", managementClusterName, stampIdentifier)
 		}
 		return utils.TrackError(fmt.Errorf("failed to get management cluster: %w", err))
@@ -124,6 +125,6 @@ func (h *ManagementClusterGetHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 		return utils.TrackError(fmt.Errorf("failed to convert management cluster: %w", err))
 	}
 
-	_, err = arm.WriteJSONResponse(w, http.StatusOK, resp)
+	_, err = coreapi.WriteJSONResponse(w, http.StatusOK, resp)
 	return utils.TrackError(err)
 }

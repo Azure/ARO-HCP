@@ -20,11 +20,11 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 )
 
-// NewKubeApplierInformerFactory wires a database.KubeApplierDBClients into
+// NewKubeApplierInformerFactory wires a kubeappliercosmosstorage.KubeApplierDBClients into
 // the PerMCKubeApplierInformerFactory shape the controller expects. It is
 // the production wiring used by the backend; the integration test wires up
 // an equivalent factory inline against the in-memory mock registry.
@@ -32,7 +32,7 @@ import (
 // relistDuration is forwarded to the per-MC informer factory; pass nil to
 // use the default cadence from internal/database/informers.
 func NewKubeApplierInformerFactory(
-	clients database.KubeApplierDBClients,
+	clients kubeappliercosmosstorage.KubeApplierDBClients,
 	relistDuration *time.Duration,
 ) PerMCKubeApplierInformerFactory {
 	return &kubeApplierInformerFactory{
@@ -42,16 +42,16 @@ func NewKubeApplierInformerFactory(
 }
 
 type kubeApplierInformerFactory struct {
-	kubeApplierClients database.KubeApplierDBClients
+	kubeApplierClients kubeappliercosmosstorage.KubeApplierDBClients
 	relistDuration     *time.Duration
 }
 
 func (factory *kubeApplierInformerFactory) NewKubeApplierInformers(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
-) informers.KubeApplierInformers {
+) kubeapplierinformers.KubeApplierInformers {
 	client := factory.kubeApplierClients.For(ctx, managementClusterResourceID)
 	if client == nil {
 		return nil
 	}
-	return informers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, factory.relistDuration)
+	return kubeapplierinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, factory.relistDuration)
 }

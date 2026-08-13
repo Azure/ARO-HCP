@@ -394,55 +394,6 @@ tests:
         summary: Prometheus operator prometheus/prometheus rejecting podmonitor resources
         description: Prometheus operator in prometheus namespace rejected 2 prometheus/podmonitor resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
-# Test TSDB disk space scenarios
-- interval: 1m
-  input_series:
-  - series: 'prometheus_tsdb_symbol_table_size_bytes{job="prometheus/prometheus",namespace="prometheus"}'
-    values: "1000000000+0x20" # 1GB
-  - series: 'prometheus_tsdb_head_series{job="prometheus/prometheus",namespace="prometheus"}'
-    values: "1000000+0x20"
-  alert_rule_test:
-  - eval_time: 16m
-    alertname: PrometheusTSDBReloadsFailing
-    exp_alerts: []
-# Test WAL corruption scenarios
-- interval: 1m
-  input_series:
-  - series: 'prometheus_tsdb_wal_corruptions_total{job="prometheus/prometheus",namespace="prometheus"}'
-    values: "0+1x20"
-  alert_rule_test:
-  - eval_time: 16m
-    alertname: PrometheusWALCorruption
-    exp_alerts: []
-# Test compaction scenarios
-- interval: 1m
-  input_series:
-  - series: 'prometheus_tsdb_compactions_failed_total{job="prometheus/prometheus",namespace="prometheus"}'
-    values: "0+2x20"
-  alert_rule_test:
-  - eval_time: 16m
-    alertname: PrometheusCompactionFailing
-    exp_alerts: []
-# Test target down scenarios for different job types
-- interval: 1m
-  input_series:
-  - series: 'up{job="node-exporter",namespace="monitoring"}'
-    values: "0+0x20"
-  - series: 'up{job="kube-state-metrics",namespace="monitoring"}'
-    values: "1+0x20"
-  alert_rule_test:
-  - eval_time: 16m
-    alertname: TargetDown
-    exp_alerts: []
-# Test notification queue scenarios
-- interval: 1m
-  input_series:
-  - series: 'prometheus_notifications_queue_length{job="prometheus/prometheus",namespace="prometheus"}'
-    values: "1000+100x20"
-  alert_rule_test:
-  - eval_time: 16m
-    alertname: PrometheusNotificationQueueRunningFull
-    exp_alerts: []
 # Test PrometheusJobUp with sustained outage
 - interval: 1m
   input_series:

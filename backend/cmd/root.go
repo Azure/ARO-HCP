@@ -31,8 +31,10 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -64,6 +66,8 @@ type BackendRootCmdFlags struct {
 	InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock bool
 	ExitOnPanic                                                                                   bool
 	AzureClusterScopedIdentitiesRoleSetName                                                       string
+	BackupScheduleCadence                                                                         string
+	BackupScheduleState                                                                           string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -195,6 +199,11 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"The name of the cluster scoped identities role set to use. It is used to select the appropriate set of operator role definitions associated to the cluster scoped identities. Accepted values: [dev, public].",
 	)
 
+	cmd.Flags().StringVar(&f.BackupScheduleCadence, "backup-schedule-cadence", f.BackupScheduleCadence,
+		fmt.Sprintf("Backup schedule cadence. Accepted values: '%s', '%s',", backups.BackupCadenceProduction, backups.BackupCadenceTesting))
+	cmd.Flags().StringVar(&f.BackupScheduleState, "backup-schedule-state", f.BackupScheduleState,
+		fmt.Sprintf("Backup schedule state. Accepted values: %s, %s", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
+
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
 
@@ -282,6 +291,16 @@ func (f *BackendRootCmdFlags) validate() error {
 		return utils.TrackError(fmt.Errorf("--azure-cluster-scoped-identities-role-set-name must be either '%s' or '%s'", internalazure.RoleDefinitionConfigSetNameDev, internalazure.RoleDefinitionConfigSetNamePublic))
 	}
 
+	switch backups.BackupCadenceProfile(f.BackupScheduleCadence) {
+	case backups.BackupCadenceProduction, backups.BackupCadenceTesting:
+	default:
+		return utils.TrackError(fmt.Errorf("--backup-schedule-cadence must be '%s' or '%s'", backups.BackupCadenceProduction, backups.BackupCadenceTesting))
+	}
+
+	if f.BackupScheduleState != string(coreapi.BackupScheduleStateEnabled) && f.BackupScheduleState != string(coreapi.BackupScheduleStateDisabled) {
+		return utils.TrackError(fmt.Errorf("--backup-schedule-state must be '%s' or '%s'", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
+	}
+
 	return nil
 }
 
@@ -356,6 +375,13 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 			fpaTokenCredRetriever, azureConfig.CloudEnvironment.CheckAccessV2Endpoint(f.AzureLocation),
 			azureConfig.CloudEnvironment.CheckAccessV2Scope(), azureConfig.CloudEnvironment.AZCoreClientOptions(),
 		)
+
+		// Throttle our per-tenant call rate to stay under the real FPA identity's documented CheckAccessV2 limit of 500 requests/second per tenant.
+		checkAccessV2ClientBuilder = azureclient.NewRateLimitedCheckAccessV2ClientBuilder(
+			checkAccessV2ClientBuilder,
+			azureclient.CheckAccessV2RealFPARateLimiterQPS,
+			azureclient.CheckAccessV2RealFPARateLimiterBurst,
+		)
 	} else {
 		// In ARO-HCP environments where we don't have a real FPA, we use the Azure Permissions Manager identity to create the Check Access V2 client
 		azureARMPermissionsManagerIdentityTokenCredentialRetriever, err := newInsecureAzurePermissionsManagerIdentityTokenCredentialRetriever(
@@ -371,6 +397,13 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 			azureConfig.CloudEnvironment.CheckAccessV2Scope(), azureConfig.CloudEnvironment.AZCoreClientOptions(),
 		)
 
+		// Throttle our per-tenant call rate to stay under the Azure Permissions Manager identity's documented CheckAccessV2 limit of 25 requests per 5 seconds per tenant.
+		checkAccessV2ClientBuilder = azureclient.NewRateLimitedCheckAccessV2ClientBuilder(
+			checkAccessV2ClientBuilder,
+			azureclient.CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS,
+			azureclient.CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst,
+		)
+
 		// In ARO-HCP environments where we don't have a real FPA, we use the HardcodedIdentityFPAMIDataplaneClientBuilder to create the FPA MI dataplane client builder
 		fpaMIDataplaneClientBuilder, err = newHardcodedIdentityFPAMIDataplaneClientBuilder(
 			f.InsecureAzureManagedIdentityMockCertificateBundlePath, f.InsecureAzureManagedIdentityMockClientID, f.InsecureAzureManagedIdentityMockServicePrincipalID, f.InsecureAzureManagedIdentityMockTenantID,
@@ -384,6 +417,10 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
 
 	azCoreClientOptions := *azureConfig.CloudEnvironment.AZCoreClientOptions()
+	miDataplaneBasedIdentityAccessTokenRetrieverBuilder := azureclient.NewMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(
+		fpaMIDataplaneClientBuilder,
+		azCoreClientOptions,
+	)
 
 	cosmosDatabaseClient, err := app.NewCosmosDatabaseClient(
 		f.AzureCosmosDBURL,
@@ -412,7 +449,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	// additions/removals become visible without restarting the backend.
 	kubeApplierDBClients := app.NewKubeApplierDBClients(
 		cosmosDatabaseClient,
-		database.NewDBBackedManagementClusterLister(fleetDBClient),
+		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient),
 	)
 
 	clustersServiceClient, err := app.NewClustersServiceClient(ctx, f.ClustersServiceURL, f.ClustersServiceTLSInsecure)
@@ -421,6 +458,15 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	}
 
 	clusterScopedIdentitiesConfig := internalazure.NewClusterScopedIdentitiesConfig(internalazure.RoleDefinitionConfigSetName(f.AzureClusterScopedIdentitiesRoleSetName))
+
+	backupScheduleState := coreapi.BackupScheduleStateEnabled
+	if f.BackupScheduleState == string(coreapi.BackupScheduleStateDisabled) {
+		backupScheduleState = coreapi.BackupScheduleStateDisabled
+	}
+	backupConfig := &backups.BackupConfig{
+		BackupCadenceProfile: backups.BackupCadenceProfile(f.BackupScheduleCadence),
+		BackupScheduleState:  backupScheduleState,
+	}
 
 	backendOptions := &app.BackendOptions{
 		AppShortDescriptionName:            cmd.Short,
@@ -440,12 +486,15 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		BackendIdentityAzureClients:        backendIdentityAzureClients,
 		BackendIdentityAzureCachedReaders:  backendIdentityAzureCachedReaders,
 		ExitOnPanic:                        f.ExitOnPanic,
+		BackupConfig:                       backupConfig,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
-		SMIClientBuilder:                   smiClientBuilder,
-		CheckAccessV2ClientBuilder:         checkAccessV2ClientBuilder,
-		ClusterScopedIdentitiesConfig:      clusterScopedIdentitiesConfig,
-		MetricsRegisterer:                  legacyregistry.Registerer(),
-		MetricsGatherer:                    legacyregistry.DefaultGatherer,
+		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
+		SMIClientBuilder:              smiClientBuilder,
+		CheckAccessV2ClientBuilder:    checkAccessV2ClientBuilder,
+		ClusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
+		CloudEnvironment:              azureConfig.CloudEnvironment,
+		MetricsRegisterer:             legacyregistry.Registerer(),
+		MetricsGatherer:               legacyregistry.DefaultGatherer,
 	}
 
 	return backendOptions, nil
@@ -467,6 +516,8 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		LogVerbosity:                                    0,
 		MaestroSourceEnvironmentIdentifier:              "",
 		ExitOnPanic:                                     true,
+		BackupScheduleCadence:                           string(backups.BackupCadenceProduction),
+		BackupScheduleState:                             string(coreapi.BackupScheduleStateEnabled),
 	}
 
 	return flags

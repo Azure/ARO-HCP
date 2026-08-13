@@ -27,8 +27,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/internal/cluster"
 	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/pkg/graphquery"
-	"github.com/Azure/ARO-HCP/tooling/azutils/subscriptions"
 	"github.com/Azure/ARO-HCP/tooling/metricscache"
 )
 
@@ -48,36 +48,24 @@ var (
 
 // ServiceTagUsageCollector is a Prometheus collector that gathers public IP metrics from Azure
 type ServiceTagUsageCollector struct {
-	client       *graphquery.ResourceGraphClient
-	cache        *metricscache.Cache
-	errorCounter prometheus.Counter
+	clusterClient *cluster.ClusterDiscoveryPoller
+	credential    azcore.TokenCredential
+	cache         *metricscache.Cache
+	region        string
+	errorCounter  prometheus.Counter
 }
 
 var _ CachingCollector = &ServiceTagUsageCollector{}
 
 // NewServiceTagUsageCollector creates a new ServiceTagUsageCollector
-func NewServiceTagUsageCollector(ctx context.Context, subscriptionNames []string, credential azcore.TokenCredential, cacheTTL time.Duration, errorCounter prometheus.Counter) (*ServiceTagUsageCollector, error) {
-	var resourceGraphClient *graphquery.ResourceGraphClient
-	var err error
-
-	resolved, err := subscriptions.ResolveByName(ctx, credential, subscriptionNames)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get subscription IDs: %w", err)
-	}
-	subscriptionIDsPtrs := make([]*string, 0, len(resolved))
-	for _, name := range subscriptionNames {
-		subscriptionIDsPtrs = append(subscriptionIDsPtrs, to.Ptr(resolved[name]))
-	}
-	resourceGraphClient, err = graphquery.NewResourceGraphClient(credential, subscriptionIDsPtrs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Resource Graph client: %w", err)
-	}
-
+func NewServiceTagUsageCollector(clusterClient *cluster.ClusterDiscoveryPoller, region string, credential azcore.TokenCredential, cacheTTL time.Duration, errorCounter prometheus.Counter) *ServiceTagUsageCollector {
 	return &ServiceTagUsageCollector{
-		client:       resourceGraphClient,
-		cache:        metricscache.NewCache(cacheTTL),
-		errorCounter: errorCounter,
-	}, nil
+		clusterClient: clusterClient,
+		credential:    credential,
+		cache:         metricscache.NewCache(cacheTTL),
+		region:        region,
+		errorCounter:  errorCounter,
+	}
 }
 
 func (c *ServiceTagUsageCollector) Name() string {
@@ -106,12 +94,15 @@ type PublicIPAddress struct {
 	Count          float64
 }
 
-var query = `
+func buildIPQuery(region string) string {
+	return fmt.Sprintf(`
 resources
-| where type == 'microsoft.network/publicipaddresses'
+| where type =~ 'microsoft.network/publicipaddresses'
+| where location =~ '%s'
 | extend ipTagsString = tostring(properties['ipTags'])
-| summarize Count=count()  by  subscriptionId, location, ipTagsString
-`
+| summarize Count=count() by subscriptionId, location, ipTagsString
+`, graphquery.EscapeKQL(region))
+}
 
 func parseIPTags(ipTagsAsString string) ([]IPTag, error) {
 	ipTags := []IPTag{}
@@ -129,11 +120,27 @@ func parseIPTags(ipTagsAsString string) ([]IPTag, error) {
 func (c *ServiceTagUsageCollector) CollectMetricValues(ctx context.Context) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	var publicIPs []PublicIPAddress
-	var err error
+	discoverResult := c.clusterClient.GetDiscoverResult(ctx)
+	subscriptionIDsPtrs := make([]*string, 0, len(discoverResult.SubscriptionIDs))
+	for _, id := range discoverResult.SubscriptionIDs {
+		subscriptionIDsPtrs = append(subscriptionIDsPtrs, to.Ptr(id))
+	}
+	if len(subscriptionIDsPtrs) == 0 {
+		logger.Info("No subscriptions discovered, skipping service tag usage collection")
+		return
+	}
+	client, err := graphquery.NewResourceGraphClient(c.credential, subscriptionIDsPtrs)
+	if err != nil {
+		c.errorCounter.Inc()
+		logger.Error(err, "failed to create Resource Graph client")
+		return
+	}
 
-	err = c.client.ExecuteConvertRequest(ctx, graphquery.ResourceGraphRequest{
-		Query:  &query,
+	var publicIPs []PublicIPAddress
+
+	q := buildIPQuery(c.region)
+	err = client.ExecuteConvertRequest(ctx, graphquery.ResourceGraphRequest{
+		Query:  &q,
 		Output: &publicIPs,
 	})
 	if err != nil {

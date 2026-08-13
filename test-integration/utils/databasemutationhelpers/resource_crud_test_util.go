@@ -34,9 +34,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -53,7 +53,7 @@ type IntegrationTestStep interface {
 	RunTest(ctx context.Context, t *testing.T, stepInput StepInput)
 }
 
-func NewResourceMutationTest[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, testName string, testDir fs.FS, withMock bool) (*ResourceMutationTest, error) {
+func NewResourceMutationTest[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, testName string, testDir fs.FS, withMock bool) (*ResourceMutationTest, error) {
 	steps, err := readSteps[InternalAPIType, InternalAPITypePointer](ctx, testDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read steps for test %q: %w", testName, err)
@@ -86,7 +86,7 @@ func NewUntypedResourceMutationTest(ctx context.Context, testName string, testDi
 func readUntypedSteps(ctx context.Context, testDir fs.FS) ([]IntegrationTestStep, error) {
 	steps := []IntegrationTestStep{}
 
-	testContent := api.Must(fs.ReadDir(testDir, "."))
+	testContent := metadataapi.Must(fs.ReadDir(testDir, "."))
 	for _, dirEntry := range testContent {
 		filenameParts := strings.SplitN(dirEntry.Name(), "-", 3)
 		switch len(filenameParts) {
@@ -112,11 +112,11 @@ func readUntypedSteps(ctx context.Context, testDir fs.FS) ([]IntegrationTestStep
 	return steps, nil
 }
 
-func readSteps[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, testDir fs.FS) ([]IntegrationTestStep, error) {
+func readSteps[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](ctx context.Context, testDir fs.FS) ([]IntegrationTestStep, error) {
 	steps := []IntegrationTestStep{}
 
 	numLoadClusterServiceSteps := 0
-	testContent := api.Must(fs.ReadDir(testDir, "."))
+	testContent := metadataapi.Must(fs.ReadDir(testDir, "."))
 	for _, dirEntry := range testContent {
 		filenameParts := strings.SplitN(dirEntry.Name(), "-", 3)
 		switch len(filenameParts) {
@@ -282,7 +282,7 @@ func NewUntypedStep(indexString, stepType, stepName string, testDir fs.FS, path 
 	}
 }
 
-func NewStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](indexString, stepType, stepName string, testDir fs.FS, path string) (IntegrationTestStep, error) {
+func NewStep[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](indexString, stepType, stepName string, testDir fs.FS, path string) (IntegrationTestStep, error) {
 	itoInt, err := strconv.Atoi(indexString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert %s to int: %w", indexString, err)
@@ -411,7 +411,7 @@ func (s byIndex) Less(i, j int) bool { return s[i].StepID().index < s[j].StepID(
 func (s byIndex) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func stringifyResource(controller any) string {
-	return string(api.Must(json.MarshalIndent(controller, "", "\t")))
+	return string(metadataapi.Must(json.MarshalIndent(controller, "", "\t")))
 }
 
 type CosmosCRUDKey struct {
@@ -468,7 +468,7 @@ func readResourcesInDir[InternalAPIType any](dir fs.FS) ([]*InternalAPIType, err
 
 func readRawBytesInDir(dir fs.FS) ([][]byte, error) {
 	contents := [][]byte{}
-	testContent := api.Must(fs.ReadDir(dir, "."))
+	testContent := metadataapi.Must(fs.ReadDir(dir, "."))
 	for _, dirEntry := range testContent {
 		if dirEntry.Name() == "00-key.json" { // standard filenames to skip
 			continue
@@ -499,7 +499,7 @@ type StepInput struct {
 	CosmosContainer        *azcosmos.ContainerClient
 	ContentLoader          integrationutils.ContentLoader
 	DocumentLister         integrationutils.DocumentLister
-	ResourcesDBClient      database.ResourcesDBClient
+	ResourcesDBClient      corecosmosstorage.ResourcesDBClient
 	FrontendURL            string
 	AdminURL               string
 	APIVersion             string

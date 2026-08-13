@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -61,45 +61,45 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 		},
 		{
 			name:          "handles the common attributes and the attributes for the subscription_id segment path",
-			wantLogAttrs:  []slog.Attr{slog.String("subscription_id", api.TestSubscriptionID)},
-			wantSpanAttrs: map[string]string{"aro.subscription.id": api.TestSubscriptionID},
-			requestURL:    "/subscriptions/" + api.TestSubscriptionID,
+			wantLogAttrs:  []slog.Attr{slog.String("subscription_id", coreapitesting.TestSubscriptionID)},
+			wantSpanAttrs: map[string]string{"aro.subscription.id": coreapitesting.TestSubscriptionID},
+			requestURL:    "/subscriptions/" + coreapitesting.TestSubscriptionID,
 			setReqPathValue: func(req *http.Request) {
-				req.SetPathValue(PathSegmentSubscriptionID, api.TestSubscriptionID)
+				req.SetPathValue(PathSegmentSubscriptionID, coreapitesting.TestSubscriptionID)
 			},
 		},
 		{
 			name:          "handles the common attributes and the attributes for the resourcegroupname path",
-			wantLogAttrs:  []slog.Attr{slog.String("resource_group", strings.ToLower(api.TestResourceGroupName))},
-			wantSpanAttrs: map[string]string{"aro.resource_group.name": api.TestResourceGroupName},
-			requestURL:    "/subscriptions/" + api.TestSubscriptionID + "/resourceGroups/" + api.TestResourceGroupName,
+			wantLogAttrs:  []slog.Attr{slog.String("resource_group", strings.ToLower(coreapitesting.TestResourceGroupName))},
+			wantSpanAttrs: map[string]string{"aro.resource_group.name": coreapitesting.TestResourceGroupName},
+			requestURL:    "/subscriptions/" + coreapitesting.TestSubscriptionID + "/resourceGroups/" + coreapitesting.TestResourceGroupName,
 			setReqPathValue: func(req *http.Request) {
-				req.SetPathValue(PathSegmentResourceGroupName, api.TestResourceGroupName)
+				req.SetPathValue(PathSegmentResourceGroupName, coreapitesting.TestResourceGroupName)
 			},
 		},
 		{
 			name: "handles the common attributes and the attributes for the resourcename path, and produces the correct resourceID attribute",
 			wantLogAttrs: []slog.Attr{
-				slog.String("subscription_id", api.TestSubscriptionID),
-				slog.String("resource_group", strings.ToLower(api.TestResourceGroupName)),
-				slog.String("resource_name", strings.ToLower(api.TestClusterName)),
-				slog.String("resource_id", strings.ToLower(api.TestClusterResourceID)),
+				slog.String("subscription_id", coreapitesting.TestSubscriptionID),
+				slog.String("resource_group", strings.ToLower(coreapitesting.TestResourceGroupName)),
+				slog.String("resource_name", strings.ToLower(coreapitesting.TestClusterName)),
+				slog.String("resource_id", strings.ToLower(coreapitesting.TestClusterResourceID)),
 			},
 			wantSpanAttrs: map[string]string{
-				"aro.subscription.id":     api.TestSubscriptionID,
-				"aro.resource_group.name": api.TestResourceGroupName,
-				"aro.resource.name":       api.TestClusterName,
+				"aro.subscription.id":     coreapitesting.TestSubscriptionID,
+				"aro.resource_group.name": coreapitesting.TestResourceGroupName,
+				"aro.resource.name":       coreapitesting.TestClusterName,
 			},
-			requestURL: "/subscriptions/" + api.TestSubscriptionID + "/resourceGroups/" + api.TestResourceGroupName + "providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + api.TestClusterName,
+			requestURL: "/subscriptions/" + coreapitesting.TestSubscriptionID + "/resourceGroups/" + coreapitesting.TestResourceGroupName + "providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + coreapitesting.TestClusterName,
 			setReqPathValue: func(req *http.Request) {
 				// assuming the PathSegmentResourceName is present in the Path
-				req.SetPathValue(PathSegmentResourceName, api.TestClusterName)
+				req.SetPathValue(PathSegmentResourceName, coreapitesting.TestClusterName)
 
 				// assuming the PathSegmentSubscriptionID is present in the Path
-				req.SetPathValue(PathSegmentSubscriptionID, api.TestSubscriptionID)
+				req.SetPathValue(PathSegmentSubscriptionID, coreapitesting.TestSubscriptionID)
 
 				// assuming the PathSegmentResourceGroupName is present in the Path
-				req.SetPathValue(PathSegmentResourceGroupName, api.TestResourceGroupName)
+				req.SetPathValue(PathSegmentResourceGroupName, coreapitesting.TestResourceGroupName)
 			},
 		},
 	}

@@ -15,7 +15,7 @@ grafana-dashboards:
     path: ./grafana-dashboards/istio
 ```
 
-The pipeline will create a folder in Grafana named `istio` and put the dashboards in grafan-dashboards folder there.
+The pipeline will create a folder in Grafana named `istio` and put the dashboards in grafana-dashboards folder there.
 
 ### Dashboards datasources and other variables
 

@@ -3,9 +3,9 @@ module github.com/Azure/ARO-HCP/tooling/helmtest
 go 1.25.7
 
 require (
-	github.com/Azure/ARO-Tools/config v0.0.0-20260729121920-58ceb447fbb3
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260729121920-58ceb447fbb3
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260729121920-58ceb447fbb3
+	github.com/Azure/ARO-Tools/config v0.0.0-20260807054659-4a463f5d83c7
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260807054659-4a463f5d83c7
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260807054659-4a463f5d83c7
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
 	helm.sh/helm/v4 v4.1.4
@@ -17,8 +17,8 @@ require (
 require (
 	cel.dev/expr v0.25.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260729121920-58ceb447fbb3 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260729121920-58ceb447fbb3 // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260807054659-4a463f5d83c7 // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260807054659-4a463f5d83c7 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.4.0 // indirect
@@ -71,7 +71,7 @@ require (
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/btree v1.1.3 // indirect
-	github.com/google/cel-go v0.28.0 // indirect
+	github.com/google/cel-go v0.29.0 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/pprof v0.0.0-20260507013755-92041b743c96 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -150,6 +150,7 @@ require (
 	golang.org/x/tools v0.45.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/grpc v1.82.1 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -164,7 +165,7 @@ require (
 	k8s.io/kubectl v0.35.3 // indirect
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect
 	oras.land/oras-go/v2 v2.6.2 // indirect
-	sigs.k8s.io/controller-runtime v0.23.1 // indirect
+	sigs.k8s.io/controller-runtime v0.23.3 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/kustomize/api v0.21.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect

@@ -22,6 +22,7 @@ data:
     spec:
       template:
         spec:
+          priorityClassName: service-lifecycle-critical
           nodeSelector:
             aro-hcp.azure.com/role: infra
           tolerations:
@@ -39,10 +40,3 @@ data:
       template:
         spec:
           priorityClassName: service-lifecycle-critical
-          nodeSelector:
-            aro-hcp.azure.com/role: infra
-          tolerations:
-          - key: "infra"
-            operator: "Equal"
-            value: "true"
-            effect: "NoSchedule"

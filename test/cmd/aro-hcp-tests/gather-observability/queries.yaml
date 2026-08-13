@@ -2,17 +2,18 @@ panels:
 - title: "Frontend Metrics"
   queries:
   - title: "Frontend Request Latency"
-    description: "Latency of frontend requests, measured as the 95th percentile of request duration. High latency indicates performance issues."
+    description: "P99 frontend request latency by method/route/cluster (matches FrontendPathLatency). No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alert)."
     query: |
-      histogram_quantile(0.95,
-        sum by (le, route, method) (
-            rate(frontend_http_requests_duration_seconds_bucket[5m])
+      histogram_quantile(0.99,
+        sum by (le, route, method, cluster) (
+          max without (prometheus_replica) (
+            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])
           )
+        )
       )
     unit: seconds
     workspace: svc
     step: "60s"
-    minPeakThreshold: 2.5
 - title: "Backend Metrics"
   queries:
   - title: "Controller Workqueue Retry Ratio"
@@ -35,6 +36,36 @@ panels:
     workspace: svc
     step: "60s"
     minPeakThreshold: 0.5
+  - title: "Hosted Control Planes by Management Cluster and Phase"
+    description: "Hosted control planes per management cluster, stacked by provisioning phase. Each sub-chart shows one management cluster. Unassigned clusters shown separately."
+    query: |
+      label_replace(
+        count by (management_cluster_resource_id, phase) (
+          max by(resource_id, subscription_id, phase) (
+            backend_cluster_provision_state{namespace="aro-hcp"}
+          )
+          * on(resource_id) group_left(management_cluster_resource_id)
+          max by(resource_id, management_cluster_resource_id) (
+            backend_cluster_info{namespace="aro-hcp", management_cluster_resource_id!=""}
+          )
+        ),
+        "management_cluster_resource_id", "mgmt-$1",
+        "management_cluster_resource_id", ".*/stamps/([^/]+)/.*"
+      )
+    unit: clusters
+    workspace: svc
+    step: "60s"
+    chartType: faceted-stacked-area
+    facetBy: management_cluster_resource_id
+    stackBy: phase
+    colors:
+      succeeded: "#4CAF50"
+      provisioning: "#2196F3"
+      accepted: "#81D4FA"
+      updating: "#FF9800"
+      deleting: "#F44336"
+      failed: "#AB47BC"
+      canceled: "#9E9E9E"
   - title: "Controller Workqueue Depth"
     description: "Number of items waiting to be processed in each controller workqueue. Sustained depth indicates the controller cannot keep up with incoming work items."
     query: |

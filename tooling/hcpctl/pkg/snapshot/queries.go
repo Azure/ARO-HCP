@@ -645,6 +645,42 @@ var allQueries = []querySpec{
 		requiredWhen:  isClusterOrNodePool,
 	},
 
+	// --- ACM: ManagedCluster conditions and klusterlet events ---
+	{
+		component:    "acm",
+		queryName:    "managedClusterConditions",
+		templatePath: "queries/acm/managedClusterConditions/query.kql",
+		database:     "service",
+		category:     categoryConditions,
+		ready: func(d queryData) bool {
+			return d.ClusterID != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "ClusterID, ResourceType is cluster",
+		requiredWhen:  isClusterType,
+	},
+	{
+		component:    "acm",
+		queryName:    "klusterletEvents",
+		templatePath: "queries/acm/klusterletEvents/query.kql",
+		database:     "service",
+		category:     categoryResourceEvents,
+		ready: func(d queryData) bool {
+			return d.ClusterID != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "ClusterID, ResourceType is cluster",
+	},
+	{
+		component:    "acm",
+		queryName:    "klusterletLogs",
+		templatePath: "queries/acm/klusterletLogs/query.kql",
+		database:     "service",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.ClusterID != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "ClusterID, ResourceType is cluster",
+	},
+
 	// --- Events: time-windowed, component-scoped ---
 	{
 		component:    "frontend",

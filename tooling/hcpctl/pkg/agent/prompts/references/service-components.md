@@ -90,3 +90,41 @@ into actual control plane infrastructure.
 
 **Failure modes:** Condition degraded/progressing stuck, pod crash loops, etcd issues, RBAC errors,
 resource quota exceeded, image pull failures.
+
+## ACM / ManagedCluster Layer
+
+Advanced Cluster Management (ACM) and Multicluster Engine (MCE) components manage cluster
+registration and addon lifecycle on the management cluster.
+
+**Key objects:**
+- `ManagedCluster` (cluster-scoped): represents a registered cluster, named by the CS cluster ID.
+  Finalizer: `cluster.open-cluster-management.io/api-resource-cleanup`.
+- `ManagedClusterAddon` (namespaced under the cluster ID): represents an addon installed on the
+  managed cluster. Common addons: `config-policy-controller`, `governance-policy-framework`.
+  Finalizers: `hosting-manifests-cleanup`, `hosting-addon-pre-delete`.
+
+**Responsibilities:**
+- Cluster registration and status reporting
+- Addon lifecycle management (install, upgrade, pre-delete hooks)
+
+**Role in deletion:**
+The CS destruct chain runs `hypershift-managed-cluster-destructor`, which checks ManagedCluster
+status. The ManagedCluster enters `Detaching` state, triggering addon pre-delete hooks. Each
+addon's pre-delete hook pod must complete and remove its finalizers before the ManagedCluster
+can finish detaching. Until all addons are cleaned up, the destruct chain is blocked.
+
+**Failure modes:**
+- Addon pre-delete pod eviction: node resource pressure (MemoryPressure, DiskPressure) evicts
+  the pre-delete hook pods before completion, leaving finalizers in place.
+- Klusterlet auth loss: the klusterlet identity loses Azure AD authorization during Detaching,
+  preventing pre-delete hooks from executing.
+- ManagedCluster stuck Detaching: any addon cleanup failure leaves the ManagedCluster in
+  Detaching state indefinitely, blocking the entire deletion chain.
+
+**Key logs:**
+- Pod lifecycle (including eviction): `containerLogs` from `mgmt-agent` namespace —
+  `log.msg == 'pod event'` and `log.namespace == 'klusterlet-<cluster-id>'`. Evicted pods
+  have `log.object.status.reason == 'Evicted'` with `log.object.status.message` containing
+  the node condition (e.g. `"The node was low on resource: memory"`).
+- Destruct chain: `clustersServiceLogs` — filter for `log has '<cluster-id>'` and
+  `log has 'destructor'` to see which destructor is blocking and how many iterations.

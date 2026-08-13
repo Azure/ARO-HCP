@@ -30,9 +30,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	fleetapi "github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -63,7 +63,7 @@ func (k StampKey) String() string {
 }
 
 func (k StampKey) GetResourceID() *azcorearm.ResourceID {
-	return api.Must(fleetapi.ToStampResourceID(k.StampIdentifier))
+	return metadataapi.Must(fleetapi.ToStampResourceID(k.StampIdentifier))
 }
 
 func (k StampKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -73,7 +73,7 @@ func (k StampKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 }
 
 // StampKeyFromObject extracts the workqueue key from any fleet
-// object that carries a stamp identifier (*fleet.Stamp, *fleet.ManagementCluster).
+// object that carries a stamp identifier (*fleetapi.Stamp, *fleetapi.ManagementCluster).
 func StampKeyFromObject(obj any) (StampKey, error) {
 	s, ok := obj.(stampScoped)
 	if !ok {
@@ -152,7 +152,7 @@ func NewStampWatchingController(
 
 // QueueForInformers registers notifiers whose objects feed into the workqueue.
 // Objects must implement both stampScoped (for key extraction) and
-// arm.CosmosPersistable (for etag-based change detection). Add events enqueue
+// coreapi.CosmosPersistable (for etag-based change detection). Add events enqueue
 // immediately. Update events enqueue immediately when the Cosmos etag changed
 // and consult the cooldown gate otherwise.
 func (c *StampWatchingController) QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error {
@@ -183,8 +183,8 @@ func (c *StampWatchingController) handleAdd(obj any) {
 }
 
 func (c *StampWatchingController) handleUpdate(oldObj, newObj any) {
-	oldPersistable, oldOK := oldObj.(arm.CosmosPersistable)
-	newPersistable, newOK := newObj.(arm.CosmosPersistable)
+	oldPersistable, oldOK := oldObj.(coreapi.CosmosPersistable)
+	newPersistable, newOK := newObj.(coreapi.CosmosPersistable)
 	if !oldOK || !newOK {
 		utilruntime.HandleError(fmt.Errorf("update handler: expected CosmosPersistable, got old=%T new=%T", oldObj, newObj))
 		return

@@ -24,25 +24,26 @@ import (
 	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type maestroRegistrationSyncer struct {
-	fleetDBClient                database.FleetDBClient
+	fleetDBClient                fleetcosmosstorage.FleetDBClient
 	maestroConsumerClientFactory MaestroConsumerClientFactory
-	stampLister                  listers.StampLister
+	stampLister                  fleetlisters.StampLister
 }
 
 func NewMaestroRegistrationController(
 	managementClusterInformer cache.SharedIndexInformer,
 	stampInformer cache.SharedIndexInformer,
-	fleetDBClient database.FleetDBClient,
+	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	maestroConsumerClientFactory MaestroConsumerClientFactory,
-	stampLister listers.StampLister,
+	stampLister fleetlisters.StampLister,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
 ) *fleetcontrollers.StampWatchingController {
 	syncer := &maestroRegistrationSyncer{
@@ -66,9 +67,9 @@ func NewMaestroRegistrationController(
 
 func (s *maestroRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.StampKey) error {
 	managementClusterCRUD := s.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier)
-	managementCluster, err := managementClusterCRUD.Get(ctx, fleet.ManagementClusterResourceName)
+	managementCluster, err := managementClusterCRUD.Get(ctx, fleetapi.ManagementClusterResourceName)
 	if err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			return nil
 		}
 		return utils.TrackError(err)
@@ -76,7 +77,7 @@ func (s *maestroRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontr
 
 	stamp, err := s.stampLister.Get(ctx, key.StampIdentifier)
 	if err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			utils.LoggerFromContext(ctx).Info("stamp not found in lister, skipping")
 			return nil
 		}
@@ -86,15 +87,15 @@ func (s *maestroRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontr
 	updated := managementCluster.DeepCopy()
 
 	var syncErr error
-	if !apimeta.IsStatusConditionTrue(stamp.Status.Conditions, string(fleet.StampConditionApproved)) {
+	if !apimeta.IsStatusConditionTrue(stamp.Status.Conditions, string(fleetapi.StampConditionApproved)) {
 		// an unapproved stamp is not a sync error
 		// the controller will wake up when the stamp is approved and try again
 		// we update the condition though to reflect the fact
-		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleet.ManagementClusterConditionMaestroRegistered), fleetcontrollers.ErrStampNotApproved)
+		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleetapi.ManagementClusterConditionMaestroRegistered), fleetcontrollers.ErrStampNotApproved)
 	} else {
 		client := s.maestroConsumerClientFactory.NewMaestroConsumerClient(updated.Status.MaestroRESTAPIURL)
 		syncErr = s.ensureConsumer(ctx, client, updated.Status.MaestroConsumerName)
-		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleet.ManagementClusterConditionMaestroRegistered), syncErr)
+		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleetapi.ManagementClusterConditionMaestroRegistered), syncErr)
 	}
 
 	if controllerutils.NeedsUpdate(managementCluster, updated) {

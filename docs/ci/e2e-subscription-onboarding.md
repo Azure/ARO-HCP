@@ -84,7 +84,7 @@ az provider show --namespace Microsoft.Compute \
      - Public IP Addresses: `3000`
      - Role Assignments: `8000`
    - `Microsoft.Compute` and `Microsoft.Network` must already report `Registered` (see Prerequisites) before the DSv3 and public-IP requests can be filed.
-   - Quota approvals are asynchronous and routed through Microsoft support, so file them early — they gate identity-container provisioning (step 5) and the Role Assignment limit asserted by the monitoring entry (step 6).
+   - Quota approvals are asynchronous and routed through Microsoft support, so file them early — they gate identity-container provisioning (step 5) and determine the Role Assignment limit reported by monitoring (step 6).
 
 3. Sync the ARO-HCP-managed Boskos inventory in `openshift/release`.
    - Run:
@@ -110,7 +110,7 @@ az provider show --namespace Microsoft.Compute \
 6. Extend the DEV bootstrap RBAC and quota-monitoring inventory.
    - Add the subscription name and ID to `config/config-dev-ci.yaml` under `ci.dev.e2eSubscriptions`.
    - That list now feeds the `dev-ci` RBAC parameter templates directly, so a brand-new subscription does not require extra per-index template edits.
-   - In the same `config/config-dev-ci.yaml`, also add the subscription to the `opstool.tenantQuota` tenant's `subscriptions` list so the `tenant-quota-collector` tracks it. Set `roleAssignmentLimit: 8000` and list the same `regions` the pool runs in, matching the Role Assignment quota requested in step 2.
+   - In the same `config/config-dev-ci.yaml`, also add the subscription to the `opstool.tenantQuota` tenant's `subscriptions` list so the `tenant-quota-collector` tracks it. List the same `regions` the pool runs in; the collector retrieves the Role Assignment quota limit directly from Azure.
    - In a normal onboarding flow, `homeSubscription`, `sharedPrincipals`, and `msiMockPool.principals` should not need to change.
    - Apply the **privileged** customer-subscription grants (custom roles + shared-principal role assignments on the new subscription). This requires **Owner** on the target subscription, so it is **not** run by the `dev-ci` postsubmit — ask an OWNERS-group member to run it from the repo root:
      - `make dev-ci-privileged-local-run`

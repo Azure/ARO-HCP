@@ -25,13 +25,13 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestWriteError_TransactionPreconditionFailedBecomes429(t *testing.T) {
-	innerErr := database.NewTransactionStepError(6, 6, http.StatusPreconditionFailed, database.CosmosDBTransactionStepDetails{
+	innerErr := cosmosstorageutils.NewTransactionStepError(6, 6, http.StatusPreconditionFailed, cosmosstorageutils.CosmosDBTransactionStepDetails{
 		ActionType: "Replace",
 		CosmosID:   "cosmos-uid-abc123",
 		ResourceID: "/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster1",
@@ -41,9 +41,9 @@ func TestWriteError_TransactionPreconditionFailedBecomes429(t *testing.T) {
 	wrappedErr := utils.TrackError(innerErr)
 
 	t.Logf("error message: %s", wrappedErr)
-	t.Logf("IsPreconditionFailedError: %v", database.IsPreconditionFailedError(wrappedErr))
+	t.Logf("IsPreconditionFailedError: %v", cosmosstorageutils.IsPreconditionFailedError(wrappedErr))
 
-	var stepError *database.TransactionStepError
+	var stepError *cosmosstorageutils.TransactionStepError
 	if !errors.As(wrappedErr, &stepError) {
 		t.Fatal("expected errors.As to find TransactionStepError through LineTrackingError wrapper")
 	}
@@ -65,7 +65,7 @@ func TestWriteError_TransactionPreconditionFailedBecomes429(t *testing.T) {
 	resp := recorder.Result()
 	t.Logf("response status code: %d", resp.StatusCode)
 
-	var cloudErr arm.CloudError
+	var cloudErr coreapi.CloudError
 	if err := json.NewDecoder(resp.Body).Decode(&cloudErr); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}

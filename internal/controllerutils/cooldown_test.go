@@ -51,3 +51,90 @@ func TestTimeBasedCooldownChecker_RepeatedFalseDoesNotPreventTrue(t *testing.T) 
 		t.Fatal("expected CanSync to return true after cooldown expired")
 	}
 }
+
+func TestSettableCooldownChecker_NoKeyAlwaysAllowed(t *testing.T) {
+	checker := NewSettableCooldownChecker()
+	ctx := context.Background()
+
+	if !checker.CanSync(ctx, "unknown-key") {
+		t.Fatal("expected CanSync to return true for key with no cooldown set")
+	}
+}
+
+func TestSettableCooldownChecker_SetCooldownBlocksThenExpires(t *testing.T) {
+	startTime := time.Now()
+	fakeClock := clocktesting.NewFakePassiveClock(startTime)
+	checker := NewSettableCooldownChecker()
+	checker.SetClock(fakeClock)
+
+	ctx := context.Background()
+	key := "test-key"
+
+	checker.SetCooldown(key, 30*time.Second)
+
+	if checker.CanSync(ctx, key) {
+		t.Fatal("expected CanSync to return false within cooldown window")
+	}
+
+	fakeClock.SetTime(startTime.Add(29 * time.Second))
+	if checker.CanSync(ctx, key) {
+		t.Fatal("expected CanSync to return false just before cooldown expires")
+	}
+
+	fakeClock.SetTime(startTime.Add(31 * time.Second))
+	if !checker.CanSync(ctx, key) {
+		t.Fatal("expected CanSync to return true after cooldown expired")
+	}
+}
+
+func TestSettableCooldownChecker_TimeUntilReady(t *testing.T) {
+	startTime := time.Now()
+	fakeClock := clocktesting.NewFakePassiveClock(startTime)
+	checker := NewSettableCooldownChecker()
+	checker.SetClock(fakeClock)
+
+	key := "test-key"
+
+	if d := checker.TimeUntilReady(key); d != 0 {
+		t.Fatalf("expected 0 for key with no cooldown, got %v", d)
+	}
+
+	checker.SetCooldown(key, 60*time.Second)
+
+	if d := checker.TimeUntilReady(key); d != 60*time.Second {
+		t.Fatalf("expected 60s, got %v", d)
+	}
+
+	fakeClock.SetTime(startTime.Add(45 * time.Second))
+	if d := checker.TimeUntilReady(key); d != 15*time.Second {
+		t.Fatalf("expected 15s, got %v", d)
+	}
+
+	fakeClock.SetTime(startTime.Add(61 * time.Second))
+	if d := checker.TimeUntilReady(key); d != 0 {
+		t.Fatalf("expected 0 after expiry, got %v", d)
+	}
+}
+
+func TestSettableCooldownChecker_OverwriteCooldown(t *testing.T) {
+	startTime := time.Now()
+	fakeClock := clocktesting.NewFakePassiveClock(startTime)
+	checker := NewSettableCooldownChecker()
+	checker.SetClock(fakeClock)
+
+	ctx := context.Background()
+	key := "test-key"
+
+	checker.SetCooldown(key, 10*time.Second)
+	checker.SetCooldown(key, 60*time.Second)
+
+	fakeClock.SetTime(startTime.Add(11 * time.Second))
+	if checker.CanSync(ctx, key) {
+		t.Fatal("expected CanSync to return false; second SetCooldown should overwrite the first")
+	}
+
+	fakeClock.SetTime(startTime.Add(61 * time.Second))
+	if !checker.CanSync(ctx, key) {
+		t.Fatal("expected CanSync to return true after the overwritten cooldown expires")
+	}
+}

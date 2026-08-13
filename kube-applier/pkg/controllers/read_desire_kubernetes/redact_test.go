@@ -22,28 +22,28 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 )
 
 func TestIsSecret(t *testing.T) {
 	cases := []struct {
 		name string
-		ref  kubeapplier.ResourceReference
+		ref  kubeapplierapi.ResourceReference
 		want bool
 	}{
 		{
 			name: "core v1 secrets",
-			ref:  kubeapplier.ResourceReference{Group: "", Version: "v1", Resource: "secrets"},
+			ref:  kubeapplierapi.ResourceReference{Group: "", Version: "v1", Resource: "secrets"},
 			want: true,
 		},
 		{
 			name: "configmaps are not secrets",
-			ref:  kubeapplier.ResourceReference{Group: "", Version: "v1", Resource: "configmaps"},
+			ref:  kubeapplierapi.ResourceReference{Group: "", Version: "v1", Resource: "configmaps"},
 			want: false,
 		},
 		{
 			name: "non-core group with secrets resource name",
-			ref:  kubeapplier.ResourceReference{Group: "example.com", Version: "v1", Resource: "secrets"},
+			ref:  kubeapplierapi.ResourceReference{Group: "example.com", Version: "v1", Resource: "secrets"},
 			want: false,
 		},
 	}
@@ -274,8 +274,8 @@ func TestRedactSecret_FailsClosedOnUnparseableAnnotations(t *testing.T) {
 	}
 }
 
-func secretTarget(name string) kubeapplier.ResourceReference {
-	return kubeapplier.ResourceReference{
+func secretTarget(name string) kubeapplierapi.ResourceReference {
+	return kubeapplierapi.ResourceReference{
 		Group: "", Version: "v1", Resource: "secrets", Namespace: testTargetNs, Name: name,
 	}
 }
@@ -335,7 +335,7 @@ func TestSyncOnce_SecretTarget_RedactsUnsafeKeys(t *testing.T) {
 		}
 	}
 
-	cond := findCond(last.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
+	cond := findCond(last.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
 	if cond == nil || cond.Status != metav1.ConditionTrue {
 		t.Errorf("Successful=%v, want True", cond)
 	}

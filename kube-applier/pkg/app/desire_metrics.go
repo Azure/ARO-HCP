@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 )
 
 const desireCollectInterval = 30 * time.Second
@@ -67,14 +67,14 @@ func (c *desireCollector) collect() {
 	counts := initCounts()
 
 	for _, obj := range c.applyStore.List() {
-		if d, ok := obj.(*kubeapplier.ApplyDesire); ok {
+		if d, ok := obj.(*kubeapplierapi.ApplyDesire); ok {
 			countTrueConditions(counts["apply"], d.Status.Conditions)
 			// Record operation-level metrics for ApplyDesires
 			c.operationMetrics.recordApplyDesireOperation(d)
 		}
 	}
 	for _, obj := range c.readStore.List() {
-		if d, ok := obj.(*kubeapplier.ReadDesire); ok {
+		if d, ok := obj.(*kubeapplierapi.ReadDesire); ok {
 			countTrueConditions(counts["read"], d.Status.Conditions)
 			// Record operation-level metrics for ReadDesires
 			c.operationMetrics.recordReadDesireOperation(d)
@@ -93,7 +93,7 @@ func (c *desireCollector) collect() {
 
 // initCounts pre-seeds all label combinations to 0 so gauges go to zero when desires disappear.
 func initCounts() map[string]map[string]float64 {
-	condTypes := []string{kubeapplier.ConditionTypeSuccessful, kubeapplier.ConditionTypeDegraded}
+	condTypes := []string{kubeapplierapi.ConditionTypeSuccessful, kubeapplierapi.ConditionTypeDegraded}
 	counts := map[string]map[string]float64{}
 	for _, t := range []string{"apply", "read"} {
 		counts[t] = map[string]float64{}

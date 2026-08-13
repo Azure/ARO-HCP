@@ -48,6 +48,10 @@ var (
 	// exclusively by the upgrade/in-place suite — not part of any happy-path or
 	// api-compat suite.
 	UpgradeInPlace = ginkgo.Label("Upgrade-In-Place")
+	// HypershiftPresubmit marks tests that validate Control Plane Operator (CPO)
+	// behavior. Selected by the hypershift-presubmit/parallel suite so that
+	// HyperShift presubmit PRs can run a targeted subset of ARO-HCP e2e tests.
+	HypershiftPresubmit = ginkgo.Label("Hypershift-Presubmit")
 )
 
 var (
@@ -58,6 +62,12 @@ var (
 	// ARM templates) to communicate with ARO HCP RP, so that it can run
 	// against either ARO HCP RP or ARM endpoint.
 	AroRpApiCompatible = ginkgo.Label("ARO-HCP-RP-API-Compatible")
+	// AllowRetry marks a test as safe to auto-retry during an EV2 Stage/Prod
+	// gating run when it fails due to a known, actively tracked issue. This is
+	// a temporary measure with a TTL: every use must have an owner and a
+	// tracking issue, and the label must be removed once the underlying issue
+	// is fixed. See AROSLSRE-1721.
+	AllowRetry = ginkgo.Label("allow-retry")
 )
 
 // MIContainers declares how many managed identity containers a test needs.

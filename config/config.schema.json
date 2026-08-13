@@ -392,9 +392,9 @@
           ],
           "additionalProperties": false
         },
-        "regionEndpointDisabledRegions": {
-          "type": "string",
-          "description": "Space-separated list of replication regions whose regional data endpoint must be kept disabled, e.g. the eastus2euap canary replica. Optional; defaults to none."
+        "replicationState": {
+          "type": "boolean",
+          "description": "Whether this region's replica should have its regional data endpoint enabled. False for a canary/EUAP replica (e.g. eastus2euap) that must be kept disabled, see config.msft.clouds-overlay.yaml. Defaults to true (enabled)."
         }
       },
       "additionalProperties": false,
@@ -579,6 +579,11 @@
         },
         "upgradeSettings": {
           "$ref": "#/definitions/aksUpgradeSettings"
+        },
+        "tags": {
+          "type": "string",
+          "description": "CSV of key=value tag pairs for the AKS cluster resource (e.g. clusterType=svc-cluster,persist=true,owningTeam=myteam)",
+          "pattern": "^[A-Za-z0-9_.-]+=[A-Za-z0-9_.-]+(,[A-Za-z0-9_.-]+=[A-Za-z0-9_.-]+)*$"
         }
       },
       "required": [
@@ -1314,6 +1319,12 @@
     "armHelperTenantId": {
       "type": "string"
     },
+    "clustersServiceArmHelperClientId": {
+      "type": "string"
+    },
+    "clustersServiceArmHelperCertName": {
+      "type": "string"
+    },
     "backend": {
       "type": "object",
       "properties": {
@@ -1345,6 +1356,16 @@
         "maestro": {
           "$ref": "#/definitions/backendMaestroConfig"
         },
+        "backupCadenceProfile": {
+          "type": "string",
+          "description": "Backup cadence profile: 'production' creates hourly/daily/weekly schedules, 'testing' creates a 10-minute cycle schedule",
+          "enum": ["production", "testing"]
+        },
+        "backupScheduleState": {
+          "type": "string",
+          "description": "Controls Velero schedule CRs for hosted cluster backups: 'Enabled' sets spec.paused=false, 'Disabled' sets spec.paused=true",
+          "enum": ["Enabled", "Disabled"]
+        },
         "exitOnPanic": {
           "type": "boolean",
           "description": "If true, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
@@ -1366,6 +1387,8 @@
         "managedIdentityName",
         "azureRuntimeConfig",
         "maestro",
+        "backupCadenceProfile",
+        "backupScheduleState",
         "exitOnPanic",
         "logVerbosity",
         "clusterScopedIdentitiesConfig"
@@ -1448,13 +1471,25 @@
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by the mgmt-agent to interact with Azure"
+        },
+        "nodeHealth": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether the mgmt-agent node-health detection controller is enabled. On by default. It only labels and annotates a node it believes is wedged and emits a metric; set this to false per environment to opt out."
+            }
+          },
+          "additionalProperties": false,
+          "required": ["enabled"]
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
         "k8s",
-        "managedIdentityName"
+        "managedIdentityName",
+        "nodeHealth"
       ]
     },
     "kubeApplier": {
@@ -1696,6 +1731,10 @@
         "rg": {
           "$ref": "#/definitions/resourceGroupName"
         },
+        "useGlobalMeterIds": {
+          "type": "boolean",
+          "description": "If true, all SKUs bill to the global meter for their vCPU count."
+        },
         "aub": {
           "type": "object",
           "properties": {
@@ -1789,6 +1828,7 @@
       "additionalProperties": false,
       "required": [
         "rg",
+        "useGlobalMeterIds",
         "aub",
         "pav2",
         "kusto",
@@ -2683,6 +2723,14 @@
           "type": "string",
           "description": "The collectors to enable for the exporter. Comma separated list of collectors."
         },
+        "clusterTypes": {
+          "type": "string",
+          "description": "Comma-separated list of AKS clusterType tag values to discover via Resource Graph (e.g. 'svc-cluster,mgmt-cluster')"
+        },
+        "clusterNameFilter": {
+          "type": "string",
+          "description": "Substring filter for discovered cluster names. Only clusters whose name contains this value will be included. Use environment-region prefix to scope to a specific deployment (e.g. 'cspr-westus3')."
+        },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         }
@@ -2691,7 +2739,9 @@
       "required": [
         "image",
         "managedIdentityName",
-        "k8s"
+        "k8s",
+        "clusterTypes",
+        "clusterNameFilter"
       ]
     },
     "kubeEvents": {
@@ -3542,9 +3592,6 @@
           "description": "A space-separated list of Service Principals IDs, Types and their desired grafana roles The format is: <principalId>/<principalType>/<role>, e.g. 12345678-1234-1234-1234-123456789012/Group/Admin",
           "pattern": "^$|^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\/(Group|ServicePrincipal|User)\\/(Contributor|Admin|Viewer)\\s*)+$"
         },
-        "grafanaMajorVersion": {
-          "type": "string"
-        },
         "billingKustoName": {
           "type": "string"
         },
@@ -3566,7 +3613,6 @@
         "kustoName",
         "grafanaName",
         "grafanaRoles",
-        "grafanaMajorVersion",
         "billingKustoName",
         "billingKustoSku"
       ]

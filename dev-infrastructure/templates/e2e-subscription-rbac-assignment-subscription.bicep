@@ -12,6 +12,12 @@ param miMockPrincipalId string
 @description('Pooled MSI mock principals that also need customer-subscription access')
 param msiMockPoolPrincipals array = []
 
+@description('Pooled ARM helper principals that need E2E customer-subscription access')
+param armHelperPoolPrincipals array = []
+
+@description('Clusters Service ARM helper principal that needs E2E customer-subscription access')
+param clustersServiceArmHelperPrincipalId string = ''
+
 @description('Custom role name for the first-party mock principal')
 param firstPartyRoleName string = 'dev-first-party-mock'
 
@@ -188,3 +194,47 @@ resource pooledMiMockKmsRoleAssignments 'Microsoft.Authorization/roleAssignments
     }
   }
 ]
+
+resource pooledArmHelperContributorRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for principal in armHelperPoolPrincipals: {
+    name: guid(subscription().id, principal.principalId, contributorRoleDefinitionId)
+    scope: subscription()
+    properties: {
+      principalId: principal.principalId
+      principalType: 'ServicePrincipal'
+      roleDefinitionId: contributorRoleDefinitionId
+    }
+  }
+]
+
+resource pooledArmHelperRbacAdminRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for principal in armHelperPoolPrincipals: {
+    name: guid(subscription().id, principal.principalId, rbacAdminRoleDefinitionId)
+    scope: subscription()
+    properties: {
+      principalId: principal.principalId
+      principalType: 'ServicePrincipal'
+      roleDefinitionId: rbacAdminRoleDefinitionId
+    }
+  }
+]
+
+resource clustersServiceArmHelperContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(clustersServiceArmHelperPrincipalId)) {
+  name: guid(subscription().id, clustersServiceArmHelperPrincipalId, contributorRoleDefinitionId)
+  scope: subscription()
+  properties: {
+    principalId: clustersServiceArmHelperPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: contributorRoleDefinitionId
+  }
+}
+
+resource clustersServiceArmHelperRbacAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(clustersServiceArmHelperPrincipalId)) {
+  name: guid(subscription().id, clustersServiceArmHelperPrincipalId, rbacAdminRoleDefinitionId)
+  scope: subscription()
+  properties: {
+    principalId: clustersServiceArmHelperPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: rbacAdminRoleDefinitionId
+  }
+}

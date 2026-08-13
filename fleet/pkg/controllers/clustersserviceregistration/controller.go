@@ -28,26 +28,27 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type ProvisionShardClient interface {
-	GetProvisionShard(ctx context.Context, internalID api.InternalID) (*arohcpv1alpha1.ProvisionShard, error)
+	GetProvisionShard(ctx context.Context, internalID metadataapi.InternalID) (*arohcpv1alpha1.ProvisionShard, error)
 	ListProvisionShards() ocm.ProvisionShardListIterator
 	PostProvisionShard(ctx context.Context, builder *arohcpv1alpha1.ProvisionShardBuilder) (*arohcpv1alpha1.ProvisionShard, error)
-	UpdateProvisionShard(ctx context.Context, internalID api.InternalID, builder *arohcpv1alpha1.ProvisionShardBuilder) (*arohcpv1alpha1.ProvisionShard, error)
+	UpdateProvisionShard(ctx context.Context, internalID metadataapi.InternalID, builder *arohcpv1alpha1.ProvisionShardBuilder) (*arohcpv1alpha1.ProvisionShard, error)
 }
 
 type clustersServiceRegistrationSyncer struct {
-	fleetDBClient         database.FleetDBClient
+	fleetDBClient         fleetcosmosstorage.FleetDBClient
 	clustersServiceClient ProvisionShardClient
-	stampLister           listers.StampLister
+	stampLister           fleetlisters.StampLister
 	region                string
 }
 
@@ -56,9 +57,9 @@ type clustersServiceRegistrationSyncer struct {
 func NewClustersServiceRegistrationController(
 	managementClusterInformer cache.SharedIndexInformer,
 	stampInformer cache.SharedIndexInformer,
-	fleetDBClient database.FleetDBClient,
+	fleetDBClient fleetcosmosstorage.FleetDBClient,
 	clustersServiceClient ProvisionShardClient,
-	stampLister listers.StampLister,
+	stampLister fleetlisters.StampLister,
 	region string,
 	cfg fleetcontrollers.StampWatchingControllerConfig,
 ) *fleetcontrollers.StampWatchingController {
@@ -84,9 +85,9 @@ func NewClustersServiceRegistrationController(
 
 func (s *clustersServiceRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.StampKey) error {
 	managementClusterCRUD := s.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier)
-	managementCluster, err := managementClusterCRUD.Get(ctx, fleet.ManagementClusterResourceName)
+	managementCluster, err := managementClusterCRUD.Get(ctx, fleetapi.ManagementClusterResourceName)
 	if err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			return nil
 		}
 		return utils.TrackError(err)
@@ -94,7 +95,7 @@ func (s *clustersServiceRegistrationSyncer) SyncOnce(ctx context.Context, key fl
 
 	stamp, err := s.stampLister.Get(ctx, key.StampIdentifier)
 	if err != nil {
-		if database.IsNotFoundError(err) {
+		if cosmosstorageutils.IsNotFoundError(err) {
 			utils.LoggerFromContext(ctx).Info("stamp not found in lister, skipping")
 			return nil
 		}
@@ -104,18 +105,18 @@ func (s *clustersServiceRegistrationSyncer) SyncOnce(ctx context.Context, key fl
 	updated := managementCluster.DeepCopy()
 
 	var syncErr error
-	if !apimeta.IsStatusConditionTrue(stamp.Status.Conditions, string(fleet.StampConditionApproved)) {
+	if !apimeta.IsStatusConditionTrue(stamp.Status.Conditions, string(fleetapi.StampConditionApproved)) {
 		// an unapproved stamp is not a sync error
 		// the controller will wake up when the stamp is approved and try again
 		// we update the condition though to reflect the fact
-		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleet.ManagementClusterConditionClustersServiceRegistered), fleetcontrollers.ErrStampNotApproved)
+		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleetapi.ManagementClusterConditionClustersServiceRegistered), fleetcontrollers.ErrStampNotApproved)
 	} else {
-		var shardID *api.InternalID
+		var shardID *metadataapi.InternalID
 		shardID, syncErr = s.reconcileProvisionShard(ctx, updated)
 		if shardID != nil {
 			updated.Status.ClusterServiceProvisionShardID = shardID
 		}
-		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleet.ManagementClusterConditionClustersServiceRegistered), syncErr)
+		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleetapi.ManagementClusterConditionClustersServiceRegistered), syncErr)
 	}
 
 	if controllerutils.NeedsUpdate(managementCluster, updated) {
@@ -133,8 +134,8 @@ func (s *clustersServiceRegistrationSyncer) SyncOnce(ctx context.Context, key fl
 
 func (s *clustersServiceRegistrationSyncer) reconcileProvisionShard(
 	ctx context.Context,
-	managementCluster *fleet.ManagementCluster,
-) (*api.InternalID, error) {
+	managementCluster *fleetapi.ManagementCluster,
+) (*metadataapi.InternalID, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	existingID, existing, err := s.findExistingProvisionShard(ctx, managementCluster)
@@ -159,7 +160,7 @@ func (s *clustersServiceRegistrationSyncer) reconcileProvisionShard(
 	if err != nil {
 		return nil, fmt.Errorf("creating provision shard: %w", err)
 	}
-	createdID, err := api.NewInternalID(created.HREF())
+	createdID, err := metadataapi.NewInternalID(created.HREF())
 	if err != nil {
 		return nil, fmt.Errorf("parsing created provision shard HREF: %w", err)
 	}
@@ -175,9 +176,9 @@ func (s *clustersServiceRegistrationSyncer) reconcileProvisionShard(
 
 func (s *clustersServiceRegistrationSyncer) updateShardStatusIfNeeded(
 	ctx context.Context,
-	shardID api.InternalID,
+	shardID metadataapi.InternalID,
 	shard *arohcpv1alpha1.ProvisionShard,
-	managementCluster *fleet.ManagementCluster,
+	managementCluster *fleetapi.ManagementCluster,
 ) error {
 	builder, err := provisionShardStatusUpdateBuilder(shard, managementCluster.Spec.SchedulingPolicy)
 	if err != nil {
@@ -204,8 +205,8 @@ func (s *clustersServiceRegistrationSyncer) updateShardStatusIfNeeded(
 // data corruption, not a race.
 func (s *clustersServiceRegistrationSyncer) findExistingProvisionShard(
 	ctx context.Context,
-	managementCluster *fleet.ManagementCluster,
-) (*api.InternalID, *arohcpv1alpha1.ProvisionShard, error) {
+	managementCluster *fleetapi.ManagementCluster,
+) (*metadataapi.InternalID, *arohcpv1alpha1.ProvisionShard, error) {
 	if managementCluster.Status.AKSResourceID == nil {
 		return nil, nil, fmt.Errorf("AKSResourceID is required")
 	}
@@ -227,9 +228,9 @@ func (s *clustersServiceRegistrationSyncer) findExistingProvisionShard(
 // fields match, and returns an error if the expected shard is not found (404).
 func (s *clustersServiceRegistrationSyncer) getByStoredID(
 	ctx context.Context,
-	storedID api.InternalID,
+	storedID metadataapi.InternalID,
 	aksResourceID, consumerName string,
-) (*api.InternalID, *arohcpv1alpha1.ProvisionShard, error) {
+) (*metadataapi.InternalID, *arohcpv1alpha1.ProvisionShard, error) {
 	shard, err := s.clustersServiceClient.GetProvisionShard(ctx, storedID)
 	if err != nil {
 		if isOCMNotFound(err) {

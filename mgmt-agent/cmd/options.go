@@ -29,6 +29,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
@@ -36,10 +37,14 @@ import (
 	dynamicinformer "k8s.io/client-go/dynamic/dynamicinformer"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog/v2"
 
@@ -51,6 +56,7 @@ import (
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/nodehealth"
 )
 
 const (
@@ -64,12 +70,17 @@ type RawControllerOptions struct {
 	Workers       int
 	LogVerbosity  int
 	KSMImage      string
+
+	NodeHealthConfigMapName string
+	NodeHealthConfigKey     string
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
 	return &RawControllerOptions{
-		HealthAddress: ":8080",
-		Workers:       2,
+		HealthAddress:           ":8080",
+		Workers:                 2,
+		NodeHealthConfigMapName: "mgmt-agent-node-health",
+		NodeHealthConfigKey:     "config.yaml",
 	}
 }
 
@@ -82,6 +93,10 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 		"Log verbosity. 0 is the default verbosity level, equivalent to INFO. "+
 			"It must be a value >= 0, where a higher value means more verbose output.")
 	cmd.Flags().StringVar(&o.KSMImage, "ksm-image", o.KSMImage, "Container image for kube-state-metrics deployed per HCP namespace")
+	cmd.Flags().StringVar(&o.NodeHealthConfigMapName, "node-health-configmap", o.NodeHealthConfigMapName,
+		"Name of the ConfigMap (in --namespace) holding the node-health configuration. The controller is disabled until this ConfigMap enables it.")
+	cmd.Flags().StringVar(&o.NodeHealthConfigKey, "node-health-config-key", o.NodeHealthConfigKey,
+		"Key within the node-health ConfigMap that holds the YAML configuration.")
 
 	return nil
 }
@@ -97,6 +112,7 @@ type ValidatedControllerOptions struct {
 type completedControllerOptions struct {
 	ctrl                     *controller.SwiftNICController
 	ksmCtrl                  *ksmhcp.KSMHCPController
+	nodeHealth               *nodehealth.Controller
 	resourceWatcher          *controller.ResourceWatcher
 	podWatcher               *controller.PodWatcher
 	configMapWatcher         *controller.ConfigMapWatcher
@@ -104,6 +120,8 @@ type completedControllerOptions struct {
 	ksmKubeInformers         kubeinformers.SharedInformerFactory
 	clusterWideKubeInformers kubeinformers.SharedInformerFactory
 	cmWatcherInformers       kubeinformers.SharedInformerFactory
+	nodeHealthInformers      kubeinformers.SharedInformerFactory
+	nodeHealthCMInformers    kubeinformers.SharedInformerFactory
 	hypershiftInformers      hypershiftinformers.SharedInformerFactory
 	dynamicInformers         dynamicinformer.DynamicSharedInformerFactory
 	workers                  int
@@ -188,6 +206,68 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create ConfigMap watcher: %w", err)
 	}
 
+	// Node-health controller. It watches Nodes, Pods, and kubelet Pod Events
+	// through shared informers, and labels "Ready but wedged" nodes. It starts
+	// disabled and is enabled/tuned via its ConfigMap.
+	nodehealth.RegisterMetrics()
+
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClientset.CoreV1().Events("")})
+	nodeHealthRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "mgmt-agent-node-health"})
+	// Shut the broadcaster's background goroutines down when the process context
+	// is cancelled, so we do not leak them on shutdown.
+	go func() {
+		defer utilruntime.HandleCrash()
+		<-ctx.Done()
+		eventBroadcaster.Shutdown()
+	}()
+
+	// Events informer scoped to Pod-involved events to bound cache size.
+	nodeHealthInformers := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClientset, 0,
+		kubeinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+			opts.FieldSelector = "involvedObject.kind=Pod"
+		}),
+	)
+
+	nodeHealth, err := nodehealth.NewController(
+		kubeClientset,
+		kubeInformers.Core().V1().Nodes(),
+		clusterWideKubeInformers.Core().V1().Pods(),
+		nodeHealthInformers.Core().V1().Events(),
+		nodeHealthRecorder,
+		nil, // real clock
+		nodehealth.Default(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create node-health controller: %w", err)
+	}
+
+	// ConfigMap informer scoped to the node-health config for hot-reload.
+	nodeHealthCMInformers := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClientset, 0,
+		kubeinformers.WithNamespace(o.Namespace),
+		kubeinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+			opts.FieldSelector = "metadata.name=" + o.NodeHealthConfigMapName
+		}),
+	)
+	nodeHealthConfigKey := o.NodeHealthConfigKey
+	if _, err := nodeHealthCMInformers.Core().V1().ConfigMaps().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			if cm, ok := obj.(*corev1.ConfigMap); ok {
+				nodeHealth.OnConfigMap(cm, nodeHealthConfigKey)
+			}
+		},
+		UpdateFunc: func(_, newObj interface{}) {
+			if cm, ok := newObj.(*corev1.ConfigMap); ok {
+				nodeHealth.OnConfigMap(cm, nodeHealthConfigKey)
+			}
+		},
+		DeleteFunc: func(_ interface{}) {
+			nodeHealth.OnConfigMapDeleted()
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("failed to add node-health ConfigMap handler: %w", err)
+	}
+
 	var ksmCtrl *ksmhcp.KSMHCPController
 	var hsInformers hypershiftinformers.SharedInformerFactory
 	var ksmKubeInformers kubeinformers.SharedInformerFactory
@@ -238,6 +318,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		completedControllerOptions: &completedControllerOptions{
 			ctrl:                     ctrl,
 			ksmCtrl:                  ksmCtrl,
+			nodeHealth:               nodeHealth,
 			resourceWatcher:          resourceWatcher,
 			podWatcher:               podWatcher,
 			configMapWatcher:         configMapWatcher,
@@ -245,6 +326,8 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			ksmKubeInformers:         ksmKubeInformers,
 			clusterWideKubeInformers: clusterWideKubeInformers,
 			cmWatcherInformers:       cmWatcherInformers,
+			nodeHealthInformers:      nodeHealthInformers,
+			nodeHealthCMInformers:    nodeHealthCMInformers,
 			hypershiftInformers:      hsInformers,
 			dynamicInformers:         dynInformers,
 			workers:                  o.Workers,
@@ -360,11 +443,24 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 				if o.cmWatcherInformers != nil {
 					o.cmWatcherInformers.Start(ctx.Done())
 				}
+				if o.nodeHealthInformers != nil {
+					o.nodeHealthInformers.Start(ctx.Done())
+				}
+				if o.nodeHealthCMInformers != nil {
+					o.nodeHealthCMInformers.Start(ctx.Done())
+				}
 
 				go func() {
 					defer utilruntime.HandleCrash()
 					if err := o.ctrl.Run(ctx, o.workers); err != nil {
 						logger.Error(err, "SwiftNIC controller failed")
+					}
+				}()
+
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.nodeHealth.Run(ctx, o.workers); err != nil {
+						logger.Error(err, "node-health controller failed")
 					}
 				}()
 

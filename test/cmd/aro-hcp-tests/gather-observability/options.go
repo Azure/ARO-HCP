@@ -21,11 +21,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/clock"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -33,7 +35,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/internal/testutil"
 	"github.com/Azure/ARO-HCP/test/util/junit"
@@ -167,8 +169,8 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	workspaces := map[string]azcorearm.ResourceID{
-		workspaceSvc: *api.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", o.SubscriptionID, regionRG, svcWorkspace))),
-		workspaceHcp: *api.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", o.SubscriptionID, regionRG, hcpWorkspace))),
+		workspaceSvc: *metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", o.SubscriptionID, regionRG, svcWorkspace))),
+		workspaceHcp: *metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", o.SubscriptionID, regionRG, hcpWorkspace))),
 	}
 
 	queries, err := loadQueriesConfig()
@@ -204,14 +206,44 @@ func (o Options) Run(ctx context.Context) error {
 		return fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	workspaces := make(map[string]*workspaceData, len(o.Workspaces))
+	// Deduplicate resource groups across workspaces and fetch all alert
+	// data once per resource group, then subdivide into workspace-scoped
+	// (Prometheus) and infrastructure (metric) groups.
+	resourceGroups := uniqueResourceGroups(o.Workspaces)
+
+	var allAlerts []alert
+	var metricAlertRules []string
+	for _, scope := range sets.List(resourceGroups) {
+		rgID, err := azcorearm.ParseResourceID(scope)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to parse resource group ID %s: %w", scope, err))
+		}
+		rgAlerts, err := fetchAlerts(ctx, o.cred, scope, o.TimeWindow.Start, o.TimeWindow.End)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to fetch alerts for %s: %w", scope, err))
+		}
+		allAlerts = append(allAlerts, rgAlerts...)
+
+		rgRules, err := fetchMetricAlertRules(ctx, o.cred, rgID.SubscriptionID, rgID.ResourceGroupName)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to fetch metric alert rules for %s: %w", scope, err))
+		}
+		metricAlertRules = append(metricAlertRules, rgRules...)
+	}
+	sortAlerts(allAlerts)
+	slices.Sort(metricAlertRules)
+	logger.Info("fetched alert data", "resourceGroups", len(resourceGroups), "alerts", len(allAlerts), "metricAlertRules", len(metricAlertRules))
+
+	workspaces := make(map[string]*workspaceData, len(o.Workspaces)+1)
 	for wsType, ws := range o.Workspaces {
-		wsData, err := fetchWorkspaceData(ctx, o.cred, wsType, ws, o.TimeWindow.Start, o.TimeWindow.End, o.SeverityThreshold, o.knownIssues)
+		wsData, err := fetchWorkspaceData(ctx, o.cred, wsType, ws, allAlerts, o.SeverityThreshold, o.knownIssues)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to fetch data for %s workspace: %w", wsType, err))
 		}
 		workspaces[wsType] = wsData
 	}
+
+	workspaces[workspaceInfra] = buildInfraAlertData(allAlerts, metricAlertRules, o.SeverityThreshold, o.knownIssues)
 
 	// Collect all alerts across workspaces for JSON/HTML output
 	var alerts []alert
@@ -324,7 +356,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				results = resp.Data.Result
 			}
 
-			panelCharts = append(panelCharts, buildChartData(q.Title, q.Description, q.Query, q.Unit, queryErr, results, o.TimeWindow, q.MinPeakThreshold))
+			panelCharts = append(panelCharts, buildChartData(q, queryErr, results, o.TimeWindow))
 		}
 
 		// filename must match the Spyglass HTML lens regex .*-summary.*\.html

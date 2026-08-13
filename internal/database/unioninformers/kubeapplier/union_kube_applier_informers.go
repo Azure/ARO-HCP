@@ -19,14 +19,14 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database/informers"
-	"github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	unionlisterskubeapplier "github.com/Azure/ARO-HCP/internal/database/unionlisters/kubeapplier"
 )
 
 // UnionKubeApplierInformers is the union peer of
-// informers.KubeApplierInformers. It exposes one (UnionDesireInformer, lister)
+// kubeapplierinformers.KubeApplierInformers. It exposes one (UnionDesireInformer, lister)
 // pair per *Desire type, but each pair fans out across every
 // per-management-cluster KubeApplierInformers that has been Added.
 //
@@ -52,8 +52,8 @@ type UnionKubeApplierInformers struct {
 	applyInformer *UnionDesireInformer
 	readInformer  *UnionDesireInformer
 
-	applyLister *unionlisterskubeapplier.UnionDesireLister[kubeapplier.ApplyDesire]
-	readLister  *unionlisterskubeapplier.UnionDesireLister[kubeapplier.ReadDesire]
+	applyLister *unionlisterskubeapplier.UnionDesireLister[kubeapplierapi.ApplyDesire]
+	readLister  *unionlisterskubeapplier.UnionDesireLister[kubeapplierapi.ReadDesire]
 }
 
 // NewUnionKubeApplierInformers returns an empty aggregator. Call Add to
@@ -63,20 +63,20 @@ func NewUnionKubeApplierInformers() *UnionKubeApplierInformers {
 		applyInformer: NewUnionDesireInformer(),
 		readInformer:  NewUnionDesireInformer(),
 
-		applyLister: unionlisterskubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire](),
-		readLister:  unionlisterskubeapplier.NewUnionDesireLister[kubeapplier.ReadDesire](),
+		applyLister: unionlisterskubeapplier.NewUnionDesireLister[kubeapplierapi.ApplyDesire](),
+		readLister:  unionlisterskubeapplier.NewUnionDesireLister[kubeapplierapi.ReadDesire](),
 	}
 }
 
 // ApplyDesires returns the union ApplyDesire informer and lister. Event
 // handlers registered on the returned informer fan out to every
 // per-management-cluster sub-informer (current and future).
-func (u *UnionKubeApplierInformers) ApplyDesires() (*UnionDesireInformer, listers.ApplyDesireLister) {
+func (u *UnionKubeApplierInformers) ApplyDesires() (*UnionDesireInformer, kubeapplierlisters.ApplyDesireLister) {
 	return u.applyInformer, u.applyLister
 }
 
 // ReadDesires returns the union ReadDesire informer and lister.
-func (u *UnionKubeApplierInformers) ReadDesires() (*UnionDesireInformer, listers.ReadDesireLister) {
+func (u *UnionKubeApplierInformers) ReadDesires() (*UnionDesireInformer, kubeapplierlisters.ReadDesireLister) {
 	return u.readInformer, u.readLister
 }
 
@@ -93,7 +93,7 @@ func (u *UnionKubeApplierInformers) ReadDesires() (*UnionDesireInformer, listers
 // A nil resourceID or nil sub is a no-op. The error is non-nil only when a
 // sub-informer rejects the union's previously-registered handlers; in that
 // case the partial registration on the lister side is rolled back.
-func (u *UnionKubeApplierInformers) Add(managementClusterResourceID *azcorearm.ResourceID, sub informers.KubeApplierInformers) error {
+func (u *UnionKubeApplierInformers) Add(managementClusterResourceID *azcorearm.ResourceID, sub kubeapplierinformers.KubeApplierInformers) error {
 	if managementClusterResourceID == nil || sub == nil {
 		return nil
 	}

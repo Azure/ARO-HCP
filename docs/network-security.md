@@ -31,17 +31,17 @@ subscriptions: [
 ]
 ```
 
-EV2 needs acces to some key vaults in order to manage them. For securing that access a list of service tags that should get access can be leveraged for this.
+EV2 needs access to some key vaults in order to manage them. For securing that access a list of service tags that should get access can be leveraged for this.
 
 ## Private Endpoint
 
 Private endpoint traffic is considered highly secure and therefore isn't subject to Network Security Perimeter rules.
 
-A private endpoint grants access to a PaaS resource by creating a VNET local IP with an DNS record.
+A private endpoint grants access to a PaaS resource by creating a VNET local IP with a DNS record.
 
 ### Deployment
 
-We provide a module that helps creating all resource required for a private endpoint: `private-endpoint.bicep`. See that module and it's usage for more details on the resource involved.
+We provide a module that helps creating all resource required for a private endpoint: `private-endpoint.bicep`. See that module and its usage for more details on the resource involved.
 
 ## Comparison
 

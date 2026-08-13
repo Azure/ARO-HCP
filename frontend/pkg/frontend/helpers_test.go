@@ -26,76 +26,77 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestCheckForProvisioningStateConflict(t *testing.T) {
 
-	parentConflictFunc := func(s arm.ProvisioningState) bool {
-		return s == arm.ProvisioningStateProvisioning || s == arm.ProvisioningStateDeleting
+	parentConflictFunc := func(s coreapi.ProvisioningState) bool {
+		return s == coreapi.ProvisioningStateProvisioning || s == coreapi.ProvisioningStateDeleting
 	}
 
 	tests := []struct {
 		name             string
 		resourceID       string
-		operationRequest database.OperationRequest
-		directConflict   func(arm.ProvisioningState) bool
-		parentConflict   func(arm.ProvisioningState) bool
+		operationRequest cosmosstorageutils.OperationRequest
+		directConflict   func(coreapi.ProvisioningState) bool
+		parentConflict   func(coreapi.ProvisioningState) bool
 	}{
 		{
 			name:             "Create cluster",
-			resourceID:       api.TestClusterResourceID,
-			operationRequest: database.OperationRequestCreate,
-			directConflict:   func(s arm.ProvisioningState) bool { return false },
+			resourceID:       coreapitesting.TestClusterResourceID,
+			operationRequest: cosmosstorageutils.OperationRequestCreate,
+			directConflict:   func(s coreapi.ProvisioningState) bool { return false },
 		},
 		{
 			name:             "Delete cluster",
-			resourceID:       api.TestClusterResourceID,
-			operationRequest: database.OperationRequestDelete,
-			directConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
+			resourceID:       coreapitesting.TestClusterResourceID,
+			operationRequest: cosmosstorageutils.OperationRequestDelete,
+			directConflict:   func(s coreapi.ProvisioningState) bool { return s == coreapi.ProvisioningStateDeleting },
 		},
 		{
 			name:             "Update cluster",
-			resourceID:       api.TestClusterResourceID,
-			operationRequest: database.OperationRequestUpdate,
-			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
+			resourceID:       coreapitesting.TestClusterResourceID,
+			operationRequest: cosmosstorageutils.OperationRequestUpdate,
+			directConflict:   func(s coreapi.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Request cluster credential",
-			resourceID:       api.TestClusterResourceID,
-			operationRequest: database.OperationRequestRequestCredential,
-			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
+			resourceID:       coreapitesting.TestClusterResourceID,
+			operationRequest: cosmosstorageutils.OperationRequestSystemAdminCredentialRequest,
+			directConflict:   func(s coreapi.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Revoke cluster credentials",
-			resourceID:       api.TestClusterResourceID,
-			operationRequest: database.OperationRequestRevokeCredentials,
-			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
+			resourceID:       coreapitesting.TestClusterResourceID,
+			operationRequest: cosmosstorageutils.OperationRequestSystemAdminCredentialRevocation,
+			directConflict:   func(s coreapi.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Create node pool",
-			resourceID:       api.TestNodePoolResourceID,
-			operationRequest: database.OperationRequestCreate,
-			directConflict:   func(s arm.ProvisioningState) bool { return false },
+			resourceID:       coreapitesting.TestNodePoolResourceID,
+			operationRequest: cosmosstorageutils.OperationRequestCreate,
+			directConflict:   func(s coreapi.ProvisioningState) bool { return false },
 			parentConflict:   parentConflictFunc,
 		},
 		{
 			name:             "Delete node pool",
-			resourceID:       api.TestNodePoolResourceID,
-			operationRequest: database.OperationRequestDelete,
-			directConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
+			resourceID:       coreapitesting.TestNodePoolResourceID,
+			operationRequest: cosmosstorageutils.OperationRequestDelete,
+			directConflict:   func(s coreapi.ProvisioningState) bool { return s == coreapi.ProvisioningStateDeleting },
 			parentConflict:   parentConflictFunc,
 		},
 		{
 			name:             "Update node pool",
-			resourceID:       api.TestNodePoolResourceID,
-			operationRequest: database.OperationRequestUpdate,
-			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
+			resourceID:       coreapitesting.TestNodePoolResourceID,
+			operationRequest: cosmosstorageutils.OperationRequestUpdate,
+			directConflict:   func(s coreapi.ProvisioningState) bool { return !s.IsTerminal() },
 			parentConflict:   parentConflictFunc,
 		},
 	}
@@ -106,11 +107,11 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 		resourceID, err := azcorearm.ParseResourceID(tt.resourceID)
 		require.NoError(t, err)
 
-		for provisioningState := range arm.ListProvisioningStates() {
+		for provisioningState := range coreapi.ListProvisioningStates() {
 			name = fmt.Sprintf("%s (provisioningState=%s)", tt.name, provisioningState)
 			t.Run(name, func(t *testing.T) {
 				ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-				mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+				mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 				frontend := &Frontend{
 					resourcesDBClient: mockResourcesDBClient,
@@ -119,19 +120,19 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				// Pre-populate the parent cluster in the database for nested resources (node pool, external auth)
 				if tt.parentConflict != nil {
 					parentResourceID := resourceID.Parent
-					clusterInternalID := api.Must(api.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
-					parentCluster := &api.HCPOpenShiftCluster{
-						CosmosMetadata: arm.CosmosMetadata{
+					clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
+					parentCluster := &coreapi.HCPOpenShiftCluster{
+						CosmosMetadata: coreapi.CosmosMetadata{
 							ResourceID:   parentResourceID,
 							PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
 						},
-						TrackedResource: arm.TrackedResource{
-							Resource: arm.Resource{
+						TrackedResource: coreapi.TrackedResource{
+							Resource: coreapi.Resource{
 								ID: parentResourceID,
 							},
 						},
-						ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-							ProvisioningState: arm.ProvisioningStateSucceeded,
+						ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+							ProvisioningState: coreapi.ProvisioningStateSucceeded,
 							ClusterServiceID:  &clusterInternalID,
 						},
 					}
@@ -145,19 +146,19 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 						t.Errorf("Expected %d %s but got no error", http.StatusConflict, http.StatusText(http.StatusConflict))
 					}
 				} else {
-					if !tt.directConflict(provisioningState) || cloudError.(*arm.CloudError).StatusCode != http.StatusConflict {
-						t.Errorf("Got unexpected error: %d %s", cloudError.(*arm.CloudError).StatusCode, http.StatusText(cloudError.(*arm.CloudError).StatusCode))
+					if !tt.directConflict(provisioningState) || cloudError.(*coreapi.CloudError).StatusCode != http.StatusConflict {
+						t.Errorf("Got unexpected error: %d %s", cloudError.(*coreapi.CloudError).StatusCode, http.StatusText(cloudError.(*coreapi.CloudError).StatusCode))
 					}
 				}
 			})
 		}
 
 		if tt.parentConflict != nil {
-			for provisioningState := range arm.ListProvisioningStates() {
+			for provisioningState := range coreapi.ListProvisioningStates() {
 				name = fmt.Sprintf("%s (parent provisioningState=%s)", tt.name, provisioningState)
 				t.Run(name, func(t *testing.T) {
 					ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-					mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+					mockResourcesDBClient := corecosmosstoragetesting.NewMockResourcesDBClient()
 
 					frontend := &Frontend{
 						resourcesDBClient: mockResourcesDBClient,
@@ -166,18 +167,18 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 					parentResourceID := resourceID.Parent
 					if parentResourceID.ResourceType.Namespace == resourceID.ResourceType.Namespace {
 						// Pre-populate the parent cluster with the test provisioning state
-						clusterInternalID := api.Must(api.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
-						parentCluster := &api.HCPOpenShiftCluster{
-							CosmosMetadata: arm.CosmosMetadata{
+						clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
+						parentCluster := &coreapi.HCPOpenShiftCluster{
+							CosmosMetadata: coreapi.CosmosMetadata{
 								ResourceID:   parentResourceID,
 								PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
 							},
-							TrackedResource: arm.TrackedResource{
-								Resource: arm.Resource{
+							TrackedResource: coreapi.TrackedResource{
+								Resource: coreapi.Resource{
 									ID: parentResourceID,
 								},
 							},
-							ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+							ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 								ProvisioningState: provisioningState,
 								ClusterServiceID:  &clusterInternalID,
 							},
@@ -189,15 +190,15 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 							resourceID.ResourceType.Namespace)
 					}
 
-					cloudError := checkForProvisioningStateConflict(ctx, frontend.resourcesDBClient, tt.operationRequest, resourceID, arm.ProvisioningStateSucceeded)
+					cloudError := checkForProvisioningStateConflict(ctx, frontend.resourcesDBClient, tt.operationRequest, resourceID, coreapi.ProvisioningStateSucceeded)
 
 					if cloudError == nil {
 						if tt.parentConflict(provisioningState) {
 							t.Errorf("Expected %d %s but got no error", http.StatusConflict, http.StatusText(http.StatusConflict))
 						}
 					} else {
-						if !tt.parentConflict(provisioningState) || cloudError.(*arm.CloudError).StatusCode != http.StatusConflict {
-							t.Errorf("Got unexpected error: %d %s", cloudError.(*arm.CloudError).StatusCode, http.StatusText(cloudError.(*arm.CloudError).StatusCode))
+						if !tt.parentConflict(provisioningState) || cloudError.(*coreapi.CloudError).StatusCode != http.StatusConflict {
+							t.Errorf("Got unexpected error: %d %s", cloudError.(*coreapi.CloudError).StatusCode, http.StatusText(cloudError.(*coreapi.CloudError).StatusCode))
 						}
 					}
 				})

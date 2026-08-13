@@ -23,9 +23,9 @@ import (
 
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -34,10 +34,10 @@ import (
 // ReadDesireLister.GetForNodePool call.
 //
 // The value is the lowercased form of
-// api.MaestroBundleInternalNameReadonlyHypershiftNodePool — the same derivation
+// coreapi.MaestroBundleInternalNameReadonlyHypershiftNodePool — the same derivation
 // the writer (create_nodepool_scoped_read_desires_controller.go) uses for its
 // desired ReadDesire name.
-var ReadDesireNameReadonlyNodePool = strings.ToLower(string(api.MaestroBundleInternalNameReadonlyHypershiftNodePool))
+var ReadDesireNameReadonlyNodePool = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftNodePool))
 
 // GetCachedNodePoolForNodePool reads the Hypershift NodePool mirror from the
 // per-node-pool ReadDesire. The ReadDesire's Status.KubeContent.Raw carries the
@@ -52,11 +52,11 @@ var ReadDesireNameReadonlyNodePool = strings.ToLower(string(api.MaestroBundleInt
 // or unmarshal failure.
 func GetCachedNodePoolForNodePool(
 	ctx context.Context,
-	readDesireLister dblisters.ReadDesireLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	subscriptionName, resourceGroupName, clusterName, nodePoolName string,
 ) (*v1beta1.NodePool, error) {
 	readDesire, err := readDesireLister.GetForNodePool(ctx, subscriptionName, resourceGroupName, clusterName, nodePoolName, ReadDesireNameReadonlyNodePool)
-	if database.IsNotFoundError(err) {
+	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil, nil
 	}
 	if err != nil {

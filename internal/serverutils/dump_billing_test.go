@@ -25,10 +25,11 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -43,55 +44,55 @@ func TestDumpBillingToLogger(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create HCP clusters
-	cluster1 := &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	cluster1 := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster1ResourceID,
 			PartitionKey: strings.ToLower(cluster1ResourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   cluster1ResourceID,
 				Name: "cluster-1",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterUID:       "billing-doc-1",
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
+			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
 		},
 	}
 
-	cluster2 := &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	cluster2 := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster2ResourceID,
 			PartitionKey: strings.ToLower(cluster2ResourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   cluster2ResourceID,
 				Name: "cluster-2",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterUID:       "billing-doc-2",
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
+			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
 		},
 	}
 
 	// Create mock DB with clusters
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2})
 	require.NoError(t, err)
-	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+	mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 
 	// Create billing doc for cluster-1 (active)
-	billingDoc1 := database.NewBillingDocument("billing-doc-1", cluster1ResourceID)
+	billingDoc1 := billingcosmosstorage.NewBillingDocument("billing-doc-1", cluster1ResourceID)
 	billingDoc1.CreationTime = time.Now().UTC()
 	err = mockBillingDBClient.BillingDocs(cluster1ResourceID.SubscriptionID).Create(ctx, billingDoc1)
 	require.NoError(t, err)
 
 	// Create billing doc for cluster-2 (deleted)
-	billingDoc2 := database.NewBillingDocument("billing-doc-2", cluster2ResourceID)
+	billingDoc2 := billingcosmosstorage.NewBillingDocument("billing-doc-2", cluster2ResourceID)
 	billingDoc2.CreationTime = time.Now().UTC().Add(-1 * time.Hour)
 	deletionTime := time.Now().UTC()
 	billingDoc2.DeletionTime = &deletionTime
@@ -128,67 +129,67 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create HCP clusters with ClusterUIDs
-	cluster1 := &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	cluster1 := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster1ResourceID,
 			PartitionKey: strings.ToLower(cluster1ResourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   cluster1ResourceID,
 				Name: "cluster-1",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterUID:       "cluster-1-billing-1",
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
+			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
 		},
 	}
 
-	cluster2 := &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	cluster2 := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster2ResourceID,
 			PartitionKey: strings.ToLower(cluster2ResourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   cluster2ResourceID,
 				Name: "cluster-2",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterUID:       "cluster-2-billing-2",
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
+			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
 		},
 	}
 
-	cluster3 := &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{
+	cluster3 := &coreapi.HCPOpenShiftCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID:   cluster3ResourceID,
 			PartitionKey: strings.ToLower(cluster3ResourceID.SubscriptionID),
 		},
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+		TrackedResource: coreapi.TrackedResource{
+			Resource: coreapi.Resource{
 				ID:   cluster3ResourceID,
 				Name: "cluster-3",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterUID:       "cluster-3-billing-3",
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-3"))),
+			ClusterServiceID: metadataapi.Ptr(metadataapi.Must(metadataapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-3"))),
 		},
 	}
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2, cluster3})
+	mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2, cluster3})
 	require.NoError(t, err)
-	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+	mockBillingDBClient := billingcosmosstoragetesting.NewMockBillingDBClient()
 
 	// Create billing docs for all three clusters
 	for i, resourceID := range []*azcorearm.ResourceID{cluster1ResourceID, cluster2ResourceID, cluster3ResourceID} {
-		doc := database.NewBillingDocument(resourceID.Name+"-billing-"+string(rune('1'+i)), resourceID)
+		doc := billingcosmosstorage.NewBillingDocument(resourceID.Name+"-billing-"+string(rune('1'+i)), resourceID)
 		doc.CreationTime = time.Now().UTC()
 		err = mockBillingDBClient.BillingDocs(resourceID.SubscriptionID).Create(ctx, doc)
 		require.NoError(t, err)

@@ -20,17 +20,20 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/onsi/ginkgo/v2"
 	"golang.org/x/crypto/ssh"
 
 	corev1 "k8s.io/api/core/v1"
@@ -44,7 +47,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -128,7 +132,7 @@ type NonConformingClustersError struct {
 }
 
 func (e *NonConformingClustersError) Error() string {
-	return fmt.Sprintf("the following clusters did not have tags[%s]=%s: %v; we require end-to-end tests to opt into this tag to ensure that the control planes we provision during automated test runs have minimal footprints on our production infrastructure", api.TagClusterSizeOverride, api.MinimalControlPlanePodSizing, e.clusters)
+	return fmt.Sprintf("the following clusters did not have tags[%s]=%s: %v; we require end-to-end tests to opt into this tag to ensure that the control planes we provision during automated test runs have minimal footprints on our production infrastructure", metadataapi.TagClusterSizeOverride, coreapi.MinimalControlPlanePodSizing, e.clusters)
 }
 
 func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConfig *rest.Config) error {
@@ -160,36 +164,6 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 	}
 
 	return nil
-}
-
-// CreateTestDockerConfigSecret creates a Docker config secret for testing pull secret functionality
-func CreateTestDockerConfigSecret(host, username, password, email, secretName, namespace string) (*corev1.Secret, error) {
-	auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
-
-	dockerConfig := DockerConfigJSON{
-		Auths: map[string]RegistryAuth{
-			host: {
-				Email: email,
-				Auth:  auth,
-			},
-		},
-	}
-
-	dockerConfigJSON, err := json.Marshal(dockerConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal docker config: %w", err)
-	}
-
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: namespace,
-		},
-		Type: corev1.SecretTypeDockerConfigJson,
-		Data: map[string][]byte{
-			corev1.DockerConfigJsonKey: dockerConfigJSON,
-		},
-	}, nil
 }
 
 // Helper to generate SSH key pair
@@ -315,4 +289,76 @@ func HasNodeTaint(nodes []corev1.Node, key, value string, effect corev1.TaintEff
 	}
 
 	return count == expectedCount[0]
+}
+
+// requiredResourceTypesForAPIVersion lists the ARM resource types that must all
+// support a given API version for async operations (create/delete/update) to work
+// end-to-end. The generated SDK uses the same api-version query parameter for both
+// the resource and its operation status polling endpoint.
+var requiredResourceTypesForAPIVersion = []string{
+	"hcpOpenShiftClusters",
+	"locations/hcpOperationStatuses",
+	"locations/hcpOperationResults",
+}
+
+// IsHCPAPIVersionAvailable checks whether apiVersion is registered in the ARM
+// provider manifest for all resource types required by the ARO-HCP SDK. In
+// development environments the check is skipped (always returns true).
+func (tc *perItOrDescribeTestContext) IsHCPAPIVersionAvailable(ctx context.Context, apiVersion string) (bool, error) {
+	if tc.perBinaryInvocationTestContext.isDevelopmentEnvironment {
+		return true, nil
+	}
+	factory, err := tc.GetARMResourcesClientFactory(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get ARM resources client factory: %w", err)
+	}
+	provider, err := factory.NewProvidersClient().Get(ctx, "Microsoft.RedHatOpenShift", nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to get Microsoft.RedHatOpenShift resource provider: %w", err)
+	}
+	for _, requiredRT := range requiredResourceTypesForAPIVersion {
+		found := false
+		for _, rt := range provider.ResourceTypes {
+			if rt.ResourceType == nil || !strings.EqualFold(*rt.ResourceType, requiredRT) {
+				continue
+			}
+			for _, v := range rt.APIVersions {
+				if v != nil && strings.EqualFold(*v, apiVersion) {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			ginkgo.GinkgoLogr.Info("API version not available for resource type",
+				"apiVersion", apiVersion, "resourceType", requiredRT)
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// GetTestRunnerPublicIP returns the public IP address of the test runner by
+// querying a public IP echo service. The IP can be used to add the test
+// runner to an HCP cluster's authorized CIDR list so that framework helpers
+// can reach the Kubernetes API server directly.
+func GetTestRunnerPublicIP(ctx context.Context) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://checkip.amazonaws.com", nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to build public IP echo request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to query public IP echo service: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read public IP echo response: %w", err)
+	}
+	ip := strings.TrimSpace(string(body))
+	if net.ParseIP(ip) == nil {
+		return "", fmt.Errorf("public IP echo service returned invalid IP %q", ip)
+	}
+	return ip, nil
 }

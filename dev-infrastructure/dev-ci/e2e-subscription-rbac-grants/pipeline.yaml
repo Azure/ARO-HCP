@@ -15,6 +15,19 @@ rolloutName: Dev CI E2E Subscription RBAC Grants Rollout
 # apply these grants. Run the Microsoft.Azure.ARO.HCP.DevCI.Privileged
 # entrypoint on demand with `make dev-ci-privileged-local-run` as a member
 # of the OWNERS group (who has real Owner) when a change touches these grants.
+buildStep:
+  command: bash
+  args:
+  - -c
+  - |
+    set -euo pipefail
+    tool_dir=../../../tooling/entra-app-credentials
+    tmp="$(mktemp "${tool_dir}/entra-app-credentials.XXXXXX")"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" "${tool_dir}"
+    chmod 0755 "${tmp}"
+    mv "${tmp}" "${tool_dir}/entra-app-credentials"
+    trap - EXIT
 resourceGroups:
 # Assigns the createdAt resource-group tag Azure Policy to the e2e/customer
 # subscriptions. Writing policy definitions/assignments needs
@@ -39,7 +52,13 @@ resourceGroups:
 # mock-identity-rbac steps replace the removed customer-subscription-grants step
 # (e2e-subscription-rbac-assignments.bicep): they now own the e2e-subscription
 # mock RBAC via Graph lookup instead of hardcoded principalIds.
-- name: mock-identities
+#
+# The pipeline schema requires shellIdentity, but this DEV-only entrypoint runs
+# locally through templatize, which ignores it and executes Shell steps with the
+# invoking OWNERS member's Azure CLI credentials. The placeholder values below
+# are therefore not identities. The caller must be able to create/read Key
+# Vault certificates and write credentials on the Entra apps.
+- name: mock-idents
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
@@ -53,6 +72,74 @@ resourceGroups:
       - "Failed to update one or more relationships in 'owners'"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: pin-mock-certs
+    action: Shell
+    command: |
+      ./tooling/entra-app-credentials/entra-app-credentials pin \
+        --vault-url "${VAULT_URL}" \
+        --mapping "${FIRST_PARTY_APP_NAME};${FIRST_PARTY_CERT_NAME};${FIRST_PARTY_CERT_DNS}" \
+        --mapping "${ARM_HELPER_APP_NAME};${ARM_HELPER_CERT_NAME};${ARM_HELPER_CERT_DNS}" \
+        --mapping "${MSI_MOCK_APP_NAME};${MSI_MOCK_CERT_NAME};${MSI_MOCK_CERT_DNS}" \
+        --create-missing
+      ./tooling/entra-app-credentials/entra-app-credentials pin \
+        --vault-url "${VAULT_URL}" \
+        --indexed-application-base "${MSI_POOL_APP_BASE}" \
+        --indexed-certificate-base "${MSI_POOL_CERT_BASE}" \
+        --indexed-certificate-dns-suffix "${MSI_POOL_CERT_DNS}" \
+        --indexed-count "${MSI_POOL_SIZE}" \
+        --create-missing
+      ./tooling/entra-app-credentials/entra-app-credentials pin \
+        --vault-url "${VAULT_URL}" \
+        --indexed-application-base "${ARM_HELPER_POOL_APP_BASE}" \
+        --indexed-certificate-base "${ARM_HELPER_POOL_CERT_BASE}" \
+        --indexed-certificate-dns-suffix "${ARM_HELPER_POOL_CERT_DNS}" \
+        --indexed-count "${ARM_HELPER_POOL_SIZE}" \
+        --create-missing
+    workingDir: ../../..
+    shellIdentity:
+      value: unused-by-templatize
+    variables:
+    - name: AZURE_TOKEN_CREDENTIALS
+      value: dev
+    - name: VAULT_URL
+      configRef: ci.dev.mockIdentities.vaultUrl
+    - name: FIRST_PARTY_APP_NAME
+      configRef: ci.dev.mockIdentities.firstParty.applicationName
+    - name: FIRST_PARTY_CERT_NAME
+      configRef: ci.dev.mockIdentities.firstParty.certName
+    - name: FIRST_PARTY_CERT_DNS
+      configRef: ci.dev.mockIdentities.firstParty.certDns
+    - name: ARM_HELPER_APP_NAME
+      configRef: ci.dev.mockIdentities.armHelper.applicationName
+    - name: ARM_HELPER_CERT_NAME
+      configRef: ci.dev.mockIdentities.armHelper.certName
+    - name: ARM_HELPER_CERT_DNS
+      configRef: ci.dev.mockIdentities.armHelper.certDns
+    - name: MSI_MOCK_APP_NAME
+      configRef: ci.dev.mockIdentities.msiMock.applicationName
+    - name: MSI_MOCK_CERT_NAME
+      configRef: ci.dev.mockIdentities.msiMock.certName
+    - name: MSI_MOCK_CERT_DNS
+      configRef: ci.dev.mockIdentities.msiMock.certDns
+    - name: MSI_POOL_APP_BASE
+      configRef: ci.dev.mockIdentities.pool.appBaseName
+    - name: MSI_POOL_CERT_BASE
+      configRef: ci.dev.mockIdentities.pool.certBaseName
+    - name: MSI_POOL_CERT_DNS
+      configRef: ci.dev.mockIdentities.pool.certBaseDns
+    - name: MSI_POOL_SIZE
+      configRef: ci.dev.mockIdentities.pool.size
+    - name: ARM_HELPER_POOL_APP_BASE
+      configRef: ci.dev.mockIdentities.armHelperPool.appBaseName
+    - name: ARM_HELPER_POOL_CERT_BASE
+      configRef: ci.dev.mockIdentities.armHelperPool.certBaseName
+    - name: ARM_HELPER_POOL_CERT_DNS
+      configRef: ci.dev.mockIdentities.armHelperPool.certBaseDns
+    - name: ARM_HELPER_POOL_SIZE
+      configRef: ci.dev.mockIdentities.armHelperPool.size
+    dependsOn:
+    - resourceGroup: mock-idents
+      step: mock-identity-apps
   - name: mock-identity-rbac
     action: ARM
     template: ../../templates/mock-identity-rbac.bicep
@@ -64,8 +151,8 @@ resourceGroups:
       maximumRetryCount: 3
       durationBetweenRetries: 1m
     dependsOn:
-    - resourceGroup: mock-identities
-      step: mock-identity-apps
+    - resourceGroup: mock-idents
+      step: pin-mock-certs
   - name: mock-identity-apps-int
     action: ARM
     template: ../../templates/mock-identity-apps.bicep
@@ -76,6 +163,51 @@ resourceGroups:
       - "Failed to update one or more relationships in 'owners'"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: pin-mock-certs-int
+    action: Shell
+    command: |
+      ./tooling/entra-app-credentials/entra-app-credentials pin \
+        --vault-url "${VAULT_URL}" \
+        --mapping "${FIRST_PARTY_APP_NAME};${FIRST_PARTY_CERT_NAME};${FIRST_PARTY_CERT_DNS}" \
+        --mapping "${ARM_HELPER_APP_NAME};${ARM_HELPER_CERT_NAME};${ARM_HELPER_CERT_DNS}" \
+        --mapping "${CS_ARM_HELPER_APP_NAME};${CS_ARM_HELPER_CERT_NAME};${CS_ARM_HELPER_CERT_DNS}" \
+        --mapping "${MSI_MOCK_APP_NAME};${MSI_MOCK_CERT_NAME};${MSI_MOCK_CERT_DNS}" \
+        --create-missing
+    workingDir: ../../..
+    shellIdentity:
+      value: unused-by-templatize
+    variables:
+    - name: AZURE_TOKEN_CREDENTIALS
+      value: dev
+    - name: VAULT_URL
+      configRef: ci.int.mockIdentities.vaultUrl
+    - name: FIRST_PARTY_APP_NAME
+      configRef: ci.int.mockIdentities.firstParty.applicationName
+    - name: FIRST_PARTY_CERT_NAME
+      configRef: ci.int.mockIdentities.firstParty.certName
+    - name: FIRST_PARTY_CERT_DNS
+      configRef: ci.int.mockIdentities.firstParty.certDns
+    - name: ARM_HELPER_APP_NAME
+      configRef: ci.int.mockIdentities.armHelper.applicationName
+    - name: ARM_HELPER_CERT_NAME
+      configRef: ci.int.mockIdentities.armHelper.certName
+    - name: ARM_HELPER_CERT_DNS
+      configRef: ci.int.mockIdentities.armHelper.certDns
+    - name: CS_ARM_HELPER_APP_NAME
+      configRef: ci.int.mockIdentities.clustersServiceArmHelper.applicationName
+    - name: CS_ARM_HELPER_CERT_NAME
+      configRef: ci.int.mockIdentities.clustersServiceArmHelper.certName
+    - name: CS_ARM_HELPER_CERT_DNS
+      configRef: ci.int.mockIdentities.clustersServiceArmHelper.certDns
+    - name: MSI_MOCK_APP_NAME
+      configRef: ci.int.mockIdentities.msiMock.applicationName
+    - name: MSI_MOCK_CERT_NAME
+      configRef: ci.int.mockIdentities.msiMock.certName
+    - name: MSI_MOCK_CERT_DNS
+      configRef: ci.int.mockIdentities.msiMock.certDns
+    dependsOn:
+    - resourceGroup: mock-idents
+      step: mock-identity-apps-int
   - name: mock-identity-rbac-int
     action: ARM
     template: ../../templates/mock-identity-rbac.bicep
@@ -87,8 +219,8 @@ resourceGroups:
       maximumRetryCount: 3
       durationBetweenRetries: 1m
     dependsOn:
-    - resourceGroup: mock-identities
-      step: mock-identity-apps-int
+    - resourceGroup: mock-idents
+      step: pin-mock-certs-int
 - name: ci-bots
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'

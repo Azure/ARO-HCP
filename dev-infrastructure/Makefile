@@ -32,9 +32,6 @@ E2E_TESTING_SUBSCRIPTION_ID = 974ebd46-8ad3-41e3-afef-7ef25fd5c371
 
 # Environments where automation accounts are deployed
 
-# MSI mock pool size for boskos leasing in the E2E testing subscription
-MSI_MOCK_POOL_SIZE ?= 20
-
 list:
 	@grep '^[^#[:space:]].*:' Makefile
 .PHONY: list
@@ -82,63 +79,29 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
-deploy-mock-identity-apps: configurations/mock-identity-apps.bicepparam
-	az deployment group create \
-		--name "mock-identity-apps" \
-		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/mock-identity-apps.bicep $(PROMPT_TO_CONFIRM) \
-		--parameters configurations/mock-identity-apps.bicepparam
-
-.PHONY: deploy-mock-identity-apps
-
-# Create the self-signed Key Vault certificates the mock identity apps trust via
-# SNI. mock-identity-apps.bicep only declares the trusted subject name/issuer; it
-# does not create certs (Bicep cannot create Key Vault certificates). Idempotent:
-# create-kv-cert.sh leaves an existing cert untouched unless FORCE=true, so this
-# is safe to re-run during bootstrap. Run once before the mock identities are
-# used. The cert subject DNS names mirror config/config-dev-ci.yaml
-# .ci.dev.mockIdentities.*.certDns; the cert (object) names are the Key Vault
-# certificate names the services load and are fixed here (not in config).
-create-mock-identity-certs:
-	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=firstPartyCert2 \
-		SUBJECT=CN=firstparty.hcp.osadev.cloud DNS_NAMES=firstparty.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh
-	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=armHelperCert2 \
-		SUBJECT=CN=armhelper.hcp.osadev.cloud DNS_NAMES=armhelper.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh
-	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=msiMockCert2 \
-		SUBJECT=CN=msimock.hcp.osadev.cloud DNS_NAMES=msimock.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh
-	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
-		echo "Creating/updating MSI mock pool cert $$i ..."; \
-		VAULT_NAME=$(SVC_KV_NAME) \
-		CERT_NAME=msiMockPoolCert-$$i \
-		SUBJECT=CN=$$i.msimockpool.hcp.osadev.cloud \
-		DNS_NAMES=$$i.msimockpool.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh; \
-	done
-.PHONY: create-mock-identity-certs
-
-# INT variant: certificates live in the INT global Key Vault. See
-# docs/sops/msit-int-credential-setup.md for the surrounding manual lift/shift.
-create-int-mock-identity-certs:
-	VAULT_NAME=aro-hcp-int-kv CERT_NAME=intFirstPartyCert \
-		SUBJECT=CN=intfirstparty.hcp.osadev.cloud DNS_NAMES=intfirstparty.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh
-	VAULT_NAME=aro-hcp-int-kv CERT_NAME=intArmHelperCert \
-		SUBJECT=CN=intarmhelper.hcp.osadev.cloud DNS_NAMES=intarmhelper.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh
-	VAULT_NAME=aro-hcp-int-kv CERT_NAME=intMsiMockCert \
-		SUBJECT=CN=intmsimock.hcp.osadev.cloud DNS_NAMES=intmsimock.hcp.osadev.cloud \
-		./scripts/create-kv-cert.sh
-.PHONY: create-int-mock-identity-certs
-
 populate-msi-mock-pool:
 	cd openshift-ci && \
-	MSI_MOCK_POOL_SIZE=$(MSI_MOCK_POOL_SIZE) \
-	./populate-msi-mock-pool.sh
+	POOL_SIZE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.pool.size' ../../config/config-dev-ci.yaml) \
+	APP_NAME_BASE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.pool.appBaseName' ../../config/config-dev-ci.yaml) \
+	BOSKOS_PREFIX=aro-hcp-msi-mock-cs-sp-dev \
+	CATALOG_KEY=miMockPool \
+	CERT_NAME_BASE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.pool.certBaseName' ../../config/config-dev-ci.yaml) \
+	OUTPUT_FILE=msi-mock-pool.yaml \
+	./populate-mock-identity-pool.sh
 
 .PHONY: populate-msi-mock-pool
+
+populate-arm-helper-pool:
+	cd openshift-ci && \
+	POOL_SIZE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.armHelperPool.size' ../../config/config-dev-ci.yaml) \
+	APP_NAME_BASE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.armHelperPool.appBaseName' ../../config/config-dev-ci.yaml) \
+	BOSKOS_PREFIX=aro-hcp-arm-helper-sp-dev \
+	CATALOG_KEY=armHelperPool \
+	CERT_NAME_BASE=$$(yq '.clouds.dev.defaults.ci.dev.mockIdentities.armHelperPool.certBaseName' ../../config/config-dev-ci.yaml) \
+	OUTPUT_FILE=arm-helper-pool.yaml \
+	./populate-mock-identity-pool.sh
+
+.PHONY: populate-arm-helper-pool
 
 frontend-grant-ingress:
 	./scripts/frontend-grant-ingress-from-ip.sh "${SVC_RESOURCEGROUP}"

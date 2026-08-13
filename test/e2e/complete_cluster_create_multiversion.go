@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -69,19 +68,6 @@ var _ = Describe("ARO-HCP", func() {
 			}
 			clusterParams.OpenshiftVersionId = openShiftControlPlaneVersion
 
-			// OCPBUGS-98571: HyperShift HCCO forces InternalLoadBalancer scope for
-			// PublicAndPrivate topology on ARO HCP, causing *.apps routes to point
-			// to an unreachable internal LB IP. The fix (PR #8992) merged to main
-			// on 2026-07-14 but 5.0.0-ec.4 (built 2026-07-03) does not include it.
-			// Skip 5.0 until an EC build with the fix is available.
-			if version == "5.0" {
-				timeBombDeadline := time.Date(2026, time.August, 10, 0, 0, 0, 0, time.UTC)
-				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("5.0 candidate releases do not yet include the HCCO ingress LB scope fix (https://issues.redhat.com/browse/OCPBUGS-98571); skipping until %s", timeBombDeadline.Format(time.RFC3339)))
-				}
-				Fail("5.0 HCCO ingress LB scope fix (OCPBUGS-98571) still not available; remove this skip or update the deadline")
-			}
-
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -121,9 +107,9 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred(), "HCP cluster %s/%s should provision", *resourceGroup.Name, clusterName)
 
 			By("verifying the cluster is viable")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -186,11 +172,21 @@ var _ = Describe("ARO-HCP", func() {
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on cluster %q", clusterName)
 		},
-		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.20"),
-		Entry("for 4.21", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),
-		Entry("for 4.22", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22"),
-		Entry("for 4.23", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.23"),
-		Entry("for 5.0", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.0"),
+		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+			"4.20"),
+		Entry("for 4.21", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+			"4.21"),
+		Entry("for 4.22", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+			"4.22"),
+		Entry("for 4.23", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+			"4.23"),
+		Entry("for 5.0", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			labels.AllowRetry, // owner: @raelga, tracking: AROSLSRE-1747. Known-issue test, retriable during EV2 gating. Remove this label when the issue is fixed.
+			"5.0"),
 		Entry("for 5.1", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.1"),
 		Entry("for 5.2", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.2"),
 		Entry("for 5.3", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "5.3"),

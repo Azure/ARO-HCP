@@ -66,6 +66,13 @@ func (v verifyPullSecretMergedIntoGlobal) checkOnce(ctx context.Context, adminRE
 	return nil
 }
 
+// VerifyPullSecretMergedIntoGlobal polls until the kube-system/global-pull-secret
+// on the data plane contains an auths entry for expectedHost, or the timeout
+// expires. The global-pull-secret is created by HCCO's Global Pull Secret
+// Controller when it detects an additional-pull-secret in kube-system and
+// merges it with the original-pull-secret.
+//
+// See https://hypershift.pages.dev/how-to/aws/global-pull-secret/
 func VerifyPullSecretMergedIntoGlobal(expectedHost string, timeout time.Duration) HostedClusterVerifier {
 	return verifyPullSecretMergedIntoGlobal{
 		expectedHost: expectedHost,
@@ -78,8 +85,12 @@ const (
 	globalPullSecretSyncerName      = "global-pull-secret-syncer"
 )
 
-// VerifyGlobalPullSecretSyncer verifies the global-pull-secret-syncer DaemonSet in kube-system.
+// VerifyGlobalPullSecretSyncer verifies the global-pull-secret-syncer
+// DaemonSet in kube-system is ready. Until this DaemonSet is ready, nodes
+// will not have the updated pull secret credentials.
 // It delegates to [VerifyDaemonSetReady].
+//
+// See https://hypershift.pages.dev/how-to/aws/global-pull-secret/
 func VerifyGlobalPullSecretSyncer(timeout time.Duration) HostedClusterVerifier {
 	return VerifyDaemonSetReady(globalPullSecretSyncerNamespace, globalPullSecretSyncerName, timeout)
 }
@@ -128,6 +139,11 @@ func (v verifyPullSecretAuthData) Verify(ctx context.Context, adminRESTConfig *r
 	return nil
 }
 
+// VerifyPullSecretAuthData performs a single-shot check that the named
+// dockerconfigjson Secret contains the expected auth (base64-encoded
+// "username:password") and email values for the given registry host.
+// Call only after HCCO has finished merging (e.g. after
+// [VerifyPullSecretMergedIntoGlobal] succeeds).
 func VerifyPullSecretAuthData(secretName, namespace, expectedHost, expectedAuth, expectedEmail string) HostedClusterVerifier {
 	return verifyPullSecretAuthData{
 		secretName:    secretName,

@@ -29,8 +29,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 func mustParseRID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -45,17 +45,17 @@ func TestNeedsUpdate_CosmosMetadata(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		existing   arm.CosmosMetadata
-		desired    arm.CosmosMetadata
+		existing   coreapi.CosmosMetadata
+		desired    coreapi.CosmosMetadata
 		wantUpdate bool
 	}{
 		{
 			name: "differing etags should not trigger an update",
-			existing: arm.CosmosMetadata{
+			existing: coreapi.CosmosMetadata{
 				ResourceID: mustParseRID(t, ridStr),
 				CosmosETag: azcore.ETag("etag-1"),
 			},
-			desired: arm.CosmosMetadata{
+			desired: coreapi.CosmosMetadata{
 				ResourceID: mustParseRID(t, ridStr),
 				CosmosETag: azcore.ETag("etag-2"),
 			},
@@ -63,21 +63,21 @@ func TestNeedsUpdate_CosmosMetadata(t *testing.T) {
 		},
 		{
 			name: "ExistingCosmosUID is internal-only and must not trigger an update",
-			existing: arm.CosmosMetadata{
+			existing: coreapi.CosmosMetadata{
 				ResourceID:        mustParseRID(t, ridStr),
 				ExistingCosmosUID: "uid-from-cosmos",
 			},
-			desired: arm.CosmosMetadata{
+			desired: coreapi.CosmosMetadata{
 				ResourceID: mustParseRID(t, ridStr),
 			},
 			wantUpdate: false,
 		},
 		{
 			name: "different ResourceIDs must trigger an update",
-			existing: arm.CosmosMetadata{
+			existing: coreapi.CosmosMetadata{
 				ResourceID: mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/a"),
 			},
-			desired: arm.CosmosMetadata{
+			desired: coreapi.CosmosMetadata{
 				ResourceID: mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/b"),
 			},
 			wantUpdate: true,
@@ -117,9 +117,9 @@ func TestNeedsUpdate_ResourceID(t *testing.T) {
 }
 
 func TestNeedsUpdate_InternalID(t *testing.T) {
-	idA, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
+	idA, err := metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
 	require.NoError(t, err)
-	idB, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/def")
+	idB, err := metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/def")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -143,19 +143,19 @@ func TestNeedsUpdate_InternalID(t *testing.T) {
 		{
 			name:       "pointer: non-nil vs nil must trigger an update",
 			existing:   &idA,
-			desired:    (*api.InternalID)(nil),
+			desired:    (*metadataapi.InternalID)(nil),
 			wantUpdate: true,
 		},
 		{
 			name:       "pointer: nil vs non-nil must trigger an update",
-			existing:   (*api.InternalID)(nil),
+			existing:   (*metadataapi.InternalID)(nil),
 			desired:    &idA,
 			wantUpdate: true,
 		},
 		{
 			name:       "pointer: nil vs nil should not trigger an update",
-			existing:   (*api.InternalID)(nil),
-			desired:    (*api.InternalID)(nil),
+			existing:   (*metadataapi.InternalID)(nil),
+			desired:    (*metadataapi.InternalID)(nil),
 			wantUpdate: false,
 		},
 	}
@@ -168,13 +168,13 @@ func TestNeedsUpdate_InternalID(t *testing.T) {
 }
 
 func TestNeedsUpdate_NestedInternalIDPointer(t *testing.T) {
-	idA, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
+	idA, err := metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
 	require.NoError(t, err)
-	idB, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/def")
+	idB, err := metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/def")
 	require.NoError(t, err)
 
 	type wrapper struct {
-		ShardID *api.InternalID
+		ShardID *metadataapi.InternalID
 	}
 
 	tests := []struct {
@@ -210,6 +210,12 @@ func TestNeedsUpdate_NestedInternalIDPointer(t *testing.T) {
 	}
 }
 
+func TestNeedsUpdate_RawExtension_KeyOrderInsensitive(t *testing.T) {
+	a := runtime.RawExtension{Raw: []byte(`{"kind":"HostedCluster","apiVersion":"v1"}`)}
+	b := runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"HostedCluster"}`)}
+	assert.False(t, NeedsUpdate(a, b), "semantically equal JSON with different key order must not trigger an update")
+}
+
 func TestNeedsUpdate_RawExtension_NormalizesRawAndObject(t *testing.T) {
 	hc := map[string]any{
 		"apiVersion": "hypershift.openshift.io/v1beta1",
@@ -227,9 +233,9 @@ func TestNeedsUpdate_RawExtension_NormalizesRawAndObject(t *testing.T) {
 
 func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {
 	rid := mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c/managementClusterContents/readonlyHypershiftHostedCluster")
-	desired := &api.ManagementClusterContent{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
-		Status: api.ManagementClusterContentStatus{
+	desired := &coreapi.ManagementClusterContent{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
+		Status: coreapi.ManagementClusterContentStatus{
 			Conditions: []metav1.Condition{
 				{
 					Type:    "Degraded",
@@ -252,7 +258,7 @@ func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {
 
 	bytes, err := json.Marshal(desired)
 	require.NoError(t, err)
-	roundTripped := &api.ManagementClusterContent{}
+	roundTripped := &coreapi.ManagementClusterContent{}
 	require.NoError(t, json.Unmarshal(bytes, roundTripped))
 	roundTripped.CosmosETag = azcore.ETag("server-assigned-etag")
 	roundTripped.ExistingCosmosUID = "server-assigned-uid"

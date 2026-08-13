@@ -27,14 +27,14 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 type CosmosItemKey struct {
 	ResourceID *azcorearm.ResourceID `json:"resourceId"`
 }
 
-type getStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
+type getStep[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
 	stepID StepID
 	key    CosmosItemKey
 
@@ -42,7 +42,7 @@ type getStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAcces
 	expectedError    string
 }
 
-func newGetStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](stepID StepID, stepDir fs.FS) (*getStep[InternalAPIType, InternalAPITypePointer], error) {
+func newGetStep[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](stepID StepID, stepDir fs.FS) (*getStep[InternalAPIType, InternalAPITypePointer], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)

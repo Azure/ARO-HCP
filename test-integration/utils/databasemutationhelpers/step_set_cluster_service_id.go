@@ -27,8 +27,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
@@ -99,18 +99,18 @@ func (l *setClusterServiceIDStep) RunTest(ctx context.Context, t *testing.T, ste
 	require.NoError(t, err)
 }
 
-func (l *setClusterServiceIDStep) calculateClusterServiceID(ctx context.Context, resourcesDBClient database.ResourcesDBClient) (string, error) {
+func (l *setClusterServiceIDStep) calculateClusterServiceID(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient) (string, error) {
 	resourceID, err := azcorearm.ParseResourceID(l.key.ResourceID)
 	if err != nil {
 		return "", err
 	}
 
 	switch {
-	case strings.EqualFold(resourceID.ResourceType.String(), api.ClusterResourceType.String()):
+	case strings.EqualFold(resourceID.ResourceType.String(), coreapi.ClusterResourceType.String()):
 		return integrationutils.GenerateRandomClusterClusterServiceHREF(), nil
-	case strings.EqualFold(resourceID.ResourceType.String(), api.NodePoolResourceType.String()):
+	case strings.EqualFold(resourceID.ResourceType.String(), coreapi.NodePoolResourceType.String()):
 		return integrationutils.CalculateClusterServiceIDFromNodePoolResourceID(ctx, resourcesDBClient, l.key.ResourceID)
-	case strings.EqualFold(resourceID.ResourceType.String(), api.ExternalAuthResourceType.String()):
+	case strings.EqualFold(resourceID.ResourceType.String(), coreapi.ExternalAuthResourceType.String()):
 		return integrationutils.CalculateClusterServiceIDFromExternalAuthResourceID(ctx, resourcesDBClient, l.key.ResourceID)
 	default:
 		return "", fmt.Errorf("setClusterServiceID supports clusters, node pools, and external auths only: %s", l.key.ResourceID)

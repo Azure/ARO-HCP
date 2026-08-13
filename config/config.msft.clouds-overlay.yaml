@@ -40,6 +40,8 @@ clouds:
                 resources:
                   requests:
                     memory: 2Gi
+          backend:
+            backupScheduleState: Enabled
       stg:
         # this is the MSFT STAGE environment
         regions:
@@ -74,7 +76,25 @@ clouds:
               # the uksouth hcp-stg-uk-* cluster.
               kustoName: "hcp-{{ .ctx.environment }}-us-1"
         defaults:
-          # This must be defined here, so our ci jobs can know this
+          # Carry the environment in the subscription display names for stage, so the
+          # stg subscriptions are distinguishable from the identically-named prod ones.
+          # The base config.yaml default omits the environment, so prod is unchanged;
+          # this only overrides stage, matching the global sub which already includes it.
+          svc:
+            subscription:
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - SVC"
+          mgmt:
+            subscription:
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - MGMT - {{ .ctx.stamp }}"
+          serviceKeyVault:
+            subscription:
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ev2.regionFriendlyName }} - SVC"
+          # This must be defined here, so our ci jobs can know this.
+          # This is the LIVE (V1) cluster in rg hcp-kusto-stg-uk of the
+          # `Azure Red Hat OpenShift v4.x - HCP Global` sub, which uksouth deploys
+          # into. Do NOT set it to hcp-stg-uk-3 — that is the transient V2 cluster
+          # under stgGlobalV2, in the separate hcp-stg-global sub. Both subs have an
+          # rg named hcp-kusto-stg-uk, and Kusto cluster names are globally unique.
           kusto:
             kustoName: "hcp-stg-uk-2"
           # Transient STG-global "V2" names for the parallel infra in the dedicated
@@ -94,8 +114,6 @@ clouds:
             kustoName: "hcp-{{ .ctx.environment }}-uk-3"
             # V2 Grafana workspace (globally unique, differs from the live name).
             grafanaName: "arohcp-{{ .ctx.environment }}2"
-            # v13: Azure only accepts major 12/13 for new workspaces since 2026-06-15.
-            grafanaMajorVersion: "13"
             # Dedicated stg billing Kusto in hcp-stg-global (E8a_v4; E8ads_v5 is not
             # offered in uksouth). Consumed by the transient Billing.StgGlobal bicepparam.
             billingKustoName: "arohcpHoBo{{ .ctx.environment }}"
@@ -115,6 +133,8 @@ clouds:
           mise:
             audit:
               connectSocket: true
+          backend:
+            backupScheduleState: Enabled
       prod:
         # this is the MSFT PRODUCTION environment
         defaults:
@@ -122,6 +142,8 @@ clouds:
           e2e:
             regionTest:
               prowJobName: branch-ci-Azure-ARO-HCP-main-e2e-prod-e2e-parallel
+          backend:
+            backupScheduleState: Disabled
           # Cluster Service
           clustersService:
             deployDebugJobs: true
@@ -134,6 +156,17 @@ clouds:
             audit:
               connectSocket: true
         regions:
+          eastus2:
+            e2e:
+              regionTest:
+                # eastus2 is pinned to the Test-Tenant sub ("ARO HCP E2E") because
+                # the RH-tenant PROD subs (Prod-00/Prod-01) have every RP-allowed
+                # x64 general-purpose VM SKU restricted (NotAvailableForSubscription)
+                # in this region, which makes node pool creation fail there. The
+                # Test-Tenant sub is unrestricted in eastus2 (it also backs the
+                # eastus2euap canary), so routing eastus2 to it unblocks the gating
+                # job. Revert once the RH subs' SKU restriction is lifted (ARO-28614).
+                allowedSubscriptions: "ARO HCP E2E"
           eastus2euap:
             e2e:
               regionTest:
@@ -145,6 +178,14 @@ clouds:
                 allowedSubscriptions: "ARO HCP E2E"
             kusto:
               location: "eastus2"
+            # Canary/EUAP replica: keep its regional data endpoint disabled so it
+            # doesn't serve co-located prod pulls (AROSLSRE-1592).
+            acr:
+              ocp:
+                replicationState: false
           switzerlandnorth:
             kusto:
               kustoName: "hcp-prod-ch-2"
+          australiaeast:
+            backend:
+              backupScheduleState: Enabled

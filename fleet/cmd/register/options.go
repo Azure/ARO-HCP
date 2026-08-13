@@ -23,9 +23,10 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 )
 
 type RawRegisterOptions struct {
@@ -98,7 +99,7 @@ type validatedRegisterOptions struct {
 	managementClusterResourceID *azcorearm.ResourceID
 	aksResourceID               *azcorearm.ResourceID
 	publicDNSZoneResourceID     *azcorearm.ResourceID
-	schedulingPolicy            fleet.ManagementClusterSchedulingPolicy
+	schedulingPolicy            fleetapi.ManagementClusterSchedulingPolicy
 }
 
 type ValidatedRegisterOptions struct {
@@ -111,17 +112,17 @@ func (o *RawRegisterOptions) Validate(ctx context.Context) (*ValidatedRegisterOp
 		return nil, fmt.Errorf("--cloud-environment: %w", err)
 	}
 
-	stampResourceID, err := fleet.ToStampResourceID(o.StampIdentifier)
+	stampResourceID, err := fleetapi.ToStampResourceID(o.StampIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("invalid stamp identifier %q: %w", o.StampIdentifier, err)
 	}
-	managementClusterResourceID, err := fleet.ToManagementClusterResourceID(o.StampIdentifier)
+	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(o.StampIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("invalid stamp identifier %q: %w", o.StampIdentifier, err)
 	}
 
-	schedulingPolicy := fleet.ManagementClusterSchedulingPolicy(o.SchedulingPolicy)
-	if !fleet.ValidManagementClusterSchedulingPolicies.Has(schedulingPolicy) {
+	schedulingPolicy := fleetapi.ManagementClusterSchedulingPolicy(o.SchedulingPolicy)
+	if !fleetapi.ValidManagementClusterSchedulingPolicies.Has(schedulingPolicy) {
 		return nil, fmt.Errorf("invalid scheduling policy %q: must be Schedulable or Unschedulable", o.SchedulingPolicy)
 	}
 
@@ -149,12 +150,12 @@ func (o *RawRegisterOptions) Validate(ctx context.Context) (*ValidatedRegisterOp
 }
 
 type registerOptions struct {
-	fleetDBClient                                        database.FleetDBClient
+	fleetDBClient                                        fleetcosmosstorage.FleetDBClient
 	stampIdentifier                                      string
 	stampResourceID                                      *azcorearm.ResourceID
 	managementClusterResourceID                          *azcorearm.ResourceID
 	autoApprove                                          bool
-	schedulingPolicy                                     fleet.ManagementClusterSchedulingPolicy
+	schedulingPolicy                                     fleetapi.ManagementClusterSchedulingPolicy
 	aksResourceID                                        *azcorearm.ResourceID
 	publicDNSZoneResourceID                              *azcorearm.ResourceID
 	hostedClustersSecretsKeyVaultURL                     string
@@ -174,12 +175,12 @@ func (o *ValidatedRegisterOptions) Complete(ctx context.Context) (*RegisterOptio
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentFleet)
 	clientOpts.Cloud = o.cloudConfiguration
 
-	dbClient, err := database.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
+	dbClient, err := corecosmosstorage.NewCosmosDatabaseClient(o.CosmosURL, o.CosmosName, clientOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CosmosDB client: %w", err)
 	}
 
-	fleetDBClient, err := database.NewFleetDBClient(dbClient)
+	fleetDBClient, err := fleetcosmosstorage.NewFleetDBClient(dbClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fleet DB client: %w", err)
 	}

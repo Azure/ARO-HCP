@@ -46,6 +46,9 @@ param icmEnabledRP bool = true
 @description('Whether the MSFT IcM action group is wired to MSFT alert rules. When false, MSFT rules still evaluate in Prometheus but do not deliver to IcM.')
 param icmEnabledMSFT bool = true
 
+@description('Resource ID of the RP Cosmos DB account')
+param rpCosmosDbAccountId string = ''
+
 module eventHubActionGroup '../modules/metrics/eventhub-actiongroup.bicep' = if (eventHubAlertingEnabled) {
   name: 'eventHubActionGroup'
   params: {
@@ -131,6 +134,15 @@ module rpAlerts '../modules/metrics/rp-rules.bicep' = {
   }
 }
 
+module rpHcpAlerts '../modules/metrics/rp-hcp-rules.bicep' = {
+  name: 'rpHcpAlerts'
+  params: {
+    azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
+    actionGroups: rpActionGroups
+    severityCeiling: alertSeverityCeiling
+  }
+}
+
 module msftAlerts '../modules/metrics/msft-rules.bicep' = {
   name: 'msftAlerts'
   params: {
@@ -158,5 +170,15 @@ module ingestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
         lowEventIngestionThreshold: 5
       }
     ]
+  }
+}
+
+module cosmosAlerts '../modules/metrics/cosmos-alerts.bicep' = if (rpCosmosDbAccountId != '') {
+  name: 'cosmosAlerts'
+  params: {
+    cosmosDbAccountId: rpCosmosDbAccountId
+    actionGroups: slActionGroups
+    enabled: alertsEnabled
+    region: region
   }
 }
