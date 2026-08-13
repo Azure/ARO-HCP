@@ -211,6 +211,19 @@ No writes to Cosmos Resources container.
 |--------|---------------|
 | `ServiceProviderCluster` | <ul><li>**`Spec.BackupState`** = `Enabled` or `Paused` (from request body)</li></ul> |
 
+### Admin API: GET OnDemandBackups
+
+**Path:** `GET /admin/v1/hcp/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourceName}/backups`
+**Handler:** `HCPGetOnDemandBackupsHandler` ([backups.go](../admin/server/handlers/hcp/backups.go))
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ResourceID` (resolves the target cluster context)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (precondition: must not be nil)</li></ul> |
+| Read | `ReadDesire` (kube-applier DB) | <ul><li>`Tags` (filtered to `ondemandbackup`)</li><li>`ResourceID.Name` (on-demand backup name, prefix trimmed)</li><li>`Status.KubeContent` (Velero `Backup` status: `Phase`, `StartTimestamp`, `CompletionTimestamp`; plus the `hcp-cluster-kms-key-fingerprint` annotation)</li></ul> |
+
+No writes to Cosmos Resources container.
+
 ---
 
 ## 2. Backend Controller Reads and Writes
@@ -1117,6 +1130,26 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 | **Write** | `ReadDesire` (kube-applier DB) | <ul><li>Creates/replaces one ReadDesire per schedule to observe `Schedule` status on the management cluster</li></ul> |
 
 No writes to the Cosmos Resources container.
+
+#### KeyRotationBackupSyncer
+
+**File:** [key_rotation_controller.go](../backend/pkg/controllers/cluster/backups/key_rotation_controller.go)
+**Trigger:** Cluster informer + ApplyDesire informer, 5-minute resync
+**Gate (needsWork on Cluster, plus KMS + rotation checks):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `Cluster.ServiceProviderProperties.BillingDocumentCosmosID` != ""
+- `ServiceProviderCluster.Status.ManagementClusterResourceID` != nil
+- customer-managed KMS configured with a non-empty active key version
+- observed HostedCluster reports KMS rotation complete (`Status.SecretEncryption`)
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (needsWork: must be nil)</li><li>`ServiceProviderProperties.BillingDocumentCosmosID` (needsWork: must be non-empty)</li><li>`CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey` (KMS gate; VaultName/Name/Version → fingerprint)</li><li>`ResourceID` (annotated onto the Velero `Backup`)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (SyncOnce: must not be nil)</li><li>`Status.HostedClusterNamespace`, `Status.ControlPlaneNamespace` (backup target namespaces)</li><li>`Status.KeyRotationBackupFingerprint` (skip re-creating the on-demand backup once it already matches the active key's fingerprint)</li></ul> |
+| Read | `ReadDesire` (kube-applier DB) | <ul><li>`Status.KubeContent` of the HostedCluster ReadDesire (`Status.SecretEncryption`: `History`, `ActiveKey`, `TargetKey` — determines rotation completion and the active-key fingerprint)</li></ul> |
+| **Write** | `ServiceProviderCluster` | <ul><li>**`Status.KeyRotationBackupFingerprint`** = the active key's fingerprint, recorded as durable per-fingerprint completion state once the on-demand backup's ApplyDesire is observed `Successful`, strictly before that ApplyDesire document is purged. This record is what stops the backup from being re-created on later resyncs after its desires are cleaned up.</li></ul> |
+| **Write** | `ApplyDesire` (kube-applier DB) | <ul><li>Creates the on-demand Velero `Backup` ApplyDesire for the post-rotation key fingerprint; once it succeeds the ApplyDesire document is **purged** (hard-deleted from Cosmos, tolerating NotFound). Deleting the desire document stops kube-applier reconciliation **without** deleting the Velero `Backup`, so the restore point is retained until its own TTL. ApplyDesires from superseded rotations are purged the same way.</li></ul> |
+| **Write** | `ReadDesire` (kube-applier DB) | <ul><li>Creates the companion ReadDesire to observe the Backup status; the ReadDesire is **retained** after the ApplyDesire is purged so the admin API can keep listing the backup, and is deleted only once Velero/kube-applier confirm there's nothing left to observe (`Status.KubeContent` nil and `Successful`, i.e. the Backup was GC'd at its TTL), whether it belongs to the current rotation or a superseded one</li></ul> |
 
 #### CreateClusterScopedReadDesires / CreateNodePoolScopedReadDesires
 
