@@ -997,6 +997,20 @@ func TestAdmitNodePool_VersionValidationOnCreate(t *testing.T) {
 				{FieldPath: "properties.version.id", Message: "cannot coexist with control plane version"},
 			},
 		},
+		{
+			name:            "empty SPC active versions falls back to cluster version",
+			newVersion:      "4.21.5",
+			clusterVersions: nil,
+			expectErrors:    []utils.ExpectedError{},
+		},
+		{
+			name:            "empty SPC active versions falls back to cluster version - exceed",
+			newVersion:      "4.23.0",
+			clusterVersions: nil,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "cannot exceed control plane version"},
+			},
+		},
 	}
 
 	for _, tt := range tests {

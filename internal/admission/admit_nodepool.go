@@ -271,6 +271,14 @@ func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePo
 	}
 
 	lowestCPVersion, highestCPVersion := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
+	if (lowestCPVersion == nil || highestCPVersion == nil) && op.Type == operation.Create {
+		if clusterVersionID := admissionContext.Cluster.CustomerProperties.Version.ID; len(clusterVersionID) > 0 {
+			if fallbackVersion, parseErr := semver.ParseTolerant(clusterVersionID); parseErr == nil {
+				lowestCPVersion = &fallbackVersion
+				highestCPVersion = &fallbackVersion
+			}
+		}
+	}
 
 	if err := validation.ValidateNodePoolVersionChange(newVersion, activeVersions, lowestCPVersion, highestCPVersion, op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures)); err != nil {
 		errs = append(errs, field.Invalid(fldPath, newObj.ID, err.Error()))
