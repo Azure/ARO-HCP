@@ -2838,7 +2838,8 @@
       },
       "additionalProperties": false,
       "required": [
-        "image"
+        "image",
+        "k8s"
       ]
     },
     "maestro": {

@@ -1,12 +1,12 @@
 serviceAccount:
   name: "{{ .certExporter.k8s.serviceAccountName }}"
 pullBinding:
-  registry: "{{ .acr.svc.name }}.azurecr.io"
+  registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
   scope: "repository:{{ .certExporter.image.repository }}:pull"
   workloadIdentityClientId: "__imagePullerMsiClientId__"
   workloadIdentityTenantId: "__imagePullerMsiTenantId__"
 image:
-  registry: '{{ .acr.svc.name }}.azurecr.io'
+  registry: '{{ .acr.svc.name }}.{{ .acrDNSSuffix }}'
   repository: '{{ .certExporter.image.repository }}'
   digest: '{{ .certExporter.image.digest }}'
 deployment:
