@@ -20,6 +20,13 @@ spec:
   #
   # Metrics are gauge-based (backend_resource_operation_phase_info) from Cosmos DB,
   # so we use count() aggregations rather than rate() on counters.
+  #
+  # Note: the "1h/5m", "6h/30m" suffixes in alert names refer to burn-rate
+  # budget-exhaustion timelines, not actual PromQL time windows. Gauge metrics
+  # don't support rate(), so we can't evaluate a long and short window simultaneously
+  # the way true MWMBR does. The `for:` duration in each alert acts as the short window.
+  # As is accepting the same gauge approximation as used by existing user journeys.
+  # ================================================
   - name: arohcp_cluster_deletion_slo_recording_rules
     interval: 1m
     rules:
