@@ -27,12 +27,24 @@ data:
       exposeNotBefore: true
     sources:
       - kind: kubernetes
-        name: cluster-secrets
+        name: apiserver-tls-certs
         namespaces:
-          include: ["*"]
+          include: ["ocm-*"]
           exclude: []
         secrets:
-          include: ["*"]
+          include: ["kube-apiserver-tls-cert"]
+          exclude: []
+          types:
+            - type: "kubernetes.io/tls"
+              keyPatterns: ["^tls\\.crt$"]
+              format: pem
+      - kind: kubernetes
+        name: ingress-tls-certs
+        namespaces:
+          include: ["open-cluster-management-policies"]
+          exclude: []
+        secrets:
+          include: ["default-ingress-tls-cert-*"]
           exclude: []
           types:
             - type: "kubernetes.io/tls"
