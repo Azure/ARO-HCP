@@ -50,6 +50,45 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+func TestDesiredVersionResolutionUsesRolloutAssignments(t *testing.T) {
+	for _, tc := range []struct {
+		name, desired, pin, exact string
+		want                      coreapi.ProvisioningState
+	}{
+		{name: "initial assignment pending", want: coreapi.ProvisioningStateAccepted},
+		{name: "minor assignment pending", desired: "4.21.6", want: coreapi.ProvisioningStateAccepted},
+		{name: "requested minor resolved", desired: "4.22.8", want: coreapi.ProvisioningStateSucceeded},
+		{name: "incompatible pin fails immediately", desired: "4.21.6", pin: "4.21.6", want: coreapi.ProvisioningStateFailed},
+		{name: "incompatible exact override fails immediately", desired: "4.21.6", exact: "4.21.6", want: coreapi.ProvisioningStateFailed},
+		{name: "pin takes precedence over experimental override", desired: "4.22.8", pin: "4.22.8", exact: "4.21.6", want: coreapi.ProvisioningStateSucceeded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := operationtesting.NewClusterTestFixture()
+			cluster := fixture.NewCluster(nil)
+			cluster.CustomerProperties.Version.ID = "4.22"
+			spc := &coreapi.ServiceProviderCluster{}
+			if tc.desired != "" {
+				spc.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse(tc.desired))
+			}
+			if tc.pin != "" {
+				spc.Spec.PinnedVersion.ExactVersion = ptr.To(semver.MustParse(tc.pin))
+			}
+			if tc.exact != "" {
+				cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(semver.MustParse(tc.exact))
+			}
+			// No DB client: resolution must not read or create a legacy controller
+			// document now that the rollout controllers own desired versions.
+			syncer := &operationClusterUpdate{
+				clock:                           clocktesting.NewFakeClock(time.Now()),
+				desiredVersionMismatchFirstSeen: lru.New(10),
+			}
+			state, err := syncer.desiredVersionResolutionOperationState(context.Background(), fixture.NewOperation(cosmosstorageutils.OperationRequestUpdate), cluster, spc)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, state.ProvisioningState)
+		})
+	}
+}
+
 func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 	testClockNow := operationtesting.MustParseTime("2024-06-01T12:00:00Z")
 	fixture := operationtesting.NewClusterTestFixture()
@@ -123,21 +162,6 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		}
 	}
-	newDefaultControlPlaneDesiredVersionController := func() *coreapi.Controller {
-		resourceID := metadataapi.Must(azcorearm.ParseResourceID(fixture.ClusterResourceID.String() + "/hcpOpenShiftControllers/ControlPlaneDesiredVersion"))
-		return &coreapi.Controller{
-			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
-			ExternalID:     fixture.ClusterResourceID,
-			Status:         coreapi.ControllerStatus{},
-		}
-	}
-
-	newControlPlaneDesiredVersionControllerWithConditions := func(conditions []metav1.Condition) *coreapi.Controller {
-		controller := newDefaultControlPlaneDesiredVersionController()
-		controller.Status.Conditions = conditions
-		return controller
-	}
-
 	newPassingCachedHostedClusterReadDesire := func() *kubeapplierapi.ReadDesire {
 		return operationtesting.NewHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 			Spec: operationtesting.ClusterUpdateMatchingHostedClusterSpec(),
@@ -154,8 +178,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		activeOperationsLister         corelisters.ActiveOperationLister
 		existingServiceProviderCluster *coreapi.ServiceProviderCluster
 		// When not set, the controller uses a service provider cluster lister that contains the existingServiceProviderCluster
-		serviceProviderClusterLister                 corelisters.ServiceProviderClusterLister
-		existingControlPlaneDesiredVersionController *coreapi.Controller
+		serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 		// When set, wires a ReadDesireLister containing this cached HostedCluster mirror.
 		cachedHostedClusterReadDesire                 *kubeapplierapi.ReadDesire
 		cachedControlPlaneClusterAutoscalerReadDesire *kubeapplierapi.ReadDesire
@@ -357,19 +380,39 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
+			name: "customer minor mismatch with forced version marks operation failed",
+			existingCluster: newClusterWithCustomerVersion("4.20", func(cluster *coreapi.Cluster) {
+				cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = ptr.To(semver.MustParse("4.19.6"))
+			}),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
+			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.ClusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				op, err := db.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, coreapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "conflicts with forced control plane version 4.19.6")
+
+				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, coreapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+		{
 			name:                           "cluster service failure outranks an internal desired version resolution failure",
 			existingCluster:                newClusterWithCustomerVersion("4.20"),
 			existingOperation:              newOperationAccepted(),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
-			existingControlPlaneDesiredVersionController: newControlPlaneDesiredVersionControllerWithConditions([]metav1.Condition{
-				{
-					Type:    coreapi.ControllerConditionTypeIntentFailed,
-					Status:  metav1.ConditionTrue,
-					Reason:  coreapi.VersionUpgradeNotAcceptedReason,
-					Message: "example intent failed message",
-				},
-			}),
-			cachedHostedClusterReadDesire: newPassingCachedHostedClusterReadDesire(),
+			seedMismatchFirstSeenAt:        testClockNow.Add(-130 * time.Second),
+			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetCluster(gomock.Any(), fixture.ClusterInternalID).
@@ -381,7 +424,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
 				assert.Equal(t, coreapi.CloudErrorCodeServiceUnavailable, op.Error.Code)
-				assert.Contains(t, op.Error.Message, "example intent failed message")
+				assert.Contains(t, op.Error.Message, "timed out after 129s waiting for resolution of desired version")
 
 				cluster, err := db.HCPClusters(operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName).Get(ctx, operationtesting.TestClusterName)
 				require.NoError(t, err)
@@ -729,9 +772,6 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			}
 			if tc.existingServiceProviderCluster != nil {
 				resources = append(resources, tc.existingServiceProviderCluster)
-			}
-			if tc.existingControlPlaneDesiredVersionController != nil {
-				resources = append(resources, tc.existingControlPlaneDesiredVersionController)
 			}
 
 			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)

@@ -1,0 +1,284 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package versionrollout
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilsclock "k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+)
+
+func TestEligibleClusters(t *testing.T) {
+	t.Parallel()
+	best := *v("4.21.6")
+
+	serviceProviderClusters := []*coreapi.ServiceProviderCluster{
+		newTestServiceProviderCluster("below", v("4.21.4"), nil, nil),                           // eligible: below, unpinned
+		newTestServiceProviderCluster("at-best", v("4.21.6"), nil, nil),                         // not eligible: already at best
+		newTestServiceProviderCluster("above", v("4.21.8"), nil, nil),                           // not eligible: above best
+		newTestServiceProviderCluster("no-desired", nil, nil, nil),                              // eligible: no desired yet
+		newTestServiceProviderCluster("pin-release", v("4.21.4"), nil, pin("4.21.2", "4.21.6")), // eligible: pin releases at best
+		newTestServiceProviderCluster("pin-hold", v("4.21.4"), nil, pin("4.21.2", "4.21.9")),    // not eligible: pin still holds
+		newTestServiceProviderCluster("pin-forever", v("4.21.4"), nil, pin("4.21.2", "")),       // not eligible: no release version
+	}
+
+	eligible := eligibleClusters(serviceProviderClusters, best)
+
+	names := map[string]bool{}
+	for _, serviceProviderCluster := range eligible {
+		names[serviceProviderClusterName(serviceProviderCluster)] = true
+	}
+	assert.True(t, names["below"])
+	assert.True(t, names["no-desired"])
+	assert.True(t, names["pin-release"])
+	assert.False(t, names["at-best"])
+	assert.False(t, names["above"])
+	assert.False(t, names["pin-hold"])
+	assert.False(t, names["pin-forever"])
+	assert.Len(t, eligible, 3)
+}
+
+func rolloutWithCounts(bestStr string, desired, mismatched, achieved, successful, failed int64) *fleetapi.ControlPlaneVersionRollout {
+	key := v(bestStr).String()
+	return newTestRollout("stable-4.21", v(bestStr), fleetapi.ControlPlaneVersionRolloutStatus{
+		ClusterCountByDesiredExactVersion:            map[string]int64{key: desired},
+		MismatchedClusterCountByDesiredExactVersion:  map[string]int64{key: mismatched},
+		ClusterCountByAchievedExactVersion:           map[string]int64{key: achieved},
+		SuccessfulClusterCountByAchievedExactVersion: map[string]int64{key: successful},
+		FailedClusterCountByDesiredExactVersion:      map[string]int64{key: failed},
+	})
+}
+
+func TestRolloutDecision(t *testing.T) {
+	t.Parallel()
+
+	// canary=5, rolling=20 so the rolling threshold (20) exceeds the canary
+	// threshold (5%+2=7) and the rolling branch is reachable.
+	cfg := NewDefaultRolloutConfig()
+	cfg.CanaryPercentage = 5
+	cfg.RollingPercentage = 20
+
+	tests := []struct {
+		name          string
+		rollout       *fleetapi.ControlPlaneVersionRollout
+		totalClusters int
+		eligibleCount int
+		wantOutcome   rolloutOutcome
+		wantSelect    int
+	}{
+		{
+			name:        "no best version",
+			rollout:     newTestRollout("stable-4.21", nil, fleetapi.ControlPlaneVersionRolloutStatus{}),
+			wantOutcome: outcomeNoBest,
+		},
+		{
+			// small channel: budget = max(2, 0.05*10=0.5) = 2 floor; 3 failed exceeds it.
+			name:          "failure budget - absolute floor dominates on small channel",
+			rollout:       rolloutWithCounts("4.21.6", 10, 0, 0, 0, 3),
+			totalClusters: 10,
+			eligibleCount: 5,
+			wantOutcome:   outcomeFailure,
+		},
+		{
+			// large channel: budget = max(2, 0.05*100=5) = 5; 6 failed exceeds it.
+			name:          "failure budget - fraction dominates on large channel",
+			rollout:       rolloutWithCounts("4.21.6", 100, 0, 0, 0, 6),
+			totalClusters: 100,
+			eligibleCount: 50,
+			wantOutcome:   outcomeFailure,
+		},
+		{
+			// large channel at the fraction boundary: 5 == max(2,5), not > it, so proceed.
+			name:          "failure budget not exceeded at fraction boundary",
+			rollout:       rolloutWithCounts("4.21.6", 100, 0, 0, 0, 5),
+			totalClusters: 100,
+			eligibleCount: 50,
+			wantOutcome:   outcomeCanary,
+			wantSelect:    7, // ceil(5% of 100) + 2
+		},
+		{
+			name:          "no eligible clusters is stable",
+			rollout:       rolloutWithCounts("4.21.6", 0, 0, 0, 0, 0),
+			totalClusters: 100,
+			eligibleCount: 0,
+			wantOutcome:   outcomeStable,
+		},
+		{
+			name:          "canary selects up to threshold",
+			rollout:       rolloutWithCounts("4.21.6", 0, 0, 0, 0, 0),
+			totalClusters: 100,
+			eligibleCount: 50,
+			wantOutcome:   outcomeCanary,
+			wantSelect:    7, // ceil(5% of 100) + 2
+		},
+		{
+			name:          "canary clamped by eligible count",
+			rollout:       rolloutWithCounts("4.21.6", 0, 0, 0, 0, 0),
+			totalClusters: 100,
+			eligibleCount: 3,
+			wantOutcome:   outcomeCanary,
+			wantSelect:    3,
+		},
+		{
+			name:          "canary gate waits for successful canaries",
+			rollout:       rolloutWithCounts("4.21.6", 7, 5, 2, 2, 0), // inFlight=7 (>=7), successful=2 (<5)
+			totalClusters: 100,
+			eligibleCount: 50,
+			wantOutcome:   outcomeProgressing,
+		},
+		{
+			name:          "rolling selects after canary gate passes",
+			rollout:       rolloutWithCounts("4.21.6", 7, 5, 2, 5, 0), // inFlight=7, successful=5 (gate open), rollingThreshold=20
+			totalClusters: 100,
+			eligibleCount: 50,
+			wantOutcome:   outcomeRolling,
+			wantSelect:    13, // 20 - 7
+		},
+		{
+			name:          "steady progressing once rolling target met",
+			rollout:       rolloutWithCounts("4.21.6", 20, 10, 10, 5, 0), // inFlight=20 >= rollingThreshold=20
+			totalClusters: 100,
+			eligibleCount: 50,
+			wantOutcome:   outcomeProgressing,
+			wantSelect:    0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := rolloutDecision(tc.rollout, tc.totalClusters, tc.eligibleCount, cfg)
+			assert.Equal(t, tc.wantOutcome, got.Outcome, "outcome (message: %s)", got.Message)
+			assert.Equal(t, tc.wantSelect, got.SelectCount, "selectCount")
+		})
+	}
+}
+
+func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const yStreamChannel = "stable-4.21"
+
+	clusters := []*coreapi.Cluster{
+		newTestCluster("c1", "stable", "4.21"),
+		newTestCluster("c2", "stable", "4.21"),
+		newTestCluster("c3", "stable", "4.21"),
+		newTestCluster("c4", "stable", "4.21"),
+	}
+	serviceProviderClusters := []*coreapi.ServiceProviderCluster{
+		newTestServiceProviderCluster("c1", v("4.21.4"), nil, nil),
+		newTestServiceProviderCluster("c2", v("4.21.4"), nil, nil),
+		newTestServiceProviderCluster("c3", v("4.21.4"), nil, nil),
+		newTestServiceProviderCluster("c4", v("4.21.4"), nil, nil),
+	}
+
+	resources := make([]any, 0, len(clusters)+len(serviceProviderClusters))
+	for _, c := range clusters {
+		resources = append(resources, c)
+	}
+	for _, s := range serviceProviderClusters {
+		resources = append(resources, s)
+	}
+	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+	require.NoError(t, err)
+
+	// Fresh rollout at 4.21.6: canary threshold = ceil(6% of 4) + 2 = 3.
+	mockFleet, lister := newTestRolloutStore(t, newTestRollout(yStreamChannel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
+
+	syncer := &normalClusterDesiredVersionSyncer{
+		clock:                        utilsclock.RealClock{},
+		resourcesDBClient:            mockDB,
+		rolloutLister:                lister,
+		fleetDBClient:                mockFleet,
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
+		clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
+		selector:                     firstNSelector{},
+		config:                       NewDefaultRolloutConfig(),
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: yStreamChannel}))
+
+	atBest := 0
+	for _, name := range []string{"c1", "c2", "c3", "c4"} {
+		updated, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, name).
+			Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		require.NoError(t, err)
+		require.NotNil(t, updated.Spec.ControlPlaneVersion.DesiredVersion)
+		if updated.Spec.ControlPlaneVersion.DesiredVersion.EQ(*v("4.21.6")) {
+			atBest++
+		}
+	}
+	assert.Equal(t, 3, atBest, "canary should have advanced exactly 3 of 4 clusters to best")
+}
+
+func TestRolloutControllersExcludeDeletingClusters(t *testing.T) {
+	ctx := context.Background()
+	resources := []any{
+		newTestCluster("live", "stable", "4.21"),
+		newTestServiceProviderCluster("live", v("4.21.4"), nil, nil),
+	}
+	for _, name := range []string{"failed-a", "failed-b", "failed-c", "eligible"} {
+		cluster := newTestCluster(name, "stable", "4.21")
+		now := metav1.NewTime(statusTestNow)
+		cluster.ServiceProviderProperties.DeletionTimestamp = &now
+		desired := v("4.21.6")
+		if name == "eligible" {
+			desired = v("4.21.4")
+		}
+		resources = append(resources, cluster, desiredSince(newTestServiceProviderCluster(name, desired, nil, nil), 3*time.Hour))
+	}
+	resourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+	require.NoError(t, err)
+	fleetDB, rolloutLister := newTestRolloutStore(t, newTestRollout("stable-4.21", v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
+	clusterLister := &corelistertesting.DBClusterLister{ResourcesDBClient: resourcesDB}
+	serviceProviderClusterLister := &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: resourcesDB}
+	clock := clocktesting.NewFakeClock(statusTestNow)
+	key := controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: "stable-4.21"}
+	collector := &statusCollectorSyncer{
+		clock: clock, config: NewDefaultRolloutConfig(), fleetDBClient: fleetDB, rolloutLister: rolloutLister,
+		clusterLister: clusterLister, serviceProviderClusterLister: serviceProviderClusterLister,
+	}
+	require.NoError(t, collector.SyncOnce(ctx, key))
+	rollout, err := rolloutLister.Get(ctx, key.YStreamChannel)
+	require.NoError(t, err)
+	require.Equal(t, map[string]int64{"4.21.4": 1}, rollout.Status.ClusterCountByDesiredExactVersion)
+	require.Empty(t, rollout.Status.FailedClusterCountByDesiredExactVersion, "deleting clusters must not exhaust the failure budget")
+
+	assignment := &normalClusterDesiredVersionSyncer{
+		clock: clock, config: NewDefaultRolloutConfig(), fleetDBClient: fleetDB, rolloutLister: rolloutLister,
+		clusterLister: clusterLister, serviceProviderClusterLister: serviceProviderClusterLister,
+		resourcesDBClient: resourcesDB, selector: firstNSelector{},
+	}
+	require.NoError(t, assignment.SyncOnce(ctx, key))
+	live, err := serviceProviderClusterLister.Get(ctx, testSubscriptionID, testResourceGroupName, "live")
+	require.NoError(t, err)
+	require.Equal(t, v("4.21.6"), live.Spec.ControlPlaneVersion.DesiredVersion, "deleting clusters must not block rollout")
+	deleting, err := serviceProviderClusterLister.Get(ctx, testSubscriptionID, testResourceGroupName, "eligible")
+	require.NoError(t, err)
+	require.Equal(t, v("4.21.4"), deleting.Spec.ControlPlaneVersion.DesiredVersion, "deleting clusters must not receive assignments")
+}
