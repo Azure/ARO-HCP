@@ -1,0 +1,34 @@
+apiVersion: mgmtagent.aro-hcp.azure.com/v1alpha1
+kind: CapacityReport
+metadata:
+  name: cluster
+status:
+  averageHCPResourceUsage:
+    aro.openshift.io/swift-nic: "3"
+    memory: 12800Mi
+  conditions:
+  - lastTransitionTime: "2025-01-01T00:00:00Z"
+    message: ""
+    observedGeneration: 0
+    reason: DataCollected
+    status: "True"
+    type: ReportCurrent
+  hostedControlPlanes:
+    notReady: 2
+    ready: 8
+  lastReportedAt: "2025-01-01T00:00:00Z"
+  nodes:
+  - allocatable:
+      memory: 256Gi
+    notReady: 1
+    ready: 2
+    sku: Standard_D32s_v3
+  - allocatable:
+      memory: 512Gi
+    notReady: 0
+    ready: 1
+    sku: Standard_D64s_v3
+  requested:
+    memory: 200Gi
+  usage:
+    memory: 100Gi

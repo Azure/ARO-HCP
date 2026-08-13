@@ -1,0 +1,18 @@
+apiVersion: mgmtagent.aro-hcp.azure.com/v1alpha1
+kind: CapacityReport
+metadata:
+  name: cluster
+status:
+  averageHCPResourceUsage: null
+  conditions:
+  - lastTransitionTime: "2025-01-01T00:00:00Z"
+    message: test error
+    observedGeneration: 0
+    reason: DataCollectionFailed
+    status: "False"
+    type: ReportCurrent
+  hostedControlPlanes:
+    notReady: 0
+    ready: 3
+  requested: null
+  usage: null

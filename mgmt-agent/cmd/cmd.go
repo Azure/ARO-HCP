@@ -33,7 +33,7 @@ func NewRootCmd() (*cobra.Command, error) {
 to suit the needs of running ARO-HCP. It provides a place to put logic to bridge
 the gap between "brand new AKS cluster" and "ready to run ARO-HCP customer workloads".
 
-mgmt-agent runs three controllers under a single leader election:
+mgmt-agent runs the following controllers under a single leader election:
 
 1. SWIFT NIC controller: watches Node objects on the management cluster, queries
    the Azure Compute API for each node's VM network configuration, and sets an
@@ -51,6 +51,12 @@ mgmt-agent runs three controllers under a single leader election:
    sets a health label on the node (and clears it when the node recovers) so an
    out-of-band consumer can act on it. It labels only SWIFT-v2 nodes, scoped by
    the AKS node label, and ships disabled by default.
+
+4. Capacity reporting controller: periodically collects node allocatable
+   resources, pod resource requests and usage (via Metrics API), and
+   HostedControlPlane counts. It writes a CapacityReport custom resource
+   via Server-Side Apply so fleet-level tooling can observe per-cluster
+   capacity without direct management-cluster access.
 
 It also runs log-only watchers for Pod (when KSM is enabled) and selected CRD
 and core resources to aid operational troubleshooting.`,

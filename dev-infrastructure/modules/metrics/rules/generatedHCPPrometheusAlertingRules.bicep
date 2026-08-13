@@ -106,6 +106,36 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'MgmtAgentCapacityReportingSyncFailing'
+        enabled: true
+        labels: {
+          component: 'capacity'
+          severity: 'warning'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'MgmtAgentCapacityReportingSyncFailing/{{ $labels.cluster }}'
+          description: 'Capacity reporting on management cluster {{ $labels.cluster }} has been failing continuously for at least 5 minutes. The CapacityReport CR may contain stale data, which can affect fleet-level placement decisions. Check mgmt-agent logs for root cause.'
+          info: 'Capacity reporting on management cluster {{ $labels.cluster }} has been failing continuously for at least 5 minutes. The CapacityReport CR may contain stale data, which can affect fleet-level placement decisions. Check mgmt-agent logs for root cause.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://aka.ms/arohcp-runbook/mgmt-cluster-capacity'
+          summary: 'Capacity reporting sync failing on {{ $labels.cluster }}'
+          title: 'Capacity reporting sync failing on {{ $labels.cluster }}'
+        }
+        expression: 'increase(capacity_reporting_sync_errors_total[5m]) >= 8'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring
