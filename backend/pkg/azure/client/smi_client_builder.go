@@ -18,16 +18,10 @@ package client
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
-	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
-	"github.com/Azure/msi-dataplane/pkg/dataplane"
-
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // ServiceManagedIdentityClientBuilderType is a type that represents the type of the
@@ -51,12 +45,6 @@ type ServiceManagedIdentityClientBuilder interface {
 	UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error)
 	// SubnetsClient returns a new Subnet client.
 	SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error)
-	// KeyVaultKeysClient returns a new Key Vault Keys data plane client,
-	// authenticated as the given customer-granted managed identity (e.g. a
-	// cluster operator identity such as "kms") rather than as the SMI. This
-	// is the only credential path that has RBAC access to a customer-owned
-	// Key Vault; the FPA and SMI do not.
-	KeyVaultKeysClient(ctx context.Context, clusterIdentityURL string, identityResourceID *azcorearm.ResourceID, vaultName string) (KeyVaultKeysClient, error)
 }
 
 type serviceManagedIdentityClientBuilder struct {
@@ -71,7 +59,7 @@ func (b *serviceManagedIdentityClientBuilder) BuilderType() ServiceManagedIdenti
 }
 
 func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error) {
-	creds, err := b.credentialForIdentity(ctx, clusterIdentityURL, smiResourceID)
+	creds, err := credentialForIdentity(ctx, b.fpaMIdataplaneClientBuilder, b.azCoreARMClientOptions.ClientOptions, clusterIdentityURL, smiResourceID)
 	if err != nil {
 		return nil, err
 	}
@@ -80,47 +68,11 @@ func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx c
 }
 
 func (b *serviceManagedIdentityClientBuilder) SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error) {
-	creds, err := b.credentialForIdentity(ctx, clusterIdentityURL, smiResourceID)
+	creds, err := credentialForIdentity(ctx, b.fpaMIdataplaneClientBuilder, b.azCoreARMClientOptions.ClientOptions, clusterIdentityURL, smiResourceID)
 	if err != nil {
 		return nil, err
 	}
 	return armnetwork.NewSubnetsClient(subscriptionID, creds, b.azCoreARMClientOptions)
-}
-
-func (b *serviceManagedIdentityClientBuilder) KeyVaultKeysClient(ctx context.Context, clusterIdentityURL string, identityResourceID *azcorearm.ResourceID, vaultName string) (KeyVaultKeysClient, error) {
-	creds, err := b.credentialForIdentity(ctx, clusterIdentityURL, identityResourceID)
-	if err != nil {
-		return nil, err
-	}
-
-	vaultURL := fmt.Sprintf("https://%s.vault.azure.net/", vaultName)
-	return azkeys.NewClient(vaultURL, creds, nil)
-}
-
-// credentialForIdentity obtains an azcore.TokenCredential for the given
-// customer-granted managed identity, via the Managed Identities Data Plane
-// Service, using the cluster's identity URL. It works for any identity the
-// cluster has been granted (the SMI, or a cluster operator identity like
-// "kms") -- the data plane request is keyed by resource ID alone.
-func (b *serviceManagedIdentityClientBuilder) credentialForIdentity(ctx context.Context, clusterIdentityURL string, identityResourceID *azcorearm.ResourceID) (azcore.TokenCredential, error) {
-	miDataplaneClient, err := b.fpaMIdataplaneClientBuilder.ManagedIdentitiesDataplane(clusterIdentityURL)
-	if err != nil {
-		return nil, err
-	}
-
-	dataplaneRequest := dataplane.UserAssignedIdentitiesRequest{
-		IdentityIDs: []string{identityResourceID.String()},
-	}
-	resp, err := miDataplaneClient.GetUserAssignedIdentitiesCredentials(ctx, dataplaneRequest)
-	if err != nil {
-		return nil, err
-	}
-	if len(resp.ExplicitIdentities) == 0 {
-		return nil,
-			utils.TrackError(fmt.Errorf("managed identities data plane returned no credentials for identity '%s'", identityResourceID.String()))
-	}
-
-	return dataplane.GetCredential(b.azCoreARMClientOptions.ClientOptions, resp.ExplicitIdentities[0])
 }
 
 func NewServiceManagedIdentityClientBuilder(fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder, options *azcorearm.ClientOptions) ServiceManagedIdentityClientBuilder {

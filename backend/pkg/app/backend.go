@@ -119,6 +119,7 @@ type BackendOptions struct {
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
 	BackupConfig                                        *clusterbackups.BackupConfig
 	SMIClientBuilder                                    azureclient.ServiceManagedIdentityClientBuilder
+	ClusterOperatorIdentityClientBuilder                azureclient.ClusterOperatorIdentityClientBuilder
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
@@ -827,7 +828,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 	azureClusterKeyVaultAccessibilityValidationController := clustervalidation.NewClusterValidationController(
-		validationutils.NewAzureClusterKeyVaultAccessibilityValidation(b.options.SMIClientBuilder),
+		validationutils.NewAzureClusterKeyVaultAccessibilityValidation(b.options.ClusterOperatorIdentityClientBuilder),
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,

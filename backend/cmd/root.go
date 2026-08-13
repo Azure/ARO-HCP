@@ -415,6 +415,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	}
 
 	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
+	clusterOperatorIdentityClientBuilder := app.NewClusterOperatorIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
 
 	azCoreClientOptions := *azureConfig.CloudEnvironment.AZCoreClientOptions()
 	miDataplaneBasedIdentityAccessTokenRetrieverBuilder := azureclient.NewMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(
@@ -489,12 +490,13 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		BackupConfig:                       backupConfig,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
-		SMIClientBuilder:              smiClientBuilder,
-		CheckAccessV2ClientBuilder:    checkAccessV2ClientBuilder,
-		ClusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
-		CloudEnvironment:              azureConfig.CloudEnvironment,
-		MetricsRegisterer:             legacyregistry.Registerer(),
-		MetricsGatherer:               legacyregistry.DefaultGatherer,
+		SMIClientBuilder:                     smiClientBuilder,
+		ClusterOperatorIdentityClientBuilder: clusterOperatorIdentityClientBuilder,
+		CheckAccessV2ClientBuilder:           checkAccessV2ClientBuilder,
+		ClusterScopedIdentitiesConfig:        clusterScopedIdentitiesConfig,
+		CloudEnvironment:                     azureConfig.CloudEnvironment,
+		MetricsRegisterer:                    legacyregistry.Registerer(),
+		MetricsGatherer:                      legacyregistry.DefaultGatherer,
 	}
 
 	return backendOptions, nil
