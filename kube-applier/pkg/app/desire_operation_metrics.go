@@ -20,7 +20,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 )
 
 // Operation type constants for metrics labels
@@ -62,10 +62,10 @@ func newDesireOperationMetrics(registerer prometheus.Registerer) *desireOperatio
 }
 
 // recordApplyDesireOperation records metrics for an ApplyDesire operation.
-func (m *desireOperationMetrics) recordApplyDesireOperation(desire *kubeapplier.ApplyDesire) {
+func (m *desireOperationMetrics) recordApplyDesireOperation(desire *kubeapplierapi.ApplyDesire) {
 	// Determine operation type from the desire's spec.
 	operation := OperationApply
-	if desire.Spec.Type == kubeapplier.ApplyDesireTypeDelete {
+	if desire.Spec.Type == kubeapplierapi.ApplyDesireTypeDelete {
 		// ServerSideApply is always "apply" - no create/update distinction.
 		operation = OperationDelete
 	}
@@ -75,7 +75,7 @@ func (m *desireOperationMetrics) recordApplyDesireOperation(desire *kubeapplier.
 }
 
 // recordReadDesireOperation records metrics for a ReadDesire operation (resync).
-func (m *desireOperationMetrics) recordReadDesireOperation(desire *kubeapplier.ReadDesire) {
+func (m *desireOperationMetrics) recordReadDesireOperation(desire *kubeapplierapi.ReadDesire) {
 	status, reason := getConditionStatusAndReason(desire.Status.Conditions)
 	m.recordOperation(OperationResync, desire.Spec.TargetItem.Group, desire.Spec.TargetItem.Resource, status, reason)
 }
@@ -104,7 +104,7 @@ func (m *desireOperationMetrics) recordOperation(operation, group, resource, sta
 // Returns the condition status (True/False/Unknown) and reason, or defaults if not found.
 func getConditionStatusAndReason(conditions []metav1.Condition) (string, string) {
 	for _, cond := range conditions {
-		if cond.Type == kubeapplier.ConditionTypeSuccessful {
+		if cond.Type == kubeapplierapi.ConditionTypeSuccessful {
 			return string(cond.Status), cond.Reason
 		}
 	}
