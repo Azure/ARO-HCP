@@ -121,13 +121,6 @@ func (in *CapacityReportStatus) DeepCopyInto(out *CapacityReportStatus) {
 		}
 	}
 	out.HostedControlPlanes = in.HostedControlPlanes
-	if in.AverageHCPResourceUsage != nil {
-		in, out := &in.AverageHCPResourceUsage, &out.AverageHCPResourceUsage
-		*out = make(corev1.ResourceList, len(*in))
-		for key, val := range *in {
-			(*out)[key] = val.DeepCopy()
-		}
-	}
 	return
 }
 

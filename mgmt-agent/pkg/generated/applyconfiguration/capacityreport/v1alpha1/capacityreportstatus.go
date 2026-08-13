@@ -47,10 +47,6 @@ type CapacityReportStatusApplyConfiguration struct {
 	// hostedControlPlanes reports the ready and not-ready HostedControlPlane count on
 	// the management cluster. An HCP is "ready" when its Available condition is True.
 	HostedControlPlanes *HostedControlPlaneCountApplyConfiguration `json:"hostedControlPlanes,omitempty"`
-	// AverageHCPResourceUsage is the average actual resource consumption per
-	// ready HCP.
-	// Omitted when hostedControlPlanes.ready is zero.
-	AverageHCPResourceUsage *corev1.ResourceList `json:"averageHCPResourceUsage,omitempty"`
 }
 
 // CapacityReportStatusApplyConfiguration constructs a declarative configuration of the CapacityReportStatus type for use with
@@ -114,13 +110,5 @@ func (b *CapacityReportStatusApplyConfiguration) WithRequested(value corev1.Reso
 // If called multiple times, the HostedControlPlanes field is set to the value of the last call.
 func (b *CapacityReportStatusApplyConfiguration) WithHostedControlPlanes(value *HostedControlPlaneCountApplyConfiguration) *CapacityReportStatusApplyConfiguration {
 	b.HostedControlPlanes = value
-	return b
-}
-
-// WithAverageHCPResourceUsage sets the AverageHCPResourceUsage field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the AverageHCPResourceUsage field is set to the value of the last call.
-func (b *CapacityReportStatusApplyConfiguration) WithAverageHCPResourceUsage(value corev1.ResourceList) *CapacityReportStatusApplyConfiguration {
-	b.AverageHCPResourceUsage = &value
 	return b
 }

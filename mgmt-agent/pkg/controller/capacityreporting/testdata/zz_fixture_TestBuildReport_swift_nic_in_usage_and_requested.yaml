@@ -3,9 +3,6 @@ kind: CapacityReport
 metadata:
   name: cluster
 status:
-  averageHCPResourceUsage:
-    aro.openshift.io/swift-nic: "3"
-    memory: 2Gi
   conditions:
   - lastTransitionTime: "2025-01-01T00:00:00Z"
     message: ""

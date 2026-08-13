@@ -23,6 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 
 	"github.com/Azure/ARO-Tools/testutil"
@@ -192,7 +193,7 @@ func TestAggregateNodesBySKU(t *testing.T) {
 			want: []capacityreportv1alpha1.NodeSKUCapacity{},
 		},
 		{
-			name: "allocatable filters to tracked resources only",
+			name: "allocatable passes through all resource types",
 			nodes: []*corev1.Node{
 				workerNode("node-1", "Standard_D32s_v3", true, corev1.ResourceList{
 					corev1.ResourceCPU:              resource.MustParse("32"),
@@ -208,6 +209,7 @@ func TestAggregateNodesBySKU(t *testing.T) {
 					Allocatable: corev1.ResourceList{
 						corev1.ResourceCPU:              resource.MustParse("32"),
 						corev1.ResourceMemory:           resource.MustParse("128Gi"),
+						corev1.ResourceEphemeralStorage: resource.MustParse("500Gi"),
 						controller.SwiftNICResourceName: resource.MustParse("8"),
 					},
 				},
@@ -228,6 +230,9 @@ func TestAggregateNodesBySKU(t *testing.T) {
 
 func TestAggregatePodRequests(t *testing.T) {
 	t.Parallel()
+
+	hcpNamespaces := sets.New("ocm-cluster-1", "ocm-cluster-2")
+
 	tests := []struct {
 		name string
 		pods []*corev1.Pod
@@ -239,7 +244,7 @@ func TestAggregatePodRequests(t *testing.T) {
 			want: corev1.ResourceList{},
 		},
 		{
-			name: "pod in ocm- namespace",
+			name: "pod in HCP namespace",
 			pods: []*corev1.Pod{
 				newPod("ocm-cluster-1", "pod-1", corev1.PodRunning, corev1.ResourceList{
 					corev1.ResourceCPU:              resource.MustParse("500m"),
@@ -254,7 +259,7 @@ func TestAggregatePodRequests(t *testing.T) {
 			},
 		},
 		{
-			name: "pod outside ocm- namespace excluded",
+			name: "pod outside HCP namespace excluded",
 			pods: []*corev1.Pod{
 				newPod("kube-system", "pod-1", corev1.PodRunning, corev1.ResourceList{
 					corev1.ResourceMemory: resource.MustParse("4Gi"),
@@ -324,7 +329,7 @@ func TestAggregatePodRequests(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := aggregatePodRequests(tt.pods)
+			got := aggregatePodRequests(tt.pods, hcpNamespaces)
 			if diff := cmp.Diff(tt.want, got); len(diff) > 0 {
 				t.Errorf("unexpected resource list (-want +got):\n%s", diff)
 			}
@@ -334,6 +339,9 @@ func TestAggregatePodRequests(t *testing.T) {
 
 func TestAggregatePodMetrics(t *testing.T) {
 	t.Parallel()
+
+	hcpNamespaces := sets.New("ocm-cluster-1", "ocm-cluster-2")
+
 	tests := []struct {
 		name    string
 		metrics []metricsv1beta1.PodMetrics
@@ -345,7 +353,7 @@ func TestAggregatePodMetrics(t *testing.T) {
 			want:    corev1.ResourceList{},
 		},
 		{
-			name: "metrics in ocm- namespace",
+			name: "metrics in HCP namespace",
 			metrics: []metricsv1beta1.PodMetrics{
 				podMetrics("ocm-cluster-1", "pod-1", corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("750m"),
@@ -358,7 +366,7 @@ func TestAggregatePodMetrics(t *testing.T) {
 			},
 		},
 		{
-			name: "metrics outside ocm- namespace excluded",
+			name: "metrics outside HCP namespace excluded",
 			metrics: []metricsv1beta1.PodMetrics{
 				podMetrics("kube-system", "pod-1", corev1.ResourceList{
 					corev1.ResourceMemory: resource.MustParse("3Gi"),
@@ -388,7 +396,7 @@ func TestAggregatePodMetrics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := aggregatePodMetrics(tt.metrics)
+			got := aggregatePodMetrics(tt.metrics, hcpNamespaces)
 			if diff := cmp.Diff(tt.want, got); len(diff) > 0 {
 				t.Errorf("unexpected resource list (-want +got):\n%s", diff)
 			}
@@ -449,14 +457,14 @@ func TestCountHCPs(t *testing.T) {
 			want: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 0, NotReady: 1},
 		},
 		{
-			name: "HCPs in non-ocm namespaces are excluded",
+			name: "all HCPs counted regardless of namespace",
 			hcps: []*hypershiftv1beta1.HostedControlPlane{
 				newHostedControlPlane("ocm-cluster-1", "hcp-1", true),
-				newHostedControlPlane("kube-system", "hcp-2", true),
-				newHostedControlPlane("default", "hcp-3", true),
+				newHostedControlPlane("ocm-cluster-99", "hcp-2", true),
+				newHostedControlPlane("other-namespace", "hcp-3", true),
 				newHostedControlPlane("ocm-cluster-2", "hcp-4", false),
 			},
-			want: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 1, NotReady: 1},
+			want: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 3, NotReady: 1},
 		},
 	}
 
@@ -466,104 +474,6 @@ func TestCountHCPs(t *testing.T) {
 			got := countHCPs(tt.hcps)
 			if diff := cmp.Diff(tt.want, got); len(diff) > 0 {
 				t.Errorf("unexpected HCP count (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestComputeAverageHCPResourceUsage(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name       string
-		usage      corev1.ResourceList
-		readyCount int32
-		want       corev1.ResourceList
-	}{
-		{
-			name:       "zero ready returns nil",
-			usage:      corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("100Gi")},
-			readyCount: 0,
-			want:       nil,
-		},
-		{
-			name: "divides evenly",
-			usage: corev1.ResourceList{
-				corev1.ResourceCPU:              resource.MustParse("20"),
-				corev1.ResourceMemory:           resource.MustParse("100Gi"),
-				controller.SwiftNICResourceName: resource.MustParse("20"),
-			},
-			readyCount: 10,
-			want: corev1.ResourceList{
-				corev1.ResourceCPU:              *resource.NewMilliQuantity(2000, resource.DecimalSI),
-				corev1.ResourceMemory:           *resource.NewQuantity(10*1024*1024*1024, resource.BinarySI),
-				controller.SwiftNICResourceName: *resource.NewQuantity(swiftNICsPerHCP, resource.DecimalSI),
-			},
-		},
-		{
-			name: "single ready HCP returns usage as-is with hardcoded SWIFT NIC",
-			usage: corev1.ResourceList{
-				corev1.ResourceCPU:              resource.MustParse("4"),
-				corev1.ResourceMemory:           resource.MustParse("8Gi"),
-				controller.SwiftNICResourceName: resource.MustParse("3"),
-			},
-			readyCount: 1,
-			want: corev1.ResourceList{
-				corev1.ResourceCPU:              *resource.NewMilliQuantity(4000, resource.DecimalSI),
-				corev1.ResourceMemory:           *resource.NewQuantity(8*1024*1024*1024, resource.BinarySI),
-				controller.SwiftNICResourceName: *resource.NewQuantity(swiftNICsPerHCP, resource.DecimalSI),
-			},
-		},
-		{
-			name: "truncates fractional result",
-			usage: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("10Gi"),
-			},
-			readyCount: 3,
-			want: corev1.ResourceList{
-				corev1.ResourceMemory:           *resource.NewQuantity(10*1024*1024*1024/3, resource.BinarySI),
-				controller.SwiftNICResourceName: *resource.NewQuantity(swiftNICsPerHCP, resource.DecimalSI),
-			},
-		},
-		{
-			name: "millicore CPU preserves sub-core precision",
-			usage: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("2500m"),
-				corev1.ResourceMemory: resource.MustParse("8Gi"),
-			},
-			readyCount: 1,
-			want: corev1.ResourceList{
-				corev1.ResourceCPU:              *resource.NewMilliQuantity(2500, resource.DecimalSI),
-				corev1.ResourceMemory:           *resource.NewQuantity(8*1024*1024*1024, resource.BinarySI),
-				controller.SwiftNICResourceName: *resource.NewQuantity(swiftNICsPerHCP, resource.DecimalSI),
-			},
-		},
-		{
-			name: "millicore CPU divides across multiple HCPs",
-			usage: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("7500m"),
-				corev1.ResourceMemory: resource.MustParse("30Gi"),
-			},
-			readyCount: 3,
-			want: corev1.ResourceList{
-				corev1.ResourceCPU:              *resource.NewMilliQuantity(2500, resource.DecimalSI),
-				corev1.ResourceMemory:           *resource.NewQuantity(10*1024*1024*1024, resource.BinarySI),
-				controller.SwiftNICResourceName: *resource.NewQuantity(swiftNICsPerHCP, resource.DecimalSI),
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := computeAverageHCPResourceUsage(tt.usage, tt.readyCount)
-			if tt.want == nil {
-				if got != nil {
-					t.Errorf("expected nil, got %v", got)
-				}
-				return
-			}
-			if diff := cmp.Diff(tt.want, got); len(diff) > 0 {
-				t.Errorf("unexpected resource list (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -582,7 +492,7 @@ func TestBuildReport(t *testing.T) {
 		hcpCount  capacityreportv1alpha1.HostedControlPlaneCount
 	}{
 		{
-			name: "full_report_with_average_hcp_resource_usage",
+			name: "full_report",
 			nodes: []capacityreportv1alpha1.NodeSKUCapacity{
 				{
 					SKU:   "Standard_D32s_v3",
@@ -604,7 +514,7 @@ func TestBuildReport(t *testing.T) {
 			hcpCount: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 2, NotReady: 1},
 		},
 		{
-			name: "no_ready_hcps_omits_average_hcp_resource_usage",
+			name: "no_ready_hcps",
 			nodes: []capacityreportv1alpha1.NodeSKUCapacity{
 				{
 					SKU:   "Standard_D32s_v3",
@@ -732,9 +642,6 @@ func TestRetainStatusWithCondition(t *testing.T) {
 				HostedControlPlanes: capacityreportv1alpha1.HostedControlPlaneCount{
 					Ready:    5,
 					NotReady: 1,
-				},
-				AverageHCPResourceUsage: corev1.ResourceList{
-					corev1.ResourceMemory: resource.MustParse("800Mi"),
 				},
 			},
 		},

@@ -25,7 +25,7 @@ KUBE_CODEGEN_SH=../hack/kube-codegen.sh
 # Default target
 .DEFAULT_GOAL := build
 
-update-codegen: $(INFORMER_GEN) $(CLIENT_GEN) $(LISTER_GEN) $(INFORMER_GEN) $(APPLYCONFIGURATION_GEN)
+update-codegen: $(INFORMER_GEN) $(CLIENT_GEN) $(LISTER_GEN) $(APPLYCONFIGURATION_GEN)
 	KUBE_CODEGEN_TAG=v0.35.3 KUBE_CODEGEN_SH=$(KUBE_CODEGEN_SH) ./hack/update-codegen.sh
 	make -C .. fmt
 .PHONY: update-codegen

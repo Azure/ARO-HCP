@@ -87,15 +87,6 @@ type CapacityReportStatus struct {
 	// hostedControlPlanes reports the ready and not-ready HostedControlPlane count on
 	// the management cluster. An HCP is "ready" when its Available condition is True.
 	HostedControlPlanes HostedControlPlaneCount `json:"hostedControlPlanes"`
-
-	// +optional
-	// averageHCPResourceUsage is the estimated resource cost of one additional HCP.
-	// CPU and memory are computed as total ocm-* namespace usage divided by the
-	// number of ready HCPs (integer division, truncates). The denominator only
-	// includes ready HCPs, so the estimate is conservative when not-ready HCPs
-	// contribute usage.
-	// Omitted when hostedControlPlanes.ready is zero.
-	AverageHCPResourceUsage corev1.ResourceList `json:"averageHCPResourceUsage,omitempty"`
 }
 
 // NodeSKUCapacity reports the number of ready and not-ready worker nodes for a

@@ -3,8 +3,6 @@ kind: CapacityReport
 metadata:
   name: cluster
 status:
-  averageHCPResourceUsage:
-    memory: 800Mi
   conditions:
   - lastTransitionTime: "2025-01-01T00:00:00Z"
     message: test error

@@ -17,15 +17,15 @@ package capacityreporting
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	metaac "k8s.io/client-go/applyconfigurations/meta/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -54,15 +54,8 @@ const (
 	workerNodeLabel            = "aro-hcp.azure.com/role"
 	workerLabelValue           = "worker"
 	skuLabel                   = "node.kubernetes.io/instance-type"
-	ocmNamespacePrefix         = "ocm-"
 	reportInterval             = 30 * time.Second
 	dataCollectionTimeout      = 25 * time.Second
-
-	// swiftNICsPerHCP is hardcoded because legacy clusters (v20240610preview)
-	// may not use SWIFT NICs, which would drag the computed average below the
-	// actual requirement for new clusters. All current API versions require
-	// SWIFT, and every HCP consumes exactly 3 NICs.
-	swiftNICsPerHCP int64 = 3
 )
 
 type CapacityReportController struct {
@@ -172,39 +165,40 @@ func (c *CapacityReportController) buildCapacityReportUpdate(ctx context.Context
 	}
 	nodeCapacity := aggregateNodesBySKU(nodes)
 
+	hcps, err := c.hcpLister.List(labels.Everything())
+	if err != nil {
+		return retainStatusWithCondition(existingStatus, metav1.ConditionFalse, capacityreportv1alpha1.ReasonDataCollectionFailed, err.Error(), now),
+			fmt.Errorf("failed to list HostedControlPlanes: %w", err)
+	}
+	hcpNamespaces := collectHCPNamespaces(hcps)
+	hcpCount := countHCPs(hcps)
+
 	pods, err := c.podLister.List(labels.Everything())
 	if err != nil {
 		return retainStatusWithCondition(existingStatus, metav1.ConditionFalse, capacityreportv1alpha1.ReasonDataCollectionFailed, err.Error(), now),
 			fmt.Errorf("failed to list pods: %w", err)
 	}
-	requested := aggregatePodRequests(pods)
+	requested := aggregatePodRequests(pods, hcpNamespaces)
 
-	// List cluster-wide because the Metrics API does not support namespace-prefix
+	// List cluster-wide because the Metrics API does not support namespace
 	// filtering, pagination, or field selectors. The metrics-server serves an
 	// in-memory snapshot from kubelet scrapes, not etcd-backed storage, so
 	// Limit/Continue and ResourceVersion in ListOptions are silently ignored.
-	// aggregatePodMetrics filters to ocm-* namespaces client-side.
-	// On purpose-built management clusters most pods are in ocm-* namespaces,
+	// aggregatePodMetrics filters to HCP namespaces client-side.
+	// On purpose-built management clusters most pods are in HCP namespaces,
 	// so the overhead is minimal.
 	allMetrics, err := c.metricsClient.MetricsV1beta1().PodMetricses("").List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return retainStatusWithCondition(existingStatus, metav1.ConditionFalse, capacityreportv1alpha1.ReasonDataCollectionFailed, err.Error(), now),
 			fmt.Errorf("failed to list pod metrics: %w", err)
 	}
-	usage := aggregatePodMetrics(allMetrics.Items)
+	usage := aggregatePodMetrics(allMetrics.Items, hcpNamespaces)
 
 	// SWIFT NICs are discrete, non-compressible resources: requested == used.
 	// Pod requests already capture the exact NIC count via aggregatePodRequests.
 	if swiftNIC, exists := requested[controller.SwiftNICResourceName]; exists {
 		usage[controller.SwiftNICResourceName] = swiftNIC
 	}
-
-	hcps, err := c.hcpLister.List(labels.Everything())
-	if err != nil {
-		return retainStatusWithCondition(existingStatus, metav1.ConditionFalse, capacityreportv1alpha1.ReasonDataCollectionFailed, err.Error(), now),
-			fmt.Errorf("failed to list HostedControlPlanes: %w", err)
-	}
-	hcpCount := countHCPs(hcps)
 
 	condition := buildReportCurrentCondition(existingStatus.Conditions, metav1.ConditionTrue, capacityreportv1alpha1.ReasonDataCollected, "", now)
 	return buildReport(nodeCapacity, usage, requested, hcpCount, condition, now), nil
@@ -224,7 +218,6 @@ func retainStatusWithCondition(existingStatus capacityreportv1alpha1.CapacityRep
 		WithNodes(nodeConfigs...).
 		WithUsage(existingStatus.Usage).
 		WithRequested(existingStatus.Requested).
-		WithAverageHCPResourceUsage(existingStatus.AverageHCPResourceUsage).
 		WithHostedControlPlanes(applyconfigv1alpha1.HostedControlPlaneCount().
 			WithReady(existingStatus.HostedControlPlanes.Ready).
 			WithNotReady(existingStatus.HostedControlPlanes.NotReady))
@@ -285,12 +278,6 @@ func buildReport(
 			WithNotReady(hcpCount.NotReady),
 	)
 
-	if hcpCount.Ready > 0 {
-		statusConfig = statusConfig.WithAverageHCPResourceUsage(
-			computeAverageHCPResourceUsage(usage, hcpCount.Ready),
-		)
-	}
-
 	return applyconfigv1alpha1.CapacityReport(capacityReportResourceName).
 		WithStatus(statusConfig)
 }
@@ -319,7 +306,7 @@ func aggregateNodesBySKU(nodes []*corev1.Node) []capacityreportv1alpha1.NodeSKUC
 
 		if isNodeReady(node) {
 			data.ready++
-			addResourceList(data.allocatable, filterTrackedResources(node.Status.Allocatable))
+			addResourceList(data.allocatable, node.Status.Allocatable)
 		} else {
 			data.notReady++
 		}
@@ -334,52 +321,59 @@ func aggregateNodesBySKU(nodes []*corev1.Node) []capacityreportv1alpha1.NodeSKUC
 			Allocatable: data.allocatable,
 		})
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].SKU < result[j].SKU
+	slices.SortFunc(result, func(a, b capacityreportv1alpha1.NodeSKUCapacity) int {
+		return strings.Compare(a.SKU, b.SKU)
 	})
 	return result
 }
 
 // aggregatePodRequests sums resource requests across containers of
-// non-terminal pods in ocm-* namespaces.
-func aggregatePodRequests(pods []*corev1.Pod) corev1.ResourceList {
+// non-terminal pods in HostedControlPlane namespaces.
+func aggregatePodRequests(pods []*corev1.Pod, hcpNamespaces sets.Set[string]) corev1.ResourceList {
 	total := corev1.ResourceList{}
 	for _, pod := range pods {
-		if !strings.HasPrefix(pod.Namespace, ocmNamespacePrefix) {
+		if !hcpNamespaces.Has(pod.Namespace) {
 			continue
 		}
-		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+		if pod.Status.Phase != corev1.PodRunning && pod.Status.Phase != corev1.PodPending {
 			continue
 		}
 		for _, container := range pod.Spec.Containers {
-			addResourceList(total, filterTrackedResources(container.Resources.Requests))
+			addResourceList(total, container.Resources.Requests)
 		}
 	}
 	return total
 }
 
 // aggregatePodMetrics sums actual resource usage from PodMetrics for pods in
-// ocm-* namespaces.
-func aggregatePodMetrics(metrics []metricsv1beta1.PodMetrics) corev1.ResourceList {
+// HostedControlPlane namespaces.
+func aggregatePodMetrics(metrics []metricsv1beta1.PodMetrics, hcpNamespaces sets.Set[string]) corev1.ResourceList {
 	total := corev1.ResourceList{}
 	for _, podMetric := range metrics {
-		if !strings.HasPrefix(podMetric.Namespace, ocmNamespacePrefix) {
+		if !hcpNamespaces.Has(podMetric.Namespace) {
 			continue
 		}
 		for _, container := range podMetric.Containers {
-			addResourceList(total, filterTrackedResources(container.Usage))
+			addResourceList(total, container.Usage)
 		}
 	}
 	return total
+}
+
+// collectHCPNamespaces returns the set of namespaces where HostedControlPlane
+// objects exist.
+func collectHCPNamespaces(hcps []*hypershiftv1beta1.HostedControlPlane) sets.Set[string] {
+	namespaces := sets.New[string]()
+	for _, hcp := range hcps {
+		namespaces.Insert(hcp.Namespace)
+	}
+	return namespaces
 }
 
 // countHCPs counts ready and not-ready HostedControlPlanes.
 func countHCPs(hcps []*hypershiftv1beta1.HostedControlPlane) capacityreportv1alpha1.HostedControlPlaneCount {
 	count := capacityreportv1alpha1.HostedControlPlaneCount{}
 	for _, hcp := range hcps {
-		if !strings.HasPrefix(hcp.Namespace, ocmNamespacePrefix) {
-			continue
-		}
 		if isHCPAvailable(hcp) {
 			count.Ready++
 		} else {
@@ -387,30 +381,6 @@ func countHCPs(hcps []*hypershiftv1beta1.HostedControlPlane) capacityreportv1alp
 		}
 	}
 	return count
-}
-
-// computeAverageHCPResourceUsage divides total usage by the number of ready HCPs.
-// Only ready HCPs are in the denominator, so not-ready HCPs that still consume
-// resources inflate the average — this is intentionally conservative for
-// placement decisions.
-// SWIFT NICs are hardcoded: every new cluster requires swiftNICsPerHCP NICs
-// regardless of what legacy clusters actually consume.
-func computeAverageHCPResourceUsage(usage corev1.ResourceList, readyCount int32) corev1.ResourceList {
-	if readyCount <= 0 {
-		return nil
-	}
-	result := corev1.ResourceList{}
-	for resourceName, quantity := range usage {
-		switch resourceName {
-		case corev1.ResourceCPU:
-			result[resourceName] = *resource.NewMilliQuantity(quantity.MilliValue()/int64(readyCount), resource.DecimalSI)
-		case corev1.ResourceMemory:
-			result[resourceName] = *resource.NewQuantity(quantity.Value()/int64(readyCount), resource.BinarySI)
-		}
-	}
-	// every HCP needs exactly `swiftNICsPerHCP` NICs.
-	result[controller.SwiftNICResourceName] = *resource.NewQuantity(swiftNICsPerHCP, resource.DecimalSI)
-	return result
 }
 
 func isNodeReady(node *corev1.Node) bool {
@@ -429,20 +399,6 @@ func isHCPAvailable(hcp *hypershiftv1beta1.HostedControlPlane) bool {
 		}
 	}
 	return false
-}
-
-func filterTrackedResources(resources corev1.ResourceList) corev1.ResourceList {
-	filtered := corev1.ResourceList{}
-	if quantity, exists := resources[corev1.ResourceCPU]; exists {
-		filtered[corev1.ResourceCPU] = *resource.NewMilliQuantity(quantity.MilliValue(), resource.DecimalSI)
-	}
-	if quantity, exists := resources[corev1.ResourceMemory]; exists {
-		filtered[corev1.ResourceMemory] = quantity
-	}
-	if quantity, exists := resources[controller.SwiftNICResourceName]; exists {
-		filtered[controller.SwiftNICResourceName] = quantity
-	}
-	return filtered
 }
 
 func addResourceList(target, source corev1.ResourceList) {
