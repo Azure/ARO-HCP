@@ -33,6 +33,7 @@ import (
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-qe-cluster/deploy"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-qe-cluster/getkubeconfig"
 	"github.com/Azure/ARO-HCP/test/pkg/logger"
 )
 
@@ -85,6 +86,7 @@ func main() {
 	root.PersistentFlags().IntVarP(&verbosity, "verbosity", "v", 0, "log verbosity level")
 
 	root.AddCommand(deploy.NewCommand(registry, specs))
+	root.AddCommand(getkubeconfig.NewCommand())
 
 	// Start the cobra based cli, with ability to stop the run via SIGTERM
 	if err := root.ExecuteContext(ctx); err != nil {
