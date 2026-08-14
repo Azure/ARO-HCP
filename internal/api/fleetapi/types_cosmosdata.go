@@ -49,3 +49,19 @@ func ToManagementClusterResourceIDString(stampIdentifier string) string {
 		ManagementClusterResourceTypeName, ManagementClusterResourceName,
 	))
 }
+
+// ToControlPlaneVersionRolloutResourceID constructs the resource ID for a
+// control-plane version rollout:
+// /providers/Microsoft.RedHatOpenShift/controlPlaneVersionRollouts/{ystreamChannel}
+func ToControlPlaneVersionRolloutResourceID(ystreamChannel string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToControlPlaneVersionRolloutResourceIDString(ystreamChannel))
+}
+
+// ToControlPlaneVersionRolloutResourceIDString returns the lowercased rollout
+// resource ID string. The y-stream channel (e.g. "stable-4.21") is the top-level
+// resource name.
+func ToControlPlaneVersionRolloutResourceIDString(ystreamChannel string) string {
+	return strings.ToLower(path.Join(
+		"/providers", ControlPlaneVersionRolloutResourceType.String(), ystreamChannel,
+	))
+}

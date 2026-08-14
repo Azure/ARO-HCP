@@ -28,6 +28,8 @@ var (
 	_ metav1.ObjectMetaAccessor = &Stamp{}
 	_ runtime.Object            = &ManagementCluster{}
 	_ metav1.ObjectMetaAccessor = &ManagementCluster{}
+	_ runtime.Object            = &ControlPlaneVersionRollout{}
+	_ metav1.ObjectMetaAccessor = &ControlPlaneVersionRollout{}
 )
 
 func (o *Stamp) GetObjectKind() schema.ObjectKind {
@@ -83,5 +85,33 @@ type ManagementClusterList struct {
 var _ runtime.Object = &ManagementClusterList{}
 
 func (l *ManagementClusterList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+func (o *ControlPlaneVersionRollout) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ControlPlaneVersionRollout) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// ControlPlaneVersionRolloutList is a list of ControlPlaneVersionRollout resources.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ControlPlaneVersionRolloutList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ControlPlaneVersionRollout `json:"items"`
+}
+
+var _ runtime.Object = &ControlPlaneVersionRolloutList{}
+
+func (l *ControlPlaneVersionRolloutList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
