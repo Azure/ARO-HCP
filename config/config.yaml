@@ -1111,7 +1111,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:c1028d5847587c43206a1342e13da9fe70ca61bd325e39eb0e2cd9b1c6829bde # 5aa543a (2026-08-13 04:43)
+        digest: sha256:2e25b5eed1bd3212a0514fdeffdc5d3f401aec6a33304b4f237d4a8fa114edb1 # 021b9b9 (2026-08-14 11:48)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
