@@ -1,3 +1,4 @@
+
 param azureMonitoring string
 
 param location string = resourceGroup().location
@@ -191,6 +192,32 @@ resource hcpKasLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
       {
         record: 'kas:apiserver_request_latency:sli_ratio:rate_avg_30d'
         expression: 'avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[30d:5m])'
+      }
+    ]
+  }
+}
+
+resource arohcpIngressAvailabilitySloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_ingress_availability_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'availability:ingress_canary:ratio'
+        expression: 'sum by (_id) (ingress_canary_route_reachable) / count by (_id) (ingress_canary_route_reachable)'
+      }
+      {
+        record: 'errors:ingress_canary:error_rate'
+        expression: '1 - availability:ingress_canary:ratio'
+      }
+      {
+        record: 'ingress:controller:degraded'
+        expression: 'max by (_id) (ingress_controller_conditions{condition="Degraded"})'
       }
     ]
   }

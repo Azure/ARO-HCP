@@ -21,11 +21,13 @@ spec:
   # Validated on 2026-07-29 against INT AMW (Managed_Prometheus_hcps-uksouth):
   # - ingress_canary_route_reachable: _id label confirmed, 26 HCP clusters visible,
   #   emitted by ingress-operator (control plane, authoritative source)
-  # - ingress_controller_conditions: _id label confirmed, condition=available/degraded
+  # - ingress_controller_conditions: _id label confirmed, condition=Available/Degraded
   #
-  # Note: haproxy metrics (Errors, Latency, Traffic, Saturation) are not present
-  # in the HCP AMW — they exist only in the customer cluster's own Prometheus.
-  # A follow-up story is needed to route data plane metrics into AMW.
+  # TODO: ingress_canary_check_duration is exposed as a histogram (_bucket/_count/_sum)
+  # in production AMW. Evaluate threshold-based Latency SLI from those series.
+  # TODO: confirm full label set (cluster, subscription_id, resource_id) on
+  # ingress_canary_route_reachable and preserve them in the by() clause.
+  # TODO: handle no-data case when all canary pods are missing.
   - name: arohcp_ingress_availability_slo_recording_rules
     interval: 1m
     rules:
@@ -40,13 +42,13 @@ spec:
         /
         count by (_id) (ingress_canary_route_reachable)
     # Error rate derived from the availability SLI.
-    # Used by burn-rate alert expressions.
+    # Used by burn-rate alert expressions (ARO-25969).
     - record: errors:ingress_canary:error_rate
       expr: |
         1 - availability:ingress_canary:ratio
-    # Errors SLI: ingress controller degraded state per HCP cluster.
-    # Value is 0 (healthy) or 1 (degraded). Reflects the ingress controller's
-    # own assessment — a complementary signal to the canary-based availability SLI.
-    - record: errors:ingress_controller:degraded
+    # ingress_controller_conditions{condition="Degraded"} is a binary component
+    # health signal, not a ratio-format SLI. Kept here for use as a supplementary
+    # alert signal in ARO-25969, not as a standalone SLI.
+    - record: ingress:controller:degraded
       expr: |
-        max by (_id) (ingress_controller_conditions{condition="degraded"})
+        max by (_id) (ingress_controller_conditions{condition="Degraded"})
