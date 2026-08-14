@@ -72,7 +72,7 @@ var viewerIdentityPermissions = [
 // Admin on the target database, so the MSI needs AllDatabasesAdmin at cluster
 // scope to cover ServiceLogs, HostedControlPlaneLogs and MonitoringEvents. The
 // MSI lives in the global resource group (same subscription as this deployment).
-resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = if (!empty(globalMSIName)) {
+resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = if (!empty(globalMSIName) && !empty(globalMSIResourceGroup)) {
   name: globalMSIName
   scope: resourceGroup(globalMSIResourceGroup)
 }
@@ -141,7 +141,7 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
   ]
 
   // Runtime admin for the KustoEntityGroups (kustoctl) sync step.
-  resource clusterAdminPermissionForEntityGroupsSync 'principalAssignments' = if (!empty(globalMSIName)) {
+  resource clusterAdminPermissionForEntityGroupsSync 'principalAssignments' = if (!empty(globalMSIName) && !empty(globalMSIResourceGroup)) {
     name: 'admin-app-entitygroups-sync'
     properties: {
       principalId: globalMSI!.properties.principalId
