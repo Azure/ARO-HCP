@@ -15,13 +15,272 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
+
+	e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
+	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
+	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
 
 	"github.com/Azure/ARO-HCP/test/util/testutil"
 )
+
+func TestNonTestCommandsSkipMISchedulerBanner(t *testing.T) {
+	root := setupCli()
+	root.SetArgs([]string{"list", "suites", "--output", "names"})
+
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stderr pipe: %v", err)
+	}
+	defer stderrReader.Close()
+	originalStderr := os.Stderr
+	os.Stderr = stderrWriter
+	defer func() {
+		os.Stderr = originalStderr
+		stderrWriter.Close()
+	}()
+
+	stdout, err := os.CreateTemp("", "test-output-*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(stdout.Name())
+	defer stdout.Close()
+
+	originalStdout := os.Stdout
+	os.Stdout = stdout
+	defer func() {
+		os.Stdout = originalStdout
+	}()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- root.Execute()
+		stderrWriter.Close()
+	}()
+
+	var stderrBuf bytes.Buffer
+	if _, err := io.Copy(&stderrBuf, stderrReader); err != nil {
+		t.Fatalf("failed to read stderr: %v", err)
+	}
+	if err := <-errCh; err != nil {
+		t.Fatalf("failed to execute list suites: %v", err)
+	}
+	if strings.Contains(stderrBuf.String(), "[scheduler]") {
+		t.Fatalf("expected no scheduler banner for list command, got stderr: %s", stderrBuf.String())
+	}
+}
+
+// captureStderr redirects os.Stderr to a temp file for the duration of fn and returns
+// everything written to it. Unlike the os.Pipe pattern above, fn here runs synchronously
+// with no concurrent writer, so a plain temp file avoids needing a reader goroutine.
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	tmp, err := os.CreateTemp("", "stderr-capture-*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+
+	original := os.Stderr
+	os.Stderr = tmp
+	defer func() { os.Stderr = original }()
+	fn()
+
+	data, err := os.ReadFile(tmp.Name())
+	if err != nil {
+		t.Fatalf("failed to read captured stderr: %v", err)
+	}
+	return string(data)
+}
+
+func specNames(specs et.ExtensionTestSpecs) []string {
+	names := make([]string, len(specs))
+	for i, s := range specs {
+		names[i] = s.Name
+	}
+	return names
+}
+
+func assertSpecOrder(t *testing.T, specs et.ExtensionTestSpecs, want []string) {
+	t.Helper()
+	got := specNames(specs)
+	if len(got) != len(want) {
+		t.Fatalf("expected specs %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected specs sorted as %v, got %v", want, got)
+		}
+	}
+}
+
+func TestParseMIContainersLabel(t *testing.T) {
+	tests := []struct {
+		name       string
+		labels     []string
+		wantDemand int
+		wantFound  bool
+	}{
+		{name: "no MIContainers label", labels: nil, wantDemand: 0, wantFound: false},
+		{name: "zero demand", labels: []string{"MIContainers:0"}, wantDemand: 0, wantFound: true},
+		{name: "positive demand", labels: []string{"MIContainers:3"}, wantDemand: 3, wantFound: true},
+		{name: "unrelated labels are ignored", labels: []string{"SLOW", "MIContainers:1"}, wantDemand: 1, wantFound: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := &et.ExtensionTestSpec{Name: tt.name, Labels: sets.New(tt.labels...)}
+			demand, found := parseMIContainersLabel(spec)
+			if demand != tt.wantDemand || found != tt.wantFound {
+				t.Fatalf("parseMIContainersLabel() = (%d, %v), want (%d, %v)", demand, found, tt.wantDemand, tt.wantFound)
+			}
+		})
+	}
+}
+
+func TestMIDemandPriority(t *testing.T) {
+	labeled := &et.ExtensionTestSpec{Name: "labeled", Labels: sets.New("MIContainers:4")}
+	if got := miDemandPriority(labeled); got != 4 {
+		t.Fatalf("miDemandPriority() = %d, want 4", got)
+	}
+	unlabeled := &et.ExtensionTestSpec{Name: "unlabeled", Labels: sets.New[string]()}
+	if got := miDemandPriority(unlabeled); got != 0 {
+		t.Fatalf("miDemandPriority() for a spec missing the label = %d, want 0", got)
+	}
+}
+
+func TestConfigureMISchedulerWiresResourcePoolsAndSortsByDemand(t *testing.T) {
+	t.Setenv("ARO_HCP_DISABLE_MI_SORT", "")
+
+	newSpecs := func() et.ExtensionTestSpecs {
+		return et.ExtensionTestSpecs{
+			{Name: "zero-demand", Labels: sets.New("MIContainers:0")},
+			{Name: "high-demand", Labels: sets.New("MIContainers:2")},
+			{Name: "low-demand", Labels: sets.New("MIContainers:1")},
+		}
+	}
+	wantOrder := []string{"high-demand", "low-demand", "zero-demand"}
+
+	t.Run("pooled identities enabled", func(t *testing.T) {
+		specs := newSpecs()
+		stderr := captureStderr(t, func() {
+			configureMIScheduler(specs, miSchedulerConfig{pooledIdentitiesEnabled: true, containerCount: 5, containerCountSource: "test"})
+		})
+
+		assertSpecOrder(t, specs, wantOrder)
+		for _, spec := range specs {
+			demand, _ := parseMIContainersLabel(spec)
+			if got := spec.Resources.ResourcePools["mi-containers"]; got != demand {
+				t.Fatalf("expected spec %q mi-containers pool demand %d, got %d", spec.Name, demand, got)
+			}
+		}
+		if !strings.Contains(stderr, "[scheduler] pool mi-containers=5") {
+			t.Fatalf("expected scheduler banner reporting the pool size, got: %s", stderr)
+		}
+	})
+
+	t.Run("pooled identities disabled", func(t *testing.T) {
+		specs := newSpecs()
+		stderr := captureStderr(t, func() {
+			configureMIScheduler(specs, miSchedulerConfig{pooledIdentitiesEnabled: false, containerCount: 5, containerCountSource: "test"})
+		})
+
+		assertSpecOrder(t, specs, wantOrder)
+		for _, spec := range specs {
+			if len(spec.Resources.ResourcePools) != 0 {
+				t.Fatalf("expected no ResourcePools wiring when pooled identities are disabled, got %v on %q", spec.Resources.ResourcePools, spec.Name)
+			}
+		}
+		if !strings.Contains(stderr, "pooled identities disabled") {
+			t.Fatalf("expected scheduler banner noting pooled identities are disabled, got: %s", stderr)
+		}
+	})
+}
+
+// TestMISchedulerSortReflectedInExtensionSpecs guards against the bug fixed in
+// ARO-29044: initMIScheduler must be wired to ext.GetSpecs(), not the local specs
+// slice from before ext.AddSpecs(specs). AddSpecs does e.specs = append(e.specs,
+// specs...), which allocates a new backing array -- wiring the pre-AddSpecs slice
+// would make the demand-priority sort reorder a slice run-suite/run-test never reads.
+func TestMISchedulerSortReflectedInExtensionSpecs(t *testing.T) {
+	origSpecs, origSetup := miSchedulerSpecs, miSchedulerSetup
+	defer func() {
+		miSchedulerSpecs, miSchedulerSetup = origSpecs, origSetup
+		miSchedulerConfigure = sync.Once{}
+	}()
+	t.Setenv("ARO_HCP_DISABLE_MI_SORT", "")
+
+	specs := et.ExtensionTestSpecs{
+		{Name: "low-demand", Labels: sets.New("MIContainers:0")},
+		{Name: "high-demand", Labels: sets.New("MIContainers:2")},
+	}
+
+	ext := e.NewExtension("test", "payload", "mi-scheduler-regression")
+	ext.AddSpecs(specs)
+
+	initMIScheduler(ext.GetSpecs(), miSchedulerConfig{pooledIdentitiesEnabled: false, containerCount: 1, containerCountSource: "test"})
+	miSchedulerConfigure = sync.Once{}
+	captureStderr(t, ensureMISchedulerConfigured)
+
+	assertSpecOrder(t, ext.GetSpecs(), []string{"high-demand", "low-demand"})
+}
+
+func TestEnsureMISchedulerConfiguredRunsOnce(t *testing.T) {
+	origSpecs, origSetup := miSchedulerSpecs, miSchedulerSetup
+	defer func() {
+		miSchedulerSpecs, miSchedulerSetup = origSpecs, origSetup
+		miSchedulerConfigure = sync.Once{}
+	}()
+
+	miSchedulerSpecs = et.ExtensionTestSpecs{{Name: "once-test", Labels: sets.New("MIContainers:1")}}
+	miSchedulerSetup = miSchedulerConfig{pooledIdentitiesEnabled: false, containerCount: 1, containerCountSource: "test"}
+	miSchedulerConfigure = sync.Once{}
+
+	stderr := captureStderr(t, func() {
+		ensureMISchedulerConfigured()
+		ensureMISchedulerConfigured()
+		ensureMISchedulerConfigured()
+	})
+
+	if got := strings.Count(stderr, "[scheduler]"); got != 1 {
+		t.Fatalf("expected configureMIScheduler to run exactly once across repeated PreRun invocations, got %d banners in stderr: %s", got, stderr)
+	}
+}
+
+// TestConfigureMISchedulerFatalOnMissingLabel exercises the FATAL/os.Exit(1) path
+// configureMIScheduler takes for a spec missing the MIContainers label -- the failure
+// mode this PR's PreRun deferral is meant to preserve for run-suite/run-test while no
+// longer triggering it for every other subcommand.
+func TestConfigureMISchedulerFatalOnMissingLabel(t *testing.T) {
+	if os.Getenv("ARO_HCP_TESTS_CRASH_TEST") == "1" {
+		spec := &et.ExtensionTestSpec{Name: "unlabeled-test", Labels: sets.New[string]()}
+		configureMIScheduler(et.ExtensionTestSpecs{spec}, miSchedulerConfig{pooledIdentitiesEnabled: true, containerCount: 1, containerCountSource: "test"})
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=^TestConfigureMISchedulerFatalOnMissingLabel$")
+	cmd.Env = append(os.Environ(), "ARO_HCP_TESTS_CRASH_TEST=1")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 1 {
+		t.Fatalf("expected configureMIScheduler to exit(1) for a spec missing the MIContainers label, got err=%v stderr=%s", err, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "FATAL") || !strings.Contains(stderr.String(), "unlabeled-test") {
+		t.Fatalf("expected a FATAL message naming the offending spec, got: %s", stderr.String())
+	}
+}
 
 func TestMainListSuitesForEachSuite(t *testing.T) {
 	type testCase struct {
@@ -54,6 +313,7 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 				t.Fatalf("failed to create temp file: %v", err)
 			}
 			defer os.Remove(mktempfile.Name())
+			defer mktempfile.Close()
 
 			// Capture stdout to verify the command executes successfully
 			originalStdout := os.Stdout
