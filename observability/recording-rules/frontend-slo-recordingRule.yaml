@@ -25,30 +25,45 @@ spec:
   # Scope: synchronous Frontend HTTP on svc clusters. Excludes the known-slow
   # operation-results poll route (same filter as FrontendLatency alerts).
   #
-  # Metrics: frontend_http_requests_total / _duration_seconds (histogram le=1.0
-  # bucket exists — see frontend/pkg/frontend/metrics.go). HA scrapes are
-  # deduped with max without (prometheus_replica) like Frontend component alerts.
+  # Metrics: frontend_http_requests_total / _duration_seconds (histogram has a
+  # 1s bucket — see frontend/pkg/frontend/metrics.go). Match le as "1" or "1.0"
+  # (client_golang may emit either; same pattern as frontend latency dashboards).
+  # HA scrapes are deduped with max without (prometheus_replica).
+  # Zero traffic / zero requests / zero resource request → no sample (avoid NaN).
   - name: arohcp_frontend_slo_recording_rules
     interval: 1m
     rules:
-    # Availability SLI: non-5xx / total (ratio in [0,1]). No traffic → no sample.
+    # Availability SLI: non-5xx / total (ratio in [0,1]).
     - record: sli:frontend_http:availability:rate5m
       expr: |
-        sum by (cluster) (
-          max without (prometheus_replica) (
-            rate(frontend_http_requests_total{
-              code!~"5..",
-              route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
-            }[5m])
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_total{
+                code!~"5..",
+                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+              }[5m])
+            )
+          )
+          /
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_total{
+                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+              }[5m])
+            )
           )
         )
-        /
-        sum by (cluster) (
-          max without (prometheus_replica) (
-            rate(frontend_http_requests_total{
-              route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
-            }[5m])
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_total{
+                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+              }[5m])
+            )
           )
+          > 0
         )
     # 30-day smoothed availability for SLO status panels (not for fast burn alerts).
     - record: sli:frontend_http:availability:rate_avg_30d
@@ -58,50 +73,76 @@ spec:
     - record: errors:frontend_http:error_rate:rate5m
       expr: |
         (
+          (
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                rate(frontend_http_requests_total{
+                  code=~"5..",
+                  route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+                }[5m])
+              )
+            )
+            or
+            0 * sum by (cluster) (
+              max without (prometheus_replica) (
+                rate(frontend_http_requests_total{
+                  route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+                }[5m])
+              )
+            )
+          )
+          /
           sum by (cluster) (
             max without (prometheus_replica) (
               rate(frontend_http_requests_total{
-                code=~"5..",
                 route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
               }[5m])
             )
           )
-          or
-          0 * sum by (cluster) (
+        )
+        and on (cluster)
+        (
+          sum by (cluster) (
             max without (prometheus_replica) (
               rate(frontend_http_requests_total{
                 route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
               }[5m])
             )
           )
+          > 0
         )
-        /
-        sum by (cluster) (
-          max without (prometheus_replica) (
-            rate(frontend_http_requests_total{
-              route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
-            }[5m])
-          )
-        )
-    # Latency SLI: requests completing within 1s / total (histogram le="1.0").
-    # Atomic single expression so numerator and denominator share scrape timing.
+    # Latency SLI: requests completing within 1s / total.
+    # Atomic single expression; le matches "1" or "1.0".
     - record: sli:frontend_http:latency:rate5m
       expr: |
-        sum by (cluster) (
-          max without (prometheus_replica) (
-            rate(frontend_http_requests_duration_seconds_bucket{
-              le="1.0",
-              route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
-            }[5m])
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_duration_seconds_bucket{
+                le=~"^1(\\.0)?$",
+                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+              }[5m])
+            )
+          )
+          /
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_duration_seconds_count{
+                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+              }[5m])
+            )
           )
         )
-        /
-        sum by (cluster) (
-          max without (prometheus_replica) (
-            rate(frontend_http_requests_duration_seconds_count{
-              route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
-            }[5m])
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_duration_seconds_count{
+                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+              }[5m])
+            )
           )
+          > 0
         )
     # Traffic: absolute request rate (RPS). Anomaly thresholds belong in ARO-28707.
     - record: traffic:frontend_http:request_rate:rate5m
@@ -116,42 +157,72 @@ spec:
     # Saturation — CPU: usage cores / requested cores (ratio). SLO target < 0.85.
     - record: sli:frontend:saturation_cpu:ratio5m
       expr: |
-        sum by (cluster) (
-          max without (prometheus_replica) (
-            rate(container_cpu_usage_seconds_total{
-              namespace="aro-hcp",
-              container="aro-hcp-frontend"
-            }[5m])
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              rate(container_cpu_usage_seconds_total{
+                namespace="aro-hcp",
+                container="aro-hcp-frontend"
+              }[5m])
+            )
+          )
+          /
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_pod_container_resource_requests{
+                namespace="aro-hcp",
+                container="aro-hcp-frontend",
+                resource="cpu"
+              }
+            )
           )
         )
-        /
-        sum by (cluster) (
-          max without (prometheus_replica) (
-            kube_pod_container_resource_requests{
-              namespace="aro-hcp",
-              container="aro-hcp-frontend",
-              resource="cpu"
-            }
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_pod_container_resource_requests{
+                namespace="aro-hcp",
+                container="aro-hcp-frontend",
+                resource="cpu"
+              }
+            )
           )
+          > 0
         )
     # Saturation — memory: working set / limit (ratio). Frontend sets a memory limit.
     - record: sli:frontend:saturation_memory:ratio5m
       expr: |
-        sum by (cluster) (
-          max without (prometheus_replica) (
-            container_memory_working_set_bytes{
-              namespace="aro-hcp",
-              container="aro-hcp-frontend"
-            }
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              container_memory_working_set_bytes{
+                namespace="aro-hcp",
+                container="aro-hcp-frontend"
+              }
+            )
+          )
+          /
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_pod_container_resource_limits{
+                namespace="aro-hcp",
+                container="aro-hcp-frontend",
+                resource="memory"
+              }
+            )
           )
         )
-        /
-        sum by (cluster) (
-          max without (prometheus_replica) (
-            kube_pod_container_resource_limits{
-              namespace="aro-hcp",
-              container="aro-hcp-frontend",
-              resource="memory"
-            }
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_pod_container_resource_limits{
+                namespace="aro-hcp",
+                container="aro-hcp-frontend",
+                resource="memory"
+              }
+            )
           )
+          > 0
         )
