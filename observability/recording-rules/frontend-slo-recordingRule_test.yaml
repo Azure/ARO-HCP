@@ -1,0 +1,86 @@
+rule_files:
+- frontend-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# Availability 0.75 / Errors 0.25 / Traffic 1 RPS / Latency 0.75
+# Rates use exact binary fractions (see HCPkas latency tests) to avoid float drift.
+- interval: 1m
+  input_series:
+  # 45 non-5xx/min + 15 5xx/min = 60/min = 1 RPS; availability 0.75
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="200", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+45x15"
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="500", method="PUT", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+15x15"
+  # Duplicate replica must be collapsed by max without (prometheus_replica)
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="200", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="b"}'
+    values: "0+45x15"
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="500", method="PUT", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="b"}'
+    values: "0+15x15"
+  # Operation-results poll traffic must be excluded from SLIs
+  - series: 'frontend_http_requests_total{cluster="svc-1", code="200", method="GET", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", prometheus_replica="a"}'
+    values: "0+1000x15"
+  # Latency histogram: 45/min within 1s, 60/min total → 0.75
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="0.8", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+40x15"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1.0", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+45x15"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+60x15"
+  - series: 'frontend_http_requests_duration_seconds_count{cluster="svc-1", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+60x15"
+  # Saturation: 0.5 CPU cores used / 1.0 requested; 512Mi / 1024Mi memory
+  - series: 'container_cpu_usage_seconds_total{cluster="svc-1", namespace="aro-hcp", container="aro-hcp-frontend", pod="aro-hcp-frontend-0", prometheus_replica="a"}'
+    values: "0+30x15"
+  - series: 'kube_pod_container_resource_requests{cluster="svc-1", namespace="aro-hcp", container="aro-hcp-frontend", pod="aro-hcp-frontend-0", resource="cpu", unit="core", prometheus_replica="a"}'
+    values: "1+0x15"
+  - series: 'container_memory_working_set_bytes{cluster="svc-1", namespace="aro-hcp", container="aro-hcp-frontend", pod="aro-hcp-frontend-0", prometheus_replica="a"}'
+    values: "536870912+0x15"
+  - series: 'kube_pod_container_resource_limits{cluster="svc-1", namespace="aro-hcp", container="aro-hcp-frontend", pod="aro-hcp-frontend-0", resource="memory", unit="byte", prometheus_replica="a"}'
+    values: "1073741824+0x15"
+  promql_expr_test:
+  - expr: sli:frontend_http:availability:rate5m{cluster="svc-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend_http:availability:rate5m", cluster="svc-1"}'
+      value: 0.75
+  - expr: errors:frontend_http:error_rate:rate5m{cluster="svc-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="errors:frontend_http:error_rate:rate5m", cluster="svc-1"}'
+      value: 0.25
+  - expr: sli:frontend_http:latency:rate5m{cluster="svc-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend_http:latency:rate5m", cluster="svc-1"}'
+      value: 0.75
+  - expr: traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="traffic:frontend_http:request_rate:rate5m", cluster="svc-1"}'
+      value: 1
+  - expr: sli:frontend:saturation_cpu:ratio5m{cluster="svc-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend:saturation_cpu:ratio5m", cluster="svc-1"}'
+      value: 0.5
+  - expr: sli:frontend:saturation_memory:ratio5m{cluster="svc-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend:saturation_memory:ratio5m", cluster="svc-1"}'
+      value: 0.5
+# Perfect availability (all 2xx)
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_total{cluster="svc-2", code="200", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+60x15"
+  promql_expr_test:
+  - expr: sli:frontend_http:availability:rate5m{cluster="svc-2"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend_http:availability:rate5m", cluster="svc-2"}'
+      value: 1
+  - expr: errors:frontend_http:error_rate:rate5m{cluster="svc-2"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="errors:frontend_http:error_rate:rate5m", cluster="svc-2"}'
+      value: 0

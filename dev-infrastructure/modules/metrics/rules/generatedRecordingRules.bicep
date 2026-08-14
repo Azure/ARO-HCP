@@ -87,3 +87,45 @@ resource arohcpUserJourneyClusterUpgradeRecordingRules 'Microsoft.AlertsManageme
     ]
   }
 }
+
+resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_frontend_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'sli:frontend_http:availability:rate5m'
+        expression: 'sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m]))) / sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])))'
+      }
+      {
+        record: 'sli:frontend_http:availability:rate_avg_30d'
+        expression: 'avg_over_time(sli:frontend_http:availability:rate5m[30d:5m])'
+      }
+      {
+        record: 'errors:frontend_http:error_rate:rate5m'
+        expression: '(sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{code=~"5..",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])))) / sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])))'
+      }
+      {
+        record: 'sli:frontend_http:latency:rate5m'
+        expression: 'sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{le="1.0",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m]))) / sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])))'
+      }
+      {
+        record: 'traffic:frontend_http:request_rate:rate5m'
+        expression: 'sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])))'
+      }
+      {
+        record: 'sli:frontend:saturation_cpu:ratio5m'
+        expression: 'sum by (cluster) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{container="aro-hcp-frontend",namespace="aro-hcp"}[5m]))) / sum by (cluster) (max without (prometheus_replica) (kube_pod_container_resource_requests{container="aro-hcp-frontend",namespace="aro-hcp",resource="cpu"}))'
+      }
+      {
+        record: 'sli:frontend:saturation_memory:ratio5m'
+        expression: 'sum by (cluster) (max without (prometheus_replica) (container_memory_working_set_bytes{container="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster) (max without (prometheus_replica) (kube_pod_container_resource_limits{container="aro-hcp-frontend",namespace="aro-hcp",resource="memory"}))'
+      }
+    ]
+  }
+}
