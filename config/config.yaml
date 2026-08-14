@@ -1650,6 +1650,8 @@ clouds:
               deploy: true
       perf:
         defaults:
+          kubeApplier:
+            cosmosContainerMaxScale: 10000
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1658,6 +1660,9 @@ clouds:
           hypershift:
             metricsSet:
               performanceMetrics: true
+          frontend:
+            cosmosDB:
+              resourceContainerMaxScale: 10000
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
           maestro:
@@ -1685,6 +1690,8 @@ clouds:
                 secondaryNicCount: 7
       ci00:
         defaults:
+          kubeApplier:
+            cosmosContainerMaxScale: 10000
           customExporter:
             clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           kusto:
@@ -1740,6 +1747,7 @@ clouds:
               connectSocket: false
             cosmosDB:
               private: false
+              resourceContainerMaxScale: 10000
               zoneRedundantMode: 'Disabled'
             tracing:
               address: "http://ingest.observability:4318"
@@ -1785,6 +1793,8 @@ clouds:
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
+          kubeApplier:
+            cosmosContainerMaxScale: 10000
           customExporter:
             clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           auditLogsEventHub:
@@ -1842,6 +1852,7 @@ clouds:
               connectSocket: false
             cosmosDB:
               private: false
+              resourceContainerMaxScale: 10000
               zoneRedundantMode: 'Disabled'
             tracing:
               address: "http://ingest.observability:4318"
