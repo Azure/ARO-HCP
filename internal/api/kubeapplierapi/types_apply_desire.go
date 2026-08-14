@@ -63,6 +63,10 @@ type ApplyDesire struct {
 	Spec ApplyDesireSpec `json:"spec"`
 
 	Status ApplyDesireStatus `json:"status"`
+
+	// Tags are optional key-value pairs stored alongside the desire in Cosmos.
+	// Callers filter on tag presence Go-side after listing.
+	Tags map[string]string `json:"tags,omitempty"`
 }
 
 // ApplyDesireSpec is the specification for an ApplyDesire. It uses a

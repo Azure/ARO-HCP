@@ -15,69 +15,109 @@
 package subscriptionquota
 
 import (
-	"reflect"
+	"context"
+	"fmt"
+	"strings"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
-func TestNewRoleAssignmentSource(t *testing.T) {
-	type testCase struct {
-		name    string
-		tenants []config.TenantConfig
-		want    map[string]int
+type fakeRoleAssignmentMetricsGetter struct {
+	metrics roleAssignmentMetrics
+	err     error
+}
+
+func (f *fakeRoleAssignmentMetricsGetter) Get(context.Context) (roleAssignmentMetrics, error) {
+	return f.metrics, f.err
+}
+
+func TestRoleAssignmentSource(t *testing.T) {
+	source := NewRoleAssignmentSource()
+	if got := source.Name(); got != "rbac" {
+		t.Fatalf("Name() = %q, want %q", got, "rbac")
+	}
+	if source.IsRegional() {
+		t.Fatal("IsRegional() = true, want false")
 	}
 
-	testCases := []testCase{
+	var gotSubscriptionID string
+	source.newClient = func(subscriptionID string, _ azcore.TokenCredential) (roleAssignmentMetricsGetter, error) {
+		gotSubscriptionID = subscriptionID
+		return &fakeRoleAssignmentMetricsGetter{
+			metrics: roleAssignmentMetrics{
+				currentCount: 123,
+				limit:        8000,
+			},
+		}, nil
+	}
+
+	results, errs := source.Collect(context.Background(), nil, "subscription-id", "")
+	if len(errs) != 0 {
+		t.Fatalf("Collect() errors = %v, want none", errs)
+	}
+	if gotSubscriptionID != "subscription-id" {
+		t.Fatalf("client subscription ID = %q, want %q", gotSubscriptionID, "subscription-id")
+	}
+	if len(results) != 1 {
+		t.Fatalf("Collect() returned %d results, want 1", len(results))
+	}
+
+	got := results[0]
+	if got.QuotaName != "roleAssignments" {
+		t.Fatalf("QuotaName = %q, want %q", got.QuotaName, "roleAssignments")
+	}
+	if got.LocalizedName != "Role Assignments" {
+		t.Fatalf("LocalizedName = %q, want %q", got.LocalizedName, "Role Assignments")
+	}
+	if got.CurrentValue != 123 {
+		t.Fatalf("CurrentValue = %v, want 123", got.CurrentValue)
+	}
+	if got.Limit != 8000 {
+		t.Fatalf("Limit = %v, want 8000", got.Limit)
+	}
+	if got.SubscriptionID != "subscription-id" {
+		t.Fatalf("SubscriptionID = %q, want %q", got.SubscriptionID, "subscription-id")
+	}
+	if got.Region != "" {
+		t.Fatalf("Region = %q, want empty", got.Region)
+	}
+}
+
+func TestRoleAssignmentSourceErrors(t *testing.T) {
+	testCases := []struct {
+		name       string
+		newClient  roleAssignmentMetricsClientFactory
+		wantErrSub string
+	}{
 		{
-			name:    "no subscriptions yields empty limits map",
-			tenants: []config.TenantConfig{{TenantID: "tenant-a"}},
-			want:    map[string]int{},
+			name: "client creation failure",
+			newClient: func(string, azcore.TokenCredential) (roleAssignmentMetricsGetter, error) {
+				return nil, fmt.Errorf("create failed")
+			},
+			wantErrSub: "create role assignment metrics client: create failed",
 		},
 		{
-			name: "uses default role assignment limit",
-			tenants: []config.TenantConfig{
-				{
-					TenantID: "tenant-a",
-					Subscriptions: []config.SubscriptionConfig{
-						{Name: "sub-a", SubscriptionID: "sub-a-id"},
-					},
-				},
+			name: "metrics request failure",
+			newClient: func(string, azcore.TokenCredential) (roleAssignmentMetricsGetter, error) {
+				return &fakeRoleAssignmentMetricsGetter{err: fmt.Errorf("request failed")}, nil
 			},
-			want: map[string]int{
-				"sub-a-id": config.DefaultRoleAssignmentLimit,
-			},
-		},
-		{
-			name: "uses explicit role assignment limits",
-			tenants: []config.TenantConfig{
-				{
-					TenantID: "tenant-a",
-					Subscriptions: []config.SubscriptionConfig{
-						{Name: "sub-a", SubscriptionID: "sub-a-id", RoleAssignmentLimit: 1234},
-						{Name: "sub-b", SubscriptionID: "sub-b-id", RoleAssignmentLimit: 5678},
-					},
-				},
-			},
-			want: map[string]int{
-				"sub-a-id": 1234,
-				"sub-b-id": 5678,
-			},
+			wantErrSub: "get role assignment metrics: request failed",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			source := NewRoleAssignmentSource(tc.tenants)
-
-			if got := source.Name(); got != "rbac" {
-				t.Fatalf("Name() = %q, want %q", got, "rbac")
+			source := &RoleAssignmentSource{newClient: tc.newClient}
+			results, errs := source.Collect(context.Background(), nil, "subscription-id", "")
+			if len(results) != 0 {
+				t.Fatalf("Collect() returned %d results, want none", len(results))
 			}
-			if source.IsRegional() {
-				t.Fatal("IsRegional() = true, want false")
+			if len(errs) != 1 {
+				t.Fatalf("Collect() returned %d errors, want 1", len(errs))
 			}
-			if !reflect.DeepEqual(source.limits, tc.want) {
-				t.Fatalf("limits = %#v, want %#v", source.limits, tc.want)
+			if !strings.Contains(errs[0].Error(), tc.wantErrSub) {
+				t.Fatalf("Collect() error = %v, want substring %q", errs[0], tc.wantErrSub)
 			}
 		})
 	}

@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:d5735b3c6b16e432c0a05bf19108d38aaad0cca159d6996c799ae1a4c5fe852b
+      digest: sha256:2350e50928cb01d8969054c53870e79e2eed77539ba1ba89c540b79648492da4
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:18b7ef14a6e81c0bfe3e6417eb77b4eed6325ba54ae2d0ed8f826740807d181e
+      digest: sha256:dc0dac20eeb8446faacfa565b0729d4bad78e4b00baffb0d89b3250c9d555c34
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -58,7 +58,7 @@ administration:
   sreServiceTag: CorpNetSaw
 aksCommandRuntime:
   image:
-    digest: sha256:6b0c4aa35ad89cc0532280ba1b0d8597a350b07e2d7125c0d8d4d6a1ffdb9072
+    digest: sha256:1fa09488bf407f4b1bfd44f02ff60af191218075be0a2050d737165acfcbda23
     registry: mcr.microsoft.com
     repository: aks/command/runtime
 alertEventsEventHub:
@@ -105,6 +105,8 @@ azureRegionAvailabilityZoneCount: 4
 backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
+  backupCadenceProfile: production
+  backupScheduleState: Enabled
   clusterScopedIdentitiesConfig:
     roleSetName: dev
   exitOnPanic: true
@@ -173,7 +175,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcppers
   image:
-    digest: sha256:4f0533400265c8b4934a581f81a019a9fc2ad4da6f5744a955ae789577334912
+    digest: sha256:3a968f5c78be125d937537ad0d0667aafe6c1eb9a9b38ee9c8647618ba677c57
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -454,7 +456,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:d79597fbc15abf7956c1c8ccfb0aa28014fc8d5b65c6bb2fc2cdbe1b24d8897e
+    digest: sha256:46efbef33ed7decbc90ee6165412da5d29c0226782c6c7fa8328975b32bab0fc
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -474,7 +476,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:98feedfc21e69c8e305d6db2bee9d203ec33a82aa363dacf7d2603a655efc20d
+      digest: sha256:c1028d5847587c43206a1342e13da9fe70ca61bd325e39eb0e2cd9b1c6829bde
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -560,7 +562,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:2c0ba08f2ebb48b3938b103cdce87450110a2f8ad76dd6a082d0dcd3e02c289e
+        digest: sha256:bf23c3b25d0f0383736ab2380ed90a25cf5d7aae416de00accc27f8ed6c2e42c
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certIssuer: Self
@@ -688,12 +690,12 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: e502320119de5f35c2fbc803bab5b78ba3a7ed177dd45b5493dd9130b7760da7
+        sha: 6ab5290b4fd2664d10d321d5b99228fa4d520791424894ae2f519b5e3467379b
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: 5d7972807c5809c4dcb5ddb73782d9e1ac5933ff6d4d9b70e8baf9b97bfc98ab
+        sha: fd1e3fc80788a41a76268e30fccb7b4baa3ab2c210e2dddbbb632a92b7fc94f6
       version: ""
     prometheusSpec:
       image:
@@ -1053,12 +1055,12 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: e502320119de5f35c2fbc803bab5b78ba3a7ed177dd45b5493dd9130b7760da7
+        sha: 6ab5290b4fd2664d10d321d5b99228fa4d520791424894ae2f519b5e3467379b
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: 5d7972807c5809c4dcb5ddb73782d9e1ac5933ff6d4d9b70e8baf9b97bfc98ab
+        sha: fd1e3fc80788a41a76268e30fccb7b4baa3ab2c210e2dddbbb632a92b7fc94f6
       version: ""
     prometheusSpec:
       image:
@@ -1120,14 +1122,14 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:dced4f4b66d87ed0b1542ef15c4e59b5c7542c96dd660f367632a5cddfae4d7b
+    digest: sha256:162ce9e4d64fdbea0cdc238ac859d0d09468fa9faa6a3b84ff5da62c1b957e44
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:edb3971e68f5545fa3dc80708581ee6701854504b2c42ec64f500797b693dcd9
+    digest: sha256:646267ab4556add20d632a2701bc0b44dbde628b397fa476834f9bb32b2b73de
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:6772a276c45f9f5831607dc8188bf6e5adbeb303abcb483c911bdf504f92d847
+    digest: sha256:56949abf0c1e7fac54247b1d2690a24bd8e6213678bae28bd8bbe19e576692b6
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9

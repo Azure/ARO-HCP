@@ -75,6 +75,17 @@ $ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.20
 $ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.20.15
 ```
 
+When `ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION` is set, you can also set
+`ARO_HCP_OPENSHIFT_LATEST_Z_STREAM=true` to resolve that major.minor (or full
+semver) to the latest z-stream install version in the active channel group
+(`ARO_HCP_OPENSHIFT_CHANNEL_GROUP`, default `candidate`):
+
+```bash
+$ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.20
+$ export ARO_HCP_OPENSHIFT_LATEST_Z_STREAM=true
+# e.g. resolves to 4.20.15 (whatever is latest in the channel)
+```
+
 So finally, you can run a particular test case:
 
 ```bash

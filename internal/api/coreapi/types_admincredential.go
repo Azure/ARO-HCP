@@ -17,7 +17,7 @@ package coreapi
 import "time"
 
 type HCPOpenShiftClusterAdminCredentialRequest struct {
-	CertificateRequest string `json:"certificateRequest,omitempty"`
+	CertificateSigningRequest string `json:"certificateSigningRequest,omitempty"`
 }
 
 // HCPOpenShiftClusterAdminCredential represents a temporary admin

@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
@@ -129,6 +130,15 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 		}
 	}
+	newTestBackupApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
+		applyDesire := newTestClusterScopedApplyDesire(name)
+		applyDesire.Spec.Type = kubeapplierapi.ApplyDesireTypeServerSideApply
+		applyDesire.Spec.TargetItem = kubeapplierapi.ResourceReference{
+			Group: "velero.io", Version: "v1", Resource: "schedules",
+			Namespace: "velero", Name: name,
+		}
+		return applyDesire
+	}
 	assertNoClusterScopedKubeApplierResources := func(
 		t *testing.T,
 		ctx context.Context,
@@ -137,6 +147,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		t.Helper()
 		client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
 		require.NotNil(t, client)
+
 		clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
@@ -428,6 +439,44 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 		},
 		{
+			name:            "orphaned credential-request-subtree resource is skipped",
+			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			childResources:  []any{newTestCredentialRequestController(t, "orphaned-cred-controller")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				cluster := newTestClusterWithNewDeletionApproach(t, nil)
+				untypedCRUD, err := db.UntypedCRUD(*cluster.ID)
+				require.NoError(t, err)
+				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
+				require.NoError(t, err)
+
+				var remainingCount int
+				for range childIterator.Items(ctx) {
+					remainingCount++
+				}
+				require.NoError(t, childIterator.GetError())
+				assert.Equal(t, 1, remainingCount, "expected orphaned credential-request-subtree resource to remain")
+			},
+		},
+		{
+			name:            "orphaned credential-revocation-subtree resource is skipped",
+			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			childResources:  []any{newTestCredentialRevocationController(t, "orphaned-rev-controller")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				cluster := newTestClusterWithNewDeletionApproach(t, nil)
+				untypedCRUD, err := db.UntypedCRUD(*cluster.ID)
+				require.NoError(t, err)
+				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
+				require.NoError(t, err)
+
+				var remainingCount int
+				for range childIterator.Items(ctx) {
+					remainingCount++
+				}
+				require.NoError(t, childIterator.GetError())
+				assert.Equal(t, 1, remainingCount, "expected orphaned credential-revocation-subtree resource to remain")
+			},
+		},
+		{
 			name:            "deletable MCC is deleted while orphaned nodepool-subtree resource is skipped",
 			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestClusterScopedManagementClusterContent("test-mcc"), newTestNodePoolController(t, "orphaned-np-controller")},
@@ -471,6 +520,26 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 		},
 		{
+			name:            "blocks when credential requests still exist",
+			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			childResources:  []any{newTestCredentialRequest(t, "cred-1"), newTestClusterScopedManagementClusterContent("untouched-mcc")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
+				_, err := mccCRUD.Get(ctx, "untouched-mcc")
+				require.NoError(t, err, "expected child resource to still exist")
+			},
+		},
+		{
+			name:            "blocks when credential revocations still exist",
+			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			childResources:  []any{newTestCredentialRevocation(t, "revoke-1"), newTestClusterScopedManagementClusterContent("untouched-mcc")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, _ *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName)
+				_, err := mccCRUD.Get(ctx, "untouched-mcc")
+				require.NoError(t, err, "expected child resource to still exist")
+			},
+		},
+		{
 			name:            "UsesNewClusterDeletionApproach false -- no-op even when all cleanup conditions met and children exist",
 			existingCluster: newTestClusterWithOldDeletionApproach(t, readyToDeleteClusterOptsFunc),
 			childResources:  []any{newTestClusterScopedManagementClusterContent("untouched-mcc"), newTestSPC(t, nil)},
@@ -482,6 +551,55 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 				_, err = spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err, "expected SPC to still exist")
+			},
+		},
+		{
+			name:            "backup *Desires are skipped by the general sweep",
+			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			childResources: []any{
+				newTestSPCWithManagementCluster(managementClusterResourceID),
+			},
+			kubeApplierDesires: []any{
+				newTestBackupApplyDesire(backup.BackupScheduleDesireNamePrefix + "hourly"),
+				newTestClusterScopedReadDesire(backup.BackupScheduleDesireNamePrefix + "hourly"),
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+				require.NotNil(t, client)
+
+				applyDesireCRUD, err := client.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+				require.NoError(t, err)
+				applyDesire, err := applyDesireCRUD.Get(ctx, backup.BackupScheduleDesireNamePrefix+"hourly")
+				require.NoError(t, err, "backup ApplyDesire should still exist (skipped by general sweep)")
+				assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, applyDesire.Spec.Type, "backup ApplyDesire should not be converted")
+
+				readDesireCRUD, err := client.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+				require.NoError(t, err)
+				readDesire, err := readDesireCRUD.Get(ctx, backup.BackupScheduleDesireNamePrefix+"hourly")
+				require.NoError(t, err)
+				assert.NotEmpty(t, readDesire)
+
+				serviceProviderClusterCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+				_, err = serviceProviderClusterCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err, "serviceProviderCluster should still exist (backup ApplyDesire remains)")
+			},
+		},
+		{
+			name:            "non-backup ApplyDesires are still swept normally",
+			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			childResources: []any{
+				newTestSPCWithManagementCluster(managementClusterResourceID),
+			},
+			kubeApplierDesires: []any{
+				newTestClusterScopedApplyDesire("non-backup-desire"),
+				newTestClusterScopedReadDesire("non-backup-desire"),
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				assertNoClusterScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
+
+				serviceProviderCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+				_, err := serviceProviderCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.True(t, cosmosstorageutils.IsNotFoundError(err), "SPC should be deleted")
 			},
 		},
 	}
@@ -532,6 +650,8 @@ func TestIsUnderSkippedSubtree(t *testing.T) {
 	skipSubtreeTypes := []azcorearm.ResourceType{
 		coreapi.NodePoolResourceType,
 		coreapi.ExternalAuthResourceType,
+		coreapi.SystemAdminCredentialRequestResourceType,
+		coreapi.SystemAdminCredentialRevocationResourceType,
 	}
 
 	testCases := []struct {
@@ -577,6 +697,26 @@ func TestIsUnderSkippedSubtree(t *testing.T) {
 		{
 			name:       "externalauth controller is a descendant of a skipped subtree",
 			resourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/externalAuths/auth1/controllers/SomeController",
+			want:       true,
+		},
+		{
+			name:       "credential request is under a skipped subtree",
+			resourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/systemAdminCredentialRequests/cred1",
+			want:       true,
+		},
+		{
+			name:       "credential request controller is a descendant of a skipped subtree",
+			resourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/systemAdminCredentialRequests/cred1/hcpOpenShiftControllers/SomeController",
+			want:       true,
+		},
+		{
+			name:       "credential revocation is under a skipped subtree",
+			resourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/systemAdminCredentialRevocations/rev1",
+			want:       true,
+		},
+		{
+			name:       "credential revocation controller is a descendant of a skipped subtree",
+			resourceID: "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/systemAdminCredentialRevocations/rev1/hcpOpenShiftControllers/SomeController",
 			want:       true,
 		},
 	}

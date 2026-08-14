@@ -1,0 +1,26 @@
+apiVersion: mgmtagent.aro-hcp.azure.com/v1alpha1
+kind: CapacityReport
+metadata:
+  name: cluster
+status:
+  conditions:
+  - lastTransitionTime: "2025-01-01T00:00:00Z"
+    message: test error
+    observedGeneration: 0
+    reason: DataCollectionFailed
+    status: "False"
+    type: ReportCurrent
+  hostedControlPlanes:
+    notReady: 1
+    ready: 5
+  lastReportedAt: "2024-12-31T23:59:30Z"
+  nodes:
+  - allocatable:
+      memory: 256Gi
+    notReady: 1
+    ready: 2
+    sku: Standard_D32s_v3
+  requested:
+    memory: 8Gi
+  usage:
+    memory: 4Gi

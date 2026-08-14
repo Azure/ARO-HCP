@@ -425,6 +425,92 @@ func (l *SliceBillingLister) ListForSubscription(ctx context.Context, subscripti
 	return result, nil
 }
 
+// SliceSystemAdminCredentialRequestLister implements listers.SystemAdminCredentialRequestLister backed by a slice.
+type SliceSystemAdminCredentialRequestLister struct {
+	CredentialRequests []*coreapi.SystemAdminCredentialRequest
+}
+
+var _ corelisters.SystemAdminCredentialRequestLister = &SliceSystemAdminCredentialRequestLister{}
+
+func (l *SliceSystemAdminCredentialRequestLister) List(ctx context.Context) ([]*coreapi.SystemAdminCredentialRequest, error) {
+	return l.CredentialRequests, nil
+}
+
+func (l *SliceSystemAdminCredentialRequestLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialName string) (*coreapi.SystemAdminCredentialRequest, error) {
+	for _, cred := range l.CredentialRequests {
+		resourceID := cred.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		if strings.EqualFold(resourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
+			resourceID.Parent != nil && strings.EqualFold(resourceID.Parent.Name, clusterName) &&
+			strings.EqualFold(resourceID.Name, credentialName) {
+			return cred, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
+func (l *SliceSystemAdminCredentialRequestLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.SystemAdminCredentialRequest, error) {
+	var result []*coreapi.SystemAdminCredentialRequest
+	for _, cred := range l.CredentialRequests {
+		resourceID := cred.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		if strings.EqualFold(resourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
+			resourceID.Parent != nil && strings.EqualFold(resourceID.Parent.Name, clusterName) {
+			result = append(result, cred)
+		}
+	}
+	return result, nil
+}
+
+// SliceSystemAdminCredentialRevocationLister implements listers.SystemAdminCredentialRevocationLister backed by a slice.
+type SliceSystemAdminCredentialRevocationLister struct {
+	CredentialRevocations []*coreapi.SystemAdminCredentialRevocation
+}
+
+var _ corelisters.SystemAdminCredentialRevocationLister = &SliceSystemAdminCredentialRevocationLister{}
+
+func (l *SliceSystemAdminCredentialRevocationLister) List(ctx context.Context) ([]*coreapi.SystemAdminCredentialRevocation, error) {
+	return l.CredentialRevocations, nil
+}
+
+func (l *SliceSystemAdminCredentialRevocationLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName string) (*coreapi.SystemAdminCredentialRevocation, error) {
+	for _, rev := range l.CredentialRevocations {
+		resourceID := rev.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		if strings.EqualFold(resourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
+			resourceID.Parent != nil && strings.EqualFold(resourceID.Parent.Name, clusterName) &&
+			strings.EqualFold(resourceID.Name, revocationName) {
+			return rev, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
+func (l *SliceSystemAdminCredentialRevocationLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*coreapi.SystemAdminCredentialRevocation, error) {
+	var result []*coreapi.SystemAdminCredentialRevocation
+	for _, rev := range l.CredentialRevocations {
+		resourceID := rev.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		if strings.EqualFold(resourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
+			resourceID.Parent != nil && strings.EqualFold(resourceID.Parent.Name, clusterName) {
+			result = append(result, rev)
+		}
+	}
+	return result, nil
+}
+
 // SliceControllerLister implements corelisters.ControllerLister backed by a
 // slice. The List-for-parent methods filter to controllers whose resource
 // ID hangs DIRECTLY off the requested parent — i.e. they have exactly one

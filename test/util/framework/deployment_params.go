@@ -19,6 +19,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -65,6 +67,9 @@ func resolveDefaultControlPlaneVersion() (string, error) {
 		version := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION")
 		if len(version) == 0 {
 			version = DefaultOCPVersionId
+			if v := os.Getenv("ARO_HCP_OPENSHIFT_VERSION_ID"); v != "" {
+				version = v
+			}
 			channelGroup := DefaultOpenshiftChannelGroup()
 			if channelGroup != "stable" {
 				resolved, err := GetLatestInstallVersion(context.Background(), channelGroup, version)
@@ -74,6 +79,21 @@ func resolveDefaultControlPlaneVersion() (string, error) {
 				}
 				version = resolved
 			}
+		} else if latestZStream, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("ARO_HCP_OPENSHIFT_LATEST_Z_STREAM"))); latestZStream {
+			// Resolve the configured major.minor (or full semver) to the latest
+			// z-stream install version in the active channel group.
+			parsed, err := semver.ParseTolerant(version)
+			if err != nil {
+				defaultCPVersionErr = fmt.Errorf("parse ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION %q: %w", version, err)
+				return
+			}
+			minor := fmt.Sprintf("%d.%d", parsed.Major, parsed.Minor)
+			resolved, err := GetLatestInstallVersion(context.Background(), DefaultOpenshiftChannelGroup(), minor)
+			if err != nil {
+				defaultCPVersionErr = err
+				return
+			}
+			version = resolved
 		}
 		defaultCPVersion = version
 	})

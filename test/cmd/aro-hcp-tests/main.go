@@ -425,7 +425,7 @@ func setupCli() *cobra.Command {
 
 	// The tests that a suite is composed of can be filtered by CEL expressions. By
 	// default, the qualifiers only apply to tests from this extension.
-	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0])
+	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0])
 	integrationTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "integration/parallel",
@@ -451,7 +451,7 @@ func setupCli() *cobra.Command {
 		ResourcePools: miPools,
 	})
 
-	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0])
+	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
 	stageTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "stage/parallel",
@@ -476,7 +476,7 @@ func setupCli() *cobra.Command {
 		ResourcePools: miPools,
 	})
 
-	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0])
+	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
 	prodTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "prod/parallel",
@@ -539,6 +539,16 @@ func setupCli() *cobra.Command {
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
 		Parallelism:   parallelism(24),
 		TestTimeout:   &rpApiCompatTestTimeout,
+		ResourcePools: miPools,
+	})
+
+	hypershiftPresubmitQuery := fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.HypershiftPresubmit[0])
+	hypershiftPresubmitTimeout := 150 * time.Minute
+	ext.AddSuite(e.Suite{
+		Name:          "hypershift-presubmit/parallel",
+		Qualifiers:    []string{hypershiftPresubmitQuery},
+		Parallelism:   parallelism(24),
+		TestTimeout:   &hypershiftPresubmitTimeout,
 		ResourcePools: miPools,
 	})
 
