@@ -114,13 +114,36 @@ type ServiceProviderClusterSpec struct {
 	// BackupScheduleState is the desired backup scheduling state: Enabled or Disabled.
 	// Default is Enabled. Set to Disabled via Admin API to pause scheduled backups.
 	BackupScheduleState BackupScheduleState `json:"backupScheduleState,omitempty"`
+
+	// PinnedVersion, when set, is an SRE-specified cluster-specific exact-version
+	// override. The Forced Cluster Desired Version Assignment controller holds
+	// this cluster at PinnedVersion.ExactVersion until the fleet's
+	// bestExactVersion reaches PinnedVersion.UntilExactVersion, after which the
+	// pin is cleared and normal rollout selection resumes. Nil means no pin.
+	// Written by: Admin API (set), Forced Cluster Desired Version Assignment (clear)
+	PinnedVersion *ServiceProviderClusterPinnedVersion `json:"pinnedVersion,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.
 type ServiceProviderClusterSpecVersion struct {
 	// DesiredVersion is the full version the controller has resolved and wants to upgrade to (format: x.y.z)
 	// This is compared on each sync to detect when a new upgrade should be triggered.
+	// Written by: ControlPlaneDesiredVersion, Forced Cluster Desired Version Assignment, Normal Cluster Desired Version Assignment
 	DesiredVersion *semver.Version `json:"desired_version,omitempty"`
+}
+
+// ServiceProviderClusterPinnedVersion is an SRE-specified exact-version pin for a
+// single cluster, held until the fleet's best version reaches UntilExactVersion.
+type ServiceProviderClusterPinnedVersion struct {
+	// ExactVersion is the exact z-stream this cluster is pinned to regardless of
+	// its previous version.
+	// Written by: Admin API
+	ExactVersion *semver.Version `json:"exactVersion,omitempty"`
+
+	// UntilExactVersion is the fleet bestExactVersion at or above which the pin is
+	// released and normal upgrade selection may continue.
+	// Written by: Admin API
+	UntilExactVersion *semver.Version `json:"untilExactVersion,omitempty"`
 }
 
 // ServiceProviderClusterStatus contains the observed state of the cluster.
