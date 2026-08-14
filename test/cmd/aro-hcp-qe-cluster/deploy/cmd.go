@@ -150,7 +150,7 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 			}
 
 			// end here if we don't need to fetch the kubeconfig
-			if kubeconfigDirPath != "" {
+			if kubeconfigDirPath == "" {
 				return nil
 			}
 
