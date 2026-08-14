@@ -22,30 +22,43 @@ tests:
   alert_rule_test:
   - eval_time: 40m
     alertname: userJourneyFrontendErrors1h5m
+    exp_alerts: []
   - eval_time: 40m
     alertname: userJourneyFrontendErrors6h30m
+    exp_alerts: []
   - eval_time: 40m
     alertname: userJourneyFrontendErrors3d
+    exp_alerts: []
   - eval_time: 40m
     alertname: userJourneyFrontendErrorsDegradation
+    exp_alerts: []
   - eval_time: 40m
     alertname: userJourneyFrontendAvailability1h5m
+    exp_alerts: []
   - eval_time: 40m
     alertname: userJourneyFrontendAvailability6h30m
+    exp_alerts: []
   - eval_time: 40m
     alertname: userJourneyFrontendAvailability3d
+    exp_alerts: []
   - eval_time: 40m
     alertname: userJourneyFrontendLatency1h5m
+    exp_alerts: []
   - eval_time: 40m
     alertname: userJourneyFrontendLatency6h30m
+    exp_alerts: []
   - eval_time: 40m
     alertname: userJourneyFrontendLatency3d
+    exp_alerts: []
   - eval_time: 40m
     alertname: userJourneyFrontendSaturationCPU
+    exp_alerts: []
   - eval_time: 40m
     alertname: userJourneyFrontendSaturationMemory
+    exp_alerts: []
   - eval_time: 40m
     alertname: userJourneyFrontendTrafficDrop
+    exp_alerts: []
 
 # ----------------------------------------
 # Errors fast burn + degradation + Availability fast
@@ -126,6 +139,7 @@ tests:
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - eval_time: 32m
     alertname: userJourneyFrontendErrors1h5m
+    exp_alerts: []
 
 # ----------------------------------------
 # Latency fast burn
@@ -191,7 +205,7 @@ tests:
 # ----------------------------------------
 # Traffic drop vs 1d baseline (5m step)
 # ----------------------------------------
-# 288 samples @ 5 RPS (~24h), then 6 samples @ 0.2 RPS (~30m).
+# 288 samples @ 5 RPS (~24h @ 5m step), then 11 samples @ 0.2 RPS (~55m).
 - interval: 5m
   input_series:
   - series: 'traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}'

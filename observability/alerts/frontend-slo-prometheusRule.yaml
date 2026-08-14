@@ -24,7 +24,8 @@ spec:
   # Rate-based SLI: 'for' approximates the short window (Access / Node Pool pattern).
   # Fast/medium page Sev 3 (customer-facing UJ). Slow/degradation Sev 4 ticket.
   #
-  # summary must NOT include {{ $labels.cluster }} — RP bicep prepends cluster.
+  # summary includes {{ $labels.cluster }} (Access / Node Pool convention; prometheus-rules
+  # generator requires it). IcM.Title may also prepend cluster — same as other RP alerts.
   # component is on each rule (not group) for promtool compatibility.
   - name: arohcp_frontend_slo_error_alerts
     rules:
