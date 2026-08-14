@@ -58,6 +58,7 @@ resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         annotations: {
           summary: 'Tenant quota usage is critical'
           description: 'Tenant {{ $labels.tenant_name }} is at {{ $value }}% capacity'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md'
         }
         actions: [
           {
@@ -81,6 +82,7 @@ resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         annotations: {
           summary: 'Tenant quota usage is high'
           description: 'Tenant {{ $labels.tenant_name }} is at {{ $value }}% capacity'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md'
         }
         actions: [
           {
@@ -104,6 +106,7 @@ resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         annotations: {
           summary: 'Tenant quota usage is elevated'
           description: 'Tenant {{ $labels.tenant_name }} is at {{ $value }}% capacity'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md'
         }
         actions: [
           {
@@ -127,6 +130,7 @@ resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         annotations: {
           summary: 'Tenant quota collector is unreachable'
           description: 'tenant-quota-collector has not been reachable for 15 minutes. Check the pod status, service endpoints, and Prometheus scrape target health in the tenant-quota namespace.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
         }
         actions: [
           {
@@ -150,6 +154,7 @@ resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         annotations: {
           summary: 'Tenant quota metrics are stale'
           description: 'No tenant_quota_usage_percentage metrics received for 6 hours. Possible causes: (1) Collector pod is down - check: kubectl get pods -n tenant-quota, (2) Service principal token expired - run: cd tooling/tenant-quota && ./scripts/renew-sp-secret.sh --list to check expiry, then ./scripts/renew-sp-secret.sh --tenant <name> to renew, (3) Prometheus not scraping - check ServiceMonitor in tenant-quota namespace. See tooling/tenant-quota/README.md for full troubleshooting.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
         }
         actions: [
           {
@@ -187,6 +192,7 @@ resource subscriptionQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroup
         annotations: {
           summary: 'Azure quota critical: {{ $labels.source }}/{{ $labels.quota_name }}'
           description: '{{ $labels.quota_name }} at {{ $value | humanizePercentage }} in {{ $labels.subscription_name }}/{{ $labels.region }}'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md'
         }
         actions: [
           {
@@ -210,6 +216,7 @@ resource subscriptionQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroup
         annotations: {
           summary: 'Azure quota warning: {{ $labels.source }}/{{ $labels.quota_name }}'
           description: '{{ $labels.quota_name }} at {{ $value | humanizePercentage }} in {{ $labels.subscription_name }}/{{ $labels.region }}'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md'
         }
         actions: [
           {
@@ -233,6 +240,7 @@ resource subscriptionQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroup
         annotations: {
           summary: 'Subscription quota usage metrics are stale'
           description: 'No azure_quota_usage metrics received for 30 minutes. Check the tenant-quota-collector pod status, Prometheus scrape target health, and service principal credentials.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
         }
         actions: [
           {
@@ -256,6 +264,7 @@ resource subscriptionQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroup
         annotations: {
           summary: 'Subscription quota limit metrics are stale'
           description: 'No azure_quota_limit metrics received for 30 minutes. Check the tenant-quota-collector pod status, Prometheus scrape target health, and service principal credentials.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
         }
         actions: [
           {
@@ -293,6 +302,7 @@ resource e2eExpiredRGAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         annotations: {
           summary: 'Expired E2E resource groups detected'
           description: '{{ $value }} E2E resource groups past their deleteAfter TTL in {{ $labels.subscription_name }}. Check the cleanup-sweeper and periodic cleanup job.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/cleanup.md'
         }
         actions: [
           {
@@ -316,6 +326,7 @@ resource e2eExpiredRGAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         annotations: {
           summary: 'Many expired E2E resource groups detected'
           description: '{{ $value }} E2E resource groups past their deleteAfter TTL in {{ $labels.subscription_name }}. Resource cleanup is likely broken.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/cleanup.md'
         }
         actions: [
           {
@@ -339,6 +350,7 @@ resource e2eExpiredRGAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         annotations: {
           summary: 'E2E resource group expired for over {{ $value | humanizeDuration }}'
           description: 'Oldest expired E2E resource group in {{ $labels.subscription_name }} has been past its TTL for {{ $value | humanizeDuration }}. Manual cleanup may be required.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/cleanup.md'
         }
         actions: [
           {
@@ -362,6 +374,7 @@ resource e2eExpiredRGAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         annotations: {
           summary: 'E2E resource group metrics are stale'
           description: 'No e2e_resource_group_expiry_timestamp metrics received for 30 minutes. The resource group collector may have stopped. Check the tenant-quota-collector pod status and Prometheus scrape target health.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
         }
         actions: [
           {
@@ -399,6 +412,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         annotations: {
           summary: 'Prow CI job is consistently failing'
           description: '{{ $labels.job_name }} ({{ $labels.job_type }}) has failed every run in the 24-hour window with at least ${prowHighFrequencyMinRuns} completed runs.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/operations.md'
         }
         actions: [
           {
@@ -422,6 +436,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         annotations: {
           summary: 'Scheduled Prow CI job is consistently failing'
           description: '{{ $labels.job_name }} ({{ $labels.job_type }}) has failed every run in the 24-hour window with at least ${prowScheduledMinRuns} completed runs.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/operations.md'
         }
         actions: [
           {
@@ -445,6 +460,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         annotations: {
           summary: 'Regional Prow provision healthcheck success rate is below 60%'
           description: 'Provision healthchecks in {{ $labels.region }} have a {{ $value | humanizePercentage }} failure rate over the 24-hour window.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-region-failover.md'
         }
         actions: [
           {
@@ -468,6 +484,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         annotations: {
           summary: 'Prow e2e-parallel P95 duration exceeds 2h30m'
           description: '{{ $labels.job_name }} successful-run P95 duration is {{ $value | humanizeDuration }} over the 24-hour window.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/operations.md'
         }
         actions: [
           {
@@ -491,6 +508,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         annotations: {
           summary: 'Prow CI metrics collection is stale'
           description: 'The last successful Prow collection was {{ $value | humanizeDuration }} ago. Check exporter logs and connectivity to prow.ci.openshift.org.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
         }
         actions: [
           {
@@ -514,6 +532,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         annotations: {
           summary: 'High rate of malformed completed Prow CI jobs detected'
           description: 'Malformed completed Prow jobs exceeded ${prowInvalidJobsMaxPercentage * 100}% of all completed jobs in the last 24h.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
         }
         actions: [
           {
@@ -537,6 +556,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         annotations: {
           summary: 'Prow collection succeeds but exports no completed runs'
           description: 'The exporter can reach Prow but has no cached ARO-HCP runs. Check repository matching and the Prow response format.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
         }
         actions: [
           {
@@ -560,6 +580,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         annotations: {
           summary: 'Prow merge queue job has failed ${prowBatchMaxConsecutiveFailures} consecutive times'
           description: '{{ $labels.job_name }} has {{ $value }} consecutive Tide batch failures. Inspect the merge queue and failing job before retesting.'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/operations.md'
         }
         actions: [
           {
