@@ -17,6 +17,7 @@ package validationutils
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"strings"
 
 	"k8s.io/utils/ptr"
@@ -47,11 +48,11 @@ var inboundNSGPorts = []int32{8443, 443}
 // AzureNodePoolNSGBasedRequiredConnectivityValidation checks that customer-attached NSGs do not block
 // worker-node access to the hosted kube-apiserver (KAS) and vnet-integration subnet.
 //
-// An NSG Deny on the worker→control-plane path fails node bootstrap, so we
-// reject the node pool before create proceeds.
+// An NSG Deny on the worker→control-plane path fails node bootstrap, so controller validates the NSG rules.
+// the nodepool will still attempt to create in the background, but will never be successful.
 //
 // Outbound checks run on the worker-subnet NSG.
-// On outboundNSGPorts (including port"*"), Deny Any→Any, Deny Any→cluster machine subnet,
+// On outboundNSGPorts (including port"*"), Deny Any→Any, Deny Any→parent cluster's subnet,
 // and Deny worker→Any are rejected.
 //
 // Inbound checks run on the vnet-integration-subnet NSG: rules must not block
@@ -172,7 +173,8 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 			}
 		}
 
-		outboundDestinationPrefixes := append([]string(nil), clusterPrefixes...)
+		var outboundDestinationPrefixes []netip.Prefix
+		outboundDestinationPrefixes = append(outboundDestinationPrefixes, clusterPrefixes...)
 
 		nsgClient, err := getNSGClient()
 		if err != nil {
@@ -313,17 +315,21 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) getSubnet(ctx cont
 	return &resp.Subnet, nil
 }
 
-// subnetAddressPrefixes returns the subnet address prefixes from Azure.
-// Azure sets either AddressPrefixes or AddressPrefix (not both).
-func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) subnetAddressPrefixes(subnet *armnetwork.Subnet) ([]string, error) {
+// subnetAddressPrefixes returns parsed subnet address prefixes from Azure.
+// Azure sets either AddressPrefixes or AddressPrefix.
+func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) subnetAddressPrefixes(subnet *armnetwork.Subnet) ([]netip.Prefix, error) {
 	if subnet.Properties == nil {
 		return nil, utils.TrackError(fmt.Errorf("subnet %q has no properties", ptr.Deref(subnet.ID, "")))
 	}
-	prefixes := v.singularOrPluralStrings(subnet.Properties.AddressPrefix, subnet.Properties.AddressPrefixes)
+	rawPrefixes := v.singularOrPluralStrings(subnet.Properties.AddressPrefix, subnet.Properties.AddressPrefixes)
 	// subnet from Azure should always have at least one address prefix
 	// treat missing prefixes as an internal error.
-	if len(prefixes) == 0 {
+	if len(rawPrefixes) == 0 {
 		return nil, utils.TrackError(fmt.Errorf("subnet %q has no address prefix", ptr.Deref(subnet.ID, "")))
+	}
+	prefixes, err := parsePrefixes(rawPrefixes, "subnet")
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse subnet address prefixes for subnet %q: %w", ptr.Deref(subnet.ID, ""), err))
 	}
 	return prefixes, nil
 }
@@ -392,14 +398,14 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) convertSecurityRul
 // validateOutboundNSGRules validates outbound NSG rules so worker nodes
 // can reach the control plane (typically TCP 443/6443; see outboundNSGPorts).
 //
-// workerSubnetCIDRs are the worker (node-pool or cluster) address spaces that
-// originate egress. destinationCIDRs are the address spaces those workers must
-// reach for KAS (cluster machine subnet).
+// workerSubnetPrefixes are the worker (node-pool or cluster) address spaces that
+// originate egress. destinationPrefixes are the address spaces those workers must
+// reach for KAS.
 //
 // Returns a violation when a Deny blocks required traffic; err is reserved for
 // unexpected input or evaluation failures (invalid CIDRs, etc.).
-func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateOutboundNSGRules(rules []nsgSecurityRule, workerSubnetCIDRs, destinationCIDRs []string, ports []int32) (*nsgDenyViolation, error) {
-	paths, err := buildRequiredNSGPaths(workerSubnetCIDRs, "worker subnet", destinationCIDRs, "destination subnet", ports)
+func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateOutboundNSGRules(rules []nsgSecurityRule, workerSubnetPrefixes, destinationPrefixes []netip.Prefix, ports []int32) (*nsgRequiredConnectivityBlockingViolation, error) {
+	paths, err := buildRequiredNSGPaths(workerSubnetPrefixes, "worker subnet", destinationPrefixes, "destination subnet", ports)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -410,14 +416,14 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateOutboundNS
 // traffic from worker nodes toward the vnet integration path used for KAS is
 // not blocked on the given ports (typically TCP 443/8443; see inboundNSGPorts).
 //
-// workerSubnetCIDRs identify worker-sourced traffic.
-// vnetIntegrationSubnetCIDRs are the vnet-integration subnet address spaces
+// workerSubnetPrefixes identify worker-sourced traffic.
+// vnetIntegrationSubnetPrefixes are the vnet-integration subnet address spaces
 // whose NSG is being evaluated; must be non-empty.
 //
 // Returns a violation when a Deny blocks required traffic; err is reserved for
 // unexpected input or evaluation failures.
-func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateInboundNSGRules(rules []nsgSecurityRule, workerSubnetCIDRs, vnetIntegrationSubnetCIDRs []string, ports []int32) (*nsgDenyViolation, error) {
-	paths, err := buildRequiredNSGPaths(workerSubnetCIDRs, "worker subnet", vnetIntegrationSubnetCIDRs, "vnet-integration subnet", ports)
+func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateInboundNSGRules(rules []nsgSecurityRule, workerSubnetPrefixes, vnetIntegrationSubnetPrefixes []netip.Prefix, ports []int32) (*nsgRequiredConnectivityBlockingViolation, error) {
+	paths, err := buildRequiredNSGPaths(workerSubnetPrefixes, "worker subnet", vnetIntegrationSubnetPrefixes, "vnet-integration subnet", ports)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -428,15 +434,18 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateInboundNSG
 // otherwise the singular value. Azure populates one form or the other
 // (e.g. DestinationPortRange vs DestinationPortRanges).
 func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) singularOrPluralStrings(single *string, multi []*string) []string {
-	if len(multi) > 0 {
-		out := make([]string, 0, len(multi))
-		for _, p := range multi {
-			if p != nil {
-				out = append(out, *p)
-			}
+	var out []string
+	// Process plural list if items exist
+	for _, p := range multi {
+		if p != nil {
+			out = append(out, *p)
 		}
+	}
+	// If we found valid elements in the plural list, return them
+	if len(out) > 0 {
 		return out
 	}
+	// Fall back to singular value if the plural list was empty or entirely nil
 	if single != nil {
 		return []string{*single}
 	}

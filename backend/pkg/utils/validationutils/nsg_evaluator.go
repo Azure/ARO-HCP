@@ -52,14 +52,12 @@ type nsgSecurityRule struct {
 // requiredNSGPath is traffic that must not be blocked by an uncompensated Deny rule.
 type requiredNSGPath struct {
 	worker      netip.Prefix
-	workerCIDR  string
 	destination netip.Prefix
-	destCIDR    string
 	port        int32
 }
 
-// nsgDenyViolation describes a customer NSG Deny rule that blocks required traffic.
-type nsgDenyViolation struct {
+// nsgRequiredConnectivityBlockingViolation describes a customer NSG rules that blocks required traffic.
+type nsgRequiredConnectivityBlockingViolation struct {
 	Message string
 }
 
@@ -70,24 +68,20 @@ const (
 	nsgDirectionInbound  nsgDirection = "Inbound"
 )
 
-func buildRequiredNSGPaths(workerCIDRs []string, workerLabel string, destCIDRs []string, destLabel string, ports []int32) ([]requiredNSGPath, error) {
-	workers, err := parsePrefixes(workerCIDRs, workerLabel)
-	if err != nil {
-		return nil, utils.TrackError(err)
+func buildRequiredNSGPaths(workerPrefixes []netip.Prefix, workerLabel string, destinationPrefixes []netip.Prefix, destLabel string, ports []int32) ([]requiredNSGPath, error) {
+	if len(workerPrefixes) == 0 {
+		return nil, utils.TrackError(fmt.Errorf("no %s prefixes provided", workerLabel))
 	}
-	destinations, err := parsePrefixes(destCIDRs, destLabel)
-	if err != nil {
-		return nil, utils.TrackError(err)
+	if len(destinationPrefixes) == 0 {
+		return nil, utils.TrackError(fmt.Errorf("no %s prefixes provided", destLabel))
 	}
-	paths := make([]requiredNSGPath, 0, len(workers)*len(destinations)*len(ports))
-	for i, worker := range workers {
-		for j, dest := range destinations {
+	paths := make([]requiredNSGPath, 0, len(workerPrefixes)*len(destinationPrefixes)*len(ports))
+	for _, worker := range workerPrefixes {
+		for _, dest := range destinationPrefixes {
 			for _, port := range ports {
 				paths = append(paths, requiredNSGPath{
 					worker:      worker,
-					workerCIDR:  workerCIDRs[i],
 					destination: dest,
-					destCIDR:    destCIDRs[j],
 					port:        port,
 				})
 			}
@@ -96,25 +90,33 @@ func buildRequiredNSGPaths(workerCIDRs []string, workerLabel string, destCIDRs [
 	return paths, nil
 }
 
-// findBlockingNSGDeny checks that every required path is not blocked by an
-// uncompensated Deny rule. Rules are evaluated in Azure priority order; a
-// higher-priority Allow that covers the Deny compensates it.
-func findBlockingNSGDeny(rules []nsgSecurityRule, paths []requiredNSGPath, direction nsgDirection) (*nsgDenyViolation, error) {
+// findBlockingNSGDeny checks that every required path is allowed by the NSG.
+// Rules are scanned in Azure priority order. A covering Allow ends evaluation for
+// the path. A matching Deny fails unless a higher-priority Allow compensates it.
+func findBlockingNSGDeny(rules []nsgSecurityRule, paths []requiredNSGPath, direction nsgDirection) (*nsgRequiredConnectivityBlockingViolation, error) {
 	sorted := sortByPriority(rules)
 	requiredPorts := requiredPortsFromPaths(paths)
 	for _, path := range paths {
 		for i := range sorted {
-			deny := &sorted[i]
-			if !isDeny(deny) || !protocolMatchesTCP(deny.Protocol) {
+			rule := &sorted[i]
+			if !protocolMatchesTCP(rule.Protocol) {
 				continue
 			}
-			if !denyMatchesPath(deny, path) {
+			if !ruleMatchesPath(rule, path) {
 				continue
 			}
-			if hasHigherPriorityAllowForDeny(sorted[:i], deny, []int32{path.port}, path.worker) {
+			if isAllow(rule) {
+				if allowCoversPrefix(rule.DestinationAddressPrefixes, path.destination) {
+					break
+				}
 				continue
 			}
-			return pathBlockedViolation(deny, path, direction, requiredPorts), nil
+			if isDeny(rule) {
+				if hasHigherPriorityAllowForDeny(sorted[:i], rule, []int32{path.port}, path.worker) {
+					continue
+				}
+				return pathBlockedViolation(rule, path, direction, requiredPorts), nil
+			}
 		}
 	}
 	return nil, nil
@@ -136,17 +138,17 @@ func requiredPortsFromPaths(paths []requiredNSGPath) []int32 {
 	return ports
 }
 
-func denyMatchesPath(deny *nsgSecurityRule, path requiredNSGPath) bool {
-	if !sourceMatchesSubnet(deny.SourceAddressPrefixes, path.worker) {
+func ruleMatchesPath(rule *nsgSecurityRule, path requiredNSGPath) bool {
+	if !sourceMatchesSubnet(rule.SourceAddressPrefixes, path.worker) {
 		return false
 	}
-	if !destinationOverlapsSubnet(deny.DestinationAddressPrefixes, path.destination) {
+	if !destinationOverlapsSubnet(rule.DestinationAddressPrefixes, path.destination) {
 		return false
 	}
-	return portRangesMatch(deny.DestinationPortRanges, path.port)
+	return portRangesMatch(rule.DestinationPortRanges, path.port)
 }
 
-func pathBlockedViolation(deny *nsgSecurityRule, path requiredNSGPath, direction nsgDirection, requiredPorts []int32) *nsgDenyViolation {
+func pathBlockedViolation(deny *nsgSecurityRule, path requiredNSGPath, direction nsgDirection, requiredPorts []int32) *nsgRequiredConnectivityBlockingViolation {
 	blockedPorts := matchingPorts(deny.DestinationPortRanges, requiredPorts)
 	if len(blockedPorts) == 0 {
 		blockedPorts = []int32{path.port}
@@ -155,23 +157,23 @@ func pathBlockedViolation(deny *nsgSecurityRule, path requiredNSGPath, direction
 	switch direction {
 	case nsgDirectionOutbound:
 		if isAnyAddressPrefixes(deny.SourceAddressPrefixes) && isAnyAddressPrefixes(deny.DestinationAddressPrefixes) {
-			return &nsgDenyViolation{Message: fmt.Sprintf(
+			return &nsgRequiredConnectivityBlockingViolation{Message: fmt.Sprintf(
 				"outbound NSG rule %q (priority %d) denies source Any to destination Any covering ports %s; remove/narrow the Deny",
 				deny.Name, deny.Priority, portStr,
 			)}
 		}
-		return &nsgDenyViolation{Message: fmt.Sprintf(
+		return &nsgRequiredConnectivityBlockingViolation{Message: fmt.Sprintf(
 			"outbound NSG rule %q (priority %d) denies egress to a destination overlapping subnet %s covering ports %s; remove/narrow the Deny",
-			deny.Name, deny.Priority, path.destCIDR, portStr,
+			deny.Name, deny.Priority, path.destination.String(), portStr,
 		)}
 	case nsgDirectionInbound:
 		reason := inboundDenyReason(deny, path)
-		return &nsgDenyViolation{Message: fmt.Sprintf(
+		return &nsgRequiredConnectivityBlockingViolation{Message: fmt.Sprintf(
 			"inbound NSG rule %q (priority %d) %s covering ports %s; remove/narrow the Deny",
 			deny.Name, deny.Priority, reason, portStr,
 		)}
 	default:
-		return &nsgDenyViolation{Message: fmt.Sprintf("NSG rule %q (priority %d) blocks required path on port %s", deny.Name, deny.Priority, portStr)}
+		return &nsgRequiredConnectivityBlockingViolation{Message: fmt.Sprintf("NSG rule %q (priority %d) blocks required path on port %s", deny.Name, deny.Priority, portStr)}
 	}
 }
 
@@ -201,11 +203,11 @@ func parsePrefixes(cidrs []string, label string) ([]netip.Prefix, error) {
 	if len(cidrs) == 0 {
 		return nil, utils.TrackError(fmt.Errorf("no %s CIDRs provided", label))
 	}
-	out := make([]netip.Prefix, 0, len(cidrs))
+	out := []netip.Prefix{}
 	for _, cidr := range cidrs {
-		prefix, err := parsePrefixOrAddr(cidr)
+		prefix, err := netip.ParsePrefix(cidr)
 		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("invalid %s CIDR %q: %w", label, cidr, err))
+			return nil, utils.TrackError(fmt.Errorf("invalid CIDR %q: %w", cidr, err))
 		}
 		out = append(out, prefix)
 	}
@@ -234,6 +236,8 @@ func hasHigherPriorityAllowForDeny(higherPriorityRules []nsgSecurityRule, deny *
 	return false
 }
 
+// sortByPriority sorts NSG rules by priority in ascending order.
+// This is used to evaluate rules in Azure priority order.
 func sortByPriority(rules []nsgSecurityRule) []nsgSecurityRule {
 	sorted := append([]nsgSecurityRule(nil), rules...)
 	sort.SliceStable(sorted, func(i, j int) bool {
@@ -345,8 +349,9 @@ func destinationOverlapsSubnet(prefixes []string, subnet netip.Prefix) bool {
 // destinationMatchesSubnet reports whether destination prefixes apply to subnet.
 // When matchAny is true, an empty prefix list or Any/*/wildcard counts as a match
 // (outbound overlap semantics). When false, those are ignored and only
-// VirtualNetwork (for private subnets) or concrete CIDR/IP overlap counts
-// (inbound specific-destination semantics).
+// VirtualNetwork or concrete CIDR/IP overlap counts (inbound specific-destination semantics).
+// VirtualNetwork matches any subnet prefix supplied here; those prefixes come from the
+// cluster VNet and align with Azure's VirtualNetwork service tag semantics.
 func destinationMatchesSubnet(prefixes []string, subnet netip.Prefix, matchAny bool) bool {
 	if len(prefixes) == 0 {
 		return matchAny
@@ -363,10 +368,7 @@ func destinationMatchesSubnet(prefixes []string, subnet netip.Prefix, matchAny b
 			continue
 		}
 		if isVirtualNetworkTag(p) {
-			if isPrivateAddr(subnet.Addr()) {
-				return true
-			}
-			continue
+			return true
 		}
 		rulePrefix, err := parsePrefixOrAddr(p)
 		if err != nil {
@@ -415,13 +417,11 @@ func sourcesOverlap(allowPrefixes, denyPrefixes []string, subnet netip.Prefix) b
 
 // allowDestinationCoversDeny reports whether Allow destinations fully cover
 // every Deny destination (so the Allow wins for the denied traffic).
-// Allow Any covers any Deny destination (including Deny Any).
 func allowDestinationCoversDeny(allowPrefixes, denyPrefixes []string) bool {
 	if isAnyAddressPrefixes(allowPrefixes) {
 		return true
 	}
 	if len(denyPrefixes) == 0 || isAnyAddressPrefixes(denyPrefixes) {
-		// Specific Allow cannot cover Deny Any; only Allow Any (handled above) can.
 		return false
 	}
 	for _, denyP := range denyPrefixes {
@@ -458,27 +458,6 @@ func allowHasTag(prefixes []string, tag string) bool {
 	return false
 }
 
-func allowCoversPrefix(allowPrefixes []string, denyPrefix netip.Prefix) bool {
-	for _, p := range allowPrefixes {
-		p = strings.TrimSpace(p)
-		if isAnyAddressPrefix(p) {
-			return true
-		}
-		if isVirtualNetworkTag(p) && isPrivateAddr(denyPrefix.Addr()) {
-			return true
-		}
-		allowPrefix, err := parsePrefixOrAddr(p)
-		if err != nil {
-			continue
-		}
-		// Allow covers Deny when Allow is equal or broader than Deny.
-		if allowPrefix.Contains(denyPrefix.Addr()) && allowPrefix.Bits() <= denyPrefix.Bits() {
-			return true
-		}
-	}
-	return false
-}
-
 func portsCovered(ranges []string, ports []int32) bool {
 	for _, port := range ports {
 		if !portRangesMatch(ranges, port) {
@@ -486,6 +465,28 @@ func portsCovered(ranges []string, ports []int32) bool {
 		}
 	}
 	return true
+}
+
+// allowCoversPrefix reports whether Allow destinations fully cover
+// every Deny destination (so the Allow wins for the denied traffic).
+func allowCoversPrefix(allowPrefixes []string, destPrefix netip.Prefix) bool {
+	for _, p := range allowPrefixes {
+		p = strings.TrimSpace(p)
+		if isAnyAddressPrefix(p) {
+			return true
+		}
+		if isVirtualNetworkTag(p) {
+			return true
+		}
+		allowPrefix, err := parsePrefixOrAddr(p)
+		if err != nil {
+			continue
+		}
+		if allowPrefix.Contains(destPrefix.Addr()) && allowPrefix.Bits() <= destPrefix.Bits() {
+			return true
+		}
+	}
+	return false
 }
 
 // matchingPorts returns the subset of ports that the rule's destination port
@@ -527,21 +528,23 @@ func portRangesMatch(ranges []string, port int32) bool {
 	return false
 }
 
+// parsePrefixOrAddr parses Azure NSG/subnet address strings as either a CIDR
+// (e.g. "10.0.0.0/24") or a single IP (e.g. "10.0.0.4", treated as a /32 or /128).
 func parsePrefixOrAddr(s string) (netip.Prefix, error) {
 	s = strings.TrimSpace(s)
-	prefix, err := netip.ParsePrefix(s)
-	if err == nil {
+	if strings.Contains(s, "/") {
+		prefix, err := netip.ParsePrefix(s)
+		if err != nil {
+			return netip.Prefix{}, utils.TrackError(fmt.Errorf("invalid CIDR %q: %w", s, err))
+		}
 		return prefix, nil
 	}
+
 	addr, err := netip.ParseAddr(s)
 	if err != nil {
-		return netip.Prefix{}, utils.TrackError(fmt.Errorf("invalid IP or CIDR %q: %v", s, err))
+		return netip.Prefix{}, utils.TrackError(fmt.Errorf("invalid IP address %q: %w", s, err))
 	}
 	return netip.PrefixFrom(addr, addr.BitLen()), nil
-}
-
-func isPrivateAddr(addr netip.Addr) bool {
-	return addr.IsPrivate() || addr.IsLoopback() || addr.IsLinkLocalUnicast()
 }
 
 func formatPorts(ports []int32) string {

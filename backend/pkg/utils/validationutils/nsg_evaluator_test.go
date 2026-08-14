@@ -15,18 +15,27 @@
 package validationutils
 
 import (
+	"net/netip"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func requireNoNSGRuleViolation(t *testing.T, violation *nsgDenyViolation, err error) {
+func mustPrefixes(ss ...string) []netip.Prefix {
+	out := make([]netip.Prefix, len(ss))
+	for i, s := range ss {
+		out[i] = netip.MustParsePrefix(s)
+	}
+	return out
+}
+
+func requireNoNSGRuleViolation(t *testing.T, violation *nsgRequiredConnectivityBlockingViolation, err error) {
 	t.Helper()
 	require.NoError(t, err)
 	require.Nil(t, violation)
 }
 
-func requireNSGRuleViolation(t *testing.T, violation *nsgDenyViolation, err error) *nsgDenyViolation {
+func requireNSGRuleViolation(t *testing.T, violation *nsgRequiredConnectivityBlockingViolation, err error) *nsgRequiredConnectivityBlockingViolation {
 	t.Helper()
 	require.NoError(t, err)
 	require.NotNil(t, violation)
@@ -47,7 +56,7 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyAny")
 		require.Contains(t, blocked.Message, "source Any to destination Any")
@@ -67,7 +76,7 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 				DestinationPortRanges: []string{"*"},
 			},
 		}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -88,7 +97,7 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 			},
 		}
 		// Allow compensation must use worker CIDRs, not destination (cluster) CIDRs.
-		violation, err := v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(npSubnet), mustPrefixes(clusterSubnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -106,7 +115,7 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 		}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyAny")
 	})
@@ -125,7 +134,7 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 				DestinationPortRanges: []string{"*"},
 			},
 		}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyAny")
 	})
@@ -137,7 +146,7 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAny6443")
 		require.Contains(t, blocked.Message, "6443")
@@ -150,7 +159,7 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAny443")
 		require.Contains(t, blocked.Message, "443")
@@ -163,7 +172,7 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyBoth")
 		require.Contains(t, blocked.Message, "443")
@@ -177,7 +186,7 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"443,6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyComma")
 	})
@@ -189,7 +198,7 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -208,7 +217,7 @@ func TestValidateOutboundNSGRules_BroadDeny(t *testing.T) {
 				DestinationPortRanges: []string{"*"},
 			},
 		}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet, second}, []string{subnet, second}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet, second), mustPrefixes(subnet, second), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyAny")
 	})
@@ -228,7 +237,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{subnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenySubnet")
 		require.Contains(t, blocked.Message, subnet)
@@ -241,7 +250,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{subnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -252,7 +261,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"VirtualNetwork"}, DestinationAddressPrefixes: []string{"10.0.0.4"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyILB")
 	})
@@ -271,7 +280,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 		}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -289,7 +298,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 		}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -307,7 +316,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 		}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -318,7 +327,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"10.0.1.4"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -329,7 +338,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"192.168.99.0/24"}, DestinationAddressPrefixes: []string{subnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -347,7 +356,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 				DestinationPortRanges: []string{"443", "6443"},
 			},
 		}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyILB")
 	})
@@ -359,14 +368,14 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"10.0.0.4"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyWorkerSource")
 	})
 
 	t.Run("no custom rules passes", func(t *testing.T) {
 		t.Parallel()
-		violation, err := v.validateOutboundNSGRules(nil, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(nil, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -378,7 +387,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"10.1.0.4"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet, second}, []string{subnet, second}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet, second), mustPrefixes(subnet, second), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenySecondPrefix")
 		require.Contains(t, blocked.Message, second)
@@ -393,7 +402,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{clusterSubnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(npSubnet), mustPrefixes(clusterSubnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyClusterSubnet")
 		require.Contains(t, blocked.Message, clusterSubnet)
@@ -408,7 +417,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"10.0.0.10"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(npSubnet), mustPrefixes(clusterSubnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyClusterIP")
 	})
@@ -422,7 +431,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{npSubnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(npSubnet), mustPrefixes(clusterSubnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -435,7 +444,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{clusterSubnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(npSubnet), mustPrefixes(clusterSubnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyWorkerToCluster")
 		require.Contains(t, blocked.Message, clusterSubnet)
@@ -489,7 +498,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				violation, err := v.validateOutboundNSGRules([]nsgSecurityRule{tc.rule}, []string{npSubnet}, []string{clusterSubnet}, ports)
+				violation, err := v.validateOutboundNSGRules([]nsgSecurityRule{tc.rule}, mustPrefixes(npSubnet), mustPrefixes(clusterSubnet), ports)
 				requireNoNSGRuleViolation(t, violation, err)
 			})
 		}
@@ -505,7 +514,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{integration},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(npSubnet), mustPrefixes(clusterSubnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -519,7 +528,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{unrelated}, DestinationAddressPrefixes: []string{clusterSubnet},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(npSubnet), mustPrefixes(clusterSubnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -530,7 +539,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyWorkerToAny")
 	})
@@ -544,7 +553,7 @@ func TestValidateOutboundNSGRules_SubnetDeny(t *testing.T) {
 			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"443", "6443"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(npSubnet), mustPrefixes(clusterSubnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyNPToAny")
 	})
@@ -565,7 +574,7 @@ func TestValidateOutboundNSGRules_NodePoolSubnet(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
-		violation, err := v.validateOutboundNSGRules(rules, []string{npSubnet}, []string{clusterSubnet}, ports)
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(npSubnet), mustPrefixes(clusterSubnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyAny")
 	})
@@ -585,7 +594,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyAnyIn")
 		require.Contains(t, blocked.Message, "source Any to destination Any")
@@ -600,7 +609,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{integration},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(worker), mustPrefixes(integration), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyToIntegration")
 		require.Contains(t, blocked.Message, "source Any to destination VirtualNetwork/vnet-integration")
@@ -615,7 +624,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{integration},
 			DestinationPortRanges: []string{"*"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(worker), mustPrefixes(integration), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyToIntegrationStar")
 	})
@@ -629,7 +638,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(worker), mustPrefixes(integration), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyToVNet")
 		require.Contains(t, blocked.Message, "source Any to destination VirtualNetwork/vnet-integration")
@@ -645,7 +654,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{other},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(worker), mustPrefixes(integration), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -665,7 +674,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 				DestinationPortRanges: []string{"8443", "443"},
 			},
 		}
-		violation, err := v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(worker), mustPrefixes(integration), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -676,7 +685,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyWorkerToAny")
 		require.Contains(t, blocked.Message, "destination Any")
@@ -689,7 +698,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
 			DestinationPortRanges: []string{"*"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyWorkerToVNet")
 	})
@@ -703,7 +712,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{worker}, DestinationAddressPrefixes: []string{integration},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(worker), mustPrefixes(integration), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyWorkerToIntegration")
 		require.Contains(t, blocked.Message, "vnet-integration")
@@ -719,7 +728,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{worker}, DestinationAddressPrefixes: []string{other},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{worker}, []string{integration}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(worker), mustPrefixes(integration), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -732,7 +741,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{npSubnet}, []string{integration}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(npSubnet), mustPrefixes(integration), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyNPToAny")
 		require.Contains(t, blocked.Message, "destination Any")
@@ -747,7 +756,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{npSubnet}, DestinationAddressPrefixes: []string{integration},
 			DestinationPortRanges: []string{"8443", "443"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{npSubnet}, []string{integration}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(npSubnet), mustPrefixes(integration), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyNPToIntegration")
 		require.Contains(t, blocked.Message, "vnet-integration")
@@ -760,7 +769,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{"10.0.0.5"}, DestinationAddressPrefixes: []string{subnet},
 			DestinationPortRanges: []string{"*"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyWorkerToSubnet")
 	})
@@ -779,7 +788,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 				DestinationPortRanges: []string{"*"},
 			},
 		}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -797,7 +806,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 				DestinationPortRanges: []string{"*"},
 			},
 		}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -815,7 +824,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 				DestinationPortRanges: []string{"*"},
 			},
 		}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyAnyIn")
 	})
@@ -827,7 +836,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{"10.0.1.0/24"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -838,7 +847,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"*"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -849,7 +858,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
 			DestinationPortRanges: []string{"80"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -860,7 +869,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
 			DestinationPortRanges: []string{"8443"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "Deny8443")
 		require.Contains(t, blocked.Message, "8443")
@@ -873,7 +882,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 			SourceAddressPrefixes: []string{subnet}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
 			DestinationPortRanges: []string{"443"},
 		}}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet}, []string{subnet}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet), mustPrefixes(subnet), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "Deny443")
 		require.Contains(t, blocked.Message, "443")
@@ -881,7 +890,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 
 	t.Run("empty vnet-integration CIDRs returns error", func(t *testing.T) {
 		t.Parallel()
-		violation, err := v.validateInboundNSGRules(nil, []string{subnet}, nil, ports)
+		violation, err := v.validateInboundNSGRules(nil, mustPrefixes(subnet), nil, ports)
 		require.Error(t, err)
 		require.Nil(t, violation)
 		require.Contains(t, err.Error(), "vnet-integration subnet")
@@ -903,7 +912,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 				DestinationPortRanges: []string{"*"},
 			},
 		}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet, second}, []string{integration}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet, second), mustPrefixes(integration), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenySecondToAny")
 	})
@@ -924,7 +933,7 @@ func TestValidateInboundNSGRules(t *testing.T) {
 				DestinationPortRanges: []string{"*"},
 			},
 		}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet, second}, []string{integration}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet, second), mustPrefixes(integration), ports)
 		requireNoNSGRuleViolation(t, violation, err)
 	})
 
@@ -944,8 +953,78 @@ func TestValidateInboundNSGRules(t *testing.T) {
 				DestinationPortRanges: []string{"*"},
 			},
 		}
-		violation, err := v.validateInboundNSGRules(rules, []string{subnet, second}, []string{integration}, ports)
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(subnet, second), mustPrefixes(integration), ports)
 		blocked := requireNSGRuleViolation(t, violation, err)
 		require.Contains(t, blocked.Message, "DenyAnyAnyIn")
+	})
+}
+
+func TestValidateNSGRules_VirtualNetworkNonRFC1918(t *testing.T) {
+	t.Parallel()
+	v := &AzureNodePoolNSGBasedRequiredConnectivityValidation{}
+	worker := "100.64.1.0/24"
+	integration := "100.64.2.0/24"
+	outboundPorts := []int32{443, 6443}
+	inboundPorts := []int32{8443, 443}
+
+	t.Run("inbound Deny Any to VirtualNetwork fails for CGNAT subnets", func(t *testing.T) {
+		t.Parallel()
+		rules := []nsgSecurityRule{{
+			Name: "DenyAnyToVNetCGNAT", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
+			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
+			DestinationPortRanges: []string{"8443", "443"},
+		}}
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(worker), mustPrefixes(integration), inboundPorts)
+		blocked := requireNSGRuleViolation(t, violation, err)
+		require.Contains(t, blocked.Message, "DenyAnyToVNetCGNAT")
+		require.Contains(t, blocked.Message, "source Any to destination VirtualNetwork/vnet-integration")
+	})
+
+	t.Run("inbound Allow VirtualNetwork compensates Deny VirtualNetwork for CGNAT subnets", func(t *testing.T) {
+		t.Parallel()
+		rules := []nsgSecurityRule{
+			{
+				Name: "AllowVNetCGNAT", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
+				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
+				DestinationPortRanges: []string{"8443", "443"},
+			},
+			{
+				Name: "DenyAnyToVNetCGNAT", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
+				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
+				DestinationPortRanges: []string{"8443", "443"},
+			},
+		}
+		violation, err := v.validateInboundNSGRules(rules, mustPrefixes(worker), mustPrefixes(integration), inboundPorts)
+		requireNoNSGRuleViolation(t, violation, err)
+	})
+
+	t.Run("outbound Deny Any to VirtualNetwork fails for CGNAT cluster subnet", func(t *testing.T) {
+		t.Parallel()
+		rules := []nsgSecurityRule{{
+			Name: "DenyAnyToVNetCGNAT", Priority: 200, Access: securityGroupAccessDeny, Protocol: "Tcp",
+			SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
+			DestinationPortRanges: []string{"443", "6443"},
+		}}
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(worker), mustPrefixes(integration), outboundPorts)
+		blocked := requireNSGRuleViolation(t, violation, err)
+		require.Contains(t, blocked.Message, "DenyAnyToVNetCGNAT")
+	})
+
+	t.Run("outbound Allow VirtualNetwork covers CGNAT destination subnet", func(t *testing.T) {
+		t.Parallel()
+		rules := []nsgSecurityRule{
+			{
+				Name: "AllowVNetCGNAT", Priority: 100, Access: securityGroupAccessAllow, Protocol: "Tcp",
+				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"VirtualNetwork"},
+				DestinationPortRanges: []string{"443", "6443"},
+			},
+			{
+				Name: "DenyAnyAnyCGNAT", Priority: 200, Access: securityGroupAccessDeny, Protocol: "*",
+				SourceAddressPrefixes: []string{"*"}, DestinationAddressPrefixes: []string{"*"},
+				DestinationPortRanges: []string{"*"},
+			},
+		}
+		violation, err := v.validateOutboundNSGRules(rules, mustPrefixes(worker), mustPrefixes(integration), outboundPorts)
+		requireNoNSGRuleViolation(t, violation, err)
 	})
 }
