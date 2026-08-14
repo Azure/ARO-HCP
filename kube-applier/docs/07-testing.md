@@ -36,24 +36,30 @@ dyn, _ := dynamic.NewForConfig(cfg)
 
 ### ApplyDesireController
 
+Conditions below name `SuccessfullyApplied`; the controller also dual-writes the
+legacy `Successful` with the same status/reason (assert it mirrors).
+
 | Case | Expected condition |
 | --- | --- |
-| valid Deployment payload, apply succeeds | `Successful=True` |
-| invalid YAML in `kubeContent` | `Successful=False`, reason `PreCheckFailed` |
-| GVK has no RESTMapper match | `Successful=False`, reason `PreCheckFailed` |
-| kube-apiserver returns 403 | `Successful=False`, reason `KubeAPIError`, msg contains the upstream error |
-| existing object owned by another field manager (force=true) | `Successful=True`; verify the diff was applied |
+| valid Deployment payload, apply succeeds | `SuccessfullyApplied=True` |
+| invalid YAML in `kubeContent` | `SuccessfullyApplied=False`, reason `PreCheckFailed` |
+| GVR in `targetItem` does not resolve on the cluster | `SuccessfullyApplied=False`, reason `KubeAPIError` (the controller passes the GVR straight to the dynamic client; it does not consult a RESTMapper) |
+| kube-apiserver returns 403 | `SuccessfullyApplied=False`, reason `KubeAPIError`, msg contains the upstream error |
+| existing object owned by another field manager (force=true) | `SuccessfullyApplied=True`; verify the diff was applied |
 | no-op resync (status already correct) | no Cosmos write (verify via mock) |
 
 ### ApplyDesireController (Type=Delete)
 
+Conditions below name `SuccessfullyDeleted`; the controller also dual-writes the
+legacy `Successful` with the same status/reason (assert it mirrors).
+
 | Case | Expected condition |
 | --- | --- |
-| target absent | `Successful=True` |
-| target present, no deletionTimestamp, delete returns 404 (race) | `Successful=True` |
-| target present, no deletionTimestamp, delete succeeds | `Successful=False`, reason `WaitingForDeletion`, message includes UID + DT |
-| target present, deletionTimestamp already set | `Successful=False`, reason `WaitingForDeletion` |
-| delete returns 500 | `Successful=False`, reason `KubeAPIError` |
+| target absent | `SuccessfullyDeleted=True` |
+| target present, no deletionTimestamp, delete returns 404 (race) | `SuccessfullyDeleted=True` |
+| target present, no deletionTimestamp, delete succeeds | `SuccessfullyDeleted=False`, reason `WaitingForDeletion`, message includes UID + DT |
+| target present, deletionTimestamp already set | `SuccessfullyDeleted=False`, reason `WaitingForDeletion` |
+| delete returns 500 | `SuccessfullyDeleted=False`, reason `KubeAPIError` |
 
 ### ReadDesireInformerManagingController
 
@@ -107,7 +113,7 @@ Smoke scenarios at minimum:
   verify the ConfigMap is updated; delete the ApplyDesire (mock-side),
   verify the ConfigMap is left in place (we are not cascading deletes).
 - Create an ApplyDesire with `Type=Delete` targeting the ConfigMap, verify
-  it is deleted and the desire reports `Successful=True`.
+  it is deleted and the desire reports `SuccessfullyDeleted=True`.
 - Create a ReadDesire on the ConfigMap; verify `.status.kubeContent`
   becomes the live ConfigMap; mutate the live ConfigMap directly via the
   KIND client; verify `.status.kubeContent` updates within one resync.

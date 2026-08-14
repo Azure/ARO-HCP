@@ -79,26 +79,82 @@ func TestSetSuccessful_RegularErrorIsKubeAPIError(t *testing.T) {
 	}
 }
 
-func TestSetSuccessfulWaitingForDeletion(t *testing.T) {
+// SetSuccessfullyApplied writes both the operation-specific SuccessfullyApplied
+// condition and the legacy Successful condition with identical status/reason.
+func TestSetSuccessfullyApplied_WritesBothConditions(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		err        error
+		wantStatus metav1.ConditionStatus
+		wantReason string
+	}{
+		{"success", nil, metav1.ConditionTrue, kubeapplierapi.ConditionReasonNoErrors},
+		{"precheck", NewPreCheckError(errors.New("bad")), metav1.ConditionFalse, kubeapplierapi.ConditionReasonPreCheckFailed},
+		{"kubeapi", errors.New("503"), metav1.ConditionFalse, kubeapplierapi.ConditionReasonKubeAPIError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var conds []metav1.Condition
+			SetSuccessfullyApplied(&conds, tc.err)
+			for _, condType := range []string{kubeapplierapi.ConditionTypeSuccessfullyApplied, kubeapplierapi.ConditionTypeSuccessful} {
+				c := findCondition(conds, condType)
+				if c == nil {
+					t.Fatalf("%s condition not set", condType)
+				}
+				if c.Status != tc.wantStatus {
+					t.Errorf("%s Status = %v, want %v", condType, c.Status, tc.wantStatus)
+				}
+				if c.Reason != tc.wantReason {
+					t.Errorf("%s Reason = %q, want %q", condType, c.Reason, tc.wantReason)
+				}
+			}
+			if findCondition(conds, kubeapplierapi.ConditionTypeSuccessfullyDeleted) != nil {
+				t.Error("SuccessfullyDeleted should not be set by SetSuccessfullyApplied")
+			}
+		})
+	}
+}
+
+// SetSuccessfullyDeleted writes both the operation-specific SuccessfullyDeleted
+// condition and the legacy Successful condition.
+func TestSetSuccessfullyDeleted_WritesBothConditions(t *testing.T) {
+	var conds []metav1.Condition
+	SetSuccessfullyDeleted(&conds, nil)
+	for _, condType := range []string{kubeapplierapi.ConditionTypeSuccessfullyDeleted, kubeapplierapi.ConditionTypeSuccessful} {
+		c := findCondition(conds, condType)
+		if c == nil {
+			t.Fatalf("%s condition not set", condType)
+		}
+		if c.Status != metav1.ConditionTrue {
+			t.Errorf("%s Status = %v, want True", condType, c.Status)
+		}
+	}
+	if findCondition(conds, kubeapplierapi.ConditionTypeSuccessfullyApplied) != nil {
+		t.Error("SuccessfullyApplied should not be set by SetSuccessfullyDeleted")
+	}
+}
+
+func TestSetWaitingForDeletion_WritesBothConditions(t *testing.T) {
 	var conds []metav1.Condition
 	dt := metav1.NewTime(time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC))
 	uid := types.UID("abc-123")
-	SetSuccessfulWaitingForDeletion(&conds, dt, uid)
-	c := findCondition(conds, kubeapplierapi.ConditionTypeSuccessful)
-	if c == nil {
-		t.Fatal("Successful condition not set")
-	}
-	if c.Status != metav1.ConditionFalse {
-		t.Errorf("Status = %v, want False", c.Status)
-	}
-	if c.Reason != kubeapplierapi.ConditionReasonWaitingForDeletion {
-		t.Errorf("Reason = %q, want %q", c.Reason, kubeapplierapi.ConditionReasonWaitingForDeletion)
-	}
-	if !contains(c.Message, "abc-123") {
-		t.Errorf("Message = %q does not contain UID", c.Message)
-	}
-	if !contains(c.Message, "2026-05-01T12:00:00Z") {
-		t.Errorf("Message = %q does not contain RFC3339 deletionTimestamp", c.Message)
+	SetWaitingForDeletion(&conds, dt, uid)
+	for _, condType := range []string{kubeapplierapi.ConditionTypeSuccessfullyDeleted, kubeapplierapi.ConditionTypeSuccessful} {
+		c := findCondition(conds, condType)
+		if c == nil {
+			t.Fatalf("%s condition not set", condType)
+		}
+		if c.Status != metav1.ConditionFalse {
+			t.Errorf("%s Status = %v, want False", condType, c.Status)
+		}
+		if c.Reason != kubeapplierapi.ConditionReasonWaitingForDeletion {
+			t.Errorf("%s Reason = %q, want %q", condType, c.Reason, kubeapplierapi.ConditionReasonWaitingForDeletion)
+		}
+		if !contains(c.Message, "abc-123") {
+			t.Errorf("%s Message = %q does not contain UID", condType, c.Message)
+		}
+		if !contains(c.Message, "2026-05-01T12:00:00Z") {
+			t.Errorf("%s Message = %q does not contain RFC3339 deletionTimestamp", condType, c.Message)
+		}
 	}
 }
 

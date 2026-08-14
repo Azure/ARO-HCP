@@ -116,8 +116,10 @@ Single PR.
       including delete-type ApplyDesires.
 
 Exit criteria: in cspr, a hand-inserted ApplyDesire with `Type=ServerSideApply`
-produces the expected kube object and `.status.conditions["Successful"]=True`;
-an ApplyDesire with `Type=Delete` removes the target object.
+produces the expected kube object and `.status.conditions["SuccessfullyApplied"]=True`
+(with `["Successful"]=True` mirrored for backwards compatibility); an ApplyDesire
+with `Type=Delete` removes the target object and reports
+`.status.conditions["SuccessfullyDeleted"]=True`.
 
 ## Phase 8 &mdash; ReadDesire controllers (Doc 05.3 + 5.4)
 

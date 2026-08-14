@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -126,8 +127,9 @@ func removeApplyDesireForDeletion(
 	if applyDesire.Spec.Type != kubeapplierapi.ApplyDesireTypeDelete {
 		applyDesire.Spec.Type = kubeapplierapi.ApplyDesireTypeDelete
 		applyDesire.Spec.ServerSideApply = nil
-		// clearing conditions so that we can be certain that a success means we deleted.
-		// TODO, different conditions.
+		// Clear conditions so a later SuccessfullyDeleted (or, for an older
+		// kube-applier, Successful) unambiguously reflects the delete rather than a
+		// stale server-side-apply result.
 		applyDesire.Status.Conditions = nil
 		if _, err := applyCRUD.Replace(ctx, applyDesire, nil); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
 			return false, utils.TrackError(fmt.Errorf("convert ApplyDesire %s to Delete: %w", desireName, err))
@@ -136,13 +138,13 @@ func removeApplyDesireForDeletion(
 	}
 
 	// The desire is a Delete — remove the document once the delete has succeeded.
-	for _, cond := range applyDesire.Status.Conditions {
-		if cond.Type == kubeapplierapi.ConditionTypeSuccessful && cond.Status == "True" {
-			if err := applyCRUD.Delete(ctx, strings.ToLower(desireName)); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-				return false, utils.TrackError(fmt.Errorf("delete ApplyDesire %s: %w", desireName, err))
-			}
-			return true, nil
+	// Prefer the operation-specific SuccessfullyDeleted condition, falling back to
+	// the legacy Successful for documents last written by an older kube-applier.
+	if kubeapplierapihelpers.IsConditionTruePreferring(applyDesire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessfullyDeleted, kubeapplierapi.ConditionTypeSuccessful) {
+		if err := applyCRUD.Delete(ctx, strings.ToLower(desireName)); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+			return false, utils.TrackError(fmt.Errorf("delete ApplyDesire %s: %w", desireName, err))
 		}
+		return true, nil
 	}
 	// Delete not yet successful; wait.
 	return false, nil
