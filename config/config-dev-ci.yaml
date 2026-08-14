@@ -162,7 +162,7 @@ clouds:
           image:
             registry: "arohcpsvcdev.azurecr.io"
             repository: "tenant-quota-collector"
-            digest: sha256:85389f23b01d9bfbf6abe9963df8f0e619374ec7dbcd9b4a83a5c1e325fed20b # 7130001c6c57c63f94e5b6689a28cf648f2b5ba4 (2026-08-12 19:24)
+            digest: sha256:4fa8de0e2020ae0959049723dcdd7526fc3d0cc388a357c9da11991acfd8ae62 # 0155fac0e048cd8def6e22309893d99c083c3bff (2026-08-14 18:14)
           prow:
             enabled: true
             baseURL: "https://prow.ci.openshift.org"
