@@ -255,7 +255,7 @@ resource arohcpIngressAvailabilitySloRecordingRules 'Microsoft.AlertsManagement/
     rules: [
       {
         record: 'availability:ingress_canary:ratio'
-        expression: 'sum by (_id) (ingress_canary_route_reachable) / count by (_id) (ingress_canary_route_reachable)'
+        expression: 'sum by (_id, cluster) (ingress_canary_route_reachable) / count by (_id, cluster) (ingress_canary_route_reachable)'
       }
       {
         record: 'errors:ingress_canary:error_rate'

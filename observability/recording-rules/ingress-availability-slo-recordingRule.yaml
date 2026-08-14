@@ -23,10 +23,14 @@ spec:
   #   emitted by ingress-operator (control plane, authoritative source)
   # - ingress_controller_conditions: _id label confirmed, condition=Available/Degraded
   #
+  # Production label set for ingress_canary_route_reachable (confirmed 2026-08-14):
+  #   _id, cluster, container, endpoint, environment, host, instance, job,
+  #   namespace, pod, prometheus, prometheus_replica, region
+  # Note: subscription_id and resource_id are NOT present on this metric.
+  # by(_id, cluster) preserves per-HCP identity and regional management cluster context.
+  #
   # TODO: ingress_canary_check_duration is exposed as a histogram (_bucket/_count/_sum)
   # in production AMW. Evaluate threshold-based Latency SLI from those series.
-  # TODO: confirm full label set (cluster, subscription_id, resource_id) on
-  # ingress_canary_route_reachable and preserve them in the by() clause.
   # TODO: handle no-data case when all canary pods are missing.
   - name: arohcp_ingress_availability_slo_recording_rules
     interval: 1m
@@ -38,9 +42,9 @@ spec:
     # does not report the entire cluster as unavailable.
     - record: availability:ingress_canary:ratio
       expr: |
-        sum by (_id) (ingress_canary_route_reachable)
+        sum by (_id, cluster) (ingress_canary_route_reachable)
         /
-        count by (_id) (ingress_canary_route_reachable)
+        count by (_id, cluster) (ingress_canary_route_reachable)
     # Error rate derived from the availability SLI.
     # Used by burn-rate alert expressions (ARO-25969).
     - record: errors:ingress_canary:error_rate
