@@ -36,6 +36,7 @@ func runKustoEntityGroupsStep(_ graph.Identifier, step *types.KustoEntityGroupsS
 func kustoEntityGroupsOptions(step *types.KustoEntityGroupsStep) (*entitygroups.RawSyncOptions, error) {
 	opts := entitygroups.DefaultSyncOptions()
 	opts.EntityGroups = step.EntityGroups
+	opts.Environment = step.Environment
 
 	if step.Timeout != "" {
 		d, err := time.ParseDuration(step.Timeout)

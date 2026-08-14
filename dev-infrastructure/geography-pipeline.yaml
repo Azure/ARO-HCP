@@ -191,6 +191,7 @@ resourceGroups:
     - "AllServiceLogs:ServiceLogs"
     - "AllHostedControlPlaneLogs:HostedControlPlaneLogs"
     - "AllMonitoringEvents:MonitoringEvents"
+    environment: '{{ .environmentName }}'
     timeout: "10m"
     identityFrom:
       resourceGroup: global
