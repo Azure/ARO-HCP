@@ -81,6 +81,32 @@ func TestSelectControlPlaneVersionInstall(t *testing.T) {
 			name:          "empty graph",
 			expectedError: "no releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=fast-4.20",
 		},
+		{
+			// The channel graph lists prior-minor nodes; the offset must not spill
+			// into them once the channel minor is exhausted.
+			name: "offset does not spill into an older minor",
+			graph: graph{
+				Nodes: []node{
+					makeNode("4.20.1"),
+					makeNode("4.19.10"),
+					makeNode("4.19.9"),
+				},
+			},
+			offset:        1,
+			expectedError: "1 releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=fast-4.20, which is not enough for the requested 1 offset",
+		},
+		{
+			// A graph with no node in the channel's own minor yields no releases,
+			// rather than returning a version from an older minor.
+			name: "no releases in the channel minor",
+			graph: graph{
+				Nodes: []node{
+					makeNode("4.19.9"),
+					makeNode("4.19.10"),
+				},
+			},
+			expectedError: "no releases found in https://api.openshift.com/api/upgrades_info/graph?arch=multi&channel=fast-4.20",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
