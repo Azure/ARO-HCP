@@ -119,6 +119,61 @@ func emptyNSG() armnetwork.SecurityGroupsClientGetResponse {
 	}
 }
 
+func azureDefaultOutboundARMRules() []*armnetwork.SecurityRule {
+	return []*armnetwork.SecurityRule{
+		{
+			Name: ptr.To("AllowVnetOutBound"),
+			Properties: &armnetwork.SecurityRulePropertiesFormat{
+				Priority:                 ptr.To(int32(65000)),
+				Access:                   ptr.To(armnetwork.SecurityRuleAccessAllow),
+				Direction:                ptr.To(armnetwork.SecurityRuleDirectionOutbound),
+				Protocol:                 ptr.To(armnetwork.SecurityRuleProtocolAsterisk),
+				SourceAddressPrefix:      ptr.To("VirtualNetwork"),
+				DestinationAddressPrefix: ptr.To("VirtualNetwork"),
+				SourcePortRange:          ptr.To("*"),
+				DestinationPortRange:     ptr.To("*"),
+			},
+		},
+		{
+			Name: ptr.To("AllowInternetOutBound"),
+			Properties: &armnetwork.SecurityRulePropertiesFormat{
+				Priority:                 ptr.To(int32(65001)),
+				Access:                   ptr.To(armnetwork.SecurityRuleAccessAllow),
+				Direction:                ptr.To(armnetwork.SecurityRuleDirectionOutbound),
+				Protocol:                 ptr.To(armnetwork.SecurityRuleProtocolAsterisk),
+				SourceAddressPrefix:      ptr.To("*"),
+				DestinationAddressPrefix: ptr.To("Internet"),
+				SourcePortRange:          ptr.To("*"),
+				DestinationPortRange:     ptr.To("*"),
+			},
+		},
+		{
+			Name: ptr.To("DenyAllOutBound"),
+			Properties: &armnetwork.SecurityRulePropertiesFormat{
+				Priority:                 ptr.To(int32(65500)),
+				Access:                   ptr.To(armnetwork.SecurityRuleAccessDeny),
+				Direction:                ptr.To(armnetwork.SecurityRuleDirectionOutbound),
+				Protocol:                 ptr.To(armnetwork.SecurityRuleProtocolAsterisk),
+				SourceAddressPrefix:      ptr.To("*"),
+				DestinationAddressPrefix: ptr.To("*"),
+				SourcePortRange:          ptr.To("*"),
+				DestinationPortRange:     ptr.To("*"),
+			},
+		},
+	}
+}
+
+func nsgWithAzureDefaultOutboundRules() armnetwork.SecurityGroupsClientGetResponse {
+	return armnetwork.SecurityGroupsClientGetResponse{
+		SecurityGroup: armnetwork.SecurityGroup{
+			Properties: &armnetwork.SecurityGroupPropertiesFormat{
+				SecurityRules:        []*armnetwork.SecurityRule{},
+				DefaultSecurityRules: azureDefaultOutboundARMRules(),
+			},
+		},
+	}
+}
+
 func expectWorkerAndIntegrationSubnets(subnets *azureclient.MockSubnetsClient, workerResp, integrationResp armnetwork.SubnetsClientGetResponse) {
 	subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestSubnetName, nil).Return(workerResp, nil)
 	subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestVnetIntegrationSubnetName, nil).Return(integrationResp, nil)
@@ -130,12 +185,15 @@ func nodePoolOnSubnet(npSubnetID string) *coreapi.HCPOpenShiftClusterNodePool {
 	return np
 }
 
-func expectNPAndClusterSubnets(subnets *azureclient.MockSubnetsClient, npSubnetName, npSubnetCIDR, clusterSubnetCIDR string) {
+func expectNPAndClusterSubnets(subnets *azureclient.MockSubnetsClient, npSubnetName, npSubnetCIDR, clusterSubnetCIDR, integrationSubnetCIDR string) {
 	subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, npSubnetName, nil).Return(
 		subnetWithNSG(npSubnetCIDR, coreapitesting.TestNetworkSecurityGroupResourceID), nil,
 	)
 	subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestSubnetName, nil).Return(
 		subnetWithoutNSG(clusterSubnetCIDR), nil,
+	)
+	subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestVnetIntegrationSubnetName, nil).Return(
+		subnetWithoutNSG(integrationSubnetCIDR), nil,
 	)
 }
 
@@ -169,8 +227,9 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		subnets := azureclient.NewMockSubnetsClient(ctrl)
-		subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestSubnetName, nil).Return(
-			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID), nil,
+		expectWorkerAndIntegrationSubnets(subnets,
+			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID),
+			subnetWithoutNSG(integrationSubnet),
 		)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(
@@ -204,8 +263,9 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		subnets := azureclient.NewMockSubnetsClient(ctrl)
-		subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestSubnetName, nil).Return(
-			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID), nil,
+		expectWorkerAndIntegrationSubnets(subnets,
+			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID),
+			subnetWithoutNSG(integrationSubnet),
 		)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(
@@ -245,12 +305,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		subnets := azureclient.NewMockSubnetsClient(ctrl)
-		subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, npSubnetName, nil).Return(
-			subnetWithNSG(npSubnetCIDR, coreapitesting.TestNetworkSecurityGroupResourceID), nil,
-		)
-		subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestSubnetName, nil).Return(
-			subnetWithoutNSG(clusterSubnetCIDR), nil,
-		)
+		expectNPAndClusterSubnets(subnets, npSubnetName, npSubnetCIDR, clusterSubnetCIDR, integrationSubnet)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(
 			armnetwork.SecurityGroupsClientGetResponse{
@@ -281,7 +336,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		require.Contains(t, result.InternalMessage(), "DenyToClusterSubnet")
 	})
 
-	t.Run("empty security rules on attached NSGs", func(t *testing.T) {
+	t.Run("empty security rules on attached NSGs fails with no allow", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		subnets := azureclient.NewMockSubnetsClient(ctrl)
@@ -294,7 +349,8 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 
 		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(&fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets})
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
-		require.Equal(t, OutcomeTypePassed, result.Outcome.Type)
+		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
+		require.Contains(t, result.InternalMessage(), "No Allow")
 	})
 
 	t.Run("skips validation when vnet-integration subnet has no NSG attached", func(t *testing.T) {
@@ -306,7 +362,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 			subnetWithoutNSG(integrationSubnet),
 		)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
-		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(emptyNSG(), nil)
+		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(nsgWithAzureDefaultOutboundRules(), nil)
 		builder := &fakeSMIClientBuilder{nsgClient: nsg, subnetsClient: subnets}
 
 		v := NewAzureNodePoolNSGBasedRequiredConnectivityValidation(builder)
@@ -350,7 +406,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyAnyAnyIn")
-		require.Contains(t, result.InternalMessage(), "inbound")
+		require.Contains(t, result.InternalMessage(), "Inbound")
 	})
 
 	t.Run("inbound Deny Any to vnet-integration subnet fails", func(t *testing.T) {
@@ -388,7 +444,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyAnyToIntegration")
-		require.Contains(t, result.InternalMessage(), "inbound")
+		require.Contains(t, result.InternalMessage(), "Inbound")
 	})
 
 	t.Run("different NSGs: outbound on worker NSG and inbound on integration NSG", func(t *testing.T) {
@@ -400,7 +456,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 			subnetWithNSG(integrationSubnet, integrationNSGID),
 		)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
-		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(emptyNSG(), nil)
+		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(nsgWithAzureDefaultOutboundRules(), nil)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, integrationNSGName, nil).Return(
 			armnetwork.SecurityGroupsClientGetResponse{
 				SecurityGroup: armnetwork.SecurityGroup{
@@ -445,8 +501,9 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		subnets := azureclient.NewMockSubnetsClient(ctrl)
-		subnets.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestVirtualNetworkName, coreapitesting.TestSubnetName, nil).Return(
-			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID), nil,
+		expectWorkerAndIntegrationSubnets(subnets,
+			subnetWithNSG(workerSubnet, coreapitesting.TestNetworkSecurityGroupResourceID),
+			subnetWithoutNSG(integrationSubnet),
 		)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(
@@ -486,7 +543,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		subnets := azureclient.NewMockSubnetsClient(ctrl)
-		expectNPAndClusterSubnets(subnets, npSubnetName, npSubnetCIDR, clusterSubnetCIDR)
+		expectNPAndClusterSubnets(subnets, npSubnetName, npSubnetCIDR, clusterSubnetCIDR, integrationSubnet)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(
 			armnetwork.SecurityGroupsClientGetResponse{
@@ -526,7 +583,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		subnets := azureclient.NewMockSubnetsClient(ctrl)
-		expectNPAndClusterSubnets(subnets, npSubnetName, npSubnetCIDR, clusterSubnetCIDR)
+		expectNPAndClusterSubnets(subnets, npSubnetName, npSubnetCIDR, clusterSubnetCIDR, integrationSubnet)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(
 			armnetwork.SecurityGroupsClientGetResponse{
@@ -566,7 +623,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		subnets := azureclient.NewMockSubnetsClient(ctrl)
-		expectNPAndClusterSubnets(subnets, npSubnetName, npSubnetCIDR, clusterSubnetCIDR)
+		expectNPAndClusterSubnets(subnets, npSubnetName, npSubnetCIDR, clusterSubnetCIDR, integrationSubnet)
 		nsg := azureclient.NewMockNetworkSecurityGroupsClient(ctrl)
 		nsg.EXPECT().Get(gomock.Any(), coreapitesting.TestResourceGroupName, coreapitesting.TestNetworkSecurityGroupName, nil).Return(
 			armnetwork.SecurityGroupsClientGetResponse{
@@ -631,7 +688,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyWorkerToAny")
-		require.Contains(t, result.InternalMessage(), "inbound")
+		require.Contains(t, result.InternalMessage(), "Inbound")
 	})
 
 	t.Run("inbound Deny worker subnet to vnet-integration subnet fails", func(t *testing.T) {
@@ -669,7 +726,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyWorkerToIntegration")
-		require.Contains(t, result.InternalMessage(), "inbound")
+		require.Contains(t, result.InternalMessage(), "Inbound")
 	})
 
 	t.Run("inbound Deny node-pool subnet to Any fails", func(t *testing.T) {
@@ -711,7 +768,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), np)
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyNPToAny")
-		require.Contains(t, result.InternalMessage(), "inbound")
+		require.Contains(t, result.InternalMessage(), "Inbound")
 	})
 
 	t.Run("skips outbound validation when worker subnet has no NSG attached", func(t *testing.T) {
@@ -772,7 +829,7 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), testNodePool())
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyAnyToIntegration")
-		require.Contains(t, result.InternalMessage(), "inbound")
+		require.Contains(t, result.InternalMessage(), "Inbound")
 		require.Equal(t, 1, builder.nsgClientRequests, "NSG client should be created for vnet-integration NSG only")
 	})
 
@@ -815,6 +872,6 @@ func TestAzureNodePoolNSGBasedRequiredConnectivityValidation(t *testing.T) {
 		result := v.Validate(context.Background(), testCluster(), testNSGSubscription(), np)
 		require.Equal(t, OutcomeTypeFailed, result.Outcome.Type)
 		require.Contains(t, result.InternalMessage(), "DenyNPToIntegration")
-		require.Contains(t, result.InternalMessage(), "inbound")
+		require.Contains(t, result.InternalMessage(), "Inbound")
 	})
 }

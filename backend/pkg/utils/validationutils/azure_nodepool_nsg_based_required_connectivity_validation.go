@@ -30,19 +30,26 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// outboundNSGPorts are TCP ports checked on the worker-subnet NSG (egress).
-// Workers must reach the control plane on these ports (port "*" also blocks):
+// outboundNSGPorts are TCP ports that must remain allowed on the worker-subnet NSG.
 //
-//   - 443: HTTPS to the private router (Konnectivity / Ignition via SWIFT)
-//   - 6443: kube-apiserver (kubelet / API clients)
+// Evaluated as: outbound rules on the NSG attached to the worker (node-pool or parentcluster) subnet.
+// Required path: worker subnet → parent cluster machine subnet.
+// Required Direction: outbound.
+// A Deny on destination port "*" also blocks these ports.
+//
+//   - 443:  origin worker subnet → destination cluster subnet (HTTPS to private router; Konnectivity / Ignition via SWIFT)
+//   - 6443: origin worker subnet → destination cluster subnet (kube-apiserver; kubelet / API clients)
 var outboundNSGPorts = []int32{443, 6443}
 
-// inboundNSGPorts are TCP ports checked on the vnet-integration-subnet NSG
-// (ingress). Worker → vnet-integration traffic on these ports must not be
-// denied (port "*" also blocks):
+// inboundNSGPorts are TCP ports that must remain allowed on the vnet-integration-subnet NSG.
 //
-//   - 8443: additional HTTPS path used on the private-router hop
-//   - 443: HTTPS into the private router (Konnectivity / Ignition via SWIFT)
+// Evaluated as: inbound rules on the NSG attached to the vnet-integration subnet.
+// Required path: worker subnet → vnet-integration subnet.
+// Required Direction: inbound.
+// A Deny on destination port "*" also blocks these ports.
+//
+//   - 8443: origin worker subnet → destination vnet-integration subnet (HTTPS hop on the private router)
+//   - 443:  origin worker subnet → destination vnet-integration subnet (HTTPS to private router; Konnectivity / Ignition via SWIFT)
 var inboundNSGPorts = []int32{8443, 443}
 
 // AzureNodePoolNSGBasedRequiredConnectivityValidation checks that customer-attached NSGs do not block
@@ -85,7 +92,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Unable to verify customer network security group rules.",
+			"Unable to verify azure network security group rules required for node pool connectivity.",
 			fmt.Sprintf("failed to get subnets client as service managed identity: %v", err),
 			ControllerReportingPolicyTypeError,
 		)
@@ -120,7 +127,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Unable to verify customer network security group rules.",
+			"Unable to verify azure network security group rules required for node pool connectivity.",
 			fmt.Sprintf("failed to get worker subnet for subnet ID %q: %v", workerSubnetID.String(), err),
 			ControllerReportingPolicyTypeError,
 		)
@@ -129,7 +136,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Unable to verify customer network security group rules.",
+			"Unable to verify azure network security group rules required for node pool connectivity.",
 			fmt.Sprintf("failed to get worker subnet NSG for subnet ID %q: %v", workerSubnetID.String(), err),
 			ControllerReportingPolicyTypeError,
 		)
@@ -139,7 +146,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Unable to verify customer network security group rules.",
+			"Unable to verify azure network security group rules required for node pool connectivity.",
 			fmt.Sprintf("failed to get worker subnet address prefixes for subnet ID %q: %v", workerSubnetID.String(), err),
 			ControllerReportingPolicyTypeError,
 		)
@@ -147,6 +154,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 
 	// If the worker subnet has an nsg attached, then we need to validate outbound rules on the worker-subnet NSG.
 	// If the worker subnet has no nsg attached, then there will be no outbound rules to validate.
+	var allViolations []*nsgRequiredConnectivityViolationDetails
 	if workerNSGID != nil {
 		// Check outbound rule destination on parent cluster's subnet
 		// if worker subnet and cluster subnet are same then workerPrefixes are prefixes of parent cluster's subnet and use as destination prefix.
@@ -157,7 +165,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 			if err != nil {
 				return UnknownValidation(
 					"InternalError",
-					"Unable to verify customer network security group rules.",
+					"Unable to verify azure network security group rules required for node pool connectivity.",
 					fmt.Sprintf("failed to get cluster subnet for subnet ID %q: %v", clusterSubnetID.String(), err),
 					ControllerReportingPolicyTypeError,
 				)
@@ -166,7 +174,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 			if err != nil {
 				return UnknownValidation(
 					"InternalError",
-					"Unable to verify customer network security group rules.",
+					"Unable to verify azure network security group rules required for node pool connectivity.",
 					fmt.Sprintf("failed to get cluster subnet address prefixes for subnet ID %q: %v", clusterSubnetID.String(), err),
 					ControllerReportingPolicyTypeError,
 				)
@@ -180,7 +188,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 		if err != nil {
 			return UnknownValidation(
 				"InternalError",
-				"Unable to verify customer network security group rules.",
+				"Unable to verify azure network security group rules required for node pool connectivity.",
 				fmt.Sprintf("failed to get network security groups client for worker subnet NSG ID %q: %v", workerNSGID.String(), err),
 				ControllerReportingPolicyTypeError,
 			)
@@ -189,44 +197,45 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 		if err != nil {
 			return UnknownValidation(
 				"InternalError",
-				"Unable to verify customer network security group rules.",
+				"Unable to verify azure network security group rules required for node pool connectivity.",
 				fmt.Sprintf("failed to list network security group rules for worker subnet NSG ID %q: %v", workerNSGID.String(), err),
 				ControllerReportingPolicyTypeError,
 			)
 		}
-		violation, err := v.validateOutboundNSGRules(outbound, workerPrefixes, outboundDestinationPrefixes, outboundNSGPorts)
+		outboundViolations, err := v.validateOutboundNSGRules(outbound, workerPrefixes, outboundDestinationPrefixes, outboundNSGPorts)
 		if err != nil {
 			return UnknownValidation(
 				"InternalError",
-				"Unable to verify customer network security group rules.",
+				"Unable to verify azure network security group rules required for node pool connectivity.",
 				fmt.Sprintf("failed to validate outbound network security group rules: %v", err),
 				ControllerReportingPolicyTypeError,
 			)
 		}
-		if violation != nil {
-			return FailedValidation("CustomerNSGBlocksControlPlane", violation.Message, violation.Message)
-		}
+		allViolations = append(allViolations, outboundViolations...)
 	}
 
 	// inbound validation on the vnet-integration subnet
 	vnetIntegrationSubnetID := cluster.CustomerProperties.Platform.VnetIntegrationSubnetID
 
-	// we check inbound validation on vnet-integration subnet
-	// If the vnet-integration subnet is not present, it means it is
-	// a legacy/non-swift cluster and does not need to check inbound validation.
-	// TODO: Remove this check once we have removed 2024-06-10-preview API support.
+	// Inbound validation runs on the vnet-integration subnet. When that subnet is
+	// absent the cluster is legacy/non-SWIFT and inbound NSG checks do not apply.
+	// TODO: When 2024-06-10-preview API support is removed, delete vnetIntegrationSubnetID
+	// non-nil check and early-return passed validation block.
 	if vnetIntegrationSubnetID == nil {
+		if len(allViolations) > 0 {
+			msg := formatNSGRequiredConnectivityViolationsMessage(allViolations)
+			return FailedValidation("AzureNodePoolNSGBlocksRequiredConnectivity", msg, msg)
+		}
 		return PassedValidation(
 			coreapi.ControllerConditionReasonAsExpected,
-			"Customer network security group rules are valid.",
-			"Customer network security group rules are valid.",
-		)
+			"Azure network security group rules required for node pool connectivity are valid.",
+			"Azure network security group rules required for node pool connectivity are valid.")
 	}
 	vnetIntegrationSubnet, err := v.getSubnet(ctx, subnetsClient, vnetIntegrationSubnetID)
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Unable to verify customer network security group rules.",
+			"Unable to verify azure network security group rules required for node pool connectivity.",
 			fmt.Sprintf("failed to get vnet-integration subnet for subnet ID %q: %v", vnetIntegrationSubnetID.String(), err),
 			ControllerReportingPolicyTypeError,
 		)
@@ -235,7 +244,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Unable to verify customer network security group rules.",
+			"Unable to verify azure network security group rules required for node pool connectivity.",
 			fmt.Sprintf("failed to get vnet-integration subnet address prefixes for subnet ID %q: %v", vnetIntegrationSubnetID.String(), err),
 			ControllerReportingPolicyTypeError,
 		)
@@ -244,7 +253,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Unable to verify customer network security group rules.",
+			"Unable to verify azure network security group rules required for node pool connectivity.",
 			fmt.Sprintf("failed to get vnet-integration subnet NSG for subnet ID %q: %v", vnetIntegrationSubnetID.String(), err),
 			ControllerReportingPolicyTypeError,
 		)
@@ -253,10 +262,14 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 	// If the vnet-integration subnet has no NSG attached, then there will be no
 	// inbound rules to validate.
 	if vnetIntegrationNSGID == nil {
+		if len(allViolations) > 0 {
+			msg := formatNSGRequiredConnectivityViolationsMessage(allViolations)
+			return FailedValidation("AzureNodePoolNSGBlocksRequiredConnectivity", msg, msg)
+		}
 		return PassedValidation(
 			coreapi.ControllerConditionReasonAsExpected,
-			"Customer network security group rules are valid.",
-			"Customer network security group rules are valid.",
+			"Azure network security group rules required for node pool connectivity are valid.",
+			"Azure network security group rules required for node pool connectivity are valid.",
 		)
 	}
 
@@ -264,7 +277,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Unable to verify customer network security group rules.",
+			"Unable to verify azure network security group rules required for node pool connectivity.",
 			fmt.Sprintf("failed to get network security groups client for vnet-integration subnet NSG ID %q: %v", vnetIntegrationNSGID.String(), err),
 			ControllerReportingPolicyTypeError,
 		)
@@ -274,27 +287,30 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) Validate(ctx conte
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Unable to verify customer network security group rules.",
+			"Unable to verify azure network security group rules required for node pool connectivity.",
 			fmt.Sprintf("failed to list network security group rules for vnet-integration subnet NSG ID %q: %v", vnetIntegrationNSGID.String(), err),
 			ControllerReportingPolicyTypeError,
 		)
 	}
-	violation, err := v.validateInboundNSGRules(inbound, workerPrefixes, vnetIntegrationPrefixes, inboundNSGPorts)
+	inboundViolations, err := v.validateInboundNSGRules(inbound, workerPrefixes, vnetIntegrationPrefixes, inboundNSGPorts)
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Unable to verify customer network security group rules.",
+			"Unable to verify azure network security group rules required for node pool connectivity.",
 			fmt.Sprintf("failed to validate inbound network security group rules: %v", err),
 			ControllerReportingPolicyTypeError,
 		)
 	}
-	if violation != nil {
-		return FailedValidation("CustomerNSGBlocksControlPlane", violation.Message, violation.Message)
+	allViolations = append(allViolations, inboundViolations...)
+
+	if len(allViolations) > 0 {
+		msg := formatNSGRequiredConnectivityViolationsMessage(allViolations)
+		return FailedValidation("AzureNodePoolNSGBlocksRequiredConnectivity", msg, msg)
 	}
 	return PassedValidation(
 		coreapi.ControllerConditionReasonAsExpected,
-		"Customer network security group rules are valid.",
-		"Customer network security group rules are valid.",
+		"Azure network security group rules required for node pool connectivity are valid.",
+		"Azure network security group rules required for node pool connectivity are valid.",
 	)
 }
 
@@ -358,8 +374,14 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) listNSGSecurityRul
 	if resp.Properties == nil {
 		return nil, nil, utils.TrackError(fmt.Errorf("network security group %q has no properties", nsgID.String()))
 	}
-	outbound = v.convertSecurityRules(resp.Properties.SecurityRules, armnetwork.SecurityRuleDirectionOutbound)
-	inbound = v.convertSecurityRules(resp.Properties.SecurityRules, armnetwork.SecurityRuleDirectionInbound)
+	outbound = append(
+		v.convertSecurityRules(resp.Properties.SecurityRules, armnetwork.SecurityRuleDirectionOutbound),
+		v.convertSecurityRules(resp.Properties.DefaultSecurityRules, armnetwork.SecurityRuleDirectionOutbound)...,
+	)
+	inbound = append(
+		v.convertSecurityRules(resp.Properties.SecurityRules, armnetwork.SecurityRuleDirectionInbound),
+		v.convertSecurityRules(resp.Properties.DefaultSecurityRules, armnetwork.SecurityRuleDirectionInbound)...,
+	)
 	return outbound, inbound, nil
 }
 
@@ -388,6 +410,7 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) convertSecurityRul
 			Access:                     access,
 			Protocol:                   protocol,
 			SourceAddressPrefixes:      v.singularOrPluralStrings(props.SourceAddressPrefix, props.SourceAddressPrefixes),
+			SourcePortRanges:           v.singularOrPluralStrings(props.SourcePortRange, props.SourcePortRanges),
 			DestinationAddressPrefixes: v.singularOrPluralStrings(props.DestinationAddressPrefix, props.DestinationAddressPrefixes),
 			DestinationPortRanges:      v.singularOrPluralStrings(props.DestinationPortRange, props.DestinationPortRanges),
 		})
@@ -402,14 +425,20 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) convertSecurityRul
 // originate egress. destinationPrefixes are the address spaces those workers must
 // reach for KAS.
 //
-// Returns a violation when a Deny blocks required traffic; err is reserved for
+// Returns all violations when Deny rules block required traffic; err is reserved for
 // unexpected input or evaluation failures (invalid CIDRs, etc.).
-func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateOutboundNSGRules(rules []nsgSecurityRule, workerSubnetPrefixes, destinationPrefixes []netip.Prefix, ports []int32) (*nsgRequiredConnectivityBlockingViolation, error) {
+func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateOutboundNSGRules(rules []nsgSecurityRule, workerSubnetPrefixes, destinationPrefixes []netip.Prefix, ports []int32) ([]*nsgRequiredConnectivityViolationDetails, error) {
+	// validate source and destination ports are in the valid range
+	err := preValidationPortCheck(rules)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
 	paths, err := buildRequiredNSGPaths(workerSubnetPrefixes, "worker subnet", destinationPrefixes, "destination subnet", ports)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	return findBlockingNSGDeny(rules, paths, nsgDirectionOutbound)
+	return evaluateRequiredNSGPathViolations(rules, paths, nsgDirectionOutbound)
 }
 
 // validateInboundNSGRules validates inbound NSG rules so
@@ -420,14 +449,19 @@ func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateOutboundNS
 // vnetIntegrationSubnetPrefixes are the vnet-integration subnet address spaces
 // whose NSG is being evaluated; must be non-empty.
 //
-// Returns a violation when a Deny blocks required traffic; err is reserved for
+// Returns all violations when Deny rules block required traffic; err is reserved for
 // unexpected input or evaluation failures.
-func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateInboundNSGRules(rules []nsgSecurityRule, workerSubnetPrefixes, vnetIntegrationSubnetPrefixes []netip.Prefix, ports []int32) (*nsgRequiredConnectivityBlockingViolation, error) {
+func (v *AzureNodePoolNSGBasedRequiredConnectivityValidation) validateInboundNSGRules(rules []nsgSecurityRule, workerSubnetPrefixes, vnetIntegrationSubnetPrefixes []netip.Prefix, ports []int32) ([]*nsgRequiredConnectivityViolationDetails, error) {
+	// validate  source and destination ports are in the valid range
+	err := preValidationPortCheck(rules)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	paths, err := buildRequiredNSGPaths(workerSubnetPrefixes, "worker subnet", vnetIntegrationSubnetPrefixes, "vnet-integration subnet", ports)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	return findBlockingNSGDeny(rules, paths, nsgDirectionInbound)
+	return evaluateRequiredNSGPathViolations(rules, paths, nsgDirectionInbound)
 }
 
 // singularOrPluralStrings returns Azure's plural string list when present,
