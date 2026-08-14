@@ -34,6 +34,9 @@ param globalMSIName string = ''
 @description('Resource group of the global rollout MSI (same subscription as this deployment). Required when globalMSIName is set.')
 param globalMSIResourceGroup string = ''
 
+@description('ARO-HCP environment (int, stg, prod) tagged on the Kusto cluster so kustoctl can scope entity-group discovery per environment.')
+param environment string = ''
+
 @description('Name of the Kusto cluster to create')
 param kustoName string
 
@@ -90,6 +93,7 @@ module cluster 'cluster.bicep' = {
     viewerIdentities: viewerIdentities
     globalMSIName: globalMSIName
     globalMSIResourceGroup: globalMSIResourceGroup
+    environment: environment
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale

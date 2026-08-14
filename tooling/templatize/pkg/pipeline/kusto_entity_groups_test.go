@@ -30,6 +30,7 @@ func TestKustoEntityGroupsOptions(t *testing.T) {
 	tests := []struct {
 		name        string
 		timeout     string
+		environment string
 		wantTimeout time.Duration
 		wantError   string
 	}{
@@ -48,6 +49,12 @@ func TestKustoEntityGroupsOptions(t *testing.T) {
 			wantTimeout: defaultTimeout,
 		},
 		{
+			name:        "environment is propagated",
+			timeout:     "10m",
+			environment: "stg",
+			wantTimeout: 10 * time.Minute,
+		},
+		{
 			name:      "invalid timeout",
 			timeout:   "notaduration",
 			wantError: "failed to parse timeout",
@@ -59,6 +66,7 @@ func TestKustoEntityGroupsOptions(t *testing.T) {
 			step := &types.KustoEntityGroupsStep{
 				EntityGroups: []string{"TestEG:TestDB"},
 				Timeout:      tt.timeout,
+				Environment:  tt.environment,
 			}
 
 			opts, err := kustoEntityGroupsOptions(step)
@@ -73,6 +81,9 @@ func TestKustoEntityGroupsOptions(t *testing.T) {
 			}
 			if opts.Timeout != tt.wantTimeout {
 				t.Errorf("kustoEntityGroupsOptions() timeout = %v, want %v", opts.Timeout, tt.wantTimeout)
+			}
+			if opts.Environment != tt.environment {
+				t.Errorf("kustoEntityGroupsOptions() environment = %q, want %q", opts.Environment, tt.environment)
 			}
 			if len(opts.EntityGroups) != 1 || opts.EntityGroups[0] != "TestEG:TestDB" {
 				t.Errorf("kustoEntityGroupsOptions() entity groups = %v, want [TestEG:TestDB]", opts.EntityGroups)

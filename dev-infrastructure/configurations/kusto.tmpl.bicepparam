@@ -25,6 +25,8 @@ param globalMSIName = '{{ .global.globalMSIName }}'
 
 param globalMSIResourceGroup = '{{ .global.rg }}'
 
+param environment = '{{ .environmentName }}'
+
 param autoScaleMin = {{ .kusto.autoScaleMin }}
 
 param autoScaleMax = {{ .kusto.autoScaleMax }}

@@ -29,6 +29,9 @@ param globalMSIName string = ''
 @description('Resource group of the global rollout MSI. Must be in the same subscription as this deployment. Required when globalMSIName is set.')
 param globalMSIResourceGroup string = ''
 
+@description('ARO-HCP environment (int, stg, prod). Emitted as the aroHCPEnvironment cluster tag so the KustoEntityGroups pipeline step (kustoctl) can scope entity-group discovery to a single environment.')
+param environment string = ''
+
 @description('Minimum number of nodes for autoscale')
 param autoScaleMin int
 
@@ -84,6 +87,7 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
   }
   tags: {
     aroHCPPurpose: 'logs'
+    aroHCPEnvironment: environment
   }
   identity: {
     type: 'SystemAssigned'
