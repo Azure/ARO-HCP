@@ -26,6 +26,7 @@ var prowE2EParallelMinSuccessfulRuns = 20
 var prowE2EParallelP95MaxSeconds = 9000 // 2h30m
 var prowCollectionMaxAgeSeconds = 900 // 15 minutes
 var prowBatchMaxConsecutiveFailures = 4
+var prowInvalidJobsMaxPercentage = 0.10
 
 var prowHighFrequencyRuns = 'sum by (job_name, job_type) (prow_ci_job_info{job_type=~"presubmit|batch"})'
 var prowHighFrequencyFailures = 'sum by (job_name, job_type) (prow_ci_job_info{job_type=~"presubmit|batch",result=~"failure|error"})'
@@ -504,15 +505,15 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
       {
         alert: 'ProwCIInvalidJobsDetected'
         enabled: true
-        expression: 'increase(prow_ci_invalid_jobs_total[1h]) > 0'
+        expression: 'sum(increase(prow_ci_invalid_jobs_total[24h])) / (sum(prow_ci_cached_runs) + sum(increase(prow_ci_invalid_jobs_total[24h]))) > ${prowInvalidJobsMaxPercentage}'
         for: 'PT1M'
         severity: 3
         labels: {
           severity: 'warning'
         }
         annotations: {
-          summary: 'Malformed completed Prow CI jobs detected'
-          description: '{{ $value }} malformed completed Prow jobs with reason {{ $labels.reason }} were observed in the last hour.'
+          summary: 'High rate of malformed completed Prow CI jobs detected'
+          description: 'Malformed completed Prow jobs exceeded ${prowInvalidJobsMaxPercentage * 100}% of all completed jobs in the last 24h.'
         }
         actions: [
           {
