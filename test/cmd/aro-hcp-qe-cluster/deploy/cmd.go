@@ -65,6 +65,7 @@ func tagResourceGroupForPersist(ctx context.Context, rgClient *armresources.Reso
 
 func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Command {
 	var kubeconfigDirPath string
+	var leasedMSIContainers string
 
 	cmd := &cobra.Command{
 		Use:          "deploy TEST_NAME",
@@ -82,6 +83,19 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 
 			if err := os.Setenv("ARO_E2E_SKIP_CLEANUP", "true"); err != nil {
 				return fmt.Errorf("setting ARO_E2E_SKIP_CLEANUP: %w", err)
+			}
+
+			// The MSI container usage is fully implemented in the E2E testing
+			// framework, and it's controlled by two environment variables used
+			// here. We set it via cli flag to make this more obvious and
+			// discoverable from the command line.
+			if leasedMSIContainers != "" {
+				if err := os.Setenv(framework.LeasedMSIContainersEnvvar, leasedMSIContainers); err != nil {
+					return fmt.Errorf("setting %s: %w", framework.LeasedMSIContainersEnvvar, err)
+				}
+				if err := os.Setenv(framework.UsePooledIdentitiesEnvvar, "true"); err != nil {
+					return fmt.Errorf("setting %s: %w", framework.UsePooledIdentitiesEnvvar, err)
+				}
 			}
 
 			// define hook function to collect resource groups created during
@@ -184,5 +198,6 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 	}
 
 	cmd.Flags().StringVar(&kubeconfigDirPath, "kubeconfig-dir", "", "directory to write admin kubeconfigs into (one <cluster-name>.kubeconfig file per cluster)")
+	cmd.Flags().StringVar(&leasedMSIContainers, "leased-msi-containers", "", "space-separated list of pre-leased MSI container resource group names to use for managed identity pooling (sets "+framework.LeasedMSIContainersEnvvar+" and enables "+framework.UsePooledIdentitiesEnvvar+")")
 	return cmd
 }
