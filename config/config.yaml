@@ -95,6 +95,10 @@ defaults:
       untaggedImagesRetention:
         enabled: true
         days: 90
+      # Same rationale as acr.ocp.replicationState below. A degraded eastus2euap
+      # replica served co-located eastus2 prod pulls and took ARO-HCP eastus2 down
+      # for 35+ hours (AROSLSRE-1810, IcM 850354110/851089087).
+      replicationState: true
     ocp:
       name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled

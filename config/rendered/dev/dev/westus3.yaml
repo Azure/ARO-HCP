@@ -19,6 +19,7 @@ acr:
     zoneRedundantMode: Disabled
   svc:
     name: arohcpsvcdev
+    replicationState: true
     untaggedImagesRetention:
       days: 90
       enabled: true
