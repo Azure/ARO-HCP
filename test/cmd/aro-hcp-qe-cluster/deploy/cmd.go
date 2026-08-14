@@ -117,7 +117,7 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 				return nil
 			}
 
-			postDeployCtx, postDeployCancel := context.WithTimeout(ctx, 10*time.Minute)
+			postDeployCtx, postDeployCancel := context.WithTimeout(ctx, framework.GetAdminRESTConfigTimeout + 2*time.Minute)
 			defer postDeployCancel()
 
 			// get the same azure credentials as the test runner will get
@@ -159,19 +159,25 @@ func NewCommand(registry *e.Registry, specs et.ExtensionTestSpecs) *cobra.Comman
 				return fmt.Errorf("creating kubeconfig directory %q: %w", kubeconfigDirPath, err)
 			}
 
+			var wg sync.WaitGroup
 			for _, cluster := range clusters {
-				kubeconfig, err := framework.FetchAdminKubeconfig(postDeployCtx, subscriptionID, cluster.resourceGroupName, cluster.clusterName, framework.GetAdminRESTConfigTimeout)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "deploy: failed to fetch kubeconfig for cluster %q: %v\n", cluster.clusterName, err)
-					continue
-				}
-				kubeconfigFile := filepath.Join(kubeconfigDirPath, cluster.clusterName+".kubeconfig")
-				if err := os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0600); err != nil {
-					fmt.Fprintf(os.Stderr, "deploy: failed to write kubeconfig for cluster %q: %v\n", cluster.clusterName, err)
-				} else {
-					fmt.Fprintf(os.Stderr, "deploy: wrote kubeconfig for cluster %q to %s\n", cluster.clusterName, kubeconfigFile)
-				}
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					kubeconfig, err := framework.FetchAdminKubeconfig(postDeployCtx, subscriptionID, cluster.resourceGroupName, cluster.clusterName, framework.GetAdminRESTConfigTimeout)
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "deploy: failed to fetch kubeconfig for cluster %q: %v\n", cluster.clusterName, err)
+						return
+					}
+					kubeconfigFile := filepath.Join(kubeconfigDirPath, cluster.clusterName+".kubeconfig")
+					if err := os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0600); err != nil {
+						fmt.Fprintf(os.Stderr, "deploy: failed to write kubeconfig for cluster %q: %v\n", cluster.clusterName, err)
+					} else {
+						fmt.Fprintf(os.Stderr, "deploy: wrote kubeconfig for cluster %q to %s\n", cluster.clusterName, kubeconfigFile)
+					}
+				}()
 			}
+			wg.Wait()
 
 			return nil
 		},
