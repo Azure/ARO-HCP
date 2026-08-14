@@ -203,6 +203,7 @@ resourceGroups:
       - "Internal server error"
       - "connection refused"
       - "context deadline exceeded"
+      - "missing a valid aroHCPEnvironment tag"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
     dependsOn:
