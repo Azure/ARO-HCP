@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
@@ -91,12 +93,31 @@ func resolveDefaultControlPlaneVersion() (string, error) {
 				return
 			}
 			minor := fmt.Sprintf("%d.%d", parsed.Major, parsed.Minor)
-			resolved, err := GetLatestInstallVersion(context.Background(), DefaultOpenshiftChannelGroup(), minor)
-			if err != nil {
-				defaultCPVersionErr = err
-				return
+			channelGroup := DefaultOpenshiftChannelGroup()
+			if channelGroup == "nightly" {
+				// Nightly is not served by the update service graph API; use the
+				// release-stream API like above.
+				resolved, err := GetLatestNightlyInstallVersion(context.Background(), channelGroup, minor)
+				if err != nil {
+					defaultCPVersionErr = err
+					return
+				}
+				version = resolved
+			} else {
+				// Every other channel group selects the tip of the channel via the
+				// OpenShift update service — the same selector the control plane
+				// version controller uses.
+				release, err := controlplaneversion.SelectControlPlaneVersion(context.Background(), http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minor), 0)
+				if err != nil {
+					defaultCPVersionErr = err
+					return
+				}
+				if release == nil {
+					defaultCPVersionErr = fmt.Errorf("no release resolved for channel %s-%s", channelGroup, minor)
+					return
+				}
+				version = release.Version
 			}
-			version = resolved
 		}
 		defaultCPVersion = version
 	})

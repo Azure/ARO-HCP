@@ -122,21 +122,13 @@ func NewControlPlaneDesiredVersionController(
 	return controller
 }
 
-// NeedsWork reports whether this controller applies to the given cluster. It acts on any cluster
-// whose customer specified both a desired minor version and a channel group: it seeds the initial
-// desired control plane version when none is set yet, and advances it (z-stream/y-stream) once one
-// has been seeded.
-func (c *controlPlaneVersionSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
-	if serviceProviderCluster == nil {
-		return false
-	}
-	if len(cluster.CustomerProperties.Version.ID) == 0 {
-		return false
-	}
-	if len(cluster.CustomerProperties.Version.ChannelGroup) == 0 {
-		return false
-	}
-	return true
+// NeedsWork reports whether this controller applies to the given cluster. version.id and
+// version.channelGroup are both required by static validation, so the only gate here is that the
+// cluster has an associated ServiceProviderCluster (created by the backend): this controller seeds
+// the initial desired control plane version when none is set yet, and advances it (z-stream/y-stream)
+// once one has been seeded.
+func (c *controlPlaneVersionSyncer) NeedsWork(_ *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	return serviceProviderCluster != nil
 }
 
 // SyncOnce performs a single reconciliation of the desired control plane version for a given cluster.
@@ -297,14 +289,9 @@ func (c *controlPlaneVersionSyncer) validateRequestedMinorVersionChange(ctx cont
 		if err := validation.OpenshiftVersionAtMostOneMinorSkew(actualLatestMinorVersion.String(), desiredMinorVersion.String()); err != nil {
 			return utils.TrackError(err)
 		}
-		clusterNodePools, ready, err := c.listClusterAdmissionNodePools(ctx, key.GetResourceID())
+		clusterNodePools, err := c.listClusterAdmissionNodePools(ctx, key.GetResourceID())
 		if err != nil {
 			return utils.TrackError(err)
-		}
-		if !ready {
-			// Skip until every node pool has its ServiceProviderNodePool; without complete version
-			// data we can't validate minor skew.
-			return nil
 		}
 		if err := admission.AdmitClusterNodePoolsMinorVersionSkew(ctx, clusterNodePools, desiredMinorVersion); err != nil {
 			return utils.TrackError(err)
@@ -385,18 +372,17 @@ func (c *controlPlaneVersionSyncer) clusterHasActiveCreateOperation(ctx context.
 // controller passes the result to admission.AdmitClusterNodePoolsMinorVersionSkew
 // directly so that admission code stays free of any DB dependency.
 //
-// Returns (_, false, nil) when any node pool is missing its
-// ServiceProviderNodePool. CreateServiceProviderNodePool will populate it.
-// ClusterWatchingController does not watch the ServiceProviderNodePool
-// informer (a child-document arrival doesn't naturally route to its parent
-// cluster), so the retry happens on the controller's periodic resync or on
-// the next Cluster / ServiceProviderCluster event for this cluster.
-// Skipping admission avoids using stale or missing node-pool version data
-// for skew validation.
-func (c *controlPlaneVersionSyncer) listClusterAdmissionNodePools(ctx context.Context, clusterResourceID *azcorearm.ResourceID) ([]admission.ClusterAdmissionNodePool, bool, error) {
+// A node pool missing its ServiceProviderNodePool is returned as an error: we
+// cannot validate minor skew without complete node-pool version data.
+// CreateServiceProviderNodePool populates the missing record; ClusterWatchingController
+// does not watch the ServiceProviderNodePool informer (a child-document arrival
+// doesn't naturally route to its parent cluster), so the retry happens on the
+// controller's periodic resync or on the next Cluster / ServiceProviderCluster
+// event for this cluster.
+func (c *controlPlaneVersionSyncer) listClusterAdmissionNodePools(ctx context.Context, clusterResourceID *azcorearm.ResourceID) ([]admission.ClusterAdmissionNodePool, error) {
 	nodePools, err := c.nodePoolLister.ListForCluster(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
 	if err != nil {
-		return nil, false, utils.TrackError(err)
+		return nil, utils.TrackError(err)
 	}
 	var clusterNodePools []admission.ClusterAdmissionNodePool
 	for _, nodePool := range nodePools {
@@ -406,18 +392,15 @@ func (c *controlPlaneVersionSyncer) listClusterAdmissionNodePools(ctx context.Co
 			continue
 		}
 		serviceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, nodePool.ID.Name)
-		if cosmosstorageutils.IsNotFoundError(err) {
-			return nil, false, nil
-		}
 		if err != nil {
-			return nil, false, utils.TrackError(err)
+			return nil, utils.TrackError(err)
 		}
 		clusterNodePools = append(clusterNodePools, admission.ClusterAdmissionNodePool{
 			NodePool:                nodePool,
 			ServiceProviderNodePool: serviceProviderNodePool,
 		})
 	}
-	return clusterNodePools, true, nil
+	return clusterNodePools, nil
 }
 
 // nightlyChannelGroup is the OpenShift channel group whose builds are published to the CI

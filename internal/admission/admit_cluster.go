@@ -103,18 +103,19 @@ func MutateCluster(ctx context.Context, admissionContext *ClusterAdmissionContex
 // It only acts when the ExperimentalReleaseFeatures AFEC is registered. With the
 // AFEC registered a customer may express an exact pin two ways:
 //   - the control-plane-exact-version tag carrying a full semantic version, or
-//   - a full "<major>.<minor>.<patch>" in version.id.
+//   - a full "<major>.<minor>.<patch>" version.id (a value that parses as strict
+//     semver, including pre-release/build metadata such as nightly or ec builds).
 //
 // When either source is present, version.id is reduced to its "<major>.<minor>"
 // release line and the exact version is stored on ExperimentalFeatures. When
-// both the tag and a patch-bearing version.id are supplied, the tag is
-// authoritative: the full-semver tag value determines the exact version (already
-// set by mutateClusterExperimentalFeatures) and version.id's patch is discarded.
+// both the tag and a full version.id are supplied, the tag is authoritative: the
+// full-semver tag value determines the exact version and version.id's patch is
+// discarded.
 //
 // The tag must carry a value — a present-but-empty tag is rejected with a field
-// error rather than acting as a bare enable flag. A version.id that looks like a
-// patch-bearing version but fails to parse is likewise rejected with a field
-// error.
+// error rather than acting as a bare enable flag. A version.id that is not a full
+// version (a bare "<major>.<minor>", or malformed) is left untouched here; static
+// validation reports a malformed version.id.
 //
 // When neither source is present but the old cluster carried an exact pin, the
 // customer is removing it, so the exact version is cleared.
@@ -136,11 +137,14 @@ func mutateClusterControlPlaneExactVersion(_ context.Context, admissionContext *
 	tagValue := lookupTag(tags, metadataapi.TagClusterControlPlaneExactVersion)
 
 	versionID := newObj.CustomerProperties.Version.ID
-	// version.id carries an exact pin only when it includes a patch component
-	// (e.g. "4.17.3"); a bare "<major>.<minor>" does not.
-	versionIDHasPatch := len(versionID) > 0 && len(strings.SplitN(versionID, ".", 3)) == 3
+	// version.id carries an exact pin only when it is a full "<major>.<minor>.<patch>"
+	// version. Strict semver parsing is the reliable test: it accepts pre-release
+	// and build metadata such as nightly or ec builds (e.g. "5.0.0-ec.6",
+	// "5.0.0-0.nightly-multi-2026-07-09-124132") while rejecting a bare
+	// "<major>.<minor>" like "4.17".
+	parsedVersionID, versionIDErr := semver.Parse(versionID)
+	versionIDIsExact := versionIDErr == nil
 
-	versionIDPath := field.NewPath("customerProperties", "version", "id")
 	tagsPath := field.NewPath("tags")
 
 	switch {
@@ -163,15 +167,14 @@ func mutateClusterControlPlaneExactVersion(_ context.Context, admissionContext *
 		}
 		newObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &parsed
 		newObj.CustomerProperties.Version.ID = fmt.Sprintf("%d.%d", parsed.Major, parsed.Minor)
-	case versionIDHasPatch:
-		// No tag, but the customer pinned an exact version directly through a
-		// patch-bearing version.id.
-		parsed, err := semver.Parse(versionID)
-		if err != nil {
-			return field.ErrorList{field.Invalid(versionIDPath, versionID, "must be a valid semantic version")}
-		}
-		newObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &parsed
-		newObj.CustomerProperties.Version.ID = fmt.Sprintf("%d.%d", parsed.Major, parsed.Minor)
+	case versionIDIsExact:
+		// No tag, but the customer pinned an exact version directly through a full
+		// version.id. A version.id that is not a full version (a bare
+		// "<major>.<minor>", or malformed) is left untouched here and validated by
+		// static validation.
+		exact := parsedVersionID
+		newObj.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion = &exact
+		newObj.CustomerProperties.Version.ID = fmt.Sprintf("%d.%d", parsedVersionID.Major, parsedVersionID.Minor)
 	default:
 		// Neither the tag nor a patch-bearing version.id is present. If the old
 		// cluster carried an exact pin, the customer is removing it, so clear it.
