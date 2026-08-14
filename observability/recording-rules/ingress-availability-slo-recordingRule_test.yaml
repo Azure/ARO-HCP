@@ -63,34 +63,7 @@ tests:
     - labels: 'errors:ingress_canary:error_rate{_id="ccc"}'
       value: 1
 # ========================================
-# Test 4: Controller Degraded = 1
-# ingress_controller_conditions uses PascalCase condition values (Degraded, Available).
-# ========================================
-- interval: 1m
-  input_series:
-  - series: 'ingress_controller_conditions{_id="ddd", condition="Degraded"}'
-    values: "1+0x10"
-  promql_expr_test:
-  - expr: ingress:controller:degraded
-    eval_time: 5m
-    exp_samples:
-    - labels: 'ingress:controller:degraded{_id="ddd"}'
-      value: 1
-# ========================================
-# Test 5: Controller not Degraded (healthy)
-# ========================================
-- interval: 1m
-  input_series:
-  - series: 'ingress_controller_conditions{_id="eee", condition="Degraded"}'
-    values: "0+0x10"
-  promql_expr_test:
-  - expr: ingress:controller:degraded
-    eval_time: 5m
-    exp_samples:
-    - labels: 'ingress:controller:degraded{_id="eee"}'
-      value: 0
-# ========================================
-# Test 6: Multiple clusters isolated — each _id gets its own ratio
+# Test 4: Multiple clusters isolated — each _id gets its own ratio
 # ========================================
 - interval: 1m
   input_series:

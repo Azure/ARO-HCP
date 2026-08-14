@@ -46,9 +46,3 @@ spec:
     - record: errors:ingress_canary:error_rate
       expr: |
         1 - availability:ingress_canary:ratio
-    # ingress_controller_conditions{condition="Degraded"} is a binary component
-    # health signal, not a ratio-format SLI. Kept here for use as a supplementary
-    # alert signal in ARO-25969, not as a standalone SLI.
-    - record: ingress:controller:degraded
-      expr: |
-        max by (_id) (ingress_controller_conditions{condition="Degraded"})

@@ -215,10 +215,6 @@ resource arohcpIngressAvailabilitySloRecordingRules 'Microsoft.AlertsManagement/
         record: 'errors:ingress_canary:error_rate'
         expression: '1 - availability:ingress_canary:ratio'
       }
-      {
-        record: 'ingress:controller:degraded'
-        expression: 'max by (_id) (ingress_controller_conditions{condition="Degraded"})'
-      }
     ]
   }
 }
