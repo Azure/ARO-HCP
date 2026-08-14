@@ -42,179 +42,102 @@ const (
 	testClusterServiceIDStr     = "/api/aro_hcp/v1alpha1/clusters/abc123def456"
 )
 
-func TestSynchronizeAllClusters_CSClusterMatchesCosmos(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	ctrl := gomock.NewController(t)
-	now := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
+func TestSynchronizeAllClusters(t *testing.T) {
+	fixedNow := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
 
-	subscription := testSubscription()
-	cosmosCluster := testCosmosCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
-		clusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
-		c.ServiceProviderProperties.ClusterServiceID = &clusterServiceID
-	})
-
-	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
-		subscription,
-		cosmosCluster,
-	})
-	require.NoError(t, err)
-
-	matchedCSCluster := testClusterServiceCluster(t, now.Add(-61*time.Minute))
-
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockCS.EXPECT().
-		ListClusters("").
-		Return(ocm.NewSimpleClusterListIterator([]*arohcpv1alpha1.Cluster{matchedCSCluster}, nil))
-
-	c := &clusterServiceClusterMatching{
-		clock: clocktesting.NewFakePassiveClock(now),
-		subscriptionLister: &corelistertesting.SliceSubscriptionLister{
-			Subscriptions: []*coreapi.Subscription{subscription},
+	tests := []struct {
+		name                            string
+		cosmosClusterBuilder            func(t *testing.T) *coreapi.HCPOpenShiftCluster
+		clusterServiceClusterCreatedAgo time.Duration
+		expectDeleteCluster             bool
+	}{
+		{
+			name: "matched cluster service cluster indexed by ClusterServiceID is not deleted",
+			cosmosClusterBuilder: func(t *testing.T) *coreapi.HCPOpenShiftCluster {
+				return testCosmosCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
+					clusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
+					c.ServiceProviderProperties.ClusterServiceID = &clusterServiceID
+				})
+			},
+			clusterServiceClusterCreatedAgo: 61 * time.Minute,
+			expectDeleteCluster:             false,
 		},
-		resourcesDBClient:    mockDB,
-		clusterServiceClient: mockCS,
+		{
+			name: "matched cluster service cluster indexed by PendingClusterServiceID is not deleted",
+			cosmosClusterBuilder: func(t *testing.T) *coreapi.HCPOpenShiftCluster {
+				return testCosmosCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
+					pendingClusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
+					c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
+					c.ServiceProviderProperties.ClusterServiceID = nil
+				})
+			},
+			clusterServiceClusterCreatedAgo: 61 * time.Minute,
+			expectDeleteCluster:             false,
+		},
+		{
+			name:                            "unmatched young cluster service cluster is not deleted",
+			cosmosClusterBuilder:            nil,
+			clusterServiceClusterCreatedAgo: 30 * time.Minute,
+			expectDeleteCluster:             false,
+		},
+		{
+			name: "unmatched old cluster service cluster is not deleted when cosmos cluster exists",
+			cosmosClusterBuilder: func(t *testing.T) *coreapi.HCPOpenShiftCluster {
+				// No ClusterServiceID or PendingClusterServiceID, so getAllCosmosObjs does not
+				// index by CS HREF. The double-check Get by Azure coordinates must still find it.
+				return testCosmosCluster(t)
+			},
+			clusterServiceClusterCreatedAgo: 61 * time.Minute,
+			expectDeleteCluster:             false,
+		},
+		{
+			name:                            "unmatched old orphaned cluster service cluster is deleted",
+			cosmosClusterBuilder:            nil,
+			clusterServiceClusterCreatedAgo: 61 * time.Minute,
+			expectDeleteCluster:             true,
+		},
 	}
 
-	require.NoError(t, c.synchronizeAllClusters(ctx))
-}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			ctrl := gomock.NewController(t)
 
-func TestSynchronizeAllClusters_CSClusterMatchesCosmosPendingClusterServiceID(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	ctrl := gomock.NewController(t)
-	now := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
+			subscription := testSubscription()
+			cosmosResources := []any{subscription}
+			if testCase.cosmosClusterBuilder != nil {
+				cosmosResources = append(cosmosResources, testCase.cosmosClusterBuilder(t))
+			}
 
-	subscription := testSubscription()
-	cosmosCluster := testCosmosCluster(t, func(c *coreapi.HCPOpenShiftCluster) {
-		pendingClusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
-		c.ServiceProviderProperties.PendingClusterServiceID = &pendingClusterServiceID
-		c.ServiceProviderProperties.ClusterServiceID = nil
-	})
+			resourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, cosmosResources)
+			require.NoError(t, err)
 
-	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
-		subscription,
-		cosmosCluster,
-	})
-	require.NoError(t, err)
+			clusterServiceClusterCreatedAt := fixedNow.Add(-testCase.clusterServiceClusterCreatedAgo)
+			clusterServiceCluster := testClusterServiceCluster(t, clusterServiceClusterCreatedAt)
 
-	// Old enough to delete if unmatched; must match via PendingClusterServiceID.
-	matchedCSCluster := testClusterServiceCluster(t, now.Add(-61*time.Minute))
+			clusterServiceClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+			clusterServiceClient.EXPECT().
+				ListClusters("").
+				Return(ocm.NewSimpleClusterListIterator([]*arohcpv1alpha1.Cluster{clusterServiceCluster}, nil))
+			if testCase.expectDeleteCluster {
+				clusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
+				clusterServiceClient.EXPECT().
+					DeleteCluster(gomock.Any(), clusterServiceID).
+					Return(nil)
+			}
 
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockCS.EXPECT().
-		ListClusters("").
-		Return(ocm.NewSimpleClusterListIterator([]*arohcpv1alpha1.Cluster{matchedCSCluster}, nil))
+			controller := &clusterServiceClusterMatching{
+				clock: clocktesting.NewFakePassiveClock(fixedNow),
+				subscriptionLister: &corelistertesting.SliceSubscriptionLister{
+					Subscriptions: []*coreapi.Subscription{subscription},
+				},
+				resourcesDBClient:    resourcesDBClient,
+				clusterServiceClient: clusterServiceClient,
+			}
 
-	c := &clusterServiceClusterMatching{
-		clock: clocktesting.NewFakePassiveClock(now),
-		subscriptionLister: &corelistertesting.SliceSubscriptionLister{
-			Subscriptions: []*coreapi.Subscription{subscription},
-		},
-		resourcesDBClient:    mockDB,
-		clusterServiceClient: mockCS,
+			require.NoError(t, controller.synchronizeAllClusters(ctx))
+		})
 	}
-
-	require.NoError(t, c.synchronizeAllClusters(ctx))
-}
-
-func TestSynchronizeAllClusters_CSClusterMismatchNotOldEnough(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	ctrl := gomock.NewController(t)
-	now := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
-
-	subscription := testSubscription()
-
-	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
-		subscription,
-	})
-	require.NoError(t, err)
-
-	mismatchedYoungCSCluster := testClusterServiceCluster(t, now.Add(-30*time.Minute))
-
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockCS.EXPECT().
-		ListClusters("").
-		Return(ocm.NewSimpleClusterListIterator([]*arohcpv1alpha1.Cluster{mismatchedYoungCSCluster}, nil))
-
-	c := &clusterServiceClusterMatching{
-		clock: clocktesting.NewFakePassiveClock(now),
-		subscriptionLister: &corelistertesting.SliceSubscriptionLister{
-			Subscriptions: []*coreapi.Subscription{subscription},
-		},
-		resourcesDBClient:    mockDB,
-		clusterServiceClient: mockCS,
-	}
-
-	require.NoError(t, c.synchronizeAllClusters(ctx))
-}
-
-func TestSynchronizeAllClusters_CSClusterMismatchCosmosClusterExistsSkipsDelete(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	ctrl := gomock.NewController(t)
-	now := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
-
-	subscription := testSubscription()
-	// Cluster is in Cosmos but has no ClusterServiceID yet, so getAllCosmosObjs does not
-	// index it by CS HREF. The double-check Get by Azure coordinates must still find it.
-	cosmosCluster := testCosmosCluster(t)
-
-	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
-		subscription,
-		cosmosCluster,
-	})
-	require.NoError(t, err)
-
-	mismatchedOlderCSClusterInCosmos := testClusterServiceCluster(t, now.Add(-61*time.Minute))
-
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockCS.EXPECT().
-		ListClusters("").
-		Return(ocm.NewSimpleClusterListIterator([]*arohcpv1alpha1.Cluster{mismatchedOlderCSClusterInCosmos}, nil))
-
-	c := &clusterServiceClusterMatching{
-		clock: clocktesting.NewFakePassiveClock(now),
-		subscriptionLister: &corelistertesting.SliceSubscriptionLister{
-			Subscriptions: []*coreapi.Subscription{subscription},
-		},
-		resourcesDBClient:    mockDB,
-		clusterServiceClient: mockCS,
-	}
-
-	require.NoError(t, c.synchronizeAllClusters(ctx))
-}
-
-func TestSynchronizeAllClusters_CSClusterMismatchOlderThanOneHourDeletes(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	ctrl := gomock.NewController(t)
-	now := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
-
-	subscription := testSubscription()
-
-	mockDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{
-		subscription,
-	})
-	require.NoError(t, err)
-
-	mismatchedOlderOrphanedCSCluster := testClusterServiceCluster(t, now.Add(-61*time.Minute))
-	clusterServiceID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
-
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockCS.EXPECT().
-		ListClusters("").
-		Return(ocm.NewSimpleClusterListIterator([]*arohcpv1alpha1.Cluster{mismatchedOlderOrphanedCSCluster}, nil))
-	mockCS.EXPECT().
-		DeleteCluster(gomock.Any(), clusterServiceID).
-		Return(nil)
-
-	c := &clusterServiceClusterMatching{
-		clock: clocktesting.NewFakePassiveClock(now),
-		subscriptionLister: &corelistertesting.SliceSubscriptionLister{
-			Subscriptions: []*coreapi.Subscription{subscription},
-		},
-		resourcesDBClient:    mockDB,
-		clusterServiceClient: mockCS,
-	}
-
-	require.NoError(t, c.synchronizeAllClusters(ctx))
 }
 
 func testSubscription() *coreapi.Subscription {

@@ -157,6 +157,7 @@ func (c *clusterServiceClusterMatching) synchronizeAllClusters(ctx context.Conte
 	}
 
 	for _, clusterServiceCluster := range allClusterServiceClusters {
+		clusterLogger := logger.WithValues("clusterServiceID", clusterServiceCluster.HREF())
 		_, exists := clusterServiceIDToCosmosCluster[clusterServiceCluster.HREF()]
 		if exists {
 			continue
@@ -164,46 +165,50 @@ func (c *clusterServiceClusterMatching) synchronizeAllClusters(ctx context.Conte
 
 		clusterServiceCreationTimestamp, ok := clusterServiceCluster.GetCreationTimestamp()
 		if !ok {
-			logger.Error(
+			clusterLogger.Error(
 				utils.TrackError(fmt.Errorf("cluster service cluster without creation_timestamp and a matching cosmos cluster detected")),
-				"cluster service cluster without creation_timestamp and a matching cosmos cluster detected",
-				"clusterServiceID", clusterServiceCluster.HREF())
+				"cluster service cluster without creation_timestamp and a matching cosmos cluster detected")
 			continue
 		}
 
 		// if the cluster service cluster isn't older than an hour, we skip it
 		if c.clock.Since(clusterServiceCreationTimestamp) < time.Hour {
-			logger.Info("cluster service cluster doesn't have matching cosmos cluster detected but is not old enough to delete",
-				"clusterServiceID", clusterServiceCluster.HREF(),
-			)
+			clusterLogger.Info("cluster service cluster doesn't have matching cosmos cluster detected but is not old enough to delete")
 			continue
 		}
 
 		// before deleting, double check in the cosmos database that the cluster service cluster is still not in the cosmos database
-		_, err := c.resourcesDBClient.HCPClusters(clusterServiceCluster.Azure().SubscriptionID(), clusterServiceCluster.Azure().ResourceGroupName()).
-			Get(ctx, clusterServiceCluster.Azure().ResourceName())
+		clusterServiceAzurePlatform, ok := clusterServiceCluster.GetAzure()
+		if !ok {
+			clusterLogger.Error(
+				utils.TrackError(fmt.Errorf("cluster service cluster without Azure properties and a matching cosmos cluster detected")),
+				"cluster service cluster without Azure properties and a matching cosmos cluster detected")
+			continue
+		}
+		_, err := c.resourcesDBClient.HCPClusters(clusterServiceAzurePlatform.SubscriptionID(), clusterServiceAzurePlatform.ResourceGroupName()).
+			Get(ctx, clusterServiceAzurePlatform.ResourceName())
 		if err == nil {
-			logger.Info("cluster service cluster exists in the cosmos database, no need to delete",
-				"clusterServiceID", clusterServiceCluster.HREF(),
-			)
+			clusterLogger.Info("cluster service cluster exists in the cosmos database, no need to delete")
 			continue
 		}
 
 		if !cosmosstorageutils.IsNotFoundError(err) {
-			logger.Error(err, "error getting cluster service cluster from cosmos database",
-				"clusterServiceID", clusterServiceCluster.HREF())
+			clusterLogger.Error(err, "error getting cluster service cluster from cosmos database")
 			continue
 		}
 
 		// cluster is confirmed to not be in cosmos database, we can delete it from cluster service
-		err = c.clusterServiceClient.DeleteCluster(ctx, metadataapi.Must(metadataapi.NewInternalID(clusterServiceCluster.HREF())))
+		clusterServiceID, err := metadataapi.NewInternalID(clusterServiceCluster.HREF())
 		if err != nil {
-			logger.Error(err, "error deleting cluster service cluster",
-				"clusterServiceID", clusterServiceCluster.HREF())
+			clusterLogger.Error(err, "error creating internal ID for cluster service cluster")
 			continue
 		}
-		logger.Info("cluster service cluster without matching cosmos cluster deleted from cluster service",
-			"clusterServiceID", clusterServiceCluster.HREF())
+		err = c.clusterServiceClient.DeleteCluster(ctx, clusterServiceID)
+		if err != nil {
+			clusterLogger.Error(err, "error deleting cluster service cluster")
+			continue
+		}
+		clusterLogger.Info("cluster service cluster without matching cosmos cluster deleted from cluster service")
 	}
 
 	return nil
