@@ -1,0 +1,249 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-etcd-grpc-latency-alerts
+  namespace: prometheus
+spec:
+  groups:
+  - name: hcp-etcd-grpc-latency-alerts
+    labels:
+      component: etcd
+    rules:
+    # etcd gRPC read latency (Range operations) — MWMBR alerts
+    # P99 > 500ms threshold. Range is the primary KAS read operation to etcd.
+    - alert: userJourneyEtcdReadLatencyP991h5m
+      expr: |
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                grpc_service="etcdserverpb.KV",
+                grpc_method="Range",
+                namespace=~"ocm-.*"
+              }[1h])
+            )
+          ) > 0.5
+        )
+        and
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                grpc_service="etcdserverpb.KV",
+                grpc_method="Range",
+                namespace=~"ocm-.*"
+              }[5m])
+            )
+          ) > 0.5
+        )
+      for: 2m
+      labels:
+        long_window: 1h
+        short_window: 5m
+        severity: "3"
+        slo: etcd-grpc-read-latency
+      annotations:
+        summary: "[userJourneyEtcdReadLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (1h/5m)"
+        description: |
+          etcd gRPC Range (read) P99 latency has exceeded 500ms in both the 1h and 5m windows.
+          Management Cluster: {{ $labels.cluster }}
+          Namespace: {{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdReadLatencyP99/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    - alert: userJourneyEtcdReadLatencyP996h30m
+      expr: |
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                grpc_service="etcdserverpb.KV",
+                grpc_method="Range",
+                namespace=~"ocm-.*"
+              }[6h])
+            )
+          ) > 0.5
+        )
+        and
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                grpc_service="etcdserverpb.KV",
+                grpc_method="Range",
+                namespace=~"ocm-.*"
+              }[30m])
+            )
+          ) > 0.5
+        )
+      for: 5m
+      labels:
+        long_window: 6h
+        short_window: 30m
+        severity: "3"
+        slo: etcd-grpc-read-latency
+      annotations:
+        summary: "[userJourneyEtcdReadLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (6h/30m)"
+        description: |
+          etcd gRPC Range (read) P99 latency has exceeded 500ms in both the 6h and 30m windows.
+          Management Cluster: {{ $labels.cluster }}
+          Namespace: {{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdReadLatencyP99/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    - alert: userJourneyEtcdReadLatencyP993d6h
+      expr: |
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                grpc_service="etcdserverpb.KV",
+                grpc_method="Range",
+                namespace=~"ocm-.*"
+              }[3d])
+            )
+          ) > 0.5
+        )
+        and
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                grpc_service="etcdserverpb.KV",
+                grpc_method="Range",
+                namespace=~"ocm-.*"
+              }[6h])
+            )
+          ) > 0.5
+        )
+      for: 3h
+      labels:
+        long_window: 3d
+        short_window: 6h
+        severity: "4"
+        slo: etcd-grpc-read-latency
+      annotations:
+        summary: "[userJourneyEtcdReadLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (3d/6h)"
+        description: |
+          etcd gRPC Range (read) P99 latency has exceeded 500ms over 3d/6h windows.
+          Management Cluster: {{ $labels.cluster }}
+          Namespace: {{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdReadLatencyP99/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    # etcd gRPC write latency (Txn operations) — MWMBR alerts
+    # Txn is the primary KAS write operation to etcd.
+    - alert: userJourneyEtcdWriteLatencyP991h5m
+      expr: |
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                grpc_service="etcdserverpb.KV",
+                grpc_method="Txn",
+                namespace=~"ocm-.*"
+              }[1h])
+            )
+          ) > 0.5
+        )
+        and
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                grpc_service="etcdserverpb.KV",
+                grpc_method="Txn",
+                namespace=~"ocm-.*"
+              }[5m])
+            )
+          ) > 0.5
+        )
+      for: 2m
+      labels:
+        long_window: 1h
+        short_window: 5m
+        severity: "3"
+        slo: etcd-grpc-write-latency
+      annotations:
+        summary: "[userJourneyEtcdWriteLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (1h/5m)"
+        description: |
+          etcd gRPC Txn (write) P99 latency has exceeded 500ms in both the 1h and 5m windows.
+          Management Cluster: {{ $labels.cluster }}
+          Namespace: {{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdWriteLatencyP99/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    - alert: userJourneyEtcdWriteLatencyP996h30m
+      expr: |
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                grpc_service="etcdserverpb.KV",
+                grpc_method="Txn",
+                namespace=~"ocm-.*"
+              }[6h])
+            )
+          ) > 0.5
+        )
+        and
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                grpc_service="etcdserverpb.KV",
+                grpc_method="Txn",
+                namespace=~"ocm-.*"
+              }[30m])
+            )
+          ) > 0.5
+        )
+      for: 5m
+      labels:
+        long_window: 6h
+        short_window: 30m
+        severity: "3"
+        slo: etcd-grpc-write-latency
+      annotations:
+        summary: "[userJourneyEtcdWriteLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (6h/30m)"
+        description: |
+          etcd gRPC Txn (write) P99 latency has exceeded 500ms in both the 6h and 30m windows.
+          Management Cluster: {{ $labels.cluster }}
+          Namespace: {{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdWriteLatencyP99/{{ $labels.cluster }}/{{ $labels.namespace }}"
+    - alert: userJourneyEtcdWriteLatencyP993d6h
+      expr: |
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                grpc_service="etcdserverpb.KV",
+                grpc_method="Txn",
+                namespace=~"ocm-.*"
+              }[3d])
+            )
+          ) > 0.5
+        )
+        and
+        (
+          histogram_quantile(0.99,
+            sum by (namespace, cluster, le) (
+              rate(grpc_server_handling_seconds_bucket{
+                grpc_service="etcdserverpb.KV",
+                grpc_method="Txn",
+                namespace=~"ocm-.*"
+              }[6h])
+            )
+          ) > 0.5
+        )
+      for: 3h
+      labels:
+        long_window: 3d
+        short_window: 6h
+        severity: "4"
+        slo: etcd-grpc-write-latency
+      annotations:
+        summary: "[userJourneyEtcdWriteLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (3d/6h)"
+        description: |
+          etcd gRPC Txn (write) P99 latency has exceeded 500ms over 3d/6h windows.
+          Management Cluster: {{ $labels.cluster }}
+          Namespace: {{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-etcd
+        correlationId: "userJourneyEtcdWriteLatencyP99/{{ $labels.cluster }}/{{ $labels.namespace }}"
