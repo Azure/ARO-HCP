@@ -200,11 +200,12 @@ tests:
 # ----------------------------------------
 # Traffic drop vs 1d baseline (5m step)
 # ----------------------------------------
-# 288 samples @ 5 RPS (~24h @ 5m step), then 11 samples @ 0.2 RPS (~55m).
+# promtool expand counts are decimal (not hex): 5x288 = 288 samples @ 5 RPS
+# (~24h @ 5m step), then 0.2x13 = 13 samples (~65m) so drop is active by eval_time 25h.
 - interval: 5m
   input_series:
   - series: 'traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}'
-    values: "5+0x287 0.2+0x10"
+    values: "5x288 0.2x13"
   alert_rule_test:
   - eval_time: 25h
     alertname: userJourneyFrontendTrafficDrop
