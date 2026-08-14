@@ -40,7 +40,7 @@ var _ = Describe("Customer", func() {
 		// do nothing. per test initialization usually ages better than shared.
 	})
 
-	It("should trigger nodepool autoscaling when pods exhaust single-node resources",
+	It("should trigger nodepool autoscaling when pods exhaust double-node resources",
 		labels.RequireNothing,
 		labels.Medium,
 		labels.Positive,
@@ -50,8 +50,8 @@ var _ = Describe("Customer", func() {
 			const (
 				customerClusterName        = "autoscale-trigger"
 				customerNodePoolName       = "stress-pool"
-				autoscalingMin       int32 = 1
-				autoscalingMax       int32 = 2
+				autoscalingMin       int32 = 2
+				autoscalingMax       int32 = 3
 			)
 			tc := framework.NewTestContext()
 
@@ -113,7 +113,7 @@ var _ = Describe("Customer", func() {
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client from admin REST config")
 
-			By("creating the nodepool with autoscaling min=1 max=2")
+			By(fmt.Sprintf("creating the nodepool with autoscaling min=%d max=%d", autoscalingMin, autoscalingMax))
 			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.OpenshiftVersionId = resolvedVersion
 			nodePoolParams.ClusterName = customerClusterName
@@ -148,13 +148,13 @@ var _ = Describe("Customer", func() {
 			Expect(npResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(autoscalingMax)),
 				"expected autoscaling max to be %d", autoscalingMax)
 
-			By("verifying the nodepool starts with 1 node")
+			By(fmt.Sprintf("verifying the nodepool starts with %d node(s)", autoscalingMin))
 			nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to list nodes after nodepool creation")
 			poolNodes, err := framework.SelectNodesBelongingToNodePool(nodes.Items, customerNodePoolName)
 			Expect(err).NotTo(HaveOccurred(), "failed to select nodes for nodepool %s", customerNodePoolName)
 			Expect(len(poolNodes)).To(Equal(int(autoscalingMin)),
-				"expected nodepool %s to start with %d node(s)", customerNodePoolName, autoscalingMin)
+				"expected nodepool %s to start with %d node(s), got %d", customerNodePoolName, autoscalingMin, len(poolNodes))
 
 			By("creating a namespace for stress workloads on the hosted cluster")
 			stressNS, err := kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
@@ -163,11 +163,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create stress namespace")
 
 			// Each pod requests 3 CPU and 8Gi memory. The default worker VM
-			// (Standard_D8s_v3, 8 vCPU / 32 GiB) fits at most 2 such pods, so
-			// deploying 4 replicas guarantees at least 2 pods are Pending and
-			// triggers the cluster autoscaler to provision a second node.
-			By("deploying pods with high resource requests to exhaust single-node capacity")
-			stressReplicas := int32(4)
+			// (Standard_D8s_v3, 8 vCPU / 32 GiB) fits at most 2 such pods, so the
+			// 2 nodes the pool starts with (autoscalingMin) can together host at
+			// most 4 pods. Deploying 6 replicas guarantees at least 2 pods remain
+			// Pending after filling both starting nodes, which triggers the
+			// cluster autoscaler to provision a third node.
+			By("deploying pods with high resource requests to exhaust available node capacity")
+			stressReplicas := int32(6)
 			stressDeploy := &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "resource-stress",
@@ -203,7 +205,7 @@ var _ = Describe("Customer", func() {
 			_, err = kubeClient.AppsV1().Deployments(stressNS.Name).Create(ctx, stressDeploy, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to create stress deployment")
 
-			By("waiting for the cluster autoscaler to scale the nodepool to 2 nodes")
+			By(fmt.Sprintf("waiting for the cluster autoscaler to scale the nodepool to %d nodes", autoscalingMax))
 			Eventually(func(g Gomega) {
 				nodeList, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 				g.Expect(err).NotTo(HaveOccurred(), "failed to list nodes during autoscaling poll")
@@ -222,7 +224,7 @@ var _ = Describe("Customer", func() {
 			}).WithTimeout(framework.NodePoolScalingTimeout).WithPolling(30*time.Second).Should(Succeed(),
 				"autoscaler did not scale nodepool %s to %d nodes within %s", customerNodePoolName, autoscalingMax, framework.NodePoolScalingTimeout)
 
-			By("verifying stress pods are running across both nodes")
+			By(fmt.Sprintf("verifying stress pods are running across all %d nodes", autoscalingMax))
 			Eventually(func(g Gomega) {
 				pods, err := kubeClient.CoreV1().Pods(stressNS.Name).List(ctx, metav1.ListOptions{
 					LabelSelector: "app=resource-stress",
@@ -234,8 +236,8 @@ var _ = Describe("Customer", func() {
 						nodeSet[pods.Items[i].Spec.NodeName] = true
 					}
 				}
-				g.Expect(len(nodeSet)).To(BeNumerically(">=", 2),
-					"expected pods running on at least 2 distinct nodes after autoscaling")
+				g.Expect(len(nodeSet)).To(BeNumerically(">=", int(autoscalingMax)),
+					"expected pods running on at least %d distinct nodes after autoscaling, got %d", autoscalingMax, len(nodeSet))
 			}).WithTimeout(5*time.Minute).WithPolling(15*time.Second).Should(Succeed(),
 				"stress pods did not spread across nodes after autoscaling")
 		})

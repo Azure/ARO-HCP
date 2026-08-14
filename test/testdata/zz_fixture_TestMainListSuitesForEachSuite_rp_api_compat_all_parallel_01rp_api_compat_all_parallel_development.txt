@@ -68,7 +68,7 @@ Customer should be able to rotate KMS key for a cluster with version >= 4.22
 Engineering should be able to retrieve kusto logs for a cluster and services
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to replica limits
 Customer should respect cluster-wide node limits with nodepool autoscaling
-Customer should trigger nodepool autoscaling when pods exhaust single-node resources
+Customer should trigger nodepool autoscaling when pods exhaust double-node resources
 Nodepool Ephemeral OS Disk should create a nodepool with ephemeral OS disk when autoRepair is enabled
 Customer should be able to update node pool labels and taints
 Nodepool OS Disk Encryption should create a nodepool with customer-managed disk encryption via DES
