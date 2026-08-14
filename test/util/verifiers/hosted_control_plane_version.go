@@ -60,7 +60,9 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, 
 	ginkgo.GinkgoLogr.Info("Retrieved openshift cluster version history",
 		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
 
-	var sawUpgrade bool
+	uniqueVersionSet := map[string]bool{}
+	var uniqueVersions []string
+	var sawInitial, sawUpgrade bool
 	for _, history := range clusterVersion.Status.History {
 		historyVersion, err := semver.ParseTolerant(history.Version)
 		if err != nil {
@@ -70,23 +72,41 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, 
 			return fmt.Errorf("version %q in clusterversion history has different major.minor than initial %q (expected %d.%d.x)",
 				historyVersion.String(), v.initialVersion, initialSemver.Major, initialSemver.Minor)
 		}
-		if historyVersion.GT(initialSemver) {
-			sawUpgrade = true
-		}
 		if historyVersion.LT(initialSemver) {
 			return fmt.Errorf("downgrade unexpected: version %q is less than initial %q", historyVersion.String(), initialSemver.String())
 		}
+		if historyVersion.EQ(initialSemver) {
+			sawInitial = true
+		}
+		if historyVersion.GT(initialSemver) {
+			sawUpgrade = true
+		}
+		if key := historyVersion.String(); !uniqueVersionSet[key] {
+			uniqueVersionSet[key] = true
+			uniqueVersions = append(uniqueVersions, key)
+		}
+	}
+	if !sawInitial {
+		return fmt.Errorf("install version %q not found in clusterversion/version status.history; cannot confirm the z-stream upgrade started from it", v.initialVersion)
 	}
 	if !sawUpgrade {
 		return fmt.Errorf("no version in clusterversion/version status.history is greater than initial %q", v.initialVersion)
+	}
+	// The automated z-stream upgrade must move the control plane off the pinned install version, so
+	// the history must contain at least two unique versions: the install version and the latest
+	// z-stream it was upgraded to.
+	if len(uniqueVersions) < 2 {
+		return fmt.Errorf("expected at least 2 unique versions in clusterversion/version status.history (install %q plus the auto-upgraded z-stream), got %d: %v",
+			v.initialVersion, len(uniqueVersions), uniqueVersions)
 	}
 	return nil
 }
 
 // VerifyHostedControlPlaneZStreamUpgradeOnly returns a verifier that the HCP control plane has
-// performed only a z-stream upgrade from the initial version: at least one entry in
-// ClusterVersion status.history is greater than initialVersion, and every entry has the same
-// major.minor as initialVersion.
+// performed only a z-stream upgrade from the initial version: every entry in ClusterVersion
+// status.history has the same major.minor as initialVersion, the initial version itself appears in
+// the history, at least one entry is greater than it, and the history holds at least two unique
+// versions (the pinned install version plus the auto-upgraded latest z-stream).
 func VerifyHostedControlPlaneZStreamUpgradeOnly(initialVersion string) HostedClusterVerifier {
 	return verifyHostedControlPlaneZStreamUpgradeOnly{initialVersion: initialVersion}
 }
