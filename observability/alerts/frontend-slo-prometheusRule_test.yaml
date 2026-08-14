@@ -59,7 +59,6 @@ tests:
   - eval_time: 40m
     alertname: userJourneyFrontendTrafficDrop
     exp_alerts: []
-
 # ----------------------------------------
 # Errors fast burn + degradation + Availability fast
 # ----------------------------------------
@@ -113,7 +112,6 @@ tests:
         summary: "svc-1: Frontend HTTP availability critically low (<99.28%)"
         description: "Frontend availability on cluster svc-1 is below 99.28% for 5m (14.4x burn of the 99.95% SLO / 0.05% error budget)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-
 # ----------------------------------------
 # Errors medium burn (0.4%) — not fast
 # ----------------------------------------
@@ -140,7 +138,6 @@ tests:
   - eval_time: 32m
     alertname: userJourneyFrontendErrors1h5m
     exp_alerts: []
-
 # ----------------------------------------
 # Latency fast burn
 # ----------------------------------------
@@ -164,7 +161,6 @@ tests:
         summary: "svc-1: Frontend HTTP latency SLI critically low (share <=1s <85.6%)"
         description: "Share of Frontend requests completing within 1s on cluster svc-1 is below 85.6% for 5m (14.4x burn of the 1% latency budget for the p99 < 1s SLO)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-
 # ----------------------------------------
 # Saturation CPU + memory
 # ----------------------------------------
@@ -201,7 +197,6 @@ tests:
         summary: "svc-1: Frontend pod memory above 85% of limit for 15+ minutes"
         description: "Frontend container memory (working set/limit) on cluster svc-1 is above 85% for 15m."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-
 # ----------------------------------------
 # Traffic drop vs 1d baseline (5m step)
 # ----------------------------------------
