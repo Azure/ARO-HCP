@@ -1,5 +1,5 @@
 rule_files:
-- HCPetcd-grpc-latency-monitor-prometheusRule.yaml
+- UserJourneyEtcdLatencyMonitor-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
 # Test 1: Fast burn read alert fires when P99 > 500ms in both 1h and 5m windows
