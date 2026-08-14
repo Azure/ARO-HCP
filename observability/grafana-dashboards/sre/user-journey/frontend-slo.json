@@ -731,8 +731,10 @@
     "list": [
       {
         "allowCustomValue": false,
-        "current": { "text": "All", "value": "$__all" },
-        "includeAll": true,
+        "current": {},
+        "includeAll": false,
+        "label": "Data Source",
+        "multi": false,
         "name": "datasource",
         "options": [],
         "query": "prometheus",
@@ -741,17 +743,16 @@
         "type": "datasource"
       },
       {
-        "allValue": ".*",
-        "current": { "text": "All", "value": "$__all" },
+        "current": {},
         "datasource": { "type": "prometheus", "uid": "$datasource" },
         "definition": "label_values(frontend_http_requests_total, cluster)",
-        "includeAll": true,
-        "label": "Service Cluster",
-        "multi": true,
+        "includeAll": false,
+        "label": "cluster",
+        "multi": false,
         "name": "cluster",
         "query": "label_values(frontend_http_requests_total, cluster)",
         "refresh": 2,
-        "regex": "^.*-svc(-[0-9]+)?$",
+        "regex": "^.*-svc-\\d+$",
         "type": "query"
       }
     ]
