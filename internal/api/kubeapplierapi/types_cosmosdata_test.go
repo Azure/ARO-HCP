@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	testIDPrefix                  = "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/myrg"
-	testClusterIDPrefix           = testIDPrefix + "/providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster"
-	testNodePoolIDPrefix          = testClusterIDPrefix + "/nodepools/mynodepool"
-	testCredentialRequestIDPrefix = testClusterIDPrefix + "/systemadmincredentialrequests/mycred"
-	testRevocationIDPrefix        = testClusterIDPrefix + "/systemadmincredentialrevocations/myrevocation"
+	testIDPrefix                        = "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/myrg"
+	testClusterIDPrefix                 = testIDPrefix + "/providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster"
+	testNodePoolIDPrefix                = testClusterIDPrefix + "/nodepools/mynodepool"
+	testCredentialRequestIDPrefix       = testClusterIDPrefix + "/systemadmincredentialrequests/mycred"
+	testRevocationIDPrefix              = testClusterIDPrefix + "/systemadmincredentialrevocations/myrevocation"
+	testManagementClusterDesireIDPrefix = "/providers/microsoft.redhatopenshift/stamps/mystamp/managementclusters/default"
 )
 
 func TestResourceIDStrings(t *testing.T) {
@@ -36,6 +37,7 @@ func TestResourceIDStrings(t *testing.T) {
 		np         = "myNodePool"
 		cred       = "myCred"
 		revocation = "myRevocation"
+		stamp      = "myStamp"
 		name       = "myDesire"
 	)
 	tests := []struct {
@@ -83,6 +85,16 @@ func TestResourceIDStrings(t *testing.T) {
 			got:  ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(sub, rg, cluster, revocation, name),
 			want: testRevocationIDPrefix + "/readdesires/mydesire",
 		},
+		{
+			name: "ApplyDesire under management cluster",
+			got:  ToManagementClusterScopedApplyDesireResourceIDString(stamp, name),
+			want: testManagementClusterDesireIDPrefix + "/applydesires/mydesire",
+		},
+		{
+			name: "ReadDesire under management cluster",
+			got:  ToManagementClusterScopedReadDesireResourceIDString(stamp, name),
+			want: testManagementClusterDesireIDPrefix + "/readdesires/mydesire",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -104,6 +116,7 @@ func TestResourceIDsParseToExpectedTypes(t *testing.T) {
 		np         = "myNodePool"
 		cred       = "myCred"
 		revocation = "myRevocation"
+		stamp      = "myStamp"
 		name       = "myDesire"
 	)
 	cases := []struct {
@@ -150,6 +163,16 @@ func TestResourceIDsParseToExpectedTypes(t *testing.T) {
 			name:     "revocation-scoped ReadDesire",
 			idStr:    ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(sub, rg, cluster, revocation, name),
 			wantType: SystemAdminCredentialRevocationScopedReadDesireResourceType.String(),
+		},
+		{
+			name:     "management-cluster-scoped ApplyDesire",
+			idStr:    ToManagementClusterScopedApplyDesireResourceIDString(stamp, name),
+			wantType: ManagementClusterScopedApplyDesireResourceType.String(),
+		},
+		{
+			name:     "management-cluster-scoped ReadDesire",
+			idStr:    ToManagementClusterScopedReadDesireResourceIDString(stamp, name),
+			wantType: ManagementClusterScopedReadDesireResourceType.String(),
 		},
 	}
 	for _, tc := range cases {
