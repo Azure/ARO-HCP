@@ -28,6 +28,12 @@ param viewerGroups string
 @description('CSV separated list of identities (apps/managed identities) to assign viewer in the Kusto cluster')
 param viewerIdentities string = ''
 
+@description('Name of the global rollout MSI granted AllDatabasesAdmin so the KustoEntityGroups pipeline step (kustoctl) can sync entity groups. Empty disables the grant.')
+param globalMSIName string = ''
+
+@description('Resource group of the global rollout MSI (same subscription as this deployment). Required when globalMSIName is set.')
+param globalMSIResourceGroup string = ''
+
 @description('Name of the Kusto cluster to create')
 param kustoName string
 
@@ -82,6 +88,8 @@ module cluster 'cluster.bicep' = {
     adminGroups: adminGroups
     viewerGroups: viewerGroups
     viewerIdentities: viewerIdentities
+    globalMSIName: globalMSIName
+    globalMSIResourceGroup: globalMSIResourceGroup
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale
@@ -187,12 +195,12 @@ module databaseUserScripts 'database-users.bicep' = [
   }
 ]
 
-// The deploying identity (global MSI) retains Database Admin on all databases
-// from RetainPermissionOnScriptCompletion used by table-creation scripts above.
-// Database Admin is the minimum role for `.create-or-alter entity_group` (Kusto
-// docs). Do not scope down to a lesser role; the entity-groups pipeline step
-// (kustoctl) requires it to sync cross-cluster entity groups on all three
-// databases (ServiceLogs, HostedControlPlaneLogs, MonitoringEvents).
+// The KustoEntityGroups pipeline step (kustoctl) runs `.create-or-alter
+// entity_group` under the global rollout MSI, which requires Database Admin on
+// each target database. cluster.bicep grants that MSI AllDatabasesAdmin at
+// cluster scope (covering ServiceLogs, HostedControlPlaneLogs and
+// MonitoringEvents) so the sync succeeds on all three. Do not scope down to a
+// lesser role; Database Admin is the minimum for entity-group management.
 
 // Outputs mirror original contract
 output id string = cluster.outputs.id
