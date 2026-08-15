@@ -29,6 +29,8 @@ import (
 	"sync"
 	"time"
 
+	_ "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/runtime" // contains init() function which populates ARM cloud services
+
 	"github.com/onsi/ginkgo/v2/types"
 	"golang.org/x/net/http2"
 
@@ -200,7 +202,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 			ActiveDirectoryAuthorityHost: cloud.AzurePublic.ActiveDirectoryAuthorityHost,
 			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
 				cloud.ResourceManager: {
-					Audience: "https://management.core.windows.net/",
+					Audience: cloud.AzurePublic.Services[cloud.ResourceManager].Audience,
 					Endpoint: tc.resourceManagerEndpoint,
 				},
 			},
@@ -220,7 +222,7 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 			ActiveDirectoryAuthorityHost: cloud.AzurePublic.ActiveDirectoryAuthorityHost,
 			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
 				cloud.ResourceManager: {
-					Audience: "https://management.core.windows.net/",
+					Audience: cloud.AzurePublic.Services[cloud.ResourceManager].Audience,
 					Endpoint: tc.resourceManagerEndpoint,
 				},
 			},
@@ -241,7 +243,7 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 			ActiveDirectoryAuthorityHost: cloud.AzurePublic.ActiveDirectoryAuthorityHost,
 			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
 				cloud.ResourceManager: {
-					Audience: "https://management.core.windows.net/",
+					Audience: cloud.AzurePublic.Services[cloud.ResourceManager].Audience,
 					Endpoint: tc.frontendAddress,
 				},
 			},
