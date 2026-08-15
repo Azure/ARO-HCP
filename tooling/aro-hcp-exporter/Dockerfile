@@ -6,7 +6,9 @@ COPY metricscache/go.mod metricscache/go.sum metricscache/
 COPY aro-hcp-exporter/go.mod aro-hcp-exporter/go.sum aro-hcp-exporter/
 RUN cd aro-hcp-exporter && go mod download
 WORKDIR /app
-COPY . .
+COPY --exclude=hcpctl/hcpctl hcpctl/ hcpctl/
+COPY metricscache/ metricscache/
+COPY --exclude=aro-hcp-exporter/aro-hcp-exporter aro-hcp-exporter/ aro-hcp-exporter/
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject
 # non-FIPS algorithms. See https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips
