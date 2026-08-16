@@ -1,0 +1,158 @@
+---
+# Source: kube-state-metrics-crs/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-state-metrics-crs
+  namespace: 'prometheus'
+  labels:
+    app.kubernetes.io/name: kube-state-metrics-crs
+---
+# Source: kube-state-metrics-crs/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-state-metrics-crs
+  labels:
+    app.kubernetes.io/name: kube-state-metrics-crs
+rules:
+- apiGroups: ["certificates.k8s.io"]
+  resources: ["certificatesigningrequests"]
+  verbs: ["list", "watch"]
+---
+# Source: kube-state-metrics-crs/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-state-metrics-crs
+  labels:
+    app.kubernetes.io/name: kube-state-metrics-crs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-state-metrics-crs
+subjects:
+- kind: ServiceAccount
+  name: kube-state-metrics-crs
+  namespace: 'prometheus'
+---
+# Source: kube-state-metrics-crs/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-state-metrics-crs
+  namespace: 'prometheus'
+  labels:
+    app.kubernetes.io/name: kube-state-metrics-crs
+spec:
+  ports:
+  - name: http-metrics
+    port: 8080
+    targetPort: http-metrics
+    protocol: TCP
+  - name: telemetry
+    port: 8081
+    targetPort: telemetry
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: kube-state-metrics-crs
+---
+# Source: kube-state-metrics-crs/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-state-metrics-crs
+  namespace: 'prometheus'
+  labels:
+    app.kubernetes.io/name: kube-state-metrics-crs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics-crs
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kube-state-metrics-crs
+    spec:
+      automountServiceAccountToken: true
+      serviceAccountName: kube-state-metrics-crs
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: kube-state-metrics
+        image: 'mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics@sha256:sha256:1234567890'
+        args:
+        - --resources=certificatesigningrequests
+        ports:
+        - name: http-metrics
+          containerPort: 8080
+          protocol: TCP
+        - name: telemetry
+          containerPort: 8081
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: http-metrics
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: telemetry
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - infra
+      tolerations:
+      - key: infra
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+---
+# Source: kube-state-metrics-crs/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-state-metrics-crs
+  namespace: 'prometheus'
+  labels:
+    app.kubernetes.io/name: kube-state-metrics-crs
+spec:
+  endpoints:
+  - port: http-metrics
+    interval: 30s
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics-crs
+  namespaceSelector:
+    matchNames:
+    - 'prometheus'
+

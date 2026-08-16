@@ -593,6 +593,29 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: kube-state-metrics-crs
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    timeout: 5m
+    releaseName: 'kube-state-metrics-crs'
+    releaseNamespace: 'prometheus'
+    chartDir: ../observability/kube-state-metrics/deploy
+    valuesFile: ../observability/kube-state-metrics/values-mgmt.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    dependsOn:
+    - resourceGroup: management
+      step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: cleanup-prometheus-pvc
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
@@ -612,7 +635,7 @@ resourceGroups:
     releaseName: acrpull
     releaseNamespace: acrpull
     chartDir: ./../acrpull/deploy
-    valuesFile: ./../acrpull/deploy/values.yaml
+    valuesFile: ./../acrpull/deploy/values-mgmt.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -752,7 +775,7 @@ resourceGroups:
     releaseName: service-lifecycle
     releaseNamespace: kube-system
     chartDir: ../service-lifecycle/deploy
-    valuesFile: ../service-lifecycle/deploy/values.yaml
+    valuesFile: ../service-lifecycle/deploy/values-mgmt.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output

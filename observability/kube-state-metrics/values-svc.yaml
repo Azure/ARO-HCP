@@ -1,0 +1,9 @@
+monitoringApiGroup: "{{ .svc.monitoringApiGroup }}"
+
+image:
+  registry: "{{ .svc.prometheus.kubeStateMetrics.image.registry }}"
+  repository: "{{ .svc.prometheus.kubeStateMetrics.image.repository }}"
+  digest: "{{ .svc.prometheus.kubeStateMetrics.image.digest }}"
+
+resources:
+- certificatesigningrequests
