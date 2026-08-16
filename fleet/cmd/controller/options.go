@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -164,6 +165,7 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 }
 
 type controllerOptions struct {
+	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	fleetDBClient                fleetcosmosstorage.FleetDBClient
 	clustersServiceClient        ocm.ClusterServiceClientSpec
 	maestroConsumerClientFactory maestroregistration.MaestroConsumerClientFactory
@@ -232,8 +234,14 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		}
 	}
 
+	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(
+		dbClient,
+		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient),
+	)
+
 	return &ControllerOptions{
 		controllerOptions: &controllerOptions{
+			kubeApplierDBClients:         kubeApplierDBClients,
 			fleetDBClient:                fleetDBClient,
 			clustersServiceClient:        clustersServiceClient,
 			maestroConsumerClientFactory: maestroConsumerClientFactory,
@@ -251,6 +259,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 func (o *ControllerOptions) Run(ctx context.Context) error {
 	mgr := &manager.Manager{
+		KubeApplierDBClients:         o.kubeApplierDBClients,
 		FleetDBClient:                o.fleetDBClient,
 		ClustersServiceClient:        o.clustersServiceClient,
 		MaestroConsumerClientFactory: o.maestroConsumerClientFactory,

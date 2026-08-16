@@ -49,3 +49,20 @@ func ToManagementClusterResourceIDString(stampIdentifier string) string {
 		ManagementClusterResourceTypeName, ManagementClusterResourceName,
 	))
 }
+
+// ToManagementClusterSchedulingResourceID constructs the full resource ID for a
+// management cluster scheduling singleton within a stamp:
+// /providers/Microsoft.RedHatOpenShift/stamps/{stampIdentifier}/managementClusters/default/scheduling/default
+func ToManagementClusterSchedulingResourceID(stampIdentifier string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToManagementClusterSchedulingResourceIDString(stampIdentifier))
+}
+
+// ToManagementClusterSchedulingResourceIDString returns the lowercased resource
+// ID string for a management cluster scheduling singleton.
+func ToManagementClusterSchedulingResourceIDString(stampIdentifier string) string {
+	return strings.ToLower(path.Join(
+		"/providers", StampResourceType.String(), stampIdentifier,
+		ManagementClusterResourceTypeName, ManagementClusterResourceName,
+		SchedulingResourceTypeName, SchedulingResourceName,
+	))
+}

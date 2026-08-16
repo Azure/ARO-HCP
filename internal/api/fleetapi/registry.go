@@ -26,10 +26,13 @@ const (
 	ManagementClusterResourceTypeName = "managementClusters"
 	ManagementClusterResourceName     = "default"
 	ControllerResourceTypeName        = "controllers"
+	SchedulingResourceTypeName        = "scheduling"
+	SchedulingResourceName            = "default"
 )
 
 var (
 	StampResourceType                       = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName)
 	ManagementClusterResourceType           = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName)
 	ManagementClusterControllerResourceType = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName+"/"+ControllerResourceTypeName)
+	ManagementClusterSchedulingResourceType = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName+"/"+SchedulingResourceTypeName)
 )

@@ -24,19 +24,21 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 )
 
 const (
-	testSubscription = "00000000-0000-0000-0000-000000000001"
-	testRG           = "test-rg"
-	testCluster      = "test-cluster"
-	testNodePool     = "test-np"
-	testCredReq      = "test-cred-req"
-	testRevocation   = "test-revocation"
-	testDesireName   = "my-desire"
+	testSubscription    = "00000000-0000-0000-0000-000000000001"
+	testRG              = "test-rg"
+	testCluster         = "test-cluster"
+	testNodePool        = "test-np"
+	testCredReq         = "test-cred-req"
+	testRevocation      = "test-revocation"
+	testDesireName      = "my-desire"
+	testStampIdentifier = "eastus"
 )
 
 func TestApplyDesireKeyFromResourceID_ClusterScoped(t *testing.T) {
@@ -76,6 +78,26 @@ func TestApplyDesireKeyFromResourceID_SystemAdminCredentialRevocationScoped(t *t
 	key, err := ApplyDesireKeyFromResourceID(id)
 	require.NoError(t, err)
 	require.Equal(t, strings.ToLower(coreapi.ToSystemAdminCredentialRevocationResourceIDString(testSubscription, testRG, testCluster, testRevocation)), key.ParentResourceID)
+	require.Equal(t, testDesireName, key.Name)
+}
+
+func TestApplyDesireKeyFromResourceID_ManagementClusterScoped(t *testing.T) {
+	idStr := kubeapplierapi.ToManagementClusterScopedApplyDesireResourceIDString(testStampIdentifier, testDesireName)
+	id := metadataapi.Must(azcorearm.ParseResourceID(idStr))
+
+	key, err := ApplyDesireKeyFromResourceID(id)
+	require.NoError(t, err)
+	require.Equal(t, strings.ToLower(fleetapi.ToManagementClusterResourceIDString(testStampIdentifier)), key.ParentResourceID)
+	require.Equal(t, testDesireName, key.Name)
+}
+
+func TestReadDesireKeyFromResourceID_ManagementClusterScoped(t *testing.T) {
+	idStr := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, testDesireName)
+	id := metadataapi.Must(azcorearm.ParseResourceID(idStr))
+
+	key, err := ReadDesireKeyFromResourceID(id)
+	require.NoError(t, err)
+	require.Equal(t, strings.ToLower(fleetapi.ToManagementClusterResourceIDString(testStampIdentifier)), key.ParentResourceID)
 	require.Equal(t, testDesireName, key.Name)
 }
 
@@ -122,6 +144,10 @@ func TestGetResourceID_RoundTrips(t *testing.T) {
 			name:  "revocation-scoped apply desire",
 			idStr: kubeapplierapi.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName),
 		},
+		{
+			name:  "management-cluster-scoped apply desire",
+			idStr: kubeapplierapi.ToManagementClusterScopedApplyDesireResourceIDString(testStampIdentifier, testDesireName),
+		},
 	}
 
 	for _, tt := range tests {
@@ -156,6 +182,10 @@ func TestGetResourceID_ReadDesireRoundTrips(t *testing.T) {
 		{
 			name:  "revocation-scoped read desire",
 			idStr: kubeapplierapi.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName),
+		},
+		{
+			name:  "management-cluster-scoped read desire",
+			idStr: kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, testDesireName),
 		},
 	}
 
@@ -194,6 +224,10 @@ func TestApplyDesireKey_CRUD_DispatchesCorrectly(t *testing.T) {
 		{
 			name:  "revocation-scoped",
 			idStr: kubeapplierapi.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName),
+		},
+		{
+			name:  "management-cluster-scoped",
+			idStr: kubeapplierapi.ToManagementClusterScopedApplyDesireResourceIDString(testStampIdentifier, testDesireName),
 		},
 	}
 
@@ -241,6 +275,10 @@ func TestReadDesireKey_CRUD_DispatchesCorrectly(t *testing.T) {
 		{
 			name:  "revocation-scoped",
 			idStr: kubeapplierapi.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(testSubscription, testRG, testCluster, testRevocation, testDesireName),
+		},
+		{
+			name:  "management-cluster-scoped",
+			idStr: kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(testStampIdentifier, testDesireName),
 		},
 	}
 

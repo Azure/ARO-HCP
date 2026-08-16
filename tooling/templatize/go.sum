@@ -124,8 +124,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v8 v8.0
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v8 v8.0.0/go.mod h1:mCqeYzwyjn/pw0JVqHJMIzfUQJrlcV0YjTg5b0NK+F0=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0 h1:+1fJwTilk/X7inNqwREnYEOgFCdg8ut7GULxARDbu34=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0/go.mod h1:EGwSLlGqrrfYQhtCi9JcIkPQKl9WxsL6ZPJd+63Vy1A=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v0.2.0 h1:bYq3jfB2x36hslKMHyge3+esWzROtJNk/4dCjsKlrl4=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v0.2.0/go.mod h1:fewgRjNVE84QVVh798sIMFb7gPXPp7NmnekGnboSnXk=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v1.0.0 h1:67nFqWXpo0x5Nz0XEb1yI7s8D+EHy8NsTinYw9sZnLk=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v1.0.0/go.mod h1:fewgRjNVE84QVVh798sIMFb7gPXPp7NmnekGnboSnXk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1 h1:bcgO/crpp7wqI0Froi/I4C2fme7Vk/WLusbV399Do8I=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1/go.mod h1:kvfPmsE8gpOwwC1qrO1FeyBDDNfnwBN5UU3MPNiWW7I=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armfeatures v1.2.0 h1:wIDqH4WA5uJ6irRqjzodeSw6Pmp0tu3oIbwzBZEdMfQ=

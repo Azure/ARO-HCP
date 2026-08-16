@@ -251,12 +251,22 @@ type mockManagementClustersCRUD struct {
 }
 
 func (m *mockManagementClustersCRUD) Controllers() cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
-	mcResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
 	return newMockFleetResourceCRUD[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](
-		m.store, mcResourceID, fleetapi.ManagementClusterControllerResourceType,
+		m.store, managementClusterResourceID, fleetapi.ManagementClusterControllerResourceType,
+	)
+}
+
+func (m *mockManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling] {
+	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	if err != nil {
+		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
+	}
+	return newMockFleetResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling, cosmosstorageutils.GenericDocument[fleetapi.ManagementClusterScheduling]](
+		m.store, managementClusterResourceID, fleetapi.ManagementClusterSchedulingResourceType,
 	)
 }
 
