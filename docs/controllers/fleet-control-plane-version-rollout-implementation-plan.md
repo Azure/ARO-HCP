@@ -246,16 +246,44 @@ controller** — the plan reuses the existing path. Input
    active channel (a discovery controller vs. on-demand from
    `DesiredVersionChannels`)?
 
-## 9. Scope of the initial PR
+## 9. Implementation status
 
-Implemented now (compiles + unit-tested):
+Implemented (compiles + unit-tested + linted):
 - New API types (`ControlPlaneVersionRollout`, SPC `PinnedVersion`) + deepcopy.
 - `RolloutConfig`.
 - The four new controllers (5.2–5.5) as syncers with factored pure logic, depending on lister/DB interfaces.
 - Exhaustive unit tests for the pure logic and `SyncOnce` happy/precondition paths.
+- **Full fleet Cosmos wiring** for `ControlPlaneVersionRollout`: `fleetcosmosstorage`
+  CRUD + global lister, `FleetPartitionKeyDeriver`, validation, and the
+  `fleetcosmosstoragetesting` mock (CRUD, seeding, global lister).
+- **Fleet informer + lister**: `fleetinformers.ControlPlaneVersionRollouts()` and
+  `fleetlisters.ControlPlaneVersionRolloutLister` (+ slice test fake).
+- **Fleet watching controller**: `controllerutils.NewControlPlaneVersionRolloutWatchingController`
+  (keyed by `ControlPlaneVersionRolloutKey`), and per-controller
+  `New…Controller` constructors wrapping the syncers.
+- **Backend registration under leader election** (`backend/pkg/app/backend.go`),
+  gated by the `--enable-version-rollout` flag.
+- **Backend flags/config** (`backend/cmd/root.go`): `--enable-version-rollout`,
+  `--version-rollout-zstream-offset`, `--version-rollout-canary-percentage`,
+  `--version-rollout-rolling-percentage`, `--version-rollout-min-version-ready-duration`,
+  threaded into `app.BackendOptions.VersionRolloutConfig`.
+- **Real Cincinnati `BestVersionSelector`** (`NewCincinnatiBestVersionSelector`)
+  reusing the exported `version.FindAllUpgradeTargetVersionsInMinor` enumeration
+  plus a pure `selectVersionWithOffset` for the z-stream offset.
+- **Version-transition ages** via an in-process `inMemoryVersionAgeSource` (feeds
+  the Failed/Successful counts without persisting a timestamp on the API — see
+  the caveat below).
+- **Coexistence cutover** (§6 option B): when `--enable-version-rollout` is set,
+  the backend runs the rollout controllers and does **not** run the per-cluster
+  `ControlPlaneDesiredVersion` controller, so they never both write
+  `SPC.Spec…DesiredVersion`.
 
-Deferred to follow-up phases (tracked, mechanical or design-gated):
-- Full `fleetcosmosstorage`/`fleetinformers`/`fleetlisters` container+mock wiring and backend `main` registration under leader election.
-- `config.yaml`/schema plumbing for `RolloutConfig`.
-- Fleet-level Cincinnati best-version cache (5.4 currently behind an interface).
-- Coexistence cutover with `ControlPlaneDesiredVersion` (§6) and admission/data-flow doc updates.
+Remaining follow-ups (design-gated or ops):
+- `config.yaml`/schema plumbing to set the flags per environment, and populating
+  `RolloutConfig.MinimumVersions` / `MaxUpgradeDuration` (currently default-empty:
+  no SRE floor and no upgrade-failure timeout until configured).
+- A **persisted** per-cluster version-transition timestamp to replace the
+  in-memory age source (survives restarts; enables accurate `MaxUpgradeDuration`
+  failure detection). The in-memory source only makes detection more
+  conservative on restart, never wrong.
+- Admission/data-flow-doc updates and the open questions in §8.
