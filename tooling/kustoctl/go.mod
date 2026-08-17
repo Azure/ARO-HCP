@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/kustoctl
 go 1.25.5
 
 require (
-	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260720175808-ca2cea2cb707
+	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260817182351-8edbd7b1e3cf
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
