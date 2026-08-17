@@ -6,9 +6,7 @@ panels:
     query: |
       histogram_quantile(0.99,
         sum by (le, route, method, cluster) (
-          max without (prometheus_replica) (
-            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])
-          )
+          rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])
         )
       )
     unit: seconds
