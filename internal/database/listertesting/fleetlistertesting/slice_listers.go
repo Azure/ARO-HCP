@@ -13,7 +13,8 @@
 // limitations under the License.
 
 // Package fleetlistertesting provides slice-backed test implementations of the
-// fleet listers (Stamp, ManagementCluster, ManagementClusterScheduling).
+// fleet listers (Stamp, ManagementCluster, ManagementClusterScheduling,
+// ControlPlaneVersionRollout).
 package fleetlistertesting
 
 import (
@@ -102,6 +103,28 @@ func (l *SliceManagementClusterSchedulingLister) Get(ctx context.Context, stampI
 	for _, s := range l.Schedulings {
 		if s.ResourceID != nil && strings.EqualFold(s.ResourceID.String(), key) {
 			return s, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
+// SliceControlPlaneVersionRolloutLister implements
+// fleetlisters.ControlPlaneVersionRolloutLister backed by a slice.
+type SliceControlPlaneVersionRolloutLister struct {
+	ControlPlaneVersionRollouts []*fleetapi.ControlPlaneVersionRollout
+}
+
+var _ fleetlisters.ControlPlaneVersionRolloutLister = &SliceControlPlaneVersionRolloutLister{}
+
+func (l *SliceControlPlaneVersionRolloutLister) List(ctx context.Context) ([]*fleetapi.ControlPlaneVersionRollout, error) {
+	return l.ControlPlaneVersionRollouts, nil
+}
+
+func (l *SliceControlPlaneVersionRolloutLister) Get(ctx context.Context, ystreamChannel string) (*fleetapi.ControlPlaneVersionRollout, error) {
+	key := fleetapi.ToControlPlaneVersionRolloutResourceIDString(ystreamChannel)
+	for _, r := range l.ControlPlaneVersionRollouts {
+		if r.CosmosMetadata.ResourceID != nil && strings.EqualFold(r.CosmosMetadata.ResourceID.String(), key) {
+			return r, nil
 		}
 	}
 	return nil, cosmosstorageutils.NewNotFoundError()
