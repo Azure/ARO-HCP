@@ -155,9 +155,12 @@ func (lv LogValues) AddCosmosResourceID(value string) LogValues {
 	return append(lv, "cosmos_resource_id", strings.ToLower(value))
 }
 
-// AddHCPClusterName adds the "hcp_cluster_name" key with the lowercased value.
+// AddHCPClusterName adds the "hcp_cluster_name" key with the lowercased value. The same value (the
+// cluster's full resource ID) is also mirrored into "cluster_id", which cosmosResourceSnapshots
+// ingests as its cluster_id column.
 func (lv LogValues) AddHCPClusterName(value string) LogValues {
-	return append(lv, "hcp_cluster_name", strings.ToLower(value))
+	lowered := strings.ToLower(value)
+	return append(lv, "hcp_cluster_name", lowered, "cluster_id", lowered)
 }
 
 // AddInternalID adds the "internal_id" key with the lowercased value.

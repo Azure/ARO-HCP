@@ -24,6 +24,52 @@ import (
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 )
 
+func TestObjectMetadataForOperation(t *testing.T) {
+	// An operation's own ResourceID is subscription/location-scoped and has no resource group.
+	operationOwnID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/" + coreapitesting.TestSubscriptionID +
+		"/providers/" + coreapi.ProviderNamespace + "/locations/eastus/hcpOperationStatuses/op-123"))
+	if operationOwnID.ResourceGroupName != "" {
+		t.Fatalf("precondition: operation own ID unexpectedly has resource group %q", operationOwnID.ResourceGroupName)
+	}
+	// The ExternalID targets the cluster, which lives in a resource group.
+	externalID := metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestClusterResourceID))
+
+	t.Run("fills resourceGroup from ExternalID", func(t *testing.T) {
+		op := &coreapi.Operation{ExternalID: externalID}
+		op.ResourceID = operationOwnID
+
+		md := ObjectMetadataForOperation(op)
+
+		if md.CosmosContainer != "resources" {
+			t.Errorf("CosmosContainer = %q, want %q", md.CosmosContainer, "resources")
+		}
+		if md.ResourceGroup != coreapitesting.TestResourceGroupName {
+			t.Errorf("ResourceGroup = %q, want %q (from ExternalID)", md.ResourceGroup, coreapitesting.TestResourceGroupName)
+		}
+		if md.ClusterResourceID != externalID.String() {
+			t.Errorf("ClusterResourceID = %q, want %q (from ExternalID)", md.ClusterResourceID, externalID.String())
+		}
+		// The snapshot still identifies the operation document itself, not the external target.
+		if md.ResourceID != operationOwnID.String() {
+			t.Errorf("ResourceID = %q, want operation own ID %q", md.ResourceID, operationOwnID.String())
+		}
+	})
+
+	t.Run("nil ExternalID leaves resourceGroup and cluster empty", func(t *testing.T) {
+		op := &coreapi.Operation{}
+		op.ResourceID = operationOwnID
+
+		md := ObjectMetadataForOperation(op)
+
+		if md.ResourceGroup != "" {
+			t.Errorf("ResourceGroup = %q, want empty when ExternalID is nil", md.ResourceGroup)
+		}
+		if md.ClusterResourceID != "" {
+			t.Errorf("ClusterResourceID = %q, want empty when ExternalID is nil", md.ClusterResourceID)
+		}
+	})
+}
+
 func TestObjectMetadataForTypedDocument(t *testing.T) {
 	clusterID := metadataapi.Must(azcorearm.ParseResourceID(coreapitesting.TestClusterResourceID))
 

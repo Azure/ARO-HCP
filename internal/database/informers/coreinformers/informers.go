@@ -70,6 +70,7 @@ func NewSubscriptionInformerWithRelistDuration(lister cosmosstorageutils.GlobalL
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -147,6 +148,7 @@ func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -177,6 +179,7 @@ func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalListe
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -208,6 +211,7 @@ func NewExternalAuthInformerWithRelistDuration(lister cosmosstorageutils.GlobalL
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -239,6 +243,7 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister cosmosstorageuti
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -319,6 +324,7 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister cosmosstorageut
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -349,6 +355,7 @@ func NewSystemAdminCredentialRequestInformerWithRelistDuration(lister cosmosstor
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -379,6 +386,7 @@ func NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister cosmoss
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -417,6 +425,7 @@ func NewControllerInformerWithRelistDuration(lister cosmosstorageutils.GlobalLis
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -452,6 +461,7 @@ func NewOperationInformerWithRelistDuration(lister cosmosstorageutils.GlobalList
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -481,6 +491,7 @@ func NewActiveOperationInformerWithRelistDuration(lister cosmosstorageutils.Glob
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	).WithShouldDeliverItemFn(func(obj *coreapi.Operation) bool {
 		return !obj.Status.IsTerminal()
 	})

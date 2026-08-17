@@ -377,6 +377,7 @@ func newChangeFeedTestEnv(t *testing.T, withMock bool) *changefeedTestEnv {
 		resourcesDBClient.ResourcesGlobalListers().Clusters(),
 		resourcesDBClient,
 		30*time.Minute,
+		"resources",
 	)
 
 	return &changefeedTestEnv{
