@@ -334,6 +334,28 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "private KAS with Swift networking - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				// VnetIntegrationSubnetID is already set by createValidCluster
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "private KAS without Swift networking (nil vnetIntegrationSubnetId) - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "required when customerProperties.api.visibility is Private", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+			},
+		},
+		{
 			name: "missing subnet ID - create",
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
