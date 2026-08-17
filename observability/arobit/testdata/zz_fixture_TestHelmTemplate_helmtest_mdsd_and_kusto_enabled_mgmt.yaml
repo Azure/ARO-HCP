@@ -214,6 +214,7 @@ data:
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs false
         Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs false
         Rule            $kubernetes['container_name'] ^fleet-controller* fleet-controller.logs false
+        Rule            $kubernetes['container_name'] ^kube-applier* kube-applier.logs false
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs false
         Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Emitter_Name    re_emitted_container_name_router
@@ -223,7 +224,7 @@ data:
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller|mgmt-agent)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller|kube-applier|mgmt-agent)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
@@ -509,6 +510,31 @@ data:
         Table_Name fleetLogs
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key fleetLogs
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+    [OUTPUT]
+        Match kube-applier.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name kubeApplierLogs
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key kubeApplierLogs
         buffer_dir "/var/kusto"
         buffering_enabled           true 
         upload_timeout              1m
@@ -816,7 +842,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: f0311b4f9da7294ac2ee43d8778c426af65296e434d332622aa97a93b362c130
+        checksum/configmap: d614b8b281ec0724817c49a74c03810d573856fafad32fbd2391c18155baee48
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

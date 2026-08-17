@@ -1,4 +1,4 @@
-.create-merge table backendLogs (
+.create-merge table kubeApplierLogs (
   timestamp: datetime,
   log: dynamic,
   environment: string,
@@ -30,7 +30,7 @@
   container_status_image_id: string  // fluentbit: kubernetes.container_hash (k8s status.containerStatuses.imageID)
 )
 
-.create-or-alter table backendLogs ingestion json mapping 'ingestionMapping'
+.create-or-alter table kubeApplierLogs ingestion json mapping 'ingestionMapping'
 ```
 [
   {"column":"log","Properties":{"path":"$.log.log"}},
