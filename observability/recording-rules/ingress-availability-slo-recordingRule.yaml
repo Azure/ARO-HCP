@@ -29,9 +29,13 @@ spec:
   # Note: subscription_id and resource_id are NOT present on this metric.
   # by(_id, cluster) preserves per-HCP identity and regional management cluster context.
   #
-  # TODO: ingress_canary_check_duration is exposed as a histogram (_bucket/_count/_sum)
-  # in production AMW. Evaluate threshold-based Latency SLI from those series.
-  # TODO: handle no-data case when all canary pods are missing.
+  # TODO: ingress_canary_check_duration confirmed in production AMW as histogram
+  # (_bucket/_count/_sum) with same label set (_id, cluster, host, le, etc.).
+  # Evaluate threshold-based Latency SLI from those series (follow-up story).
+  #
+  # No-data behavior: when all canary series disappear, sum/count returns empty
+  # (no series), consistent with kube-apiserver SLI pattern. A separate absent()
+  # alert should detect canary liveness (follow-up in ARO-25969).
   - name: arohcp_ingress_availability_slo_recording_rules
     interval: 1m
     rules:

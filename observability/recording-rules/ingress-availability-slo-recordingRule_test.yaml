@@ -96,3 +96,18 @@ tests:
       value: 0
     - labels: 'errors:ingress_canary:error_rate{_id="ggg", cluster="mgmt-1"}'
       value: 0.6666666666666667
+# ========================================
+# Test 5: No data — all canary series missing, no SLI output
+# ========================================
+# When no ingress_canary_route_reachable series exist for a cluster,
+# the recording rules should produce no output (empty result set),
+# consistent with the kube-apiserver SLI pattern.
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples: []
+  - expr: errors:ingress_canary:error_rate
+    eval_time: 5m
+    exp_samples: []
