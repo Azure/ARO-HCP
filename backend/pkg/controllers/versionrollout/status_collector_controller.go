@@ -17,11 +17,16 @@ package versionrollout
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -41,8 +46,7 @@ type statusCollectorSyncer struct {
 	config                       RolloutConfig
 }
 
-// NewStatusCollectorSyncer constructs the syncer. Wiring it into a fleet watching
-// controller is deferred; see the implementation plan.
+// NewStatusCollectorSyncer constructs the syncer directly (used by tests).
 func NewStatusCollectorSyncer(rolloutLister RolloutLister, rolloutWriter RolloutWriter, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, ageSource VersionAgeSource, config RolloutConfig) *statusCollectorSyncer {
 	return &statusCollectorSyncer{
 		rolloutLister:                rolloutLister,
@@ -52,6 +56,26 @@ func NewStatusCollectorSyncer(rolloutLister RolloutLister, rolloutWriter Rollout
 		ageSource:                    ageSource,
 		config:                       config,
 	}
+}
+
+// NewStatusCollectorController wires the syncer into a rollout watching controller.
+func NewStatusCollectorController(fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, ageSource VersionAgeSource, config RolloutConfig) controllerutils.Controller {
+	_, rolloutLister := fleetInformers.ControlPlaneVersionRollouts()
+	syncer := &statusCollectorSyncer{
+		rolloutLister:                rolloutLister,
+		rolloutWriter:                NewFleetRolloutWriter(fleetDBClient),
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		clusterLister:                clusterLister,
+		ageSource:                    ageSource,
+		config:                       config,
+	}
+	return controllerutils.NewControlPlaneVersionRolloutWatchingController(
+		StatusCollectorControllerName, fleetInformers, 5*time.Minute, syncer)
+}
+
+// CooldownChecker returns nil: the resync interval drives periodic recomputation.
+func (c *statusCollectorSyncer) CooldownChecker() controllerutil.CooldownChecker {
+	return nil
 }
 
 // rolloutCounts holds the aggregated per-exact-version cluster counts. Every map
@@ -110,7 +134,7 @@ func computeRolloutStatusCounts(spcs []*coreapi.ServiceProviderCluster, config R
 }
 
 // SyncOnce recomputes the status counts for one rollout channel.
-func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key RolloutKey) error {
+func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) error {
 	rollout, err := c.rolloutLister.Get(ctx, key.YStreamChannel)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
@@ -137,7 +161,7 @@ func (c *statusCollectorSyncer) SyncOnce(ctx context.Context, key RolloutKey) er
 		return nil
 	}
 
-	if _, err := c.rolloutWriter.Replace(ctx, replacement); cosmosstorageutils.IsPreconditionFailedError(err) {
+	if _, err := c.rolloutWriter.Replace(ctx, replacement, rollout); cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))

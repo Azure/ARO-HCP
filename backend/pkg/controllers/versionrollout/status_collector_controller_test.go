@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
@@ -112,7 +113,7 @@ func TestStatusCollectorSyncer_SyncOnce(t *testing.T) {
 		NewDefaultRolloutConfig(),
 	)
 
-	require.NoError(t, syncer.SyncOnce(ctx, RolloutKey{YStreamChannel: channel}))
+	require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
 
 	got, err := store.Get(ctx, channel)
 	require.NoError(t, err)

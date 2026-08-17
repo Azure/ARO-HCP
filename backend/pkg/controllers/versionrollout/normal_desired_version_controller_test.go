@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
@@ -201,7 +202,7 @@ func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
 		NewDefaultRolloutConfig(),
 	)
 
-	require.NoError(t, syncer.SyncOnce(ctx, RolloutKey{YStreamChannel: channel}))
+	require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
 
 	atBest := 0
 	for _, name := range []string{"c1", "c2", "c3", "c4"} {
