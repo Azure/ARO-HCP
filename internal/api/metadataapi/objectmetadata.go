@@ -27,6 +27,9 @@ type ObjectMetadata struct {
 	ResourceType    string `json:"resourceType"`
 	ResourceName    string `json:"resourceName"`
 	ResourceID      string `json:"resourceID"`
+	// ClusterResourceID is the full resource ID of the logical parent HCP cluster.
+	// It is empty when the resource is not part of an HCP cluster.
+	ClusterResourceID string `json:"clusterResourceID"`
 }
 
 // ObjectMetadataForResourceID builds ObjectMetadata from an ARM resource ID.
@@ -35,11 +38,12 @@ func ObjectMetadataForResourceID(container string, resourceID *azcorearm.Resourc
 		return ObjectMetadata{CosmosContainer: container}
 	}
 	return ObjectMetadata{
-		CosmosContainer: container,
-		SubscriptionID:  resourceID.SubscriptionID,
-		ResourceGroup:   resourceID.ResourceGroupName,
-		ResourceType:    resourceID.ResourceType.String(),
-		ResourceName:    resourceID.Name,
-		ResourceID:      resourceID.String(),
+		CosmosContainer:   container,
+		SubscriptionID:    resourceID.SubscriptionID,
+		ResourceGroup:     resourceID.ResourceGroupName,
+		ResourceType:      resourceID.ResourceType.String(),
+		ResourceName:      resourceID.Name,
+		ResourceID:        resourceID.String(),
+		ClusterResourceID: ClusterNameFromResourceID(resourceID),
 	}
 }

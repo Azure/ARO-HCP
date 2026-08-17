@@ -52,6 +52,25 @@ func TestClusterNameFromResourceID(t *testing.T) {
 	}
 }
 
+func TestObjectMetadataForResourceID_FillsClusterResourceID(t *testing.T) {
+	clusterID := Must(azcorearm.ParseResourceID(testClusterResourceID))
+	nodePoolID := Must(azcorearm.ParseResourceID(testNodePoolResourceID))
+	resourceGroupID := Must(azcorearm.ParseResourceID(testResourceGroupID))
+
+	if md := ObjectMetadataForResourceID("resources", clusterID); md.ClusterResourceID != clusterID.String() {
+		t.Errorf("cluster: ClusterResourceID = %q, want %q", md.ClusterResourceID, clusterID.String())
+	}
+	if md := ObjectMetadataForResourceID("resources", nodePoolID); md.ClusterResourceID != clusterID.String() {
+		t.Errorf("node pool: ClusterResourceID = %q, want %q (the enclosing cluster)", md.ClusterResourceID, clusterID.String())
+	}
+	if md := ObjectMetadataForResourceID("resources", resourceGroupID); md.ClusterResourceID != "" {
+		t.Errorf("resource group: ClusterResourceID = %q, want empty", md.ClusterResourceID)
+	}
+	if md := ObjectMetadataForResourceID("resources", nil); md.ClusterResourceID != "" {
+		t.Errorf("nil: ClusterResourceID = %q, want empty", md.ClusterResourceID)
+	}
+}
+
 func TestResourceTypeEquality(t *testing.T) {
 	clusterType := Must(azcorearm.ParseResourceID(testClusterResourceID)).ResourceType
 

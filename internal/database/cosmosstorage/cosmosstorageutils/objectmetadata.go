@@ -15,6 +15,7 @@
 package cosmosstorageutils
 
 import (
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
@@ -27,5 +28,22 @@ func ObjectMetadataForTypedDocument(container string, doc *TypedDocument) metada
 	}
 	metadata := metadataapi.ObjectMetadataForResourceID(container, doc.ResourceID)
 	metadata.ResourceType = doc.ResourceType
+	return metadata
+}
+
+// ObjectMetadataForOperation builds ObjectMetadata for an operation document. An operation's own
+// ResourceID is subscription/location-scoped and carries neither a resource group nor an HCP
+// cluster, so the resourceGroup and clusterResourceID are filled from the operation's ExternalID
+// (the targeted cluster or node pool) when present. This keeps operation snapshots queryable by
+// resource group and cluster like every other cosmosResourceSnapshots row.
+func ObjectMetadataForOperation(operation *coreapi.Operation) metadataapi.ObjectMetadata {
+	if operation == nil {
+		return metadataapi.ObjectMetadata{CosmosContainer: "resources"}
+	}
+	metadata := metadataapi.ObjectMetadataForResourceID("resources", operation.ResourceID)
+	if operation.ExternalID != nil {
+		metadata.ResourceGroup = operation.ExternalID.ResourceGroupName
+		metadata.ClusterResourceID = metadataapi.ClusterNameFromResourceID(operation.ExternalID)
+	}
 	return metadata
 }

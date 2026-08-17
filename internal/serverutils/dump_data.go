@@ -111,10 +111,16 @@ func DumpDataToLogger(
 			IncludeTerminal:        true,
 		})
 	for _, operation := range operationIter.Items(ctx) {
-		logger.Info(fmt.Sprintf("dumping resourceID %v", operation.ResourceID),
+		// An operation's own ResourceID is subscription/location-scoped, so derive the HCP
+		// cluster name from its ExternalID (the targeted cluster/node pool) when possible.
+		opLogger := logger
+		if hcpClusterName := metadataapi.ClusterNameFromResourceID(operation.ExternalID); hcpClusterName != "" {
+			opLogger = logger.WithValues(utils.LogValues{}.AddHCPClusterName(hcpClusterName)...)
+		}
+		opLogger.Info(fmt.Sprintf("dumping resourceID %v", operation.ResourceID),
 			"snapshotType", "cosmos",
 			"currentResourceID", resourceIDToString(operation.ResourceID),
-			"objectMetadata", metadataapi.ObjectMetadataForResourceID("operations", operation.ResourceID),
+			"objectMetadata", cosmosstorageutils.ObjectMetadataForOperation(operation),
 			"content", operation,
 		)
 	}

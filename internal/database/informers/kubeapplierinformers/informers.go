@@ -66,6 +66,7 @@ func NewApplyDesireInformerWithRelistDuration(
 		lister,
 		changeFeedClient,
 		relistDuration,
+		"kubeApplier",
 	)
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
@@ -101,6 +102,7 @@ func NewReadDesireInformerWithRelistDuration(
 		lister,
 		changeFeedClient,
 		relistDuration,
+		"kubeApplier",
 	)
 	return cache.NewSharedIndexInformerWithOptions(
 		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
