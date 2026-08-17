@@ -80,4 +80,51 @@ var _ = Describe("Fleet", func() {
 			}, 15*time.Minute, 30*time.Second).Should(Succeed(), "fleet registration did not complete in time")
 		},
 	)
+
+	It("should have scheduling data for ready management clusters",
+		labels.RequireNothing,
+		labels.Medium,
+		labels.Positive,
+		labels.CoreInfraService,
+		labels.DevelopmentOnly,
+		labels.AroRpApiCompatible,
+		labels.MIContainers(0),
+		func(ctx context.Context) {
+			tc := framework.NewTestContext()
+
+			By("resolving current Azure identity")
+			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to get current Azure identity details")
+
+			By("waiting for scheduling documents to be populated")
+			Eventually(func(g Gomega) {
+				stamps, err := tc.ListStamps(ctx, currentIdentity)
+				g.Expect(err).NotTo(HaveOccurred(), "failed to list stamps")
+				g.Expect(stamps).NotTo(BeEmpty(), "no stamps found")
+
+				for _, s := range stamps {
+					stampResourceID, err := azcorearm.ParseResourceID(s.ResourceID)
+					g.Expect(err).NotTo(HaveOccurred(), "failed to parse stamp resource ID %q", s.ResourceID)
+					stampIdentifier := stampResourceID.Name
+
+					scheduling, err := tc.GetManagementClusterScheduling(ctx, stampIdentifier, fleetapi.ManagementClusterResourceName, currentIdentity)
+					g.Expect(err).NotTo(HaveOccurred(), "failed to get scheduling for stamp %s", stampIdentifier)
+
+					g.Expect(scheduling.Conditions).NotTo(BeEmpty(), "stamp %s scheduling must have conditions", stampIdentifier)
+					g.Expect(apimeta.IsStatusConditionTrue(scheduling.Conditions, fleetapi.ConditionTypeCapacityDataCurrent)).To(BeTrue(), "stamp %s CapacityDataCurrent condition must be True", stampIdentifier)
+					g.Expect(apimeta.IsStatusConditionTrue(scheduling.Conditions, fleetapi.ConditionTypeScalingDataCurrent)).To(BeTrue(), "stamp %s ScalingDataCurrent condition must be True", stampIdentifier)
+
+					g.Expect(scheduling.Capacity.Current).NotTo(BeEmpty(), "stamp %s scheduling must have current capacity", stampIdentifier)
+					g.Expect(scheduling.Capacity.Current.Cpu().IsZero()).To(BeFalse(), "stamp %s scheduling CPU capacity must be positive", stampIdentifier)
+
+					g.Expect(scheduling.Capacity.Requests).NotTo(BeEmpty(), "stamp %s scheduling must have requested resources", stampIdentifier)
+					g.Expect(scheduling.Capacity.Requests.Cpu().IsZero()).To(BeFalse(), "stamp %s scheduling requested CPU must be positive", stampIdentifier)
+
+					g.Expect(scheduling.Scaling.Max).NotTo(BeEmpty(), "stamp %s scheduling must have max scaling capacity", stampIdentifier)
+					g.Expect(scheduling.Scaling.Max.Cpu().IsZero()).To(BeFalse(), "stamp %s scheduling max CPU must be positive", stampIdentifier)
+					g.Expect(scheduling.Scaling.LastReportedAt).NotTo(BeNil(), "stamp %s scheduling must have scaling lastReportedAt", stampIdentifier)
+				}
+			}, 15*time.Minute, 30*time.Second).Should(Succeed(), "scheduling data was not populated in time")
+		},
+	)
 })

@@ -149,6 +149,8 @@ func NewAdminAPI(
 		errorutils.ReportError(stamphandlers.NewStampGetHandler(fleetDBClient).ServeHTTP))
 	middlewareMux.Handle("GET /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}",
 		errorutils.ReportError(stamphandlers.NewManagementClusterGetHandler(fleetDBClient).ServeHTTP))
+	middlewareMux.Handle("GET /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}/scheduling",
+		errorutils.ReportError(stamphandlers.NewManagementClusterSchedulingGetHandler(fleetDBClient).ServeHTTP))
 	middlewareMux.Handle("POST /admin/v1/stamps/{stampIdentifier}/approval",
 		errorutils.ReportError(stamphandlers.NewStampApprovalHandler(fleetDBClient).ServeHTTP))
 

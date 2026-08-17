@@ -56,6 +56,7 @@ func NewMockFleetDBClient() *MockFleetDBClient {
 // it with the given resources. Supported types:
 //   - *fleetapi.Stamp
 //   - *fleetapi.ManagementCluster
+//   - *fleetapi.ManagementClusterScheduling
 func NewMockFleetDBClientWithResources(ctx context.Context, resources []any) (*MockFleetDBClient, error) {
 	mock := NewMockFleetDBClient()
 	for i, r := range resources {
@@ -72,6 +73,8 @@ func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error
 		return m.addStamp(ctx, r)
 	case *fleetapi.ManagementCluster:
 		return m.addManagementCluster(ctx, r)
+	case *fleetapi.ManagementClusterScheduling:
+		return m.addManagementClusterScheduling(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type for MockFleetDBClient: %T", resource)
 	}
@@ -94,6 +97,16 @@ func (m *MockFleetDBClient) addManagementCluster(ctx context.Context, mc *fleeta
 	}
 	crud := m.Stamps().ManagementClusters(stampIdentifier)
 	_, err := crud.Create(ctx, mc, nil)
+	return err
+}
+
+func (m *MockFleetDBClient) addManagementClusterScheduling(ctx context.Context, scheduling *fleetapi.ManagementClusterScheduling) error {
+	stampIdentifier := scheduling.PartitionKey
+	if len(stampIdentifier) == 0 {
+		return fmt.Errorf("management cluster scheduling has empty partition key")
+	}
+	crud := m.Stamps().ManagementClusters(stampIdentifier).Scheduling()
+	_, err := crud.Create(ctx, scheduling, nil)
 	return err
 }
 
