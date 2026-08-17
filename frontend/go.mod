@@ -128,7 +128,3 @@ require (
 )
 
 replace github.com/Azure/ARO-HCP/internal => ../internal
-
-replace github.com/Azure/ARO-HCP/test-integration => ../test-integration
-
-replace github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ../test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp

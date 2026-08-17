@@ -19,7 +19,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/istio"
+	"github.com/Azure/ARO-Tools/tools/istio-upgrade/pkg/istio"
 )
 
 type RawRunOptions struct {
@@ -83,7 +83,6 @@ func (o *RawRunOptions) ToUpgradeOptions() istio.UpgradeOptions {
 	opts := istio.DefaultUpgradeOptions()
 	opts.ResourceGroup = o.ResourceGroup
 	opts.ClusterName = o.ClusterName
-	opts.KubeconfigPath = o.KubeconfigPath
 	opts.Versions = o.Versions
 	opts.Tag = o.Tag
 	opts.IngressIPName = o.IngressIPName

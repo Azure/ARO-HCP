@@ -88,10 +88,30 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	// there several resourceIDs that must be verified with respect to this ID.  This is the only level of validation with access to both
 	errs = append(errs, validateResourceIDsAgainstClusterID(ctx, op, newCluster, oldCluster)...)
 
+	// Private KAS requires vnetIntegrationSubnetId to be set.
+	// For API versions v20251223preview and later, vnetIntegrationSubnetId is already
+	// enforced as required during conversion, so this check only has practical effect
+	// for v20240610preview.
+	errs = append(errs, validatePrivateKASRequiresVNetIntegrationSubnetID(ctx, op, newCluster, oldCluster)...)
+
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
 
 	RewriteValidationFieldPaths(errs, validationPathMapper)
+
+	return errs
+}
+
+func validatePrivateKASRequiresVNetIntegrationSubnetID(_ context.Context, _ operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {
+	errs := field.ErrorList{}
+
+	if newCluster.CustomerProperties.API.Visibility == metadataapi.VisibilityPrivate &&
+		newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID == nil {
+		errs = append(errs, field.Required(
+			field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId"),
+			"required when customerProperties.api.visibility is Private",
+		))
+	}
 
 	return errs
 }
