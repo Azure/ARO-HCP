@@ -527,9 +527,16 @@ defaults:
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
+    # Consumed by the IstioUpgrade pipeline step (svc-pipeline.yaml, action:
+    # IstioUpgrade) via config path svc.istio.versions — not read by bicep,
+    # because passing revisions through ARM would overwrite upgrades the
+    # pipeline step had already applied.
+    # istioctlVersion and targetVersion will be removed in a future cleanup.
     istio:
       istioctlVersion: 1.30.3 # 1.30.3 (2026-07-16 16:50)
       tag: "prod-stable"
+      targetVersion: "asm-1-29"
+      versions: "asm-1-29"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
     opsIngress:
@@ -1340,9 +1347,6 @@ clouds:
           - '*.hcpsvc.osadev.cloud'
         nsp:
           accessMode: 'Learning'
-        istio:
-          targetVersion: "asm-1-28"
-          versions: "asm-1-28"
         aks:
           etcd:
             softDelete: false

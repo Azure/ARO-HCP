@@ -18,7 +18,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/istio"
+	"github.com/Azure/ARO-Tools/tools/istio-upgrade/pkg/istio"
 )
 
 func NewCommand() (*cobra.Command, error) {
