@@ -17,6 +17,7 @@ package versionrollout
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/blang/semver/v4"
 
@@ -24,10 +25,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -62,8 +67,7 @@ type normalClusterDesiredVersionSyncer struct {
 	config                       RolloutConfig
 }
 
-// NewNormalClusterDesiredVersionSyncer constructs the syncer. Wiring it into a
-// fleet watching controller (interval-driven) is deferred; see the plan.
+// NewNormalClusterDesiredVersionSyncer constructs the syncer directly (used by tests).
 func NewNormalClusterDesiredVersionSyncer(resourcesDBClient corecosmosstorage.ResourcesDBClient, rolloutLister RolloutLister, rolloutWriter RolloutWriter, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, selector ClusterSelector, config RolloutConfig) *normalClusterDesiredVersionSyncer {
 	return &normalClusterDesiredVersionSyncer{
 		resourcesDBClient:            resourcesDBClient,
@@ -74,6 +78,31 @@ func NewNormalClusterDesiredVersionSyncer(resourcesDBClient corecosmosstorage.Re
 		selector:                     selector,
 		config:                       config,
 	}
+}
+
+// NewNormalClusterDesiredVersionController wires the syncer into a rollout
+// watching controller. selector defaults to RandomClusterSelector when nil.
+func NewNormalClusterDesiredVersionController(resourcesDBClient corecosmosstorage.ResourcesDBClient, fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, selector ClusterSelector, config RolloutConfig) controllerutils.Controller {
+	if selector == nil {
+		selector = RandomClusterSelector{}
+	}
+	_, rolloutLister := fleetInformers.ControlPlaneVersionRollouts()
+	syncer := &normalClusterDesiredVersionSyncer{
+		resourcesDBClient:            resourcesDBClient,
+		rolloutLister:                rolloutLister,
+		rolloutWriter:                NewFleetRolloutWriter(fleetDBClient),
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		clusterLister:                clusterLister,
+		selector:                     selector,
+		config:                       config,
+	}
+	return controllerutils.NewControlPlaneVersionRolloutWatchingController(
+		NormalClusterDesiredVersionControllerName, fleetInformers, 5*time.Minute, syncer)
+}
+
+// CooldownChecker returns nil: the resync interval drives periodic rollout steps.
+func (c *normalClusterDesiredVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
+	return nil
 }
 
 // eligibleClusters returns the clusters that may be advanced to best now: those
@@ -187,7 +216,7 @@ func clampSelect(need int64, eligibleCount int) int {
 
 // SyncOnce advances clusters for one rollout channel and records the rollout
 // condition.
-func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key RolloutKey) error {
+func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) error {
 	rollout, err := c.rolloutLister.Get(ctx, key.YStreamChannel)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
@@ -269,7 +298,7 @@ func (c *normalClusterDesiredVersionSyncer) recordCondition(ctx context.Context,
 	if equality.Semantic.DeepEqual(rollout.Status.Conditions, replacement.Status.Conditions) {
 		return nil
 	}
-	if _, err := c.rolloutWriter.Replace(ctx, replacement); cosmosstorageutils.IsPreconditionFailedError(err) {
+	if _, err := c.rolloutWriter.Replace(ctx, replacement, rollout); cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("failed to replace ControlPlaneVersionRollout %q: %w", rollout.GetStampIdentifier(), err)

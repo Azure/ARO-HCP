@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
 
@@ -67,7 +68,7 @@ func TestBestVersionSelectionSyncer_SyncOnce(t *testing.T) {
 		cfg.MinimumVersions[channel] = *v("4.21.2")
 
 		syncer := NewBestVersionSelectionSyncer(store, store, fakeBestVersionSelector{best: v("4.21.6")}, cfg)
-		require.NoError(t, syncer.SyncOnce(ctx, RolloutKey{YStreamChannel: channel}))
+		require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
 
 		got, err := store.Get(ctx, channel)
 		require.NoError(t, err)
@@ -83,7 +84,7 @@ func TestBestVersionSelectionSyncer_SyncOnce(t *testing.T) {
 		cfg.MinimumVersions[channel] = *v("4.21.6")
 
 		syncer := NewBestVersionSelectionSyncer(store, store, fakeBestVersionSelector{best: v("4.21.4")}, cfg)
-		require.NoError(t, syncer.SyncOnce(ctx, RolloutKey{YStreamChannel: channel}))
+		require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
 
 		got, err := store.Get(ctx, channel)
 		require.NoError(t, err)
@@ -98,7 +99,7 @@ func TestBestVersionSelectionSyncer_SyncOnce(t *testing.T) {
 		cfg := NewDefaultRolloutConfig()
 
 		syncer := NewBestVersionSelectionSyncer(store, store, fakeBestVersionSelector{best: v("4.21.6")}, cfg)
-		require.NoError(t, syncer.SyncOnce(ctx, RolloutKey{YStreamChannel: channel}))
+		require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
 		assert.Equal(t, 0, store.replaces, "expected no write when best is unchanged")
 	})
 
@@ -109,7 +110,7 @@ func TestBestVersionSelectionSyncer_SyncOnce(t *testing.T) {
 		cfg := NewDefaultRolloutConfig()
 
 		syncer := NewBestVersionSelectionSyncer(store, store, fakeBestVersionSelector{best: nil}, cfg)
-		require.NoError(t, syncer.SyncOnce(ctx, RolloutKey{YStreamChannel: channel}))
+		require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
 		assert.Equal(t, 0, store.replaces)
 	})
 
@@ -118,7 +119,7 @@ func TestBestVersionSelectionSyncer_SyncOnce(t *testing.T) {
 		ctx := context.Background()
 		store := newFakeRolloutStore()
 		syncer := NewBestVersionSelectionSyncer(store, store, fakeBestVersionSelector{best: v("4.21.6")}, NewDefaultRolloutConfig())
-		require.NoError(t, syncer.SyncOnce(ctx, RolloutKey{YStreamChannel: channel}))
+		require.NoError(t, syncer.SyncOnce(ctx, controllerutils.ControlPlaneVersionRolloutKey{YStreamChannel: channel}))
 		assert.Equal(t, 0, store.replaces)
 	})
 }

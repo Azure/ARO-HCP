@@ -75,6 +75,7 @@ import (
 	nodepoolupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/update"
 	nodepoolvalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/validation"
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/versionrollout"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
@@ -123,6 +124,8 @@ type BackendOptions struct {
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
 	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
+	EnableVersionRollout                                bool
+	VersionRolloutConfig                                versionrollout.RolloutConfig
 }
 
 const backendShutdownTimeout = 31 * time.Second
@@ -683,6 +686,49 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
+
+	// Fleet control-plane version rollout controllers. These take over ownership
+	// of ServiceProviderCluster desired version from ControlPlaneDesiredVersion
+	// when enabled, so ControlPlaneDesiredVersion is not run in that mode (see the
+	// OnStartedLeading run block below).
+	var (
+		bestVersionSelectionController      controllerutils.Controller
+		controlPlaneVersionStatusController controllerutils.Controller
+		normalDesiredVersionController      controllerutils.Controller
+		forcedDesiredVersionController      controllerutils.Controller
+	)
+	if b.options.EnableVersionRollout {
+		_, controlPlaneVersionRolloutLister := fleetInformers.ControlPlaneVersionRollouts()
+		bestVersionSelectionController = versionrollout.NewBestVersionSelectionController(
+			b.options.FleetDBClient,
+			fleetInformers,
+			versionrollout.NewCincinnatiBestVersionSelector(),
+			b.options.VersionRolloutConfig,
+		)
+		controlPlaneVersionStatusController = versionrollout.NewStatusCollectorController(
+			b.options.FleetDBClient,
+			fleetInformers,
+			serviceProviderClusterLister,
+			clusterLister,
+			versionrollout.NewInMemoryVersionAgeSource(b.clock),
+			b.options.VersionRolloutConfig,
+		)
+		normalDesiredVersionController = versionrollout.NewNormalClusterDesiredVersionController(
+			b.options.ResourcesDBClient,
+			b.options.FleetDBClient,
+			fleetInformers,
+			serviceProviderClusterLister,
+			clusterLister,
+			nil, // default random cluster selector
+			b.options.VersionRolloutConfig,
+		)
+		forcedDesiredVersionController = versionrollout.NewForcedClusterDesiredVersionController(
+			b.options.ResourcesDBClient,
+			backendInformers,
+			unionKubeApplierInformers,
+			controlPlaneVersionRolloutLister,
+		)
+	}
 	clusterBaseDomainPrefixSyncController := clusterproperties.NewClusterBaseDomainPrefixSyncController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -1096,7 +1142,17 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go orphanedBillingCleanupController.Run(ctx, 20)
 				go createBillingDocController.Run(ctx, 20)
 				go controlPlaneActiveVersionController.Run(ctx, 20)
-				go controlPlaneDesiredVersionController.Run(ctx, 20)
+				if b.options.EnableVersionRollout {
+					// The fleet rollout controllers own ServiceProviderCluster desired
+					// version; the per-cluster ControlPlaneDesiredVersion controller is
+					// intentionally not started to avoid both writing the same field.
+					go bestVersionSelectionController.Run(ctx, 20)
+					go controlPlaneVersionStatusController.Run(ctx, 20)
+					go normalDesiredVersionController.Run(ctx, 20)
+					go forcedDesiredVersionController.Run(ctx, 20)
+				} else {
+					go controlPlaneDesiredVersionController.Run(ctx, 20)
+				}
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
