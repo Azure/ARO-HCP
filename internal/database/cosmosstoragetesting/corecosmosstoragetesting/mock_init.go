@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // NewMockResourcesDBClientWithResources creates a new mockResourcesDBClient and populates it with the given resources.
@@ -175,12 +175,12 @@ func (m *MockResourcesDBClient) addController(ctx context.Context, controller *c
 	}
 	parentType := resourceID.Parent.ResourceType
 	switch {
-	case armhelpers.ResourceTypeEqual(parentType, coreapi.ClusterResourceType):
+	case metadataapi.ResourceTypeEqual(parentType, coreapi.ClusterResourceType):
 		clusterName := resourceID.Parent.Name
 		controllerCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Controllers(clusterName)
 		_, err := controllerCRUD.Create(ctx, controller, nil)
 		return err
-	case armhelpers.ResourceTypeEqual(parentType, coreapi.NodePoolResourceType):
+	case metadataapi.ResourceTypeEqual(parentType, coreapi.NodePoolResourceType):
 		if resourceID.Parent.Parent == nil {
 			return fmt.Errorf("nodepool controller is missing grandparent cluster ID")
 		}
@@ -189,7 +189,7 @@ func (m *MockResourcesDBClient) addController(ctx context.Context, controller *c
 		controllerCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(clusterName).Controllers(nodePoolName)
 		_, err := controllerCRUD.Create(ctx, controller, nil)
 		return err
-	case armhelpers.ResourceTypeEqual(parentType, coreapi.ExternalAuthResourceType):
+	case metadataapi.ResourceTypeEqual(parentType, coreapi.ExternalAuthResourceType):
 		if resourceID.Parent.Parent == nil {
 			return fmt.Errorf("externalauth controller is missing grandparent cluster ID")
 		}
@@ -198,7 +198,7 @@ func (m *MockResourcesDBClient) addController(ctx context.Context, controller *c
 		controllerCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(clusterName).Controllers(externalAuthName)
 		_, err := controllerCRUD.Create(ctx, controller, nil)
 		return err
-	case armhelpers.ResourceTypeEqual(parentType, coreapi.SystemAdminCredentialRequestResourceType):
+	case metadataapi.ResourceTypeEqual(parentType, coreapi.SystemAdminCredentialRequestResourceType):
 		if resourceID.Parent.Parent == nil {
 			return fmt.Errorf("system admin credential request controller is missing grandparent cluster ID")
 		}
@@ -207,7 +207,7 @@ func (m *MockResourcesDBClient) addController(ctx context.Context, controller *c
 		controllerCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).SystemAdminCredentialRequests(clusterName).Controllers(credentialName)
 		_, err := controllerCRUD.Create(ctx, controller, nil)
 		return err
-	case armhelpers.ResourceTypeEqual(parentType, coreapi.SystemAdminCredentialRevocationResourceType):
+	case metadataapi.ResourceTypeEqual(parentType, coreapi.SystemAdminCredentialRevocationResourceType):
 		if resourceID.Parent.Parent == nil {
 			return fmt.Errorf("system admin credential revocation controller is missing grandparent cluster ID")
 		}
@@ -258,12 +258,12 @@ func (m *MockResourcesDBClient) addManagementClusterContent(ctx context.Context,
 	}
 	parentType := resourceID.Parent.ResourceType
 	switch {
-	case armhelpers.ResourceTypeEqual(parentType, coreapi.ClusterResourceType):
+	case metadataapi.ResourceTypeEqual(parentType, coreapi.ClusterResourceType):
 		clusterName := resourceID.Parent.Name
 		mccCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ManagementClusterContents(clusterName)
 		_, err := mccCRUD.Create(ctx, mcc, nil)
 		return err
-	case armhelpers.ResourceTypeEqual(parentType, coreapi.NodePoolResourceType):
+	case metadataapi.ResourceTypeEqual(parentType, coreapi.NodePoolResourceType):
 		if resourceID.Parent.Parent == nil {
 			return fmt.Errorf("node pool management cluster content is missing grandparent cluster ID")
 		}

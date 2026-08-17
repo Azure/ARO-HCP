@@ -20,10 +20,10 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
-	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -78,7 +78,7 @@ func (c *subscriptionNonClusterDataDump) SyncOnce(ctx context.Context, key contr
 	logger.Info(fmt.Sprintf("dumping resourceID %v", key.GetResourceID()),
 		"snapshotType", "cosmos",
 		"currentResourceID", key.GetResourceID().String(),
-		"objectMetadata", serverutils.ObjectMetadataForResourceID("resources", key.GetResourceID()),
+		"objectMetadata", metadataapi.ObjectMetadataForResourceID("resources", key.GetResourceID()),
 		"content", subscription,
 	)
 

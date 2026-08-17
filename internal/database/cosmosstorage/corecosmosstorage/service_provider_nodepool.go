@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 // newInitialServiceProviderNodePool returns a new ServiceProviderNodePool with
@@ -50,7 +49,7 @@ func GetOrCreateServiceProviderNodePool(
 	ctx context.Context, dbClient ResourcesDBClient, nodePoolResourceID *azcorearm.ResourceID,
 	secondAttempt ...bool,
 ) (*coreapi.ServiceProviderNodePool, error) {
-	if !armhelpers.ResourceTypeEqual(nodePoolResourceID.ResourceType, coreapi.NodePoolResourceType) {
+	if !metadataapi.ResourceTypeEqual(nodePoolResourceID.ResourceType, coreapi.NodePoolResourceType) {
 		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", coreapi.NodePoolResourceType, nodePoolResourceID.ResourceType))
 	}
 
