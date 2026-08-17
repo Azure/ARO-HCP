@@ -3174,6 +3174,89 @@
         "alertRuleOwningTeamTag"
       ]
     },
+    "genevaHealthFunction": {
+      "type": "object",
+      "properties": {
+        "deploy": {
+          "type": "boolean",
+          "description": "Whether to deploy the Geneva Health Function App"
+        },
+        "monitoringAccount": {
+          "type": "string",
+          "description": "Geneva Health monitoring account name"
+        },
+        "healthEnvironment": {
+          "type": "string",
+          "description": "Geneva Health ExecutionEnvironment (Int, Prod, UsNat, UsSec)"
+        },
+        "functionAppName": {
+          "type": "string",
+          "description": "Name of the Azure Function App"
+        },
+        "storageAccountName": {
+          "type": "string",
+          "description": "Name of the Storage Account for Function App runtime"
+        },
+        "appServicePlanName": {
+          "type": "string",
+          "description": "Name of the App Service Plan"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "Name of the User-Assigned Managed Identity"
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "certificate": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "issuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            },
+            "manage": {
+              "type": "boolean"
+            },
+            "commonName": {
+              "type": "string"
+            },
+            "sanDnsNames": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "issuer",
+            "manage",
+            "commonName",
+            "sanDnsNames"
+          ]
+        },
+        "imageArtifact": {
+          "$ref": "#/definitions/imageArtifact"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "deploy",
+        "monitoringAccount",
+        "healthEnvironment",
+        "functionAppName",
+        "storageAccountName",
+        "appServicePlanName",
+        "managedIdentityName",
+        "image",
+        "certificate",
+        "imageArtifact"
+      ]
+    },
     "quotaizer": {
       "type": "object",
       "properties": {
@@ -3751,7 +3834,8 @@
     "keyVaultDNSSuffix",
     "acrDNSSuffix",
     "e2e",
-    "entraAppOwnerIds"
+    "entraAppOwnerIds",
+    "genevaHealthFunction"
   ],
   "x-cel-validations": [
     {
