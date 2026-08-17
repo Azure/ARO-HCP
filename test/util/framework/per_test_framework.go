@@ -268,6 +268,12 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
+	if subscriptionID, err := tc.SubscriptionID(ctx); err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to get subscription ID for role assignment cleanup")
+	} else if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to cleanup role assignments before resource group deletion")
+	}
+
 	opts := CleanupResourceGroupsOptions{
 		ResourceGroupNames: resourceGroupNames,
 		Timeout:            60 * time.Minute,
@@ -804,6 +810,11 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 			if !strings.Contains(strings.ToLower(*deleted.Properties.VaultID), rgMarker) {
 				continue
 			}
+			if keyVaultPurgeProtected(deleted.Properties) {
+				ginkgo.GinkgoLogr.Info("skipping purge of soft-deleted key vault with purge protection enabled",
+					"keyVault", *deleted.Name, "resourceGroup", resourceGroupName)
+				continue
+			}
 			ginkgo.GinkgoLogr.Info("purging soft-deleted key vault",
 				"keyVault", *deleted.Name, "location", *deleted.Properties.Location, "resourceGroup", resourceGroupName)
 			poller, err := vaultsClient.BeginPurgeDeleted(ctx, *deleted.Name, *deleted.Properties.Location, nil)
@@ -827,6 +838,12 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 			}
 		}
 	}
+}
+
+// keyVaultPurgeProtected reports whether a soft-deleted vault has purge
+// protection enabled, meaning the purge API will reject any purge attempt.
+func keyVaultPurgeProtected(props *armkeyvault.DeletedVaultProperties) bool {
+	return props != nil && props.PurgeProtectionEnabled != nil && *props.PurgeProtectionEnabled
 }
 
 // isKeyVaultNotFound reports whether err is an Azure 404 response, which for a
