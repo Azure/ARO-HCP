@@ -57,6 +57,8 @@ var db = {
 
 var databases = [db.serviceLogs, db.hostedControlPlaneLogs, db.monitoringEvents]
 
+var dummyScript = '.create-or-alter function with (docstring = \'dummy function to run last and to remove permission\') dummyFunction() {print \'dummy\'}'
+
 var allServiceLogsTablesKQL = {
   backendLogs: loadTextContent('tables/backendLogs.kql')
   kubeApplierLogs: loadTextContent('tables/kubeApplierLogs.kql')
@@ -199,12 +201,35 @@ module databaseUserScripts 'database-users.bicep' = [
   }
 ]
 
-// The KustoEntityGroups pipeline step (kustoctl) runs `.create-or-alter
-// entity_group` under the global rollout MSI, which requires Database Admin on
-// each target database. cluster.bicep grants that MSI AllDatabasesAdmin at
-// cluster scope (covering ServiceLogs, HostedControlPlaneLogs and
-// MonitoringEvents) so the sync succeeds on all three. Do not scope down to a
-// lesser role; Database Admin is the minimum for entity-group management.
+// Strip the auto-granted admin from the principal that deployed these scripts.
+// In AME the ARM deploy runs as the ev2 approver, so this prevents approvers
+// from accumulating standing admin on the Kusto databases. The table scripts
+// above use RetainPermissionOnScriptCompletion, so this dummy script must run
+// LAST to remove the retained permission.
+// This strip is database-scoped and only affects the deploying principal; it
+// does not touch the cluster-scoped AllDatabasesAdmin principalAssignment that
+// cluster.bicep grants the global rollout MSI, which is what lets the
+// KustoEntityGroups pipeline step (kustoctl) sync entity groups on all three
+// databases (including MonitoringEvents) after deployment.
+module removePermission 'script.bicep' = [
+  for (database, i) in databases: {
+    name: '${database}-removePermission-${i}'
+    params: {
+      kustoName: kustoName
+      databaseName: databases[i]
+      scriptName: 'removePermissionScript'
+      scriptContent: dummyScript
+      principalPermissionsAction: 'RemovePermissionOnScriptCompletion'
+      continueOnErrors: false
+    }
+    dependsOn: [
+      databaseUserScripts
+      serviceLogsTables
+      hostedControlPlaneLogsTables
+      monitoringEventsTables
+    ]
+  }
+]
 
 // Outputs mirror original contract
 output id string = cluster.outputs.id
