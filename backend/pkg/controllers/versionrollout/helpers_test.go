@@ -138,13 +138,13 @@ func (f *fakeRolloutStore) List(_ context.Context) ([]*fleetapi.ControlPlaneVers
 	return out, nil
 }
 
-func (f *fakeRolloutStore) Replace(_ context.Context, rollout *fleetapi.ControlPlaneVersionRollout) (*fleetapi.ControlPlaneVersionRollout, error) {
+func (f *fakeRolloutStore) Replace(_ context.Context, newRollout, _ *fleetapi.ControlPlaneVersionRollout) (*fleetapi.ControlPlaneVersionRollout, error) {
 	if f.replaceErr != nil {
 		return nil, f.replaceErr
 	}
 	f.replaces++
-	f.rollouts[rollout.GetStampIdentifier()] = rollout.DeepCopy()
-	return rollout, nil
+	f.rollouts[newRollout.GetStampIdentifier()] = newRollout.DeepCopy()
+	return newRollout, nil
 }
 
 // fakeAgeSource reports fixed mismatch/achieved ages keyed by cluster name.

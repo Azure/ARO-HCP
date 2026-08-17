@@ -17,10 +17,15 @@ package versionrollout
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/blang/semver/v4"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -38,9 +43,7 @@ type bestVersionSelectionSyncer struct {
 	config        RolloutConfig
 }
 
-// NewBestVersionSelectionSyncer constructs the syncer. Wiring it into a fleet
-// watching controller (keyed by rollout channel, on an interval) is deferred; see
-// the implementation plan.
+// NewBestVersionSelectionSyncer constructs the syncer directly (used by tests).
 func NewBestVersionSelectionSyncer(rolloutLister RolloutLister, rolloutWriter RolloutWriter, selector BestVersionSelector, config RolloutConfig) *bestVersionSelectionSyncer {
 	return &bestVersionSelectionSyncer{
 		rolloutLister: rolloutLister,
@@ -48,6 +51,25 @@ func NewBestVersionSelectionSyncer(rolloutLister RolloutLister, rolloutWriter Ro
 		selector:      selector,
 		config:        config,
 	}
+}
+
+// NewBestVersionSelectionController wires the syncer into a rollout watching
+// controller that re-selects the best version on the resync interval.
+func NewBestVersionSelectionController(fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, selector BestVersionSelector, config RolloutConfig) controllerutils.Controller {
+	_, rolloutLister := fleetInformers.ControlPlaneVersionRollouts()
+	syncer := &bestVersionSelectionSyncer{
+		rolloutLister: rolloutLister,
+		rolloutWriter: NewFleetRolloutWriter(fleetDBClient),
+		selector:      selector,
+		config:        config,
+	}
+	return controllerutils.NewControlPlaneVersionRolloutWatchingController(
+		BestVersionSelectionControllerName, fleetInformers, 5*time.Minute, syncer)
+}
+
+// CooldownChecker returns nil: the resync interval drives periodic reselection.
+func (c *bestVersionSelectionSyncer) CooldownChecker() controllerutil.CooldownChecker {
+	return nil
 }
 
 // selectBestExactVersion returns the fleet best exact version: the greater of the
@@ -58,7 +80,7 @@ func selectBestExactVersion(graphBest, minimum *semver.Version) *semver.Version 
 }
 
 // SyncOnce recomputes Spec.BestExactVersion for one rollout channel.
-func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key RolloutKey) error {
+func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key controllerutils.ControlPlaneVersionRolloutKey) error {
 	rollout, err := c.rolloutLister.Get(ctx, key.YStreamChannel)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil
@@ -88,7 +110,7 @@ func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key RolloutKe
 	replacement := rollout.DeepCopy()
 	bestCopy := *best
 	replacement.Spec.BestExactVersion = &bestCopy
-	if _, err := c.rolloutWriter.Replace(ctx, replacement); cosmosstorageutils.IsPreconditionFailedError(err) {
+	if _, err := c.rolloutWriter.Replace(ctx, replacement, rollout); cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))

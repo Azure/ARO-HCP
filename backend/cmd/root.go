@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -32,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/versionrollout"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -68,6 +70,11 @@ type BackendRootCmdFlags struct {
 	AzureClusterScopedIdentitiesRoleSetName                                                       string
 	BackupScheduleCadence                                                                         string
 	BackupScheduleState                                                                           string
+	EnableVersionRollout                                                                          bool
+	VersionRolloutZStreamOffset                                                                   int
+	VersionRolloutCanaryPercentage                                                                int
+	VersionRolloutRollingPercentage                                                               int
+	VersionRolloutMinVersionReadyDuration                                                         time.Duration
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -204,6 +211,17 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.BackupScheduleState, "backup-schedule-state", f.BackupScheduleState,
 		fmt.Sprintf("Backup schedule state. Accepted values: %s, %s", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
 
+	cmd.Flags().BoolVar(&f.EnableVersionRollout, "enable-version-rollout", f.EnableVersionRollout,
+		"Enable the fleet control-plane version rollout controllers. When enabled they take over ownership of the ServiceProviderCluster desired version from the per-cluster ControlPlaneDesiredVersion controller.")
+	cmd.Flags().IntVar(&f.VersionRolloutZStreamOffset, "version-rollout-zstream-offset", f.VersionRolloutZStreamOffset,
+		"Number of z-streams behind the latest to select as the fleet best version.")
+	cmd.Flags().IntVar(&f.VersionRolloutCanaryPercentage, "version-rollout-canary-percentage", f.VersionRolloutCanaryPercentage,
+		"Percent of clusters to upgrade first as canaries.")
+	cmd.Flags().IntVar(&f.VersionRolloutRollingPercentage, "version-rollout-rolling-percentage", f.VersionRolloutRollingPercentage,
+		"Percent of clusters to upgrade at the same time during the rolling phase.")
+	cmd.Flags().DurationVar(&f.VersionRolloutMinVersionReadyDuration, "version-rollout-min-version-ready-duration", f.VersionRolloutMinVersionReadyDuration,
+		"Minimum time a control plane must hold the achieved version before it counts as successful.")
+
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
 
@@ -299,6 +317,18 @@ func (f *BackendRootCmdFlags) validate() error {
 
 	if f.BackupScheduleState != string(coreapi.BackupScheduleStateEnabled) && f.BackupScheduleState != string(coreapi.BackupScheduleStateDisabled) {
 		return utils.TrackError(fmt.Errorf("--backup-schedule-state must be '%s' or '%s'", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
+	}
+
+	if f.EnableVersionRollout {
+		if f.VersionRolloutZStreamOffset < 0 {
+			return utils.TrackError(fmt.Errorf("--version-rollout-zstream-offset must be >= 0"))
+		}
+		if f.VersionRolloutCanaryPercentage < 0 || f.VersionRolloutCanaryPercentage > 100 {
+			return utils.TrackError(fmt.Errorf("--version-rollout-canary-percentage must be between 0 and 100"))
+		}
+		if f.VersionRolloutRollingPercentage < 0 || f.VersionRolloutRollingPercentage > 100 {
+			return utils.TrackError(fmt.Errorf("--version-rollout-rolling-percentage must be between 0 and 100"))
+		}
 	}
 
 	return nil
@@ -468,6 +498,12 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		BackupScheduleState:  backupScheduleState,
 	}
 
+	rolloutConfig := versionrollout.NewDefaultRolloutConfig()
+	rolloutConfig.ZStreamOffset = f.VersionRolloutZStreamOffset
+	rolloutConfig.CanaryPercentage = f.VersionRolloutCanaryPercentage
+	rolloutConfig.RollingPercentage = f.VersionRolloutRollingPercentage
+	rolloutConfig.MinVersionReadyDuration = f.VersionRolloutMinVersionReadyDuration
+
 	backendOptions := &app.BackendOptions{
 		AppShortDescriptionName:            cmd.Short,
 		AppVersion:                         cmd.Version,
@@ -487,6 +523,8 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		BackendIdentityAzureCachedReaders:  backendIdentityAzureCachedReaders,
 		ExitOnPanic:                        f.ExitOnPanic,
 		BackupConfig:                       backupConfig,
+		EnableVersionRollout:               f.EnableVersionRollout,
+		VersionRolloutConfig:               rolloutConfig,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 		SMIClientBuilder:              smiClientBuilder,
@@ -518,6 +556,11 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		ExitOnPanic:                                     true,
 		BackupScheduleCadence:                           string(backups.BackupCadenceProduction),
 		BackupScheduleState:                             string(coreapi.BackupScheduleStateEnabled),
+		EnableVersionRollout:                            false,
+		VersionRolloutZStreamOffset:                     versionrollout.DefaultZStreamOffset,
+		VersionRolloutCanaryPercentage:                  versionrollout.DefaultCanaryPercentage,
+		VersionRolloutRollingPercentage:                 versionrollout.DefaultRollingPercentage,
+		VersionRolloutMinVersionReadyDuration:           time.Hour,
 	}
 
 	return flags
