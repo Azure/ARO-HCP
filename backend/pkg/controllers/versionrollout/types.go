@@ -37,23 +37,10 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
-	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
-
-// RolloutKey identifies a ControlPlaneVersionRollout by its y-stream channel
-// (e.g. "stable-4.21"), which is the rollout's top-level resource name. It
-// implements utils.LoggableKey.
-type RolloutKey struct {
-	YStreamChannel string
-}
-
-// AddLoggerValues seeds a logger with the rollout channel.
-func (k RolloutKey) AddLoggerValues(logger logr.Logger) logr.Logger {
-	return logger.WithValues("ystreamChannel", k.YStreamChannel)
-}
 
 // RolloutLister reads ControlPlaneVersionRollout objects. It is backed in
 // production by the fleet lister and in tests by an in-memory fake. Get returns a
@@ -63,11 +50,12 @@ type RolloutLister interface {
 	List(ctx context.Context) ([]*fleetapi.ControlPlaneVersionRollout, error)
 }
 
-// RolloutWriter persists ControlPlaneVersionRollout objects. Replace uses
-// optimistic concurrency (the object's CosmosETag); callers treat a
-// precondition failure as a benign no-op.
+// RolloutWriter persists ControlPlaneVersionRollout objects. Replace takes the
+// mutated (new) object and the object it was derived from (old, for update
+// validation), uses optimistic concurrency (the new object's CosmosETag), and
+// callers treat a precondition failure as a benign no-op.
 type RolloutWriter interface {
-	Replace(ctx context.Context, rollout *fleetapi.ControlPlaneVersionRollout) (*fleetapi.ControlPlaneVersionRollout, error)
+	Replace(ctx context.Context, newRollout, oldRollout *fleetapi.ControlPlaneVersionRollout) (*fleetapi.ControlPlaneVersionRollout, error)
 }
 
 // BestVersionSelector returns the upgrade-graph-selected best exact version for a
