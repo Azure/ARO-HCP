@@ -38,6 +38,7 @@ type FleetDBClient interface {
 	cosmosstorageutils.ChangeFeedClient
 	Stamps() StampsCRUD
 	HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements]
+	ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout]
 	GlobalListers() FleetGlobalListers
 }
 
@@ -60,6 +61,7 @@ type ManagementClustersCRUD interface {
 type FleetGlobalListers interface {
 	Stamps() cosmosstorageutils.GlobalLister[fleetapi.Stamp]
 	ManagementClusters() cosmosstorageutils.GlobalLister[fleetapi.ManagementCluster]
+	ControlPlaneVersionRollouts() cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout]
 }
 
 type cosmosFleetDBClient struct {
@@ -107,6 +109,16 @@ func (c *cosmosFleetDBClient) HCPResourceRequirements() cosmosstorageutils.Resou
 	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
 		c.container, nil, fleetapi.HCPResourceRequirementsResourceType,
 		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
+}
+
+func (c *cosmosFleetDBClient) ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout] {
+	inner := cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
+		c.container, nil, fleetapi.ControlPlaneVersionRolloutResourceType,
+		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
+	return cosmosstorageutils.NewValidatingCRUD(inner,
+		validation.ValidateControlPlaneVersionRolloutCreate,
+		validation.ValidateControlPlaneVersionRolloutUpdate,
+	)
 }
 
 func (c *cosmosFleetDBClient) GlobalListers() FleetGlobalListers {
@@ -179,5 +191,12 @@ func (g *cosmosFleetGlobalListers) ManagementClusters() cosmosstorageutils.Globa
 	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.ManagementCluster, cosmosstorageutils.GenericDocument[fleetapi.ManagementCluster]]{
 		ContainerClient: g.container,
 		ResourceTypes:   []azcorearm.ResourceType{fleetapi.ManagementClusterResourceType},
+	}
+}
+
+func (g *cosmosFleetGlobalListers) ControlPlaneVersionRollouts() cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout] {
+	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]]{
+		ContainerClient: g.container,
+		ResourceTypes:   []azcorearm.ResourceType{fleetapi.ControlPlaneVersionRolloutResourceType},
 	}
 }
