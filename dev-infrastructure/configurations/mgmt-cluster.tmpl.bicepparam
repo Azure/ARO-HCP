@@ -36,7 +36,7 @@ param infraOsDiskSizeGB = {{ .mgmt.aks.infraAgentPool.osDiskSizeGB }}
 param infraZoneRedundantMode = '{{ .mgmt.aks.infraAgentPool.zoneRedundantMode }}'
 param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
 param aksNetworkDataplane = '{{ .mgmt.aks.networkDataplane }}'
-param aksNetworkPolicy = '{{ .mgmt.aks.networkDataplane }}'
+param aksNetworkPolicy = '{{ .mgmt.aks.networkPolicy }}'
 param aksUpgradeSettingsMaxSurge = '{{ .mgmt.aks.upgradeSettings.maxSurge }}'
 param aksUpgradeSettingsMaxUnavailable = '{{ .mgmt.aks.upgradeSettings.maxUnavailable }}'
 

@@ -41,7 +41,7 @@ param infraOsDiskSizeGB = {{ .svc.aks.infraAgentPool.osDiskSizeGB }}
 param userOsDiskSizeGB = {{ .svc.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressIPTags }}'
 param aksNetworkDataplane = '{{ .svc.aks.networkDataplane }}'
-param aksNetworkPolicy = '{{ .svc.aks.networkDataplane }}'
+param aksNetworkPolicy = '{{ .svc.aks.networkPolicy }}'
 param aksUpgradeSettingsMaxSurge = '{{ .svc.aks.upgradeSettings.maxSurge }}'
 param aksUpgradeSettingsMaxUnavailable = '{{ .svc.aks.upgradeSettings.maxUnavailable }}'
 
