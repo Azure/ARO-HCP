@@ -55,3 +55,14 @@ var (
 	// SystemAdminCredentialRevocationScopedReadDesireResourceType is readDesires nested under a SystemAdminCredentialRevocation under a Cluster.
 	SystemAdminCredentialRevocationScopedReadDesireResourceType = nestedResourceType(coreapi.ClusterResourceTypeName, coreapi.SystemAdminCredentialRevocationResourceTypeName, ReadDesireResourceTypeName)
 )
+
+// ApplyDesireResourceTypeForParent derives the nested ApplyDesire resource type for
+// an arbitrary parent by appending the applyDesires leaf to the parent's own type.
+func ApplyDesireResourceTypeForParent(parent *azcorearm.ResourceID) azcorearm.ResourceType {
+	return nestedResourceType(parent.ResourceType.Type, ApplyDesireResourceTypeName)
+}
+
+// ReadDesireResourceTypeForParent is the ReadDesire parallel of ApplyDesireResourceTypeForParent.
+func ReadDesireResourceTypeForParent(parent *azcorearm.ResourceID) azcorearm.ResourceType {
+	return nestedResourceType(parent.ResourceType.Type, ReadDesireResourceTypeName)
+}

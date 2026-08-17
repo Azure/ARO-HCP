@@ -32,7 +32,6 @@ tenants:
   subscriptions:
 {{- range .subscriptions }}
     - name: "{{ .name }}"
-      roleAssignmentLimit: {{ .roleAssignmentLimit }}
       regions:
 {{- range .regions }}
         - "{{ . }}"

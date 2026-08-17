@@ -2,12 +2,11 @@ ARG PLATFORM
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
 COPY internal/go.mod internal/go.sum internal/
-COPY test-integration/go.mod test-integration/
 COPY frontend/go.mod frontend/go.sum frontend/
-COPY test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/go.mod test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/
 RUN cd frontend && go mod download
 WORKDIR /app
-COPY . .
+COPY internal/ internal/
+COPY --exclude=frontend/aro-hcp-frontend frontend/ frontend/
 ARG ARO_HCP_REVISION
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject

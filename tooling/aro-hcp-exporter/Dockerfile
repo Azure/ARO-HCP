@@ -3,10 +3,14 @@ ARG PLATFORM
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
 COPY hcpctl/go.mod hcpctl/go.sum hcpctl/
 COPY metricscache/go.mod metricscache/go.sum metricscache/
+COPY utilitytypes/go.mod utilitytypes/
 COPY aro-hcp-exporter/go.mod aro-hcp-exporter/go.sum aro-hcp-exporter/
 RUN cd aro-hcp-exporter && go mod download
 WORKDIR /app
-COPY . .
+COPY --exclude=hcpctl/hcpctl hcpctl/ hcpctl/
+COPY metricscache/ metricscache/
+COPY utilitytypes/ utilitytypes/
+COPY --exclude=aro-hcp-exporter/aro-hcp-exporter aro-hcp-exporter/ aro-hcp-exporter/
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject
 # non-FIPS algorithms. See https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips
