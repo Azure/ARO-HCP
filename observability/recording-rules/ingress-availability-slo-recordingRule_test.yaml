@@ -111,3 +111,69 @@ tests:
   - expr: errors:ingress_canary:error_rate
     eval_time: 5m
     exp_samples: []
+# ========================================
+# Test 6: All canary checks fast — latency ratio = 1, error rate = 0
+# ========================================
+# Histogram counters increase by 1 each minute (1 check/min).
+# All checks land in le="200" bucket (within 200ms threshold).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", host="node1.apps.aro.example.io", le="200"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", host="node1.apps.aro.example.io", le="+Inf"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", host="node2.apps.aro.example.io", le="200"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", host="node2.apps.aro.example.io", le="+Inf"}'
+    values: "0+1x10"
+  promql_expr_test:
+  - expr: latency:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:ingress_canary:ratio{_id="aaa", cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:ingress_canary_latency:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate{_id="aaa", cluster="mgmt-1"}'
+      value: 0
+# ========================================
+# Test 7: Half canary checks slow — latency ratio = 0.5, error rate = 0.5
+# ========================================
+# node1: all checks within 200ms (le="200" increments same as le="+Inf")
+# node2: all checks above 200ms (le="200" stays 0, le="+Inf" increments)
+- interval: 1m
+  input_series:
+  # node1: fast (within 200ms)
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", host="node1.apps.aro.example.io", le="200"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", host="node1.apps.aro.example.io", le="+Inf"}'
+    values: "0+1x10"
+  # node2: slow (above 200ms)
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", host="node2.apps.aro.example.io", le="200"}'
+    values: "0+0x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", host="node2.apps.aro.example.io", le="+Inf"}'
+    values: "0+1x10"
+  promql_expr_test:
+  - expr: latency:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:ingress_canary:ratio{_id="bbb", cluster="mgmt-1"}'
+      value: 0.5
+  - expr: errors:ingress_canary_latency:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate{_id="bbb", cluster="mgmt-1"}'
+      value: 0.5
+# ========================================
+# Test 8: No histogram data — latency SLI returns empty
+# ========================================
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: latency:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples: []
+  - expr: errors:ingress_canary_latency:error_rate
+    eval_time: 5m
+    exp_samples: []

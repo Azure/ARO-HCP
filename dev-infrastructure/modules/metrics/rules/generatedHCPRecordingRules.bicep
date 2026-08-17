@@ -263,3 +263,25 @@ resource arohcpIngressAvailabilitySloRecordingRules 'Microsoft.AlertsManagement/
     ]
   }
 }
+
+resource arohcpIngressLatencySloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_ingress_latency_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'latency:ingress_canary:ratio'
+        expression: 'sum by (_id, cluster) (rate(ingress_canary_check_duration_bucket{le="200"}[5m])) / sum by (_id, cluster) (rate(ingress_canary_check_duration_bucket{le="+Inf"}[5m]))'
+      }
+      {
+        record: 'errors:ingress_canary_latency:error_rate'
+        expression: '1 - latency:ingress_canary:ratio'
+      }
+    ]
+  }
+}
