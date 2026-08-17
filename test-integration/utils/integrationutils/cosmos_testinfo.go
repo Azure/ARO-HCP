@@ -35,13 +35,13 @@ import (
 
 	"github.com/Azure/ARO-HCP/frontend/cmd"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 type CosmosIntegrationTestInfo struct {
@@ -137,19 +137,19 @@ func LoadCosmosContent(ctx context.Context, cosmosContainer *azcosmos.ContainerC
 
 	var err error
 	switch {
-	case armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.OperationStatusResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ClusterResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.NodePoolResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ExternalAuthResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ClusterControllerResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.NodePoolControllerResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ExternalAuthControllerResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderClusterResourceType),
-		armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderNodePoolResourceType):
+	case metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.OperationStatusResourceType),
+		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ClusterResourceType),
+		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.NodePoolResourceType),
+		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ExternalAuthResourceType),
+		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ClusterControllerResourceType),
+		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.NodePoolControllerResourceType),
+		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ExternalAuthControllerResourceType),
+		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderClusterResourceType),
+		metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), coreapi.ServiceProviderNodePoolResourceType):
 		partitionKey := azcosmos.NewPartitionKeyString(contentMap["partitionKey"].(string))
 		_, err = cosmosContainer.CreateItem(ctx, partitionKey, content, nil)
 
-	case armhelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), azcorearm.SubscriptionResourceType):
+	case metadataapi.ResourceTypeStringEqual(contentMap["resourceType"].(string), azcorearm.SubscriptionResourceType):
 		partitionKey := azcosmos.NewPartitionKeyString(contentMap["partitionKey"].(string))
 		_, err = cosmosContainer.CreateItem(ctx, partitionKey, content, nil)
 
@@ -304,12 +304,12 @@ func saveContainerContent(ctx context.Context, documentLister DocumentLister, ou
 				armResourceID.Name+".json",
 			)
 
-		case armhelpers.ResourceTypeStringEqual(resourceType.(string), azcorearm.SubscriptionResourceType):
+		case metadataapi.ResourceTypeStringEqual(resourceType.(string), azcorearm.SubscriptionResourceType):
 			filename = filepath.Join(
 				"subscriptions",
 				fmt.Sprintf("subscription_%s.json", docMap["id"].(string)))
 
-		case armhelpers.ResourceTypeStringEqual(resourceType.(string), coreapi.OperationStatusResourceType):
+		case metadataapi.ResourceTypeStringEqual(resourceType.(string), coreapi.OperationStatusResourceType):
 			externalID := properties["externalId"].(string)
 			if clusterResourceID, _ := azcorearm.ParseResourceID(externalID); clusterResourceID != nil {
 				clusterDir := resourceIDToDir(clusterResourceID)

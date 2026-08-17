@@ -29,12 +29,12 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 const (
@@ -530,13 +530,13 @@ func selfOrDirectParentResourceID(resourceType azcorearm.ResourceType, resourceI
 	if resourceID == nil {
 		return nil, nil
 	}
-	if armhelpers.ResourceTypeEqual(resourceID.ResourceType, resourceType) {
+	if metadataapi.ResourceTypeEqual(resourceID.ResourceType, resourceType) {
 		return []string{strings.ToLower(resourceID.String())}, nil
 	}
 	if resourceID.Parent == nil {
 		return nil, nil
 	}
-	if armhelpers.ResourceTypeEqual(resourceID.Parent.ResourceType, resourceType) {
+	if metadataapi.ResourceTypeEqual(resourceID.Parent.ResourceType, resourceType) {
 		return []string{strings.ToLower(resourceID.Parent.String())}, nil
 	}
 	return nil, nil

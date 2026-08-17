@@ -23,7 +23,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // CloudError codes
@@ -246,12 +246,12 @@ func NewResourceNotFoundError(resourceID *azcorearm.ResourceID) *CloudError {
 	var message string
 
 	switch {
-	case armhelpers.ResourceTypeEqual(resourceID.ResourceType, azcorearm.SubscriptionResourceType):
+	case metadataapi.ResourceTypeEqual(resourceID.ResourceType, azcorearm.SubscriptionResourceType):
 		code = CloudErrorCodeSubscriptionNotFound
 		message = fmt.Sprintf(
 			"The subscription '%s' was not found.",
 			resourceID.SubscriptionID)
-	case armhelpers.ResourceTypeEqual(resourceID.ResourceType, azcorearm.ResourceGroupResourceType):
+	case metadataapi.ResourceTypeEqual(resourceID.ResourceType, azcorearm.ResourceGroupResourceType):
 		code = CloudErrorCodeResourceGroupNotFound
 		message = fmt.Sprintf(
 			"The resource group '%s' under subscription '%s' was not found.",

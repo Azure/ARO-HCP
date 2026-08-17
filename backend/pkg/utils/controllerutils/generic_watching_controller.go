@@ -31,9 +31,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 type GenericSyncer[T comparable] interface {
@@ -213,7 +213,7 @@ func (c *genericWatchingController[T]) EnqueueResourceIDAddWithMaxDepth(resource
 	if resourceID == nil {
 		return
 	}
-	if !armhelpers.ResourceTypeEqual(resourceID.ResourceType, c.resourceType) {
+	if !metadataapi.ResourceTypeEqual(resourceID.ResourceType, c.resourceType) {
 		if maxDepth == 0 {
 			return
 		}

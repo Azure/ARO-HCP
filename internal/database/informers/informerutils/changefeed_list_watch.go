@@ -38,7 +38,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 const feedRangePollInterval = 1 * time.Second
@@ -374,7 +373,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 	matchesDesiredType := false
 	for _, desiredResourceType := range c.desiredResourceTypes {
-		if armhelpers.ResourceTypeStringEqual(objAsTypedDocument.ResourceType, desiredResourceType) {
+		if metadataapi.ResourceTypeStringEqual(objAsTypedDocument.ResourceType, desiredResourceType) {
 			matchesDesiredType = true
 			break
 		}

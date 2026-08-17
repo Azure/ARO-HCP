@@ -43,7 +43,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers/kubeapplierinformers"
 	unionkubeapplier "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
@@ -336,9 +335,9 @@ func createApplyDesire(ctx context.Context, mockClient *kubeappliercosmosstorage
 	var applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire]
 	var err error
 	switch {
-	case armhelpers.ResourceTypeEqual(parentType, coreapi.ClusterResourceType):
+	case metadataapi.ResourceTypeEqual(parentType, coreapi.ClusterResourceType):
 		applyDesireCRUD, err = mockClient.ApplyDesiresForCluster(id.SubscriptionID, id.ResourceGroupName, id.Parent.Name)
-	case armhelpers.ResourceTypeEqual(parentType, coreapi.NodePoolResourceType):
+	case metadataapi.ResourceTypeEqual(parentType, coreapi.NodePoolResourceType):
 		applyDesireCRUD, err = mockClient.ApplyDesiresForNodePool(id.SubscriptionID, id.ResourceGroupName, id.Parent.Parent.Name, id.Parent.Name)
 	default:
 		return fmt.Errorf("unsupported *Desire parent resource type: %s", parentType)
