@@ -326,3 +326,10 @@ func (g *mockFleetGlobalListers) ManagementClusterSchedulings() cosmosstorageuti
 		[]azcorearm.ResourceType{fleetapi.ManagementClusterSchedulingResourceType},
 	)
 }
+
+func (g *mockFleetGlobalListers) ControlPlaneVersionRollouts() cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
+		g.client,
+		[]azcorearm.ResourceType{fleetapi.ControlPlaneVersionRolloutResourceType},
+	)
+}

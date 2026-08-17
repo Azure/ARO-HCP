@@ -61,6 +61,7 @@ type FleetGlobalListers interface {
 	Stamps() cosmosstorageutils.GlobalLister[fleetapi.Stamp]
 	ManagementClusters() cosmosstorageutils.GlobalLister[fleetapi.ManagementCluster]
 	ManagementClusterSchedulings() cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling]
+	ControlPlaneVersionRollouts() cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout]
 }
 
 type cosmosFleetDBClient struct {
@@ -187,5 +188,12 @@ func (g *cosmosFleetGlobalListers) ManagementClusterSchedulings() cosmosstorageu
 	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.ManagementClusterScheduling, cosmosstorageutils.GenericDocument[fleetapi.ManagementClusterScheduling]]{
 		ContainerClient: g.container,
 		ResourceTypes:   []azcorearm.ResourceType{fleetapi.ManagementClusterSchedulingResourceType},
+	}
+}
+
+func (g *cosmosFleetGlobalListers) ControlPlaneVersionRollouts() cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout] {
+	return &cosmosstorageutils.CosmosGlobalLister[fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]]{
+		ContainerClient: g.container,
+		ResourceTypes:   []azcorearm.ResourceType{fleetapi.ControlPlaneVersionRolloutResourceType},
 	}
 }
