@@ -17,17 +17,26 @@ package util
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"syscall"
 	"testing"
 	"time"
 )
 
-// mockPipeline records calls and returns preconfigured responses.
+// mockPipelineResult represents a single response or error from the pipeline.
+type mockPipelineResult struct {
+	resp *http.Response
+	err  error
+}
+
+// mockPipeline records calls and returns preconfigured results.
 type mockPipeline struct {
-	responses []*http.Response
+	responses []mockPipelineResult
 	callCount int
 }
 
@@ -35,9 +44,10 @@ func (m *mockPipeline) Next(req *http.Request, middlewareIndex int) (*http.Respo
 	idx := m.callCount
 	m.callCount++
 	if idx < len(m.responses) {
-		return m.responses[idx], nil
+		return m.responses[idx].resp, m.responses[idx].err
 	}
-	return m.responses[len(m.responses)-1], nil
+	last := m.responses[len(m.responses)-1]
+	return last.resp, last.err
 }
 
 func newResponse(statusCode int) *http.Response {
@@ -115,9 +125,9 @@ func TestRetriableStatusCodes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pipeline := &mockPipeline{
-				responses: []*http.Response{
-					newResponseWithRetryAfter(tt.statusCode, "0"),
-					newResponse(http.StatusOK),
+				responses: []mockPipelineResult{
+					{resp: newResponseWithRetryAfter(tt.statusCode, "0")},
+					{resp: newResponse(http.StatusOK)},
 				},
 			}
 
@@ -153,12 +163,12 @@ func TestRetriableStatusCodes(t *testing.T) {
 }
 
 func TestMaxRetries(t *testing.T) {
-	responses := make([]*http.Response, graphRetryMaxRetries+2)
-	for i := range responses {
-		responses[i] = newResponseWithRetryAfter(http.StatusTooManyRequests, "0")
+	results := make([]mockPipelineResult, graphRetryMaxRetries+2)
+	for i := range results {
+		results[i] = mockPipelineResult{resp: newResponseWithRetryAfter(http.StatusTooManyRequests, "0")}
 	}
 
-	pipeline := &mockPipeline{responses: responses}
+	pipeline := &mockPipeline{responses: results}
 	handler := newGraphRetryHandler()
 	req := newRequest(http.MethodGet)
 
@@ -179,9 +189,9 @@ func TestMaxRetries(t *testing.T) {
 
 func TestContextCancellation(t *testing.T) {
 	pipeline := &mockPipeline{
-		responses: []*http.Response{
-			newResponse(http.StatusTooManyRequests),
-			newResponse(http.StatusOK),
+		responses: []mockPipelineResult{
+			{resp: newResponse(http.StatusTooManyRequests)},
+			{resp: newResponse(http.StatusOK)},
 		},
 	}
 
@@ -206,9 +216,9 @@ func TestContextCancellation(t *testing.T) {
 
 func TestBodySeekedOnRetry(t *testing.T) {
 	pipeline := &mockPipeline{
-		responses: []*http.Response{
-			newResponseWithRetryAfter(http.StatusTooManyRequests, "0"),
-			newResponse(http.StatusOK),
+		responses: []mockPipelineResult{
+			{resp: newResponseWithRetryAfter(http.StatusTooManyRequests, "0")},
+			{resp: newResponse(http.StatusOK)},
 		},
 	}
 
@@ -250,7 +260,7 @@ func TestResponseBodyClosedOnRetry(t *testing.T) {
 	firstResp.Body = &trackingCloser{ReadCloser: firstResp.Body, closed: &closed}
 
 	pipeline := &mockPipeline{
-		responses: []*http.Response{firstResp, newResponse(http.StatusOK)},
+		responses: []mockPipelineResult{{resp: firstResp}, {resp: newResponse(http.StatusOK)}},
 	}
 
 	handler := newGraphRetryHandler()
@@ -270,10 +280,10 @@ func TestResponseBodyClosedOnRetry(t *testing.T) {
 
 func TestRetryAttemptHeader(t *testing.T) {
 	pipeline := &mockPipeline{
-		responses: []*http.Response{
-			newResponseWithRetryAfter(http.StatusTooManyRequests, "0"),
-			newResponseWithRetryAfter(http.StatusTooManyRequests, "0"),
-			newResponse(http.StatusOK),
+		responses: []mockPipelineResult{
+			{resp: newResponseWithRetryAfter(http.StatusTooManyRequests, "0")},
+			{resp: newResponseWithRetryAfter(http.StatusTooManyRequests, "0")},
+			{resp: newResponse(http.StatusOK)},
 		},
 	}
 
@@ -297,9 +307,9 @@ func TestRetryAttemptHeader(t *testing.T) {
 
 func TestRetryAfterHeaderSeconds(t *testing.T) {
 	pipeline := &mockPipeline{
-		responses: []*http.Response{
-			newResponseWithRetryAfter(http.StatusTooManyRequests, "1"),
-			newResponse(http.StatusOK),
+		responses: []mockPipelineResult{
+			{resp: newResponseWithRetryAfter(http.StatusTooManyRequests, "1")},
+			{resp: newResponse(http.StatusOK)},
 		},
 	}
 
@@ -326,83 +336,77 @@ func TestRetryAfterHeaderSeconds(t *testing.T) {
 	}
 }
 
-func TestBodiedRequestNotRetriableWithoutContentLength(t *testing.T) {
-	pipeline := &mockPipeline{
-		responses: []*http.Response{
-			newResponse(http.StatusTooManyRequests),
-			newResponse(http.StatusOK),
-		},
-	}
-
-	handler := newGraphRetryHandler()
-	req := httptest.NewRequest(http.MethodPost, "https://graph.microsoft.com/test", bytes.NewReader([]byte("data")))
-	req.ContentLength = -1
-
-	resp, err := handler.Intercept(pipeline, 0, req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if pipeline.callCount != 1 {
-		t.Errorf("expected 1 pipeline call (no retry for unknown content length), got %d", pipeline.callCount)
-	}
-	if resp.StatusCode != http.StatusTooManyRequests {
-		t.Errorf("expected status 429, got %d", resp.StatusCode)
-	}
-}
-
-func TestBodiedRequestNotRetriableWithoutSeekOrGetBody(t *testing.T) {
-	pipeline := &mockPipeline{
-		responses: []*http.Response{
-			newResponse(http.StatusTooManyRequests),
-			newResponse(http.StatusOK),
-		},
-	}
-
-	handler := newGraphRetryHandler()
-	req := httptest.NewRequest(http.MethodPost, "https://graph.microsoft.com/test", bytes.NewReader([]byte("data")))
-	req.GetBody = nil
-
-	resp, err := handler.Intercept(pipeline, 0, req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if pipeline.callCount != 1 {
-		t.Errorf("expected 1 pipeline call (body not rewindable), got %d", pipeline.callCount)
-	}
-	if resp.StatusCode != http.StatusTooManyRequests {
-		t.Errorf("expected status 429, got %d", resp.StatusCode)
-	}
-}
-
-func TestBodiedRequestRetriableWithGetBody(t *testing.T) {
-	pipeline := &mockPipeline{
-		responses: []*http.Response{
-			newResponseWithRetryAfter(http.StatusTooManyRequests, "0"),
-			newResponse(http.StatusOK),
-		},
-	}
-
-	handler := newGraphRetryHandler()
+func TestBodiedRequestRetriability(t *testing.T) {
 	data := []byte("data")
-	req := httptest.NewRequest(http.MethodPost, "https://graph.microsoft.com/test", nil)
-	req.Body = io.NopCloser(bytes.NewReader(data))
-	req.ContentLength = int64(len(data))
-	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(bytes.NewReader(data)), nil
+	tests := []struct {
+		name      string
+		setupReq  func() *http.Request
+		wantRetry bool
+	}{
+		{
+			"not retriable without content length",
+			func() *http.Request {
+				req := httptest.NewRequest(http.MethodPost, "https://graph.microsoft.com/test", bytes.NewReader(data))
+				req.ContentLength = -1
+				return req
+			},
+			false,
+		},
+		{
+			"not retriable without seek or GetBody",
+			func() *http.Request {
+				req := httptest.NewRequest(http.MethodPost, "https://graph.microsoft.com/test", bytes.NewReader(data))
+				req.GetBody = nil
+				return req
+			},
+			false,
+		},
+		{
+			"retriable with GetBody",
+			func() *http.Request {
+				req := httptest.NewRequest(http.MethodPost, "https://graph.microsoft.com/test", nil)
+				req.Body = io.NopCloser(bytes.NewReader(data))
+				req.ContentLength = int64(len(data))
+				req.GetBody = func() (io.ReadCloser, error) {
+					return io.NopCloser(bytes.NewReader(data)), nil
+				}
+				return req
+			},
+			true,
+		},
 	}
 
-	resp, err := handler.Intercept(pipeline, 0, req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pipeline := &mockPipeline{
+				responses: []mockPipelineResult{
+					{resp: newResponseWithRetryAfter(http.StatusTooManyRequests, "0")},
+					{resp: newResponse(http.StatusOK)},
+				},
+			}
 
-	if pipeline.callCount != 2 {
-		t.Errorf("expected 2 pipeline calls (retry via GetBody), got %d", pipeline.callCount)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status 200, got %d", resp.StatusCode)
+			handler := newGraphRetryHandler()
+			resp, err := handler.Intercept(pipeline, 0, tt.setupReq())
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tt.wantRetry {
+				if pipeline.callCount != 2 {
+					t.Errorf("expected 2 pipeline calls, got %d", pipeline.callCount)
+				}
+				if resp.StatusCode != http.StatusOK {
+					t.Errorf("expected status 200, got %d", resp.StatusCode)
+				}
+			} else {
+				if pipeline.callCount != 1 {
+					t.Errorf("expected 1 pipeline call, got %d", pipeline.callCount)
+				}
+				if resp.StatusCode != http.StatusTooManyRequests {
+					t.Errorf("expected status 429, got %d", resp.StatusCode)
+				}
+			}
+		})
 	}
 }
 
@@ -427,9 +431,9 @@ func TestExponentialBackoffDelay(t *testing.T) {
 func TestRetryAfterHeaderRFC1123(t *testing.T) {
 	futureTime := time.Now().Add(2 * time.Second).UTC()
 	pipeline := &mockPipeline{
-		responses: []*http.Response{
-			newResponseWithRetryAfter(http.StatusTooManyRequests, futureTime.Format(time.RFC1123)),
-			newResponse(http.StatusOK),
+		responses: []mockPipelineResult{
+			{resp: newResponseWithRetryAfter(http.StatusTooManyRequests, futureTime.Format(time.RFC1123))},
+			{resp: newResponse(http.StatusOK)},
 		},
 	}
 
@@ -453,7 +457,7 @@ func TestRetryAfterHeaderRFC1123(t *testing.T) {
 
 func TestSuccessfulRequestNoRetry(t *testing.T) {
 	pipeline := &mockPipeline{
-		responses: []*http.Response{newResponse(http.StatusOK)},
+		responses: []mockPipelineResult{{resp: newResponse(http.StatusOK)}},
 	}
 
 	handler := newGraphRetryHandler()
@@ -471,17 +475,123 @@ func TestSuccessfulRequestNoRetry(t *testing.T) {
 	}
 }
 
+func newNetworkUnreachableError() error {
+	return &net.OpError{
+		Op:  "dial",
+		Net: "tcp",
+		Err: syscall.ENETUNREACH,
+	}
+}
+
+func newConnectionRefusedError() error {
+	return &net.OpError{
+		Op:  "dial",
+		Net: "tcp",
+		Err: syscall.ECONNREFUSED,
+	}
+}
+
+func TestNetworkErrorRetry(t *testing.T) {
+	pipeline := &mockPipeline{
+		responses: []mockPipelineResult{
+			{err: newNetworkUnreachableError()},
+			{resp: newResponse(http.StatusOK)},
+		},
+	}
+
+	handler := newGraphRetryHandler()
+	req := newRequest(http.MethodDelete)
+
+	resp, err := handler.Intercept(pipeline, 0, req)
+	if err != nil {
+		t.Fatalf("expected successful retry, got error: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+	if pipeline.callCount != 2 {
+		t.Errorf("expected 2 pipeline calls (initial + retry), got %d", pipeline.callCount)
+	}
+}
+
+func TestNetworkErrorThenHTTPErrorRetry(t *testing.T) {
+	pipeline := &mockPipeline{
+		responses: []mockPipelineResult{
+			{err: newNetworkUnreachableError()},
+			{resp: newResponseWithRetryAfter(http.StatusTooManyRequests, "0")},
+			{resp: newResponse(http.StatusOK)},
+		},
+	}
+
+	handler := newGraphRetryHandler()
+	req := newRequest(http.MethodGet)
+
+	resp, err := handler.Intercept(pipeline, 0, req)
+	if err != nil {
+		t.Fatalf("expected successful retry, got error: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+	if pipeline.callCount != 3 {
+		t.Errorf("expected 3 pipeline calls, got %d", pipeline.callCount)
+	}
+}
+
+func TestNetworkErrorNotRetriedOnNonNetError(t *testing.T) {
+	pipeline := &mockPipeline{
+		responses: []mockPipelineResult{
+			{err: errors.New("some random error")},
+		},
+	}
+
+	handler := newGraphRetryHandler()
+	req := newRequest(http.MethodGet)
+
+	_, err := handler.Intercept(pipeline, 0, req)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if pipeline.callCount != 1 {
+		t.Errorf("expected 1 pipeline call (no retry for non-net error), got %d", pipeline.callCount)
+	}
+}
+
+func TestIsTransientNetworkError(t *testing.T) {
+	tests := []struct {
+		name      string
+		err       error
+		wantRetry bool
+	}{
+		{"net.OpError is transient", newNetworkUnreachableError(), true},
+		{"connection refused is transient", newConnectionRefusedError(), true},
+		{"context.Canceled is not transient", context.Canceled, false},
+		{"context.DeadlineExceeded is not transient", context.DeadlineExceeded, false},
+		{"random error is not transient", errors.New("random"), false},
+		{"wrapped net.OpError is transient", errors.Join(errors.New("wrapper"), newNetworkUnreachableError()), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isTransientNetworkError(tt.err)
+			if got != tt.wantRetry {
+				t.Errorf("isTransientNetworkError(%v) = %v, want %v", tt.err, got, tt.wantRetry)
+			}
+		})
+	}
+}
+
 func TestCumulativeDelayLimit(t *testing.T) {
 	// Use Retry-After to force large delays that exceed the cumulative limit.
 	// Each retry requests a delay well over the max cumulative, so the second
 	// retry attempt should be blocked by the cumulative cap.
 	overLimit := strconv.Itoa(int(graphRetryMaxCumulativeDelay.Seconds()) + 1)
-	responses := make([]*http.Response, 5)
-	for i := range responses {
-		responses[i] = newResponseWithRetryAfter(http.StatusTooManyRequests, overLimit)
+	results := make([]mockPipelineResult, 5)
+	for i := range results {
+		results[i] = mockPipelineResult{resp: newResponseWithRetryAfter(http.StatusTooManyRequests, overLimit)}
 	}
 
-	pipeline := &mockPipeline{responses: responses}
+	pipeline := &mockPipeline{responses: results}
 	handler := newGraphRetryHandler()
 	req := newRequest(http.MethodGet)
 
