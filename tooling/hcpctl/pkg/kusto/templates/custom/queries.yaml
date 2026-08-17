@@ -45,6 +45,7 @@
 - name: cosmosResourceSnapshots
   database: ServiceLogs
   queryType: custom-logs
+  includeInMustGather: true
   templatePath: templates/custom/cosmos_resource_snapshots.kql.gotmpl
 - name: hostedControlPlaneLogs
   database: HostedControlPlaneLogs

@@ -129,6 +129,7 @@ What is gathered?
 - All service logs, that contain the subscription id and resourcegroup name or are in the cluster namespace (aka hcp logs)
 - All Kubernetes events from the mgmt and service cluster (excluding HCP)
 - All Kubernetes events from the mgmt cluster withing the HCP namespace
+- Cosmos DB document snapshots (`cosmosResourceSnapshots`) for resources in the resource group, written to the custom logs directory
 - Optionally: Systemd logs from the management and service cluster (turn on using --collect-systemd-logs)
 
 ```bash
