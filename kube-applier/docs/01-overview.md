@@ -76,8 +76,15 @@ We reuse that idiom on each `*Desire.Status.Conditions`.
 
 The well-known condition types per the readme:
 
-- `Successful` &mdash; was the desired effect achieved (with reasons
-  `KubeAPIError` or `PreCheckFailed` when not).
+- `SuccessfullyApplied` &mdash; for an ApplyDesire with `Type=ServerSideApply`,
+  was the desired effect achieved (with reasons `KubeAPIError` or
+  `PreCheckFailed` when not).
+- `SuccessfullyDeleted` &mdash; for an ApplyDesire with `Type=Delete`, is the
+  target gone (`WaitingForDeletion` while finalizers run).
+- `Successful` &mdash; retained for backwards compatibility. For an ApplyDesire
+  it mirrors whichever operation-specific condition applies; it is the primary
+  condition for a ReadDesire. Readers prefer the operation-specific condition and
+  fall back to `Successful` (`kubeapplierapi.IsConditionTruePreferring`).
 - `Degraded` &mdash; controller-level health (replaces the existing
   `Controller` resource's `Degraded`).
 

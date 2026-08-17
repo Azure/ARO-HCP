@@ -103,8 +103,17 @@ Add a small `conditions.go` next to the types:
 
 ```go
 const (
+    // ApplyDesire operation-specific success conditions.
+    ConditionSuccessfullyApplied = "SuccessfullyApplied" // Type=ServerSideApply
+    ConditionSuccessfullyDeleted = "SuccessfullyDeleted" // Type=Delete
+
+    // Successful is retained for backwards compatibility. For an ApplyDesire it
+    // mirrors whichever operation-specific condition applies; it is the primary
+    // condition for a ReadDesire. Readers prefer the operation-specific condition
+    // and fall back to Successful (see IsConditionTruePreferring).
     ConditionSuccessful = "Successful"
-    ConditionDegraded   = "Degraded"
+
+    ConditionDegraded = "Degraded"
 )
 
 const (
