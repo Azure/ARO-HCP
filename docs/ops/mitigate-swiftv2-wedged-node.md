@@ -202,11 +202,11 @@ kubectl get pods -A -o wide | grep router | grep <node-name>
 
 ### Step 1: (Optional) Collect ACN logs for evidence preservation
 
-Run the log-collection script **before** deleting the node, in case the Azure networking team (Cloudnet/RNC) needs on-node state for root-cause analysis. The script lives alongside this runbook at [`collect-swiftv2-node-logs.sh`](collect-swiftv2-node-logs.sh).
+Run the log-collection script **before** deleting the node, in case the Azure networking team (Cloudnet/RNC) needs on-node state for root-cause analysis. The script lives at [`hack/collect-swiftv2-node-logs.sh`](../../hack/collect-swiftv2-node-logs.sh).
 
 ```bash
-# Target only the wedged node (run from this directory: docs/ops/)
-NODES_FILTER='<node-name>' ./collect-swiftv2-node-logs.sh
+# Target only the wedged node (run from the repo root)
+NODES_FILTER='<node-name>' ./hack/collect-swiftv2-node-logs.sh
 ```
 
 The script is read-only: it creates temporary debug pods, pulls `/host/var/log/azure-vnet*` and `/host/var/run/azure-cns` state, tars them, and deletes only the debug pods it created.
@@ -372,16 +372,16 @@ The controller only labels and annotates, it does not cordon, drain or delete. T
 
 ## Appendix: ACN Log-Collection Script
 
-The script is maintained as a standalone file: [`collect-swiftv2-node-logs.sh`](collect-swiftv2-node-logs.sh).
+The script is maintained as a standalone file: [`hack/collect-swiftv2-node-logs.sh`](../../hack/collect-swiftv2-node-logs.sh).
 
 Usage:
 
 ```bash
-# Collect from a specific node
-NODES_FILTER='vmss000004' ./collect-swiftv2-node-logs.sh
+# Collect from a specific node (run from the repo root)
+NODES_FILTER='vmss000004' ./hack/collect-swiftv2-node-logs.sh
 
 # Collect from all nodes (default)
-./collect-swiftv2-node-logs.sh
+./hack/collect-swiftv2-node-logs.sh
 ```
 
 The script is read-only and self-cleaning: it creates temporary busybox debug pods, copies `azure-vnet` logs and `azure-cns` state from the host filesystem, produces a timestamped tarball, and deletes only the debug pods it created.
