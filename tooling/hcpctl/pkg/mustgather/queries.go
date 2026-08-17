@@ -24,6 +24,7 @@ var ServicesTables = []string{
 	"fleetLogs",
 	"frontendLogs",
 	"backendLogs",
+	"kubeApplierLogs",
 }
 
 var HCPNamespacePrefix = "ocm-arohcp"
