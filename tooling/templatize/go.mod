@@ -5,7 +5,7 @@ go 1.25.7
 require (
 	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d
 	github.com/Azure/ARO-Tools/config v0.0.0-20260807054659-4a463f5d83c7
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260807054659-4a463f5d83c7
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260817182351-8edbd7b1e3cf
 	github.com/Azure/ARO-Tools/testutil v0.0.0-20260807054659-4a463f5d83c7
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260807054659-4a463f5d83c7
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260807054659-4a463f5d83c7
@@ -41,7 +41,7 @@ require (
 )
 
 require (
-	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260720175808-ca2cea2cb707
+	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260817182351-8edbd7b1e3cf
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0
 	k8s.io/api v0.35.3
 )
