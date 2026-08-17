@@ -131,7 +131,7 @@ func (FleetPartitionKeyDeriver) PartitionKey(ParentResourceID *azcorearm.Resourc
 
 func (FleetPartitionKeyDeriver) PartitionKeyFromObject(obj any) (string, error) {
 	switch obj.(type) {
-	case *fleetapi.Stamp, *fleetapi.ManagementCluster:
+	case *fleetapi.Stamp, *fleetapi.ManagementCluster, *fleetapi.ControlPlaneVersionRollout:
 		// only the fleet types live in the fleet container
 	default:
 		return "", fmt.Errorf("fleet partitioning does not apply to %T", obj)

@@ -56,6 +56,7 @@ func NewMockFleetDBClient() *MockFleetDBClient {
 // it with the given resources. Supported types:
 //   - *fleetapi.Stamp
 //   - *fleetapi.ManagementCluster
+//   - *fleetapi.ControlPlaneVersionRollout
 func NewMockFleetDBClientWithResources(ctx context.Context, resources []any) (*MockFleetDBClient, error) {
 	mock := NewMockFleetDBClient()
 	for i, r := range resources {
@@ -72,6 +73,8 @@ func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error
 		return m.addStamp(ctx, r)
 	case *fleetapi.ManagementCluster:
 		return m.addManagementCluster(ctx, r)
+	case *fleetapi.ControlPlaneVersionRollout:
+		return m.addControlPlaneVersionRollout(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type for MockFleetDBClient: %T", resource)
 	}
@@ -94,6 +97,16 @@ func (m *MockFleetDBClient) addManagementCluster(ctx context.Context, mc *fleeta
 	}
 	crud := m.Stamps().ManagementClusters(stampIdentifier)
 	_, err := crud.Create(ctx, mc, nil)
+	return err
+}
+
+func (m *MockFleetDBClient) addControlPlaneVersionRollout(ctx context.Context, rollout *fleetapi.ControlPlaneVersionRollout) error {
+	ystreamChannel := rollout.GetStampIdentifier()
+	if len(ystreamChannel) == 0 {
+		return fmt.Errorf("control plane version rollout has empty y-stream channel identifier")
+	}
+	crud := m.ControlPlaneVersionRollouts()
+	_, err := crud.Create(ctx, rollout, nil)
 	return err
 }
 
@@ -213,6 +226,16 @@ func (m *MockFleetDBClient) Stamps() fleetcosmosstorage.StampsCRUD {
 	}
 }
 
+func (m *MockFleetDBClient) ControlPlaneVersionRollouts() cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout] {
+	inner := newMockFleetResourceCRUD[fleetapi.ControlPlaneVersionRollout, *fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
+		m, nil, fleetapi.ControlPlaneVersionRolloutResourceType,
+	)
+	return cosmosstorageutils.NewValidatingCRUD(inner,
+		validation.ValidateControlPlaneVersionRolloutCreate,
+		validation.ValidateControlPlaneVersionRolloutUpdate,
+	)
+}
+
 func (m *MockFleetDBClient) GlobalListers() fleetcosmosstorage.FleetGlobalListers {
 	return &mockFleetGlobalListers{client: m}
 }
@@ -279,5 +302,12 @@ func (g *mockFleetGlobalListers) ManagementClusters() cosmosstorageutils.GlobalL
 	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.ManagementCluster, cosmosstorageutils.GenericDocument[fleetapi.ManagementCluster]](
 		g.client,
 		[]azcorearm.ResourceType{fleetapi.ManagementClusterResourceType},
+	)
+}
+
+func (g *mockFleetGlobalListers) ControlPlaneVersionRollouts() cosmosstorageutils.GlobalLister[fleetapi.ControlPlaneVersionRollout] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.ControlPlaneVersionRollout, cosmosstorageutils.GenericDocument[fleetapi.ControlPlaneVersionRollout]](
+		g.client,
+		[]azcorearm.ResourceType{fleetapi.ControlPlaneVersionRolloutResourceType},
 	)
 }
