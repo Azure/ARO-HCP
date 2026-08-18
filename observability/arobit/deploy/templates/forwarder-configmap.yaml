@@ -213,7 +213,7 @@ data:
 
     [FILTER]
         # Stamp the uppercased Azure ARM resource ID of the HCP cluster onto every
-        # ocm.logs record as cluster_id, resolved from the pod namespace via the
+        # ocm.logs record as cluster_id and resource_group, resolved from the pod namespace via the
         # namespace-resourceid-mapping ConfigMap mounted at /shoebox-config. Only
         # mgmt clusters emit ocm.logs to the containerLogs Kusto table. Fail-soft:
         # the record is left unchanged when no mapping file exists. This runs before
@@ -445,16 +445,27 @@ data:
     -- the same lookup as transform-shoebox.lua's get_resource_id, but lives on the
     -- containerLogs path so it also runs when mdsd/shoebox is disabled.
 
-    -- Cache for resourceId lookups (namespace -> resourceId).
-    -- ResourceIds are immutable per cluster, so we cache forever.
+    -- Cache for resourceId lookups (namespace -> resourceId, or false when the
+    -- namespace has no mapping). ResourceIds are immutable per cluster, so we
+    -- cache forever; misses are cached too (as the sentinel false) so we do not
+    -- re-open a non-existent mapping file on every log line.
     local resourceid_cache = {}
 
     -- Get resourceId for a namespace by reading the corresponding file.
-    -- Trims surrounding whitespace and uppercases the value. Returns nil when
-    -- no mapping file exists (fail-soft).
+    -- Trims surrounding whitespace and uppercases the value. Returns nil when the
+    -- namespace is empty/nil or no mapping file exists (fail-soft). Both hits and
+    -- misses are cached.
     local function get_resource_id(namespace)
+        if namespace == nil or namespace == "" then
+            return nil
+        end
+
         local cached = resourceid_cache[namespace]
-        if cached then
+        if cached ~= nil then
+            -- false is the sentinel for a previously-observed missing mapping.
+            if cached == false then
+                return nil
+            end
             return cached
         end
 
@@ -469,12 +480,41 @@ data:
             return resourceId
         end
 
+        -- Cache the miss (sentinel false) to avoid re-opening a missing file.
+        resourceid_cache[namespace] = false
         return nil
     end
 
-    -- Set cluster_id on the record from its namespace-derived resource ID.
-    -- Returns code 2 (record + timestamp replaced) when a non-empty resource ID
-    -- is resolved; otherwise code 0 (record left unchanged).
+    -- Parse the resource group from an Azure ARM resource ID of the form
+    --   /subscriptions/<sub>/resourceGroups/<rg>/providers/...
+    -- The "/resourceGroups/" delimiter is matched case-insensitively (ARM ids are
+    -- case-insensitive on segment keys, and the resolved id here is uppercased).
+    -- Returns nil when the id is empty or has no resourceGroups segment
+    -- (fail-soft). The returned segment preserves the id's casing.
+    local function get_resource_group(resource_id)
+        if resource_id == nil or resource_id == "" then
+            return nil
+        end
+
+        -- Locate the delimiter case-insensitively via a lowercased copy, then
+        -- slice the original so the returned segment keeps its original casing.
+        local marker_start, marker_end = string.find(string.lower(resource_id), "/resourcegroups/", 1, true)
+        if not marker_start then
+            return nil
+        end
+
+        local rg = string.match(string.sub(resource_id, marker_end + 1), "^([^/]+)")
+        if rg == nil or rg == "" then
+            return nil
+        end
+
+        return rg
+    end
+
+    -- Stamp cluster_id (and, when parseable, resource_group) onto the record from
+    -- its namespace-derived resource ID. Returns code 1 (record replaced,
+    -- timestamp preserved) when a non-empty resource ID is resolved; otherwise
+    -- code 0 (record left unchanged).
     function set_cluster_id(tag, timestamp, record)
         local namespace = ""
         if record["kubernetes"] and record["kubernetes"]["namespace_name"] then
@@ -485,7 +525,13 @@ data:
 
         if resourceId and resourceId ~= "" then
             record["cluster_id"] = resourceId
-            return 2, timestamp, record
+
+            local resourceGroup = get_resource_group(resourceId)
+            if resourceGroup and resourceGroup ~= "" then
+                record["resource_group"] = resourceGroup
+            end
+
+            return 1, timestamp, record
         end
 
         return 0, 0, 0
