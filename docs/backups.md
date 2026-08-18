@@ -55,7 +55,7 @@ flowchart LR
 2. kube-applier reads the ApplyDesires and applies the Velero Schedule resources to the appropriate management cluster in the `velero` namespace.
 3. Velero executes backups according to each schedule's cadence, uploading backup data to Azure Blob Storage.
 4. kube-applier reads the Velero Schedule status and writes it back into ReadDesire status in Cosmos DB.
-5. The admin API reads ReadDesire statuses to serve per-schedule backup time and phase. The ServiceProviderCluster record stores only the backup schedule enabled/paused state.
+5. The admin API reads ReadDesire statuses to serve per-schedule backup time and phase. The ServiceProviderCluster record stores only the per-cluster backup schedule state (`spc.Spec.BackupScheduleState`, `Enabled` or `Disabled`).
 
 ## What Gets Backed Up
 
@@ -66,7 +66,7 @@ Captured resources include:
 - HyperShift resources: `hostedcluster`, `nodepool`, `hostedcontrolplane`
 - Cluster API resources: `cluster`, `machinedeployment`, `machineset`, `machine`, `clusterdeployment`
 - Azure-specific resources: `azurecluster`, `azuremachine`, `azuremachinetemplate`
-- Standard workload resources: `deployments`, `statefulsets`, `pod`, `configmap`, `secrets`, `services`, `sa`, `role`, `rolebinding`, `secretproviderclass`, `route`
+- Standard workload resources: `deployments`, `statefulsets`, `configmap`, `secrets`, `services`, `sa`, `role`, `rolebinding`, `secretproviderclass`, `route`
 - Policy resources: `priorityclasses`, `pdb`
 - Storage resources: `pvc`, `pv`
 - Swift Networking resources: `multitenantpodnetworkconfigs`, `podnetworks`,
@@ -85,7 +85,13 @@ The controller runs as part of the backend service and reconciles on a periodic 
 
 ### Cluster Deletion
 
-When a cluster is deleted, the cluster child resources cleanup controller immediately removes backup schedule ReadDesires from Cosmos, converts any remaining backup schedule ApplyDesires from ServerSideApply type to Delete type causing kube-applier to remove the Velero Schedules from the management cluster, and purges each ApplyDesire once its Delete-type desire reports success.
+Backup teardown on deletion is handled by the **backup schedule controller itself**, not the generic cluster child resources cleanup controller. In fact, the cluster child resources cleanup controller explicitly *skips* any desire whose name carries the `backupschedule-` prefix, so as not to interfere with the graceful teardown in progress.
+
+When a cluster is marked for deletion (its `DeletionTimestamp` is set) and its management-cluster placement is known, the backup schedule controller's deletion path drives each backup desire through an Apply→Delete→Wait→Purge lifecycle:
+
+1. Each backup schedule ApplyDesire is converted from `ServerSideApply` type to `Delete` type (clearing its `ServerSideApply` content), signaling kube-applier to remove the Velero Schedule from the management cluster.
+2. Once the Delete-type desire reports success (and its observed status is cleared), the ApplyDesire is purged from Cosmos.
+3. After all ApplyDesires are gone, the corresponding backup schedule ReadDesires are deleted from Cosmos.
 
 ### Admin API
 
@@ -110,16 +116,16 @@ Two cadence tiers are available, selected at backend deployment time:
 - **testing** — A single accelerated schedule suitable for CI and development environments:
   - `10min` — cron `*/10 * * * *`, TTL 1 hour
 
-All schedules run with volume snapshots enabled. Cadence and retention are configured via `backend.backupCadence` in [`../config/config.yaml`](../config/config.yaml) with one of the tiers above (in lowercase!).
+All schedules run with volume snapshots enabled. Cadence and retention are selected via `backend.backupCadenceProfile` in [`../config/config.yaml`](../config/config.yaml), set to one of the tier names above (`production` or `testing`, lowercase).
 
 ## Pause and Resume
 
-Backup schedules can be paused at two levels:
+Backup schedules can be paused at two independent levels. Both are expressed as a `BackupScheduleState` of `Enabled` or `Disabled`; a `Disabled` state at either level maps to `spec.paused=true` on the resulting Velero Schedule.
 
-- **Global pause** — Controlled by a backend deployment configuration value ( `backend.backupPaused` in [`../config/config.yaml`](../config/config.yaml) ). When set, all schedules for all clusters are paused. Takes effect on the next reconciliation cycle after the backend is redeployed.
-- **Per-cluster pause** — Controlled via the [Admin API](#admin-api-reference) for a specific cluster. The cluster's backup state in Cosmos DB is updated; the controller picks up the change on its next sync and updates the Velero Schedule accordingly.
+- **Global pause** — Controlled by the backend deployment configuration value `backend.backupScheduleState` in [`../config/config.yaml`](../config/config.yaml). Its default is `Enabled`; setting it to `Disabled` pauses all schedules for all clusters. Takes effect on the next reconciliation cycle after the backend is redeployed.
+- **Per-cluster pause** — Controlled via the [Admin API](#admin-api-reference) for a specific cluster, which sets `spc.Spec.BackupScheduleState` on the cluster's ServiceProviderCluster document in Cosmos DB. The controller picks up the change on its next sync and updates the Velero Schedule accordingly.
 
-If either global or per-cluster pause is active, the resulting Velero Schedule is paused. Existing backups and their retention are unaffected by a pause.
+The controller computes the Velero Schedule's pause flag as `globalState == Disabled || clusterState == Disabled` — so if either level is `Disabled`, the schedule is paused. Existing backups and their retention are unaffected by a pause.
 
 ### Pause independence and operational impact
 
@@ -127,12 +133,12 @@ The two pause levels have no knowledge of each other. Removing the global pause 
 
 Practical consequence for incident response:
 
-1. **SRE pauses specific clusters via the admin API** — sets `spc.Spec.BackupState = Paused` for those clusters.
-2. **Global pause is activated** (config change + redeploy) — all clusters, including newly created ones, have their schedules paused. The previously admin-paused clusters remain paused by both levers.
-3. **Incident resolves; global pause is removed** (config change + redeploy) — all clusters that were only globally paused resume. Clusters that were also paused via the admin API remain paused because `spc.Spec.BackupState` is still `Paused`. The controller sees `globalPaused=false || clusterPaused=true` and keeps their Velero Schedules paused.
+1. **SRE pauses specific clusters via the admin API** — sets `spc.Spec.BackupScheduleState = Disabled` for those clusters.
+2. **Global pause is activated** (`backend.backupScheduleState: Disabled` config change + redeploy) — all clusters, including newly created ones, have their schedules paused. The previously admin-paused clusters remain paused by both levers.
+3. **Incident resolves; global pause is removed** (`backend.backupScheduleState: Enabled` config change + redeploy) — all clusters that were only globally paused resume. Clusters that were also paused via the admin API remain paused because `spc.Spec.BackupScheduleState` is still `Disabled`. The controller sees `globalState == Disabled` is now false but `clusterState == Disabled` is still true, and keeps their Velero Schedules paused.
 4. **To resume those clusters**, each one requires an explicit admin API call: `PATCH .../backupschedules {"state": "Enabled"}`.
 
-Additionally, the `GET /backupschedules` response surfaces only `spc.Spec.BackupState` (the per-cluster value). It does not indicate whether the global pause is active. During a global pause, clusters that were not individually paused will show `state: Enabled` in the API response even though their Velero Schedules are paused on the management cluster.
+Additionally, the `GET /backupschedules` response surfaces only `spc.Spec.BackupScheduleState` (the per-cluster value). It does not indicate whether the global pause is active. During a global pause, clusters that were not individually paused will show `state: Enabled` in the API response even though their Velero Schedules are paused on the management cluster.
 
 ## Admin API Reference
 
@@ -147,7 +153,7 @@ All endpoints are scoped to a specific HCP cluster identified by its ARM resourc
 | Method | Path (relative to base) | Description |
 |--------|--------------------------|-------------|
 | GET | `/backupschedules` | Returns the backup schedule state and per-schedule status for the cluster. |
-| PATCH | `/backupschedules` | Sets the backup schedule state for the cluster (`Enabled` or `Paused`). Returns updated state. |
+| PATCH | `/backupschedules` | Sets the backup schedule state for the cluster (`Enabled` or `Disabled`). Returns updated state. |
 
 ### Example: Get backup schedules
 
@@ -225,7 +231,7 @@ PATCH .../backupschedules
 
 ### Pause all schedules for all clusters
 
-Update the global pause configuration in the backend deployment and redeploy. All clusters will have their schedules paused on the next reconciliation cycle.
+Set `backend.backupScheduleState` to `Disabled` in the backend deployment configuration and redeploy. All clusters will have their schedules paused on the next reconciliation cycle.
 
 ### Investigate missing or failed backups
 
