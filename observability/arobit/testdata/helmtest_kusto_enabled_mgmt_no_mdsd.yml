@@ -1,0 +1,9 @@
+values: ../values-mgmt.yaml
+name: helmtest-kusto-enabled-mgmt-no-mdsd
+namespace: arobit
+testData:
+  arobit:
+    mdsd:
+      enabled: false
+    kusto:
+      enabled: true

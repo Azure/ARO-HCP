@@ -209,6 +209,22 @@ data:
         Emitter_Name    re_emitted_namespace_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
+{{- if eq .Values.forwarder.clusterType "mgmt" }}
+
+    [FILTER]
+        # Stamp the uppercased Azure ARM resource ID of the HCP cluster onto every
+        # ocm.logs record as cluster_id, resolved from the pod namespace via the
+        # namespace-resourceid-mapping ConfigMap mounted at /shoebox-config. Only
+        # mgmt clusters emit ocm.logs to the containerLogs Kusto table. Fail-soft:
+        # the record is left unchanged when no mapping file exists. This runs before
+        # the shoebox re-tag; transform-shoebox.lua builds its own record, so shoebox
+        # output is unaffected.
+        Name            lua
+        Alias           lua.set_cluster_id
+        Match           ocm.logs
+        script          /forwarder/etc/set-cluster-id.lua
+        call            set_cluster_id
+{{- end }}
 
     [FILTER]
         Name            rewrite_tag
@@ -418,6 +434,61 @@ data:
         }
 
         return 1, timestamp, shoebox
+    end
+{{- end }}
+{{- if eq .Values.forwarder.clusterType "mgmt" }}
+  set-cluster-id.lua: |
+    -- Lua script for stamping the HCP cluster's Azure ARM resource ID onto
+    -- control-plane container logs as the cluster_id field. The resource ID is
+    -- resolved from the pod namespace via the namespace-resourceid-mapping
+    -- ConfigMap mounted at /shoebox-config (one file per namespace). This reuses
+    -- the same lookup as transform-shoebox.lua's get_resource_id, but lives on the
+    -- containerLogs path so it also runs when mdsd/shoebox is disabled.
+
+    -- Cache for resourceId lookups (namespace -> resourceId).
+    -- ResourceIds are immutable per cluster, so we cache forever.
+    local resourceid_cache = {}
+
+    -- Get resourceId for a namespace by reading the corresponding file.
+    -- Trims surrounding whitespace and uppercases the value. Returns nil when
+    -- no mapping file exists (fail-soft).
+    local function get_resource_id(namespace)
+        local cached = resourceid_cache[namespace]
+        if cached then
+            return cached
+        end
+
+        local filepath = "/shoebox-config/" .. namespace
+        local file = io.open(filepath, "r")
+        if file then
+            local resourceId = file:read("*all")
+            file:close()
+            resourceId = resourceId:match("^%s*(.-)%s*$")
+            resourceId = string.upper(resourceId)
+            resourceid_cache[namespace] = resourceId
+            return resourceId
+        end
+
+        return nil
+    end
+
+    -- Set cluster_id on the record from its namespace-derived resource ID.
+    -- Returns code 2 (record + timestamp replaced) when a non-empty resource ID
+    -- is resolved; otherwise code 0 (record left unchanged).
+    function set_cluster_id(tag, timestamp, record)
+        local namespace = ""
+        if record["kubernetes"] and record["kubernetes"]["namespace_name"] then
+            namespace = record["kubernetes"]["namespace_name"]
+        end
+
+        local resourceId = get_resource_id(namespace)
+
+        if resourceId and resourceId ~= "" then
+            record["cluster_id"] = resourceId
+            return 2, timestamp, record
+        end
+
+        return 0, 0, 0
     end
 {{- end }}
   output.conf: |

@@ -7,7 +7,7 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: 'arobit-forwarder'
-    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+    app.kubernetes.io/instance: 'helmtest-kusto-enabled-mgmt-no-mdsd'
   annotations:
     azure.workload.identity/client-id: '__msiClientId__'
 ---
@@ -19,7 +19,7 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+    app.kubernetes.io/instance: 'helmtest-kusto-enabled-mgmt-no-mdsd'
 data:
   fluent-bit.conf: |
     @INCLUDE /forwarder/etc/service.conf
@@ -600,7 +600,7 @@ metadata:
   name: arobit-forwarder
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+    app.kubernetes.io/instance: 'helmtest-kusto-enabled-mgmt-no-mdsd'
 rules:
 - apiGroups:
   - ""
@@ -620,7 +620,7 @@ metadata:
   name: arobit-forwarder
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+    app.kubernetes.io/instance: 'helmtest-kusto-enabled-mgmt-no-mdsd'
 roleRef:
   kind: ClusterRole
   apiGroup: rbac.authorization.k8s.io
@@ -638,7 +638,7 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+    app.kubernetes.io/instance: 'helmtest-kusto-enabled-mgmt-no-mdsd'
     app: arobit-forwarder
 spec:
   type: ClusterIP
@@ -657,7 +657,7 @@ spec:
     protocol: TCP
   selector:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+    app.kubernetes.io/instance: 'helmtest-kusto-enabled-mgmt-no-mdsd'
 ---
 # Source: arobit/templates/forwarder-daemonset.yaml
 apiVersion: apps/v1
@@ -667,14 +667,14 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+    app.kubernetes.io/instance: 'helmtest-kusto-enabled-mgmt-no-mdsd'
     ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
     app: arobit-forwarder
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: arobit-forwarder
-      app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+      app.kubernetes.io/instance: 'helmtest-kusto-enabled-mgmt-no-mdsd'
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
@@ -683,11 +683,11 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: arobit-forwarder
-        app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+        app.kubernetes.io/instance: 'helmtest-kusto-enabled-mgmt-no-mdsd'
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: b51ec3a39d0181d406fd10a93fdceefa9aa1c449c247feeee7f24661aba7929f
+        checksum/configmap: e9318fef8b358cb3a591ebe6fee7c781fdfadd0b9d6a6fa10942b82059e8eb92
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

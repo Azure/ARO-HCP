@@ -207,6 +207,20 @@ data:
         Emitter_Storage.type   filesystem
 
     [FILTER]
+        # Stamp the uppercased Azure ARM resource ID of the HCP cluster onto every
+        # ocm.logs record as cluster_id, resolved from the pod namespace via the
+        # namespace-resourceid-mapping ConfigMap mounted at /shoebox-config. Only
+        # mgmt clusters emit ocm.logs to the containerLogs Kusto table. Fail-soft:
+        # the record is left unchanged when no mapping file exists. This runs before
+        # the shoebox re-tag; transform-shoebox.lua builds its own record, so shoebox
+        # output is unaffected.
+        Name            lua
+        Alias           lua.set_cluster_id
+        Match           ocm.logs
+        script          /forwarder/etc/set-cluster-id.lua
+        call            set_cluster_id
+
+    [FILTER]
         Name            rewrite_tag
         Alias           filter.container_name_router
         Match           kubernetes.var.log.containers.*
@@ -413,6 +427,59 @@ data:
         }
 
         return 1, timestamp, shoebox
+    end
+  set-cluster-id.lua: |
+    -- Lua script for stamping the HCP cluster's Azure ARM resource ID onto
+    -- control-plane container logs as the cluster_id field. The resource ID is
+    -- resolved from the pod namespace via the namespace-resourceid-mapping
+    -- ConfigMap mounted at /shoebox-config (one file per namespace). This reuses
+    -- the same lookup as transform-shoebox.lua's get_resource_id, but lives on the
+    -- containerLogs path so it also runs when mdsd/shoebox is disabled.
+
+    -- Cache for resourceId lookups (namespace -> resourceId).
+    -- ResourceIds are immutable per cluster, so we cache forever.
+    local resourceid_cache = {}
+
+    -- Get resourceId for a namespace by reading the corresponding file.
+    -- Trims surrounding whitespace and uppercases the value. Returns nil when
+    -- no mapping file exists (fail-soft).
+    local function get_resource_id(namespace)
+        local cached = resourceid_cache[namespace]
+        if cached then
+            return cached
+        end
+
+        local filepath = "/shoebox-config/" .. namespace
+        local file = io.open(filepath, "r")
+        if file then
+            local resourceId = file:read("*all")
+            file:close()
+            resourceId = resourceId:match("^%s*(.-)%s*$")
+            resourceId = string.upper(resourceId)
+            resourceid_cache[namespace] = resourceId
+            return resourceId
+        end
+
+        return nil
+    end
+
+    -- Set cluster_id on the record from its namespace-derived resource ID.
+    -- Returns code 2 (record + timestamp replaced) when a non-empty resource ID
+    -- is resolved; otherwise code 0 (record left unchanged).
+    function set_cluster_id(tag, timestamp, record)
+        local namespace = ""
+        if record["kubernetes"] and record["kubernetes"]["namespace_name"] then
+            namespace = record["kubernetes"]["namespace_name"]
+        end
+
+        local resourceId = get_resource_id(namespace)
+
+        if resourceId and resourceId ~= "" then
+            record["cluster_id"] = resourceId
+            return 2, timestamp, record
+        end
+
+        return 0, 0, 0
     end
   output.conf: |
     [OUTPUT]
@@ -816,7 +883,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: f0311b4f9da7294ac2ee43d8778c426af65296e434d332622aa97a93b362c130
+        checksum/configmap: 2f9f706514de88883634cc017416bf0243abf36ea758daea6a8e5f6f75d6eb23
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
@@ -1116,12 +1183,12 @@ spec:
           configMap:
             name: arobit-forwarder
             defaultMode: 0755
-        - name: mdsd-run-clusterlogs
-          emptyDir: {}
         - name: shoebox-mappings
           configMap:
             name: namespace-resourceid-mapping
             optional: true
+        - name: mdsd-run-clusterlogs
+          emptyDir: {}
         - name: geneva-certs-clusterlogs
           csi:
             driver: secrets-store.csi.k8s.io
