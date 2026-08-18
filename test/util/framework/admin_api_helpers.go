@@ -522,6 +522,22 @@ func (tc *perItOrDescribeTestContext) GetManagementClusterScheduling(ctx context
 	return &result, nil
 }
 
+func (tc *perItOrDescribeTestContext) GetHCPResourceRequirements(ctx context.Context, name string, identityDetails *AzureIdentityDetails) (*fleetapi.HCPResourceRequirementsStatus, error) {
+	endpoint := fmt.Sprintf("%s/admin/v1/hcpresourcerequirements/%s", tc.perBinaryInvocationTestContext.adminAPIAddress, name)
+
+	By(fmt.Sprintf("getting HCP resource requirements %q via admin API: %s", name, endpoint))
+	body, err := adminAPIGet(ctx, createAdminAPIHTTPClient(identityDetails), endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	var result fleetapi.HCPResourceRequirementsStatus
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal HCP resource requirements: %w", err)
+	}
+	return &result, nil
+}
+
 // DoAdminAPIRequest sends an HTTP request to the admin API, checks the status code, and
 // JSON-decodes the response body into T.
 func DoAdminAPIRequest[T any](ctx context.Context, httpClient *http.Client, method, url string, expectedStatus int, body io.Reader) (T, error) {

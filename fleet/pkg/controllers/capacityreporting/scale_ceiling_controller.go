@@ -144,8 +144,8 @@ func (s *scaleCeilingReportingSyncer) persistMaxCapacity(ctx context.Context, st
 
 	updated := existing.DeepCopy()
 	meta.SetStatusCondition(&updated.Status.Conditions, condition)
-	updated.Status.Scaling.LastReportedAt = now
-	updated.Status.Scaling.Max = max
+	updated.Status.ScaleCeiling.LastReportedAt = now
+	updated.Status.ScaleCeiling.Capacity = max
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(err)
 	}

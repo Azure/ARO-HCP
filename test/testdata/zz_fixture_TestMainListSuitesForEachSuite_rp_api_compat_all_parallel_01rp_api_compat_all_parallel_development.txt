@@ -62,6 +62,7 @@ Engineering should be able to retrieve expected metrics from the /metrics endpoi
 Customer should be able to create a cluster with an external auth config and get the external auth config
 Customer should be able to lifecycle and confirm external auth on a cluster
 Fleet should have registered stamps with ready management clusters
+Fleet should have HCP resource requirements data
 Fleet should have scheduling data for ready management clusters
 SRE can pause schedules to stop backup execution for an HCP cluster
 Customer should be able to create an HCP cluster and manage ImageDigestMirrors

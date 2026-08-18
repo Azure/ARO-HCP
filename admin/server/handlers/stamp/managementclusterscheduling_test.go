@@ -45,13 +45,13 @@ func newManagementClusterScheduling(t *testing.T, stampIdentifier string) *fleet
 			PartitionKey: strings.ToLower(stampIdentifier),
 		},
 		Status: fleetapi.ManagementClusterSchedulingStatus{
-			Capacity: fleetapi.ManagementClusterCapacity{
-				Current: corev1.ResourceList{
+			ObservedResources: fleetapi.ObservedResources{
+				Capacity: corev1.ResourceList{
 					corev1.ResourceCPU: resource.MustParse("32"),
 				},
 			},
-			Scaling: fleetapi.ManagementClusterScaling{
-				Max: corev1.ResourceList{
+			ScaleCeiling: fleetapi.ScaleCeiling{
+				Capacity: corev1.ResourceList{
 					corev1.ResourceCPU: resource.MustParse("64"),
 				},
 			},
@@ -137,8 +137,8 @@ func TestManagementClusterSchedulingGetHandler(t *testing.T) {
 
 				var resp fleetapi.ManagementClusterSchedulingStatus
 				require.NoError(t, json.NewDecoder(recorder.Body).Decode(&resp))
-				require.NotEmpty(t, resp.Capacity.Current)
-				require.NotEmpty(t, resp.Scaling.Max)
+				require.NotEmpty(t, resp.ObservedResources.Capacity)
+				require.NotEmpty(t, resp.ScaleCeiling.Capacity)
 			}
 		})
 	}

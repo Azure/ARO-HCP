@@ -109,8 +109,8 @@ func TestPersistMaxCapacity_UpdatesExistingDoc(t *testing.T) {
 
 	updated, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
 	require.NoError(t, err)
-	assertResourceListEqual(t, maxCapacity, updated.Status.Scaling.Max, "Scaling.Max")
-	require.NotNil(t, updated.Status.Scaling.LastReportedAt, "Scaling.LastReportedAt must be set")
+	assertResourceListEqual(t, maxCapacity, updated.Status.ScaleCeiling.Capacity, "ScaleCeiling.Capacity")
+	require.NotNil(t, updated.Status.ScaleCeiling.LastReportedAt, "ScaleCeiling.LastReportedAt must be set")
 	assert.True(t, meta.IsStatusConditionTrue(updated.Status.Conditions, fleetapi.ConditionTypeScalingDataCurrent), "ScalingDataCurrent condition")
 }
 
@@ -120,8 +120,8 @@ func TestPersistMaxCapacity_PreservesCapacity(t *testing.T) {
 	require.NoError(t, err)
 
 	scheduling := testSchedulingDoc()
-	scheduling.Status.Capacity = fleetapi.ManagementClusterCapacity{
-		Current: corev1.ResourceList{
+	scheduling.Status.ObservedResources = fleetapi.ObservedResources{
+		Capacity: corev1.ResourceList{
 			corev1.ResourceMemory: resource.MustParse("64Gi"),
 		},
 	}
@@ -142,6 +142,6 @@ func TestPersistMaxCapacity_PreservesCapacity(t *testing.T) {
 
 	updated, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
 	require.NoError(t, err)
-	assertResourceListEqual(t, corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("64Gi")}, updated.Status.Capacity.Current, "Capacity.Current preserved")
-	assertResourceListEqual(t, corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Gi")}, updated.Status.Scaling.Max, "Scaling.Max updated")
+	assertResourceListEqual(t, corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("64Gi")}, updated.Status.ObservedResources.Capacity, "ObservedResources.Capacity preserved")
+	assertResourceListEqual(t, corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Gi")}, updated.Status.ScaleCeiling.Capacity, "ScaleCeiling.Capacity updated")
 }

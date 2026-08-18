@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/capacityreporting"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/clustersserviceregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/datadump"
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/hcpresourcerequirements"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/lifecycle"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
@@ -235,6 +236,13 @@ func (m *Manager) runControllersUnderLeaderElection(
 		base.StampWatchingControllerConfig{CooldownPeriod: 10 * time.Minute},
 	)
 
+	hcpResourceRequirementsController := hcpresourcerequirements.NewController(
+		5*time.Minute,
+		m.FleetDBClient,
+		readDesireLister,
+		stampLister,
+	)
+
 	amwScalingController := amwscaling.NewController(
 		m.AMWScalingPollInterval,
 		m.AMWWorkspaceResourceIDs,
@@ -267,6 +275,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 				go ensureCapacityReadDesireController.Run(ctx, 1)
 				go capacityReportingController.Run(ctx, 1)
 				go scaleCeilingReportingController.Run(ctx, 1)
+				go hcpResourceRequirementsController.Run(ctx)
 				go amwScalingController.Run(ctx)
 			},
 			OnStoppedLeading: func() {

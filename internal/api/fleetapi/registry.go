@@ -23,11 +23,13 @@ import (
 const (
 	StampResourceTypeName = "stamps"
 
-	ManagementClusterResourceTypeName = "managementClusters"
-	ManagementClusterResourceName     = "default"
-	ControllerResourceTypeName        = "controllers"
-	SchedulingResourceTypeName        = "scheduling"
-	SchedulingResourceName            = "default"
+	ManagementClusterResourceTypeName       = "managementClusters"
+	ManagementClusterResourceName           = "default"
+	ControllerResourceTypeName              = "controllers"
+	SchedulingResourceTypeName              = "scheduling"
+	SchedulingResourceName                  = "default"
+	HCPResourceRequirementsResourceTypeName = "hcpResourceRequirements"
+	HCPResourceRequirementsResourceName     = "default"
 )
 
 var (
@@ -35,4 +37,5 @@ var (
 	ManagementClusterResourceType           = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName)
 	ManagementClusterControllerResourceType = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName+"/"+ControllerResourceTypeName)
 	ManagementClusterSchedulingResourceType = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName+"/"+SchedulingResourceTypeName)
+	HCPResourceRequirementsResourceType     = azcorearm.NewResourceType(coreapi.ProviderNamespace, HCPResourceRequirementsResourceTypeName)
 )

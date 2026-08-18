@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	breakglasshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp/breakglass"
+	hcpresourcerequirementshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcpresourcerequirements"
 	stamphandlers "github.com/Azure/ARO-HCP/admin/server/handlers/stamp"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/audit"
@@ -153,6 +154,8 @@ func NewAdminAPI(
 		errorutils.ReportError(stamphandlers.NewManagementClusterSchedulingGetHandler(fleetDBClient).ServeHTTP))
 	middlewareMux.Handle("POST /admin/v1/stamps/{stampIdentifier}/approval",
 		errorutils.ReportError(stamphandlers.NewStampApprovalHandler(fleetDBClient).ServeHTTP))
+	middlewareMux.Handle("GET /admin/v1/hcpresourcerequirements/{name}",
+		errorutils.ReportError(hcpresourcerequirementshandlers.NewHCPResourceRequirementsGetHandler(fleetDBClient).ServeHTTP))
 
 	// Top-level mux (healthz bypasses all middleware)
 	apiMux := http.NewServeMux()

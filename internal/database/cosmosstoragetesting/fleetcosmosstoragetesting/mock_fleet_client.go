@@ -57,6 +57,7 @@ func NewMockFleetDBClient() *MockFleetDBClient {
 //   - *fleetapi.Stamp
 //   - *fleetapi.ManagementCluster
 //   - *fleetapi.ManagementClusterScheduling
+//   - *fleetapi.HCPResourceRequirements
 func NewMockFleetDBClientWithResources(ctx context.Context, resources []any) (*MockFleetDBClient, error) {
 	mock := NewMockFleetDBClient()
 	for i, r := range resources {
@@ -75,6 +76,8 @@ func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error
 		return m.addManagementCluster(ctx, r)
 	case *fleetapi.ManagementClusterScheduling:
 		return m.addManagementClusterScheduling(ctx, r)
+	case *fleetapi.HCPResourceRequirements:
+		return m.addHCPResourceRequirements(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type for MockFleetDBClient: %T", resource)
 	}
@@ -107,6 +110,12 @@ func (m *MockFleetDBClient) addManagementClusterScheduling(ctx context.Context, 
 	}
 	crud := m.Stamps().ManagementClusters(stampIdentifier).Scheduling()
 	_, err := crud.Create(ctx, scheduling, nil)
+	return err
+}
+
+func (m *MockFleetDBClient) addHCPResourceRequirements(ctx context.Context, requirements *fleetapi.HCPResourceRequirements) error {
+	crud := m.HCPResourceRequirements()
+	_, err := crud.Create(ctx, requirements, nil)
 	return err
 }
 
@@ -224,6 +233,12 @@ func (m *MockFleetDBClient) Stamps() fleetcosmosstorage.StampsCRUD {
 		),
 		store: m,
 	}
+}
+
+func (m *MockFleetDBClient) HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements] {
+	return newMockFleetResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
+		m, nil, fleetapi.HCPResourceRequirementsResourceType,
+	)
 }
 
 func (m *MockFleetDBClient) GlobalListers() fleetcosmosstorage.FleetGlobalListers {

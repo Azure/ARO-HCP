@@ -37,6 +37,7 @@ const fleetContainer = "Fleet"
 type FleetDBClient interface {
 	cosmosstorageutils.ChangeFeedClient
 	Stamps() StampsCRUD
+	HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements]
 	GlobalListers() FleetGlobalListers
 }
 
@@ -100,6 +101,12 @@ func (c *cosmosFleetDBClient) Stamps() StampsCRUD {
 		),
 		containerClient: c.container,
 	}
+}
+
+func (c *cosmosFleetDBClient) HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements] {
+	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
+		c.container, nil, fleetapi.HCPResourceRequirementsResourceType,
+		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
 }
 
 func (c *cosmosFleetDBClient) GlobalListers() FleetGlobalListers {

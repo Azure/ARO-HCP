@@ -66,3 +66,18 @@ func ToManagementClusterSchedulingResourceIDString(stampIdentifier string) strin
 		SchedulingResourceTypeName, SchedulingResourceName,
 	))
 }
+
+// ToHCPResourceRequirementsResourceID constructs the resource ID for an
+// HCP resource requirements document:
+// /providers/Microsoft.RedHatOpenShift/hcpResourceRequirements/{name}
+func ToHCPResourceRequirementsResourceID(name string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToHCPResourceRequirementsResourceIDString(name))
+}
+
+// ToHCPResourceRequirementsResourceIDString returns the lowercased resource ID
+// string for an HCP resource requirements document.
+func ToHCPResourceRequirementsResourceIDString(name string) string {
+	return strings.ToLower(path.Join(
+		"/providers", HCPResourceRequirementsResourceType.String(), name,
+	))
+}
