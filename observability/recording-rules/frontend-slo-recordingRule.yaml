@@ -22,8 +22,8 @@ spec:
   #   Saturation:   Frontend pod CPU vs request, memory vs limit (Istio /
   #                 Cosmos RU saturation deferred until owned series are wired)
   #
-  # Scope: synchronous Frontend HTTP on svc clusters. Excludes the known-slow
-  # operation-results poll route (same filter as FrontendLatency alerts).
+  # Scope: synchronous Frontend HTTP on svc clusters. Excludes ARM async poll
+  # routes hcpoperationresults and hcpoperationstatuses (status polls dilute SLIs).
   #
   # Metrics: frontend_http_requests_total / _duration_seconds (histogram has a
   # 1s bucket — see frontend/pkg/frontend/metrics.go). Match le as "1" or "1.0"
@@ -41,7 +41,7 @@ spec:
             max without (prometheus_replica) (
               rate(frontend_http_requests_total{
                 code!~"5..",
-                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+                route!~".*hcpoperation(results|statuses).*"
               }[5m])
             )
           )
@@ -49,7 +49,7 @@ spec:
           sum by (cluster) (
             max without (prometheus_replica) (
               rate(frontend_http_requests_total{
-                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+                route!~".*hcpoperation(results|statuses).*"
               }[5m])
             )
           )
@@ -59,18 +59,20 @@ spec:
           sum by (cluster) (
             max without (prometheus_replica) (
               rate(frontend_http_requests_total{
-                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+                route!~".*hcpoperation(results|statuses).*"
               }[5m])
             )
           )
           > 0
         )
-    # 30-day smoothed availability for SLO status panels (not for fast burn alerts).
     - record: sli:frontend_http:availability:rate_avg_30d
+      # 30-day smoothed availability for SLO status panels (not for fast burn alerts).
+
       expr: avg_over_time(sli:frontend_http:availability:rate5m[30d:5m])
-    # Errors: 5xx / total (Access-style error_rate for future MWMBR alerts).
     # `or 0 * total` keeps error_rate=0 when there is traffic but no 5xx series.
     - record: errors:frontend_http:error_rate:rate5m
+      # Errors: 5xx / total (Access-style error_rate for future MWMBR alerts).
+
       expr: |
         (
           (
@@ -78,7 +80,7 @@ spec:
               max without (prometheus_replica) (
                 rate(frontend_http_requests_total{
                   code=~"5..",
-                  route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+                  route!~".*hcpoperation(results|statuses).*"
                 }[5m])
               )
             )
@@ -86,7 +88,7 @@ spec:
             0 * sum by (cluster) (
               max without (prometheus_replica) (
                 rate(frontend_http_requests_total{
-                  route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+                  route!~".*hcpoperation(results|statuses).*"
                 }[5m])
               )
             )
@@ -95,7 +97,7 @@ spec:
           sum by (cluster) (
             max without (prometheus_replica) (
               rate(frontend_http_requests_total{
-                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+                route!~".*hcpoperation(results|statuses).*"
               }[5m])
             )
           )
@@ -105,22 +107,23 @@ spec:
           sum by (cluster) (
             max without (prometheus_replica) (
               rate(frontend_http_requests_total{
-                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+                route!~".*hcpoperation(results|statuses).*"
               }[5m])
             )
           )
           > 0
         )
-    # Latency SLI: requests completing within 1s / total.
     # Atomic single expression; le matches "1" or "1.0".
     - record: sli:frontend_http:latency:rate5m
+      # Latency SLI: requests completing within 1s / total.
+
       expr: |
         (
           sum by (cluster) (
             max without (prometheus_replica) (
               rate(frontend_http_requests_duration_seconds_bucket{
-                le=~"^1(\\.0)?$",
-                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+                le=~"1(\\.0)?",
+                route!~".*hcpoperation(results|statuses).*"
               }[5m])
             )
           )
@@ -128,7 +131,7 @@ spec:
           sum by (cluster) (
             max without (prometheus_replica) (
               rate(frontend_http_requests_duration_seconds_count{
-                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+                route!~".*hcpoperation(results|statuses).*"
               }[5m])
             )
           )
@@ -138,24 +141,26 @@ spec:
           sum by (cluster) (
             max without (prometheus_replica) (
               rate(frontend_http_requests_duration_seconds_count{
-                route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+                route!~".*hcpoperation(results|statuses).*"
               }[5m])
             )
           )
           > 0
         )
-    # Traffic: absolute request rate (RPS). Anomaly thresholds belong in ARO-28707.
     - record: traffic:frontend_http:request_rate:rate5m
+      # Traffic: absolute request rate (RPS). Anomaly thresholds belong in ARO-28707.
+
       expr: |
         sum by (cluster) (
           max without (prometheus_replica) (
             rate(frontend_http_requests_total{
-              route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"
+              route!~".*hcpoperation(results|statuses).*"
             }[5m])
           )
         )
-    # Saturation — CPU: usage cores / requested cores (ratio). SLO target < 0.85.
     - record: sli:frontend:saturation_cpu:ratio5m
+      # Saturation — CPU: usage cores / requested cores (ratio). SLO target < 0.85.
+
       expr: |
         (
           sum by (cluster) (
@@ -190,8 +195,9 @@ spec:
           )
           > 0
         )
-    # Saturation — memory: working set / limit (ratio). Frontend sets a memory limit.
     - record: sli:frontend:saturation_memory:ratio5m
+      # Saturation — memory: working set / limit (ratio). Frontend sets a memory limit.
+
       expr: |
         (
           sum by (cluster) (
