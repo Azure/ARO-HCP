@@ -26,7 +26,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### Frontend (ARM RP) SLO Dashboard\n\nUser-journey view of Frontend sync ARM SLIs. Prefer recording rules from [ARO-28705](https://redhat.atlassian.net/browse/ARO-28705) / PR [#6554](https://github.com/Azure/ARO-HCP/pull/6554).\n\n| SLI | Recording rule / source | Proposed SLO |\n|-----|-------------------------|--------------|\n| **Availability** | `sli:frontend_http:availability:rate5m` (+ `rate_avg_30d`) | ≥ 99.95% / 30d |\n| **Errors** | `errors:frontend_http:error_rate:rate5m` | &lt; 0.05% 5xx |\n| **Latency** | `sli:frontend_http:latency:rate5m` (share ≤1s) + raw p50/p95/p99 | p99 &lt; 1s |\n| **Traffic** | `traffic:frontend_http:request_rate:rate5m` | Baseline + anomaly (alerts: ARO-28707) |\n| **Saturation** | `sli:frontend:saturation_cpu:ratio5m` / `_memory:` | CPU &lt; 85% of request; memory vs limit |\n\nExcludes `hcpoperationresults` poll route (same as `FrontendLatency`). Cosmos RU / Istio pool saturation deferred until owned series exist.\n\n**Jira:** [ARO-28706](https://redhat.atlassian.net/browse/ARO-28706) · Epic [ARO-28703](https://redhat.atlassian.net/browse/ARO-28703)  \n**Runbook / TSG:** companion Frontend UJ runbook + [frontend-tsg](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html) · component panels remain on Grafana folder **Frontend** / `frontend.json`",
+        "content": "### Frontend (ARM RP) SLO Dashboard\n\nUser-journey view of Frontend sync ARM SLIs. Prefer recording rules from [ARO-28705](https://redhat.atlassian.net/browse/ARO-28705) / PR [#6554](https://github.com/Azure/ARO-HCP/pull/6554).\n\n| SLI | Recording rule / source | Proposed SLO |\n|-----|-------------------------|--------------|\n| **Availability** | `sli:frontend_http:availability:rate5m` (+ `rate_avg_30d`) | ≥ 99.95% / 30d |\n| **Errors** | `errors:frontend_http:error_rate:rate5m` | &lt; 0.05% 5xx |\n| **Latency** | `sli:frontend_http:latency:rate5m` (share ≤1s) + raw p50/p95/p99 | p99 &lt; 1s |\n| **Traffic** | `traffic:frontend_http:request_rate:rate5m` | Baseline + anomaly (alerts: ARO-28707) |\n| **Saturation** | `sli:frontend:saturation_cpu:ratio5m` / `_memory:` | CPU &lt; 85% of request; memory vs limit |\n\nExcludes ARM async poll routes `hcpoperationresults` / `hcpoperationstatuses`. Cosmos RU / Istio pool saturation deferred until owned series exist.\n\n**Jira:** [ARO-28706](https://redhat.atlassian.net/browse/ARO-28706) · Epic [ARO-28703](https://redhat.atlassian.net/browse/ARO-28703)  \n**Runbook / TSG:** companion Frontend UJ runbook + [frontend-tsg](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html) · component panels remain on Grafana folder **Frontend** / `frontend.json`",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -42,7 +42,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Current availability (non-5xx / total) from sli:frontend_http:availability:rate5m. SLO target ≥ 99.95%.",
       "fieldConfig": {
         "defaults": {
@@ -75,7 +75,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "avg(sli:frontend_http:availability:rate5m{cluster=\"$cluster\"}) * 100",
+          "expr": "avg(sli:frontend_http:availability:rate5m{cluster=~\"$cluster\"}) * 100",
           "instant": true,
           "legendFormat": "Availability %",
           "refId": "A"
@@ -85,7 +85,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "30-day smoothed availability from sli:frontend_http:availability:rate_avg_30d. Primary SLO status gauge (≥ 99.95%).",
       "fieldConfig": {
         "defaults": {
@@ -118,7 +118,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "avg(sli:frontend_http:availability:rate_avg_30d{cluster=\"$cluster\"}) * 100",
+          "expr": "avg(sli:frontend_http:availability:rate_avg_30d{cluster=~\"$cluster\"}) * 100",
           "instant": true,
           "legendFormat": "Availability 30d %",
           "refId": "A"
@@ -128,7 +128,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "5xx / total from errors:frontend_http:error_rate:rate5m. SLO target < 0.05%.",
       "fieldConfig": {
         "defaults": {
@@ -160,7 +160,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "avg(errors:frontend_http:error_rate:rate5m{cluster=\"$cluster\"}) * 100",
+          "expr": "avg(errors:frontend_http:error_rate:rate5m{cluster=~\"$cluster\"}) * 100",
           "instant": true,
           "legendFormat": "Error rate %",
           "refId": "A"
@@ -170,7 +170,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Error budget remaining for 99.95% availability SLO using 30d availability: (avail - 0.9995) / (1 - 0.9995). 100% = full budget left; 0% = budget exhausted.",
       "fieldConfig": {
         "defaults": {
@@ -203,7 +203,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "clamp_min(\n  (\n    avg(sli:frontend_http:availability:rate_avg_30d{cluster=\"$cluster\"}) - 0.9995\n  ) / (1 - 0.9995) * 100,\n  0\n)",
+          "expr": "clamp_min(\n  (\n    avg(sli:frontend_http:availability:rate_avg_30d{cluster=~\"$cluster\"}) - 0.9995\n  ) / (1 - 0.9995) * 100,\n  0\n)",
           "instant": true,
           "legendFormat": "Budget remaining %",
           "refId": "A"
@@ -213,7 +213,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Availability over time with 99.95% SLO target line.",
       "fieldConfig": {
         "defaults": {
@@ -251,7 +251,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sli:frontend_http:availability:rate5m{cluster=\"$cluster\"} * 100",
+          "expr": "sli:frontend_http:availability:rate5m{cluster=~\"$cluster\"} * 100",
           "legendFormat": "{{ cluster }}",
           "refId": "A"
         }
@@ -260,7 +260,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "5xx error rate over time with 0.05% SLO threshold line.",
       "fieldConfig": {
         "defaults": {
@@ -297,7 +297,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "errors:frontend_http:error_rate:rate5m{cluster=\"$cluster\"} * 100",
+          "expr": "errors:frontend_http:error_rate:rate5m{cluster=~\"$cluster\"} * 100",
           "legendFormat": "{{ cluster }}",
           "refId": "A"
         }
@@ -314,7 +314,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Share of requests completing within 1s (sli:frontend_http:latency:rate5m). Complements p99 < 1s SLO.",
       "fieldConfig": {
         "defaults": {
@@ -347,7 +347,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "avg(sli:frontend_http:latency:rate5m{cluster=\"$cluster\"}) * 100",
+          "expr": "avg(sli:frontend_http:latency:rate5m{cluster=~\"$cluster\"}) * 100",
           "instant": true,
           "legendFormat": "Share ≤1s %",
           "refId": "A"
@@ -357,7 +357,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Raw histogram p99 across selected clusters (excludes operation-results). SLO target line at 1s.",
       "fieldConfig": {
         "defaults": {
@@ -388,7 +388,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99,\n  sum by (cluster, le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=\"$cluster\",\n        route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"\n      }[$__rate_interval])\n    )\n  )\n)",
+          "expr": "histogram_quantile(0.99,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=~\"$cluster\",\n        route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"\n      }[$__rate_interval])\n    )\n  )\n)",
           "instant": true,
           "legendFormat": "p99",
           "refId": "A"
@@ -398,7 +398,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Request rate from traffic:frontend_http:request_rate:rate5m.",
       "fieldConfig": {
         "defaults": {
@@ -425,7 +425,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum(traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"})",
+          "expr": "sum(traffic:frontend_http:request_rate:rate5m{cluster=~\"$cluster\"})",
           "instant": true,
           "legendFormat": "RPS",
           "refId": "A"
@@ -435,7 +435,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Share of requests ≤ 1s over time (latency SLI recording rule).",
       "fieldConfig": {
         "defaults": {
@@ -473,7 +473,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sli:frontend_http:latency:rate5m{cluster=\"$cluster\"} * 100",
+          "expr": "sli:frontend_http:latency:rate5m{cluster=~\"$cluster\"} * 100",
           "legendFormat": "{{ cluster }}",
           "refId": "A"
         }
@@ -482,7 +482,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "p50 / p95 / p99 from frontend_http_requests_duration_seconds (excludes operation-results). Red threshold line at 1s (ARM sync SLO).",
       "fieldConfig": {
         "defaults": {
@@ -518,21 +518,21 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50,\n  sum by (cluster, le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=\"$cluster\",\n        route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"\n      }[$__rate_interval])\n    )\n  )\n)",
+          "expr": "histogram_quantile(0.50,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=~\"$cluster\",\n        route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"\n      }[$__rate_interval])\n    )\n  )\n)",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95,\n  sum by (cluster, le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=\"$cluster\",\n        route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"\n      }[$__rate_interval])\n    )\n  )\n)",
+          "expr": "histogram_quantile(0.95,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=~\"$cluster\",\n        route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"\n      }[$__rate_interval])\n    )\n  )\n)",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99,\n  sum by (cluster, le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=\"$cluster\",\n        route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"\n      }[$__rate_interval])\n    )\n  )\n)",
+          "expr": "histogram_quantile(0.99,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=~\"$cluster\",\n        route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"\n      }[$__rate_interval])\n    )\n  )\n)",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -549,7 +549,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Request rate (RPS) over time from traffic:frontend_http:request_rate:rate5m. Anomaly thresholds deferred to ARO-28707.",
       "fieldConfig": {
         "defaults": {
@@ -576,7 +576,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"}",
+          "expr": "traffic:frontend_http:request_rate:rate5m{cluster=~\"$cluster\"}",
           "legendFormat": "{{ cluster }}",
           "refId": "A"
         }
@@ -585,7 +585,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Frontend pod CPU (usage / request) and memory (working set / limit). CPU SLO line at 85%. Cosmos RU / Istio connection pool not wired yet.",
       "fieldConfig": {
         "defaults": {
@@ -623,14 +623,14 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sli:frontend:saturation_cpu:ratio5m{cluster=\"$cluster\"} * 100",
+          "expr": "sli:frontend:saturation_cpu:ratio5m{cluster=~\"$cluster\"} * 100",
           "legendFormat": "CPU {{ cluster }}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sli:frontend:saturation_memory:ratio5m{cluster=\"$cluster\"} * 100",
+          "expr": "sli:frontend:saturation_memory:ratio5m{cluster=~\"$cluster\"} * 100",
           "legendFormat": "Memory {{ cluster }}",
           "refId": "B"
         }
@@ -639,7 +639,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Current Frontend CPU usage vs request (sli:frontend:saturation_cpu:ratio5m). Target < 85%.",
       "fieldConfig": {
         "defaults": {
@@ -672,7 +672,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "avg(sli:frontend:saturation_cpu:ratio5m{cluster=\"$cluster\"}) * 100",
+          "expr": "avg(sli:frontend:saturation_cpu:ratio5m{cluster=~\"$cluster\"}) * 100",
           "instant": true,
           "legendFormat": "CPU %",
           "refId": "A"
@@ -682,7 +682,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "description": "Current Frontend memory working set vs limit (sli:frontend:saturation_memory:ratio5m).",
       "fieldConfig": {
         "defaults": {
@@ -715,7 +715,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "avg(sli:frontend:saturation_memory:ratio5m{cluster=\"$cluster\"}) * 100",
+          "expr": "avg(sli:frontend:saturation_memory:ratio5m{cluster=~\"$cluster\"}) * 100",
           "instant": true,
           "legendFormat": "Memory %",
           "refId": "A"
