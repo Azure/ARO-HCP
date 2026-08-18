@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/client-go/tools/cache"
@@ -30,7 +32,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 )
 
 const (
@@ -39,7 +40,8 @@ const (
 )
 
 type stringSyncer struct {
-	cooldown controllerutil.CooldownChecker
+	cooldown CooldownChecker
+	syncErr  error
 }
 
 func (s *stringSyncer) MakeKey(rid *azcorearm.ResourceID) string {
@@ -49,13 +51,19 @@ func (s *stringSyncer) MakeKey(rid *azcorearm.ResourceID) string {
 	return rid.String()
 }
 
-func (s *stringSyncer) SyncOnce(context.Context, string) error { return nil }
+func (s *stringSyncer) SyncOnce(context.Context, string) error { return s.syncErr }
 
-func (s *stringSyncer) CooldownChecker() controllerutil.CooldownChecker {
+func (s *stringSyncer) CooldownChecker() CooldownChecker {
 	if s.cooldown == nil {
 		return alwaysAllowCooldown{}
 	}
 	return s.cooldown
+}
+
+func testReconcileTotal() *prometheus.CounterVec {
+	return prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "test_reconcile_total",
+	}, []string{"controller"})
 }
 
 type alwaysAllowCooldown struct{}
@@ -66,15 +74,15 @@ type neverAllowCooldown struct{}
 
 func (neverAllowCooldown) CanSync(context.Context, any) bool { return false }
 
-func newTestWatchingController() (*genericWatchingController[string], *azcorearm.ResourceID, *azcorearm.ResourceID) {
+func newTestWatchingController() (*GenericWatchingController[string], *azcorearm.ResourceID, *azcorearm.ResourceID) {
 	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID))
 	npID := metadataapi.Must(azcorearm.ParseResourceID(testNodePoolARMID))
 	syncer := &stringSyncer{}
-	c := newGenericWatchingController("test", clusterID.ResourceType, syncer)
+	c := NewGenericWatchingController("test", clusterID.ResourceType, syncer, testReconcileTotal())
 	return c, clusterID, npID
 }
 
-func popAllQueue(c *genericWatchingController[string]) []string {
+func popAllQueue(c *GenericWatchingController[string]) []string {
 	var keys []string
 	for c.queue.Len() > 0 {
 		k, shutdown := c.queue.Get()
@@ -148,7 +156,7 @@ func TestEnqueueResourceIDAddWithMaxDepth(t *testing.T) {
 func TestEnqueueResourceIDAddWithMaxDepth_changedAndCooldown(t *testing.T) {
 	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID))
 	syncer := &stringSyncer{cooldown: neverAllowCooldown{}}
-	c := newGenericWatchingController("cooldown", clusterID.ResourceType, syncer)
+	c := NewGenericWatchingController("cooldown", clusterID.ResourceType, syncer, testReconcileTotal())
 
 	tests := []struct {
 		name         string
@@ -176,19 +184,19 @@ func TestEnqueueCosmosWithMaxDepth(t *testing.T) {
 
 	tests := []struct {
 		name string
-		run  func(*genericWatchingController[string])
+		run  func(*GenericWatchingController[string])
 		want []string
 	}{
 		{
 			name: "add from node pool metadata",
-			run: func(c *genericWatchingController[string]) {
+			run: func(c *GenericWatchingController[string]) {
 				c.enqueueCosmosAddWithMaxDepth(&coreapi.CosmosMetadata{ResourceID: npID}, 1)
 			},
 			want: []string{clusterID.String()},
 		},
 		{
 			name: "update same etag uses unchanged path",
-			run: func(c *genericWatchingController[string]) {
+			run: func(c *GenericWatchingController[string]) {
 				etag := azcore.ETag("e1")
 				oldObj := &coreapi.CosmosMetadata{ResourceID: npID, CosmosETag: etag}
 				newObj := &coreapi.CosmosMetadata{ResourceID: npID, CosmosETag: etag}
@@ -198,7 +206,7 @@ func TestEnqueueCosmosWithMaxDepth(t *testing.T) {
 		},
 		{
 			name: "update different etag",
-			run: func(c *genericWatchingController[string]) {
+			run: func(c *GenericWatchingController[string]) {
 				oldObj := &coreapi.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("a")}
 				newObj := &coreapi.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("b")}
 				c.enqueueCosmosUpdateWithMaxDepth(oldObj, newObj, 1)
@@ -236,11 +244,11 @@ func TestQueueForInformersWithMaxDepth(t *testing.T) {
 
 	tests := []struct {
 		name string
-		run  func(t *testing.T, c *genericWatchingController[string], n *capturingNotifier)
+		run  func(t *testing.T, c *GenericWatchingController[string], n *capturingNotifier)
 	}{
 		{
 			name: "Add handler respects maxDepth",
-			run: func(t *testing.T, c *genericWatchingController[string], n *capturingNotifier) {
+			run: func(t *testing.T, c *GenericWatchingController[string], n *capturingNotifier) {
 				require.NotNil(t, n.addFunc)
 				n.addFunc(&coreapi.CosmosMetadata{ResourceID: npID})
 				require.Equal(t, []string{clusterID.String()}, popAllQueue(c))
@@ -248,7 +256,7 @@ func TestQueueForInformersWithMaxDepth(t *testing.T) {
 		},
 		{
 			name: "Update handler respects maxDepth",
-			run: func(t *testing.T, c *genericWatchingController[string], n *capturingNotifier) {
+			run: func(t *testing.T, c *GenericWatchingController[string], n *capturingNotifier) {
 				require.NotNil(t, n.updateFunc)
 				oldObj := &coreapi.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("a")}
 				newObj := &coreapi.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("b")}
@@ -282,4 +290,23 @@ type errNotifier struct {
 
 func (e *errNotifier) AddEventHandlerWithOptions(handler cache.ResourceEventHandler, opts cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
 	return nil, e.err
+}
+
+func TestProcessNextWorkItemIncrementsReconcileTotal(t *testing.T) {
+	clusterID := metadataapi.Must(azcorearm.ParseResourceID(testClusterARMID))
+	reconcileTotal := testReconcileTotal()
+	syncer := &stringSyncer{}
+	c := NewGenericWatchingController("test-metrics", clusterID.ResourceType, syncer, reconcileTotal)
+
+	c.queue.Add(clusterID.String())
+	c.processNextWorkItem(context.Background())
+
+	count := testutil.ToFloat64(reconcileTotal.WithLabelValues("test-metrics"))
+	require.Equal(t, float64(1), count)
+
+	c.queue.Add(clusterID.String())
+	c.processNextWorkItem(context.Background())
+
+	count = testutil.ToFloat64(reconcileTotal.WithLabelValues("test-metrics"))
+	require.Equal(t, float64(2), count)
 }

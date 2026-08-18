@@ -13,12 +13,12 @@
 // limitations under the License.
 
 // Package controllerutils holds controller helpers shared across services
-// (backend, kube-applier, ...) that all build Cosmos-backed informer-driven
-// controllers and want consistent cadence/gating behavior.
+// (backend, kube-applier, fleet, ...) that all build Cosmos-backed
+// informer-driven controllers and want consistent cadence/gating behavior.
 //
 // The cooldown gate exposed here was originally
 // backend/pkg/utils/controllerutils' TimeBasedCooldownChecker; it
-// lives in internal/ so kube-applier can use the same implementation
+// lives in internal/ so other services can use the same implementation
 // without re-importing the backend module.
 package controllerutils
 
