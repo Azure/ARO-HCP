@@ -195,6 +195,16 @@ data:
         Match               kubernetes.var.log.containers.*
         Kube_Tag_Prefix     kubernetes.var.log.containers.
         Annotations         Off
+{{- if eq .Values.forwarder.clusterType "mgmt" }}
+        # Collect namespace annotations so the set-cluster-id-from-annotation lua
+        # below can read the HCP cluster's Azure resource ID from the
+        # azure.microsoft.com/hcp-cluster-azure-resource-id namespace annotation.
+        # Namespace metadata is only fetched from the API server (the kubelet API
+        # cannot serve namespace objects), so this relies on Use_Kubelet being Off
+        # -- which it is: the option is unset here and defaults to Off. Pod
+        # annotations stay Off; only namespace annotations are enabled.
+        Namespace_annotations On
+{{- end }}
         K8S-Logging.Exclude On
         Kube_Meta_Cache_TTL 300
         Buffer_Size         64k
@@ -209,6 +219,25 @@ data:
         Emitter_Name    re_emitted_namespace_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
+{{- if eq .Values.forwarder.clusterType "mgmt" }}
+
+    [FILTER]
+        # Stamp the uppercased Azure ARM resource ID of the HCP cluster onto every
+        # ocm.logs record as cluster_id, plus its resource group as resource_group,
+        # read directly from the pod's namespace annotation
+        # azure.microsoft.com/hcp-cluster-azure-resource-id (enriched by the kubernetes
+        # filter's Namespace_annotations On). This is the namespace-annotation
+        # alternative to resolving the ID from the ACM-managed /shoebox-config file
+        # mapping. Only mgmt clusters emit ocm.logs to the containerLogs Kusto table.
+        # Fail-soft: records without the annotation are left unchanged. Runs before the
+        # shoebox re-tag; transform-shoebox.lua builds its own record, so shoebox output
+        # is unaffected.
+        Name            lua
+        Alias           lua.set_cluster_id_from_annotation
+        Match           ocm.logs
+        script          /forwarder/etc/set-cluster-id-from-annotation.lua
+        call            set_cluster_id_from_annotation
+{{- end }}
 
     [FILTER]
         Name            rewrite_tag
@@ -419,6 +448,93 @@ data:
         }
 
         return 1, timestamp, shoebox
+    end
+{{- end }}
+{{- if eq .Values.forwarder.clusterType "mgmt" }}
+  set-cluster-id-from-annotation.lua: |
+    -- Lua script for stamping the HCP cluster's Azure ARM resource ID onto
+    -- control-plane container logs. Unlike the ACM /shoebox-config file lookup,
+    -- this reads the resource ID directly from the pod's NAMESPACE annotation
+    -- "azure.microsoft.com/hcp-cluster-azure-resource-id", which the kubernetes
+    -- filter enriches onto every record when "Namespace_annotations On" is set.
+    -- It stamps two top-level fields:
+    --   record["cluster_id"]     = uppercased Azure ARM resource ID
+    --   record["resource_group"] = uppercased resource-group segment of that ID
+    -- so they ingest into the containerLogs Kusto columns via $.cluster_id /
+    -- $.resource_group. Namespace annotations are only populated when the filter
+    -- fetches namespace metadata from the API server (Use_Kubelet Off), which is
+    -- the case here. Fail-soft: records without the annotation are left unchanged.
+
+    -- The namespace annotation carrying the cluster's Azure ARM resource ID.
+    local ANNOTATION_KEY = "azure.microsoft.com/hcp-cluster-azure-resource-id"
+
+    -- Read the resource-ID namespace annotation from the enriched record. Fluent
+    -- Bit's namespace-metadata location has changed across versions, so check both
+    -- the current top-level "kubernetes_namespace"."annotations" map and the older
+    -- "kubernetes"."namespace_annotations" map. Returns nil when absent or empty.
+    local function get_namespace_annotation(record)
+        local ns = record["kubernetes_namespace"]
+        if type(ns) == "table" and type(ns["annotations"]) == "table" then
+            local v = ns["annotations"][ANNOTATION_KEY]
+            if v ~= nil and v ~= "" then
+                return v
+            end
+        end
+
+        local k8s = record["kubernetes"]
+        if type(k8s) == "table" and type(k8s["namespace_annotations"]) == "table" then
+            local v = k8s["namespace_annotations"][ANNOTATION_KEY]
+            if v ~= nil and v ~= "" then
+                return v
+            end
+        end
+
+        return nil
+    end
+
+    -- Extract the resource group from an Azure ARM resource ID of the form
+    -- /subscriptions/<sub>/resourceGroups/<rg>/providers/... by splitting on
+    -- "/resourceGroups/" case-insensitively and taking the next path segment.
+    -- Returns nil when the ID has no resourceGroups segment.
+    local function parse_resource_group(resource_id)
+        local lower_id = string.lower(resource_id)
+        local match_start, match_end = string.find(lower_id, "/resourcegroups/", 1, true)
+        if not match_start then
+            return nil
+        end
+
+        local rest = string.sub(resource_id, match_end + 1)
+        local rg = string.match(rest, "^([^/]+)")
+        if rg == nil or rg == "" then
+            return nil
+        end
+
+        return rg
+    end
+
+    -- Stamp cluster_id and resource_group from the namespace annotation. Returns
+    -- code 1 (record modified, original timestamp kept) when the annotation is
+    -- present and non-empty; otherwise code 0 (record left unchanged).
+    function set_cluster_id_from_annotation(tag, timestamp, record)
+        local resource_id = get_namespace_annotation(record)
+        if resource_id == nil then
+            return 0, 0, 0
+        end
+
+        -- Trim surrounding whitespace.
+        resource_id = string.match(resource_id, "^%s*(.-)%s*$")
+        if resource_id == "" then
+            return 0, 0, 0
+        end
+
+        record["cluster_id"] = string.upper(resource_id)
+
+        local rg = parse_resource_group(resource_id)
+        if rg ~= nil and rg ~= "" then
+            record["resource_group"] = string.upper(rg)
+        end
+
+        return 1, timestamp, record
     end
 {{- end }}
   output.conf: |
