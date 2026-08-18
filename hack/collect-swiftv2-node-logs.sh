@@ -46,10 +46,21 @@ for node in "${nodes[@]}"; do
 done
 
 # Wait for all pods to be ready in parallel
+wait_pids=()
+wait_failed=0
 for node in "${!node_pods[@]}"; do
   kubectl wait --for=condition=Ready "pod/${node_pods[${node}]}" --timeout=120s &
+  wait_pids+=("$!")
 done
-wait
+for pid in "${wait_pids[@]}"; do
+  if ! wait "${pid}"; then
+    wait_failed=1
+  fi
+done
+if [[ "${wait_failed}" -ne 0 ]]; then
+  echo "ERROR: one or more debug pods did not become Ready; aborting log collection." >&2
+  exit 1
+fi
 
 # Collect logs from all nodes in parallel
 collect_node() {
