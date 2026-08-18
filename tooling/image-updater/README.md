@@ -164,7 +164,7 @@ make update GROUPS=hypershift-stack,velero
 make update GROUPS=hypershift-stack EXCLUDE_COMPONENTS=maestro-agent-sidecar
 ```
 
-Example groups include `cs`, `aro-deps`, `hypershift-stack`, `prom-stack`, `obs-agents`, `velero`, and `platform-utils`. For the complete, current set of supported groups, refer to `config.yaml`.
+Example groups include `cs`, `hypershift-stack`, `prom-stack`, `obs-agents`, `velero`, and `platform-utils`. For the complete, current set of supported groups, refer to `config.yaml`.
 
 ### Output to File
 
@@ -202,13 +202,16 @@ To pin an image to a specific digest and prevent automatic updates:
 2. **Update `config.yaml`** to use a specific `tag` instead of `tagPattern`:
 
 ```yaml
-imageSync:
+clusters-service:
   source:
-    image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
-    tag: "8755133"  # Pin to a specific tag instead of tagPattern
+    image: quay.io/app-sre/aro-hcp-clusters-service
+    tag: "abc1234"  # Pin to a specific tag instead of tagPattern
     useAuth: true
+    keyVault:
+      url: "https://arohcpdev-global.vault.azure.net/"
+      secretName: "component-sync-pull-secret"
   targets:
-  - jsonPath: defaults.imageSync.ocMirror.image.digest
+  - jsonPath: defaults.clustersService.image.digest
     filePath: ../../config/config.yaml
 ```
 
@@ -222,7 +225,7 @@ az login
 
 ```bash
 # Update specific component
-make update COMPONENTS=imageSync
+make update COMPONENTS=clusters-service
 ```
 
 5. **Run materialize** to update rendered configs:
@@ -300,12 +303,15 @@ clusters-service:
 
 **Azure Container Registry (Private)**:
 ```yaml
-imageSync:
+clusters-service:
   source:
-    image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
-    useAuth: true  # Uses DefaultAzureCredential
+    image: quay.io/app-sre/aro-hcp-clusters-service
+    useAuth: true  # Uses Key Vault credentials
+    keyVault:
+      url: "https://arohcpdev-global.vault.azure.net/"
+      secretName: "component-sync-pull-secret"
   targets:
-  - jsonPath: defaults.imageSync.ocMirror.image.digest
+  - jsonPath: defaults.clustersService.image.digest
     filePath: ../../config/config.yaml
 ```
 
