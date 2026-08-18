@@ -142,24 +142,22 @@ func DumpDataToLogger(
 		errs = append(errs, err)
 	}
 
-	// dump all related operations, including the completed ones.
-	allOperationsForSubscription, err := resourcesDBClient.Operations(resourceID.SubscriptionID).List(ctx, nil)
-	if err != nil {
-		errs = append(errs, err)
+	// dump all related operations, including terminal ones.
+	operationIter := resourcesDBClient.Operations(resourceID.SubscriptionID).ListActiveOperations(
+		&corecosmosstorage.ResourcesDBClientListActiveOperationDocsOptions{
+			ExternalID:             resourceID,
+			IncludeNestedResources: true,
+			IncludeTerminal:        true,
+		})
+	for _, operation := range operationIter.Items(ctx) {
+		logger.Info(fmt.Sprintf("dumping resourceID %v", operation.ResourceID),
+			"snapshotType", "cosmos",
+			"currentResourceID", resourceIDToString(operation.ResourceID),
+			"objectMetadata", ObjectMetadataForResourceID("operations", operation.ResourceID),
+			"content", operation,
+		)
 	}
-	resourceIDString := strings.ToLower(resourceID.String())
-	for _, operation := range allOperationsForSubscription.Items(ctx) {
-		currOperationTarget := strings.ToLower(operation.ExternalID.String())
-		if strings.HasPrefix(currOperationTarget, resourceIDString) {
-			logger.Info(fmt.Sprintf("dumping resourceID %v", operation.ResourceID),
-				"snapshotType", "cosmos",
-				"currentResourceID", resourceIDToString(operation.ResourceID),
-				"objectMetadata", ObjectMetadataForResourceID("operations", operation.ResourceID),
-				"content", operation,
-			)
-		}
-	}
-	if err := allOperationsForSubscription.GetError(); err != nil {
+	if err := operationIter.GetError(); err != nil {
 		errs = append(errs, err)
 	}
 
