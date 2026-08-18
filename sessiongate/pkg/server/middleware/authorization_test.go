@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,6 +49,15 @@ func TestWithSessionProxyClaimHeaderAuthorization(t *testing.T) {
 				Name: "alice@example.com",
 			},
 			headers:    map[string]string{"X-JWT-Claim-Upn": ""},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name: "azure user empty owner name with missing header",
+			owner: sessiongatev1alpha1.Principal{
+				Type: sessiongatev1alpha1.PrincipalTypeAzureUser,
+				Name: "",
+			},
+			headers:    map[string]string{},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
