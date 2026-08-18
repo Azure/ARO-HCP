@@ -194,6 +194,40 @@ func (l *ServiceProviderNodePoolList) GetObjectKind() schema.ObjectKind {
 }
 
 var (
+	_ runtime.Object            = &DNSReservation{}
+	_ metav1.ObjectMetaAccessor = &DNSReservation{}
+)
+
+func (o *DNSReservation) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *DNSReservation) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// DNSReservationList is a list of DNSReservations compatible with
+// runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type DNSReservationList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []DNSReservation `json:"items"`
+}
+
+var _ runtime.Object = &DNSReservationList{}
+
+func (l *DNSReservationList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
 	_ runtime.Object            = &Operation{}
 	_ metav1.ObjectMetaAccessor = &Operation{}
 )

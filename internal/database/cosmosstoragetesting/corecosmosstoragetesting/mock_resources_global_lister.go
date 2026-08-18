@@ -107,6 +107,13 @@ func (g *mockResourcesGlobalListers) SystemAdminCredentialRevocations() cosmosst
 	}
 }
 
+func (g *mockResourcesGlobalListers) DNSReservations() cosmosstorageutils.GlobalLister[coreapi.DNSReservation] {
+	return &MockGlobalLister[coreapi.DNSReservation, cosmosstorageutils.GenericDocument[coreapi.DNSReservation]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{coreapi.DNSReservationResourceType},
+	}
+}
+
 func (g *mockResourcesGlobalListers) Operations() cosmosstorageutils.GlobalLister[coreapi.Operation] {
 	return &MockGlobalLister[coreapi.Operation, cosmosstorageutils.GenericDocument[coreapi.Operation]]{
 		client:        g.client,

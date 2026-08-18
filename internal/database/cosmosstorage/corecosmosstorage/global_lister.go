@@ -43,6 +43,7 @@ type ResourcesGlobalListers interface {
 	ManagementClusterContents() cosmosstorageutils.GlobalLister[coreapi.ManagementClusterContent]
 	SystemAdminCredentialRequests() cosmosstorageutils.GlobalLister[coreapi.SystemAdminCredentialRequest]
 	SystemAdminCredentialRevocations() cosmosstorageutils.GlobalLister[coreapi.SystemAdminCredentialRevocation]
+	DNSReservations() cosmosstorageutils.GlobalLister[coreapi.DNSReservation]
 	Operations() cosmosstorageutils.GlobalLister[coreapi.Operation]
 	ActiveOperations() cosmosstorageutils.GlobalLister[coreapi.Operation]
 }
@@ -136,6 +137,13 @@ func (g *cosmosResourcesGlobalListers) ManagementClusterContents() cosmosstorage
 			coreapi.ClusterScopedManagementClusterContentResourceType,
 			coreapi.NodePoolScopedManagementClusterContentResourceType,
 		},
+	}
+}
+
+func (g *cosmosResourcesGlobalListers) DNSReservations() cosmosstorageutils.GlobalLister[coreapi.DNSReservation] {
+	return &cosmosstorageutils.CosmosGlobalLister[coreapi.DNSReservation, cosmosstorageutils.GenericDocument[coreapi.DNSReservation]]{
+		ContainerClient: g.resources,
+		ResourceTypes:   []azcorearm.ResourceType{coreapi.DNSReservationResourceType},
 	}
 }
 
