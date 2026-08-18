@@ -95,7 +95,6 @@ type NodePoolParams20260901 struct {
 	AvailabilityZone string
 	AutoRepair       bool
 	Tags             map[string]*string
-	EncryptionSetID  string
 }
 
 // --- Functions from deployment_params.go ---
@@ -661,10 +660,6 @@ func BuildNodePoolFromParams20260901(
 			},
 			AutoRepair: to.Ptr(parameters.AutoRepair),
 		},
-	}
-
-	if parameters.EncryptionSetID != "" {
-		nodePool.Properties.Platform.OSDisk.EncryptionSetID = to.Ptr(parameters.EncryptionSetID)
 	}
 
 	if parameters.AutoScaling != nil {
