@@ -201,12 +201,12 @@ module databaseUserScripts 'database-users.bicep' = [
   }
 ]
 
-// Strip the auto-granted admin from the principal that deployed these scripts.
-// In AME the ARM deploy runs as the ev2 approver, so this prevents approvers
-// from accumulating standing admin on the Kusto databases. The table scripts
-// above use RetainPermissionOnScriptCompletion, so this dummy script must run
-// LAST to remove the retained permission.
-// This strip is database-scoped and only affects the deploying principal; it
+// The table scripts above use RetainPermissionOnScriptCompletion, so the
+// principal that runs them keeps database Admin on each logs database after
+// they finish. This dummy script runs LAST with RemovePermissionOnScriptCompletion
+// to strip that retained, per-database Admin so no standing admin accumulates on
+// the Kusto databases.
+// The strip is database-scoped and only affects that deployment principal; it
 // does not touch the cluster-scoped AllDatabasesAdmin principalAssignment that
 // cluster.bicep grants the global rollout MSI, which is what lets the
 // KustoEntityGroups pipeline step (kustoctl) sync entity groups on all three
