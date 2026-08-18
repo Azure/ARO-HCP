@@ -49,8 +49,6 @@ type backupScheduleSyncer struct {
 	applyDesireLister    kubeapplierlisters.ApplyDesireLister
 	readDesireLister     kubeapplierlisters.ReadDesireLister
 
-	hostedClusterNamespaceEnvIdentifier string
-
 	backupConfig *BackupConfig
 }
 
@@ -63,7 +61,6 @@ func NewBackupScheduleController(
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	informers coreinformers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
-	hostedClusterNamespaceEnvIdentifier string,
 	backupConfig *BackupConfig,
 ) controllerutils.Controller {
 
@@ -73,14 +70,13 @@ func NewBackupScheduleController(
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &backupScheduleSyncer{
-		cosmosClient:                        cosmosClient,
-		clusterLister:                       clusterLister,
-		serviceProviderClusterLister:        serviceProviderClusterLister,
-		kubeApplierDBClients:                kubeApplierDBClients,
-		applyDesireLister:                   applyDesireLister,
-		readDesireLister:                    readDesireLister,
-		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
-		backupConfig:                        backupConfig,
+		cosmosClient:                 cosmosClient,
+		clusterLister:                clusterLister,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		kubeApplierDBClients:         kubeApplierDBClients,
+		applyDesireLister:            applyDesireLister,
+		readDesireLister:             readDesireLister,
+		backupConfig:                 backupConfig,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
