@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
 // GatherInput provides the parameters needed to gather a diagnostic snapshot.
@@ -1195,18 +1197,18 @@ func (g *Gatherer) executeKQLOnce(ctx context.Context, kqlStr, database string, 
 	}
 
 	var rows []resultRow
-	primaryResult := <-dataset.Tables()
-	if err := primaryResult.Err(); err != nil {
-		return nil, fmt.Errorf("failed to get primary result: %w", err)
+	table, err := kusto.PrimaryResultTable(dataset.Tables())
+	if err != nil {
+		return nil, fmt.Errorf("%w on database %q", err, database)
 	}
-	if primaryResult.Table() == nil {
+	if table == nil {
 		return nil, nil
 	}
 
 	var columns []string
 	columnsSet := false
 
-	for rowResult := range primaryResult.Table().Rows() {
+	for rowResult := range table.Rows() {
 		row := rowResult.Row()
 		if row == nil {
 			continue

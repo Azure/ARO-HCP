@@ -99,6 +99,24 @@ func NewClient(endpoint *url.URL, queryTimeout time.Duration) (*Client, error) {
 	}, nil
 }
 
+// PrimaryResultTable receives the primary result table from an IterativeDataset's
+// Tables() channel. Tables() yields query.TableResult (an interface); when the
+// channel closes without yielding a table (e.g. the query context is cancelled
+// or times out), the receive returns a nil TableResult whose Err() would panic
+// with a nil pointer dereference. PrimaryResultTable guards that case and returns
+// a clear error instead. The returned table may be nil for a zero-row result —
+// callers decide whether that is an error.
+func PrimaryResultTable(tables <-chan azkquery.TableResult) (azkquery.IterativeTable, error) {
+	result, ok := <-tables
+	if !ok || result == nil {
+		return nil, fmt.Errorf("no primary result table returned")
+	}
+	if err := result.Err(); err != nil {
+		return nil, fmt.Errorf("failed to get primary result: %w", err)
+	}
+	return result.Table(), nil
+}
+
 // ExecutePreconfiguredQuery executes a KQL query against the Azure Data Explorer cluster
 func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, outputChannel chan<- TaggedRow) (*QueryResult, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, c.QueryTimeout)
@@ -123,19 +141,16 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, out
 
 	// Process the first table (primary result)
 	logger.V(6).Info("Processing primary result")
-	primaryResult := <-dataset.Tables()
-
-	err = primaryResult.Err()
+	table, err := PrimaryResultTable(dataset.Tables())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get primary result: %w", err)
+		return nil, fmt.Errorf("%w for query %q on database %q", err, query.GetName(), query.GetDatabase())
 	}
-
-	if primaryResult.Table() == nil {
+	if table == nil {
 		return nil, fmt.Errorf("primary result is nil")
 	}
 
 	columnsSet := false
-	for row := range primaryResult.Table().Rows() {
+	for row := range table.Rows() {
 		logger.V(8).Info("Processing row", "rowNumber", totalRows)
 		row := row.Row()
 		if row == nil {
