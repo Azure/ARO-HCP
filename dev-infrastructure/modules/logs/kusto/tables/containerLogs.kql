@@ -12,7 +12,8 @@
   region: string,
   tag: string,                       // fluentbit: tag routing identifier
   container_status_image_id: string, // fluentbit: kubernetes.container_hash (k8s status.containerStatuses.imageID)
-  cluster_id: string                 // fluentbit: cluster_id (uppercased Azure ARM resource ID)
+  cluster_id: string,                // fluentbit: cluster_id (Azure ARM resource ID; expected uppercased by the arobit forwarder, casing not enforced here)
+  resource_group: string             // fluentbit: resource_group (RG segment of the ARM resource ID; expected uppercased by the arobit forwarder, casing not enforced here)
 )
 
 .create-or-alter table containerLogs ingestion json mapping 'ingestionMapping'
@@ -31,6 +32,7 @@
   {"column":"pod_name","Properties":{"path":"$.log.kubernetes.pod_name"}},
   {"column":"tag","Properties":{"path":"$.tag"}},
   {"column":"container_status_image_id","Properties":{"path":"$.log.kubernetes.container_hash"}},
-  {"column":"cluster_id","Properties":{"path":"$.cluster_id"}}
+  {"column":"cluster_id","Properties":{"path":"$.cluster_id"}},
+  {"column":"resource_group","Properties":{"path":"$.resource_group"}}
 ]
 ```
