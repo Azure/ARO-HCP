@@ -200,9 +200,12 @@ data:
         # below can read the HCP cluster's Azure resource ID from the
         # azure.microsoft.com/hcp-cluster-azure-resource-id namespace annotation.
         # Namespace metadata is only fetched from the API server (the kubelet API
-        # cannot serve namespace objects), so this relies on Use_Kubelet being Off
-        # -- which it is: the option is unset here and defaults to Off. Pod
-        # annotations stay Off; only namespace annotations are enabled.
+        # cannot serve namespace objects), so namespace-annotation enrichment
+        # requires Use_Kubelet Off. Set it explicitly below (rather than relying on
+        # the default) so enrichment stays robust across Fluent Bit versions and
+        # config defaults. Pod annotations stay Off; only namespace annotations are
+        # enabled.
+        Use_Kubelet         Off
         Namespace_annotations On
 {{- end }}
         K8S-Logging.Exclude On
@@ -512,6 +515,32 @@ data:
         return rg
     end
 
+    -- Remove the namespace-annotations payload that "Namespace_annotations On"
+    -- attaches to every record. Once cluster_id/resource_group have been
+    -- extracted, the full annotations map is dead weight: it would inflate every
+    -- ocm.logs record and ship unrelated namespace annotations downstream to the
+    -- containerLogs Kusto table. Handle both the current FB v5
+    -- "kubernetes_namespace"."annotations" shape and the older
+    -- "kubernetes"."namespace_annotations" shape. Only the annotations payload is
+    -- dropped -- namespace_name, labels, pod name and all other kubernetes
+    -- metadata are left untouched.
+    local function strip_namespace_annotations(record)
+        local ns = record["kubernetes_namespace"]
+        if type(ns) == "table" then
+            ns["annotations"] = nil
+            -- If the namespace object carried nothing but annotations, drop the
+            -- now-empty table too so we don't emit an empty "kubernetes_namespace".
+            if next(ns) == nil then
+                record["kubernetes_namespace"] = nil
+            end
+        end
+
+        local k8s = record["kubernetes"]
+        if type(k8s) == "table" then
+            k8s["namespace_annotations"] = nil
+        end
+    end
+
     -- Stamp cluster_id and resource_group from the namespace annotation. Returns
     -- code 1 (record modified, original timestamp kept) when the annotation is
     -- present and non-empty; otherwise code 0 (record left unchanged).
@@ -533,6 +562,10 @@ data:
         if rg ~= nil and rg ~= "" then
             record["resource_group"] = string.upper(rg)
         end
+
+        -- Drop the bulky namespace-annotations payload now that cluster_id and
+        -- resource_group have been extracted from it.
+        strip_namespace_annotations(record)
 
         return 1, timestamp, record
     end

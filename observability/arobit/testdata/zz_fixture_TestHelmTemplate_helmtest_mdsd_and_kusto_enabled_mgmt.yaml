@@ -195,9 +195,12 @@ data:
         # below can read the HCP cluster's Azure resource ID from the
         # azure.microsoft.com/hcp-cluster-azure-resource-id namespace annotation.
         # Namespace metadata is only fetched from the API server (the kubelet API
-        # cannot serve namespace objects), so this relies on Use_Kubelet being Off
-        # -- which it is: the option is unset here and defaults to Off. Pod
-        # annotations stay Off; only namespace annotations are enabled.
+        # cannot serve namespace objects), so namespace-annotation enrichment
+        # requires Use_Kubelet Off. Set it explicitly below (rather than relying on
+        # the default) so enrichment stays robust across Fluent Bit versions and
+        # config defaults. Pod annotations stay Off; only namespace annotations are
+        # enabled.
+        Use_Kubelet         Off
         Namespace_annotations On
         K8S-Logging.Exclude On
         Kube_Meta_Cache_TTL 300
@@ -239,6 +242,7 @@ data:
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs false
         Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs false
         Rule            $kubernetes['container_name'] ^fleet-controller* fleet-controller.logs false
+        Rule            $kubernetes['container_name'] ^kube-applier* kube-applier.logs false
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs false
         Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Emitter_Name    re_emitted_container_name_router
@@ -248,7 +252,7 @@ data:
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller|mgmt-agent)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller|kube-applier|mgmt-agent)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
@@ -500,6 +504,32 @@ data:
         return rg
     end
 
+    -- Remove the namespace-annotations payload that "Namespace_annotations On"
+    -- attaches to every record. Once cluster_id/resource_group have been
+    -- extracted, the full annotations map is dead weight: it would inflate every
+    -- ocm.logs record and ship unrelated namespace annotations downstream to the
+    -- containerLogs Kusto table. Handle both the current FB v5
+    -- "kubernetes_namespace"."annotations" shape and the older
+    -- "kubernetes"."namespace_annotations" shape. Only the annotations payload is
+    -- dropped -- namespace_name, labels, pod name and all other kubernetes
+    -- metadata are left untouched.
+    local function strip_namespace_annotations(record)
+        local ns = record["kubernetes_namespace"]
+        if type(ns) == "table" then
+            ns["annotations"] = nil
+            -- If the namespace object carried nothing but annotations, drop the
+            -- now-empty table too so we don't emit an empty "kubernetes_namespace".
+            if next(ns) == nil then
+                record["kubernetes_namespace"] = nil
+            end
+        end
+
+        local k8s = record["kubernetes"]
+        if type(k8s) == "table" then
+            k8s["namespace_annotations"] = nil
+        end
+    end
+
     -- Stamp cluster_id and resource_group from the namespace annotation. Returns
     -- code 1 (record modified, original timestamp kept) when the annotation is
     -- present and non-empty; otherwise code 0 (record left unchanged).
@@ -521,6 +551,10 @@ data:
         if rg ~= nil and rg ~= "" then
             record["resource_group"] = string.upper(rg)
         end
+
+        -- Drop the bulky namespace-annotations payload now that cluster_id and
+        -- resource_group have been extracted from it.
+        strip_namespace_annotations(record)
 
         return 1, timestamp, record
     end
@@ -619,6 +653,31 @@ data:
         Table_Name fleetLogs
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key fleetLogs
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+    [OUTPUT]
+        Match kube-applier.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name kubeApplierLogs
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key kubeApplierLogs
         buffer_dir "/var/kusto"
         buffering_enabled           true 
         upload_timeout              1m
@@ -926,7 +985,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 52589d2293094fc6baa506d18e77386a394627095f1aa154f12da65eddb48fc5
+        checksum/configmap: c993c64f62847e6ec89b89846885fc224b6083230909020a2d04309faad8d57e
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
