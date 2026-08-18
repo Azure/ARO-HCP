@@ -57,5 +57,5 @@ knownIssues:
     namespace: "velero"
     pod: "ocm-.*"
   reason: "Velero DataUpload exposer pods are transient (short-lived ~30-90s) pods that mount CSI snapshot PVCs for kopia data upload during scheduled backups. They complete and are deleted well within 5 minutes, but Prometheus lookback delta keeps stale Pending-phase metrics queryable beyond the for:5m alert threshold."
-- name: "KubePodNotReady"
+- name: "KubePodNotReadyCatchAll"
   reason: "Catch-all for remaining KubePodNotReady firings during CI cluster health degradation (https://issues.redhat.com/browse/AROSLSRE-1395). Pods across various namespaces fail to reach Ready state when nodes are degraded or unreachable. Observed in ~2.0% (svc) and ~1.1% (hcp) of dev e2e runs (2026-06-30 to 2026-07-07). Placed after specific KubePodNotReady entries so those retain their targeted reasons."
