@@ -15,25 +15,6 @@ param systemAgentVMSize string
 param systemAgentPoolZones array
 param systemZoneRedundantMode string
 
-// User agentpool spec (Worker)
-param userAgentPoolName string
-param userAgentMinCount int
-param userAgentMaxCount int
-param userAgentVMSize string
-param userAgentPoolZones array
-param userAgentPoolCount int
-param userZoneRedundantMode string
-param userSecondaryNicCount int = 0
-
-// User agentpool spec (Infra)
-param infraAgentPoolName string
-param infraAgentMinCount int
-param infraAgentMaxCount int
-param infraAgentVMSize string
-param infraAgentPoolZones array
-param infraAgentPoolCount int
-param infraZoneRedundantMode string
-
 param serviceCidr string = '10.130.0.0/16'
 param dnsServiceIP string = '10.130.0.10'
 
@@ -60,9 +41,6 @@ param networkDataplane string
 param networkPolicy string
 param enableSwiftV2Nodepools bool
 
-param upgradeSettingsMaxSurge string
-param upgradeSettingsMaxUnavailable string
-
 param aksClusterUserDefinedManagedIdentityName string
 
 @description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
@@ -83,8 +61,6 @@ param dnsPrefix string = aksClusterName
 @minValue(0)
 @maxValue(1023)
 param systemOsDiskSizeGB int
-param userOsDiskSizeGB int
-param infraOsDiskSizeGB int
 
 @description('The resource IDs of ACR instances that the AKS cluster will pull images from')
 param pullAcrResourceIds array = []
@@ -505,55 +481,6 @@ resource maintenanceWindows 'Microsoft.ContainerService/managedClusters/maintena
   }
 ]
 
-module userAgentPools '../modules/aks/pool.bicep' = {
-  name: 'user-agent-pools'
-  params: {
-    aksClusterName: aksCluster.name
-    poolBaseName: userAgentPoolName
-    poolZones: userAgentPoolZones
-    poolCount: userAgentPoolCount
-    poolRole: 'worker'
-    enableSwiftV2: enableSwiftV2Nodepools
-    secondaryNicCount: userSecondaryNicCount
-    minCount: userAgentMinCount
-    maxCount: userAgentMaxCount
-    vmSize: userAgentVMSize
-    osDiskSizeGB: userOsDiskSizeGB
-    vnetSubnetId: nodeSubnetId
-    podSubnetId: aksPodSubnet.id
-    zoneRedundantMode: userZoneRedundantMode
-    upgradeSettingsMaxSurge: upgradeSettingsMaxSurge
-    upgradeSettingsMaxUnavailable: upgradeSettingsMaxUnavailable
-    maxPods: 225
-  }
-}
-
-module infraAgentPools '../modules/aks/pool.bicep' = {
-  name: 'infra-agent-pools'
-  params: {
-    aksClusterName: aksCluster.name
-    poolBaseName: infraAgentPoolName
-    poolZones: infraAgentPoolZones
-    poolCount: infraAgentPoolCount
-    poolRole: 'infra'
-    enableSwiftV2: false
-    secondaryNicCount: 0
-    minCount: infraAgentMinCount
-    maxCount: infraAgentMaxCount
-    vmSize: infraAgentVMSize
-    osDiskSizeGB: infraOsDiskSizeGB
-    vnetSubnetId: nodeSubnetId
-    podSubnetId: aksPodSubnet.id
-    zoneRedundantMode: infraZoneRedundantMode
-    upgradeSettingsMaxSurge: upgradeSettingsMaxSurge
-    upgradeSettingsMaxUnavailable: upgradeSettingsMaxUnavailable
-    maxPods: 225
-    taints: [
-      'infra=true:NoSchedule'
-    ]
-  }
-}
-
 //
 // ACR Pull Permissions on the own resource group and the resource groups provided
 // by acrResourceGroups
@@ -656,3 +583,4 @@ output aksClusterName string = aksClusterName
 output aksClusterKeyVaultSecretsProviderPrincipalId string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
 output aksClusterManagedIdentityPrincipalId string = aksClusterUserDefinedManagedIdentity.properties.principalId
 output etcKeyVaultId string = aks_keyvault_builder.outputs.kvId
+output podSubnetId string = aksPodSubnet.id
