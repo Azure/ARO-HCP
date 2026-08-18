@@ -25,6 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/ci"
 	datadumptogit "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/datadump-to-git"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/hcp"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/kubelogin"
@@ -108,6 +109,7 @@ and hosted control plane services for operational and emergency scenarios.`,
 
 	// Add helper subcommands
 	helperCommands := []func(string) (*cobra.Command, error){
+		ci.NewCommand,
 		kubelogin.NewCommand,
 		version.NewCommand,
 	}
