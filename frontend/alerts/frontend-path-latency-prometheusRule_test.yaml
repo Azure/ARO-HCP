@@ -47,7 +47,7 @@ tests:
         description: 'The 99th percentile of frontend request latency for GET /api/clusters has exceeded 1 second over the past 5 minutes.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
         summary: 'Frontend latency is high: 99th percentile exceeds 1 second for GET /api/clusters'
-# Test: HA Prometheus replicas with identical slow series still fire once (max without dedup)
+# Test: HA Prometheus replicas with identical slow series still fire once (sum dedup)
 - interval: 1m
   input_series:
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
