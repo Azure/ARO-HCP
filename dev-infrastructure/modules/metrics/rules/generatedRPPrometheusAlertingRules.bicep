@@ -812,21 +812,21 @@ resource arohcpFrontendSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometh
         labels: {
           component: 'slo'
           long_window: '1h'
-          severity: '3'
+          severity: '4'
           short_window: '5m'
           slo: 'frontend-availability'
         }
         annotations: {
           correlationId: 'userJourneyFrontendAvailability1h5m/{{ $labels.cluster }}'
-          description: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.28% for 5m (14.4x burn of the 99.95% SLO / 0.05% error budget).'
-          info: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.28% for 5m (14.4x burn of the 99.95% SLO / 0.05% error budget).'
+          description: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.28% for 5m (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket — Errors family pages on the complementary 5xx burn.'
+          info: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.28% for 5m (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket — Errors family pages on the complementary 5xx burn.'
           runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
           summary: '{{ $labels.cluster }}: Frontend HTTP availability critically low (<99.28%)'
           title: '{{ $labels.cluster }}: Frontend HTTP availability critically low (<99.28%)'
         }
         expression: 'sli:frontend_http:availability:rate5m < 0.9928'
         for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -843,21 +843,21 @@ resource arohcpFrontendSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometh
         labels: {
           component: 'slo'
           long_window: '6h'
-          severity: '3'
+          severity: '4'
           short_window: '30m'
           slo: 'frontend-availability'
         }
         annotations: {
           correlationId: 'userJourneyFrontendAvailability6h30m/{{ $labels.cluster }}'
-          description: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.70% for 30m (6x burn).'
-          info: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.70% for 30m (6x burn).'
+          description: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.70% for 30m (6x burn). Sev4 ticket — Errors family pages on the complementary 5xx burn.'
+          info: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.70% for 30m (6x burn). Sev4 ticket — Errors family pages on the complementary 5xx burn.'
           runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
           summary: '{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%) for 30+ minutes'
           title: '{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%) for 30+ minutes'
         }
         expression: 'sli:frontend_http:availability:rate5m < 0.997'
         for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [

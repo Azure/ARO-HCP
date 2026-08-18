@@ -22,7 +22,10 @@ spec:
   #   Slow (1x):    1 * 0.0005 = 0.0005 -> 0.05% 5xx share
   #
   # Rate-based SLI: 'for' approximates the short window (Access / Node Pool pattern).
-  # Fast/medium page Sev 3 (customer-facing UJ). Slow/degradation Sev 4 ticket.
+  # Fast/medium Errors + Latency page Sev 3 (customer-facing UJ).
+  # Availability is Sev 4 only — complementary to Errors on the same denominator,
+  # so dual Sev3 would open two IcMs per 5xx event (review feedback).
+  # Slow/degradation/traffic/saturation Sev 4 ticket.
   #
   # summary includes {{ $labels.cluster }} (Access / Node Pool convention; prometheus-rules
   # generator requires it). IcM.Title may also prepend cluster — same as other RP alerts.
@@ -90,13 +93,13 @@ spec:
       for: 5m
       labels:
         component: slo
-        severity: "3"
+        severity: "4"
         slo: frontend-availability
         long_window: 1h
         short_window: 5m
       annotations:
         summary: "{{ $labels.cluster }}: Frontend HTTP availability critically low (<99.28%)"
-        description: "Frontend availability on cluster {{ $labels.cluster }} is below 99.28% for 5m (14.4x burn of the 99.95% SLO / 0.05% error budget)."
+        description: "Frontend availability on cluster {{ $labels.cluster }} is below 99.28% for 5m (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket — Errors family pages on the complementary 5xx burn."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
     - alert: userJourneyFrontendAvailability6h30m
       expr: |
@@ -104,13 +107,13 @@ spec:
       for: 30m
       labels:
         component: slo
-        severity: "3"
+        severity: "4"
         slo: frontend-availability
         long_window: 6h
         short_window: 30m
       annotations:
         summary: "{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%) for 30+ minutes"
-        description: "Frontend availability on cluster {{ $labels.cluster }} is below 99.70% for 30m (6x burn)."
+        description: "Frontend availability on cluster {{ $labels.cluster }} is below 99.70% for 30m (6x burn). Sev4 ticket — Errors family pages on the complementary 5xx burn."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
     - alert: userJourneyFrontendAvailability3d
       expr: |
