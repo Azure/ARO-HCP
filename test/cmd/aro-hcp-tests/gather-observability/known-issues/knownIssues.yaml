@@ -33,6 +33,11 @@ knownIssues:
   reason: "Downstream symptom of CI cluster health degradation (https://issues.redhat.com/browse/AROSLSRE-1395). Nodes become unreachable during e2e provisioning. Observed in ~2.1% of dev e2e runs (2026-06-30 to 2026-07-07)."
 - name: "KustoLogsDataStale"
   reason: "Downstream symptom of CI cluster health degradation (https://issues.redhat.com/browse/AROSLSRE-1395). Kusto log ingestion falls behind when cluster components are degraded. Observed in ~1.1% of dev e2e runs (2026-06-30 to 2026-07-07)."
+# NOTE: List order is significant. classifyAlerts scans this list top-to-bottom and
+# stops at the first entry whose name (and labels, if any) match — first match wins.
+# The label-scoped KubePodNotReady entries below MUST precede the label-less catch-all
+# at the end of this block, otherwise the catch-all would shadow them and every
+# KubePodNotReady firing would get the generic reason instead of its specific one.
 - name: "KubePodNotReady"
   labels:
     namespace: "klusterlet-.*"
@@ -57,5 +62,5 @@ knownIssues:
     namespace: "velero"
     pod: "ocm-.*"
   reason: "Velero DataUpload exposer pods are transient (short-lived ~30-90s) pods that mount CSI snapshot PVCs for kopia data upload during scheduled backups. They complete and are deleted well within 5 minutes, but Prometheus lookback delta keeps stale Pending-phase metrics queryable beyond the for:5m alert threshold."
-- name: "KubePodNotReadyCatchAll"
+- name: "KubePodNotReady"
   reason: "Catch-all for remaining KubePodNotReady firings during CI cluster health degradation (https://issues.redhat.com/browse/AROSLSRE-1395). Pods across various namespaces fail to reach Ready state when nodes are degraded or unreachable. Observed in ~2.0% (svc) and ~1.1% (hcp) of dev e2e runs (2026-06-30 to 2026-07-07). Placed after specific KubePodNotReady entries so those retain their targeted reasons."
