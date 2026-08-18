@@ -97,14 +97,14 @@ func Resolve(environment Environment) (EnvironmentParameters, error) {
 		if err != nil {
 			return EnvironmentParameters{}, fmt.Errorf("expanding region short suffix %q: %w", environment.Defaults.RegionShortSuffix, err)
 		}
-		out.RegionShortSuffix = expanded
+		out.RegionShortSuffix = strings.TrimSpace(expanded)
 	}
 	if environment.Defaults.RegionShortOverride != "" {
 		expanded, err := expandBashSubstring(environment.Defaults.RegionShortOverride)
 		if err != nil {
 			return EnvironmentParameters{}, fmt.Errorf("expanding region short override %q: %w", environment.Defaults.RegionShortOverride, err)
 		}
-		out.RegionShortOverride = expanded
+		out.RegionShortOverride = strings.TrimSpace(expanded)
 	}
 	return out, nil
 }

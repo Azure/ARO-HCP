@@ -144,6 +144,8 @@ func TestExpandBashSubstring(t *testing.T) {
 func TestResolve(t *testing.T) {
 	t.Setenv("USER", "hlipsig1")
 	t.Setenv("BUILD_ID", "build-1234567")
+	t.Setenv("REGION_SHORT_SUFFIX", "  suffix  ")
+	t.Setenv("REGION_SHORT_OVERRIDE", "\toverride\n")
 
 	env := Environment{
 		Name: "pers",
@@ -184,5 +186,28 @@ func TestResolve(t *testing.T) {
 	}
 	if got2.RegionShortOverride != "j1234567" {
 		t.Errorf("RegionShortOverride = %q, want %q", got2.RegionShortOverride, "j1234567")
+	}
+
+	env3 := Environment{
+		Name: "trimmed",
+		Defaults: Parameters{
+			Cloud:               "dev",
+			Ev2Cloud:            "public",
+			Region:              "westus3",
+			CxStamp:             "1",
+			RegionShortSuffix:   "${REGION_SHORT_SUFFIX}",
+			RegionShortOverride: "${REGION_SHORT_OVERRIDE}",
+		},
+	}
+
+	got3, err := Resolve(env3)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if got3.RegionShortSuffix != "suffix" {
+		t.Errorf("RegionShortSuffix = %q, want %q", got3.RegionShortSuffix, "suffix")
+	}
+	if got3.RegionShortOverride != "override" {
+		t.Errorf("RegionShortOverride = %q, want %q", got3.RegionShortOverride, "override")
 	}
 }
