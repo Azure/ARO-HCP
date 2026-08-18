@@ -53,6 +53,7 @@ const (
 	SystemAdminCredentialRequestRelistDuration    = 30 * time.Minute
 	SystemAdminCredentialRevocationRelistDuration = 30 * time.Minute
 	BillingRelistDuration                         = 30 * time.Second
+	DNSReservationRelistDuration                  = 30 * time.Minute
 )
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
@@ -129,6 +130,36 @@ func NewBillingInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 				corelisters.BySubscription: billingDocSubscriptionIndexFunc,
 			},
 			ObjectDescription: "BillingDocument",
+		},
+	)
+}
+
+// NewDNSReservationInformer creates an unstarted SharedIndexInformer for DNS
+// reservations using the default relist duration.
+func NewDNSReservationInformer(lister cosmosstorageutils.GlobalLister[coreapi.DNSReservation], cosmosClient cosmosstorageutils.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewDNSReservationInformerWithRelistDuration(lister, cosmosClient, DNSReservationRelistDuration)
+}
+
+// NewDNSReservationInformerWithRelistDuration creates an unstarted
+// SharedIndexInformer for DNS reservations with a configurable relist duration.
+// DNS reservations are subscription-scoped; no secondary indexes are needed
+// because the cleanup controller looks reservations up by their own resource ID.
+func NewDNSReservationInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister[coreapi.DNSReservation], cosmosClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := informerutils.NewChangeFeedListWatcher[coreapi.DNSReservation, *coreapi.DNSReservation, cosmosstorageutils.GenericDocument[coreapi.DNSReservation]](
+		[]azcorearm.ResourceType{coreapi.DNSReservationResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+		"resources",
+	)
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&informerutils.ListWatchWithoutWatchListSemantics{ListWatch: lw.ToListWatch()},
+		&coreapi.DNSReservation{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod:      1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			ObjectDescription: "DNSReservation",
 		},
 	)
 }

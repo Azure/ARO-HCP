@@ -60,6 +60,14 @@ type ResourcesDBClient interface {
 	// to end users via ARM.  They must also survive the thing they are deleting, so they live under a subscription directly.
 	Operations(subscriptionID string) OperationCRUD
 
+	// DNSReservations retrieves a CRUD interface for managing DNS name reservations.
+	// Like operations, reservations are not directly accessible to end users via ARM
+	// and live directly under a subscription (no resource group) so that a
+	// reservation can outlive the cluster that owned it. The subscription-scoped,
+	// resourceID-derived Cosmos document id makes the reservation name unique within
+	// the subscription: a duplicate Create fails with HTTP 409 Conflict.
+	DNSReservations(subscriptionID string) cosmosstorageutils.ResourceCRUD[coreapi.DNSReservation, *coreapi.DNSReservation]
+
 	Subscriptions() cosmosstorageutils.ResourceCRUD[coreapi.Subscription, *coreapi.Subscription]
 
 	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) cosmosstorageutils.ResourceCRUD[coreapi.ServiceProviderCluster, *coreapi.ServiceProviderCluster]
@@ -110,6 +118,12 @@ func (d *resourcesCosmosDBClient) HCPClusters(subscriptionID, resourceGroupName 
 
 func (d *resourcesCosmosDBClient) Operations(subscriptionID string) OperationCRUD {
 	return NewOperationCRUD(d.resources, subscriptionID)
+}
+
+func (d *resourcesCosmosDBClient) DNSReservations(subscriptionID string) cosmosstorageutils.ResourceCRUD[coreapi.DNSReservation, *coreapi.DNSReservation] {
+	subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+	return cosmosstorageutils.NewCosmosResourceCRUD[coreapi.DNSReservation, *coreapi.DNSReservation, cosmosstorageutils.GenericDocument[coreapi.DNSReservation]](
+		d.resources, subscriptionResourceID, coreapi.DNSReservationResourceType)
 }
 
 func (d *resourcesCosmosDBClient) Subscriptions() cosmosstorageutils.ResourceCRUD[coreapi.Subscription, *coreapi.Subscription] {
