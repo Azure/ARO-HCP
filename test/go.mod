@@ -44,7 +44,6 @@ require (
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260707142426-572a3e9deb7a
 	github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9
 	github.com/openshift/client-go v0.0.0-20260429123927-c81f86abfa6a
-	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603
 	github.com/openshift/hypershift/api v0.0.0-20260602200802-c135e0c47b37
 	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/cobra v1.10.2
@@ -247,6 +246,7 @@ require (
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.464 // indirect
 	github.com/openshift-online/ocm-api-model/model v0.0.464 // indirect
 	github.com/openshift-online/ocm-sdk-go v0.1.509 // indirect
+	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
