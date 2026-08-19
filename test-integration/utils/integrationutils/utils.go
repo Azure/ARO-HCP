@@ -206,6 +206,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		set.New("aro-sre-pso", "aro-sre-csa"),
 		metricsRegistry,
 		mockKubeApplierClients,
+		utilsclock.RealClock{},
 	)
 
 	frontendURL := fmt.Sprintf("http://%s", frontendListener.Addr().String())

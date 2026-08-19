@@ -126,7 +126,6 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/term v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
@@ -144,6 +143,7 @@ require (
 )
 
 require (
+	github.com/Azure/ARO-HCP/hcp-recovery v0.0.0-00010101000000-000000000000 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0
@@ -195,3 +195,5 @@ replace github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redha
 replace github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ../test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 
 replace github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ../test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+
+replace github.com/Azure/ARO-HCP/hcp-recovery => ../hcp-recovery

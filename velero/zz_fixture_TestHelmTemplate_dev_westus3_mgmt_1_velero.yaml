@@ -32,6 +32,17 @@ stringData:
     AZURE_RESOURCE_GROUP=hcp-underlay-dev-westus3-mgmt-1
     AZURE_CLOUD_NAME=AzurePublicCloud
 ---
+# Source: velero-hcp-cli/templates/oadp-plugin.configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hypershift-oadp-plugin-config
+  namespace: velero
+data:
+  etcdBackupMethod: "etcdSnapshot" # or "volumeSnapshot" (default)
+  hoNamespace: "hypershift" # HyperShift Operator namespace (default)
+  migration: "true"
+---
 # Source: velero-hcp-cli/templates/installer-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

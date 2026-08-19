@@ -4,6 +4,6 @@ metadata:
   name: hypershift-oadp-plugin-config
   namespace: velero
 data:
-  etcdBackupMethod: "etcdSnapshot"    # or "volumeSnapshot" (default)
-  hoNamespace: "hypershift"           # HyperShift Operator namespace (default)
+  etcdBackupMethod: "etcdSnapshot" # or "volumeSnapshot" (default)
+  hoNamespace: "hypershift" # HyperShift Operator namespace (default)
   migration: "true"

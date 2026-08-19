@@ -31,6 +31,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/set"
 
 	"github.com/Azure/azure-kusto-go/kusto"
@@ -372,6 +373,7 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.AllowedBreakglassGroups,
 		opts.Registry,
 		opts.KubeApplierDBClients,
+		utilsclock.RealClock{},
 	)
 
 	runErrCh := make(chan error, 1)

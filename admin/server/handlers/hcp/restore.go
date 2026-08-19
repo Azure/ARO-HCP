@@ -21,8 +21,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -40,7 +40,7 @@ type RestoreResponse struct {
 	CompletedAt   string `json:"completedAt,omitempty"`
 }
 
-func newRestoreResponse(resourceID string, recoveryID string, spc *api.ServiceProviderCluster) RestoreResponse {
+func newRestoreResponse(resourceID string, recoveryID string, spc *coreapi.ServiceProviderCluster) RestoreResponse {
 	resp := RestoreResponse{
 		ResourceID: resourceID,
 		RecoveryID: recoveryID,
@@ -65,12 +65,12 @@ func newRestoreResponse(resourceID string, recoveryID string, spc *api.ServicePr
 	}
 	// Request exists in Spec but not yet picked up by the controller.
 	if resp.RecoveryState == "" && resp.BackupID != "" {
-		resp.RecoveryState = string(api.RecoveryStatePending)
+		resp.RecoveryState = string(coreapi.RecoveryStatePending)
 	}
 	return resp
 }
 
-func PostRestore(dbClient database.ResourcesDBClient) http.Handler {
+func PostRestore(dbClient corecosmosstorage.ResourcesDBClient) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		resourceID, err := utils.ResourceIDFromContext(request.Context())
 		if err != nil {
@@ -89,7 +89,7 @@ func PostRestore(dbClient database.ResourcesDBClient) http.Handler {
 			return
 		}
 
-		spc, err := database.GetOrCreateServiceProviderCluster(request.Context(), dbClient, resourceID)
+		spc, err := corecosmosstorage.GetOrCreateServiceProviderCluster(request.Context(), dbClient, resourceID)
 		if err != nil {
 			http.Error(writer, fmt.Sprintf("failed to get service provider cluster: %v", err), http.StatusInternalServerError)
 			return
@@ -111,7 +111,7 @@ func PostRestore(dbClient database.ResourcesDBClient) http.Handler {
 		}
 
 		recoveryID := uuid.New().String()
-		spc.Spec.RecoveryRequests = append(spc.Spec.RecoveryRequests, api.RecoveryRequest{
+		spc.Spec.RecoveryRequests = append(spc.Spec.RecoveryRequests, coreapi.RecoveryRequest{
 			RecoveryId: recoveryID,
 			BackupId:   req.BackupID,
 		})
@@ -133,7 +133,7 @@ func PostRestore(dbClient database.ResourcesDBClient) http.Handler {
 	})
 }
 
-func GetRestoreStatus(dbClient database.ResourcesDBClient) http.Handler {
+func GetRestoreStatus(dbClient corecosmosstorage.ResourcesDBClient) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		resourceID, err := utils.ResourceIDFromContext(request.Context())
 		if err != nil {
@@ -147,7 +147,7 @@ func GetRestoreStatus(dbClient database.ResourcesDBClient) http.Handler {
 			return
 		}
 
-		spc, err := database.GetOrCreateServiceProviderCluster(request.Context(), dbClient, resourceID)
+		spc, err := corecosmosstorage.GetOrCreateServiceProviderCluster(request.Context(), dbClient, resourceID)
 		if err != nil {
 			http.Error(writer, fmt.Sprintf("failed to get service provider cluster: %v", err), http.StatusInternalServerError)
 			return
@@ -163,6 +163,6 @@ func GetRestoreStatus(dbClient database.ResourcesDBClient) http.Handler {
 	})
 }
 
-func isTerminal(state api.RecoveryState) bool {
-	return state == api.RecoveryStateCompleted || state == api.RecoveryStateFailed
+func isTerminal(state coreapi.RecoveryState) bool {
+	return state == coreapi.RecoveryStateCompleted || state == coreapi.RecoveryStateFailed
 }

@@ -626,6 +626,15 @@ spec:
       status: {}
 
 ---
+# Source: aro-hcp-hypershift-operator/templates/etcd-backup-job.serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: etcd-backup-job
+  namespace: hypershift
+  annotations:
+    azure.workload.identity/client-id: '__etcdBackupMsiClientId__'
+---
 # Source: aro-hcp-hypershift-operator/templates/installer.serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -780,6 +789,7 @@ spec:
             --platform-monitoring=None \
             --metrics-set=SRE \
             --enable-size-tagging=true \
+            --tech-preview-no-upgrade \
             --limit-crd-install=Azure \
             --additional-operator-env-vars IMAGE_SHARED_INGRESS_HAPROXY=arohcpocpdev.azurecr.io/redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main@sha256:1234567890 \
             --enable-cpo-overrides --disable-capi-migration

@@ -9,6 +9,7 @@
 additionalInstallArgs:
 - --enable-cpo-overrides
 - --metrics-set=SRE
+- --tech-preview-no-upgrade
 registryOverrides:
 - quay.io/openshift-release-dev/ocp-release-nightly=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release-nightly
 - quay.io/openshift-release-dev/ocp-release=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release

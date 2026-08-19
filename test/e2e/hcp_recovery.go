@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,6 +25,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/blang/semver/v4"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,12 +36,58 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
+
+// TODO(recovery-e2e): resolveLatestInstallVersion and resolveZStreamUpgradeVersion below are
+// best-effort placeholders reconstructed during a rebase onto upstream/main. Upstream's test
+// framework refactor removed the previous stable-channel version helpers (GetLatestInstallVersion,
+// GetInstallVersionForZStreamUpgrade) in favor of controlplaneversion.SelectControlPlaneVersion /
+// clusterversion.GetZStreamOffset. Only the "nightly" channel scenario below is verified against
+// the checked-in e2e fixtures; the "stable" channel y-stream/z-stream/mid-upgrade scenarios need
+// review before being trusted in CI.
+
+// resolveLatestInstallVersion resolves the latest install version for the given channel group and
+// minor version (e.g. "4.20"). For "nightly" it delegates to the framework helper; for other channel
+// groups it uses the Cincinnati-backed control-plane version selector at offset 0 (latest).
+func resolveLatestInstallVersion(ctx context.Context, channelGroup, minorVersion string) (string, error) {
+	if channelGroup == "nightly" {
+		return framework.GetLatestNightlyInstallVersion(ctx, channelGroup, minorVersion)
+	}
+	release, err := controlplaneversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil,
+		fmt.Sprintf("%s-%s", channelGroup, minorVersion), 0)
+	if err != nil {
+		return "", err
+	}
+	return release.Version, nil
+}
+
+// resolveZStreamUpgradeVersion returns an older z-stream release in the same channel/minor as
+// currentVersion, if one exists, so that tests can move a cluster forward from it and observe a
+// restore rolling it back (or vice versa for downgrade scenarios).
+func resolveZStreamUpgradeVersion(ctx context.Context, channelGroup, currentVersion string) (string, bool, error) {
+	current, err := semver.ParseTolerant(currentVersion)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to parse current version %q: %w", currentVersion, err)
+	}
+	minor := fmt.Sprintf("%d.%d", current.Major, current.Minor)
+	channel := fmt.Sprintf("%s-%s", channelGroup, minor)
+
+	older, err := controlplaneversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, channel, clusterversion.GetZStreamOffset(channelGroup)+1)
+	if err != nil {
+		return "", false, nil
+	}
+	if older.Version == currentVersion {
+		return "", false, nil
+	}
+	return older.Version, true, nil
+}
 
 type recoveryTestEnv struct {
 	HCPClientFactory *hcpsdk20240610preview.ClientFactory
@@ -70,6 +117,7 @@ type recoveryScenario struct {
 
 var _ = Describe("HCP Recovery", func() {
 	DescribeTable("should recover an HCP cluster",
+		labels.MIContainers(1),
 		func(ctx context.Context, version, channelGroup string, scenario recoveryScenario) {
 			suffix := rand.String(6)
 			clusterName := "recovery-" + suffix
@@ -82,11 +130,9 @@ var _ = Describe("HCP Recovery", func() {
 			}
 
 			By(fmt.Sprintf("resolving latest %s %s version", version, channelGroup))
-			openShiftVersion, err := framework.GetLatestInstallVersion(ctx, channelGroup, version)
+			openShiftVersion, err := resolveLatestInstallVersion(ctx, channelGroup, version)
 			if err != nil {
-				if errors.Is(err, framework.ErrNightlyReleaseStreamNotFound) ||
-					errors.Is(err, framework.ErrNoAcceptedNightlyTags) ||
-					errors.Is(err, framework.ErrVersionNotFound) {
+				if framework.IsVersionNotFoundError(err) {
 					Skip(fmt.Sprintf("No install version found for %s in %s channel: %s", version, channelGroup, err.Error()))
 				} else {
 					Fail(fmt.Sprintf("failed to get latest install version for %s %s: %s", version, channelGroup, err.Error()))
@@ -167,7 +213,7 @@ var _ = Describe("HCP Recovery", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client for cluster %q", clusterName)
 
 			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s",
-				api.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, clusterName)
+				metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, clusterName)
 
 			httpClient, adminAPIAddress, err := tc.NewAdminAPIHTTPClient(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to create admin API HTTP client")
@@ -319,7 +365,7 @@ var _ = Describe("HCP Recovery", func() {
 				// Backup captures cluster at 4.20; postBackup upgrades CP to 4.21 so that
 				// the restore rolls the control plane back to 4.20.
 				postBackup: func(ctx context.Context, env *recoveryTestEnv) {
-					upgradeVersionID, err := framework.GetLatestInstallVersion(ctx, env.ChannelGroup, "4.21")
+					upgradeVersionID, err := resolveLatestInstallVersion(ctx, env.ChannelGroup, "4.21")
 					Expect(err).NotTo(HaveOccurred(), "failed to resolve 4.21 stable version for y-stream upgrade")
 
 					By(fmt.Sprintf("upgrading CP to %s so that restore reverts to 4.20", upgradeVersionID))
@@ -360,7 +406,7 @@ var _ = Describe("HCP Recovery", func() {
 					// Install at an older z-patch so the backup captures that state.
 					resolveInstallVersion: func(ctx context.Context, channelGroup, defaultVersion string) (string, bool, string) {
 						zLatestVersion = defaultVersion
-						zOld, hasUpgradePath, err := framework.GetInstallVersionForZStreamUpgrade(ctx, channelGroup, defaultVersion)
+						zOld, hasUpgradePath, err := resolveZStreamUpgradeVersion(ctx, channelGroup, defaultVersion)
 						if err != nil {
 							Fail(fmt.Sprintf("failed to resolve z-stream install version for %s in %s: %s", defaultVersion, channelGroup, err.Error()))
 						}
@@ -406,7 +452,7 @@ var _ = Describe("HCP Recovery", func() {
 				// Start a y-stream upgrade without waiting for it to complete, then
 				// immediately take a backup while the upgrade is in-flight.
 				preBackup: func(ctx context.Context, env *recoveryTestEnv) {
-					upgradeVersionID, err := framework.GetLatestInstallVersion(ctx, env.ChannelGroup, "4.21")
+					upgradeVersionID, err := resolveLatestInstallVersion(ctx, env.ChannelGroup, "4.21")
 					Expect(err).NotTo(HaveOccurred(), "failed to resolve 4.21 stable version for mid-upgrade backup")
 
 					By(fmt.Sprintf("starting non-blocking upgrade to %s to create mid-upgrade state for backup", upgradeVersionID))
@@ -440,7 +486,7 @@ var _ = Describe("HCP Recovery", func() {
 				// that the restore reverts the CP to 4.20 while NP VMs remain at 4.21
 				// (valid within the supported one-minor kubelet skew).
 				postBackup: func(ctx context.Context, env *recoveryTestEnv) {
-					upgradeVersionID, err := framework.GetLatestInstallVersion(ctx, env.ChannelGroup, "4.21")
+					upgradeVersionID, err := resolveLatestInstallVersion(ctx, env.ChannelGroup, "4.21")
 					Expect(err).NotTo(HaveOccurred(), "failed to resolve 4.21 stable version for upgrade")
 
 					By(fmt.Sprintf("upgrading CP to %s before restore", upgradeVersionID))
@@ -497,7 +543,7 @@ var _ = Describe("HCP Recovery", func() {
 				// that restore recreates the divergence between etcd (z_latest) and node
 				// VMs (z_old).
 				postBackup: func(ctx context.Context, env *recoveryTestEnv) {
-					zOld, hasDowngradePath, err := framework.GetInstallVersionForZStreamUpgrade(ctx, env.ChannelGroup, env.OpenShiftVersion)
+					zOld, hasDowngradePath, err := resolveZStreamUpgradeVersion(ctx, env.ChannelGroup, env.OpenShiftVersion)
 					if err != nil {
 						Fail(fmt.Sprintf("failed to resolve z-stream downgrade version for %s in %s: %s", env.OpenShiftVersion, env.ChannelGroup, err.Error()))
 					}
@@ -522,6 +568,72 @@ var _ = Describe("HCP Recovery", func() {
 		),
 	)
 })
+
+const backupTimeout = 15 * time.Minute
+
+type backupResponse struct {
+	Name                string `json:"name"`
+	Phase               string `json:"phase"`
+	StartTimestamp      string `json:"startTimestamp,omitempty"`
+	CompletionTimestamp string `json:"completionTimestamp,omitempty"`
+}
+
+type getBackupResponse struct {
+	ResourceID string         `json:"resourceID"`
+	Backup     backupResponse `json:"backup"`
+}
+
+func createBackupViaAdminAPI(ctx context.Context, httpClient *http.Client, adminAPIAddress, resourceID string) (backupResponse, error) {
+	url := fmt.Sprintf("%s/admin/v1/hcp%s/backups", adminAPIAddress, resourceID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		return backupResponse{}, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return backupResponse{}, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return backupResponse{}, fmt.Errorf("create backup returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var result backupResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return backupResponse{}, fmt.Errorf("failed to decode response: %w", err)
+	}
+	return result, nil
+}
+
+func getBackupViaAdminAPI(ctx context.Context, httpClient *http.Client, adminAPIAddress, resourceID, backupName string) (getBackupResponse, error) {
+	url := fmt.Sprintf("%s/admin/v1/hcp%s/backups/%s", adminAPIAddress, resourceID, backupName)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return getBackupResponse{}, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return getBackupResponse{}, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return getBackupResponse{}, fmt.Errorf("get backup returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var result getBackupResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return getBackupResponse{}, fmt.Errorf("failed to decode response: %w", err)
+	}
+	return result, nil
+}
 
 type restoreResponse struct {
 	ResourceID    string `json:"resourceID"`

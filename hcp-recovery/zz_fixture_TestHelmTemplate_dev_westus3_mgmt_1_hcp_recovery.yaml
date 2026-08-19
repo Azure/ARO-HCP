@@ -120,8 +120,7 @@ spec:
                   The controller processes steps sequentially; a condition with status
                   True indicates that step has completed successfully.
                 items:
-                  description: Condition contains details for one aspect of the current
-                    state of this API Resource.
+                  description: Condition contains details for one aspect of the current state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -200,8 +199,7 @@ spec:
                 format: date-time
                 type: string
               startedAt:
-                description: startedAt is the timestamp when the recovery operation
-                  began processing.
+                description: startedAt is the timestamp when the recovery operation began processing.
                 format: date-time
                 type: string
             type: object
@@ -500,6 +498,8 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
+          limits:
+            memory: 1Gi
           requests:
             cpu: 500m
             memory: 1Gi

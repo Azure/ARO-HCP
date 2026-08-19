@@ -8,6 +8,7 @@ COPY backend/go.mod backend/go.sum backend/
 RUN cd backend && go mod download
 WORKDIR /app
 COPY internal/ internal/
+COPY hcp-recovery/ hcp-recovery/
 COPY --exclude=backend/aro-hcp-backend backend/ backend/
 ARG ARO_HCP_REVISION
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode

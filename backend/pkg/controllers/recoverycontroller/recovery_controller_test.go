@@ -21,14 +21,14 @@ import (
 	"testing"
 	"time"
 
-	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -54,15 +54,15 @@ func (a *alwaysSyncCooldownChecker) CanSync(_ context.Context, _ any) bool { ret
 
 func TestFindActiveRecovery(t *testing.T) {
 	tests := []struct {
-		name             string
-		requests         []coreapi.RecoveryRequest
-		statuses         []coreapi.RecoveryStatus
-		wantNil          bool
-		wantReqID        string
-		wantStatusID     string
-		wantStatusState  coreapi.RecoveryState
-		wantStatusLen    int
-		wantErrContains  string
+		name            string
+		requests        []coreapi.RecoveryRequest
+		statuses        []coreapi.RecoveryStatus
+		wantNil         bool
+		wantReqID       string
+		wantStatusID    string
+		wantStatusState coreapi.RecoveryState
+		wantStatusLen   int
+		wantErrContains string
 	}{
 		{
 			name:          "no recovery requests",
@@ -81,27 +81,27 @@ func TestFindActiveRecovery(t *testing.T) {
 			wantStatusLen:   1,
 		},
 		{
-			name:     "single request, matching Pending status",
-			requests: []coreapi.RecoveryRequest{{RecoveryId: "r1"}},
-			statuses: []coreapi.RecoveryStatus{{RecoveryId: "r1", State: coreapi.RecoveryStatePending}},
-			wantReqID:    "r1",
-			wantStatusID: "r1",
+			name:          "single request, matching Pending status",
+			requests:      []coreapi.RecoveryRequest{{RecoveryId: "r1"}},
+			statuses:      []coreapi.RecoveryStatus{{RecoveryId: "r1", State: coreapi.RecoveryStatePending}},
+			wantReqID:     "r1",
+			wantStatusID:  "r1",
 			wantStatusLen: 1,
 		},
 		{
-			name:     "single request, non-terminal RecoveryCRCreated status",
-			requests: []coreapi.RecoveryRequest{{RecoveryId: "r1"}},
-			statuses: []coreapi.RecoveryStatus{{RecoveryId: "r1", State: coreapi.RecoveryStateRecoveryCRCreated}},
-			wantReqID:    "r1",
-			wantStatusID: "r1",
+			name:          "single request, non-terminal RecoveryCRCreated status",
+			requests:      []coreapi.RecoveryRequest{{RecoveryId: "r1"}},
+			statuses:      []coreapi.RecoveryStatus{{RecoveryId: "r1", State: coreapi.RecoveryStateRecoveryCRCreated}},
+			wantReqID:     "r1",
+			wantStatusID:  "r1",
 			wantStatusLen: 1,
 		},
 		{
-			name:     "single request, non-terminal Monitoring status",
-			requests: []coreapi.RecoveryRequest{{RecoveryId: "r1"}},
-			statuses: []coreapi.RecoveryStatus{{RecoveryId: "r1", State: coreapi.RecoveryStateMonitoring}},
-			wantReqID:    "r1",
-			wantStatusID: "r1",
+			name:          "single request, non-terminal Monitoring status",
+			requests:      []coreapi.RecoveryRequest{{RecoveryId: "r1"}},
+			statuses:      []coreapi.RecoveryStatus{{RecoveryId: "r1", State: coreapi.RecoveryStateMonitoring}},
+			wantReqID:     "r1",
+			wantStatusID:  "r1",
 			wantStatusLen: 1,
 		},
 		{

@@ -18,18 +18,54 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 
+	"k8s.io/apimachinery/pkg/runtime"
+	utilsclock "k8s.io/utils/clock"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+var (
+	hostedClusterReadDesireName = strings.ToLower(string(coreapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+)
+
+const (
+	veleroBackupGroup    = "velero.io"
+	veleroBackupVersion  = "v1"
+	veleroBackupResource = "backups"
+	veleroNamespace      = "velero"
+)
+
+func ondemandDesireName(backupName string) string {
+	return backup.OndemandBackupDesireNamePrefix + backupName
+}
+
+// BackupResponse is the JSON response for the on-demand backup create/get endpoints.
+type BackupResponse struct {
+	Name                string `json:"name"`
+	Phase               string `json:"phase"`
+	StartTimestamp      string `json:"startTimestamp,omitempty"`
+	CompletionTimestamp string `json:"completionTimestamp,omitempty"`
+}
+
+// GetBackupResponse wraps a BackupResponse with the owning resource ID.
+type GetBackupResponse struct {
+	ResourceID string         `json:"resourceID"`
+	Backup     BackupResponse `json:"backup"`
+}
 
 // BackupScheduleResponse is the JSON response for backup schedule endpoints.
 type BackupScheduleResponse struct {
@@ -98,6 +134,234 @@ func getClusterDetails(
 		hcpOpenShiftCluster:    hcpOpenShiftCluster,
 		serviceProviderCluster: serviceProviderCluster,
 	}, nil
+}
+
+func buildOnDemandBackupDesires(
+	subscriptionID, resourceGroupName, clusterName, backupName string,
+	mcResourceID *azcorearm.ResourceID,
+	veleroBackup *velerov1api.Backup,
+) (*kubeapplierapi.ApplyDesire, *kubeapplierapi.ReadDesire, error) {
+	desireName := ondemandDesireName(backupName)
+
+	adResourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, desireName,
+	)
+	adResourceID, err := azcorearm.ParseResourceID(adResourceIDStr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse ApplyDesire resource ID: %w", err)
+	}
+
+	raw, err := json.Marshal(veleroBackup)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal backup: %w", err)
+	}
+
+	partitionKey := strings.ToLower(mcResourceID.String())
+
+	ad := &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: adResourceID, PartitionKey: partitionKey},
+		Spec: kubeapplierapi.ApplyDesireSpec{
+			ManagementCluster: mcResourceID,
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			TargetItem: kubeapplierapi.ResourceReference{
+				Group:     veleroBackupGroup,
+				Version:   veleroBackupVersion,
+				Resource:  veleroBackupResource,
+				Namespace: veleroNamespace,
+				Name:      backupName,
+			},
+			ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
+				KubeContent: &runtime.RawExtension{Raw: raw},
+			},
+		},
+	}
+
+	rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, desireName,
+	)
+	rdResourceID, err := azcorearm.ParseResourceID(rdResourceIDStr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse ReadDesire resource ID: %w", err)
+	}
+
+	rd := &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rdResourceID, PartitionKey: partitionKey},
+		Spec: kubeapplierapi.ReadDesireSpec{
+			ManagementCluster: mcResourceID,
+			TargetItem: kubeapplierapi.ResourceReference{
+				Group:     veleroBackupGroup,
+				Version:   veleroBackupVersion,
+				Resource:  veleroBackupResource,
+				Namespace: veleroNamespace,
+				Name:      backupName,
+			},
+		},
+	}
+
+	return ad, rd, nil
+}
+
+func backupResponseFromReadDesire(rd *kubeapplierapi.ReadDesire, backupName string) BackupResponse {
+	resp := BackupResponse{
+		Name:  backupName,
+		Phase: "New",
+	}
+	if rd.Status.KubeContent == nil || rd.Status.KubeContent.Raw == nil {
+		return resp
+	}
+	var veleroBackup velerov1api.Backup
+	if err := json.Unmarshal(rd.Status.KubeContent.Raw, &veleroBackup); err != nil {
+		return resp
+	}
+	resp.Phase = string(veleroBackup.Status.Phase)
+	if veleroBackup.Status.StartTimestamp != nil {
+		resp.StartTimestamp = veleroBackup.Status.StartTimestamp.Time.UTC().Format(time.RFC3339)
+	}
+	if veleroBackup.Status.CompletionTimestamp != nil {
+		resp.CompletionTimestamp = veleroBackup.Status.CompletionTimestamp.Time.UTC().Format(time.RFC3339)
+	}
+	return resp
+}
+
+// GetBackup returns the status of an on-demand backup identified by backupName.
+func GetBackup(
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	clock utilsclock.PassiveClock,
+) func(http.ResponseWriter, *http.Request) error {
+	return func(writer http.ResponseWriter, request *http.Request) error {
+		clusterDetails, err := getClusterDetails(request, resourcesDBClient)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to resolve HCP context: %w", err))
+		}
+
+		backupName := request.PathValue("backupName")
+		if backupName == "" {
+			return coreapi.NewCloudError(http.StatusBadRequest, coreapi.CloudErrorCodeInvalidRequestContent, "", "backupName is required")
+		}
+
+		if clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID == nil {
+			return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
+				"management cluster placement not resolved for cluster %s", clusterDetails.hcpOpenShiftCluster.ResourceID.String())
+		}
+
+		kubeApplierClient := kubeApplierDBClients.For(request.Context(), clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID)
+		if kubeApplierClient == nil {
+			return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
+				"kube-applier client not available for management cluster %s", clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID.String())
+		}
+
+		resourceID := clusterDetails.hcpOpenShiftCluster.ResourceID
+		rdCrud, err := kubeApplierClient.ReadDesiresForCluster(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to get ReadDesire CRUD: %w", err))
+		}
+
+		desireName := ondemandDesireName(backupName)
+		rd, err := rdCrud.Get(request.Context(), desireName)
+		if err != nil {
+			if cosmosstorageutils.IsNotFoundError(err) {
+				return coreapi.NewCloudError(http.StatusNotFound, coreapi.CloudErrorCodeResourceNotFound, "", "backup %s not found", backupName)
+			}
+			return utils.TrackError(fmt.Errorf("failed to get ReadDesire: %w", err))
+		}
+
+		backupResponse := backupResponseFromReadDesire(rd, backupName)
+		response := GetBackupResponse{ResourceID: clusterDetails.hcpOpenShiftCluster.ResourceID.String(), Backup: backupResponse}
+
+		_, err = coreapi.WriteJSONResponse(writer, http.StatusOK, response)
+		return utils.TrackError(err)
+	}
+}
+
+// CreateBackup creates a new on-demand backup for the cluster identified by the request's resource ID.
+func CreateBackup(
+	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
+	clock utilsclock.PassiveClock,
+) func(http.ResponseWriter, *http.Request) error {
+	return func(writer http.ResponseWriter, request *http.Request) error {
+		clusterDetails, err := getClusterDetails(request, resourcesDBClient)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to resolve HCP context: %w", err))
+		}
+
+		if clusterDetails.hcpOpenShiftCluster.ServiceProviderProperties.ClusterServiceID == nil {
+			return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
+				"cluster %s has no ClusterServiceID", clusterDetails.hcpOpenShiftCluster.ResourceID.String())
+		}
+		clusterServiceID := path.Base(clusterDetails.hcpOpenShiftCluster.ServiceProviderProperties.ClusterServiceID.String())
+
+		clusterName := clusterDetails.hcpOpenShiftCluster.CustomerProperties.DNS.BaseDomainPrefix
+		if clusterName == "" {
+			return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "", "cluster has no BaseDomainPrefix")
+		}
+
+		if clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID == nil {
+			return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
+				"management cluster placement not resolved for cluster %s", clusterDetails.hcpOpenShiftCluster.ResourceID.String())
+		}
+		mcResourceID := clusterDetails.serviceProviderCluster.Status.ManagementClusterResourceID
+
+		kubeApplierClient := kubeApplierDBClients.For(request.Context(), mcResourceID)
+		if kubeApplierClient == nil {
+			return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "",
+				"kube-applier client not available for management cluster %s", mcResourceID.String())
+		}
+
+		resourceID := clusterDetails.hcpOpenShiftCluster.ResourceID
+		rdCrud, err := kubeApplierClient.ReadDesiresForCluster(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to get ReadDesire CRUD: %w", err))
+		}
+
+		hcReadDesire, err := rdCrud.Get(request.Context(), hostedClusterReadDesireName)
+		if err != nil {
+			if cosmosstorageutils.IsNotFoundError(err) {
+				return coreapi.NewCloudError(http.StatusPreconditionFailed, coreapi.CloudErrorCodeInvalidResource, "", "HostedCluster ReadDesire not found — cluster may not be fully provisioned")
+			}
+			return utils.TrackError(fmt.Errorf("failed to get HostedCluster ReadDesire: %w", err))
+		}
+
+		hcNamespace := hcReadDesire.Spec.TargetItem.Namespace
+		if hcNamespace == "" {
+			return utils.TrackError(fmt.Errorf("HostedCluster ReadDesire has empty namespace"))
+		}
+		hcpNamespace := fmt.Sprintf("%s-%s", hcNamespace, clusterName)
+
+		timestamp := clock.Now().Format("20060102150405")
+		backupName := fmt.Sprintf("%s-%s", clusterServiceID, timestamp)
+		ttl := 7 * 24 * time.Hour
+		hcpBackup := backup.NewBackup(backupName, clusterServiceID, ttl, hcNamespace, hcpNamespace)
+
+		adCrud, err := kubeApplierClient.ApplyDesiresForCluster(resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to get ApplyDesire CRUD: %w", err))
+		}
+
+		ad, rd, err := buildOnDemandBackupDesires(
+			resourceID.SubscriptionID, resourceID.ResourceGroupName, resourceID.Name,
+			backupName, mcResourceID, hcpBackup,
+		)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to build desires: %w", err))
+		}
+
+		if _, err := adCrud.Create(request.Context(), ad, nil); err != nil {
+			return utils.TrackError(fmt.Errorf("failed to create ApplyDesire: %w", err))
+		}
+		if _, err := rdCrud.Create(request.Context(), rd, nil); err != nil {
+			return utils.TrackError(fmt.Errorf("failed to create ReadDesire: %w", err))
+		}
+
+		response := BackupResponse{
+			Name:  backupName,
+			Phase: "New",
+		}
+
+		_, err = coreapi.WriteJSONResponse(writer, http.StatusAccepted, response)
+		return utils.TrackError(err)
+	}
 }
 
 // HCPGetBackupScheduleHandler handles GET requests for backup schedule.
