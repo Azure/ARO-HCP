@@ -15,7 +15,6 @@
 package backups
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -34,10 +33,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/backup"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
-	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
 
+// TestBuildApplyDesiresFromSchedules validates what an ApplyDesire built for a
+// backup schedule is expected to look like: the scope-correct name, the Velero
+// Schedule target, the server-side-apply type, and the marshaled Schedule as
+// the apply content.
 func TestBuildApplyDesiresFromSchedules(t *testing.T) {
 	clusterID := "11111111111111111111111111111111"
 	hostedClusterNamespace := controllerutils.HostedClusterNamespace("testenv", clusterID)
@@ -77,99 +78,12 @@ func TestBuildApplyDesiresFromSchedules(t *testing.T) {
 	}
 }
 
-func TestEnsureApplyDesire(t *testing.T) {
-	managementClusterResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID("mc1"))
-
-	makeDesiredApplyDesire := func(name string, content string) *kubeapplierapi.ApplyDesire {
-		resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
-		resourceID := metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr))
-		return &kubeapplierapi.ApplyDesire{
-			CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
-			Spec: kubeapplierapi.ApplyDesireSpec{
-				ManagementCluster: managementClusterResourceID,
-				Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
-				TargetItem: kubeapplierapi.ResourceReference{
-					Group: backup.VeleroGroup, Version: backup.VeleroVersion,
-					Resource: backup.VeleroScheduleResource, Namespace: backup.VeleroNamespace, Name: name,
-				},
-				ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
-					KubeContent: &runtime.RawExtension{Raw: []byte(content)},
-				},
-			},
-		}
-	}
-
-	t.Run("creates missing ApplyDesire", func(t *testing.T) {
-		mockKubeApplier := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
-		crud, _ := mockKubeApplier.ApplyDesiresForCluster("test-sub", "test-rg", "test-cluster")
-		lister := &kubeapplierlistertesting.SliceApplyDesireLister{}
-
-		desired := makeDesiredApplyDesire(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *"}`)
-		requeue, err := ensureApplyDesire(context.Background(), lister, crud, "test-sub", "test-rg", "test-cluster", desired)
-		require.NoError(t, err)
-		assert.True(t, requeue, "expected requeue=true on create")
-
-		got, err := crud.Get(context.Background(), backup.BackupScheduleDesireNamePrefix+"hourly")
-		require.NoError(t, err, "expected ApplyDesire to exist after create")
-		assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, got.Spec.Type)
-	})
-
-	t.Run("no-op when matching ApplyDesire exists", func(t *testing.T) {
-		mockKubeApplier := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
-		crud, _ := mockKubeApplier.ApplyDesiresForCluster("test-sub", "test-rg", "test-cluster")
-		existing := makeDesiredApplyDesire(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *"}`)
-		_, _ = crud.Create(context.Background(), existing, nil)
-		lister := &kubeapplierlistertesting.SliceApplyDesireLister{Desires: []*kubeapplierapi.ApplyDesire{existing}}
-
-		desired := makeDesiredApplyDesire(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *"}`)
-		requeue, err := ensureApplyDesire(context.Background(), lister, crud, "test-sub", "test-rg", "test-cluster", desired)
-		require.NoError(t, err)
-		assert.False(t, requeue, "expected requeue=false on no-op")
-	})
-
-	t.Run("replaces when content drifts", func(t *testing.T) {
-		mockKubeApplier := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
-		crud, _ := mockKubeApplier.ApplyDesiresForCluster("test-sub", "test-rg", "test-cluster")
-		existing := makeDesiredApplyDesire(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */6 * * *"}`)
-		created, createErr := crud.Create(context.Background(), existing, nil)
-		require.NoError(t, createErr)
-		lister := &kubeapplierlistertesting.SliceApplyDesireLister{Desires: []*kubeapplierapi.ApplyDesire{created}}
-
-		desired := makeDesiredApplyDesire(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"*/5 * * * *"}`)
-		requeue, err := ensureApplyDesire(context.Background(), lister, crud, "test-sub", "test-rg", "test-cluster", desired)
-		require.NoError(t, err)
-		assert.True(t, requeue, "expected requeue=true on replace")
-
-		got, err := crud.Get(context.Background(), backup.BackupScheduleDesireNamePrefix+"hourly")
-		require.NoError(t, err)
-		assert.Contains(t, string(got.Spec.ServerSideApply.KubeContent.Raw), `*/5 * * * *`)
-	})
-
-	t.Run("replaces delete-type with ServerSideApply-type", func(t *testing.T) {
-		mockKubeApplier := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
-		crud, _ := mockKubeApplier.ApplyDesiresForCluster("test-sub", "test-rg", "test-cluster")
-		ssaApplyDesire := makeDesiredApplyDesire(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *"}`)
-		existingDeleteDesire := ssaApplyDesire.DeepCopy()
-		existingDeleteDesire.Spec.Type = kubeapplierapi.ApplyDesireTypeDelete
-		existingDeleteDesire.Spec.ServerSideApply = nil
-		createdDeleteApplyDesire, createErr := crud.Create(context.Background(), existingDeleteDesire, nil)
-		require.NoError(t, createErr)
-		lister := &kubeapplierlistertesting.SliceApplyDesireLister{Desires: []*kubeapplierapi.ApplyDesire{createdDeleteApplyDesire}}
-
-		desired := makeDesiredApplyDesire(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *"}`)
-		requeue, err := ensureApplyDesire(context.Background(), lister, crud, "test-sub", "test-rg", "test-cluster", desired)
-		require.NoError(t, err)
-		assert.True(t, requeue, "expected requeue=true on replace")
-
-		got, err := crud.Get(context.Background(), backup.BackupScheduleDesireNamePrefix+"hourly")
-		require.NoError(t, err)
-		assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, got.Spec.Type)
-		require.NotNil(t, got.Spec.ServerSideApply)
-		assert.Contains(t, string(got.Spec.ServerSideApply.KubeContent.Raw), `0 */1 * * *`)
-	})
-}
-
-func TestEnsureReadDesireFromApplyDesire(t *testing.T) {
+// TestBuildReadDesireFromApplyDesire validates what a ReadDesire built from a
+// backup-schedule ApplyDesire is expected to look like: it reuses the
+// ApplyDesire's name, target, management cluster, partition key, and tags so the
+// apply/read pair stays in lockstep, and it carries the cluster-scoped ReadDesire
+// resource ID.
+func TestBuildReadDesireFromApplyDesire(t *testing.T) {
 	managementClusterResourceID := metadataapi.Must(fleetapi.ToManagementClusterResourceID("mc1"))
 
 	makeApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
@@ -192,36 +106,24 @@ func TestEnsureReadDesireFromApplyDesire(t *testing.T) {
 		}
 	}
 
-	t.Run("creates missing ReadDesire from ApplyDesire", func(t *testing.T) {
-		mockKubeApplier := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
-		crud, _ := mockKubeApplier.ReadDesiresForCluster("test-sub", "test-rg", "test-cluster")
-		lister := &kubeapplierlistertesting.SliceReadDesireLister{}
+	name := backupApplyDesireName("hourly")
+	applyDesire := makeApplyDesire(name)
 
-		applyDesire := makeApplyDesire(backup.BackupScheduleDesireNamePrefix + "hourly")
-		requeue, err := ensureReadDesireFromApplyDesire(context.Background(), lister, crud, "test-sub", "test-rg", "test-cluster", applyDesire)
-		require.NoError(t, err)
-		assert.True(t, requeue, "expected requeue=true on create")
+	readDesire, err := buildReadDesireFromApplyDesire("test-sub", "test-rg", "test-cluster", applyDesire)
+	require.NoError(t, err)
+	require.NotNil(t, readDesire)
 
-		got, err := crud.Get(context.Background(), backup.BackupScheduleDesireNamePrefix+"hourly")
-		require.NoError(t, err, "expected ReadDesire to exist after create")
-		assert.Equal(t, applyDesire.Spec.TargetItem, got.Spec.TargetItem)
-		assert.Equal(t, applyDesire.Spec.ManagementCluster, got.Spec.ManagementCluster)
-	})
+	// The ReadDesire observes the same object the ApplyDesire lands, so it shares
+	// the desire name, target, management cluster, partition key, and tags.
+	assert.Equal(t, name, readDesire.ResourceID.Name)
+	assert.Equal(t, applyDesire.Spec.ManagementCluster, readDesire.Spec.ManagementCluster)
+	assert.Equal(t, applyDesire.Spec.TargetItem, readDesire.Spec.TargetItem)
+	assert.Equal(t, applyDesire.PartitionKey, readDesire.PartitionKey)
+	assert.Equal(t, applyDesire.Tags, readDesire.Tags)
 
-	t.Run("no-op when matching ReadDesire exists", func(t *testing.T) {
-		mockKubeApplier := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
-		crud, _ := mockKubeApplier.ReadDesiresForCluster("test-sub", "test-rg", "test-cluster")
-
-		applyDesire := makeApplyDesire(backup.BackupScheduleDesireNamePrefix + "hourly")
-		_, err := ensureReadDesireFromApplyDesire(context.Background(), &kubeapplierlistertesting.SliceReadDesireLister{}, crud, "test-sub", "test-rg", "test-cluster", applyDesire)
-		require.NoError(t, err)
-
-		existing, err := crud.Get(context.Background(), backup.BackupScheduleDesireNamePrefix+"hourly")
-		require.NoError(t, err)
-		lister := &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{existing}}
-
-		requeue, err := ensureReadDesireFromApplyDesire(context.Background(), lister, crud, "test-sub", "test-rg", "test-cluster", applyDesire)
-		require.NoError(t, err)
-		assert.False(t, requeue, "expected requeue=false on no-op")
-	})
+	// The ReadDesire carries the cluster-scoped ReadDesire resource ID (not the
+	// ApplyDesire resource type).
+	wantReadDesireID := kubeapplierapi.ToClusterScopedReadDesireResourceIDString("test-sub", "test-rg", "test-cluster", name)
+	assert.True(t, strings.EqualFold(wantReadDesireID, readDesire.ResourceID.String()),
+		"expected ReadDesire resource ID %q, got %q", wantReadDesireID, readDesire.ResourceID.String())
 }

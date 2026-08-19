@@ -16,10 +16,13 @@ package creation
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	certificatesv1 "k8s.io/api/certificates/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -176,7 +179,6 @@ func (c *desiresCreator) ensureDesires(
 ) error {
 	// Desires for a credential are nested under the SystemAdminCredentialRequest
 	// so the hierarchy mirrors the resource that owns them.
-	parent := kubeapplierhelpers.CredentialRequestDesireParent(credName)
 	applyCRUD, err := kubeApplierClient.ApplyDesiresForSystemAdminCredentialRequest(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, credName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ApplyDesire CRUD: %w", err))
@@ -189,9 +191,12 @@ func (c *desiresCreator) ensureDesires(
 	// 1. CSR ApplyDesire
 	csrDesireName := "systemadmincredentialcsr"
 	csrObj := systemadmincredential.BuildCSR(owner, credName, controlPlaneNamespace, []byte(cred.Spec.CertificateSigningRequestPEM))
-	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
-		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-		csrDesireName, mcResourceID, csrTarget(csrObj), csrObj); err != nil {
+	csrDesire, err := buildCredentialRequestApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		credName, csrDesireName, mcResourceID, csrTarget(csrObj), csrObj)
+	if err != nil {
+		return err
+	}
+	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, csrDesire); err != nil {
 		return err
 	}
 
@@ -205,9 +210,12 @@ func (c *desiresCreator) ensureDesires(
 		Namespace: controlPlaneNamespace,
 		Name:      csrApprovalObj.Name,
 	}
-	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
-		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-		csrApprovalDesireName, mcResourceID, csrApprovalTarget, csrApprovalObj); err != nil {
+	csrApprovalDesire, err := buildCredentialRequestApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		credName, csrApprovalDesireName, mcResourceID, csrApprovalTarget, csrApprovalObj)
+	if err != nil {
+		return err
+	}
+	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, csrApprovalDesire); err != nil {
 		return err
 	}
 
@@ -219,13 +227,83 @@ func (c *desiresCreator) ensureDesires(
 		Resource: "certificatesigningrequests",
 		Name:     fmt.Sprintf("system-admin-credential-%s", credName),
 	}
-	if err := kubeapplierhelpers.EnsureReadDesire(ctx, readCRUD, c.readDesireLister, parent,
-		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-		csrReadDesireName, mcResourceID, csrReadTarget); err != nil {
+	csrReadDesire, err := buildCredentialRequestReadDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		credName, csrReadDesireName, mcResourceID, csrReadTarget)
+	if err != nil {
+		return err
+	}
+	if err := kubeapplierhelpers.EnsureReadDesire(ctx, readCRUD, c.readDesireLister, csrReadDesire); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// buildCredentialRequestApplyDesire builds a server-side-apply ApplyDesire for
+// obj, nested under the named SystemAdminCredentialRequest. Construction lives in
+// this package (the credential-request controller owns the shape of its own
+// desires); the shared kubeapplierhelpers.EnsureApplyDesire helper then persists
+// it.
+func buildCredentialRequestApplyDesire(
+	subscriptionID, resourceGroupName, clusterName, credentialRequestName, desireName string,
+	managementCluster *azcorearm.ResourceID,
+	target kubeapplierapi.ResourceReference,
+	obj systemadmincredential.KubeObject,
+) (*kubeapplierapi.ApplyDesire, error) {
+	resourceIDStr := kubeapplierapi.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, credentialRequestName, desireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ApplyDesire resource ID %q: %w", resourceIDStr, err))
+	}
+
+	rawJSON, err := json.Marshal(obj)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to marshal kube object: %w", err))
+	}
+
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementCluster.String()),
+		},
+		Spec: kubeapplierapi.ApplyDesireSpec{
+			ManagementCluster: managementCluster,
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			TargetItem:        target,
+			ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
+				KubeContent: &runtime.RawExtension{Raw: rawJSON},
+			},
+		},
+	}, nil
+}
+
+// buildCredentialRequestReadDesire builds a ReadDesire that observes target,
+// nested under the named SystemAdminCredentialRequest.
+func buildCredentialRequestReadDesire(
+	subscriptionID, resourceGroupName, clusterName, credentialRequestName, desireName string,
+	managementCluster *azcorearm.ResourceID,
+	target kubeapplierapi.ResourceReference,
+) (*kubeapplierapi.ReadDesire, error) {
+	resourceIDStr := kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, credentialRequestName, desireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ReadDesire resource ID %q: %w", resourceIDStr, err))
+	}
+
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementCluster.String()),
+		},
+		Spec: kubeapplierapi.ReadDesireSpec{
+			ManagementCluster: managementCluster,
+			TargetItem:        target,
+		},
+	}, nil
 }
 
 // csrTarget builds the ResourceReference for a CertificateSigningRequest.

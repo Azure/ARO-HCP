@@ -109,6 +109,18 @@ func (l *SliceApplyDesireLister) GetForManagementCluster(
 	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
+func (l *SliceApplyDesireLister) GetByResourceID(
+	ctx context.Context, resourceID string,
+) (*kubeapplierapi.ApplyDesire, error) {
+	for _, d := range l.Desires {
+		id := listertestingutils.ResourceIDOf(d)
+		if id != nil && strings.EqualFold(id.String(), resourceID) {
+			return d, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
 func (l *SliceApplyDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplierapi.ApplyDesire, error) {
@@ -225,6 +237,18 @@ func (l *SliceReadDesireLister) GetForManagementCluster(
 	for _, d := range l.Desires {
 		id := listertestingutils.ResourceIDOf(d)
 		if id != nil && strings.EqualFold(id.String(), want) {
+			return d, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
+func (l *SliceReadDesireLister) GetByResourceID(
+	ctx context.Context, resourceID string,
+) (*kubeapplierapi.ReadDesire, error) {
+	for _, d := range l.Desires {
+		id := listertestingutils.ResourceIDOf(d)
+		if id != nil && strings.EqualFold(id.String(), resourceID) {
 			return d, nil
 		}
 	}

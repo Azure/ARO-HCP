@@ -19,9 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strings"
-
-	"k8s.io/apimachinery/pkg/runtime"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -31,149 +28,123 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
-	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// desireParent identifies the resource a *Desire is nested under. Exactly one of
-// credentialRequestName / revocationName is set to nest the desire under a
-// SystemAdminCredentialRequest or SystemAdminCredentialRevocation respectively;
-// when both are empty the desire is cluster-scoped (legacy). It centralizes the
-// resource-ID and lister-key construction so the ensure* helpers stay
-// scope-agnostic.
+// DesireParent identifies the resource a *Desire is nested under. It is built
+// via one of the scope constructors below, each of which captures how to derive
+// the parent resource's ARM resource ID from the enclosing cluster's
+// coordinates. Resource-ID, CRUD, and lister-key construction are then derived
+// generically from that parent resource ID (via the kube-applier DesireScope
+// abstraction), so the ensure*/delete helpers stay scope-agnostic and any new
+// parent level (node pool today, management-cluster-scoped in the future) is a
+// one-line constructor rather than a new case in a fan of switch statements.
+//
+// The zero value (DesireParent{}) has no scope: every accessor on it returns an
+// error rather than silently guessing a scope, because a desire with no declared
+// parent is a programming error, not a cluster-scoped desire.
 type DesireParent struct {
-	credentialRequestName string
-	revocationName        string
+	// toParentResourceIDString builds the ARM resource ID string of the parent
+	// resource the desires nest under, given the enclosing cluster coordinates.
+	toParentResourceIDString func(subscriptionID, resourceGroupName, clusterName string) string
+}
+
+// ClusterDesireParent returns a DesireParent that nests desires directly under
+// the cluster.
+func ClusterDesireParent() DesireParent {
+	return DesireParent{toParentResourceIDString: func(subscriptionID, resourceGroupName, clusterName string) string {
+		return coreapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	}}
+}
+
+// NodePoolDesireParent returns a DesireParent that nests desires under the named
+// node pool.
+func NodePoolDesireParent(nodePoolName string) DesireParent {
+	return DesireParent{toParentResourceIDString: func(subscriptionID, resourceGroupName, clusterName string) string {
+		return coreapi.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	}}
 }
 
 // CredentialRequestDesireParent returns a DesireParent that nests desires under
 // the named SystemAdminCredentialRequest.
 func CredentialRequestDesireParent(credentialRequestName string) DesireParent {
-	return DesireParent{credentialRequestName: credentialRequestName}
+	return DesireParent{toParentResourceIDString: func(subscriptionID, resourceGroupName, clusterName string) string {
+		return coreapi.ToSystemAdminCredentialRequestResourceIDString(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+	}}
 }
 
 // RevocationDesireParent returns a DesireParent that nests desires under the
 // named SystemAdminCredentialRevocation.
 func RevocationDesireParent(revocationName string) DesireParent {
-	return DesireParent{revocationName: revocationName}
+	return DesireParent{toParentResourceIDString: func(subscriptionID, resourceGroupName, clusterName string) string {
+		return coreapi.ToSystemAdminCredentialRevocationResourceIDString(subscriptionID, resourceGroupName, clusterName, revocationName)
+	}}
+}
+
+// parentResourceIDString builds the parent resource's ARM resource ID string for
+// the given cluster. A zero-value DesireParent (nil builder) has no scope and
+// returns an error: defaulting it to a cluster (or any other scope) would be
+// nonsensical, so callers must construct the parent explicitly via one of the
+// DesireParent constructors.
+func (p DesireParent) parentResourceIDString(subscriptionID, resourceGroupName, clusterName string) (string, error) {
+	if p.toParentResourceIDString == nil {
+		return "", utils.TrackError(fmt.Errorf("uninitialized DesireParent: build it with one of the DesireParent constructors (ClusterDesireParent, NodePoolDesireParent, CredentialRequestDesireParent, RevocationDesireParent)"))
+	}
+	return p.toParentResourceIDString(subscriptionID, resourceGroupName, clusterName), nil
+}
+
+// desireScope resolves the kube-applier DesireScope for this parent under the
+// given cluster. It is the single point that turns the parent resource ID into
+// a validated scope; the enumerated per-level CRUD accessors are no longer
+// needed.
+func (p DesireParent) desireScope(subscriptionID, resourceGroupName, clusterName string) (kubeappliercosmosstorage.DesireScope, error) {
+	parentResourceIDStr, err := p.parentResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	if err != nil {
+		return kubeappliercosmosstorage.DesireScope{}, err
+	}
+	parentID, err := azcorearm.ParseResourceID(parentResourceIDStr)
+	if err != nil {
+		return kubeappliercosmosstorage.DesireScope{}, utils.TrackError(err)
+	}
+	return kubeappliercosmosstorage.ParseDesireScope(parentID)
 }
 
 // applyDesireCRUD returns the ApplyDesire CRUD for this scope on the given client.
 func (p DesireParent) applyDesireCRUD(client kubeappliercosmosstorage.KubeApplierDBClient, subscriptionID, resourceGroupName, clusterName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
-	switch {
-	case p.credentialRequestName != "":
-		return client.ApplyDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, p.credentialRequestName)
-	case p.revocationName != "":
-		return client.ApplyDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, p.revocationName)
-	default:
-		return client.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
+	scope, err := p.desireScope(subscriptionID, resourceGroupName, clusterName)
+	if err != nil {
+		return nil, utils.TrackError(err)
 	}
+	return client.ApplyDesiresFor(scope)
 }
 
 // readDesireCRUD returns the ReadDesire CRUD for this scope on the given client.
 func (p DesireParent) readDesireCRUD(client kubeappliercosmosstorage.KubeApplierDBClient, subscriptionID, resourceGroupName, clusterName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
-	switch {
-	case p.credentialRequestName != "":
-		return client.ReadDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, p.credentialRequestName)
-	case p.revocationName != "":
-		return client.ReadDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, p.revocationName)
-	default:
-		return client.ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
+	scope, err := p.desireScope(subscriptionID, resourceGroupName, clusterName)
+	if err != nil {
+		return nil, utils.TrackError(err)
 	}
+	return client.ReadDesiresFor(scope)
 }
 
-// applyDesireResourceIDString builds the resource-ID string for an ApplyDesire in this scope.
-func (p DesireParent) applyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, desireName string) string {
-	switch {
-	case p.credentialRequestName != "":
-		return kubeapplierapi.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, p.credentialRequestName, desireName)
-	case p.revocationName != "":
-		return kubeapplierapi.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, p.revocationName, desireName)
-	default:
-		return kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, desireName)
-	}
-}
-
-// readDesireResourceIDString builds the resource-ID string for a ReadDesire in this scope.
-func (p DesireParent) readDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, desireName string) string {
-	switch {
-	case p.credentialRequestName != "":
-		return kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, p.credentialRequestName, desireName)
-	case p.revocationName != "":
-		return kubeapplierapi.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, p.revocationName, desireName)
-	default:
-		return kubeapplierapi.ToClusterScopedReadDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, desireName)
-	}
-}
-
-// getApplyDesire looks the existing ApplyDesire up from the lister using the scope's key.
-func (p DesireParent) getApplyDesire(ctx context.Context, lister dblisters.ApplyDesireLister, subscriptionID, resourceGroupName, clusterName, desireName string) (*kubeapplierapi.ApplyDesire, error) {
-	switch {
-	case p.credentialRequestName != "":
-		return lister.GetForSystemAdminCredentialRequest(ctx, subscriptionID, resourceGroupName, clusterName, p.credentialRequestName, strings.ToLower(desireName))
-	case p.revocationName != "":
-		return lister.GetForSystemAdminCredentialRevocation(ctx, subscriptionID, resourceGroupName, clusterName, p.revocationName, strings.ToLower(desireName))
-	default:
-		return lister.GetForCluster(ctx, subscriptionID, resourceGroupName, clusterName, strings.ToLower(desireName))
-	}
-}
-
-// getReadDesire looks the existing ReadDesire up from the lister using the scope's key.
-func (p DesireParent) getReadDesire(ctx context.Context, lister dblisters.ReadDesireLister, subscriptionID, resourceGroupName, clusterName, desireName string) (*kubeapplierapi.ReadDesire, error) {
-	switch {
-	case p.credentialRequestName != "":
-		return lister.GetForSystemAdminCredentialRequest(ctx, subscriptionID, resourceGroupName, clusterName, p.credentialRequestName, strings.ToLower(desireName))
-	case p.revocationName != "":
-		return lister.GetForSystemAdminCredentialRevocation(ctx, subscriptionID, resourceGroupName, clusterName, p.revocationName, strings.ToLower(desireName))
-	default:
-		return lister.GetForCluster(ctx, subscriptionID, resourceGroupName, clusterName, strings.ToLower(desireName))
-	}
-}
-
-// ensureApplyDesire creates the named ApplyDesire (a server-side apply of obj)
-// nested under parent unless a matching desire already exists. It consults the
-// ApplyDesire lister first so an already-correct desire is never rewritten, and
-// logs whenever it writes a new desire. It is shared by the desires-creator and
-// revocation-desires controllers.
+// EnsureApplyDesire creates desire, or replaces the stored one when its spec has
+// drifted. It consults the ApplyDesire lister first — keyed by the desire's own
+// resource ID — so an already-correct desire is never rewritten, and logs
+// whenever it writes. The caller constructs the full desire in its own package
+// (each controller builds the ApplyDesire it wants), so this function stays a
+// pure, scope-agnostic create-or-update. It is shared by the desires-creator,
+// revocation-desires, and backup-schedule controllers.
 func EnsureApplyDesire(
 	ctx context.Context,
 	crud cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
 	applyDesireLister dblisters.ApplyDesireLister,
-	parent DesireParent,
-	subscriptionID, resourceGroupName, hcpClusterName, desireName string,
-	managementCluster *azcorearm.ResourceID,
-	target kubeapplierapi.ResourceReference,
-	obj systemadmincredential.KubeObject,
+	desire *kubeapplierapi.ApplyDesire,
 ) error {
 	logger := utils.LoggerFromContext(ctx)
+	desireName := desire.ResourceID.Name
+	target := desire.Spec.TargetItem
 
-	resourceIDStr := parent.applyDesireResourceIDString(subscriptionID, resourceGroupName, hcpClusterName, desireName)
-	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to parse ApplyDesire resource ID %q: %w", resourceIDStr, err))
-	}
-
-	rawJSON, err := json.Marshal(obj)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to marshal kube object: %w", err))
-	}
-
-	desire := &kubeapplierapi.ApplyDesire{
-		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   resourceID,
-			PartitionKey: strings.ToLower(managementCluster.String()),
-		},
-		Spec: kubeapplierapi.ApplyDesireSpec{
-			ManagementCluster: managementCluster,
-			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
-			TargetItem:        target,
-			ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
-				KubeContent: &runtime.RawExtension{Raw: rawJSON},
-			},
-		},
-	}
-
-	existing, err := parent.getApplyDesire(ctx, applyDesireLister, subscriptionID, resourceGroupName, hcpClusterName, desireName)
+	existing, err := applyDesireLister.GetByResourceID(ctx, desire.ResourceID.String())
 	switch {
 	case err != nil && !cosmosstorageutils.IsNotFoundError(err):
 		return utils.TrackError(fmt.Errorf("get ApplyDesire %s from lister: %w", desireName, err))
@@ -205,39 +176,22 @@ func EnsureApplyDesire(
 	}
 }
 
-// ensureReadDesire creates the named ReadDesire nested under parent unless a
-// matching desire already exists. It consults the ReadDesire lister first so an
-// already-correct desire is never rewritten, and logs whenever it writes a new
-// desire. It is shared by the desires-creator and revocation-desires controllers.
+// EnsureReadDesire creates desire, or replaces the stored one when its spec has
+// drifted. Like EnsureApplyDesire it consults the lister (keyed by the desire's
+// resource ID) and leaves construction to the caller, which builds the ReadDesire
+// in its own package. It is shared by the desires-creator, revocation-desires,
+// backup-schedule, and read-desire creator controllers.
 func EnsureReadDesire(
 	ctx context.Context,
 	crud cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire],
 	readDesireLister dblisters.ReadDesireLister,
-	parent DesireParent,
-	subscriptionID, resourceGroupName, hcpClusterName, desireName string,
-	managementCluster *azcorearm.ResourceID,
-	target kubeapplierapi.ResourceReference,
+	desire *kubeapplierapi.ReadDesire,
 ) error {
 	logger := utils.LoggerFromContext(ctx)
+	desireName := desire.ResourceID.Name
+	target := desire.Spec.TargetItem
 
-	resourceIDStr := parent.readDesireResourceIDString(subscriptionID, resourceGroupName, hcpClusterName, desireName)
-	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to parse ReadDesire resource ID %q: %w", resourceIDStr, err))
-	}
-
-	desire := &kubeapplierapi.ReadDesire{
-		CosmosMetadata: coreapi.CosmosMetadata{
-			ResourceID:   resourceID,
-			PartitionKey: strings.ToLower(managementCluster.String()),
-		},
-		Spec: kubeapplierapi.ReadDesireSpec{
-			ManagementCluster: managementCluster,
-			TargetItem:        target,
-		},
-	}
-
-	existing, err := parent.getReadDesire(ctx, readDesireLister, subscriptionID, resourceGroupName, hcpClusterName, desireName)
+	existing, err := readDesireLister.GetByResourceID(ctx, desire.ResourceID.String())
 	switch {
 	case err != nil && !cosmosstorageutils.IsNotFoundError(err):
 		return utils.TrackError(fmt.Errorf("get ReadDesire %s from lister: %w", desireName, err))

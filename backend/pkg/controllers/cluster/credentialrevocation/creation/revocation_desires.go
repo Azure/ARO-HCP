@@ -16,13 +16,18 @@ package creation
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/runtime"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -157,7 +162,6 @@ func (c *revocationDesires) ensureRevocationDesires(
 ) error {
 	// Revocation desires are nested under the SystemAdminCredentialRevocation so
 	// the hierarchy mirrors the resource that owns them.
-	parent := kubeapplierhelpers.RevocationDesireParent(key.RevocationName)
 	applyCRUD, err := kubeApplierClient.ApplyDesiresForSystemAdminCredentialRevocation(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.RevocationName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ApplyDesire CRUD: %w", err))
@@ -177,19 +181,91 @@ func (c *revocationDesires) ensureRevocationDesires(
 		Name:      crrObj.Name,
 	}
 	crrDesireName := "systemadmincredentialrevocation"
-	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
-		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-		crrDesireName, mcResourceID, crrTarget, crrObj); err != nil {
+	crrDesire, err := buildRevocationApplyDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		key.RevocationName, crrDesireName, mcResourceID, crrTarget, crrObj)
+	if err != nil {
+		return err
+	}
+	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, crrDesire); err != nil {
 		return err
 	}
 
 	// 2. CRR ReadDesire so the CRR status is mirrored back for the completion controller.
 	crrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestRevocation()
-	if err := kubeapplierhelpers.EnsureReadDesire(ctx, readCRUD, c.readDesireLister, parent,
-		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-		crrReadDesireName, mcResourceID, crrTarget); err != nil {
+	crrReadDesire, err := buildRevocationReadDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		key.RevocationName, crrReadDesireName, mcResourceID, crrTarget)
+	if err != nil {
+		return err
+	}
+	if err := kubeapplierhelpers.EnsureReadDesire(ctx, readCRUD, c.readDesireLister, crrReadDesire); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// buildRevocationApplyDesire builds a server-side-apply ApplyDesire for obj,
+// nested under the named SystemAdminCredentialRevocation. Construction lives in
+// this package (the revocation controller owns the shape of its own desires); the
+// shared kubeapplierhelpers.EnsureApplyDesire helper then persists it.
+func buildRevocationApplyDesire(
+	subscriptionID, resourceGroupName, clusterName, revocationName, desireName string,
+	managementCluster *azcorearm.ResourceID,
+	target kubeapplierapi.ResourceReference,
+	obj systemadmincredential.KubeObject,
+) (*kubeapplierapi.ApplyDesire, error) {
+	resourceIDStr := kubeapplierapi.ToSystemAdminCredentialRevocationScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, revocationName, desireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ApplyDesire resource ID %q: %w", resourceIDStr, err))
+	}
+
+	rawJSON, err := json.Marshal(obj)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to marshal kube object: %w", err))
+	}
+
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementCluster.String()),
+		},
+		Spec: kubeapplierapi.ApplyDesireSpec{
+			ManagementCluster: managementCluster,
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			TargetItem:        target,
+			ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
+				KubeContent: &runtime.RawExtension{Raw: rawJSON},
+			},
+		},
+	}, nil
+}
+
+// buildRevocationReadDesire builds a ReadDesire that observes target, nested
+// under the named SystemAdminCredentialRevocation.
+func buildRevocationReadDesire(
+	subscriptionID, resourceGroupName, clusterName, revocationName, desireName string,
+	managementCluster *azcorearm.ResourceID,
+	target kubeapplierapi.ResourceReference,
+) (*kubeapplierapi.ReadDesire, error) {
+	resourceIDStr := kubeapplierapi.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, revocationName, desireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ReadDesire resource ID %q: %w", resourceIDStr, err))
+	}
+
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementCluster.String()),
+		},
+		Spec: kubeapplierapi.ReadDesireSpec{
+			ManagementCluster: managementCluster,
+			TargetItem:        target,
+		},
+	}, nil
 }

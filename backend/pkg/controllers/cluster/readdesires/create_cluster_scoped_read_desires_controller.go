@@ -21,18 +21,20 @@ import (
 	"strings"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -51,6 +53,7 @@ type createClusterScopedReadDesiresSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	readDesireLister             kubeapplierlisters.ReadDesireLister
 
 	// hostedClusterNamespaceEnvIdentifier is the "envName" segment of the
 	// CDNamespace (ocm-<envName>-<csClusterID>). Historically the maestro
@@ -70,6 +73,7 @@ func NewCreateClusterScopedReadDesiresController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
@@ -78,6 +82,7 @@ func NewCreateClusterScopedReadDesiresController(
 		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
 		serviceProviderClusterLister:        serviceProviderClusterLister,
+		readDesireLister:                    readDesireLister,
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
@@ -158,35 +163,64 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 		return utils.TrackError(fmt.Errorf("failed to get ReadDesire CRUD: %w", err))
 	}
 
-	desiredReadDesires := []*kubeapplierapi.ReadDesire{
-		controllerutil.BuildReadDesire(
-			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, readDesireNameReadonlyHostedCluster),
-			mcResourceID,
-			hostedClusterTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix),
-		),
-		controllerutil.BuildReadDesire(
-			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler),
-			mcResourceID,
-			clusterAutoscalerTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix),
-		),
+	desiredReadDesires := []desiredReadDesire{
+		{readDesireNameReadonlyHostedCluster, hostedClusterTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix)},
+		{kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler, clusterAutoscalerTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix)},
 	}
 
 	controlPlaneNamespace := serviceProviderCluster.Status.ControlPlaneNamespace
 	if len(controlPlaneNamespace) > 0 {
-		desiredReadDesires = append(desiredReadDesires, controllerutil.BuildReadDesire(
-			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, kubeapplierhelpers.ReadDesireNameServingCA),
-			mcResourceID,
-			servingCATarget(controlPlaneNamespace),
-		))
+		desiredReadDesires = append(desiredReadDesires, desiredReadDesire{kubeapplierhelpers.ReadDesireNameServingCA, servingCATarget(controlPlaneNamespace)})
 	}
 
 	var errs []error
 	for _, desired := range desiredReadDesires {
-		if err := c.ensureReadDesire(ctx, crud, desired); err != nil {
+		readDesire, err := buildClusterReadDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+			desired.name, mcResourceID, desired.target)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if err := kubeapplierhelpers.EnsureReadDesire(ctx, crud, c.readDesireLister, readDesire); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// buildClusterReadDesire builds a cluster-scoped ReadDesire that observes target.
+// The cluster ReadDesire controller builds its own desires; the shared
+// kubeapplierhelpers.EnsureReadDesire helper then persists them.
+func buildClusterReadDesire(
+	subscriptionID, resourceGroupName, clusterName, desireName string,
+	managementCluster *azcorearm.ResourceID,
+	target kubeapplierapi.ResourceReference,
+) (*kubeapplierapi.ReadDesire, error) {
+	resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, desireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ReadDesire resource ID %q: %w", resourceIDStr, err))
+	}
+
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementCluster.String()),
+		},
+		Spec: kubeapplierapi.ReadDesireSpec{
+			ManagementCluster: managementCluster,
+			TargetItem:        target,
+		},
+	}, nil
+}
+
+// desiredReadDesire pairs a ReadDesire's well-known name with the
+// management-cluster object it observes.
+type desiredReadDesire struct {
+	name   string
+	target kubeapplierapi.ResourceReference
 }
 
 // readDesireNameReadonlyHostedCluster is the well-known ReadDesire name
@@ -233,36 +267,4 @@ func servingCATarget(controlPlaneNamespace string) kubeapplierapi.ResourceRefere
 		Namespace: controlPlaneNamespace,
 		Name:      servingCATLSSecretName,
 	}
-}
-
-// ensureReadDesire creates or updates a ReadDesire when the desired spec differs from cosmos.
-func (c *createClusterScopedReadDesiresSyncer) ensureReadDesire(ctx context.Context, crud cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], desired *kubeapplierapi.ReadDesire) error {
-	existing, err := controllerutils.GetExistingReadDesire(ctx, crud, desired.ResourceID.Name)
-	if err != nil {
-		return err
-	}
-	if !controllerutil.ReadDesireNeedsWork(existing, desired) {
-		return nil
-	}
-	name := desired.ResourceID.Name
-	if existing == nil {
-		_, err := crud.Create(ctx, desired, nil)
-		if cosmosstorageutils.IsConflictError(err) {
-			return nil
-		}
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to create ReadDesire %q: %w", name, err))
-		}
-		return nil
-	}
-	replacement := existing.DeepCopy()
-	replacement.Spec = *desired.Spec.DeepCopy()
-	_, err = crud.Replace(ctx, replacement, nil)
-	if cosmosstorageutils.IsPreconditionFailedError(err) {
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ReadDesire %q: %w", name, err))
-	}
-	return nil
 }

@@ -14,7 +14,6 @@
 package backups
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -28,9 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/backup"
-	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -38,6 +34,26 @@ func backupApplyDesireName(scheduleName string) string {
 	return backup.BackupScheduleDesireNamePrefix + scheduleName
 }
 
+// backupScheduleTarget is the management-cluster object each backup-schedule
+// desire points at: the Velero Schedule with the schedule's name.
+func backupScheduleTarget(scheduleName string) kubeapplierapi.ResourceReference {
+	return kubeapplierapi.ResourceReference{
+		Group:     backup.VeleroGroup,
+		Version:   backup.VeleroVersion,
+		Resource:  backup.VeleroScheduleResource,
+		Namespace: backup.VeleroNamespace,
+		Name:      scheduleName,
+	}
+}
+
+// buildApplyDesiresFromSchedules constructs the cluster-scoped backup-schedule
+// ApplyDesires for a set of Velero Schedules. Each desire carries the
+// scope-correct resource ID, the marshaled Schedule as server-side-apply
+// content, and the schedule tag so the stale-cleanup and deletion paths can find
+// it. The controller hands each result to the shared
+// kubeapplierhelpers.EnsureApplyDesire helper, which our API now takes an
+// ApplyDesire directly; construction lives here in the backups package rather
+// than in the shared helper.
 func buildApplyDesiresFromSchedules(
 	subscriptionID, resourceGroupName, clusterName string,
 	managementClusterResourceID *azcorearm.ResourceID,
@@ -51,12 +67,12 @@ func buildApplyDesiresFromSchedules(
 		)
 		resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse ApplyDesire resource ID for schedule %s: %w", schedule.Name, err)
+			return nil, utils.TrackError(fmt.Errorf("failed to parse ApplyDesire resource ID for schedule %s: %w", schedule.Name, err))
 		}
 
 		raw, err := json.Marshal(schedule)
 		if err != nil {
-			return nil, fmt.Errorf("failed to marshal schedule %s: %w", schedule.Name, err)
+			return nil, utils.TrackError(fmt.Errorf("failed to marshal schedule %s: %w", schedule.Name, err))
 		}
 
 		desires = append(desires, &kubeapplierapi.ApplyDesire{
@@ -64,13 +80,7 @@ func buildApplyDesiresFromSchedules(
 			Spec: kubeapplierapi.ApplyDesireSpec{
 				ManagementCluster: managementClusterResourceID,
 				Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
-				TargetItem: kubeapplierapi.ResourceReference{
-					Group:     backup.VeleroGroup,
-					Version:   backup.VeleroVersion,
-					Resource:  backup.VeleroScheduleResource,
-					Namespace: backup.VeleroNamespace,
-					Name:      schedule.Name,
-				},
+				TargetItem:        backupScheduleTarget(schedule.Name),
 				ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
 					KubeContent: &runtime.RawExtension{Raw: raw},
 				},
@@ -81,95 +91,29 @@ func buildApplyDesiresFromSchedules(
 	return desires, nil
 }
 
-func ensureApplyDesire(
-	ctx context.Context,
-	lister kubeapplierlisters.ApplyDesireLister,
-	applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
-	subscriptionID, resourceGroupName, clusterName string,
-	desired *kubeapplierapi.ApplyDesire,
-) (bool, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	existing, err := lister.GetForCluster(ctx, subscriptionID, resourceGroupName, clusterName, desired.ResourceID.Name)
-	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		return false, utils.TrackError(fmt.Errorf("get ApplyDesire %s from lister: %w", desired.ResourceID.Name, err))
-	}
-
-	if existing != nil && !internalcontrollerutils.NeedsUpdate(existing.Spec, desired.Spec) {
-		return false, nil
-	}
-
-	if existing == nil {
-		if _, err := applyDesireCRUD.Create(ctx, desired, nil); err != nil && !cosmosstorageutils.IsConflictError(err) {
-			return false, utils.TrackError(fmt.Errorf("create ApplyDesire %s: %w", desired.ResourceID.Name, err))
-		}
-		logger.Info("created ApplyDesire", "desire", desired.ResourceID.Name)
-		return true, nil
-	}
-
-	replacement := existing.DeepCopy()
-	replacement.Spec = desired.Spec
-	if _, err := applyDesireCRUD.Replace(ctx, replacement, nil); err != nil {
-		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			return false, nil
-		}
-		return false, utils.TrackError(fmt.Errorf("replace ApplyDesire %s: %w", desired.ResourceID.Name, err))
-	}
-	logger.Info("updated ApplyDesire", "desire", desired.ResourceID.Name)
-	return true, nil
-}
-
-func ensureReadDesireFromApplyDesire(
-	ctx context.Context,
-	lister kubeapplierlisters.ReadDesireLister,
-	readDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire],
+// buildReadDesireFromApplyDesire builds the cluster-scoped ReadDesire that
+// observes the same management-cluster object a backup ApplyDesire lands. It
+// reuses the ApplyDesire's name, target, management cluster, partition key, and
+// tags so the apply/read pair stays in lockstep.
+func buildReadDesireFromApplyDesire(
 	subscriptionID, resourceGroupName, clusterName string,
 	applyDesire *kubeapplierapi.ApplyDesire,
-) (bool, error) {
-	logger := utils.LoggerFromContext(ctx)
-
+) (*kubeapplierapi.ReadDesire, error) {
+	desireName := applyDesire.ResourceID.Name
 	resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
-		subscriptionID, resourceGroupName, clusterName, applyDesire.ResourceID.Name,
+		subscriptionID, resourceGroupName, clusterName, desireName,
 	)
 	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
 	if err != nil {
-		return false, utils.TrackError(fmt.Errorf("parse ReadDesire resource ID for %s: %w", applyDesire.ResourceID.Name, err))
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ReadDesire resource ID for %s: %w", desireName, err))
 	}
 
-	desired := &kubeapplierapi.ReadDesire{
+	return &kubeapplierapi.ReadDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: resourceID, PartitionKey: applyDesire.PartitionKey},
 		Spec: kubeapplierapi.ReadDesireSpec{
 			ManagementCluster: applyDesire.Spec.ManagementCluster,
 			TargetItem:        applyDesire.Spec.TargetItem,
 		},
 		Tags: applyDesire.Tags,
-	}
-
-	existing, err := lister.GetForCluster(ctx, subscriptionID, resourceGroupName, clusterName, applyDesire.ResourceID.Name)
-	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		return false, utils.TrackError(fmt.Errorf("get ReadDesire %s from lister: %w", applyDesire.ResourceID.Name, err))
-	}
-
-	if existing != nil && !internalcontrollerutils.NeedsUpdate(existing.Spec, desired.Spec) {
-		return false, nil
-	}
-
-	if existing == nil {
-		if _, err := readDesireCRUD.Create(ctx, desired, nil); err != nil && !cosmosstorageutils.IsConflictError(err) {
-			return false, utils.TrackError(fmt.Errorf("create ReadDesire %s: %w", desired.ResourceID.Name, err))
-		}
-		logger.Info("created ReadDesire", "desire", desired.ResourceID.Name)
-		return true, nil
-	}
-
-	replacement := existing.DeepCopy()
-	replacement.Spec = desired.Spec
-	if _, err := readDesireCRUD.Replace(ctx, replacement, nil); err != nil {
-		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			return false, nil
-		}
-		return false, utils.TrackError(fmt.Errorf("replace ReadDesire %s: %w", desired.ResourceID.Name, err))
-	}
-	logger.Info("updated ReadDesire", "desire", desired.ResourceID.Name)
-	return true, nil
+	}, nil
 }

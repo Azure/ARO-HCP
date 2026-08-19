@@ -49,6 +49,7 @@ type DesireLister[T any] interface {
 	GetForSystemAdminCredentialRequest(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string) (*T, error)
 	GetForSystemAdminCredentialRevocation(ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string) (*T, error)
 	GetForManagementCluster(ctx context.Context, stampIdentifier, name string) (*T, error)
+	GetByResourceID(ctx context.Context, resourceID string) (*T, error)
 	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*T, error)
 	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*T, error)
 	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*T, error)
@@ -209,6 +210,23 @@ func (u *UnionDesireLister[T]) GetForManagementCluster(
 ) (*T, error) {
 	for _, sub := range u.snapshot() {
 		d, err := sub.GetForManagementCluster(ctx, stampIdentifier, name)
+		if err == nil {
+			return d, nil
+		}
+		if !cosmosstorageutils.IsNotFoundError(err) {
+			return nil, err
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
+}
+
+// GetByResourceID tries each sublister in turn. First hit wins; NotFound is
+// treated as "try the next one", any other error short-circuits.
+func (u *UnionDesireLister[T]) GetByResourceID(
+	ctx context.Context, resourceID string,
+) (*T, error) {
+	for _, sub := range u.snapshot() {
+		d, err := sub.GetByResourceID(ctx, resourceID)
 		if err == nil {
 			return d, nil
 		}
