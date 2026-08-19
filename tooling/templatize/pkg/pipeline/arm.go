@@ -226,6 +226,21 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		// Hardcode until schema is adapted
 		deployment.Location = to.Ptr("eastus2")
 		poller, err := client.BeginCreateOrUpdateAtSubscriptionScope(ctx, deploymentName, deployment, nil)
+		// The deployment name is a content hash of the inputs — a 409 DeploymentActive means
+		// an identical deployment is already running (e.g. a sibling service group racing us).
+		// Safe to wait for it and reuse the output.
+		if isDeploymentActiveError(err) {
+			logger.V(1).Info("Deployment already active, waiting for it to complete", "deployment", deploymentName)
+			var exists bool
+			exists, output, details, err = pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to poll concurrent deployment: %w", err)
+			}
+			if !exists {
+				return nil, nil, fmt.Errorf("concurrent deployment %q not found after 409 DeploymentActive", deploymentName)
+			}
+			return output, details, commit(output)
+		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create deployment: %w", err)
 		}
@@ -235,6 +250,21 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 	} else {
 		details = DetermineOperationsForResourceGroupDeployment(getOperationsClient, subscriptionID, rgName, deploymentName)
 		poller, err := client.BeginCreateOrUpdate(ctx, rgName, deploymentName, deployment, nil)
+		// The deployment name is a content hash of the inputs — a 409 DeploymentActive means
+		// an identical deployment is already running (e.g. a sibling service group racing us).
+		// Safe to wait for it and reuse the output.
+		if isDeploymentActiveError(err) {
+			logger.V(1).Info("Deployment already active, waiting for it to complete", "deployment", deploymentName)
+			var exists bool
+			exists, output, details, err = pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to poll concurrent deployment: %w", err)
+			}
+			if !exists {
+				return nil, nil, fmt.Errorf("concurrent deployment %q not found after 409 DeploymentActive", deploymentName)
+			}
+			return output, details, commit(output)
+		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create deployment: %w", err)
 		}
@@ -309,6 +339,13 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 		output, err = get(ctx)
 	}
 	return false, nil, nil, errors.New("timed out waiting for pre-existing deployment to finish")
+}
+
+func isDeploymentActiveError(err error) bool {
+	var respErr *azcore.ResponseError
+	return errors.As(err, &respErr) &&
+		respErr.StatusCode == http.StatusConflict &&
+		strings.EqualFold(respErr.ErrorCode, "DeploymentActive")
 }
 
 type deploymentInputs struct {

@@ -15,12 +15,63 @@
 package pipeline
 
 import (
+	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 )
+
+func TestIsDeploymentActiveError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "unrelated error",
+			err:      errors.New("something else"),
+			expected: false,
+		},
+		{
+			name: "409 DeploymentActive",
+			err: &azcore.ResponseError{
+				StatusCode: http.StatusConflict,
+				ErrorCode:  "DeploymentActive",
+			},
+			expected: true,
+		},
+		{
+			name: "409 different error code",
+			err: &azcore.ResponseError{
+				StatusCode: http.StatusConflict,
+				ErrorCode:  "SomethingElse",
+			},
+			expected: false,
+		},
+		{
+			name: "404 DeploymentNotFound",
+			err: &azcore.ResponseError{
+				StatusCode: http.StatusNotFound,
+				ErrorCode:  "DeploymentNotFound",
+			},
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isDeploymentActiveError(tt.err))
+		})
+	}
+}
 
 func TestComputeResourceGroupTags(t *testing.T) {
 	tests := []struct {
