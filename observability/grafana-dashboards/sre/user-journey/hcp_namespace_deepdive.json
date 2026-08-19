@@ -1020,7 +1020,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"running\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Running\"})",
           "instant": true,
           "range": false,
           "legendFormat": "Running",
@@ -1031,7 +1031,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"pending\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Pending\"})",
           "instant": true,
           "range": false,
           "legendFormat": "Pending",
@@ -1042,7 +1042,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"failed\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Failed\"})",
           "instant": true,
           "range": false,
           "legendFormat": "Failed",
@@ -1053,7 +1053,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"succeeded\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Succeeded\"})",
           "instant": true,
           "range": false,
           "legendFormat": "Succeeded",
