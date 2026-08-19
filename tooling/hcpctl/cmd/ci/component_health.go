@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/spf13/cobra"
 )
@@ -147,8 +148,11 @@ health status.`,
 // The fix-commit bypass is evaluated first: if every commit subject in
 // baseRef..HEAD starts with "fix:" or "alert-fix:", all checks are skipped.
 func (o *componentHealthOptions) run(ctx context.Context) error {
-	if o.baseRef == "" {
-		return fmt.Errorf("--base-ref is required")
+	// Validate the user-supplied base ref before it is interpolated into a git
+	// revision argument and handed to git. This must happen before any git
+	// command runs.
+	if err := validateBaseRef(o.baseRef); err != nil {
+		return err
 	}
 
 	// Bypass: when every commit in baseRef..HEAD is a fix/alert-fix commit, skip
@@ -185,6 +189,33 @@ func (o *componentHealthOptions) run(ctx context.Context) error {
 
 	if len(unhealthy) > 0 {
 		return fmt.Errorf("component(s) not healthy: %s", strings.Join(unhealthy, ", "))
+	}
+	return nil
+}
+
+// validateBaseRef guards the user-supplied --base-ref value before it is
+// interpolated into a git revision argument ("<base-ref>..HEAD") and passed to
+// `git diff`/`git log`. The value is user-controlled, so it is validated to
+// prevent git from misinterpreting it:
+//
+//   - An empty value is rejected (--base-ref is required).
+//   - A value starting with "-" is rejected, since git would treat the derived
+//     "<base-ref>..HEAD" argument as an option rather than a revision.
+//   - A value containing any whitespace is rejected; git refnames never contain
+//     whitespace, and allowing it risks the argument being split or otherwise
+//     mishandled.
+//
+// A legitimate ref (branch name, tag, or commit SHA such as ${PULL_BASE_SHA})
+// always passes these checks.
+func validateBaseRef(baseRef string) error {
+	if baseRef == "" {
+		return fmt.Errorf("--base-ref is required")
+	}
+	if strings.HasPrefix(baseRef, "-") {
+		return fmt.Errorf("invalid --base-ref %q: must not start with '-'", baseRef)
+	}
+	if strings.ContainsFunc(baseRef, unicode.IsSpace) {
+		return fmt.Errorf("invalid --base-ref %q: must not contain whitespace", baseRef)
 	}
 	return nil
 }

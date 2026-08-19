@@ -472,6 +472,30 @@ func TestRunRequiresBaseRef(t *testing.T) {
 	assert.False(t, doer.called)
 }
 
+// An invalid --base-ref must be rejected before any git command runs or the
+// health endpoint is contacted. A leading "-" would otherwise be interpolated
+// into "-rf..HEAD" and misinterpreted by git as an option.
+func TestRunRejectsInvalidBaseRef(t *testing.T) {
+	ctx := context.Background()
+	dir, _ := newTestRepo(t)
+
+	doer := &fakeDoer{}
+	opts := &componentHealthOptions{
+		baseURL: componentHealthBaseURL,
+		client:  doer,
+		out:     &bytes.Buffer{},
+		baseRef: "-rf",
+		repoDir: dir,
+	}
+
+	err := opts.run(ctx)
+	require.Error(t, err)
+	// The validation error (not a "git log ... failed" error) proves the check
+	// short-circuited before git was invoked.
+	assert.Contains(t, err.Error(), "must not start with '-'")
+	assert.False(t, doer.called, "health endpoint must not be contacted when base-ref is invalid")
+}
+
 func TestRunGitError(t *testing.T) {
 	ctx := context.Background()
 	dir, _ := newTestRepo(t)
@@ -489,6 +513,40 @@ func TestRunGitError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read commit subjects")
 	assert.False(t, doer.called, "health endpoint must not be contacted when the git check errors")
+}
+
+// --- base-ref validation ---
+
+func TestValidateBaseRef(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseRef string
+		wantErr string // substring the error must contain; "" means no error expected
+	}{
+		{"valid commit sha", "0123456789abcdef0123456789abcdef01234567", ""},
+		{"valid branch name", "main", ""},
+		{"valid remote ref with slashes", "origin/release-4.19", ""},
+		{"valid tag with dots and dashes", "v4.19.0-rc.1", ""},
+		{"empty is rejected", "", "required"},
+		{"leading dash is rejected", "-rf", "must not start with '-'"},
+		{"option-like value is rejected", "--output=/tmp/pwn", "must not start with '-'"},
+		{"leading space is rejected", " main", "must not contain whitespace"},
+		{"embedded space is rejected", "main HEAD", "must not contain whitespace"},
+		{"trailing newline is rejected", "main\n", "must not contain whitespace"},
+		{"embedded tab is rejected", "ma\tin", "must not contain whitespace"},
+		{"only whitespace is rejected", "   ", "must not contain whitespace"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateBaseRef(tt.baseRef)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }
 
 // --- command wiring ---
