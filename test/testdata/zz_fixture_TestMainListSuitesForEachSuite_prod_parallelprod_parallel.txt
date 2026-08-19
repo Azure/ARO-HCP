@@ -11,6 +11,7 @@ Customer should create a cluster with private ingress using v20260630preview and
 Customer should create a cluster with private KAS and verify API server is only reachable from VNet while ingress remains public
 Create HCPOpenShiftCluster with Private KeyVault should create a cluster with private keyvault using v20251223preview API
 Customer should create a cluster using v20260901preview API and verify cluster health
+Customer should create a cluster using v20261001preview API and verify cluster health
 ARO HCP Service should successfully provision cluster when MI role assignments are added after cluster creation
 Customer should be able to create an HCP cluster then delete it by deleting the customer resource group
 Customer should be able to delete an HCP cluster whose managed identities were deleted first
