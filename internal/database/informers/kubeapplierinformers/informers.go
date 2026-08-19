@@ -95,6 +95,7 @@ func NewReadDesireInformerWithRelistDuration(
 			kubeapplierapi.NodePoolScopedReadDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType,
+			kubeapplierapi.ManagementClusterScopedReadDesireResourceType,
 		},
 		utilsclock.RealClock{},
 		lister,

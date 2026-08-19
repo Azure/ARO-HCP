@@ -21,6 +21,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
@@ -34,6 +35,9 @@ const (
 	// ClusterAncestry is subscription-rooted (…/hcpOpenShiftClusters/…).
 	// Built with ClusterNestedResourceIDBuilder.
 	ClusterAncestry Ancestry = "cluster"
+	// StampAncestry is provider-rooted (/providers/…/stamps/…/managementClusters/…).
+	// Built with FleetResourceIDBuilder.
+	StampAncestry Ancestry = "stamp"
 )
 
 // DesireScope is a validated parent resource that scopes a set of desires. Its
@@ -55,6 +59,8 @@ func (s DesireScope) ResourceIDBuilder() cosmosstorageutils.ResourceIDBuilder {
 	switch s.ancestry {
 	case ClusterAncestry:
 		return cosmosstorageutils.ClusterNestedResourceIDBuilder{}
+	case StampAncestry:
+		return cosmosstorageutils.FleetResourceIDBuilder{}
 	default:
 		panic(fmt.Errorf("coding error: unknown kube-applier ancestry %q", s.ancestry))
 	}
@@ -96,6 +102,15 @@ func CredentialRevocationScope(subscriptionID, resourceGroupName, clusterName, r
 	return ParseDesireScope(id)
 }
 
+// ManagementClusterScope returns a DesireScope for a management cluster parent.
+func ManagementClusterScope(stampIdentifier string) (DesireScope, error) {
+	id, err := fleetapi.ToManagementClusterResourceID(stampIdentifier)
+	if err != nil {
+		return DesireScope{}, err
+	}
+	return ParseDesireScope(id)
+}
+
 // ParseDesireScope categorizes a raw parent resource ID into a DesireScope,
 // rejecting any resource type that is not allowed to scope desires. The
 // kube-applier controllers pass their generic key's parent through here, so an
@@ -121,6 +136,8 @@ func ancestryForParentType(rt azcorearm.ResourceType) (Ancestry, bool) {
 		armhelpers.ResourceTypeEqual(rt, coreapi.SystemAdminCredentialRequestResourceType),
 		armhelpers.ResourceTypeEqual(rt, coreapi.SystemAdminCredentialRevocationResourceType):
 		return ClusterAncestry, true
+	case armhelpers.ResourceTypeEqual(rt, fleetapi.ManagementClusterResourceType):
+		return StampAncestry, true
 	default:
 		return "", false
 	}

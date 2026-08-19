@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
 
 // ToClusterScopedApplyDesireResourceIDString returns the resource ID string for an ApplyDesire
@@ -119,6 +120,24 @@ func ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(subscript
 		"resourceGroups", resourceGroupName,
 		"providers", coreapi.ClusterResourceType.String(), clusterName,
 		coreapi.SystemAdminCredentialRevocationResourceTypeName, revocationName,
+		ReadDesireResourceTypeName, readDesireName,
+	))
+}
+
+// ToManagementClusterScopedApplyDesireResourceIDString returns the resource ID string for an ApplyDesire
+// nested under a ManagementCluster under a Stamp.
+func ToManagementClusterScopedApplyDesireResourceIDString(stampIdentifier, applyDesireName string) string {
+	return strings.ToLower(path.Join(
+		fleetapi.ToManagementClusterResourceIDString(stampIdentifier),
+		ApplyDesireResourceTypeName, applyDesireName,
+	))
+}
+
+// ToManagementClusterScopedReadDesireResourceIDString returns the resource ID string for a ReadDesire
+// nested under a ManagementCluster under a Stamp.
+func ToManagementClusterScopedReadDesireResourceIDString(stampIdentifier, readDesireName string) string {
+	return strings.ToLower(path.Join(
+		fleetapi.ToManagementClusterResourceIDString(stampIdentifier),
 		ReadDesireResourceTypeName, readDesireName,
 	))
 }

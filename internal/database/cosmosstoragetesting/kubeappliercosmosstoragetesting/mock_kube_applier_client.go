@@ -217,14 +217,34 @@ func (m *MockKubeApplierDBClient) ReadDesiresForSystemAdminCredentialRevocation(
 	return m.ReadDesiresFor(parent)
 }
 
+func (m *MockKubeApplierDBClient) ApplyDesiresForManagementCluster(
+	stampIdentifier string,
+) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
+	parent, err := kubeappliercosmosstorage.ManagementClusterScope(stampIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	return m.ApplyDesiresFor(parent)
+}
+
+func (m *MockKubeApplierDBClient) ReadDesiresForManagementCluster(
+	stampIdentifier string,
+) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
+	parent, err := kubeappliercosmosstorage.ManagementClusterScope(stampIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	return m.ReadDesiresFor(parent)
+}
+
 func (m *MockKubeApplierDBClient) ApplyDesiresFor(
 	parent kubeappliercosmosstorage.DesireScope,
 ) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
 	if parent.ResourceID() == nil {
 		return nil, errors.New("desire scope is not initialized")
 	}
-	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
-		m, parent.ResourceID(), kubeapplierapi.ApplyDesireResourceTypeForParent(parent.ResourceID()),
+	return newMockDesireCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire](
+		m, parent, kubeapplierapi.ApplyDesireResourceTypeForParent(parent.ResourceID()),
 	), nil
 }
 
@@ -234,9 +254,37 @@ func (m *MockKubeApplierDBClient) ReadDesiresFor(
 	if parent.ResourceID() == nil {
 		return nil, errors.New("desire scope is not initialized")
 	}
-	return corecosmosstoragetesting.NewMockResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ReadDesire]](
-		m, parent.ResourceID(), kubeapplierapi.ReadDesireResourceTypeForParent(parent.ResourceID()),
+	return newMockDesireCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire](
+		m, parent, kubeapplierapi.ReadDesireResourceTypeForParent(parent.ResourceID()),
 	), nil
+}
+
+// newMockDesireCRUD creates a MockResourceCRUD whose path builder delegates to
+// the scope's ResourceIDBuilder — the same builder production uses. This keeps
+// the mock's ID construction in sync with production for every ancestry family
+// (cluster-scoped uses ClusterNestedResourceIDBuilder, stamp-scoped uses
+// FleetResourceIDBuilder) without the mock having to know about ancestry at all.
+func newMockDesireCRUD[T any, PT coreapi.CosmosMetadataAccessorPtr[T]](
+	store corecosmosstoragetesting.MockDocumentStore,
+	parent kubeappliercosmosstorage.DesireScope,
+	resourceType azcorearm.ResourceType,
+) *corecosmosstoragetesting.MockResourceCRUD[T, PT, cosmosstorageutils.GenericDocument[T]] {
+	crud := corecosmosstoragetesting.NewMockResourceCRUD[T, PT, cosmosstorageutils.GenericDocument[T]](
+		store, parent.ResourceID(), resourceType,
+	)
+	builder := parent.ResourceIDBuilder()
+	parentID := parent.ResourceID()
+	crud.MakeResourceIDPath = func(resourceName string) (*azcorearm.ResourceID, error) {
+		return builder.BuildResourceID(parentID, resourceType, resourceName)
+	}
+	crud.GetListPrefix = func() (string, error) {
+		id, err := builder.BuildResourceID(parentID, resourceType, "")
+		if err != nil {
+			return "", err
+		}
+		return id.String() + "/", nil
+	}
+	return crud
 }
 
 func (m *MockKubeApplierDBClient) Listers() kubeappliercosmosstorage.KubeApplierListers {
@@ -276,6 +324,7 @@ func (g *mockKubeApplierListers) ApplyDesires() cosmosstorageutils.GlobalLister[
 			kubeapplierapi.NodePoolScopedApplyDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRevocationScopedApplyDesireResourceType,
+			kubeapplierapi.ManagementClusterScopedApplyDesireResourceType,
 		},
 	)
 }
@@ -288,6 +337,7 @@ func (g *mockKubeApplierListers) ReadDesires() cosmosstorageutils.GlobalLister[k
 			kubeapplierapi.NodePoolScopedReadDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType,
+			kubeapplierapi.ManagementClusterScopedReadDesireResourceType,
 		},
 	)
 }
