@@ -1,3 +1,12 @@
+# HA-replica dedup convention:
+# The Azure Monitor managed Prometheus can run in HA, scraping each target from
+# multiple replicas (label `prometheus_replica`). Counter/gauge queries must
+# collapse that replica dimension BEFORE aggregating, or every series is counted
+# once per replica and totals are inflated. Wrap the per-series function in
+# `max without (prometheus_replica) ( ... )` inside your `sum`/aggregation, e.g.
+#   sum by (cluster) ( max without (prometheus_replica) ( increase(foo_total[5m]) ) )
+# (`max` because both replicas observe ~the same value). See the workqueue and
+# request-count queries below for the pattern.
 panels:
 - title: "Frontend Metrics"
   queries:
@@ -10,6 +19,17 @@ panels:
         )
       )
     unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Frontend Request Count (5m sliding)"
+    description: "Frontend HTTP requests served in the trailing five-minute window, broken down by method and route per svc cluster (same breakdown as Frontend Request Latency, but counting every route including hcpoperationresults). Uses increase() over frontend_http_requests_total, deduplicating HA Prometheus replicas with max without(prometheus_replica) before summing. At each point the value is the request count for the preceding five minutes (a sliding block)."
+    query: |
+      sum by (route, method, cluster) (
+        max without (prometheus_replica) (
+          increase(frontend_http_requests_total[5m])
+        )
+      )
+    unit: requests
     workspace: svc
     step: "60s"
 - title: "Backend Metrics"
