@@ -92,6 +92,8 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	// Written by: Frontend PUT/PATCH Cluster
 	NodeDrainTimeoutMinutes int32 `json:"nodeDrainTimeoutMinutes,omitempty"`
 	// Written by: Frontend PUT/PATCH Cluster
+	NodeSshPublicKeys []string `json:"nodeSshPublicKeys,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
 	Etcd EtcdProfile `json:"etcd,omitempty"`
 	// Written by: Frontend PUT/PATCH Cluster
 	ClusterImageRegistry ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`

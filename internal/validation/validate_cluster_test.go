@@ -889,3 +889,169 @@ func TestURL(t *testing.T) {
 		})
 	}
 }
+
+func TestNodeSshPublicKeys_SingleKey(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+	fldPath := field.NewPath("properties").Child("nodeSshPublicKeys").Index(0)
+
+	tests := []struct {
+		name         string
+		value        *string
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "ed25519 with comment - valid",
+			value:        ptr.To("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC+CCSx9qBeY2LgtUvA9n8g6mfIy5mCPHVkWWy58gFoW user@host"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "rsa without comment - valid",
+			value:        ptr.To("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC/1sbNodHNDCS9pADpvAGtEo7hm+8x3YElbVt3nISjT+8GdMgwD8hjoU9mgWPbHCmsekoIBesaXSLgjZnXUE9fSR2ijSnPaQsEZ5CvCoO9WWc0PI6Lq680XGZ2CZYN2gqqgvvicy1l/rJmkMhiVH0F+jBplzgh2gFwiuHfIPtfHslZpFT4TWityXtG3ru+tVEmrHDlxIe4H1gccn8Axvx8LchnBUF2GZQ9l1KFdfjpXeKLcgu7t5NEfoMiX/sdlzT+MqmNz3K1F8BNn6wSQd0Jtv4OLwbTMPLkTaYgNbdOXcO+8EhYVm7Q7VyrSl1lbqG7j2S33XEQ8kzUcuUHH4Tv"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:  "type only without key data - invalid",
+			value: ptr.To("ssh-ed25519"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKeys[0]", Message: "no key found"},
+			},
+		},
+		{
+			name:  "raw base64 without type - invalid",
+			value: ptr.To("AAAAC3NzaC1lZDI1NTE5AAAAITestKey"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKeys[0]", Message: "no key found"},
+			},
+		},
+		{
+			name:  "arbitrary string - invalid",
+			value: ptr.To("not-an-ssh-key"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKeys[0]", Message: "no key found"},
+			},
+		},
+		{
+			name:  "key exceeding 8192 bytes - invalid",
+			value: ptr.To("ssh-ed25519 " + strings.Repeat("A", 8192)),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKeys[0]", Message: "Too long"},
+			},
+		},
+		{
+			name:  "empty string - invalid",
+			value: ptr.To(""),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKeys[0]", Message: "SSH public key must not be empty"},
+			},
+		},
+		{
+			name:  "whitespace-only string - invalid",
+			value: ptr.To("   "),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKeys[0]", Message: "SSH public key must not be empty"},
+			},
+		},
+		{
+			name:  "two keys in one string - invalid",
+			value: ptr.To("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC+CCSx9qBeY2LgtUvA9n8g6mfIy5mCPHVkWWy58gFoW user@host\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJj/ylWtVtAQRw7GkVNI8M7+NUG6qBXfjEALlD8EP6Pg"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKeys[0]", Message: "SSH public key must contain exactly one key"},
+			},
+		},
+		{
+			name:         "nil pointer - valid (field is optional)",
+			value:        nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := ValidateSSHPublicKey(ctx, op, fldPath, tt.value, nil)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+func TestNodeSshPublicKeys_SliceValidation(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+	fldPath := field.NewPath("properties")
+
+	validKey1 := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIApY9GkD07ixdNdt3J8cCKdYx5bwqkE903Zs4+YjDMj+ user@host"
+	validKey2 := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJj/ylWtVtAQRw7GkVNI8M7+NUG6qBXfjEALlD8EP6Pg"
+	validKey3 := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMurp3WD9S5lLS3oTzEJgGrjJCcA7RQF1zY4uzWD756N"
+	validKey4 := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOoQloOr3gBW35+IXgKmVrpCmwvbm/bNs9X8kOAoxkVT"
+	validKey5 := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAVY2sEsQ8tqOy7nZThsO8Jb1SU/pAZnp9M9gmhBXbr6"
+	validKey6 := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEla7k6AHSblApnjokAvPGrFJzzgS8jMnSZlNBXYyn+X"
+
+	tests := []struct {
+		name         string
+		keys         []string
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "nil slice - valid",
+			keys:         nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "single valid key - valid",
+			keys:         []string{validKey1},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "two valid keys - valid",
+			keys:         []string{validKey1, validKey2},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "five keys (max) - valid",
+			keys:         []string{validKey1, validKey2, validKey3, validKey4, validKey5},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "six keys - too many",
+			keys: []string{validKey1, validKey2, validKey3, validKey4, validKey5, validKey6},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKeys", Message: "Too many"},
+			},
+		},
+		{
+			name: "second key invalid",
+			keys: []string{validKey1, "not-an-ssh-key"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKeys[1]", Message: "no key found"},
+			},
+		},
+		{
+			name: "empty string element - invalid",
+			keys: []string{validKey1, ""},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKeys[1]", Message: "SSH public key must not be empty"},
+			},
+		},
+		{
+			name: "element with two keys - invalid",
+			keys: []string{validKey1, validKey2 + "\n" + validKey3},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKeys[1]", Message: "SSH public key must contain exactly one key"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := field.ErrorList{}
+			if len(tt.keys) > 5 {
+				errs = append(errs, field.TooMany(fldPath.Child("nodeSshPublicKeys"), len(tt.keys), 5))
+			}
+			for i, key := range tt.keys {
+				keyCopy := key
+				errs = append(errs, ValidateSSHPublicKey(ctx, op, fldPath.Child("nodeSshPublicKeys").Index(i), &keyCopy, nil)...)
+			}
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
