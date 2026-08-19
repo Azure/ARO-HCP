@@ -163,9 +163,10 @@ func TestSelectVMSize(t *testing.T) {
 				makeSKU("Standard_D2s_v3", testLocation, withCapability(capabilityVCPUs, "2")),
 			},
 			selector: VMSizeSelector{
-				Name:        "default-worker",
-				NamePattern: dPattern,
-				MinVCPUs:    8,
+				Name:              "default-worker",
+				NamePattern:       dPattern,
+				MinVCPUs:          8,
+				IgnoreRPAllowlist: true,
 			},
 			wantErr: ErrNoUsableVMSize,
 		},
@@ -259,15 +260,15 @@ func TestSelectVMSize(t *testing.T) {
 			name: "RequireEphemeralOSDisk selects SKU with EphemeralOSDiskSupported=True",
 			skus: []*armcompute.ResourceSKU{
 				makeSKU("Standard_D8s_v5", testLocation, withCapability(capabilityVCPUs, "8")),
-				makeSKU("Standard_D8ds_v5", testLocation, withCapability(capabilityVCPUs, "8"), withCapability(capabilityEphemeralOSDiskSupported, "True")),
+				makeSKU("Standard_D8as_v4", testLocation, withCapability(capabilityVCPUs, "8"), withCapability(capabilityEphemeralOSDiskSupported, "True")),
 			},
 			selector: VMSizeSelector{
 				Name:                   "ephemeral",
-				Preferred:              []string{"Standard_D8s_v5", "Standard_D8ds_v5"},
+				Preferred:              []string{"Standard_D8s_v5", "Standard_D8as_v4"},
 				MinVCPUs:               8,
 				RequireEphemeralOSDisk: true,
 			},
-			want: "Standard_D8ds_v5",
+			want: "Standard_D8as_v4",
 		},
 		{
 			name: "RequireEphemeralOSDisk excludes all SKUs when none support ephemeral",
@@ -286,11 +287,11 @@ func TestSelectVMSize(t *testing.T) {
 			name: "RequireEphemeralOSDisk preferred ordering is preserved",
 			skus: []*armcompute.ResourceSKU{
 				makeSKU("Standard_D8s_v3", testLocation, withCapability(capabilityVCPUs, "8"), withCapability(capabilityEphemeralOSDiskSupported, "True")),
-				makeSKU("Standard_D8ds_v5", testLocation, withCapability(capabilityVCPUs, "8"), withCapability(capabilityEphemeralOSDiskSupported, "True")),
+				makeSKU("Standard_D8as_v4", testLocation, withCapability(capabilityVCPUs, "8"), withCapability(capabilityEphemeralOSDiskSupported, "True")),
 			},
 			selector: VMSizeSelector{
 				Name:                   "ephemeral",
-				Preferred:              []string{"Standard_D8s_v3", "Standard_D8ds_v5"},
+				Preferred:              []string{"Standard_D8s_v3", "Standard_D8as_v4"},
 				RequireEphemeralOSDisk: true,
 			},
 			want: "Standard_D8s_v3",
@@ -337,9 +338,45 @@ func TestSelectVMSize(t *testing.T) {
 				),
 			},
 			selector: VMSizeSelector{
-				Name:      "gpu",
-				Preferred: []string{"Standard_NV12s_v3"},
-				MinVCPUs:  8,
+				Name:              "gpu",
+				Preferred:         []string{"Standard_NV12s_v3"},
+				MinVCPUs:          8,
+				IgnoreRPAllowlist: true,
+			},
+			wantErr: ErrNoUsableVMSize,
+		},
+		{
+			name: "RP allowlist filters non-allowlisted GPU SKUs on fallback",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_NC4as_T4_v3", testLocation, withCapability(capabilityGPUs, "1"), withLocationRestriction(testLocation)),
+				makeSKU("Standard_NC16ads_A10_v4", testLocation, withCapability(capabilityGPUs, "1")),
+				makeSKU("Standard_NC24ads_A100_v4", testLocation, withCapability(capabilityGPUs, "1")),
+			},
+			selector: GPUNodePoolVMSizeSelector(),
+			want:     "Standard_NC24ads_A100_v4",
+		},
+		{
+			name: "IgnoreRPAllowlist lets non-allowlisted preferred through",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D2ds_v5", testLocation, withCapability(capabilityVCPUs, "2")),
+			},
+			selector: VMSizeSelector{
+				Name:              "jumpbox",
+				Preferred:         []string{"Standard_D2ds_v5"},
+				IgnoreRPAllowlist: true,
+			},
+			want: "Standard_D2ds_v5",
+		},
+		{
+			name: "all SKUs pass Azure checks but none in RP allowlist yields ErrNoUsableVMSize",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_NC16ads_A10_v4", testLocation, withCapability(capabilityGPUs, "1")),
+				makeSKU("Standard_NV6ads_A10_v5", testLocation, withCapability(capabilityGPUs, "1")),
+			},
+			selector: VMSizeSelector{
+				Name:        "gpu",
+				NamePattern: regexp.MustCompile(`^Standard_N`),
+				RequireGPU:  true,
 			},
 			wantErr: ErrNoUsableVMSize,
 		},
@@ -521,7 +558,7 @@ func TestEphemeralSelectorSelectsDifferentFamily(t *testing.T) {
 // entirely. Asserting that every Preferred entry also matches its own
 // NamePattern keeps the two lists in sync and prevents a non-allowlisted SKU
 // from being reintroduced via Preferred.
-func TestWorkerSelectorPreferredEntriesAreAllowlisted(t *testing.T) {
+func TestWorkerSelectorPreferredEntriesMatchNamePattern(t *testing.T) {
 	for _, sel := range productionWorkerSelectors() {
 		if sel.NamePattern == nil {
 			t.Fatalf("selector %q has no NamePattern; it is required as the allowlist boundary", sel.Name)
