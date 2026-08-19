@@ -479,9 +479,9 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides --disable-capi-migration
   image:
-    digest: sha256:f51c7fb65dc82fb31ba0982a4f7c7f3982f82c5c03d51888ea02509073ae3144
-    registry: quay.io
-    repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+    digest: sha256:f6dc4e0636ff5c53fafb055086dbfddb1cdb726932cfca70b09eb508ecca7754
+    registry: arohcpsvcdev.azurecr.io
+    repository: tschneid-hypershift
   limitClusterSizes: true
   metricsSet:
     performanceMetrics: false
@@ -1149,9 +1149,9 @@ velero:
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:b42575c5d2d34141d85cf122c6710f99bd3c8ebc4d8d18c1a9b013be534cc95f
-    registry: registry.stage.redhat.io
-    repository: oadp/oadp-hypershift-velero-plugin-rhel9
+    digest: sha256:5f9209af3d8db43d6a00b1daabe21c8db391c89bf3eaaf7beb62273e708ac3a6
+    registry: arohcpsvcdev.azurecr.io
+    repository: tschneid-hypershift-oadp-plugin
   server:
     digest: sha256:da1bbef5aa67a5ffcd7a2293af20e4d7ccb6e6034a3ee141d8f4ad953cabba10
     registry: registry.stage.redhat.io
