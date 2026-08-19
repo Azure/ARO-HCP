@@ -369,7 +369,7 @@ func TestCheckNotAllowedAndDeniedActionsForVNet(t *testing.T) {
 		},
 		{
 			name:                      "overlap with VNet actions checks intersection and returns allowed",
-			roleDefinitionActions:     []string{"Microsoft.Network/virtualNetworks/read", "Microsoft.Network/virtualNetworks/subnets/read"},
+			roleDefinitionActions:     []string{"Microsoft.Network/virtualNetworks/read", "Microsoft.Compute/virtualMachines/read"},
 			roleDefinitionDataActions: nil,
 			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
 				m.EXPECT().CreateAuthorizationRequest(vnetResourceID.String(), gomock.Any(), fakeToken.Token).
@@ -378,12 +378,18 @@ func TestCheckNotAllowedAndDeniedActionsForVNet(t *testing.T) {
 					Return(&azurecheckaccessv2client.AuthorizationDecisionResponse{
 						Value: []azurecheckaccessv2client.AuthorizationDecision{
 							{ActionId: "Microsoft.Network/virtualNetworks/read", AccessDecision: azurecheckaccessv2client.Allowed},
-							{ActionId: "Microsoft.Network/virtualNetworks/subnets/read", AccessDecision: azurecheckaccessv2client.Allowed},
 						},
 					}, nil)
 			},
 			wantResult: nil,
 			wantErr:    false,
+		},
+		{
+			name:                      "subnet-only actions are not checked against the VNet",
+			roleDefinitionActions:     []string{"Microsoft.Network/virtualNetworks/subnets/read"},
+			roleDefinitionDataActions: nil,
+			wantResult:                nil,
+			wantErr:                   false,
 		},
 		{
 			name:                      "CheckAccessV2 returns not allowed produces decisions",
@@ -416,6 +422,93 @@ func TestCheckNotAllowedAndDeniedActionsForVNet(t *testing.T) {
 
 			v := &ControlPlaneIdentitiesPermissionsClusterValidation{}
 			result, err := v.checkNotAllowedAndDeniedActionsForVNet(context.Background(), mockClient, vnetResourceID, tt.roleDefinitionActions, tt.roleDefinitionDataActions, fakeToken)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.wantResult, result)
+		})
+	}
+}
+
+func TestCheckNotAllowedAndDeniedActionsForSubnet(t *testing.T) {
+	subnetResourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet")
+	require.NoError(t, err)
+
+	fakeToken := azcore.AccessToken{Token: "fake-jwt-token"}
+
+	tests := []struct {
+		name                      string
+		roleDefinitionActions     []string
+		roleDefinitionDataActions []string
+		setupMock                 func(*azureclient.MockCheckAccessV2Client)
+		wantResult                []*checkaccessv2AuthorizationDecisionData
+		wantErr                   bool
+	}{
+		{
+			name:                      "no overlap with subnet actions returns nil without API call",
+			roleDefinitionActions:     []string{"Microsoft.Compute/virtualMachines/read"},
+			roleDefinitionDataActions: nil,
+			wantResult:                nil,
+			wantErr:                   false,
+		},
+		{
+			name:                      "vnet-only actions are not checked against the subnet",
+			roleDefinitionActions:     []string{"Microsoft.Network/virtualNetworks/read"},
+			roleDefinitionDataActions: nil,
+			wantResult:                nil,
+			wantErr:                   false,
+		},
+		{
+			name:                      "overlap with subnet actions checks intersection and returns allowed",
+			roleDefinitionActions:     []string{"Microsoft.Network/virtualNetworks/subnets/read", "Microsoft.Compute/virtualMachines/read"},
+			roleDefinitionDataActions: nil,
+			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
+				m.EXPECT().CreateAuthorizationRequest(subnetResourceID.String(), gomock.Any(), fakeToken.Token).
+					Return(&azurecheckaccessv2client.AuthorizationRequest{}, nil)
+				m.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+					Return(&azurecheckaccessv2client.AuthorizationDecisionResponse{
+						Value: []azurecheckaccessv2client.AuthorizationDecision{
+							{ActionId: "Microsoft.Network/virtualNetworks/subnets/read", AccessDecision: azurecheckaccessv2client.Allowed},
+						},
+					}, nil)
+			},
+			wantResult: nil,
+			wantErr:    false,
+		},
+		{
+			name:                      "CheckAccessV2 returns not allowed produces decisions",
+			roleDefinitionActions:     []string{"Microsoft.Network/virtualNetworks/subnets/join/action"},
+			roleDefinitionDataActions: nil,
+			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
+				m.EXPECT().CreateAuthorizationRequest(subnetResourceID.String(), gomock.Any(), fakeToken.Token).
+					Return(&azurecheckaccessv2client.AuthorizationRequest{}, nil)
+				m.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+					Return(&azurecheckaccessv2client.AuthorizationDecisionResponse{
+						Value: []azurecheckaccessv2client.AuthorizationDecision{
+							{ActionId: "Microsoft.Network/virtualNetworks/subnets/join/action", AccessDecision: azurecheckaccessv2client.NotAllowed},
+						},
+					}, nil)
+			},
+			wantResult: []*checkaccessv2AuthorizationDecisionData{
+				{ActionID: "Microsoft.Network/virtualNetworks/subnets/join/action", IsDataAction: false, AccessDecision: azurecheckaccessv2client.NotAllowed},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := azureclient.NewMockCheckAccessV2Client(ctrl)
+			if tt.setupMock != nil {
+				tt.setupMock(mockClient)
+			}
+
+			v := &ControlPlaneIdentitiesPermissionsClusterValidation{}
+			result, err := v.checkNotAllowedAndDeniedActionsForSubnet(context.Background(), mockClient, subnetResourceID, tt.roleDefinitionActions, tt.roleDefinitionDataActions, fakeToken)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -599,10 +692,8 @@ func TestCheckMissingPermissionsForNetworkSecurityGroup(t *testing.T) {
 }
 
 func TestCheckMissingPermissionsForVNet(t *testing.T) {
-	subnetResourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet")
+	vnetResourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet")
 	require.NoError(t, err)
-
-	vnetResourceID := subnetResourceID.Parent
 
 	identityResourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity")
 	require.NoError(t, err)
@@ -633,10 +724,87 @@ func TestCheckMissingPermissionsForVNet(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:    "missing permissions returns result with VNet parent as resource",
-			actions: []string{"Microsoft.Network/virtualNetworks/subnets/join/action"},
+			name:    "missing permissions returns result with VNet as resource",
+			actions: []string{"Microsoft.Network/virtualNetworks/join/action"},
 			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
 				m.EXPECT().CreateAuthorizationRequest(vnetResourceID.String(), gomock.Any(), fakeToken.Token).
+					Return(&azurecheckaccessv2client.AuthorizationRequest{}, nil)
+				m.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+					Return(&azurecheckaccessv2client.AuthorizationDecisionResponse{
+						Value: []azurecheckaccessv2client.AuthorizationDecision{
+							{ActionId: "Microsoft.Network/virtualNetworks/join/action", AccessDecision: azurecheckaccessv2client.Denied},
+						},
+					}, nil)
+			},
+			wantResult: &identityResourceMissingPermissions{
+				Resource: vnetResourceID,
+				Identity: identityResourceID,
+				Decisions: []*checkaccessv2AuthorizationDecisionData{
+					{ActionID: "Microsoft.Network/virtualNetworks/join/action", IsDataAction: false, AccessDecision: azurecheckaccessv2client.Denied},
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := azureclient.NewMockCheckAccessV2Client(ctrl)
+			if tt.setupMock != nil {
+				tt.setupMock(mockClient)
+			}
+
+			v := &ControlPlaneIdentitiesPermissionsClusterValidation{}
+			result, err := v.checkMissingPermissionsForVNet(context.Background(), mockClient, vnetResourceID, identityResourceID, tt.actions, nil, fakeToken)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.wantResult, result)
+		})
+	}
+}
+
+func TestCheckMissingPermissionsForSubnet(t *testing.T) {
+	subnetResourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet")
+	require.NoError(t, err)
+
+	identityResourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity")
+	require.NoError(t, err)
+
+	fakeToken := azcore.AccessToken{Token: "fake-jwt-token"}
+
+	tests := []struct {
+		name       string
+		actions    []string
+		setupMock  func(*azureclient.MockCheckAccessV2Client)
+		wantResult *identityResourceMissingPermissions
+		wantErr    bool
+	}{
+		{
+			name:    "no missing permissions returns nil",
+			actions: []string{"Microsoft.Network/virtualNetworks/subnets/read"},
+			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
+				m.EXPECT().CreateAuthorizationRequest(subnetResourceID.String(), gomock.Any(), fakeToken.Token).
+					Return(&azurecheckaccessv2client.AuthorizationRequest{}, nil)
+				m.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+					Return(&azurecheckaccessv2client.AuthorizationDecisionResponse{
+						Value: []azurecheckaccessv2client.AuthorizationDecision{
+							{ActionId: "Microsoft.Network/virtualNetworks/subnets/read", AccessDecision: azurecheckaccessv2client.Allowed},
+						},
+					}, nil)
+			},
+			wantResult: nil,
+			wantErr:    false,
+		},
+		{
+			name:    "missing permissions returns result with subnet as resource",
+			actions: []string{"Microsoft.Network/virtualNetworks/subnets/join/action"},
+			setupMock: func(m *azureclient.MockCheckAccessV2Client) {
+				m.EXPECT().CreateAuthorizationRequest(subnetResourceID.String(), gomock.Any(), fakeToken.Token).
 					Return(&azurecheckaccessv2client.AuthorizationRequest{}, nil)
 				m.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
 					Return(&azurecheckaccessv2client.AuthorizationDecisionResponse{
@@ -646,7 +814,7 @@ func TestCheckMissingPermissionsForVNet(t *testing.T) {
 					}, nil)
 			},
 			wantResult: &identityResourceMissingPermissions{
-				Resource: vnetResourceID,
+				Resource: subnetResourceID,
 				Identity: identityResourceID,
 				Decisions: []*checkaccessv2AuthorizationDecisionData{
 					{ActionID: "Microsoft.Network/virtualNetworks/subnets/join/action", IsDataAction: false, AccessDecision: azurecheckaccessv2client.Denied},
@@ -665,7 +833,7 @@ func TestCheckMissingPermissionsForVNet(t *testing.T) {
 			}
 
 			v := &ControlPlaneIdentitiesPermissionsClusterValidation{}
-			result, err := v.checkMissingPermissionsForVNet(context.Background(), mockClient, subnetResourceID, identityResourceID, tt.actions, nil, fakeToken)
+			result, err := v.checkMissingPermissionsForSubnet(context.Background(), mockClient, subnetResourceID, identityResourceID, tt.actions, nil, fakeToken)
 
 			if tt.wantErr {
 				assert.Error(t, err)
