@@ -20,12 +20,6 @@ spec:
     - name: Last Reported
       type: date
       jsonPath: .status.lastReportedAt
-    - name: HCP Ready
-      type: integer
-      jsonPath: .status.hostedControlPlanes.ready
-    - name: HCP NotReady
-      type: integer
-      jsonPath: .status.hostedControlPlanes.notReady
     subresources:
       status: {}
     schema:
@@ -170,21 +164,24 @@ spec:
                   x-kubernetes-int-or-string: true
               hostedControlPlanes:
                 type: object
-                required:
-                - ready
-                - notReady
                 properties:
-                  ready:
-                    type: integer
-                    format: int32
-                    minimum: 0
-                  notReady:
-                    type: integer
-                    format: int32
-                    minimum: 0
+                  readyResourceIDs:
+                    description: >-
+                      ARM resource IDs of HostedControlPlanes whose Available condition is True.
+                    type: array
+                    items:
+                      type: string
+                    x-kubernetes-list-type: set
+                  notReadyResourceIDs:
+                    description: >-
+                      ARM resource IDs of HostedControlPlanes whose Available condition is not True or missing.
+                    type: array
+                    items:
+                      type: string
+                    x-kubernetes-list-type: set
               averageHCPResourceUsage:
                 description: >-
-                  Average actual resource consumption per ready HCP. Omitted when hostedControlPlanes.ready is zero.
+                  Average actual resource consumption per ready HCP. Omitted when readyResourceIDs is empty.
                 type: object
                 maxProperties: 16
                 additionalProperties:

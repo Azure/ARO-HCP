@@ -16,14 +16,5 @@ status:
     readyResourceIDs:
     - /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a
     - /subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b
-  lastReportedAt: "2024-12-31T23:59:30Z"
-  nodes:
-  - allocatable:
-      memory: 256Gi
-    notReady: 1
-    ready: 2
-    sku: Standard_D32s_v3
-  requested:
-    memory: 8Gi
-  usage:
-    memory: 4Gi
+  requested: null
+  usage: null

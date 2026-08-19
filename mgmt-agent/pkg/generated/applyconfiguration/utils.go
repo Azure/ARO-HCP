@@ -35,8 +35,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &capacityreportv1alpha1.CapacityReportApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("CapacityReportStatus"):
 		return &capacityreportv1alpha1.CapacityReportStatusApplyConfiguration{}
-	case v1alpha1.SchemeGroupVersion.WithKind("HostedControlPlaneCount"):
-		return &capacityreportv1alpha1.HostedControlPlaneCountApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("HostedControlPlanes"):
+		return &capacityreportv1alpha1.HostedControlPlanesApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("NodeSKUCapacity"):
 		return &capacityreportv1alpha1.NodeSKUCapacityApplyConfiguration{}
 

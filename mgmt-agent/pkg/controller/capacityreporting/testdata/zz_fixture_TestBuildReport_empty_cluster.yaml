@@ -10,9 +10,7 @@ status:
     reason: DataCollected
     status: "True"
     type: ReportCurrent
-  hostedControlPlanes:
-    notReady: 0
-    ready: 0
+  hostedControlPlanes: {}
   lastReportedAt: "2025-01-01T00:00:00Z"
   requested: {}
   usage: {}
