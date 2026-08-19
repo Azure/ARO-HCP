@@ -620,6 +620,67 @@ func TestExternalAuthUpdateDispatchConfigApplyToCSBuilder(t *testing.T) {
 	}
 }
 
+// TestExternalAuthUpdateDispatchConfigExtraScopesEmptyRPMatchesAbsentCS is a regression test for
+// ARO-28899: Cluster Service omits a client's `extra_scopes` field entirely when the client has no
+// extra scopes, while RP's ARM-to-internal conversion always produces a non-nil (possibly empty)
+// slice. Before ExtraScopes had `omitempty`, canonical JSON rendered `"extraScopes":[]` on the RP
+// side but `"extraScopes":null` on the CS side, so the two never compared equal and the external
+// auth update operation stayed in Updating forever even though nothing had actually drifted.
+func TestExternalAuthUpdateDispatchConfigExtraScopesEmptyRPMatchesAbsentCS(t *testing.T) {
+	ea := newTestExternalAuth()
+	ea.Properties.Clients[0].ExtraScopes = []string{}
+
+	desiredConfig, err := externalAuthUpdateDispatchConfigFromRP(ea)
+	require.NoError(t, err)
+	require.NotNil(t, desiredConfig.Clients[0].ExtraScopes, "test setup: RP side must produce a non-nil empty slice to reproduce the bug")
+	require.Empty(t, desiredConfig.Clients[0].ExtraScopes)
+
+	csExternalAuth, err := arohcpv1alpha1.NewExternalAuth().
+		Issuer(arohcpv1alpha1.NewTokenIssuer().
+			URL(ea.Properties.Issuer.URL).
+			CA(ea.Properties.Issuer.CA).
+			Audiences(ea.Properties.Issuer.Audiences...)).
+		Clients(
+			arohcpv1alpha1.NewExternalAuthClientConfig().
+				ID(ea.Properties.Clients[0].ClientID).
+				Component(arohcpv1alpha1.NewClientComponent().
+					Name(ea.Properties.Clients[0].Component.Name).
+					Namespace(ea.Properties.Clients[0].Component.AuthClientNamespace)).
+				// Intentionally not calling ExtraScopes(...): reproduces Cluster Service
+				// omitting the field for a client with no extra scopes.
+				Type(arohcpv1alpha1.ExternalAuthClientTypePublic),
+		).
+		Claim(arohcpv1alpha1.NewExternalAuthClaim().
+			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+				UserName(arohcpv1alpha1.NewUsernameClaim().
+					Claim(ea.Properties.Claim.Mappings.Username.Claim).
+					PrefixPolicy("NoPrefix")).
+				Groups(arohcpv1alpha1.NewGroupsClaim().
+					Claim(ea.Properties.Claim.Mappings.Groups.Claim).
+					Prefix(ea.Properties.Claim.Mappings.Groups.Prefix))).
+			ValidationRules(
+				arohcpv1alpha1.NewTokenClaimValidationRule().
+					Claim(ea.Properties.Claim.ValidationRules[0].RequiredClaim.Claim).
+					RequiredValue(ea.Properties.Claim.ValidationRules[0].RequiredClaim.RequiredValue),
+			)).
+		Build()
+	require.NoError(t, err)
+
+	actualConfig, err := externalAuthUpdateDispatchConfigFromCS(csExternalAuth)
+	require.NoError(t, err)
+	require.Nil(t, actualConfig.Clients[0].ExtraScopes, "test setup: CS side must leave extraScopes unset to reproduce the bug")
+
+	desiredHash, err := desiredConfig.hash()
+	require.NoError(t, err)
+	actualHash, err := actualConfig.hash()
+	require.NoError(t, err)
+	assert.Equal(t, desiredHash, actualHash, "an empty extraScopes on the RP side must be considered equal to an absent extraScopes on the CS side")
+
+	desiredJSON, err := desiredConfig.canonicalJSON()
+	require.NoError(t, err)
+	assert.NotContains(t, string(desiredJSON), "extraScopes", "empty extraScopes should be omitted from canonical JSON rather than rendered as null or []")
+}
+
 func TestConvertExternalAuthClientTypeRPToCSAndCSToRP(t *testing.T) {
 	t.Parallel()
 
