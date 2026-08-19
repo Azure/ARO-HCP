@@ -93,6 +93,13 @@ resource throttledRequestsHigh 'Microsoft.Insights/metricAlerts@2018-03-01' = {
                 '429'
               ]
             }
+            {
+              name: 'CollectionName'
+              operator: 'Include'
+              values: [
+                '*'
+              ]
+            }
           ]
         }
       ]
