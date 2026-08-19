@@ -32,6 +32,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 )
@@ -81,7 +82,8 @@ func IsVersionNotFoundError(err error) bool {
 		errors.Is(err, ErrVersionNotFound) ||
 		errors.Is(err, ErrNightlyReleaseStreamNotFound) ||
 		errors.Is(err, ErrNoAcceptedNightlyTags) ||
-		errors.Is(err, ErrNoParseableNightlyTags)
+		errors.Is(err, ErrNoParseableNightlyTags) ||
+		errors.Is(err, errSelectVersionEmptyGraph)
 }
 
 func isRetryableVersionError(err error) bool {
@@ -92,7 +94,9 @@ func isRetryableVersionError(err error) bool {
 		errors.Is(err, ErrNightlyReleaseStreamNotFound) ||
 		errors.Is(err, ErrNoAcceptedNightlyTags) ||
 		errors.Is(err, ErrNoParseableNightlyTags) ||
-		errors.Is(err, ErrNoEdgePairFound) {
+		errors.Is(err, ErrNoEdgePairFound) ||
+		errors.Is(err, errSelectVersionEmptyGraph) ||
+		errors.Is(err, errSelectVersionOffsetTooLarge) {
 		return false
 	}
 	if cincinnati.IsCincinnatiVersionNotFoundError(err) {
@@ -102,43 +106,81 @@ func isRetryableVersionError(err error) bool {
 }
 
 // GetInstallVersionForZStreamUpgrade returns the version to install the cluster with when testing
-// a z-stream upgrade, and whether that version has an available z-stream upgrade path. It uses
-// configuredVersionID and queries Cincinnati for the given channelGroup (e.g. "candidate", "stable").
-// When no version with an upgrade path is found, it still returns the configured version so the
-// caller can install and optionally skip upgrade assertions.
+// a z-stream upgrade, and whether that version has an available z-stream upgrade path.
+//
+// It resolves versions via controlplaneversion.SelectControlPlaneVersion — the same helper the
+// backend automated z-stream controller uses — by querying the OpenShift update service (Cincinnati
+// graph API) for the channel derived from channelGroup and the minor of configuredVersionID (e.g.
+// "candidate" + "4.20" -> "candidate-4.20"). The tip of the channel (offset 0) is the version the
+// controller converges to, so installing the penultimate release (offset 1) leaves exactly one
+// z-stream upgrade for the controller to perform.
+//
+// When the channel has only a single release, the tip is returned with hasUpgradePath=false so the
+// caller can install and skip upgrade assertions. An empty channel graph is reported as a Cincinnati
+// VersionNotFound error so callers can Skip rather than fail.
 func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string, configuredVersionID string) (installVersion string, hasUpgradePath bool, err error) {
-	candidates, err := GetAllVersionsInMinorStartingWith(ctx, channelGroup, configuredVersionID)
+	parsed, err := semver.ParseTolerant(configuredVersionID)
 	if err != nil {
+		return "", false, fmt.Errorf("parse configured version %q: %w", configuredVersionID, err)
+	}
+	channel := fmt.Sprintf("%s-%d.%d", channelGroup, parsed.Major, parsed.Minor)
+
+	// Tip of the channel (offset 0) is where the automated z-stream controller converges.
+	tip, err := retryOnTransientError(ctx, func() (*configv1.Release, error) {
+		release, selectErr := controlplaneversion.SelectControlPlaneVersion(ctx, nil, nil, channel, 0)
+		return release, wrapSelectControlPlaneVersionError(selectErr)
+	})
+	if err != nil {
+		if IsVersionNotFoundError(err) {
+			return "", false, &cvocincinnati.Error{Reason: "VersionNotFound", Message: fmt.Sprintf("no releases in channel %s: %v", channel, err)}
+		}
 		return "", false, err
 	}
-	if len(candidates) == 0 {
-		return "", false, &cvocincinnati.Error{Reason: "VersionNotFound", Message: fmt.Sprintf("no versions found for %s", configuredVersionID)}
-	}
-	if len(candidates) == 1 {
-		return candidates[0].String(), false, nil
-	}
 
-	nextMinorVersion := metadataapi.NextMinorReleaseLine(candidates[0])
-	nextMinorStr := fmt.Sprintf("%d.%d", nextMinorVersion.Major, nextMinorVersion.Minor)
-	maxVersion, err := GetLatestVersionInMinor(ctx, channelGroup, nextMinorStr)
+	// Installing the penultimate release (offset 1) leaves exactly one z-stream upgrade for the
+	// controller to perform. A "not enough releases" error means the channel has a single release.
+	penultimate, err := retryOnTransientError(ctx, func() (*configv1.Release, error) {
+		release, selectErr := controlplaneversion.SelectControlPlaneVersion(ctx, nil, nil, channel, 1)
+		return release, wrapSelectControlPlaneVersionError(selectErr)
+	})
 	if err != nil {
-		if !cincinnati.IsCincinnatiVersionNotFoundError(err) {
-			return "", false, err
+		if errors.Is(err, errSelectVersionOffsetTooLarge) {
+			return tip.Version, false, nil
 		}
-		// we don't have the next minor, use the max version in the current minor
-		maxVersion = candidates[0].String()
+		if IsVersionNotFoundError(err) {
+			return "", false, &cvocincinnati.Error{Reason: "VersionNotFound", Message: fmt.Sprintf("no releases in channel %s: %v", channel, err)}
+		}
+		return "", false, err
 	}
+	return penultimate.Version, true, nil
+}
 
-	for i := 0; i < len(candidates)-1; i++ {
-		upgradeTargets, err := GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx, channelGroup, maxVersion, candidates[i].String())
-		if err != nil {
-			return "", false, err
-		}
-		if len(upgradeTargets) > 0 {
-			return candidates[i+1].String(), true, nil
-		}
+var (
+	// errSelectVersionEmptyGraph maps SelectControlPlaneVersion's "no releases found" error to a
+	// sentinel so it can be classified as version-not-found (retry-exempt, caller Skips).
+	errSelectVersionEmptyGraph = errors.New("select control plane version: empty channel graph")
+	// errSelectVersionOffsetTooLarge maps SelectControlPlaneVersion's "not enough for the requested
+	// offset" error to a sentinel so it can be classified as retry-exempt (single-release channel).
+	errSelectVersionOffsetTooLarge = errors.New("select control plane version: offset beyond channel")
+)
+
+// wrapSelectControlPlaneVersionError classifies the plain fmt.Errorf messages returned by
+// controlplaneversion.SelectControlPlaneVersion into retry-exempt sentinels. Empty-graph and
+// offset-too-large are deterministic and must not be retried; other errors (transport, non-200,
+// decode) are returned unchanged so retryOnTransientError can retry them.
+func wrapSelectControlPlaneVersionError(err error) error {
+	if err == nil {
+		return nil
 	}
-	return candidates[0].String(), false, nil
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "no releases found in"):
+		return fmt.Errorf("%w: %v", errSelectVersionEmptyGraph, err)
+	case strings.Contains(msg, "which is not enough for the requested"):
+		return fmt.Errorf("%w: %v", errSelectVersionOffsetTooLarge, err)
+	default:
+		return err
+	}
 }
 
 // GetAllVersionsInMinorStartingWith returns all OpenShift versions in the same major.minor as the given version,

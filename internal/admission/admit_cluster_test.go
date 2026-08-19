@@ -298,6 +298,172 @@ func TestMutateCluster(t *testing.T) {
 	}
 }
 
+func TestMutateClusterControlPlaneExactVersion(t *testing.T) {
+	afecRegistered := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{
+			RegisteredFeatures: &[]coreapi.Feature{
+				{
+					Name:  ptr.To(metadataapi.FeatureExperimentalReleaseFeatures),
+					State: ptr.To("Registered"),
+				},
+			},
+		},
+	}
+	noAFEC := &coreapi.Subscription{
+		Properties: &coreapi.SubscriptionProperties{},
+	}
+
+	const exactTag = metadataapi.TagClusterControlPlaneExactVersion
+
+	tests := []struct {
+		name              string
+		subscription      *coreapi.Subscription
+		tags              map[string]string
+		versionID         string
+		expectErrors      []utils.ExpectedError
+		expectExactNil    bool
+		expectExactString string
+		expectVersionID   string
+	}{
+		{
+			name:            "no AFEC ignores exact-version tag value",
+			subscription:    noAFEC,
+			tags:            map[string]string{exactTag: "4.17.3"},
+			versionID:       "4.17",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17",
+		},
+		{
+			name:            "no AFEC ignores exact-version tag present with patch version.id",
+			subscription:    noAFEC,
+			tags:            map[string]string{exactTag: ""},
+			versionID:       "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17.3",
+		},
+		{
+			name:              "AFEC with full-semver tag value pins exact version",
+			subscription:      afecRegistered,
+			tags:              map[string]string{exactTag: "4.17.3"},
+			versionID:         "4.17",
+			expectErrors:      []utils.ExpectedError{},
+			expectExactString: "4.17.3",
+			expectVersionID:   "4.17",
+		},
+		{
+			name:         "AFEC with invalid tag value is rejected",
+			subscription: afecRegistered,
+			tags:         map[string]string{exactTag: "not-a-version"},
+			versionID:    "4.17",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
+		},
+		{
+			name:         "AFEC with minor-only tag value is rejected (must be exact)",
+			subscription: afecRegistered,
+			tags:         map[string]string{exactTag: "4.17"},
+			versionID:    "4.17",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
+		},
+		{
+			name:              "AFEC with empty tag relocates patch version.id",
+			subscription:      afecRegistered,
+			tags:              map[string]string{exactTag: ""},
+			versionID:         "4.17.3",
+			expectErrors:      []utils.ExpectedError{},
+			expectExactString: "4.17.3",
+			expectVersionID:   "4.17",
+		},
+		{
+			name:            "AFEC with empty tag and minor-only version.id does nothing",
+			subscription:    afecRegistered,
+			tags:            map[string]string{exactTag: ""},
+			versionID:       "4.17",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17",
+		},
+		{
+			name:            "AFEC without exact-version tag does not relocate patch version.id",
+			subscription:    afecRegistered,
+			tags:            map[string]string{},
+			versionID:       "4.17.3",
+			expectErrors:    []utils.ExpectedError{},
+			expectExactNil:  true,
+			expectVersionID: "4.17.3",
+		},
+		{
+			name:              "patch version.id takes precedence over tag value",
+			subscription:      afecRegistered,
+			tags:              map[string]string{exactTag: "4.17.3"},
+			versionID:         "4.18.9",
+			expectErrors:      []utils.ExpectedError{},
+			expectExactString: "4.18.9",
+			expectVersionID:   "4.18",
+		},
+		{
+			name:              "case-insensitive tag key relocates patch version.id",
+			subscription:      afecRegistered,
+			tags:              map[string]string{"ARO-HCP.Experimental.Cluster.Control-Plane-Exact-Version": ""},
+			versionID:         "4.20.5",
+			expectErrors:      []utils.ExpectedError{},
+			expectExactString: "4.20.5",
+			expectVersionID:   "4.20",
+		},
+		{
+			name:              "pre-release patch version.id is relocated and stripped to major.minor",
+			subscription:      afecRegistered,
+			tags:              map[string]string{exactTag: ""},
+			versionID:         "4.20.0-rc.1",
+			expectErrors:      []utils.ExpectedError{},
+			expectExactString: "4.20.0-rc.1",
+			expectVersionID:   "4.20",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cluster := &coreapi.HCPOpenShiftCluster{
+				TrackedResource: coreapi.TrackedResource{
+					Tags: tt.tags,
+				},
+			}
+			cluster.CustomerProperties.Version.ID = tt.versionID
+			admissionContext := &ClusterAdmissionContext{
+				Clock:           utilsclock.RealClock{},
+				Subscription:    tt.subscription,
+				OriginalCluster: cluster.DeepCopy(),
+			}
+
+			errs := MutateCluster(context.Background(), admissionContext, operation.Operation{Type: operation.Create}, cluster, nil)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+
+			gotExact := cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+			if tt.expectExactNil {
+				if gotExact != nil {
+					t.Errorf("expected ControlPlaneExactVersion to be nil, got %q", gotExact.String())
+				}
+			} else if len(tt.expectExactString) > 0 {
+				if gotExact == nil {
+					t.Errorf("expected ControlPlaneExactVersion %q, got nil", tt.expectExactString)
+				} else if gotExact.String() != tt.expectExactString {
+					t.Errorf("expected ControlPlaneExactVersion %q, got %q", tt.expectExactString, gotExact.String())
+				}
+			}
+
+			if len(tt.expectVersionID) > 0 && cluster.CustomerProperties.Version.ID != tt.expectVersionID {
+				t.Errorf("expected version.id %q, got %q", tt.expectVersionID, cluster.CustomerProperties.Version.ID)
+			}
+		})
+	}
+}
+
 func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
 	afecRegistered := &coreapi.Subscription{
 		Properties: &coreapi.SubscriptionProperties{
