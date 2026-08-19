@@ -83,7 +83,7 @@ resource throttledRequestsHigh 'Microsoft.Insights/metricAlerts@2018-03-01' = {
           name: 'ThrottledRequestsCriteria'
           metricName: 'TotalRequests'
           operator: 'GreaterThan'
-          timeAggregation: 'Total'
+          timeAggregation: 'Count'
           criterionType: 'StaticThresholdCriterion'
           dimensions: [
             {
