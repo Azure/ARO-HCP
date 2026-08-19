@@ -25,7 +25,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -66,7 +65,6 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.APIVisibility = "Private"
-			clusterParams.OpenshiftVersionId = "4.22"
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
@@ -104,12 +102,12 @@ var _ = Describe("Customer", func() {
 
 			By("creating the initial node pool with 1 replica")
 			initialReplicas := int32(1)
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = initialReplicas
 
-			err = tc.CreateNodePoolFromParam20240610(ctx,
+			err = tc.CreateNodePoolFromParam20251223(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams.ManagedResourceGroupName,
@@ -140,8 +138,11 @@ var _ = Describe("Customer", func() {
 			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
 
 			versionCmd := fmt.Sprintf(
-				"echo '%s' | base64 -d > /tmp/kubeconfig && "+
-					"kubectl --kubeconfig=/tmp/kubeconfig version 2>/dev/null",
+				"KUBECONFIG=$(mktemp) && "+
+					"trap 'rm -f $KUBECONFIG' EXIT && "+
+					"echo '%s' | base64 -d > $KUBECONFIG && "+
+					"chmod 600 $KUBECONFIG && "+
+					"kubectl --kubeconfig=$KUBECONFIG version 2>/dev/null",
 				kubeconfigB64,
 			)
 			_, err = framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
@@ -156,13 +157,13 @@ var _ = Describe("Customer", func() {
 
 			By("scaling up the nodepool from 1 to 2 replicas")
 			scaledUpReplicas := int32(2)
-			update := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+			update := hcpsdk20251223preview.NodePoolUpdate{
+				Properties: &hcpsdk20251223preview.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(scaledUpReplicas),
 				},
 			}
-			scaleUpResp, err := framework.UpdateNodePoolAndWait20240610(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			scaleUpResp, err := framework.UpdateNodePoolAndWait20251223(ctx,
+				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
@@ -184,13 +185,13 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("Scale up verified", "replicas", scaledUpReplicas)
 
 			By("scaling down the nodepool from 2 to 1 replica")
-			update = hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+			update = hcpsdk20251223preview.NodePoolUpdate{
+				Properties: &hcpsdk20251223preview.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(initialReplicas),
 				},
 			}
-			scaleDownResp, err := framework.UpdateNodePoolAndWait20240610(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			scaleDownResp, err := framework.UpdateNodePoolAndWait20251223(ctx,
+				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
