@@ -24,12 +24,15 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	corelisters "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 
 	"github.com/Azure/ARO-Tools/testutil"
 
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	capacityreportv1alpha1 "github.com/Azure/ARO-HCP/mgmt-agent/pkg/apis/capacityreport/v1alpha1"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
 )
@@ -404,34 +407,59 @@ func TestAggregatePodMetrics(t *testing.T) {
 	}
 }
 
-func TestCountHCPs(t *testing.T) {
+func TestCollectHostedControlPlanes(t *testing.T) {
 	t.Parallel()
+
+	armResourceID := func(sub, rg, name string) string {
+		return "/subscriptions/" + sub + "/resourceGroups/" + rg + "/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/" + name
+	}
+
 	tests := []struct {
-		name string
-		hcps []*hypershiftv1beta1.HostedControlPlane
-		want capacityreportv1alpha1.HostedControlPlaneCount
+		name       string
+		hcps       []*hypershiftv1beta1.HostedControlPlane
+		namespaces []*corev1.Namespace
+		want       capacityreportv1alpha1.HostedControlPlanes
 	}{
 		{
 			name: "no HCPs",
 			hcps: nil,
-			want: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 0, NotReady: 0},
+			want: capacityreportv1alpha1.HostedControlPlanes{},
 		},
 		{
-			name: "all ready",
+			name: "all ready with annotated namespaces sorted by resource ID",
 			hcps: []*hypershiftv1beta1.HostedControlPlane{
-				newHostedControlPlane("ocm-cluster-1", "hcp-1", true),
-				newHostedControlPlane("ocm-cluster-2", "hcp-2", true),
+				newHostedControlPlane("ocm-ns-1", "cluster-b", true),
+				newHostedControlPlane("ocm-ns-2", "cluster-a", true),
 			},
-			want: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 2, NotReady: 0},
+			namespaces: []*corev1.Namespace{
+				newAnnotatedNamespace("ocm-ns-1", armResourceID("sub-2", "rg-2", "cluster-b")),
+				newAnnotatedNamespace("ocm-ns-2", armResourceID("sub-1", "rg-1", "cluster-a")),
+			},
+			want: capacityreportv1alpha1.HostedControlPlanes{
+				ReadyResourceIDs: []string{
+					armResourceID("sub-1", "rg-1", "cluster-a"),
+					armResourceID("sub-2", "rg-2", "cluster-b"),
+				},
+			},
 		},
 		{
 			name: "mixed ready and not-ready",
 			hcps: []*hypershiftv1beta1.HostedControlPlane{
-				newHostedControlPlane("ocm-cluster-1", "hcp-1", true),
-				newHostedControlPlane("ocm-cluster-2", "hcp-2", false),
-				newHostedControlPlane("ocm-cluster-3", "hcp-3", true),
+				newHostedControlPlane("ocm-ns-1", "cluster-a", true),
+				newHostedControlPlane("ocm-ns-2", "cluster-b", false),
 			},
-			want: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 2, NotReady: 1},
+			namespaces: []*corev1.Namespace{
+				newAnnotatedNamespace("ocm-ns-1", armResourceID("sub-1", "rg-1", "cluster-a")),
+				newAnnotatedNamespace("ocm-ns-2", armResourceID("sub-2", "rg-2", "cluster-b")),
+			},
+			want: capacityreportv1alpha1.HostedControlPlanes{
+				ReadyResourceIDs: []string{
+					armResourceID("sub-1", "rg-1", "cluster-a"),
+				},
+				NotReadyResourceIDs: []string{
+					armResourceID("sub-2", "rg-2", "cluster-b"),
+				},
+			},
 		},
 		{
 			name: "HCP without Available condition is not ready",
@@ -445,7 +473,12 @@ func TestCountHCPs(t *testing.T) {
 					},
 				},
 			},
-			want: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 0, NotReady: 1},
+			namespaces: []*corev1.Namespace{
+				newAnnotatedNamespace("ocm-cluster-1", armResourceID("sub-1", "rg-1", "cluster-1")),
+			},
+			want: capacityreportv1alpha1.HostedControlPlanes{
+				NotReadyResourceIDs: []string{armResourceID("sub-1", "rg-1", "cluster-1")},
+			},
 		},
 		{
 			name: "HCP with no conditions is not ready",
@@ -454,26 +487,46 @@ func TestCountHCPs(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{Name: "hcp-1", Namespace: "ocm-cluster-1"},
 				},
 			},
-			want: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 0, NotReady: 1},
+			namespaces: []*corev1.Namespace{
+				newAnnotatedNamespace("ocm-cluster-1", armResourceID("sub-1", "rg-1", "cluster-1")),
+			},
+			want: capacityreportv1alpha1.HostedControlPlanes{
+				NotReadyResourceIDs: []string{armResourceID("sub-1", "rg-1", "cluster-1")},
+			},
 		},
 		{
-			name: "all HCPs counted regardless of namespace",
+			name: "namespace without annotation is skipped",
 			hcps: []*hypershiftv1beta1.HostedControlPlane{
-				newHostedControlPlane("ocm-cluster-1", "hcp-1", true),
-				newHostedControlPlane("ocm-cluster-99", "hcp-2", true),
-				newHostedControlPlane("other-namespace", "hcp-3", true),
-				newHostedControlPlane("ocm-cluster-2", "hcp-4", false),
+				newHostedControlPlane("ocm-ns-1", "cluster-a", true),
 			},
-			want: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 3, NotReady: 1},
+			namespaces: []*corev1.Namespace{
+				{ObjectMeta: metav1.ObjectMeta{Name: "ocm-ns-1"}},
+			},
+			want: capacityreportv1alpha1.HostedControlPlanes{},
+		},
+		{
+			name: "namespace not found is skipped",
+			hcps: []*hypershiftv1beta1.HostedControlPlane{
+				newHostedControlPlane("ocm-ns-1", "cluster-a", true),
+			},
+			namespaces: nil,
+			want:       capacityreportv1alpha1.HostedControlPlanes{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := countHCPs(tt.hcps)
+			indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			for _, ns := range tt.namespaces {
+				if err := indexer.Add(ns); err != nil {
+					t.Fatal(err)
+				}
+			}
+			nsLister := corelisters.NewNamespaceLister(indexer)
+			got := collectHostedControlPlanes(tt.hcps, nsLister)
 			if diff := cmp.Diff(tt.want, got); len(diff) > 0 {
-				t.Errorf("unexpected HCP count (-want +got):\n%s", diff)
+				t.Errorf("unexpected result (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -485,11 +538,11 @@ func TestBuildReport(t *testing.T) {
 	condition := buildReportCurrentCondition(nil, metav1.ConditionTrue, capacityreportv1alpha1.ReasonDataCollected, "", fixedTime)
 
 	tests := []struct {
-		name      string
-		nodes     []capacityreportv1alpha1.NodeSKUCapacity
-		usage     corev1.ResourceList
-		requested corev1.ResourceList
-		hcpCount  capacityreportv1alpha1.HostedControlPlaneCount
+		name                string
+		nodes               []capacityreportv1alpha1.NodeSKUCapacity
+		usage               corev1.ResourceList
+		requested           corev1.ResourceList
+		hostedControlPlanes capacityreportv1alpha1.HostedControlPlanes
 	}{
 		{
 			name: "full_report",
@@ -511,7 +564,15 @@ func TestBuildReport(t *testing.T) {
 				corev1.ResourceMemory:           resource.MustParse("8Gi"),
 				controller.SwiftNICResourceName: resource.MustParse("6"),
 			},
-			hcpCount: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 2, NotReady: 1},
+			hostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
+				ReadyResourceIDs: []string{
+					"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a",
+					"/subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b",
+				},
+				NotReadyResourceIDs: []string{
+					"/subscriptions/sub-3/resourceGroups/rg-3/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-c",
+				},
+			},
 		},
 		{
 			name: "no_ready_hcps",
@@ -530,7 +591,12 @@ func TestBuildReport(t *testing.T) {
 			requested: corev1.ResourceList{
 				corev1.ResourceMemory: resource.MustParse("4Gi"),
 			},
-			hcpCount: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 0, NotReady: 2},
+			hostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
+				NotReadyResourceIDs: []string{
+					"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a",
+					"/subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b",
+				},
+			},
 		},
 		{
 			name: "swift_nic_in_usage_and_requested",
@@ -552,14 +618,16 @@ func TestBuildReport(t *testing.T) {
 				corev1.ResourceMemory:           resource.MustParse("4Gi"),
 				controller.SwiftNICResourceName: resource.MustParse("3"),
 			},
-			hcpCount: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 1, NotReady: 0},
+			hostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
+				ReadyResourceIDs: []string{"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a"},
+			},
 		},
 		{
-			name:      "empty_cluster",
-			nodes:     nil,
-			usage:     corev1.ResourceList{},
-			requested: corev1.ResourceList{},
-			hcpCount:  capacityreportv1alpha1.HostedControlPlaneCount{},
+			name:                "empty_cluster",
+			nodes:               nil,
+			usage:               corev1.ResourceList{},
+			requested:           corev1.ResourceList{},
+			hostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{},
 		},
 		{
 			name: "multiple_skus",
@@ -586,14 +654,22 @@ func TestBuildReport(t *testing.T) {
 			requested: corev1.ResourceList{
 				corev1.ResourceMemory: resource.MustParse("200Gi"),
 			},
-			hcpCount: capacityreportv1alpha1.HostedControlPlaneCount{Ready: 8, NotReady: 2},
+			hostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
+				ReadyResourceIDs: []string{
+					"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a",
+					"/subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b",
+				},
+				NotReadyResourceIDs: []string{
+					"/subscriptions/sub-3/resourceGroups/rg-3/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-c",
+				},
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := buildReport(tt.nodes, tt.usage, tt.requested, tt.hcpCount, condition, fixedTime)
+			got := buildReport(tt.nodes, tt.usage, tt.requested, tt.hostedControlPlanes, condition, fixedTime)
 			testutil.CompareWithFixture(t, got)
 		})
 	}
@@ -639,18 +715,39 @@ func TestRetainStatusWithCondition(t *testing.T) {
 				Requested: corev1.ResourceList{
 					corev1.ResourceMemory: resource.MustParse("8Gi"),
 				},
-				HostedControlPlanes: capacityreportv1alpha1.HostedControlPlaneCount{
-					Ready:    5,
-					NotReady: 1,
+				HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
+					ReadyResourceIDs: []string{
+						"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a",
+						"/subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b",
+					},
+					NotReadyResourceIDs: []string{
+						"/subscriptions/sub-3/resourceGroups/rg-3/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-c",
+					},
 				},
 			},
 		},
 		{
 			name: "preserves_status_without_optional_fields",
 			existingStatus: capacityreportv1alpha1.CapacityReportStatus{
-				HostedControlPlanes: capacityreportv1alpha1.HostedControlPlaneCount{
-					Ready:    3,
-					NotReady: 0,
+				HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
+					ReadyResourceIDs: []string{
+						"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a",
+						"/subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b",
+					},
+				},
+			},
+		},
+		{
+			name: "preserves_hcp_resource_ids",
+			existingStatus: capacityreportv1alpha1.CapacityReportStatus{
+				HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
+					ReadyResourceIDs: []string{
+						"/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a",
+						"/subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b",
+					},
+					NotReadyResourceIDs: []string{
+						"/subscriptions/sub-3/resourceGroups/rg-3/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-c",
+					},
 				},
 			},
 		},
@@ -781,6 +878,17 @@ func podMetrics(namespace, name string, usage corev1.ResourceList) metricsv1beta
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 		Containers: []metricsv1beta1.ContainerMetrics{
 			{Usage: usage},
+		},
+	}
+}
+
+func newAnnotatedNamespace(name, armResourceID string) *corev1.Namespace {
+	return &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Annotations: map[string]string{
+				controllerutils.HcpClusterAzureResourceIdAnnotation: armResourceID,
+			},
 		},
 	}
 }

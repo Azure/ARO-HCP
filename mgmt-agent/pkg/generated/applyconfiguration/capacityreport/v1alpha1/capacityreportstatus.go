@@ -44,9 +44,9 @@ type CapacityReportStatusApplyConfiguration struct {
 	// namespaces. This approximates steady-state reservation and may differ from
 	// actual usage.
 	Requested *corev1.ResourceList `json:"requested,omitempty"`
-	// hostedControlPlanes reports the ready and not-ready HostedControlPlane count on
+	// hostedControlPlanes reports the state of HostedControlPlane resources on
 	// the management cluster. An HCP is "ready" when its Available condition is True.
-	HostedControlPlanes *HostedControlPlaneCountApplyConfiguration `json:"hostedControlPlanes,omitempty"`
+	HostedControlPlanes *HostedControlPlanesApplyConfiguration `json:"hostedControlPlanes,omitempty"`
 }
 
 // CapacityReportStatusApplyConfiguration constructs a declarative configuration of the CapacityReportStatus type for use with
@@ -108,7 +108,7 @@ func (b *CapacityReportStatusApplyConfiguration) WithRequested(value corev1.Reso
 // WithHostedControlPlanes sets the HostedControlPlanes field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the HostedControlPlanes field is set to the value of the last call.
-func (b *CapacityReportStatusApplyConfiguration) WithHostedControlPlanes(value *HostedControlPlaneCountApplyConfiguration) *CapacityReportStatusApplyConfiguration {
+func (b *CapacityReportStatusApplyConfiguration) WithHostedControlPlanes(value *HostedControlPlanesApplyConfiguration) *CapacityReportStatusApplyConfiguration {
 	b.HostedControlPlanes = value
 	return b
 }

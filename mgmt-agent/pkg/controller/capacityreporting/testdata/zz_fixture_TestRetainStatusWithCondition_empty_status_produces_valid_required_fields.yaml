@@ -10,8 +10,6 @@ status:
     reason: DataCollectionFailed
     status: "False"
     type: ReportCurrent
-  hostedControlPlanes:
-    notReady: 0
-    ready: 0
+  hostedControlPlanes: {}
   requested: null
   usage: null
