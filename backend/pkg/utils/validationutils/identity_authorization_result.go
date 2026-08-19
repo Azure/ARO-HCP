@@ -33,3 +33,19 @@ type identityResourceMissingPermissions struct {
 	Identity  *azcorearm.ResourceID                     `json:"identity"`
 	Decisions []*checkaccessv2AuthorizationDecisionData `json:"decisions"`
 }
+
+// collectNotAllowedAndDeniedActions returns CheckAccessV2 decisions where access was not granted.
+func collectNotAllowedAndDeniedActions(authDecisionsResponse []azurecheckaccessv2client.AuthorizationDecision) []*checkaccessv2AuthorizationDecisionData {
+	var missingPermissions []*checkaccessv2AuthorizationDecisionData
+	for _, authDecision := range authDecisionsResponse {
+		if authDecision.AccessDecision == azurecheckaccessv2client.NotAllowed || authDecision.AccessDecision == azurecheckaccessv2client.Denied {
+			missingPermissions = append(missingPermissions, &checkaccessv2AuthorizationDecisionData{
+				ActionID:       authDecision.ActionId,
+				IsDataAction:   authDecision.IsDataAction,
+				AccessDecision: authDecision.AccessDecision,
+			})
+		}
+	}
+
+	return missingPermissions
+}
