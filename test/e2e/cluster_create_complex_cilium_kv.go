@@ -189,6 +189,10 @@ var _ = Describe("Customer", func() {
 				}
 			}
 
+			By("allowing DNS pods to reach the kube-apiserver-proxy via CiliumNetworkPolicy (OCP >= 4.22 only)")
+			cnpErr := framework.EnsureDNSAllowHostAPIServerCiliumNetworkPolicy(ctx, adminRESTConfig, framework.NodePoolCreationTimeout)
+			Expect(cnpErr).NotTo(HaveOccurred(), "failed to create CiliumNetworkPolicy allowing DNS pods to reach the kube-apiserver-proxy")
+
 			By("verifying nodes become Ready with Cilium CNI")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational("kube-system", "k8s-app=cilium"))
 			Expect(errors.Join(err, nodePoolErr, consoleLogErr)).NotTo(HaveOccurred(), "failed to verify nodes are Ready with Cilium CNI for cluster %q", customerClusterName)
