@@ -62,7 +62,7 @@ func DeleteAllChildDesires(
 	var errs []error
 	for _, desire := range applyIter.Items(ctx) {
 		desireName := desire.ResourceID.Name
-		removed, err := removeApplyDesireForDeletion(ctx, desireName, applyCRUD)
+		removed, err := EnsureApplyDesireRemoved(ctx, desireName, applyCRUD)
 		if err != nil {
 			errs = append(errs, utils.TrackError(err))
 			continue
@@ -103,11 +103,12 @@ func DeleteAllChildDesires(
 	return waitingFor, nil
 }
 
-// removeApplyDesireForDeletion tears down a single ApplyDesire by converting it
-// to a Type=Delete desire (so the kube-applier deletes spec.targetItem from the
+// EnsureApplyDesireRemoved tears down a single ApplyDesire by converting it to a
+// Type=Delete desire (so the kube-applier deletes spec.targetItem from the
 // management cluster) and, once that delete reports success, removing the desire
-// document. It returns true once the ApplyDesire is gone.
-func removeApplyDesireForDeletion(
+// document. It returns true once the ApplyDesire is gone — either purged after a
+// successful delete or already absent.
+func EnsureApplyDesireRemoved(
 	ctx context.Context,
 	desireName string,
 	applyCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
@@ -131,7 +132,13 @@ func removeApplyDesireForDeletion(
 		// kube-applier, Successful) unambiguously reflects the delete rather than a
 		// stale server-side-apply result.
 		applyDesire.Status.Conditions = nil
-		if _, err := applyCRUD.Replace(ctx, applyDesire, nil); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+		// A NotFound (the desire was deleted concurrently) or a PreconditionFailed
+		// (a concurrent kube-applier status update bumped the etag) is a benign
+		// race — the next reconcile retries.
+		if _, err := applyCRUD.Replace(ctx, applyDesire, nil); err != nil {
+			if cosmosstorageutils.IsNotFoundError(err) || cosmosstorageutils.IsPreconditionFailedError(err) {
+				return false, nil
+			}
 			return false, utils.TrackError(fmt.Errorf("convert ApplyDesire %s to Delete: %w", desireName, err))
 		}
 		return false, nil

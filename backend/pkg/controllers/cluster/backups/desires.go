@@ -173,36 +173,3 @@ func ensureReadDesireFromApplyDesire(
 	logger.Info("updated ReadDesire", "desire", desired.ResourceID.Name)
 	return true, nil
 }
-
-func deleteApplyDesire(
-	ctx context.Context,
-	applyDesire kubeapplierapi.ApplyDesire,
-	readDesire kubeapplierapi.ReadDesire,
-	applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire],
-) (bool, error) {
-	name := applyDesire.ResourceID.Name
-
-	if applyDesire.Spec.Type == kubeapplierapi.ApplyDesireTypeDelete {
-		if readDesire.Status.KubeContent != nil {
-			return false, nil
-		}
-		if !isDesireSuccessful(readDesire.Status.Conditions) {
-			return false, nil
-		}
-		if err := applyDesireCRUD.Delete(ctx, name); err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-			return false, utils.TrackError(fmt.Errorf("failed to delete ApplyDesire %s: %w", name, err))
-		}
-		return true, nil
-	}
-
-	replacement := applyDesire.DeepCopy()
-	replacement.Spec.ServerSideApply = nil
-	replacement.Spec.Type = kubeapplierapi.ApplyDesireTypeDelete
-	if _, err := applyDesireCRUD.Replace(ctx, replacement, nil); err != nil {
-		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			return false, nil
-		}
-		return false, utils.TrackError(fmt.Errorf("failed to replace ApplyDesire %s with Delete type: %w", name, err))
-	}
-	return true, nil
-}
