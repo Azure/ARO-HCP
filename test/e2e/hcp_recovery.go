@@ -158,7 +158,6 @@ var _ = Describe("HCP Recovery", func() {
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-"+suffix, "-managed", 64)
 			clusterParams.OpenshiftVersionId = openShiftVersion
 			clusterParams.ChannelGroup = channelGroup
-			clusterParams.Tags["aro-hcp.experimental.cluster.control-plane-operator-image-override"] = to.Ptr("arohcpocpdev.azurecr.io/tschneid-control-plane-operator:07-14-1")
 
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
