@@ -752,6 +752,7 @@ spec:
           hypershift install \
             --install-scope=crds \
             --managed-service ARO-HCP \
+            --tech-preview-no-upgrade \
             --limit-crd-install=Azure \
             --hypershift-image arohcpsvcdev.azurecr.io/tschneid-hypershift@sha256:1234567890
       restartPolicy: Never
