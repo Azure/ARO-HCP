@@ -68,7 +68,6 @@ var _ = Describe("Customer", func() {
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.APIVisibility = "Private"
 			clusterParams.IngressType = "Private"
-			clusterParams.OpenshiftVersionId = "4.22"
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20260630(ctx,
@@ -163,8 +162,11 @@ var _ = Describe("Customer", func() {
 			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
 
 			versionCmd := fmt.Sprintf(
-				"echo '%s' | base64 -d > /tmp/kubeconfig && "+
-					"kubectl --kubeconfig=/tmp/kubeconfig version 2>/dev/null",
+				"KUBECONFIG=$(mktemp) && "+
+					"trap 'rm -f $KUBECONFIG' EXIT && "+
+					"echo '%s' | base64 -d > $KUBECONFIG && "+
+					"chmod 600 $KUBECONFIG && "+
+					"kubectl --kubeconfig=$KUBECONFIG version 2>/dev/null",
 				kubeconfigB64,
 			)
 			versionOutput, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
@@ -173,17 +175,23 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("KAS is reachable from VM inside VNet", "output", versionOutput)
 
 			By("verifying KAS is NOT reachable from outside the VNet")
-			err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second, true)
-			Expect(err).To(HaveOccurred(),
-				"private KAS should not be reachable from outside the VNet, but connection to %s succeeded", apiURL)
+			Consistently(func(g Gomega) {
+				err := framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second, true)
+				g.Expect(err).To(HaveOccurred(),
+					"private KAS should not be reachable from outside the VNet, but connection to %s succeeded", apiURL)
+			}, 2*time.Minute, 15*time.Second).Should(Succeed(),
+				"private KAS should consistently be unreachable from outside the VNet")
 			GinkgoLogr.Info("Confirmed KAS is not reachable from outside the VNet")
 
 			By("deploying a sample web app to verify ingress connectivity from within the VNet")
 			sampleAppManifests, err := framework.SampleAppManifests("e2e-sample-app")
 			Expect(err).NotTo(HaveOccurred(), "failed to generate sample app manifests")
 			applyCmd := fmt.Sprintf(
-				"echo '%s' | base64 -d > /tmp/kubeconfig && "+
-					"echo '%s' | base64 -d | kubectl --kubeconfig=/tmp/kubeconfig apply -f - 2>&1",
+				"KUBECONFIG=$(mktemp) && "+
+					"trap 'rm -f $KUBECONFIG' EXIT && "+
+					"echo '%s' | base64 -d > $KUBECONFIG && "+
+					"chmod 600 $KUBECONFIG && "+
+					"echo '%s' | base64 -d | kubectl --kubeconfig=$KUBECONFIG apply -f - 2>&1",
 				kubeconfigB64,
 				base64.StdEncoding.EncodeToString([]byte(sampleAppManifests)),
 			)
@@ -196,8 +204,11 @@ var _ = Describe("Customer", func() {
 			var routeHost string
 			Eventually(func(g Gomega) {
 				routeCmd := fmt.Sprintf(
-					"echo '%s' | base64 -d > /tmp/kubeconfig && "+
-						"kubectl --kubeconfig=/tmp/kubeconfig get route -n e2e-sample-app sample-app -o jsonpath='{.spec.host}' 2>/dev/null",
+					"KUBECONFIG=$(mktemp) && "+
+						"trap 'rm -f $KUBECONFIG' EXIT && "+
+						"echo '%s' | base64 -d > $KUBECONFIG && "+
+						"chmod 600 $KUBECONFIG && "+
+						"kubectl --kubeconfig=$KUBECONFIG get route -n e2e-sample-app sample-app -o jsonpath='{.spec.host}' 2>/dev/null",
 					kubeconfigB64,
 				)
 				output, runErr := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, routeCmd, 2*time.Minute)
@@ -221,9 +232,12 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("Confirmed ingress is reachable from VM inside the VNet")
 
 			By("verifying ingress is NOT reachable from outside the VNet")
-			err = framework.TestHTTPSConnectivity(ctx, appURL, 10*time.Second, true)
-			Expect(err).To(HaveOccurred(),
-				"private ingress should not be reachable from outside the VNet, but connection succeeded")
+			Consistently(func(g Gomega) {
+				err := framework.TestHTTPSConnectivity(ctx, appURL, 10*time.Second, true)
+				g.Expect(err).To(HaveOccurred(),
+					"private ingress should not be reachable from outside the VNet, but connection succeeded")
+			}, 2*time.Minute, 15*time.Second).Should(Succeed(),
+				"private ingress should consistently be unreachable from outside the VNet")
 			GinkgoLogr.Info("Confirmed ingress is not reachable from outside the VNet")
 		},
 	)

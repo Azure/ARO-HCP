@@ -69,7 +69,6 @@ var _ = Describe("Customer", func() {
 			clusterParams.APIVisibility = "Private"
 			clusterParams.IngressType = "Private"
 			clusterParams.KeyVaultVisibility = "Private"
-			clusterParams.OpenshiftVersionId = "4.22"
 
 			By("creating customer resources with private KeyVault")
 			clusterParams, err = tc.CreateClusterCustomerResources20260630(ctx,
@@ -191,8 +190,11 @@ var _ = Describe("Customer", func() {
 			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
 
 			versionCmd := fmt.Sprintf(
-				"echo '%s' | base64 -d > /tmp/kubeconfig && "+
-					"kubectl --kubeconfig=/tmp/kubeconfig version 2>/dev/null",
+				"KUBECONFIG=$(mktemp) && "+
+					"trap 'rm -f $KUBECONFIG' EXIT && "+
+					"echo '%s' | base64 -d > $KUBECONFIG && "+
+					"chmod 600 $KUBECONFIG && "+
+					"kubectl --kubeconfig=$KUBECONFIG version 2>/dev/null",
 				kubeconfigB64,
 			)
 			versionOutput, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
@@ -201,16 +203,22 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("KAS is reachable from VM inside VNet", "output", versionOutput)
 
 			By("verifying KAS is NOT reachable from outside the VNet")
-			err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second, true)
-			Expect(err).To(HaveOccurred(),
-				"private KAS should not be reachable from outside the VNet, but connection to %s succeeded", apiURL)
+			Consistently(func(g Gomega) {
+				err := framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second, true)
+				g.Expect(err).To(HaveOccurred(),
+					"private KAS should not be reachable from outside the VNet, but connection to %s succeeded", apiURL)
+			}, 2*time.Minute, 15*time.Second).Should(Succeed(),
+				"private KAS should consistently be unreachable from outside the VNet")
 
 			By("verifying ingress is reachable from VM and NOT from outside (via sample app)")
 			sampleAppManifests, err := framework.SampleAppManifests("e2e-sample-app")
 			Expect(err).NotTo(HaveOccurred(), "failed to generate sample app manifests")
 			applyCmd := fmt.Sprintf(
-				"echo '%s' | base64 -d > /tmp/kubeconfig && "+
-					"echo '%s' | base64 -d | kubectl --kubeconfig=/tmp/kubeconfig apply -f - 2>&1",
+				"KUBECONFIG=$(mktemp) && "+
+					"trap 'rm -f $KUBECONFIG' EXIT && "+
+					"echo '%s' | base64 -d > $KUBECONFIG && "+
+					"chmod 600 $KUBECONFIG && "+
+					"echo '%s' | base64 -d | kubectl --kubeconfig=$KUBECONFIG apply -f - 2>&1",
 				kubeconfigB64,
 				base64.StdEncoding.EncodeToString([]byte(sampleAppManifests)),
 			)
@@ -221,8 +229,11 @@ var _ = Describe("Customer", func() {
 			var routeHost string
 			Eventually(func(g Gomega) {
 				routeCmd := fmt.Sprintf(
-					"echo '%s' | base64 -d > /tmp/kubeconfig && "+
-						"kubectl --kubeconfig=/tmp/kubeconfig get route -n e2e-sample-app sample-app -o jsonpath='{.spec.host}' 2>/dev/null",
+					"KUBECONFIG=$(mktemp) && "+
+						"trap 'rm -f $KUBECONFIG' EXIT && "+
+						"echo '%s' | base64 -d > $KUBECONFIG && "+
+						"chmod 600 $KUBECONFIG && "+
+						"kubectl --kubeconfig=$KUBECONFIG get route -n e2e-sample-app sample-app -o jsonpath='{.spec.host}' 2>/dev/null",
 					kubeconfigB64,
 				)
 				output, runErr := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, routeCmd, 2*time.Minute)
@@ -242,9 +253,12 @@ var _ = Describe("Customer", func() {
 					"expected HTTP 200 from sample app via private ingress, got %s", httpCode)
 			}, 10*time.Minute, 15*time.Second).Should(Succeed())
 
-			err = framework.TestHTTPSConnectivity(ctx, appURL, 10*time.Second, true)
-			Expect(err).To(HaveOccurred(),
-				"private ingress should not be reachable from outside the VNet, but connection succeeded")
+			Consistently(func(g Gomega) {
+				err := framework.TestHTTPSConnectivity(ctx, appURL, 10*time.Second, true)
+				g.Expect(err).To(HaveOccurred(),
+					"private ingress should not be reachable from outside the VNet, but connection succeeded")
+			}, 2*time.Minute, 15*time.Second).Should(Succeed(),
+				"private ingress should consistently be unreachable from outside the VNet")
 
 			By("verifying cluster is viable with router-default logs")
 			logVerifier := verifiers.VerifyGetDeploymentLogs("openshift-ingress", "router-default", "router")
