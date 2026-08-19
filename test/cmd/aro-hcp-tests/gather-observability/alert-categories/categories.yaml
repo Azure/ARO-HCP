@@ -1,0 +1,289 @@
+# Blast-radius alert categories for the aro-hcp-observability CI gate.
+#
+# Background: ARO-28187. A batch of generic Kubernetes/Prometheus alerts
+# (KubePodNotReady, KubeDeploymentReplicasMismatch, KubeNodeNotReady, ...)
+# started firing during dev e2e provisioning and blocking the merge queue.
+# An earlier PR (https://github.com/Azure/ARO-HCP/pull/6581) proposed adding
+# those alerts to the known-issues skip list. David Eads suggested: CI
+# alerting exists to get people to fix problems, not to be suppressed by a
+# skip list. Instead, alerts should be sorted by customer/service blast
+# radius, and CI's failure behavior should be tuned per blast-radius tier:
+#
+#   1. customer-visible region outage   - frontend, ingress, kube-system (svc)
+#   2. non-customer-visible region outage - backend, cluster-service, fleet, etc (svc)
+#   3. management cluster outage        - kube-applier, hypershift operator (hcp)
+#   4. customer-visible cluster outage  - pods in a cluster's controlplane namespace (hcp)
+#   5. non-customer-visible cluster outage - pods in the hostedcluster namespace (hcp)
+#   6. catch-all                        - treated as tier 1 until reassigned
+#
+# See docs/ci/ARO-28187-alert-categorization.md for the full analysis, the
+# alert-to-tier mapping, and the open questions flagged for the ARO HCP
+# Architecture Office Hours discussion that will tune the policies/
+# thresholds below.
+#
+# Matching semantics (see categories.go):
+#  - Categories are evaluated top-to-bottom; the first category with a
+#    matching rule wins (first-match-wins), same as the old known-issues list.
+#  - A category's `match` is a list of alternative rules (OR'd); an alert
+#    firing is claimed by the category if it satisfies ANY one rule.
+#  - Each rule may scope by `workspace` (svc|hcp|infra), an alertname
+#    regex (`name`, defaults to matching any name), and/or `labels` regexes.
+#    All specified fields on a rule must match (AND'd).
+#  - An empty `match` list matches every alert; only the trailing catch-all
+#    category may use it (parseCategories rejects it elsewhere, since an
+#    earlier catch-all would shadow every category after it).
+#
+# Policies:
+#  - fail: any firing fails the owning alert-rule test case.
+#  - fail-over-threshold: fails only once the category's firings for that
+#    rule reach threshold.minFirings and/or threshold.minDurationSeconds.
+#  - warn: never fails CI; firings are still recorded (as a skip annotation)
+#    so they stay visible instead of disappearing into a skip list.
+#  - ignore: never fails CI and is not called out as needing attention. This
+#    is the successor to the old known-issues skip list, for genuinely
+#    understood transient noise (e.g. short-lived pods that outlive the
+#    alert's lookback delta) rather than blast-radius suppression.
+#
+# NOTE ON ORDERING: the tier-0 "expected-noise-*" categories below are
+# migrated verbatim from the old known-issues list (test/.../known-issues/
+# knownIssues.yaml, removed by this change) and are NOT related to the
+# ARO-28187 cluster-degradation alerts. They are listed first because
+# several are label-scoped exceptions to the broader namespace-based rules
+# further down (e.g. specific pods inside an ocm-* namespace) and must be
+# claimed before those broader rules run.
+categories:
+
+- name: "expected-noise-backend-nodepool-upgrade-retry"
+  tier: 0
+  policy: ignore
+  reason: "being worked on in https://issues.redhat.com/browse/ARO-28029"
+  match:
+  - name: "BackendControllerRetryHotLoop"
+    labels:
+      name: "triggernodepoolupgrade"
+
+- name: "expected-noise-backend-cluster-create-retry"
+  tier: 0
+  policy: ignore
+  reason: "fix in https://github.com/Azure/ARO-HCP/pull/5794"
+  match:
+  - name: "BackendControllerRetryHotLoop"
+    labels:
+      name: "operationclustercreate"
+
+- name: "expected-noise-prometheus-operator-servicemonitor"
+  tier: 0
+  policy: ignore
+  reason: "https://issues.redhat.com/browse/ARO-28028"
+  match:
+  - name: "PrometheusOperatorRejectedResources"
+    labels:
+      resource: "servicemonitor"
+
+- name: "expected-noise-kube-version-mismatch-mgmt"
+  tier: 0
+  policy: ignore
+  reason: "Under investigation."
+  match:
+  - name: "KubeVersionMismatch"
+    labels:
+      cluster: ".*-mgmt-.*"
+
+- name: "expected-noise-orphaned-mrg"
+  tier: 0
+  policy: ignore
+  reason: "Orphaned MRG cleanup is newly deployed and expected to fire while existing orphans are processed."
+  match:
+  - name: "OrphanedMRGDetected"
+
+- name: "expected-noise-backend-async-operation-stuck"
+  tier: 0
+  policy: ignore
+  reason: "Newly added stuck-async-operation alerts (https://github.com/Azure/ARO-HCP/pull/5952) surface a pre-existing problem: Azure Monitor Workspace ingestion latency (metrics can take ~10min to ingest) makes async operations look stuck and latches onto E2E runs even when the tests pass. Observed blocking green E2E runs (per https://cihealth.tools.hcpsvc.osadev.cloud/run-log?q=BackendAsync): BackendAsyncOperationClusterDeleteStuck, BackendAsyncOperationExternalAuthDeleteStuck, BackendAsyncOperationClusterCreateStuck, BackendAsyncOperationNodePoolDeleteStuck, BackendAsyncOperationNodePoolCreateStuck, BackendAsyncOperationStuck. Owner @stevekuznetsov; durable fix is the AMW auto-scaler (https://github.com/Azure/ARO-HCP/pull/6036). Marked known so it stops blocking the merge queue until that lands."
+  match:
+  - name: "BackendAsyncOperation.*Stuck"
+
+- name: "expected-noise-klusterlet-pods"
+  tier: 0
+  policy: ignore
+  reason: "Klusterlet addon pods take a while to start when clusters are slow to provision, so this is a downstream issue and just noise."
+  match:
+  - name: "KubePodNotReady"
+    labels:
+      namespace: "klusterlet-.*"
+
+- name: "expected-noise-olm-pods"
+  tier: 0
+  policy: ignore
+  reason: "OLM pods in hosted control plane namespaces are simply uninteresting to us."
+  match:
+  - name: "KubePodNotReady"
+    labels:
+      namespace: "ocm-.*"
+      pod: "(packageserver|olm-operator|catalog-operator)-.*"
+
+- name: "expected-noise-hcco-pods"
+  tier: 0
+  policy: ignore
+  reason: "HCCO pods are transiently not-ready during cluster provisioning because the init container (availability-prober) blocks until the guest cluster kube-apiserver and 18+ CRDs are bootstrapped, which routinely exceeds the 5-minute KubePodNotReady threshold."
+  match:
+  - name: "KubePodNotReady"
+    labels:
+      namespace: "ocm-.*"
+      pod: "hosted-cluster-config-operator-.*"
+
+- name: "expected-noise-capi-provider-pods"
+  tier: 0
+  policy: ignore
+  reason: "capi-provider pods are transiently not-ready during HCP provisioning due to a deliberate bootstrap dependency cycle: the pod mounts the service-network-admin-kubeconfig secret (created by the KAS component), but capi-provider is intentionally excluded from the KAS dependency gate in HyperShift (componentsExcludedFromKubeAPIServerDependency) because node provisioning cannot wait for KAS to fully roll out. The pod sits in ContainerCreating with FailedMount errors until KAS reconciles and creates the secret, then the availability-prober init container gates on KAS /livez before starting the main container. This is by design and consistently exceeds the 5-minute KubePodNotReady threshold during provisioning (~56 alerts/day across 32 pods)."
+  match:
+  - name: "KubePodNotReady"
+    labels:
+      namespace: "ocm-.*"
+      pod: "capi-provider-.*"
+
+- name: "expected-noise-velero-dataupload-pods"
+  tier: 0
+  policy: ignore
+  reason: "Velero DataUpload exposer pods are transient (short-lived ~30-90s) pods that mount CSI snapshot PVCs for kopia data upload during scheduled backups. They complete and are deleted well within 5 minutes, but Prometheus lookback delta keeps stale Pending-phase metrics queryable beyond the for:5m alert threshold."
+  match:
+  - name: "KubePodNotReady"
+    labels:
+      namespace: "velero"
+      pod: "ocm-.*"
+
+# --- tier 5: non-customer-visible cluster outage ---
+# The hostedcluster namespace (ocm-<envIdentifier>-<csClusterID>, exactly
+# three dash-separated segments) holds the HostedCluster/NodePool CRs and
+# management-side glue for one HCP, not the guest control plane itself.
+# Must precede tier 4 below because its regex is a strict subset (fewer
+# segments) of tier 4's broader ocm-* match.
+- name: "non-customer-visible-cluster-outage"
+  tier: 5
+  policy: warn
+  reason: "Pods in a single HCP's hostedcluster namespace (management-side HostedCluster/NodePool glue, not the guest control plane). Blast radius is one hosted cluster and not directly customer-visible. Default policy is provisional pending ARO HCP Architecture Office Hours (ARO-28187)."
+  match:
+  - workspace: hcp
+    labels:
+      namespace: "^ocm-[^-]+-[^-]+$"
+
+# --- tier 4: customer-visible cluster outage ---
+# The controlplane namespace (ocm-<envIdentifier>-<csClusterID>-<domainPrefix>)
+# holds the guest cluster's kube-apiserver, etcd, kube-controller-manager,
+# ignition-server, konnectivity, etc. A failure here is directly
+# customer-visible for that one hosted cluster.
+- name: "customer-visible-cluster-outage"
+  tier: 4
+  policy: fail
+  reason: "Pods in a single HCP's controlplane namespace (kube-apiserver, etcd, KCM, ignition-server, konnectivity, ...). Directly customer-visible for that hosted cluster. (ARO-28187)"
+  match:
+  - workspace: hcp
+    labels:
+      namespace: "^ocm-.*"
+
+# --- tier 1: customer-visible region outage ---
+- name: "customer-visible-region-outage"
+  tier: 1
+  policy: fail
+  reason: "Frontend (ARM API), ingress, or kube-system failures affect every customer in the region. (ARO-28187)"
+  match:
+  - workspace: svc
+    labels:
+      namespace: "aro-hcp"
+      pod: "aro-hcp-frontend-.*"
+  - workspace: svc
+    labels:
+      namespace: "aks-istio-ingress"
+  - workspace: svc
+    labels:
+      namespace: "kube-system"
+
+# --- tier 2: non-customer-visible region outage ---
+- name: "non-customer-visible-region-outage"
+  tier: 2
+  policy: fail
+  reason: "Backend, cluster-service, maestro, fleet, or other regional svc-cluster component failures degrade the service but are not directly customer-visible. (ARO-28187)"
+  match:
+  - workspace: svc
+    labels:
+      namespace: "aro-hcp" # backend; shares this namespace with frontend, see tier 1 above
+  - workspace: svc
+    labels:
+      namespace: "clusters-service"
+  - workspace: svc
+    labels:
+      namespace: "maestro"
+  - workspace: svc
+    labels:
+      namespace: "fleet"
+  - workspace: svc
+    labels:
+      namespace: "aro-hcp-admin-api"
+  - workspace: svc
+    labels:
+      namespace: "sessiongate"
+  - workspace: svc
+    labels:
+      namespace: "hcp-recovery"
+  - workspace: svc
+    labels:
+      namespace: "aro-hcp-exporter"
+  - workspace: svc
+    labels:
+      namespace: "monitoring"
+  - workspace: svc
+    labels:
+      namespace: "arobit"
+  - workspace: svc
+    labels:
+      namespace: "secret-sync-controller"
+  # Node-level alerts carry a `node` label, not `namespace`; they can't be
+  # bucketed by component. Default: any node alert in the svc workspace is
+  # regional infrastructure degradation (non-customer-visible).
+  - workspace: svc
+    name: "KubeNode(NotReady|Unreachable)"
+  # KustoLogsDataStale is observability-pipeline ingestion lag, not a
+  # customer-facing outage; provisionally grouped here rather than
+  # expected-noise until office hours confirms it isn't actionable at all.
+  - workspace: svc
+    name: "KustoLogsDataStale"
+
+# --- tier 3: management cluster outage ---
+- name: "management-cluster-outage"
+  tier: 3
+  policy: fail-over-threshold
+  threshold:
+    minFirings: 3
+    minDurationSeconds: 900 # 15m
+  reason: "kube-applier, hypershift operator, maestro-agent, or mgmt-agent failures threaten every HCP hosted on that management cluster, but a single transient firing is not necessarily a management-cluster-wide outage. (ARO-28187)"
+  match:
+  - workspace: hcp
+    labels:
+      namespace: "kube-applier"
+  - workspace: hcp
+    labels:
+      namespace: "hypershift"
+  - workspace: hcp
+    labels:
+      namespace: "maestro"
+  - workspace: hcp
+    labels:
+      namespace: "mgmt-agent"
+  - workspace: hcp
+    labels:
+      namespace: "kube-system"
+  # Node-level alerts in the hcp/mgmt workspace: a degraded management
+  # cluster node threatens every HCP on it.
+  - workspace: hcp
+    name: "KubeNode(NotReady|Unreachable)"
+
+# --- tier 6: catch-all ---
+# Must be last. Anything not claimed above (including alerts from the
+# `infra` workspace, which isn't scoped to svc or hcp) is treated as tier 1
+# ("customer-visible region outage") until it is explicitly reassigned to
+# its real category, per David Eads' review comment on ARO-28187.
+- name: "catch-all"
+  tier: 1
+  policy: fail
+  reason: "Unclassified firing; treated as tier 1 (customer-visible region outage) until categorized. If you see this, please add a category rule for it (ARO-28187)."
+  match: []

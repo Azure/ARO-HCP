@@ -279,7 +279,7 @@ func TestAlertsToJUnit(t *testing.T) {
 								Labels:      map[string]string{"alertname": "BackendControllerRetryHotLoop", "name": "operationnodepoolcreate", "severity": "warning", "cluster": "prow-j3151872-svc", "namespace": "aro-hcp"},
 								Description: "Backend controller workqueue operationnodepoolcreate has a retry ratio of > 50%",
 							},
-							Metadata: alertMetadata{KnownIssue: true, KnownIssueReason: "Nodepool create controller retry hot loops are observed during e2e runs. Needs investigation."},
+							Metadata: alertMetadata{Category: "expected-noise-nodepool-create-retry", CategoryTier: 0, CategoryPolicy: policyIgnore, CategoryReason: "Nodepool create controller retry hot loops are observed during e2e runs. Needs investigation.", KnownIssue: true, KnownIssueReason: "Nodepool create controller retry hot loops are observed during e2e runs. Needs investigation."},
 						},
 						{
 							Alert: alertData{
@@ -288,7 +288,7 @@ func TestAlertsToJUnit(t *testing.T) {
 								Labels:      map[string]string{"alertname": "MiseEnvoyScrapeDown", "severity": "warning", "cluster": "prow-j3151872-svc", "namespace": "aro-hcp"},
 								Description: "Mise Envoy scrape target is down",
 							},
-							Metadata: alertMetadata{KnownIssue: true, KnownIssueReason: "Mise Envoy scrape targets intermittently go down during e2e runs."},
+							Metadata: alertMetadata{Category: "expected-noise-envoy-scrape", CategoryTier: 0, CategoryPolicy: policyIgnore, CategoryReason: "Mise Envoy scrape targets intermittently go down during e2e runs.", KnownIssue: true, KnownIssueReason: "Mise Envoy scrape targets intermittently go down during e2e runs."},
 						},
 						{
 							Alert: alertData{
@@ -367,7 +367,7 @@ func TestAlertsToJUnit(t *testing.T) {
 								Labels:      map[string]string{"alertname": "BackendControllerRetryHotLoop", "name": "operationnodepoolcreate", "severity": "warning", "cluster": "prow-j3151872-svc"},
 								Description: "Backend controller retry hot loop (known firing)",
 							},
-							Metadata: alertMetadata{KnownIssue: true, KnownIssueReason: "Known issue: hot loop during provisioning."},
+							Metadata: alertMetadata{Category: "expected-noise-hot-loop", CategoryTier: 0, CategoryPolicy: policyIgnore, CategoryReason: "Known issue: hot loop during provisioning.", KnownIssue: true, KnownIssueReason: "Known issue: hot loop during provisioning."},
 						},
 						{
 							Alert: alertData{
@@ -376,6 +376,88 @@ func TestAlertsToJUnit(t *testing.T) {
 								Labels:      map[string]string{"alertname": "BackendControllerRetryHotLoop", "name": "operationnodepoolcreate", "severity": "warning", "cluster": "prow-j3151872-svc"},
 								Description: "Backend controller retry hot loop (unknown firing)",
 							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// A single alert rule can span multiple blast-radius categories
+			// within one workspace, e.g. KubePodNotReady firing for both a
+			// hosted cluster's controlplane namespace (tier 4, fail) and its
+			// hostedcluster namespace (tier 5, warn). The test case must fail
+			// overall because at least one category's policy is "fail", but
+			// the non-failing (tier 5) firing is still reported for
+			// visibility rather than silently disappearing (ARO-28187).
+			name: "multi_category_rule_fails_on_worst_category",
+			workspaces: map[string]*workspaceData{
+				"hcp": {
+					Type:       "hcp",
+					AlertRules: []string{"KubePodNotReady"},
+					FiredAlerts: []alert{
+						{
+							Alert: alertData{
+								Name: "KubePodNotReady", Severity: armalertsmanagement.SeveritySev2, Condition: "Fired",
+								StartsAt: mustTime("2026-04-13T06:00:00Z"), EndsAt: mustTime("2026-04-13T06:10:00Z"),
+								Labels: map[string]string{"alertname": "KubePodNotReady", "namespace": "ocm-arohcpdev-abc123-primary", "pod": "kube-apiserver-0"},
+							},
+							Metadata: alertMetadata{Category: "customer-visible-cluster-outage", CategoryTier: 4, CategoryPolicy: policyFail, CategoryReason: "Pods in a single HCP's controlplane namespace are directly customer-visible for that hosted cluster."},
+						},
+						{
+							Alert: alertData{
+								Name: "KubePodNotReady", Severity: armalertsmanagement.SeveritySev3, Condition: "Fired",
+								StartsAt: mustTime("2026-04-13T06:05:00Z"), EndsAt: mustTime("2026-04-13T06:20:00Z"),
+								Labels: map[string]string{"alertname": "KubePodNotReady", "namespace": "ocm-arohcpdev-abc123", "pod": "cluster-api-provider-0"},
+							},
+							Metadata: alertMetadata{Category: "non-customer-visible-cluster-outage", CategoryTier: 5, CategoryPolicy: policyWarn, CategoryReason: "Pods in a single HCP's hostedcluster namespace are not directly customer-visible."},
+						},
+					},
+				},
+			},
+		},
+		{
+			// The fail-over-threshold policy passes (skips) while the
+			// category's firings for a rule stay under threshold, and fails
+			// once they reach it. Two independent rules exercise both sides:
+			// KubeApplierApplyFailed stays under threshold, HypershiftOperatorDegraded
+			// reaches it (3 firings, minFirings: 3).
+			name: "fail_over_threshold_under_and_over",
+			workspaces: map[string]*workspaceData{
+				"hcp": {
+					Type:       "hcp",
+					AlertRules: []string{"KubeApplierApplyFailed", "HypershiftOperatorDegraded"},
+					FiredAlerts: []alert{
+						{
+							Alert: alertData{
+								Name: "KubeApplierApplyFailed", Severity: armalertsmanagement.SeveritySev3, Condition: "Fired",
+								StartsAt: mustTime("2026-04-13T06:00:00Z"), EndsAt: mustTime("2026-04-13T06:05:00Z"),
+								Labels: map[string]string{"alertname": "KubeApplierApplyFailed", "namespace": "kube-applier"},
+							},
+							Metadata: alertMetadata{Category: "management-cluster-outage", CategoryTier: 3, CategoryPolicy: policyFailOverThreshold, CategoryReason: "kube-applier failures threaten every HCP on the management cluster.", CategoryMinFirings: 3, CategoryMinDurationSeconds: 900},
+						},
+						{
+							Alert: alertData{
+								Name: "HypershiftOperatorDegraded", Severity: armalertsmanagement.SeveritySev3, Condition: "Fired",
+								StartsAt: mustTime("2026-04-13T06:00:00Z"), EndsAt: mustTime("2026-04-13T06:05:00Z"),
+								Labels: map[string]string{"alertname": "HypershiftOperatorDegraded", "namespace": "hypershift"},
+							},
+							Metadata: alertMetadata{Category: "management-cluster-outage", CategoryTier: 3, CategoryPolicy: policyFailOverThreshold, CategoryReason: "hypershift operator failures threaten every HCP on the management cluster.", CategoryMinFirings: 3, CategoryMinDurationSeconds: 900},
+						},
+						{
+							Alert: alertData{
+								Name: "HypershiftOperatorDegraded", Severity: armalertsmanagement.SeveritySev3, Condition: "Fired",
+								StartsAt: mustTime("2026-04-13T06:10:00Z"), EndsAt: mustTime("2026-04-13T06:15:00Z"),
+								Labels: map[string]string{"alertname": "HypershiftOperatorDegraded", "namespace": "hypershift"},
+							},
+							Metadata: alertMetadata{Category: "management-cluster-outage", CategoryTier: 3, CategoryPolicy: policyFailOverThreshold, CategoryReason: "hypershift operator failures threaten every HCP on the management cluster.", CategoryMinFirings: 3, CategoryMinDurationSeconds: 900},
+						},
+						{
+							Alert: alertData{
+								Name: "HypershiftOperatorDegraded", Severity: armalertsmanagement.SeveritySev3, Condition: "Fired",
+								StartsAt: mustTime("2026-04-13T06:20:00Z"), EndsAt: mustTime("2026-04-13T06:25:00Z"),
+								Labels: map[string]string{"alertname": "HypershiftOperatorDegraded", "namespace": "hypershift"},
+							},
+							Metadata: alertMetadata{Category: "management-cluster-outage", CategoryTier: 3, CategoryPolicy: policyFailOverThreshold, CategoryReason: "hypershift operator failures threaten every HCP on the management cluster.", CategoryMinFirings: 3, CategoryMinDurationSeconds: 900},
 						},
 					},
 				},

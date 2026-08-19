@@ -9,4 +9,5 @@ alert:
   severity: Sev3
   state: ""
 metadata:
+  categoryTier: 0
   knownIssue: false

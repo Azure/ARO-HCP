@@ -26,6 +26,10 @@ alerts:
     startsAt: "2026-04-13T06:47:46.0457216Z"
     state: New
   metadata:
+    category: envoy-scrape-flaky
+    categoryPolicy: ignore
+    categoryReason: envoy scrape flaky during provisioning
+    categoryTier: 0
     knownIssue: true
     knownIssueReason: envoy scrape flaky during provisioning
     monitoringWorkspace: /subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/hcp-underlay-test-rg/providers/microsoft.monitor/accounts/test-workspace
@@ -61,6 +65,10 @@ alerts:
     startsAt: "2026-04-13T05:36:11.5391795Z"
     state: New
   metadata:
+    category: delete-controller-churn
+    categoryPolicy: ignore
+    categoryReason: known for delete controllers
+    categoryTier: 0
     knownIssue: true
     knownIssueReason: known for delete controllers
     monitoringWorkspace: /subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/hcp-underlay-test-rg/providers/microsoft.monitor/accounts/test-workspace
@@ -80,18 +88,24 @@ alerts:
     startsAt: "2026-04-13T07:00:00Z"
     state: New
   metadata:
+    categoryTier: 0
     knownIssue: false
     monitoringWorkspace: /subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/hcp-underlay-test-rg/providers/microsoft.monitor/accounts/test-workspace
 filterKeys:
 - alertname
 - cluster
 - namespace
+- category
 - classification
 filterOptions:
   alertname:
   - BackendControllerRetryHotLoop
   - KubePodImagePull
   - MiseEnvoyScrapeDown
+  category:
+  - delete-controller-churn (tier 0)
+  - envoy-scrape-flaky (tier 0)
+  - uncategorized
   classification:
   - unknown
   - known
@@ -100,6 +114,10 @@ filterOptions:
   namespace:
   - aro-hcp
 summary:
+  byCategory:
+    delete-controller-churn: 1
+    envoy-scrape-flaky: 1
+    uncategorized: 1
   bySeverity:
     Sev3: 1
     Sev4: 2

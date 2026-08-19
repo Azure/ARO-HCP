@@ -91,41 +91,38 @@ func workspaceDataToJUnit(logger logr.Logger, ws *workspaceData, timeWindow timi
 		totalDuration += duration
 		tc.Duration = duration
 
-		allKnown := true
-		for _, f := range firings {
-			if !f.Metadata.KnownIssue {
-				allKnown = false
-				break
+		// Evaluate each blast-radius category present among this rule's
+		// firings independently (a single rule, e.g. KubePodNotReady, can
+		// span multiple categories within one workspace -- for example
+		// firings in both a controlplane namespace (tier 4, fail) and a
+		// hostedcluster namespace (tier 5, warn)). The test case fails iff
+		// any category's policy evaluation fails; see ARO-28187.
+		catGroups := groupByCategory(firings)
+		var failing, nonFailing []categoryFiringGroup
+		for _, g := range catGroups {
+			if evaluateCategoryPolicy(g, timeWindow) {
+				failing = append(failing, g)
+			} else {
+				nonFailing = append(nonFailing, g)
 			}
 		}
 
-		if allKnown {
-			// if all alert firings for this alert rule are known issues
-			// we mark the test case as skipped
+		if len(failing) == 0 {
+			// No category's policy calls for failure: mark the test case
+			// skipped, same as the old "all known issues" behavior, but now
+			// covering ignore/warn/under-threshold categories alike.
 			numSkipped++
 			tc.SkipMessage = &junit.SkipMessage{
-				Message: buildSkipMessage(firings),
+				Message: buildSkipMessage(nonFailing),
 			}
 		} else {
-			// if not all alert firings for this alert rule are known issues
-			// we mark the test case as failed and
-			// * report the unknown firings as failures
-			// * report the known firings as system output
 			numFailed++
-			var unknown, known []alert
-			for _, f := range firings {
-				if f.Metadata.KnownIssue {
-					known = append(known, f)
-				} else {
-					unknown = append(unknown, f)
-				}
-			}
 			tc.FailureOutput = &junit.FailureOutput{
-				Message: buildFailureMessage(firings),
-				Output:  renderFirings("", unknown),
+				Message: buildFailureMessage(catGroups, failing),
+				Output:  renderFirings("", flattenGroups(failing)),
 			}
-			if len(known) > 0 {
-				tc.SystemOut = renderFirings("Known firings (not counted as failures):", known)
+			if len(nonFailing) > 0 {
+				tc.SystemOut = renderFirings("Non-failing firings (not counted as failures):", flattenGroups(nonFailing))
 			}
 		}
 
@@ -188,33 +185,112 @@ func computeGroupDuration(firings []alert, tw timing.TimeWindow) float64 {
 	return total
 }
 
-func buildSkipMessage(firings []alert) string {
-	reasons := make(map[string]bool)
-	var ordered []string
-	for _, f := range firings {
-		r := f.Metadata.KnownIssueReason
-		if r != "" && !reasons[r] {
-			reasons[r] = true
-			ordered = append(ordered, r)
-		}
-	}
-	return "known issue: " + strings.Join(ordered, "; ")
+// categoryFiringGroup buckets a rule's firings by the blast-radius category
+// assigned by categorizeAlerts (see categories.go), along with that
+// category's tier/policy/reason and threshold, denormalized from the first
+// firing in the group (all firings in a group share the same category, so
+// its config is consistent across them).
+type categoryFiringGroup struct {
+	category           string // "" means no category matched (uncategorized)
+	tier               int
+	policy             string
+	reason             string
+	minFirings         int
+	minDurationSeconds float64
+	firings            []alert
 }
 
-func buildFailureMessage(firings []alert) string {
-	var unknown, known int
+// groupByCategory buckets firings by their assigned category, preserving the
+// order categories first appear in.
+func groupByCategory(firings []alert) []categoryFiringGroup {
+	index := make(map[string]int, len(firings))
+	var groups []categoryFiringGroup
 	for _, f := range firings {
-		if f.Metadata.KnownIssue {
-			known++
-		} else {
-			unknown++
+		key := f.Metadata.Category
+		i, ok := index[key]
+		if !ok {
+			i = len(groups)
+			index[key] = i
+			groups = append(groups, categoryFiringGroup{
+				category:           f.Metadata.Category,
+				tier:               f.Metadata.CategoryTier,
+				policy:             f.Metadata.CategoryPolicy,
+				reason:             f.Metadata.CategoryReason,
+				minFirings:         f.Metadata.CategoryMinFirings,
+				minDurationSeconds: f.Metadata.CategoryMinDurationSeconds,
+			})
 		}
+		groups[i].firings = append(groups[i].firings, f)
 	}
-	total := len(firings)
-	if known == 0 {
-		return fmt.Sprintf("alert fired %d time(s)", total)
+	return groups
+}
+
+// evaluateCategoryPolicy returns true if the group's category policy calls
+// for failing the owning test case. An uncategorized group (no category
+// config matched) fails closed, same as policyFail: per David Eads' review
+// of ARO-28187, an unclassified firing is "treated as [tier] 1a until
+// reassigned", not silently passed.
+func evaluateCategoryPolicy(g categoryFiringGroup, tw timing.TimeWindow) bool {
+	switch g.policy {
+	case policyFail:
+		return true
+	case policyFailOverThreshold:
+		if g.minFirings > 0 && len(g.firings) >= g.minFirings {
+			return true
+		}
+		if g.minDurationSeconds > 0 && computeGroupDuration(g.firings, tw) >= g.minDurationSeconds {
+			return true
+		}
+		return false
+	case policyWarn, policyIgnore:
+		return false
+	default:
+		return true
 	}
-	return fmt.Sprintf("alert fired %d time(s) (%d unknown, %d known)", total, unknown, known)
+}
+
+func flattenGroups(groups []categoryFiringGroup) []alert {
+	var firings []alert
+	for _, g := range groups {
+		firings = append(firings, g.firings...)
+	}
+	return firings
+}
+
+func categoryLabel(g categoryFiringGroup) string {
+	name := g.category
+	if name == "" {
+		name = "uncategorized"
+	}
+	policy := g.policy
+	if policy == "" {
+		policy = policyFail // matches evaluateCategoryPolicy's fail-closed default
+	}
+	return fmt.Sprintf("%s (tier %d, %s)", name, g.tier, policy)
+}
+
+func buildSkipMessage(nonFailing []categoryFiringGroup) string {
+	parts := make([]string, 0, len(nonFailing))
+	for _, g := range nonFailing {
+		label := categoryLabel(g)
+		if g.reason != "" {
+			label = fmt.Sprintf("%s: %s", label, g.reason)
+		}
+		parts = append(parts, label)
+	}
+	return "non-blocking: " + strings.Join(parts, "; ")
+}
+
+func buildFailureMessage(all, failing []categoryFiringGroup) string {
+	var total int
+	for _, g := range all {
+		total += len(g.firings)
+	}
+	names := make([]string, len(failing))
+	for i, g := range failing {
+		names[i] = categoryLabel(g)
+	}
+	return fmt.Sprintf("alert fired %d time(s); failing categories: %s", total, strings.Join(names, ", "))
 }
 
 var tmplFuncs = template.FuncMap{

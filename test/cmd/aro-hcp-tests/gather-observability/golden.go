@@ -122,12 +122,13 @@ func sanitizeFixtureName(s string) string {
 	return "zz_fixture_" + result.String()
 }
 
-// mustParse parses a known issues YAML string and fails the test on error.
-func mustParse(t *testing.T, yamlContent string) []knownIssue {
+// mustParseCategories parses an alert categories YAML string and fails the
+// test on error.
+func mustParseCategories(t *testing.T, yamlContent string) []category {
 	t.Helper()
-	issues, err := parseKnownIssues([]byte(yamlContent))
+	categories, err := parseCategories([]byte(yamlContent))
 	if err != nil {
-		t.Fatalf("failed to parse known issues: %v", err)
+		t.Fatalf("failed to parse categories: %v", err)
 	}
-	return issues
+	return categories
 }

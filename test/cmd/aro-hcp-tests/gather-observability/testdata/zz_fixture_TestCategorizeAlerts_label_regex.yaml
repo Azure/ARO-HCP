@@ -6,6 +6,10 @@
     severity: ""
     state: ""
   metadata:
+    category: delete-controller-churn
+    categoryPolicy: ignore
+    categoryReason: known for delete controllers
+    categoryTier: 0
     knownIssue: true
     knownIssueReason: known for delete controllers
 - alert:
@@ -16,6 +20,10 @@
     severity: ""
     state: ""
   metadata:
+    category: delete-controller-churn
+    categoryPolicy: ignore
+    categoryReason: known for delete controllers
+    categoryTier: 0
     knownIssue: true
     knownIssueReason: known for delete controllers
 - alert:
@@ -26,4 +34,5 @@
     severity: ""
     state: ""
   metadata:
+    categoryTier: 0
     knownIssue: false

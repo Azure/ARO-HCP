@@ -1,6 +1,6 @@
 {{- if .Header}}{{.Header}}
 {{end -}}
-{{- range $i, $f := .Firings}}Firing {{inc $i}}:{{if $f.Metadata.KnownIssueReason}} (known issue: {{$f.Metadata.KnownIssueReason}}){{end}}
+{{- range $i, $f := .Firings}}Firing {{inc $i}}: [category: {{if $f.Metadata.Category}}{{$f.Metadata.Category}}{{else}}uncategorized{{end}} (tier {{$f.Metadata.CategoryTier}}, {{if $f.Metadata.CategoryPolicy}}{{$f.Metadata.CategoryPolicy}}{{else}}fail{{end}})]{{if $f.Metadata.CategoryReason}} {{$f.Metadata.CategoryReason}}{{end}}
   State:       {{state $f.Alert.Condition}}
 {{- if $f.Alert.StartsAt}}
   Started:     {{formatTime $f.Alert.StartsAt}}

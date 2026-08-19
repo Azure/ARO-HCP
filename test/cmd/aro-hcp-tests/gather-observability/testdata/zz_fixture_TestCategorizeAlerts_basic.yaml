@@ -4,6 +4,10 @@
     severity: ""
     state: ""
   metadata:
+    category: error-rate-known
+    categoryPolicy: ignore
+    categoryReason: error rate known
+    categoryTier: 0
     knownIssue: true
     knownIssueReason: error rate known
 - alert:
@@ -12,22 +16,29 @@
     severity: ""
     state: ""
   metadata:
-    knownIssue: true
-    knownIssueReason: controller churn
+    category: controller-churn
+    categoryPolicy: warn
+    categoryReason: controller churn
+    categoryTier: 0
+    knownIssue: false
 - alert:
     condition: ""
     name: BackendControllerQueueDepthHigh
     severity: ""
     state: ""
   metadata:
-    knownIssue: true
-    knownIssueReason: controller churn
+    category: controller-churn
+    categoryPolicy: warn
+    categoryReason: controller churn
+    categoryTier: 0
+    knownIssue: false
 - alert:
     condition: ""
     name: SomethingUnknown
     severity: ""
     state: ""
   metadata:
+    categoryTier: 0
     knownIssue: false
 - alert:
     condition: ""
@@ -35,4 +46,5 @@
     severity: ""
     state: ""
   metadata:
+    categoryTier: 0
     knownIssue: false

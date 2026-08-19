@@ -47,6 +47,22 @@ type alertData struct {
 
 // alertMetadata holds enrichments added by our tooling.
 type alertMetadata struct {
+	// Category, CategoryTier, CategoryPolicy and CategoryReason record the
+	// blast-radius category assigned by categorizeAlerts (see categories.go).
+	// CategoryMinFirings/CategoryMinDurationSeconds are copied from the
+	// matched category's threshold so junit.go can evaluate a
+	// "fail-over-threshold" policy without needing the categories config.
+	Category                   string  `json:"category,omitempty"`
+	CategoryTier               int     `json:"categoryTier"`
+	CategoryPolicy             string  `json:"categoryPolicy,omitempty"`
+	CategoryReason             string  `json:"categoryReason,omitempty"`
+	CategoryMinFirings         int     `json:"categoryMinFirings,omitempty"`
+	CategoryMinDurationSeconds float64 `json:"categoryMinDurationSeconds,omitempty"`
+	// KnownIssue/KnownIssueReason are retained for the HTML dashboard's
+	// existing known/unknown display and are derived from the category:
+	// true (with the category's reason) iff CategoryPolicy is "ignore".
+	// This is the successor to the old known-issues skip list, now folded
+	// into the "expected-noise" category.
 	KnownIssue              bool   `json:"knownIssue"`
 	KnownIssueReason        string `json:"knownIssueReason,omitempty"`
 	MonitoringWorkspace     string `json:"monitoringWorkspace,omitempty"`

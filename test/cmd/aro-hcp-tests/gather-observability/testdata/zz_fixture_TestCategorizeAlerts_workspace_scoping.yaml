@@ -1,0 +1,34 @@
+- alert:
+    condition: ""
+    name: KubeNodeNotReady
+    severity: ""
+    state: ""
+  metadata:
+    category: svc-node-issue
+    categoryPolicy: fail
+    categoryReason: svc node issue
+    categoryTier: 0
+    knownIssue: false
+    monitoringWorkspaceType: svc
+- alert:
+    condition: ""
+    name: KubeNodeNotReady
+    severity: ""
+    state: ""
+  metadata:
+    category: hcp-node-issue
+    categoryMinFirings: 2
+    categoryPolicy: fail-over-threshold
+    categoryReason: hcp node issue
+    categoryTier: 0
+    knownIssue: false
+    monitoringWorkspaceType: hcp
+- alert:
+    condition: ""
+    name: KubeNodeNotReady
+    severity: ""
+    state: ""
+  metadata:
+    categoryTier: 0
+    knownIssue: false
+    monitoringWorkspaceType: infra
