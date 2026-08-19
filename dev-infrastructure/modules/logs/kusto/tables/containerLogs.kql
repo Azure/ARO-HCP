@@ -32,7 +32,7 @@
   {"column":"pod_name","Properties":{"path":"$.log.kubernetes.pod_name"}},
   {"column":"tag","Properties":{"path":"$.tag"}},
   {"column":"container_status_image_id","Properties":{"path":"$.log.kubernetes.container_hash"}},
-  {"column":"cluster_id","Properties":{"path":"$.cluster_id"}},
-  {"column":"resource_group","Properties":{"path":"$.resource_group"}}
+  {"column":"cluster_id","Properties":{"path":"$.log.cluster_id"}},
+  {"column":"resource_group","Properties":{"path":"$.log.resource_group"}}
 ]
 ```
