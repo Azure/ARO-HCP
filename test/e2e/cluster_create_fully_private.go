@@ -208,7 +208,7 @@ var _ = Describe("Customer", func() {
 						"trap 'rm -f $KUBECONFIG' EXIT && "+
 						"echo '%s' | base64 -d > $KUBECONFIG && "+
 						"chmod 600 $KUBECONFIG && "+
-						"kubectl --kubeconfig=$KUBECONFIG get route -n e2e-sample-app sample-app -o jsonpath='{.spec.host}' 2>/dev/null",
+						"kubectl --kubeconfig=$KUBECONFIG get route -n e2e-sample-app agnhost -o jsonpath='{.spec.host}' 2>/dev/null",
 					kubeconfigB64,
 				)
 				output, runErr := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, routeCmd, 2*time.Minute)
