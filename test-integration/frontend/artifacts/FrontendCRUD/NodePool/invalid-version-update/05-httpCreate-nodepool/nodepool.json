@@ -25,7 +25,7 @@
 		],
 		"version": {
 			"channelGroup": "stable",
-			"id": "4.20.8"
+			"id": "4.22.0"
 		}
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
