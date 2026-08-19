@@ -20,6 +20,8 @@ import (
 	"path"
 	"strings"
 
+	"k8s.io/component-base/metrics/legacyregistry"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -268,29 +270,46 @@ type NestedCosmosResourceCRUD[InternalAPIType any, InternalAPITypePointer coreap
 
 var _ ResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool] = &NestedCosmosResourceCRUD[coreapi.HCPOpenShiftClusterNodePool, *coreapi.HCPOpenShiftClusterNodePool, GenericDocument[coreapi.HCPOpenShiftClusterNodePool]]{}
 
-// NewCosmosResourceCRUD constructs a CRUD using the subscription-ID partition
-// key policy and the standard ARM-style path builder. For containers that
-// partition or build paths differently use NewCosmosResourceCRUDWithPartitionKey
-// or NewCosmosResourceCRUDWithStrategies.
+// NewCosmosResourceCRUD constructs an instrumented CRUD using the subscription-ID
+// partition key policy and the standard ARM-style path builder. Every operation
+// records database_request_total and database_request_duration_seconds under a
+// resource_type label derived from ResourceType (see sanitizeResourceType); the
+// metrics land on the legacy registry that ARO-HCP scrapes. For containers that
+// partition or build paths differently use NewCosmosResourceCRUDWithPartitionKey.
+// Callers that need to compose additional decorators (e.g. validation) around a
+// raw CRUD should use NewCosmosResourceCRUDWithStrategies, which returns an
+// uninstrumented CRUD, and wrap it themselves.
 func NewCosmosResourceCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
-	ContainerClient *azcosmos.ContainerClient, ParentResourceID *azcorearm.ResourceID, ResourceType azcorearm.ResourceType) *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
+	ContainerClient *azcosmos.ContainerClient, ParentResourceID *azcorearm.ResourceID, ResourceType azcorearm.ResourceType) ResourceCRUD[InternalAPIType, InternalAPITypePointer] {
 
-	return NewCosmosResourceCRUDWithStrategies[InternalAPIType, InternalAPITypePointer, CosmosAPIType](
-		ContainerClient, ParentResourceID, ResourceType, SubscriptionPartitionKeyDeriver{}, ClusterNestedResourceIDBuilder{})
+	return NewInstrumentedCRUD[InternalAPIType, InternalAPITypePointer](
+		NewCosmosResourceCRUDWithStrategies[InternalAPIType, InternalAPITypePointer, CosmosAPIType](
+			ContainerClient, ParentResourceID, ResourceType, SubscriptionPartitionKeyDeriver{}, ClusterNestedResourceIDBuilder{}),
+		ResourceType,
+		legacyregistry.Registerer(),
+	)
 }
 
-// NewCosmosResourceCRUDWithPartitionKey constructs a CRUD with a caller-chosen
-// partition key policy and the standard ARM-style path builder.
+// NewCosmosResourceCRUDWithPartitionKey constructs an instrumented CRUD with a
+// caller-chosen partition key policy and the standard ARM-style path builder.
+// Metrics are recorded under a resource_type label derived from ResourceType.
 func NewCosmosResourceCRUDWithPartitionKey[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
-	ContainerClient *azcosmos.ContainerClient, ParentResourceID *azcorearm.ResourceID, ResourceType azcorearm.ResourceType, partitionKeyDeriver PartitionKeyDeriver) *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
+	ContainerClient *azcosmos.ContainerClient, ParentResourceID *azcorearm.ResourceID, ResourceType azcorearm.ResourceType, partitionKeyDeriver PartitionKeyDeriver) ResourceCRUD[InternalAPIType, InternalAPITypePointer] {
 
-	return NewCosmosResourceCRUDWithStrategies[InternalAPIType, InternalAPITypePointer, CosmosAPIType](
-		ContainerClient, ParentResourceID, ResourceType, partitionKeyDeriver, ClusterNestedResourceIDBuilder{})
+	return NewInstrumentedCRUD[InternalAPIType, InternalAPITypePointer](
+		NewCosmosResourceCRUDWithStrategies[InternalAPIType, InternalAPITypePointer, CosmosAPIType](
+			ContainerClient, ParentResourceID, ResourceType, partitionKeyDeriver, ClusterNestedResourceIDBuilder{}),
+		ResourceType,
+		legacyregistry.Registerer(),
+	)
 }
 
-// NewCosmosResourceCRUDWithStrategies constructs a CRUD with caller-chosen
-// partition-key and resource-ID-path policies. Use this to back containers
-// whose layout deviates from the standard ARO scheme (fleet, kube-applier).
+// NewCosmosResourceCRUDWithStrategies constructs a raw (uninstrumented) CRUD with
+// caller-chosen partition-key and resource-ID-path policies. Use this to back
+// containers whose layout deviates from the standard ARO scheme (fleet,
+// kube-applier). Unlike NewCosmosResourceCRUD it does NOT record metrics, so that
+// callers can compose it with other decorators (e.g. validation) and instrument
+// the outermost layer via NewInstrumentedCRUD / NewInstrumentedValidatingCRUD.
 func NewCosmosResourceCRUDWithStrategies[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
 	ContainerClient *azcosmos.ContainerClient, ParentResourceID *azcorearm.ResourceID, ResourceType azcorearm.ResourceType, partitionKeyDeriver PartitionKeyDeriver, resourceIDBuilder ResourceIDBuilder) *NestedCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 
