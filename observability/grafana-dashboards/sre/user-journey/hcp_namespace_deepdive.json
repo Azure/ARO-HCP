@@ -763,7 +763,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[5m]))",
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
           "format": "table",
           "instant": true,
           "range": false,
@@ -2119,15 +2119,15 @@
               },
               {
                 "color": "yellow",
-                "value": 2
+                "value": 2000000000
               },
               {
                 "color": "red",
-                "value": 8
+                "value": 8000000000
               }
             ]
           },
-          "unit": "decgbytes"
+          "unit": "decbytes"
         },
         "overrides": []
       },
@@ -2161,14 +2161,14 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=\"$namespace\"} / 1024 / 1024 / 1024",
+          "expr": "etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}",
           "instant": true,
           "legendFormat": "{{pod}}",
           "range": false,
           "refId": "A"
         }
       ],
-      "title": "etcd DB Size (GB)",
+      "title": "etcd DB Size",
       "type": "stat"
     },
     {
@@ -2345,7 +2345,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum(rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[5m]))",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
           "legendFormat": "$namespace CPU usage",
           "range": true,
           "refId": "A"
@@ -2537,7 +2537,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum(rate(container_network_receive_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
+          "expr": "sum(rate(container_network_receive_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "$namespace RX",
           "range": true,
           "refId": "A"
@@ -2547,7 +2547,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum(rate(container_network_transmit_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
+          "expr": "sum(rate(container_network_transmit_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "$namespace TX",
           "range": true,
           "refId": "B"
@@ -2642,7 +2642,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (\n  label_replace(\n    rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[5m]),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\", node=~\"aks-user.*\"})\n* 100",
+          "expr": "sum by (node) (\n  label_replace(\n    rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]),\n    \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"\n  )\n)\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\", node=~\"aks-user.*\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
@@ -2854,7 +2854,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (node) (label_replace(rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}[5m]), \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\"})\n* 100",
+          "expr": "sum by (node) (label_replace(rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}[$__rate_interval]), \"node\", \"$1\", \"instance\", \"([^:]+)(:.*)?\"))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\"})\n* 100",
           "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
