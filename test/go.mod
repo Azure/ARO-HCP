@@ -41,7 +41,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
-	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260707142426-572a3e9deb7a
+	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260812190735-a8b44e9f9fed
 	github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9
 	github.com/openshift/client-go v0.0.0-20260429123927-c81f86abfa6a
 	github.com/openshift/hypershift/api v0.0.0-20260602200802-c135e0c47b37
