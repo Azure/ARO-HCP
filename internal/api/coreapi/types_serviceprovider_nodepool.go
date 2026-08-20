@@ -116,7 +116,7 @@ type ServiceProviderNodePoolStatus struct {
 type ServiceProviderNodePoolStatusVersion struct {
 	// ActiveVersions is an array of versions currently active in the nodepool, ordered with the most recent first.
 	// During upgrades, multiple versions can be active simultaneously.
-	ActiveVersions []HCPNodePoolActiveVersion `json:"activeVersions,omitempty"`
+	ActiveVersions []ServiceProviderNodePoolActiveVersion `json:"activeVersions,omitempty"`
 }
 
 const (
@@ -125,8 +125,8 @@ const (
 	MaestroBundleInternalNameReadonlyHypershiftNodePool MaestroBundleInternalName = "readonlyHypershiftNodePool"
 )
 
-// HCPNodePoolActiveVersion represents a single version active in the nodepool.
-type HCPNodePoolActiveVersion struct {
+// ServiceProviderNodePoolActiveVersion represents a single version active in the nodepool.
+type ServiceProviderNodePoolActiveVersion struct {
 	// Version is the full version in x.y.z format (e.g., "4.19.2")
 	Version *semver.Version `json:"version,omitempty"`
 }

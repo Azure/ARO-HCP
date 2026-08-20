@@ -284,11 +284,11 @@ type AzureReference struct {
 type ServiceProviderClusterStatusVersion struct {
 	// ActiveVersions is an array of versions currently active in the control plane, ordered with the most recent first.
 	// During upgrades, multiple versions can be active simultaneously.
-	ActiveVersions []HCPClusterActiveVersion `json:"active_versions,omitempty"`
+	ActiveVersions []ServiceProviderClusterActiveVersion `json:"active_versions,omitempty"`
 }
 
-// HCPClusterActiveVersion represents a single version active in the control plane.
-type HCPClusterActiveVersion struct {
+// ServiceProviderClusterActiveVersion represents a single version active in the control plane.
+type ServiceProviderClusterActiveVersion struct {
 	// Version is the full version in x.y.z format (e.g., "4.19.2")
 	Version *semver.Version `json:"version,omitempty"`
 	// State is the update state from OpenShift (e.g. configv1.CompletedUpdate or configv1.PartialUpdate).

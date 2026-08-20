@@ -140,7 +140,14 @@ model HcpOpenShiftClusterProperties {
   /** Status of the cluster resource */
   @visibility(Lifecycle.Read)
   @added(Versions.v2026_06_30_preview)
-  status?: ResourceStatus;
+  @renamedFrom(Versions.v2026_09_01_preview, "status")
+  @removed(Versions.v2026_09_01_preview)
+  resourceStatus?: ResourceStatus;
+
+  /** Status of the cluster resource */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_09_01_preview)
+  status?: ClusterResourceStatus;
 
   /** Cryptographic restrictions for kernel and userspace libraries */
   @added(Versions.v2026_06_30_preview)
@@ -799,7 +806,14 @@ model NodePoolProperties {
   /** Status of the node pool resource */
   @visibility(Lifecycle.Read)
   @added(Versions.v2026_06_30_preview)
-  status?: ResourceStatus;
+  @renamedFrom(Versions.v2026_09_01_preview, "status")
+  @removed(Versions.v2026_09_01_preview)
+  resourceStatus?: ResourceStatus;
+
+  /** Status of the node pool resource */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_09_01_preview)
+  status?: NodePoolResourceStatus;
 }
 
 /** The taint effect the same as in Kubernetes */
@@ -1090,10 +1104,52 @@ model ExternalAuthProperties {
 @added(Versions.v2026_06_30_preview)
 model ResourceStatus {
   /** The conditions on the resource */
+  @added(Versions.v2026_06_30_preview)
   @visibility(Lifecycle.Read)
   @identifiers(#["type"])
   @maxItems(10)
   conditions?: Condition[];
+}
+
+/** ClusterResourceStatus represents the observed status of the cluster resource. */
+@added(Versions.v2026_09_01_preview)
+model ClusterResourceStatus {
+  /** The conditions on the resource */
+  ...ResourceStatus;
+
+  /** The activeVersions of a resource. This field is a slice as during upgrades there are more than one active version. */
+  @added(Versions.v2026_09_01_preview)
+  @visibility(Lifecycle.Read)
+  @identifiers(#["version"])
+  activeVersions?: ClusterActiveVersion[];
+}
+
+/** ClusterActiveVersion represents a version of a resource. */
+@added(Versions.v2026_09_01_preview)
+model ClusterActiveVersion {
+  /** The version of the resource. Specified in major.minor, same as the input */
+  @visibility(Lifecycle.Read)
+  version: string;
+}
+
+/** NodePoolResourceStatus represents the observed status of the nodepool resource. */
+@added(Versions.v2026_09_01_preview)
+model NodePoolResourceStatus {
+  ...ResourceStatus;
+
+  /** The activeVersions of a resource, This field is a slice as during upgrades there are more than one active version. */
+  @added(Versions.v2026_09_01_preview)
+  @visibility(Lifecycle.Read)
+  @identifiers(#["version"])
+  activeVersions?: NodePoolActiveVersion[];
+}
+
+/** NodePoolActiveVersion represents a version of a resource. */
+@added(Versions.v2026_09_01_preview)
+model NodePoolActiveVersion {
+  /** The version of the resource. Specified in major.minor.patch, same as the input */
+  @visibility(Lifecycle.Read)
+  version: string;
 }
 
 /** Condition represents an observation of a resource's state. */

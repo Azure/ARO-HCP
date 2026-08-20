@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/blang/semver/v4"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
@@ -70,6 +72,17 @@ type HCPOpenShiftClusterNodePoolStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	UserFacingConditions []metav1.Condition `json:"userFacingConditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// ActiveVersions are the active versions of the node pool, ordered newest first.
+	// Written by: NodePoolActiveVersions
+	// +optional
+	// +listType=slice
+	ActiveVersions []HCPNodePoolActiveVersion `json:"activeVersions,omitempty"`
+}
+
+type HCPNodePoolActiveVersion struct {
+	// Version is the user-facing version in x.y.z format (e.g., "4.20.8")
+	Version *semver.Version `json:"version,omitempty"`
 }
 
 var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
