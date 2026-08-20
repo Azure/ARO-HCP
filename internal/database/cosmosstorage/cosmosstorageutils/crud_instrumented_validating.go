@@ -38,8 +38,8 @@ import (
 // as a request just like a Cosmos error: the metrics capture everything,
 // including validation errors. It reuses the metric collectors, verb labels and
 // codeForError helper defined alongside instrumentedCRUD.
-type instrumentedValidatingCRUD[T any, TP coreapi.CosmosMetadataAccessorPtr[T]] struct {
-	inner             ValidatingResourceCRUD[T, TP]
+type instrumentedValidatingCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
+	inner             ValidatingResourceCRUD[InternalAPIType, InternalAPITypePointer]
 	resourceTypeLabel string
 	metrics           *databaseMetrics
 }
@@ -51,8 +51,8 @@ type instrumentedValidatingCRUD[T any, TP coreapi.CosmosMetadataAccessorPtr[T]] 
 // As with NewInstrumentedCRUD, the collectors are registered on registerer (see
 // sharedDatabaseMetrics) so both decorators share a single set of collectors per
 // registry.
-func NewInstrumentedValidatingCRUD[T any, TP coreapi.CosmosMetadataAccessorPtr[T]](inner ValidatingResourceCRUD[T, TP], resourceType azcorearm.ResourceType, registerer prometheus.Registerer) ValidatingResourceCRUD[T, TP] {
-	return &instrumentedValidatingCRUD[T, TP]{
+func NewInstrumentedValidatingCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](inner ValidatingResourceCRUD[InternalAPIType, InternalAPITypePointer], resourceType azcorearm.ResourceType, registerer prometheus.Registerer) ValidatingResourceCRUD[InternalAPIType, InternalAPITypePointer] {
+	return &instrumentedValidatingCRUD[InternalAPIType, InternalAPITypePointer]{
 		inner:             inner,
 		resourceTypeLabel: sanitizeResourceType(resourceType),
 		metrics:           sharedDatabaseMetrics(registerer),
@@ -61,47 +61,47 @@ func NewInstrumentedValidatingCRUD[T any, TP coreapi.CosmosMetadataAccessorPtr[T
 
 // observe records one counter increment and one histogram observation for a
 // completed operation. The status code is derived from err by codeForError.
-func (c *instrumentedValidatingCRUD[T, TP]) observe(verb string, start time.Time, err error) {
+func (c *instrumentedValidatingCRUD[InternalAPIType, InternalAPITypePointer]) observe(verb string, start time.Time, err error) {
 	code := codeForError(err)
 	c.metrics.requestTotal.WithLabelValues(verb, c.resourceTypeLabel, code).Inc()
 	c.metrics.requestDuration.WithLabelValues(verb, c.resourceTypeLabel, code).Observe(time.Since(start).Seconds())
 }
 
-func (c *instrumentedValidatingCRUD[T, TP]) GetByID(ctx context.Context, cosmosID string) (_ *T, err error) {
+func (c *instrumentedValidatingCRUD[InternalAPIType, InternalAPITypePointer]) GetByID(ctx context.Context, cosmosID string) (_ *InternalAPIType, err error) {
 	start := time.Now()
 	defer func() { c.observe(verbGetByID, start, err) }()
 	return c.inner.GetByID(ctx, cosmosID)
 }
 
-func (c *instrumentedValidatingCRUD[T, TP]) Get(ctx context.Context, resourceID string) (_ *T, err error) {
+func (c *instrumentedValidatingCRUD[InternalAPIType, InternalAPITypePointer]) Get(ctx context.Context, resourceID string) (_ *InternalAPIType, err error) {
 	start := time.Now()
 	defer func() { c.observe(verbGet, start, err) }()
 	return c.inner.Get(ctx, resourceID)
 }
 
-// List is intentionally NOT instrumented, for the same reason as
-// instrumentedCRUD.List: the Cosmos SDK pages lazily, so List only builds the
-// iterator and the real query runs later in the caller's Items() range loop,
-// outside this decorator. A verb="list" sample would always be a near-zero,
-// always-200 observation that misrepresents query latency, so List simply
-// delegates to the wrapped CRUD with no metrics recorded.
-func (c *instrumentedValidatingCRUD[T, TP]) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[T], error) {
+// NOTE: The recorded duration only reflects the time to construct the pager/iterator,
+// not the actual Cosmos DB query execution. Real queries happen lazily when
+// DBClientIterator.Items() calls pager.NextPage(). This metric is still useful
+// for tracking request totals.
+func (c *instrumentedValidatingCRUD[InternalAPIType, InternalAPITypePointer]) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (_ DBClientIterator[InternalAPIType], err error) {
+	start := time.Now()
+	defer func() { c.observe(verbList, start, err) }()
 	return c.inner.List(ctx, opts)
 }
 
-func (c *instrumentedValidatingCRUD[T, TP]) Create(ctx context.Context, newObj *T, options *azcosmos.ItemOptions) (_ *T, err error) {
+func (c *instrumentedValidatingCRUD[InternalAPIType, InternalAPITypePointer]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (_ *InternalAPIType, err error) {
 	start := time.Now()
 	defer func() { c.observe(verbCreate, start, err) }()
 	return c.inner.Create(ctx, newObj, options)
 }
 
-func (c *instrumentedValidatingCRUD[T, TP]) Replace(ctx context.Context, newObj *T, oldObj *T, options *azcosmos.ItemOptions) (_ *T, err error) {
+func (c *instrumentedValidatingCRUD[InternalAPIType, InternalAPITypePointer]) Replace(ctx context.Context, newObj *InternalAPIType, oldObj *InternalAPIType, options *azcosmos.ItemOptions) (_ *InternalAPIType, err error) {
 	start := time.Now()
 	defer func() { c.observe(verbReplace, start, err) }()
 	return c.inner.Replace(ctx, newObj, oldObj, options)
 }
 
-func (c *instrumentedValidatingCRUD[T, TP]) Delete(ctx context.Context, resourceID string) (err error) {
+func (c *instrumentedValidatingCRUD[InternalAPIType, InternalAPITypePointer]) Delete(ctx context.Context, resourceID string) (err error) {
 	start := time.Now()
 	defer func() { c.observe(verbDelete, start, err) }()
 	return c.inner.Delete(ctx, resourceID)

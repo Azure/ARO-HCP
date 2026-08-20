@@ -38,15 +38,16 @@ import (
 // They are kept as constants so the instrumented decorator and its tests refer
 // to exactly the same strings.
 //
-// Note there is deliberately no "list" verb. List() only constructs the result
-// iterator; the actual Cosmos query runs lazily while the caller ranges over the
-// iterator's Items() (via pager.NextPage), which happens outside this decorator.
-// Instrumenting List() would therefore always record a near-zero duration and a
-// 200 code regardless of the real query outcome, which is misleading — so List()
-// is intentionally left uninstrumented (see the List methods below).
+// The "list" verb is a special case: List() only constructs the result iterator,
+// so the recorded duration reflects that construction, not the actual Cosmos
+// query (which runs lazily while the caller ranges over the iterator's Items()
+// via pager.NextPage, outside this decorator). The verb is still recorded so the
+// request total captures how often List is called; see the List methods below
+// for the accompanying caveat.
 const (
 	verbGetByID                 = "get_by_id"
 	verbGet                     = "get"
+	verbList                    = "list"
 	verbCreate                  = "create"
 	verbReplace                 = "replace"
 	verbDelete                  = "delete"
@@ -88,6 +89,24 @@ type databaseMetrics struct {
 	// transactionDuration records the wall-clock latency of every
 	// DBTransaction.Execute with the same label set as transactionTotal.
 	transactionDuration *prometheus.HistogramVec
+
+	// transactionStepTotal counts every individual step committed by a
+	// DBTransaction.Execute, partitioned by the transaction type, the step's verb
+	// (create/replace/delete), the step's resource type, and the HTTP status code
+	// derived from the transaction result. Because a transaction commits all of
+	// its queued steps in a single atomic TransactionalBatch, every step of a
+	// given Execute shares that Execute's outcome code. This complements
+	// transactionTotal (one sample per batch) with a per-step breakdown that shows
+	// which verbs and resource types the batches actually carry.
+	transactionStepTotal *prometheus.CounterVec
+
+	// transactionStepDuration records, for every step committed by a
+	// DBTransaction.Execute, the wall-clock latency of that Execute, with the same
+	// label set as transactionStepTotal. The batch commits atomically in one
+	// Cosmos round-trip, so there is no independent per-step latency; each step is
+	// attributed the whole batch's duration so the histogram can still be sliced
+	// by step_verb / step_resource_type.
+	transactionStepDuration *prometheus.HistogramVec
 }
 
 // newDatabaseMetrics constructs the database CRUD collectors and registers them
@@ -126,6 +145,21 @@ func newDatabaseMetrics(r prometheus.Registerer) *databaseMetrics {
 			},
 			[]string{"transaction_type", "code"},
 		),
+		transactionStepTotal: promauto.With(r).NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "database_transaction_step_total",
+				Help: "Total number of individual steps committed by database transactions, partitioned by transaction type, step verb, step resource type, and HTTP status code.",
+			},
+			[]string{"transaction_type", "step_verb", "step_resource_type", "code"},
+		),
+		transactionStepDuration: promauto.With(r).NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    "database_transaction_step_duration_seconds",
+				Help:    "Duration of the database transaction that committed each step, in seconds, partitioned by transaction type, step verb, step resource type, and HTTP status code.",
+				Buckets: databaseRequestBuckets,
+			},
+			[]string{"transaction_type", "step_verb", "step_resource_type", "code"},
+		),
 	}
 }
 
@@ -162,8 +196,8 @@ func sharedDatabaseMetrics(r prometheus.Registerer) *databaseMetrics {
 // bypass instrumentation. The design mirrors the kube-apiserver request
 // metrics: one counter and one latency histogram, labelled by verb, subject
 // (resource_type) and HTTP status code.
-type instrumentedCRUD[T any, TP coreapi.CosmosMetadataAccessorPtr[T]] struct {
-	inner             ResourceCRUD[T, TP]
+type instrumentedCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
+	inner             ResourceCRUD[InternalAPIType, InternalAPITypePointer]
 	resourceTypeLabel string
 	metrics           *databaseMetrics
 }
@@ -175,8 +209,8 @@ type instrumentedCRUD[T any, TP coreapi.CosmosMetadataAccessorPtr[T]] struct {
 // registerer (see sharedDatabaseMetrics); pass legacyregistry.Registerer() in
 // production so the metrics land on the registry exposed by /metrics, or a
 // dedicated prometheus.NewRegistry() in tests.
-func NewInstrumentedCRUD[T any, TP coreapi.CosmosMetadataAccessorPtr[T]](inner ResourceCRUD[T, TP], resourceType azcorearm.ResourceType, registerer prometheus.Registerer) ResourceCRUD[T, TP] {
-	return &instrumentedCRUD[T, TP]{
+func NewInstrumentedCRUD[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType]](inner ResourceCRUD[InternalAPIType, InternalAPITypePointer], resourceType azcorearm.ResourceType, registerer prometheus.Registerer) ResourceCRUD[InternalAPIType, InternalAPITypePointer] {
+	return &instrumentedCRUD[InternalAPIType, InternalAPITypePointer]{
 		inner:             inner,
 		resourceTypeLabel: sanitizeResourceType(resourceType),
 		metrics:           sharedDatabaseMetrics(registerer),
@@ -202,7 +236,7 @@ func sanitizeResourceType(rt azcorearm.ResourceType) string {
 
 // observe records one counter increment and one histogram observation for a
 // completed operation. The status code is derived from err.
-func (c *instrumentedCRUD[T, TP]) observe(verb string, start time.Time, err error) {
+func (c *instrumentedCRUD[InternalAPIType, InternalAPITypePointer]) observe(verb string, start time.Time, err error) {
 	code := codeForError(err)
 	c.metrics.requestTotal.WithLabelValues(verb, c.resourceTypeLabel, code).Inc()
 	c.metrics.requestDuration.WithLabelValues(verb, c.resourceTypeLabel, code).Observe(time.Since(start).Seconds())
@@ -228,42 +262,41 @@ func codeForError(err error) string {
 	return strconv.Itoa(500)
 }
 
-func (c *instrumentedCRUD[T, TP]) GetByID(ctx context.Context, cosmosID string) (_ *T, err error) {
+func (c *instrumentedCRUD[InternalAPIType, InternalAPITypePointer]) GetByID(ctx context.Context, cosmosID string) (_ *InternalAPIType, err error) {
 	start := time.Now()
 	defer func() { c.observe(verbGetByID, start, err) }()
 	return c.inner.GetByID(ctx, cosmosID)
 }
 
-func (c *instrumentedCRUD[T, TP]) Get(ctx context.Context, resourceID string) (_ *T, err error) {
+func (c *instrumentedCRUD[InternalAPIType, InternalAPITypePointer]) Get(ctx context.Context, resourceID string) (_ *InternalAPIType, err error) {
 	start := time.Now()
 	defer func() { c.observe(verbGet, start, err) }()
 	return c.inner.Get(ctx, resourceID)
 }
 
-// List is intentionally NOT instrumented. The Cosmos SDK pages lazily: List only
-// constructs the result iterator, and the actual query work happens later while
-// the caller ranges over the returned iterator's Items() (via pager.NextPage),
-// which runs outside this decorator. A verb="list" sample would therefore always
-// record a near-zero duration and a 200 code regardless of the real query
-// outcome, making the metric meaningless. List simply delegates to the wrapped
-// CRUD so callers still get the iterator, with no metrics recorded.
-func (c *instrumentedCRUD[T, TP]) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[T], error) {
+// NOTE: The recorded duration only reflects the time to construct the pager/iterator,
+// not the actual Cosmos DB query execution. Real queries happen lazily when
+// DBClientIterator.Items() calls pager.NextPage(). This metric is still useful
+// for tracking request totals.
+func (c *instrumentedCRUD[InternalAPIType, InternalAPITypePointer]) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (_ DBClientIterator[InternalAPIType], err error) {
+	start := time.Now()
+	defer func() { c.observe(verbList, start, err) }()
 	return c.inner.List(ctx, opts)
 }
 
-func (c *instrumentedCRUD[T, TP]) Create(ctx context.Context, newObj *T, options *azcosmos.ItemOptions) (_ *T, err error) {
+func (c *instrumentedCRUD[InternalAPIType, InternalAPITypePointer]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (_ *InternalAPIType, err error) {
 	start := time.Now()
 	defer func() { c.observe(verbCreate, start, err) }()
 	return c.inner.Create(ctx, newObj, options)
 }
 
-func (c *instrumentedCRUD[T, TP]) Replace(ctx context.Context, newObj *T, options *azcosmos.ItemOptions) (_ *T, err error) {
+func (c *instrumentedCRUD[InternalAPIType, InternalAPITypePointer]) Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (_ *InternalAPIType, err error) {
 	start := time.Now()
 	defer func() { c.observe(verbReplace, start, err) }()
 	return c.inner.Replace(ctx, newObj, options)
 }
 
-func (c *instrumentedCRUD[T, TP]) Delete(ctx context.Context, resourceID string) (err error) {
+func (c *instrumentedCRUD[InternalAPIType, InternalAPITypePointer]) Delete(ctx context.Context, resourceID string) (err error) {
 	start := time.Now()
 	defer func() { c.observe(verbDelete, start, err) }()
 	return c.inner.Delete(ctx, resourceID)
@@ -277,13 +310,13 @@ func (c *instrumentedCRUD[T, TP]) Delete(ctx context.Context, resourceID string)
 // these keeps the enqueue methods covered by the same counter and duration
 // histogram; the "code" label therefore reflects only enqueue errors, not the
 // batch's eventual execution result.
-func (c *instrumentedCRUD[T, TP]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *T, opts *azcosmos.TransactionalBatchItemOptions) (_ string, err error) {
+func (c *instrumentedCRUD[InternalAPIType, InternalAPITypePointer]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (_ string, err error) {
 	start := time.Now()
 	defer func() { c.observe(verbAddCreateToTransaction, start, err) }()
 	return c.inner.AddCreateToTransaction(ctx, transaction, newObj, opts)
 }
 
-func (c *instrumentedCRUD[T, TP]) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *T, opts *azcosmos.TransactionalBatchItemOptions) (_ string, err error) {
+func (c *instrumentedCRUD[InternalAPIType, InternalAPITypePointer]) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (_ string, err error) {
 	start := time.Now()
 	defer func() { c.observe(verbAddReplaceToTransaction, start, err) }()
 	return c.inner.AddReplaceToTransaction(ctx, transaction, newObj, opts)

@@ -240,3 +240,172 @@ func TestInstrumentedTransactionPassthrough(t *testing.T) {
 	// UnwrapTransaction should peel the instrumented decorator back to the mock.
 	assert.Same(t, mock, UnwrapTransaction(txn), "UnwrapTransaction should return the inner transaction")
 }
+
+// A pair of real ARM resource IDs (and their expected sanitized resource_type
+// labels) used by the per-step metric tests. The nested node-pool ID exercises
+// the multi-segment resource type path.
+const (
+	stepClusterResourceID  = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/mycluster"
+	stepNodePoolResourceID = stepClusterResourceID + "/nodePools/mypool"
+
+	stepClusterResourceType  = "Microsoft_RedHatOpenShift_hcpOpenShiftClusters"
+	stepNodePoolResourceType = "Microsoft_RedHatOpenShift_hcpOpenShiftClusters_nodePools"
+)
+
+// noopStep is a CosmosDBTransactionStep that does nothing; the per-step metrics
+// are derived from the step details passed to AddStep, not from the step func.
+func noopStep(b *azcosmos.TransactionalBatch) (string, error) { return "", nil }
+
+// stepCounterValue reads the current value of the database_transaction_step_total
+// series for the given labels.
+func stepCounterValue(t *testing.T, m *databaseMetrics, txnType, verb, resourceType, code string) float64 {
+	t.Helper()
+	c, err := m.transactionStepTotal.GetMetricWithLabelValues(txnType, verb, resourceType, code)
+	require.NoError(t, err, "failed to get transaction step counter series")
+	return testutil.ToFloat64(c)
+}
+
+// stepHistogramSampleCount returns the number of observations recorded on the
+// database_transaction_step_duration_seconds series for the given labels.
+func stepHistogramSampleCount(t *testing.T, m *databaseMetrics, txnType, verb, resourceType, code string) uint64 {
+	t.Helper()
+	observer, err := m.transactionStepDuration.GetMetricWithLabelValues(txnType, verb, resourceType, code)
+	require.NoError(t, err, "failed to get transaction step histogram series")
+	metric, ok := observer.(prometheus.Metric)
+	require.True(t, ok, "histogram observer is not a prometheus.Metric")
+	var dtoMetric dto.Metric
+	require.NoError(t, metric.Write(&dtoMetric), "failed to write histogram metric")
+	return dtoMetric.GetHistogram().GetSampleCount()
+}
+
+// TestInstrumentedTransactionRecordsStepMetrics verifies that Execute records a
+// per-step counter and duration sample for every step queued via AddStep, each
+// labelled with the step's verb (lower-cased ActionType) and resource type
+// (parsed from the step's ResourceID), all sharing the batch's success code.
+func TestInstrumentedTransactionRecordsStepMetrics(t *testing.T) {
+	ctx := context.Background()
+	const txnType = "TestStepMetrics"
+
+	reg := prometheus.NewRegistry()
+	metrics := sharedDatabaseMetrics(reg)
+	txn := InstrumentTransaction(&mockTransaction{}, txnType, reg)
+
+	txn.AddStep(CosmosDBTransactionStepDetails{ActionType: "Create", ResourceID: stepClusterResourceID}, noopStep)
+	txn.AddStep(CosmosDBTransactionStepDetails{ActionType: "Replace", ResourceID: stepNodePoolResourceID}, noopStep)
+
+	_, err := txn.Execute(ctx, nil)
+	require.NoError(t, err, "execute should succeed")
+
+	assert.Equal(t, float64(1), stepCounterValue(t, metrics, txnType, "create", stepClusterResourceType, "200"),
+		"create step counter should increment once")
+	assert.Equal(t, uint64(1), stepHistogramSampleCount(t, metrics, txnType, "create", stepClusterResourceType, "200"),
+		"create step histogram should record one observation")
+	assert.Equal(t, float64(1), stepCounterValue(t, metrics, txnType, "replace", stepNodePoolResourceType, "200"),
+		"replace step counter should increment once")
+	assert.Equal(t, uint64(1), stepHistogramSampleCount(t, metrics, txnType, "replace", stepNodePoolResourceType, "200"),
+		"replace step histogram should record one observation")
+}
+
+// TestInstrumentedTransactionStepMetricsShareBatchOutcome verifies that when the
+// batch fails, every step is recorded under the batch's HTTP status code (not
+// 200), reflecting that a TransactionalBatch commits atomically. Repeated steps
+// of the same verb/resource type accumulate on the same series.
+func TestInstrumentedTransactionStepMetricsShareBatchOutcome(t *testing.T) {
+	ctx := context.Background()
+	const txnType = "TestStepErrorCode"
+
+	reg := prometheus.NewRegistry()
+	metrics := sharedDatabaseMetrics(reg)
+	wantErr := NewTransactionStepError(0, 2, http.StatusPreconditionFailed, CosmosDBTransactionStepDetails{})
+	txn := InstrumentTransaction(&mockTransaction{err: wantErr}, txnType, reg)
+
+	// Two create steps on the same resource type accumulate on one series.
+	txn.AddStep(CosmosDBTransactionStepDetails{ActionType: "Create", ResourceID: stepClusterResourceID}, noopStep)
+	txn.AddStep(CosmosDBTransactionStepDetails{ActionType: "Create", ResourceID: stepClusterResourceID}, noopStep)
+
+	_, err := txn.Execute(ctx, nil)
+	require.Error(t, err, "execute should return the configured error")
+
+	assert.Equal(t, float64(2), stepCounterValue(t, metrics, txnType, "create", stepClusterResourceType, "412"),
+		"both create steps should be recorded under the batch's 412 status code")
+	assert.Equal(t, uint64(2), stepHistogramSampleCount(t, metrics, txnType, "create", stepClusterResourceType, "412"),
+		"both create steps should record a duration observation under 412")
+	assert.Zero(t, stepCounterValue(t, metrics, txnType, "create", stepClusterResourceType, "200"),
+		"the success series must be untouched on the error path")
+}
+
+// TestInstrumentedTransactionNoStepsNoStepMetrics verifies that a transaction
+// with no queued steps records the whole-batch transaction metrics but emits no
+// per-step samples.
+func TestInstrumentedTransactionNoStepsNoStepMetrics(t *testing.T) {
+	ctx := context.Background()
+	const txnType = "TestNoSteps"
+
+	reg := prometheus.NewRegistry()
+	metrics := sharedDatabaseMetrics(reg)
+	txn := InstrumentTransaction(&mockTransaction{}, txnType, reg)
+
+	_, err := txn.Execute(ctx, nil)
+	require.NoError(t, err, "execute should succeed")
+
+	assert.Equal(t, float64(1), transactionCounterValue(t, metrics, txnType, "200"),
+		"the whole-batch transaction counter should still increment")
+	assert.Zero(t, stepCounterValue(t, metrics, txnType, "create", stepClusterResourceType, "200"),
+		"no per-step samples should be recorded when there are no steps")
+}
+
+// TestStepVerb verifies the ActionType -> step_verb mapping: the verb is
+// lower-cased, and an empty ActionType becomes "unknown".
+func TestStepVerb(t *testing.T) {
+	cases := []struct {
+		actionType string
+		want       string
+	}{
+		{"Create", "create"},
+		{"Replace", "replace"},
+		{"Delete", "delete"},
+		{"", "unknown"},
+	}
+	for _, tc := range cases {
+		assert.Equal(t, tc.want, stepVerb(tc.actionType), "stepVerb(%q)", tc.actionType)
+	}
+}
+
+// TestStepResourceType verifies that step_resource_type is derived from the ARM
+// ResourceID when present, falls back to the sanitized Go type otherwise, and
+// finally to "unknown" when neither is available.
+func TestStepResourceType(t *testing.T) {
+	cases := []struct {
+		name    string
+		details CosmosDBTransactionStepDetails
+		want    string
+	}{
+		{
+			name:    "parses_arm_resource_id",
+			details: CosmosDBTransactionStepDetails{ResourceID: stepClusterResourceID},
+			want:    stepClusterResourceType,
+		},
+		{
+			name:    "parses_nested_arm_resource_id",
+			details: CosmosDBTransactionStepDetails{ResourceID: stepNodePoolResourceID},
+			want:    stepNodePoolResourceType,
+		},
+		{
+			name:    "falls_back_to_sanitized_go_type",
+			details: CosmosDBTransactionStepDetails{GoType: "*coreapi.HCPOpenShiftCluster"},
+			want:    "_coreapi_HCPOpenShiftCluster",
+		},
+		{
+			name:    "unknown_when_empty",
+			details: CosmosDBTransactionStepDetails{},
+			want:    "unknown",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := stepResourceType(tc.details)
+			assert.Equal(t, tc.want, got, "stepResourceType")
+			assert.Regexp(t, `^[a-zA-Z0-9_]+$`, got, "label must contain only Prometheus-safe characters")
+		})
+	}
+}
