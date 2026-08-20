@@ -52,7 +52,6 @@
 # further down (e.g. specific pods inside an ocm-* namespace) and must be
 # claimed before those broader rules run.
 categories:
-
 - name: "expected-noise-backend-nodepool-upgrade-retry"
   tier: 0
   policy: ignore
@@ -61,7 +60,6 @@ categories:
   - name: "BackendControllerRetryHotLoop"
     labels:
       name: "triggernodepoolupgrade"
-
 - name: "expected-noise-backend-cluster-create-retry"
   tier: 0
   policy: ignore
@@ -70,7 +68,6 @@ categories:
   - name: "BackendControllerRetryHotLoop"
     labels:
       name: "operationclustercreate"
-
 - name: "expected-noise-prometheus-operator-servicemonitor"
   tier: 0
   policy: ignore
@@ -79,7 +76,6 @@ categories:
   - name: "PrometheusOperatorRejectedResources"
     labels:
       resource: "servicemonitor"
-
 - name: "expected-noise-kube-version-mismatch-mgmt"
   tier: 0
   policy: ignore
@@ -88,21 +84,18 @@ categories:
   - name: "KubeVersionMismatch"
     labels:
       cluster: ".*-mgmt-.*"
-
 - name: "expected-noise-orphaned-mrg"
   tier: 0
   policy: ignore
   reason: "Orphaned MRG cleanup is newly deployed and expected to fire while existing orphans are processed."
   match:
   - name: "OrphanedMRGDetected"
-
 - name: "expected-noise-backend-async-operation-stuck"
   tier: 0
   policy: ignore
   reason: "Newly added stuck-async-operation alerts (https://github.com/Azure/ARO-HCP/pull/5952) surface a pre-existing problem: Azure Monitor Workspace ingestion latency (metrics can take ~10min to ingest) makes async operations look stuck and latches onto E2E runs even when the tests pass. Observed blocking green E2E runs (per https://cihealth.tools.hcpsvc.osadev.cloud/run-log?q=BackendAsync): BackendAsyncOperationClusterDeleteStuck, BackendAsyncOperationExternalAuthDeleteStuck, BackendAsyncOperationClusterCreateStuck, BackendAsyncOperationNodePoolDeleteStuck, BackendAsyncOperationNodePoolCreateStuck, BackendAsyncOperationStuck. Owner @stevekuznetsov; durable fix is the AMW auto-scaler (https://github.com/Azure/ARO-HCP/pull/6036). Marked known so it stops blocking the merge queue until that lands."
   match:
   - name: "BackendAsyncOperation.*Stuck"
-
 - name: "expected-noise-klusterlet-pods"
   tier: 0
   policy: ignore
@@ -111,7 +104,6 @@ categories:
   - name: "KubePodNotReady"
     labels:
       namespace: "klusterlet-.*"
-
 - name: "expected-noise-olm-pods"
   tier: 0
   policy: ignore
@@ -121,7 +113,6 @@ categories:
     labels:
       namespace: "ocm-.*"
       pod: "(packageserver|olm-operator|catalog-operator)-.*"
-
 - name: "expected-noise-hcco-pods"
   tier: 0
   policy: ignore
@@ -131,7 +122,6 @@ categories:
     labels:
       namespace: "ocm-.*"
       pod: "hosted-cluster-config-operator-.*"
-
 - name: "expected-noise-capi-provider-pods"
   tier: 0
   policy: ignore
@@ -141,7 +131,6 @@ categories:
     labels:
       namespace: "ocm-.*"
       pod: "capi-provider-.*"
-
 - name: "expected-noise-velero-dataupload-pods"
   tier: 0
   policy: ignore
@@ -151,7 +140,6 @@ categories:
     labels:
       namespace: "velero"
       pod: "ocm-.*"
-
 # --- tier 5: non-customer-visible cluster outage ---
 # The hostedcluster namespace (ocm-<envIdentifier>-<csClusterID>, exactly
 # three dash-separated segments) holds the HostedCluster/NodePool CRs and
@@ -166,7 +154,6 @@ categories:
   - workspace: hcp
     labels:
       namespace: "^ocm-[^-]+-[^-]+$"
-
 # --- tier 4: customer-visible cluster outage ---
 # The controlplane namespace (ocm-<envIdentifier>-<csClusterID>-<domainPrefix>)
 # holds the guest cluster's kube-apiserver, etcd, kube-controller-manager,
@@ -180,7 +167,6 @@ categories:
   - workspace: hcp
     labels:
       namespace: "^ocm-.*"
-
 # --- tier 1: customer-visible region outage ---
 - name: "customer-visible-region-outage"
   tier: 1
@@ -197,7 +183,6 @@ categories:
   - workspace: svc
     labels:
       namespace: "kube-system"
-
 # --- tier 2: non-customer-visible region outage ---
 - name: "non-customer-visible-region-outage"
   tier: 2
@@ -247,7 +232,6 @@ categories:
   # expected-noise until office hours confirms it isn't actionable at all.
   - workspace: svc
     name: "KustoLogsDataStale"
-
 # --- tier 3: management cluster outage ---
 - name: "management-cluster-outage"
   tier: 3
@@ -276,7 +260,6 @@ categories:
   # cluster node threatens every HCP on it.
   - workspace: hcp
     name: "KubeNode(NotReady|Unreachable)"
-
 # --- tier 6: catch-all ---
 # Must be last. Anything not claimed above (including alerts from the
 # `infra` workspace, which isn't scoped to svc or hcp) is treated as tier 1
