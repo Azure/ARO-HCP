@@ -27,7 +27,6 @@ tests:
     # Latency histogram: 45/min within 1s (le="1"), 60/min total → 0.75
 
     # Production client_golang typically emits le="1" for the 1.0 bucket.
-
     values: "0+40x15"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
     values: "0+45x15"

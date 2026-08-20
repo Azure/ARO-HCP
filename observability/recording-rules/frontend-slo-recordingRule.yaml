@@ -84,7 +84,6 @@ spec:
       # Errors: 5xx / total (Access-style error_rate for future MWMBR alerts).
 
       # `or 0 * total` keeps error_rate=0 when there is traffic but no 5xx series.
-
       expr: |
         (
           (
@@ -129,7 +128,6 @@ spec:
       # Latency SLI: requests completing within 1s / total.
 
       # Atomic single expression; le matches "1" or "1.0".
-
       expr: |
         (
           sum by (cluster) (
