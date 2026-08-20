@@ -326,8 +326,8 @@
             "mode": "absolute",
             "steps": [
               { "color": "red" },
-              { "color": "yellow", "value": 99 },
-              { "color": "green", "value": 99.9 }
+              { "color": "yellow", "value": 94 },
+              { "color": "green", "value": 99 }
             ]
           },
           "unit": "percent"
@@ -388,7 +388,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=~\"$cluster\",\n        route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"\n      }[$__rate_interval])\n    )\n  )\n)",
+          "expr": "histogram_quantile(0.99,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=~\"$cluster\",\n        route!~\".*hcpoperation(results|statuses).*\"\n      }[$__rate_interval])\n    )\n  )\n)",
           "instant": true,
           "legendFormat": "p99",
           "refId": "A"
@@ -518,21 +518,21 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=~\"$cluster\",\n        route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"\n      }[$__rate_interval])\n    )\n  )\n)",
+          "expr": "histogram_quantile(0.50,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=~\"$cluster\",\n        route!~\".*hcpoperation(results|statuses).*\"\n      }[$__rate_interval])\n    )\n  )\n)",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=~\"$cluster\",\n        route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"\n      }[$__rate_interval])\n    )\n  )\n)",
+          "expr": "histogram_quantile(0.95,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=~\"$cluster\",\n        route!~\".*hcpoperation(results|statuses).*\"\n      }[$__rate_interval])\n    )\n  )\n)",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=~\"$cluster\",\n        route!=\"/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}\"\n      }[$__rate_interval])\n    )\n  )\n)",
+          "expr": "histogram_quantile(0.99,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=~\"$cluster\",\n        route!~\".*hcpoperation(results|statuses).*\"\n      }[$__rate_interval])\n    )\n  )\n)",
           "legendFormat": "p99",
           "refId": "C"
         }
