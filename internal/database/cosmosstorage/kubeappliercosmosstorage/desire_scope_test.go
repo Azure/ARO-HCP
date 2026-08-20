@@ -24,8 +24,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 func TestParseDesireScope(t *testing.T) {
@@ -154,7 +154,7 @@ func TestDesireScopeConstructors(t *testing.T) {
 			scope, err := tt.constructor()
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantAncestry, scope.Ancestry())
-			assert.True(t, armhelpers.ResourceTypeEqual(tt.wantType, scope.ResourceID().ResourceType),
+			assert.True(t, metadataapi.ResourceTypeEqual(tt.wantType, scope.ResourceID().ResourceType),
 				"resource type mismatch: want %s, got %s", tt.wantType, scope.ResourceID().ResourceType)
 		})
 	}

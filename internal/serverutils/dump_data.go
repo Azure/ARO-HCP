@@ -25,6 +25,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -33,46 +34,6 @@ import (
 )
 
 const RedactStr = "REDACTED"
-
-// ObjectMetadata provides per-document identity for the cosmosResourceSnapshots
-// Kusto table. It is emitted as a structured log field alongside the document content.
-type ObjectMetadata struct {
-	CosmosContainer string `json:"cosmosContainer"`
-	SubscriptionID  string `json:"subscriptionID"`
-	ResourceGroup   string `json:"resourceGroup"`
-	ResourceType    string `json:"resourceType"`
-	ResourceName    string `json:"resourceName"`
-	ResourceID      string `json:"resourceID"`
-}
-
-func objectMetadataForTypedDocument(container string, doc *cosmosstorageutils.TypedDocument) ObjectMetadata {
-	if doc == nil || doc.ResourceID == nil {
-		return ObjectMetadata{CosmosContainer: container}
-	}
-	return ObjectMetadata{
-		CosmosContainer: container,
-		SubscriptionID:  doc.ResourceID.SubscriptionID,
-		ResourceGroup:   doc.ResourceID.ResourceGroupName,
-		ResourceType:    doc.ResourceType,
-		ResourceName:    doc.ResourceID.Name,
-		ResourceID:      doc.ResourceID.String(),
-	}
-}
-
-// ObjectMetadataForResourceID builds ObjectMetadata from an ARM resource ID.
-func ObjectMetadataForResourceID(container string, resourceID *azcorearm.ResourceID) ObjectMetadata {
-	if resourceID == nil {
-		return ObjectMetadata{CosmosContainer: container}
-	}
-	return ObjectMetadata{
-		CosmosContainer: container,
-		SubscriptionID:  resourceID.SubscriptionID,
-		ResourceGroup:   resourceID.ResourceGroupName,
-		ResourceType:    resourceID.ResourceType.String(),
-		ResourceName:    resourceID.Name,
-		ResourceID:      resourceID.String(),
-	}
-}
 
 // DumpDataToLogger writes a structured-log entry for every document related
 // to resourceID. It covers three storage layers:
@@ -116,7 +77,7 @@ func DumpDataToLogger(
 	logger.Info(fmt.Sprintf("dumping resourceID %v", startingCosmosRecord.ResourceID),
 		"snapshotType", "cosmos",
 		"currentResourceID", resourceIDToString(startingCosmosRecord.ResourceID),
-		"objectMetadata", objectMetadataForTypedDocument("resources", startingCosmosRecord),
+		"objectMetadata", cosmosstorageutils.ObjectMetadataForTypedDocument("resources", startingCosmosRecord),
 		"content", startingCosmosRecord,
 	)
 
@@ -134,7 +95,7 @@ func DumpDataToLogger(
 		logger.Info(fmt.Sprintf("dumping resourceID %v", typedDocument.ResourceID),
 			"snapshotType", "cosmos",
 			"currentResourceID", resourceIDToString(typedDocument.ResourceID),
-			"objectMetadata", objectMetadataForTypedDocument("resources", typedDocument),
+			"objectMetadata", cosmosstorageutils.ObjectMetadataForTypedDocument("resources", typedDocument),
 			"content", typedDocument,
 		)
 	}
@@ -142,7 +103,7 @@ func DumpDataToLogger(
 		errs = append(errs, err)
 	}
 
-	// dump all related operations, including terminal ones.
+	// dump all related operations, including the completed ones.
 	operationIter := resourcesDBClient.Operations(resourceID.SubscriptionID).ListActiveOperations(
 		&corecosmosstorage.ResourcesDBClientListActiveOperationDocsOptions{
 			ExternalID:             resourceID,
@@ -150,10 +111,16 @@ func DumpDataToLogger(
 			IncludeTerminal:        true,
 		})
 	for _, operation := range operationIter.Items(ctx) {
-		logger.Info(fmt.Sprintf("dumping resourceID %v", operation.ResourceID),
+		// An operation's own ResourceID is subscription/location-scoped, so derive the HCP
+		// cluster name from its ExternalID (the targeted cluster/node pool) when possible.
+		opLogger := logger
+		if hcpClusterName := metadataapi.ClusterNameFromResourceID(operation.ExternalID); hcpClusterName != "" {
+			opLogger = logger.WithValues(utils.LogValues{}.AddHCPClusterName(hcpClusterName)...)
+		}
+		opLogger.Info(fmt.Sprintf("dumping resourceID %v", operation.ResourceID),
 			"snapshotType", "cosmos",
 			"currentResourceID", resourceIDToString(operation.ResourceID),
-			"objectMetadata", ObjectMetadataForResourceID("operations", operation.ResourceID),
+			"objectMetadata", cosmosstorageutils.ObjectMetadataForOperation(operation),
 			"content", operation,
 		)
 	}
@@ -223,7 +190,7 @@ func dumpKubeApplierData(
 			mcLogger.Info(fmt.Sprintf("dumping kube-applier resourceID %v", doc.ResourceID),
 				"snapshotType", "cosmos",
 				"currentResourceID", resourceIDToString(doc.ResourceID),
-				"objectMetadata", objectMetadataForTypedDocument("kubeApplier", doc),
+				"objectMetadata", cosmosstorageutils.ObjectMetadataForTypedDocument("kubeApplier", doc),
 				"content", doc,
 			)
 		}
@@ -271,7 +238,7 @@ func DumpBillingToLogger(ctx context.Context, resourcesDBClient corecosmosstorag
 	logger.Info(fmt.Sprintf("dumping billing document for resourceID %v", billingDoc.ResourceID),
 		"snapshotType", "cosmos",
 		"currentResourceID", billingDoc.ResourceID.String(),
-		"objectMetadata", ObjectMetadataForResourceID("billing", billingDoc.ResourceID),
+		"objectMetadata", metadataapi.ObjectMetadataForResourceID("billing", billingDoc.ResourceID),
 		"content", billingDoc,
 	)
 

@@ -38,8 +38,23 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
+
+// changeFeedItemObjectMetadata builds the objectMetadata attached to change-feed item logs so they
+// ingest into cosmosResourceSnapshots with full resource identity. resourceID is the document's own
+// ResourceID, from which ObjectMetadataForResourceID already derives the enclosing cluster.
+// Operations are special: their own ResourceID is subscription/location-scoped and identifies
+// neither a resource group nor a cluster, so their metadata is derived from the operation's
+// ExternalID via the shared cosmosstorageutils.ObjectMetadataForOperation helper (also used by the
+// datadump path) to keep the two paths in sync. The caller mirrors the returned ClusterResourceID
+// into the flat hcp_cluster_name / cluster_id log fields.
+func changeFeedItemObjectMetadata(cosmosContainerName string, internalObj any, resourceID *azcorearm.ResourceID) metadataapi.ObjectMetadata {
+	if operation, ok := internalObj.(*coreapi.Operation); ok {
+		objectMetadata := cosmosstorageutils.ObjectMetadataForOperation(operation)
+		return objectMetadata
+	}
+	return metadataapi.ObjectMetadataForResourceID(cosmosContainerName, resourceID)
+}
 
 const feedRangePollInterval = 1 * time.Second
 
@@ -54,12 +69,20 @@ type ChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer coreapi.C
 	globalLister         cosmosstorageutils.GlobalLister[InternalAPIType]
 	changeFeedClient     cosmosstorageutils.ChangeFeedClient
 	shouldDeliverItemFn  ShouldDeliverFunc[InternalAPITypePointer]
+	// cosmosContainerName is the Cosmos container label emitted as the objectMetadata.cosmosContainer
+	// of every delivered/skipped change-feed item so the item is ingested into
+	// cosmosResourceSnapshots with full resource metadata. It is required at construction; an empty
+	// value suppresses objectMetadata emission.
+	cosmosContainerName string
 
 	currentWatcher *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]
 }
 
+// NewChangeFeedListWatcher builds a change-feed-backed ListWatcher. cosmosContainerName is the
+// Cosmos container label recorded on every emitted cosmosResourceSnapshots item (e.g. "resources",
+// "fleet", "kubeApplier"); pass "" only for informers whose items should not carry objectMetadata.
 func NewChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
-	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, globalLister cosmosstorageutils.GlobalLister[InternalAPIType], changeFeedClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration) *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
+	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, globalLister cosmosstorageutils.GlobalLister[InternalAPIType], changeFeedClient cosmosstorageutils.ChangeFeedClient, relistDuration time.Duration, cosmosContainerName string) *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 
 	return &ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]{
 		desiredResourceTypes: desiredResourceTypes,
@@ -67,6 +90,7 @@ func NewChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer coreap
 		globalLister:         globalLister,
 		changeFeedClient:     changeFeedClient,
 		relistDuration:       relistDuration,
+		cosmosContainerName:  cosmosContainerName,
 	}
 }
 
@@ -114,7 +138,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 		}
 	}
 
-	c.currentWatcher = newChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType](c.desiredResourceTypes, c.clock, c.changeFeedClient, c.clock.Now(), c.relistDuration, c.shouldDeliverItemFn)
+	c.currentWatcher = newChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType](c.desiredResourceTypes, c.clock, c.changeFeedClient, c.clock.Now(), c.relistDuration, c.shouldDeliverItemFn, c.cosmosContainerName)
 	go c.currentWatcher.Run(ctx)
 
 	resourceIDToInstanceVersion := &sync.Map{}
@@ -212,6 +236,10 @@ type ChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer coreapi.Cosmo
 	changeFeedClient     cosmosstorageutils.ChangeFeedClient
 	startFrom            time.Time
 	shouldDeliverItemFn  ShouldDeliverFunc[InternalAPITypePointer]
+	// cosmosContainerName, when set, is emitted as objectMetadata.cosmosContainer on every
+	// change-feed item log so the item is ingested into cosmosResourceSnapshots with full
+	// resource metadata. Empty means "do not emit objectMetadata".
+	cosmosContainerName string
 
 	// This is a map of feed ranges to continuation token strings.
 	// No two worker goroutines should be processing the same feed
@@ -238,7 +266,7 @@ type ChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer coreapi.Cosmo
 }
 
 func newChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
-	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, changeFeedClient cosmosstorageutils.ChangeFeedClient, startFrom time.Time, maxWatchDuration time.Duration, shouldDeliverFn ShouldDeliverFunc[InternalAPITypePointer]) *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
+	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, changeFeedClient cosmosstorageutils.ChangeFeedClient, startFrom time.Time, maxWatchDuration time.Duration, shouldDeliverFn ShouldDeliverFunc[InternalAPITypePointer], cosmosContainerName string) *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 	return &ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]{
 		desiredResourceTypes:        desiredResourceTypes,
 		maxWatchDuration:            maxWatchDuration,
@@ -246,6 +274,7 @@ func newChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer coreapi.Co
 		changeFeedClient:            changeFeedClient,
 		startFrom:                   startFrom.Add(-2 * time.Second), // go back in time just a little bit so we collect everything
 		shouldDeliverItemFn:         shouldDeliverFn,
+		cosmosContainerName:         cosmosContainerName,
 		continuationTokens:          sync.Map{},
 		beginDelivery:               make(chan struct{}),
 		resourceIDToInstanceVersion: nil,
@@ -374,7 +403,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 	matchesDesiredType := false
 	for _, desiredResourceType := range c.desiredResourceTypes {
-		if armhelpers.ResourceTypeStringEqual(objAsTypedDocument.ResourceType, desiredResourceType) {
+		if metadataapi.ResourceTypeStringEqual(objAsTypedDocument.ResourceType, desiredResourceType) {
 			matchesDesiredType = true
 			break
 		}
@@ -398,6 +427,20 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	internalObj, err = cosmosstorageutils.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
 	if err != nil {
 		return utils.TrackError(err)
+	}
+
+	// When a Cosmos container is configured, emit objectMetadata so this item is ingested into
+	// cosmosResourceSnapshots with full resource identity, and derive the HCP cluster name for
+	// documents (e.g. operations) whose own ResourceID can't provide it. See
+	// changeFeedItemObjectMetadata for the details. This mirrors dump_data.go so change-feed-
+	// sourced snapshots carry the same metadata columns as request-triggered dumps.
+	if len(c.cosmosContainerName) > 0 {
+		objectMetadata := changeFeedItemObjectMetadata(c.cosmosContainerName, any(internalObj), internalObj.GetResourceID())
+		if objectMetadata.ClusterResourceID != "" {
+			logger = logger.WithValues(utils.LogValues{}.AddHCPClusterName(objectMetadata.ClusterResourceID)...)
+		}
+		logger = logger.WithValues("objectMetadata", objectMetadata)
+		ctx = utils.ContextWithLogger(ctx, logger)
 	}
 
 	canonicalResourceID := strings.ToLower(internalObj.GetResourceID().String())

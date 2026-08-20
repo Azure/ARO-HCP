@@ -30,7 +30,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 func TestMockResourcesDBClient_LoadFromDirectory(t *testing.T) {
@@ -66,13 +65,13 @@ func TestMockResourcesDBClient_LoadFromDirectory(t *testing.T) {
 		}
 
 		switch {
-		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.ClusterResourceType):
+		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.ClusterResourceType):
 			foundCluster = true
-		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.NodePoolResourceType):
+		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.NodePoolResourceType):
 			foundNodePool = true
-		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, azcorearm.SubscriptionResourceType):
+		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, azcorearm.SubscriptionResourceType):
 			foundSubscription = true
-		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.OperationStatusResourceType):
+		case metadataapi.ResourceTypeStringEqual(typedDoc.ResourceType, coreapi.OperationStatusResourceType):
 			foundOperation = true
 		}
 	}
@@ -594,7 +593,7 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 		t.Fatalf("Failed to get cluster via untyped CRUD: %v", err)
 	}
 
-	if !armhelpers.ResourceTypeStringEqual(retrieved.ResourceType, coreapi.ClusterResourceType) {
+	if !metadataapi.ResourceTypeStringEqual(retrieved.ResourceType, coreapi.ClusterResourceType) {
 		t.Errorf("Expected resource type %s, got %s", coreapi.ClusterResourceType.String(), retrieved.ResourceType)
 	}
 }

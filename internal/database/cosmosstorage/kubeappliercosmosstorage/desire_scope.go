@@ -22,8 +22,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 // Ancestry is the broad ARM-rooting family of a desire's parent. It selects the
@@ -131,12 +131,12 @@ func ParseDesireScope(id *azcorearm.ResourceID) (DesireScope, error) {
 // ParseDesireScope (validity) and ResourceIDBuilder (path builder).
 func ancestryForParentType(rt azcorearm.ResourceType) (Ancestry, bool) {
 	switch {
-	case armhelpers.ResourceTypeEqual(rt, coreapi.ClusterResourceType),
-		armhelpers.ResourceTypeEqual(rt, coreapi.NodePoolResourceType),
-		armhelpers.ResourceTypeEqual(rt, coreapi.SystemAdminCredentialRequestResourceType),
-		armhelpers.ResourceTypeEqual(rt, coreapi.SystemAdminCredentialRevocationResourceType):
+	case metadataapi.ResourceTypeEqual(rt, coreapi.ClusterResourceType),
+		metadataapi.ResourceTypeEqual(rt, coreapi.NodePoolResourceType),
+		metadataapi.ResourceTypeEqual(rt, coreapi.SystemAdminCredentialRequestResourceType),
+		metadataapi.ResourceTypeEqual(rt, coreapi.SystemAdminCredentialRevocationResourceType):
 		return ClusterAncestry, true
-	case armhelpers.ResourceTypeEqual(rt, fleetapi.ManagementClusterResourceType):
+	case metadataapi.ResourceTypeEqual(rt, fleetapi.ManagementClusterResourceType):
 		return StampAncestry, true
 	default:
 		return "", false
