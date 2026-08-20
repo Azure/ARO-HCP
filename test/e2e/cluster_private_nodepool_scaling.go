@@ -65,6 +65,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.APIVisibility = "Private"
+			clusterParams.OpenshiftVersionId = "4.22"
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
