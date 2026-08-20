@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+
 	operatorv1 "github.com/openshift/api/operator/v1"
 
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
