@@ -16,10 +16,12 @@ package cosmosstorageutils
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
@@ -32,10 +34,20 @@ import (
 // TransactionStepError) lives, so it complements the CRUD metrics rather than
 // duplicating them. It reuses the metric collectors and the codeForError helper
 // defined alongside instrumentedCRUD.
+//
+// In addition to the whole-batch transaction metrics, it records a per-step
+// breakdown (database_transaction_step_total / _duration_seconds) labelled by the
+// step's verb and resource type. The step details are captured as AddStep queues
+// them and emitted when Execute commits the batch.
 type instrumentedTransaction struct {
 	inner           DBTransaction
 	transactionType string
 	metrics         *databaseMetrics
+
+	// steps accumulates the details of every step queued via AddStep so that
+	// Execute can emit a per-step metric sample for each one. A transaction is
+	// built and executed by a single goroutine, so no locking is required.
+	steps []CosmosDBTransactionStepDetails
 }
 
 var _ DBTransaction = &instrumentedTransaction{}
@@ -80,8 +92,49 @@ func UnwrapTransaction(txn DBTransaction) DBTransaction {
 // rather than a generic 500.
 func (t *instrumentedTransaction) observe(start time.Time, err error) {
 	code := codeForError(err)
+	duration := time.Since(start).Seconds()
+
 	t.metrics.transactionTotal.WithLabelValues(t.transactionType, code).Inc()
-	t.metrics.transactionDuration.WithLabelValues(t.transactionType, code).Observe(time.Since(start).Seconds())
+	t.metrics.transactionDuration.WithLabelValues(t.transactionType, code).Observe(duration)
+
+	// Emit a per-step sample for every step this transaction committed. The whole
+	// batch commits atomically, so all steps share the batch's outcome code and
+	// are attributed the batch's duration (see the transactionStep* field docs).
+	for _, step := range t.steps {
+		verb := stepVerb(step.ActionType)
+		resourceType := stepResourceType(step)
+		t.metrics.transactionStepTotal.WithLabelValues(t.transactionType, verb, resourceType, code).Inc()
+		t.metrics.transactionStepDuration.WithLabelValues(t.transactionType, verb, resourceType, code).Observe(duration)
+	}
+}
+
+// stepVerb maps a transaction step's ActionType (e.g. "Create", "Replace",
+// "Delete") to the lower-cased verb used as the step_verb label, matching the
+// style of the CRUD verb constants ("create", "replace", "delete"). An empty
+// ActionType is reported as "unknown" so the label is never blank.
+func stepVerb(actionType string) string {
+	if actionType == "" {
+		return "unknown"
+	}
+	return strings.ToLower(actionType)
+}
+
+// stepResourceType derives the step_resource_type label from a step's details.
+// It parses the step's ARM ResourceID and sanitizes the resulting ResourceType
+// exactly like the CRUD resource_type label, so both labels share one vocabulary
+// (e.g. "Microsoft_RedHatOpenShift_hcpOpenShiftClusters"). If the ResourceID
+// cannot be parsed it falls back to the sanitized Go type, and finally to
+// "unknown", keeping the label a stable, low-cardinality value.
+func stepResourceType(details CosmosDBTransactionStepDetails) string {
+	if details.ResourceID != "" {
+		if rid, err := azcorearm.ParseResourceID(details.ResourceID); err == nil {
+			return sanitizeResourceType(rid.ResourceType)
+		}
+	}
+	if details.GoType != "" {
+		return resourceTypeLabelSanitizer.ReplaceAllString(details.GoType, "_")
+	}
+	return "unknown"
 }
 
 // Execute instruments the underlying transaction execution — the single Cosmos
@@ -93,12 +146,18 @@ func (t *instrumentedTransaction) Execute(ctx context.Context, o *azcosmos.Trans
 	return t.inner.Execute(ctx, o)
 }
 
-// AddStep, OnSuccess and GetPartitionKey are pure delegations: they only mutate
-// or read the in-memory transaction and perform no Cosmos I/O, so they are not
-// instrumented. The work they queue is measured when Execute commits it.
+// AddStep records the step's details for the per-step metrics emitted by Execute,
+// then delegates to the inner transaction. It performs no Cosmos I/O itself — the
+// queued work is measured when Execute commits it — so it is not timed; it only
+// captures the verb/resource-type breakdown that Execute later reports.
 func (t *instrumentedTransaction) AddStep(details CosmosDBTransactionStepDetails, step CosmosDBTransactionStep) {
+	t.steps = append(t.steps, details)
 	t.inner.AddStep(details, step)
 }
+
+// OnSuccess and GetPartitionKey are pure delegations: they only mutate or read
+// the in-memory transaction and perform no Cosmos I/O, so they are not
+// instrumented.
 
 func (t *instrumentedTransaction) OnSuccess(callback DBTransactionCallback) {
 	t.inner.OnSuccess(callback)

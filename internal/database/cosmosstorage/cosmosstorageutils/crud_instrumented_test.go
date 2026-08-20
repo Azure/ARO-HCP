@@ -58,9 +58,9 @@ func (m *mockCRUD) Get(ctx context.Context, resourceID string) (*fakeResource, e
 	return nil, m.err
 }
 
-// List is part of the ResourceCRUD interface, so the mock must implement it even
-// though the instrumented decorator intentionally does not record list metrics
-// (it passes List straight through to the wrapped CRUD).
+// List is part of the ResourceCRUD interface. The instrumented decorator records
+// list metrics (see the List method's NOTE), so the mock returns the configured
+// err to let tests exercise both the success and error metric paths.
 func (m *mockCRUD) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[fakeResource], error) {
 	return nil, m.err
 }
@@ -113,8 +113,8 @@ func histogramSampleCount(t *testing.T, m *databaseMetrics, verb, resourceType, 
 // TestInstrumentedCRUDRecordsMetrics verifies that every instrumented
 // ResourceCRUD method increments the request counter and records a duration
 // observation, with code="200" on success and the configured resource_type
-// label. List is deliberately excluded: it is a pass-through and records no
-// metrics.
+// label. List is included: although its recorded duration only covers iterator
+// construction (see the List method's NOTE), it still records a request sample.
 func TestInstrumentedCRUDRecordsMetrics(t *testing.T) {
 	ctx := context.Background()
 	resourceType := azcorearm.NewResourceType("test.records", "resources")
@@ -130,6 +130,10 @@ func TestInstrumentedCRUDRecordsMetrics(t *testing.T) {
 		}},
 		{verbGet, func(c ResourceCRUD[fakeResource, *fakeResource]) error {
 			_, err := c.Get(ctx, "resource-id")
+			return err
+		}},
+		{verbList, func(c ResourceCRUD[fakeResource, *fakeResource]) error {
+			_, err := c.List(ctx, nil)
 			return err
 		}},
 		{verbCreate, func(c ResourceCRUD[fakeResource, *fakeResource]) error {
@@ -176,14 +180,17 @@ func TestInstrumentedCRUDRecordsMetrics(t *testing.T) {
 	}
 }
 
-// TestInstrumentedCRUDListNotInstrumented verifies that List is a pass-through:
-// calling it records no database_request metrics under any code for the
-// (nonexistent) "list" verb, while still delegating to the wrapped CRUD.
-func TestInstrumentedCRUDListNotInstrumented(t *testing.T) {
+// TestInstrumentedCRUDListInstrumented verifies that List records the request
+// counter and duration histogram like the other verbs, with the "code" label
+// derived from the returned error. The recorded duration only covers iterator
+// construction (see the List method's NOTE), but the request total is still
+// useful, so a sample must be recorded on both the success and error paths.
+func TestInstrumentedCRUDListInstrumented(t *testing.T) {
 	ctx := context.Background()
-	resourceType := azcorearm.NewResourceType("test.listpassthrough", "resources")
+	resourceType := azcorearm.NewResourceType("test.listinstrumented", "resources")
 	resourceTypeLabel := sanitizeResourceType(resourceType)
 
+	// Success path: List returns no error, so the "200" series is recorded.
 	reg := prometheus.NewRegistry()
 	metrics := sharedDatabaseMetrics(reg)
 	crud := NewInstrumentedCRUD[fakeResource, *fakeResource](&mockCRUD{}, resourceType, reg)
@@ -191,13 +198,27 @@ func TestInstrumentedCRUDListNotInstrumented(t *testing.T) {
 	_, err := crud.List(ctx, nil)
 	require.NoError(t, err, "List should delegate to the wrapped CRUD")
 
-	// No "list" verb series should have been created for any status code.
-	for _, code := range []string{"200", "404", "409", "412", "500"} {
-		assert.Zero(t, counterValue(t, metrics, "list", resourceTypeLabel, code),
-			"List must not record a request counter (code %s)", code)
-		assert.Zero(t, histogramSampleCount(t, metrics, "list", resourceTypeLabel, code),
-			"List must not record a duration observation (code %s)", code)
-	}
+	assert.Equal(t, float64(1), counterValue(t, metrics, verbList, resourceTypeLabel, "200"),
+		"List must record a request counter on success")
+	assert.Equal(t, uint64(1), histogramSampleCount(t, metrics, verbList, resourceTypeLabel, "200"),
+		"List must record a duration observation on success")
+
+	// Error path: List returns an azcore.ResponseError, so its HTTP status
+	// becomes the "code" label and the success series is left untouched.
+	errReg := prometheus.NewRegistry()
+	errMetrics := sharedDatabaseMetrics(errReg)
+	wantErr := &azcore.ResponseError{StatusCode: http.StatusNotFound}
+	errCRUD := NewInstrumentedCRUD[fakeResource, *fakeResource](&mockCRUD{err: wantErr}, resourceType, errReg)
+
+	_, err = errCRUD.List(ctx, nil)
+	require.Error(t, err, "List should return the configured error")
+
+	assert.Equal(t, float64(1), counterValue(t, errMetrics, verbList, resourceTypeLabel, "404"),
+		"List must record a request counter with the error's status code")
+	assert.Equal(t, uint64(1), histogramSampleCount(t, errMetrics, verbList, resourceTypeLabel, "404"),
+		"List must record a duration observation with the error's status code")
+	assert.Zero(t, counterValue(t, errMetrics, verbList, resourceTypeLabel, "200"),
+		"the success series must be untouched on the List error path")
 }
 
 // TestInstrumentedCRUDTransactionMethodErrors verifies that the two batch
