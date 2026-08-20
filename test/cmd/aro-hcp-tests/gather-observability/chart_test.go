@@ -19,8 +19,11 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-echarts/go-echarts/v2/opts"
+
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 func TestParsePrometheusValue(t *testing.T) {
@@ -363,6 +366,86 @@ func TestSanitizeTitle(t *testing.T) {
 	}
 }
 
+func TestBuildChartDataFromSeries(t *testing.T) {
+	t.Parallel()
+
+	tw := timing.TimeWindow{
+		Start: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2025, 1, 1, 1, 0, 0, 0, time.UTC),
+	}
+
+	newSampleSeries := func() []parsedSeries {
+		return []parsedSeries{
+			{
+				metric: map[string]string{"instance": "a"},
+				data: []opts.LineData{
+					{Value: []any{float64(1735689600000), 42.0}},
+					{Value: []any{float64(1735689660000), 43.0}},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name     string
+		query    QuerySpec
+		queryErr string
+		series   func() []parsedSeries
+		wantData bool
+		wantErr  string
+	}{
+		{
+			name:     "empty series returns no data with query error",
+			query:    QuerySpec{Title: "T", ChartType: chartTypeLine},
+			queryErr: "timeout",
+			series:   func() []parsedSeries { return nil },
+			wantData: false,
+			wantErr:  "timeout",
+		},
+		{
+			name:     "empty series returns no data without error",
+			query:    QuerySpec{Title: "T", ChartType: chartTypeLine},
+			series:   func() []parsedSeries { return nil },
+			wantData: false,
+		},
+		{
+			name:     "line chart produces data",
+			query:    QuerySpec{Title: "T", ChartType: chartTypeLine},
+			series:   newSampleSeries,
+			wantData: true,
+		},
+		{
+			name:     "faceted-stacked-area chart produces data",
+			query:    QuerySpec{Title: "T", ChartType: chartTypeFacetedStackedArea, FacetBy: "instance", StackBy: "instance"},
+			series:   newSampleSeries,
+			wantData: true,
+		},
+		{
+			name:     "unknown chart type returns error",
+			query:    QuerySpec{Title: "T", ChartType: "pie"},
+			series:   newSampleSeries,
+			wantData: false,
+			wantErr:  `unknown chartType: "pie"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cd := buildChartDataFromSeries(tt.query, tt.queryErr, tt.series(), tw)
+			if cd.HasData != tt.wantData {
+				t.Errorf("HasData = %v, want %v", cd.HasData, tt.wantData)
+			}
+			if tt.wantErr != "" && !strings.Contains(cd.Error, tt.wantErr) {
+				t.Errorf("Error = %q, want to contain %q", cd.Error, tt.wantErr)
+			}
+			if tt.wantErr == "" && cd.Error != "" {
+				t.Errorf("unexpected Error = %q", cd.Error)
+			}
+		})
+	}
+}
+
 func TestLoadQueriesConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -609,6 +692,142 @@ func TestLoadQueriesConfig(t *testing.T) {
       facetBy: cluster
 `,
 			wantErr: "facetBy is only valid with chartType",
+		},
+		{
+			name: "valid azureMetric query",
+			yaml: `panels:
+  - title: "CosmosDB"
+    queries:
+    - title: "NormalizedRU"
+      type: azureMetric
+      resource: cosmosdb
+      metricName: NormalizedRuConsumption
+      aggregation: Maximum
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				q := cfg.Panels[0].Queries[0]
+				if q.Type != "azureMetric" {
+					t.Errorf("Type = %q, want %q", q.Type, "azureMetric")
+				}
+				if q.Resource != "cosmosdb" {
+					t.Errorf("Resource = %q, want %q", q.Resource, "cosmosdb")
+				}
+				if q.MetricName != "NormalizedRuConsumption" {
+					t.Errorf("MetricName = %q, want %q", q.MetricName, "NormalizedRuConsumption")
+				}
+				if q.Aggregation != "Maximum" {
+					t.Errorf("Aggregation = %q, want %q", q.Aggregation, "Maximum")
+				}
+				if q.Interval != "PT1M" {
+					t.Errorf("Interval = %q, want default %q", q.Interval, "PT1M")
+				}
+			},
+		},
+		{
+			name: "azureMetric interval preserved when set",
+			yaml: `panels:
+  - title: "CosmosDB"
+    queries:
+    - title: "NormalizedRU"
+      type: azureMetric
+      resource: cosmosdb
+      metricName: NormalizedRuConsumption
+      aggregation: Maximum
+      interval: PT5M
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].Interval != "PT5M" {
+					t.Errorf("Interval = %q, want %q", cfg.Panels[0].Queries[0].Interval, "PT5M")
+				}
+			},
+		},
+		{
+			name: "azureMetric missing resource returns error",
+			yaml: `panels:
+  - title: "CosmosDB"
+    queries:
+    - title: "NormalizedRU"
+      type: azureMetric
+      metricName: NormalizedRuConsumption
+      aggregation: Maximum
+`,
+			wantErr: "resource is required for azureMetric queries",
+		},
+		{
+			name: "azureMetric missing metricName returns error",
+			yaml: `panels:
+  - title: "CosmosDB"
+    queries:
+    - title: "NormalizedRU"
+      type: azureMetric
+      resource: cosmosdb
+      aggregation: Maximum
+`,
+			wantErr: "metricName is required for azureMetric queries",
+		},
+		{
+			name: "azureMetric missing aggregation returns error",
+			yaml: `panels:
+  - title: "CosmosDB"
+    queries:
+    - title: "NormalizedRU"
+      type: azureMetric
+      resource: cosmosdb
+      metricName: NormalizedRuConsumption
+`,
+			wantErr: "aggregation is required for azureMetric queries",
+		},
+		{
+			name: "invalid query type returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "Bad"
+      type: graphql
+      query: "{ foo }"
+`,
+			wantErr: `type must be "promql" or "azureMetric"`,
+		},
+		{
+			name: "type defaults to promql when omitted",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU"
+      query: "up"
+      workspace: svc
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].Type != "promql" {
+					t.Errorf("Type = %q, want %q", cfg.Panels[0].Queries[0].Type, "promql")
+				}
+			},
+		},
+		{
+			name: "mixed promql and azureMetric in same panel",
+			yaml: `panels:
+  - title: "Mixed"
+    queries:
+    - title: "PromQL Query"
+      query: "up"
+      workspace: svc
+    - title: "Azure Metric"
+      type: azureMetric
+      resource: cosmosdb
+      metricName: NormalizedRuConsumption
+      aggregation: Maximum
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if len(cfg.Panels[0].Queries) != 2 {
+					t.Fatalf("queries = %d, want 2", len(cfg.Panels[0].Queries))
+				}
+				if cfg.Panels[0].Queries[0].Type != "promql" {
+					t.Errorf("first query Type = %q, want %q", cfg.Panels[0].Queries[0].Type, "promql")
+				}
+				if cfg.Panels[0].Queries[1].Type != "azureMetric" {
+					t.Errorf("second query Type = %q, want %q", cfg.Panels[0].Queries[1].Type, "azureMetric")
+				}
+			},
 		},
 	}
 
