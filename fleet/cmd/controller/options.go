@@ -219,19 +219,15 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, err
 	}
 
-	var azureCredential azcore.TokenCredential
-	var azureClientOptions *policy.ClientOptions
-	if len(o.AMWWorkspaceResourceIDs) > 0 {
-		azureCredential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
-			ClientOptions:                clientOpts,
-			RequireAzureTokenCredentials: true,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Azure credential for AMW scaling: %w", err)
-		}
-		azureClientOptions = &policy.ClientOptions{
-			Cloud: clientOpts.Cloud,
-		}
+	azureCredential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		ClientOptions:                clientOpts,
+		RequireAzureTokenCredentials: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+	}
+	azureClientOptions := &policy.ClientOptions{
+		Cloud: clientOpts.Cloud,
 	}
 
 	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(

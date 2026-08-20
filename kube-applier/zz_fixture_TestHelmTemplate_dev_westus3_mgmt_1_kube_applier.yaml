@@ -127,6 +127,14 @@ rules:
   - patch
   - delete
 - apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - capacityreports
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - velero.io
   resources:
   - schedules

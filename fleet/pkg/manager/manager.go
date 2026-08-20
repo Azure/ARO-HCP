@@ -225,6 +225,16 @@ func (m *Manager) runControllersUnderLeaderElection(
 		base.StampWatchingControllerConfig{CooldownPeriod: 5 * time.Minute},
 	)
 
+	scaleCeilingReportingController := capacityreporting.NewManagementClusterScaleCeilingReportingController(
+		managementClusterInformer,
+		m.FleetDBClient,
+		readDesireLister,
+		m.Region,
+		m.AzureCredential,
+		m.AzureClientOptions,
+		base.StampWatchingControllerConfig{CooldownPeriod: 10 * time.Minute},
+	)
+
 	amwScalingController := amwscaling.NewController(
 		m.AMWScalingPollInterval,
 		m.AMWWorkspaceResourceIDs,
@@ -256,6 +266,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 				go dataDumpController.Run(ctx, 1)
 				go ensureCapacityReadDesireController.Run(ctx, 1)
 				go capacityReportingController.Run(ctx, 1)
+				go scaleCeilingReportingController.Run(ctx, 1)
 				go amwScalingController.Run(ctx)
 			},
 			OnStoppedLeading: func() {

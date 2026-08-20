@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package capacityreporting mirrors management-cluster-scoped CapacityReport
-// CRs into Cosmos scheduling documents. The package contains two controllers:
-// EnsureCapacityReadDesireController ensures the ReadDesire exists, and
-// CapacityReportingController consumes the mirrored CR and writes current
-// capacity to the scheduling document.
+// Package capacityreporting populates ManagementClusterScheduling documents
+// in Cosmos. It contains three controllers:
+// EnsureCapacityReadDesireController ensures the CapacityReport ReadDesire
+// exists, CapacityReportingController writes observed capacity from the
+// mirrored CR, and ScaleCeilingReportingController computes maximum
+// scheduling capacity from AKS agent pool scaling limits.
 package capacityreporting
 
 import (
@@ -146,7 +147,7 @@ func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, 
 }
 
 // GetCapacityReport reads and unmarshals the CapacityReport from the
-// ReadDesire lister. Exported for use by the nodepoolscaling controller.
+// ReadDesire lister.
 func GetCapacityReport(ctx context.Context, readDesireLister kubeapplierlisters.ReadDesireLister, stampIdentifier string) (*capacityreportv1alpha1.CapacityReport, error) {
 	readDesire, err := readDesireLister.GetForManagementCluster(ctx, stampIdentifier, ReadDesireName)
 	if err != nil {
