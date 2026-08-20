@@ -119,30 +119,28 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 		assert.NoError(t, err, "desired ApplyDesire should still exist")
 	})
 
-	t.Run("removes Delete-type ApplyDesire when ReadDesire confirms object gone", func(t *testing.T) {
+	t.Run("removes Delete-type ApplyDesire once its delete has succeeded", func(t *testing.T) {
 		mockKubeApplier := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClient()
 		mockClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
 		mockClients.Register(managementClusterResourceID, mockKubeApplier)
 
 		applyDesireCRUD, _ := mockKubeApplier.ApplyDesiresForCluster("test-sub", "test-rg", "test-cluster")
-		readDesireCRUD, _ := mockKubeApplier.ReadDesiresForCluster("test-sub", "test-rg", "test-cluster")
 
+		// EnsureApplyDesireRemoved purges a Delete-type ApplyDesire once the
+		// ApplyDesire's own delete condition reports success.
 		staleApplyDesire := makeDesiredApplyDesire(backup.BackupScheduleDesireNamePrefix + "old")
 		staleApplyDesire.Spec.Type = kubeapplierapi.ApplyDesireTypeDelete
-		_, _ = applyDesireCRUD.Create(context.Background(), staleApplyDesire, nil)
-
-		rd := makeReadDesire(backup.BackupScheduleDesireNamePrefix + "old")
-		rd.Status.Conditions = []metav1.Condition{
-			{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue},
+		staleApplyDesire.Status.Conditions = []metav1.Condition{
+			{Type: kubeapplierapi.ConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue},
 		}
-		_, _ = readDesireCRUD.Create(context.Background(), rd, nil)
+		_, _ = applyDesireCRUD.Create(context.Background(), staleApplyDesire, nil)
 
 		syncer := newSyncer(mockClients)
 		requeue, err := syncer.deleteStaleApplyDesires(context.Background(), testKey, applyDesireCRUD, nil)
 		require.NoError(t, err)
 		assert.True(t, requeue)
 		_, err = applyDesireCRUD.Get(context.Background(), backup.BackupScheduleDesireNamePrefix+"old")
-		assert.True(t, cosmosstorageutils.IsNotFoundError(err), "Delete-type ApplyDesire should be purged when ReadDesire confirms object gone")
+		assert.True(t, cosmosstorageutils.IsNotFoundError(err), "Delete-type ApplyDesire should be purged once its delete has succeeded")
 	})
 
 	t.Run("leaves Delete-type ApplyDesire when ReadDesire has not yet synced", func(t *testing.T) {
@@ -620,9 +618,10 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				BackupCadenceProfile: BackupCadenceTesting,
 			},
 			// Testing cadence has 1 schedule (10min); production has 3 (hourly, daily, weekly).
-			// One mutation per reconcile: 2 syncs to create 10min pair +
-			// 3 syncs to mark hourly/daily/weekly as Delete = 5.
-			syncCount: 5,
+			// 2 syncs to create the 10min pair (one create per reconcile), then a
+			// single sync flips all three stale desires (hourly/daily/weekly) to
+			// Delete in one pass via EnsureApplyDesireRemoved = 3.
+			syncCount: 3,
 			verify: func(t *testing.T, ctx context.Context, _ *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
 				t.Helper()
 				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
@@ -670,23 +669,23 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
 				require.NoError(t, err)
-				readDesireCRUD, err := mockKubeApplier.ReadDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
-				require.NoError(t, err)
 				iter, err := applyDesireCRUD.List(ctx, nil)
 				require.NoError(t, err)
 				for _, ad := range iter.Items(ctx) {
 					if ad.Spec.Type != kubeapplierapi.ApplyDesireTypeDelete {
 						continue
 					}
-					rd, err := readDesireCRUD.Get(ctx, ad.ResourceID.Name)
+					// Simulate kube-applier confirming the delete succeeded.
+					// EnsureApplyDesireRemoved gates the purge on the ApplyDesire's
+					// own delete condition, so set it here.
+					current, err := applyDesireCRUD.Get(ctx, ad.ResourceID.Name)
 					if err != nil {
 						continue
 					}
-					rd.Status.KubeContent = nil
-					rd.Status.Conditions = []metav1.Condition{
-						{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionTrue},
+					current.Status.Conditions = []metav1.Condition{
+						{Type: kubeapplierapi.ConditionTypeSuccessfullyDeleted, Status: metav1.ConditionTrue},
 					}
-					_, err = readDesireCRUD.Replace(ctx, rd, nil)
+					_, err = applyDesireCRUD.Replace(ctx, current, nil)
 					require.NoError(t, err)
 				}
 			},

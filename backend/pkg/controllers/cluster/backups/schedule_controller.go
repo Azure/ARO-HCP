@@ -20,8 +20,7 @@ import (
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
@@ -223,11 +222,7 @@ func (c *backupScheduleSyncer) syncDeletion(ctx context.Context, key controlleru
 		if _, ok := applyDesire.Tags[backup.DesireTagKeySchedule]; !ok {
 			continue
 		}
-		readDesire, err := c.readDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, applyDesire.ResourceID.Name)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to retrieve ReadDesire %s: %w", applyDesire.ResourceID.Name, err))
-		}
-		if requeue, err := deleteApplyDesire(ctx, *applyDesire, *readDesire, applyDesireCRUD); requeue || err != nil {
+		if _, err := kubeapplierhelpers.EnsureApplyDesireRemoved(ctx, applyDesire.ResourceID.Name, applyDesireCRUD); err != nil {
 			return err
 		}
 		return nil
@@ -295,16 +290,12 @@ func (c *backupScheduleSyncer) deleteStaleApplyDesires(
 		if _, ok := applyDesire.Tags[backup.DesireTagKeySchedule]; !ok {
 			continue
 		}
-		readDesire, err := c.readDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, applyDesire.ResourceID.Name)
+		removed, err := kubeapplierhelpers.EnsureApplyDesireRemoved(ctx, applyDesire.ResourceID.Name, applyDesireCRUD)
 		if err != nil {
-			if cosmosstorageutils.IsNotFoundError(err) {
-				continue
-			}
 			return false, err
 		}
-		requeue, err := deleteApplyDesire(ctx, *applyDesire, *readDesire, applyDesireCRUD)
-		if requeue || err != nil {
-			return requeue, err
+		if removed {
+			return true, nil
 		}
 	}
 
@@ -338,13 +329,4 @@ func (c *backupScheduleSyncer) deleteStaleReadDesires(
 		return true, nil
 	}
 	return false, nil
-}
-
-func isDesireSuccessful(conditions []metav1.Condition) bool {
-	for _, condition := range conditions {
-		if condition.Type == kubeapplierapi.ConditionTypeSuccessful && condition.Status == metav1.ConditionTrue {
-			return true
-		}
-	}
-	return false
 }
