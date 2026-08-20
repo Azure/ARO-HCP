@@ -80,9 +80,10 @@ spec:
       # 30-day smoothed availability for SLO status panels (not for fast burn alerts).
 
       expr: avg_over_time(sli:frontend_http:availability:rate5m[30d:5m])
-    # `or 0 * total` keeps error_rate=0 when there is traffic but no 5xx series.
     - record: errors:frontend_http:error_rate:rate5m
       # Errors: 5xx / total (Access-style error_rate for future MWMBR alerts).
+
+      # `or 0 * total` keeps error_rate=0 when there is traffic but no 5xx series.
 
       expr: |
         (
@@ -124,9 +125,10 @@ spec:
           )
           > 0
         )
-    # Atomic single expression; le matches "1" or "1.0".
     - record: sli:frontend_http:latency:rate5m
       # Latency SLI: requests completing within 1s / total.
+
+      # Atomic single expression; le matches "1" or "1.0".
 
       expr: |
         (

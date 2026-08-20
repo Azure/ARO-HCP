@@ -23,9 +23,10 @@ tests:
     values: "0+1000x15"
   - series: 'frontend_http_requests_total{cluster="svc-1", code="200", method="GET", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationstatuses/{operationid}", prometheus_replica="a"}'
     values: "0+1000x15"
-  # Production client_golang typically emits le="1" for the 1.0 bucket.
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="0.8", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
     # Latency histogram: 45/min within 1s (le="1"), 60/min total → 0.75
+
+    # Production client_golang typically emits le="1" for the 1.0 bucket.
 
     values: "0+40x15"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
@@ -92,8 +93,9 @@ tests:
     exp_samples:
     - labels: '{__name__="errors:frontend_http:error_rate:rate5m", cluster="svc-2"}'
       value: 0
-# All-5xx traffic — availability must emit 0 (not drop), errors 1
 - interval: 1m
+  # All-5xx traffic — availability must emit 0 (not drop), errors 1
+
   input_series:
   - series: 'frontend_http_requests_total{cluster="svc-3", code="500", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
     values: "0+60x15"
