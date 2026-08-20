@@ -1012,6 +1012,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.FPAMIDataplaneClientBuilder,
 	)
 
+	fetchDataPlaneOperatorsManagedIdentitiesInfoController := clusteridentity.NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.SMIClientBuilder,
+	)
+
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
@@ -1124,6 +1131,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
 				go backupScheduleController.Run(ctx, 20)
 				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
+				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.
