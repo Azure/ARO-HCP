@@ -317,7 +317,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	if err != nil {
 		retErr := utils.TrackError(err)
 		utilruntime.HandleError(retErr)
-		c.Stop()
+		c.signalStop()
 		cancel(retErr)
 		return
 	}
@@ -360,7 +360,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 			case <-c.done:
 			case <-ctx.Done():
 			}
-			c.Stop()
+			c.signalStop()
 			return
 		}
 	}(ctx)
@@ -511,7 +511,25 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	return nil
 }
 
+// Stop signals the watcher to shut down and blocks until Run and every child
+// goroutine it spawned have fully exited (see Finished), including their
+// deferred logging. The client-go Reflector calls Stop when it tears a watch
+// down, so this join is what ties the watcher's lifetime to the informer's:
+// when a watcher shares a logger with a *testing.T, its deferred shutdown
+// logging must finish before the test returns, otherwise the test logger
+// races/panics on a log emitted after the test has completed. Callers running
+// on the Run goroutine (or on a goroutine that Run waits for) must use
+// signalStop instead — blocking here would deadlock waiting on their own
+// Finished channel.
 func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Stop() {
+	c.signalStop()
+	<-c.finished
+}
+
+// signalStop triggers shutdown without waiting for it to complete. It is the
+// non-blocking counterpart to Stop, safe to call from the Run goroutine and
+// from the child goroutines that Run joins on.
+func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) signalStop() {
 	c.stopOnce.Do(func() {
 		close(c.done)
 	})
@@ -523,7 +541,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 // Finished returns a channel that is closed once Run and all of its child
 // goroutines have fully exited. It is safe to call before, during, or after
-// Run, and Stop must be invoked separately to actually trigger shutdown.
+// Run. Stop triggers shutdown and waits for this channel to close.
 func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Finished() <-chan struct{} {
 	return c.finished
 }
