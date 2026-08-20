@@ -46,6 +46,7 @@ const (
 	testResourceGroupName = "test-rg"
 	testClusterName       = "test-cluster"
 	testCredentialName    = "test-cred"
+	testControllerName    = "test-controller"
 )
 
 var testMCResourceID = metadataapi.Must(azcorearm.ParseResourceID(
@@ -194,7 +195,7 @@ func TestEnsureApplyDesireTagsDrift(t *testing.T) {
 
 	// Existing desire: identical spec, but stale tags and a populated status.
 	existing := buildTestApplyDesire(t, desireName, testCSR(t))
-	existing.Tags = map[string]string{"owner": "old"}
+	existing.Tags = map[string]string{kubeapplierapi.TagControllerName: testControllerName, "owner": "old"}
 	existing.Status = kubeapplierapi.ApplyDesireStatus{
 		Conditions: []metav1.Condition{{Type: "Successful", Status: metav1.ConditionTrue}},
 	}
@@ -205,7 +206,7 @@ func TestEnsureApplyDesireTagsDrift(t *testing.T) {
 
 	// Desired: same spec, new tags — so only the tags have drifted.
 	desire := buildTestApplyDesire(t, desireName, testCSR(t))
-	desire.Tags = map[string]string{"owner": "new"}
+	desire.Tags = map[string]string{kubeapplierapi.TagControllerName: testControllerName, "owner": "new"}
 	require.NoError(t, EnsureApplyDesire(ctx, crud, applyLister, desire))
 
 	got, err := crud.Get(ctx, desireName)
@@ -326,7 +327,7 @@ func TestEnsureReadDesireTagsDrift(t *testing.T) {
 
 	// Existing desire: identical spec, but stale tags and a populated status.
 	existing := buildTestReadDesire(t, desireName, target)
-	existing.Tags = map[string]string{"owner": "old"}
+	existing.Tags = map[string]string{kubeapplierapi.TagControllerName: testControllerName, "owner": "old"}
 	existing.Status = kubeapplierapi.ReadDesireStatus{
 		Conditions: []metav1.Condition{{Type: "Successful", Status: metav1.ConditionTrue}},
 	}
@@ -337,7 +338,7 @@ func TestEnsureReadDesireTagsDrift(t *testing.T) {
 
 	// Desired: same spec, new tags — so only the tags have drifted.
 	desire := buildTestReadDesire(t, desireName, target)
-	desire.Tags = map[string]string{"owner": "new"}
+	desire.Tags = map[string]string{kubeapplierapi.TagControllerName: testControllerName, "owner": "new"}
 	require.NoError(t, EnsureReadDesire(ctx, crud, readLister, desire))
 
 	got, err := crud.Get(ctx, desireName)
@@ -374,6 +375,7 @@ func buildTestApplyDesire(t *testing.T, desireName string, obj systemadmincreden
 				KubeContent: &runtime.RawExtension{Raw: rawJSON},
 			},
 		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: testControllerName},
 	}
 }
 
@@ -394,6 +396,7 @@ func buildTestReadDesire(t *testing.T, desireName string, target kubeapplierapi.
 			ManagementCluster: testMCResourceID,
 			TargetItem:        target,
 		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: testControllerName},
 	}
 }
 
@@ -469,7 +472,7 @@ func TestEnsureDesireScopes(t *testing.T) {
 
 		desire := newTestReadDesire(t,
 			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, "clusterscoped"),
-			target, nil)
+			target, map[string]string{kubeapplierapi.TagControllerName: testControllerName})
 		require.NoError(t, EnsureReadDesire(ctx, crud, readLister, desire))
 
 		got, err := crud.Get(ctx, "clusterscoped")
@@ -488,7 +491,7 @@ func TestEnsureDesireScopes(t *testing.T) {
 		mockDB, _, readLister := newMockDBAndListers(ctx, t, nil)
 		crud, err := mockDB.ReadDesiresForNodePool(testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName)
 		require.NoError(t, err)
-		tags := map[string]string{"owner": "nodepool"}
+		tags := map[string]string{kubeapplierapi.TagControllerName: testControllerName, "owner": "nodepool"}
 
 		desire := newTestReadDesire(t,
 			kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName, "nodepoolscoped"),

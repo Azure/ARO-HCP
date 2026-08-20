@@ -64,6 +64,10 @@ type createClusterScopedReadDesiresSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*createClusterScopedReadDesiresSyncer)(nil)
 
+// CreateClusterScopedReadDesiresControllerName is the controller name, recorded
+// on every desire this controller authors via kubeapplierapi.TagControllerName.
+const CreateClusterScopedReadDesiresControllerName = "CreateClusterScopedReadDesires"
+
 // NewCreateClusterScopedReadDesiresController wires the per-cluster
 // ReadDesire creator. It reuses NewClusterWatchingController so the cadence
 // (informer relist + cooldown) matches the rest of the cluster-scoped
@@ -87,7 +91,7 @@ func NewCreateClusterScopedReadDesiresController(
 	}
 
 	return controllerutils.NewClusterWatchingController(
-		"CreateClusterScopedReadDesires",
+		CreateClusterScopedReadDesiresControllerName,
 		resourcesDBClient,
 		informers,
 		nil,
@@ -213,6 +217,7 @@ func buildClusterReadDesire(
 			ManagementCluster: managementCluster,
 			TargetItem:        target,
 		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: CreateClusterScopedReadDesiresControllerName},
 	}, nil
 }
 

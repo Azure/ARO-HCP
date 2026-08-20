@@ -57,6 +57,10 @@ type createNodePoolScopedReadDesiresSyncer struct {
 
 var _ controllerutils.NodePoolSyncer = (*createNodePoolScopedReadDesiresSyncer)(nil)
 
+// CreateNodePoolScopedReadDesiresControllerName is the controller name, recorded
+// on every desire this controller authors via kubeapplierapi.TagControllerName.
+const CreateNodePoolScopedReadDesiresControllerName = "CreateNodePoolScopedReadDesires"
+
 func NewCreateNodePoolScopedReadDesiresController(
 	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
@@ -76,7 +80,7 @@ func NewCreateNodePoolScopedReadDesiresController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"CreateNodePoolScopedReadDesires",
+		CreateNodePoolScopedReadDesiresControllerName,
 		resourcesDBClient,
 		informers,
 		nil, // do not fire on ReadDesires this controller itself creates
@@ -183,6 +187,7 @@ func buildNodePoolReadDesire(
 			ManagementCluster: managementCluster,
 			TargetItem:        target,
 		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: CreateNodePoolScopedReadDesiresControllerName},
 	}, nil
 }
 

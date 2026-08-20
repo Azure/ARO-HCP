@@ -85,7 +85,10 @@ func buildApplyDesiresFromSchedules(
 					KubeContent: &runtime.RawExtension{Raw: raw},
 				},
 			},
-			Tags: map[string]string{backup.DesireTagKeySchedule: ""},
+			Tags: map[string]string{
+				backup.DesireTagKeySchedule:      "",
+				kubeapplierapi.TagControllerName: BackupScheduleControllerName,
+			},
 		})
 	}
 	return desires, nil

@@ -53,6 +53,10 @@ type desiresCreator struct {
 
 var _ controllerutils.SystemAdminCredentialRequestSyncer = (*desiresCreator)(nil)
 
+// DesiresCreatorControllerName is the controller name, recorded on every desire
+// this controller authors via kubeapplierapi.TagControllerName.
+const DesiresCreatorControllerName = "SystemAdminCredentialDesiresCreator"
+
 // NewDesiresCreatorController returns a CredentialRequestWatchingController that
 // creates the per-credential ApplyDesires (CSR, CSRApproval) and ReadDesire (CSR)
 // for individual SystemAdminCredentialRequest documents that are pending.
@@ -81,7 +85,7 @@ func NewDesiresCreatorController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRequestWatchingController(
-		"SystemAdminCredentialDesiresCreator",
+		DesiresCreatorControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,
@@ -276,6 +280,7 @@ func buildCredentialRequestApplyDesire(
 				KubeContent: &runtime.RawExtension{Raw: rawJSON},
 			},
 		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: DesiresCreatorControllerName},
 	}, nil
 }
 
@@ -303,6 +308,7 @@ func buildCredentialRequestReadDesire(
 			ManagementCluster: managementCluster,
 			TargetItem:        target,
 		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: DesiresCreatorControllerName},
 	}, nil
 }
 

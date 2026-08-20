@@ -51,6 +51,10 @@ type revocationDesires struct {
 
 var _ controllerutils.SystemAdminCredentialRevocationSyncer = (*revocationDesires)(nil)
 
+// RevocationDesiresControllerName is the controller name, recorded on every
+// desire this controller authors via kubeapplierapi.TagControllerName.
+const RevocationDesiresControllerName = "SystemAdminCredentialRevocationDesires"
+
 // NewRevocationDesiresController returns a RevocationWatchingController that
 // manages the CertificateRevocationRequest (CRR) desires used to revoke a
 // cluster's already-issued certificates. It creates the CRR ApplyDesire and
@@ -78,7 +82,7 @@ func NewRevocationDesiresController(
 	}
 
 	return controllerutils.NewSystemAdminCredentialRevocationWatchingController(
-		"SystemAdminCredentialRevocationDesires",
+		RevocationDesiresControllerName,
 		resourcesDBClient,
 		backendInformers,
 		kubeApplierInformers,
@@ -240,6 +244,7 @@ func buildRevocationApplyDesire(
 				KubeContent: &runtime.RawExtension{Raw: rawJSON},
 			},
 		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: RevocationDesiresControllerName},
 	}, nil
 }
 
@@ -267,5 +272,6 @@ func buildRevocationReadDesire(
 			ManagementCluster: managementCluster,
 			TargetItem:        target,
 		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: RevocationDesiresControllerName},
 	}, nil
 }

@@ -140,6 +140,10 @@ func EnsureApplyDesire(
 	applyDesireLister dblisters.ApplyDesireLister,
 	desire *kubeapplierapi.ApplyDesire,
 ) error {
+	if _, ok := desire.Tags[kubeapplierapi.TagControllerName]; !ok {
+		return utils.TrackError(fmt.Errorf("desire Tags must contain the %q tag key", kubeapplierapi.TagControllerName))
+	}
+
 	logger := utils.LoggerFromContext(ctx)
 	desireName := desire.ResourceID.Name
 	target := desire.Spec.TargetItem
@@ -188,6 +192,10 @@ func EnsureReadDesire(
 	readDesireLister dblisters.ReadDesireLister,
 	desire *kubeapplierapi.ReadDesire,
 ) error {
+	if _, ok := desire.Tags[kubeapplierapi.TagControllerName]; !ok {
+		return utils.TrackError(fmt.Errorf("desire Tags must contain the %q tag key", kubeapplierapi.TagControllerName))
+	}
+
 	logger := utils.LoggerFromContext(ctx)
 	desireName := desire.ResourceID.Name
 	target := desire.Spec.TargetItem
