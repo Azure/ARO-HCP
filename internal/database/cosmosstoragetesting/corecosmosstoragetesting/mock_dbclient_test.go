@@ -509,7 +509,7 @@ func TestMockResourcesDBClient_Transaction(t *testing.T) {
 		},
 	}
 
-	transaction := mock.NewTransaction(subscriptionID)
+	transaction := mock.NewTransaction(subscriptionID, "create_cluster")
 	clusterCRUD := mock.HCPClusters(subscriptionID, resourceGroupName)
 
 	_, err = clusterCRUD.AddCreateToTransaction(ctx, transaction, cluster, nil)

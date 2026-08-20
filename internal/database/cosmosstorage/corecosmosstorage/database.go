@@ -17,6 +17,7 @@ package corecosmosstorage
 import (
 	"context"
 
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -48,7 +49,10 @@ type ResourcesDBClientListActiveOperationDocsOptions struct {
 // ARO-HCP resource provider.
 type ResourcesDBClient interface {
 	// NewTransaction initiates a new transactional batch for the given partition key.
-	NewTransaction(pk string) cosmosstorageutils.DBTransaction
+	// transactionType is a stable, descriptive name for the code path executing the
+	// transaction (e.g. "create_cluster"); it becomes the transaction_type label on
+	// the database_transaction_* metrics recorded when the batch is executed.
+	NewTransaction(pk string, transactionType string) cosmosstorageutils.DBTransaction
 
 	// UntypedCRUD provides access documents in the subscription
 	UntypedCRUD(parentResourceID azcorearm.ResourceID) (cosmosstorageutils.UntypedResourceCRUD, error)
@@ -100,8 +104,12 @@ func NewResourcesDBClient(database *azcosmos.DatabaseClient) (ResourcesDBClient,
 	}, nil
 }
 
-func (d *resourcesCosmosDBClient) NewTransaction(pk string) cosmosstorageutils.DBTransaction {
-	return newCosmosDBTransaction(pk, d.resources)
+func (d *resourcesCosmosDBClient) NewTransaction(pk string, transactionType string) cosmosstorageutils.DBTransaction {
+	// Instrument the transaction at construction time, mirroring how
+	// NewCosmosResourceCRUD wraps CRUD. The collectors are memoized per registerer
+	// via sharedDatabaseMetrics, so every transaction and CRUD that shares the
+	// legacy registry records into the same database_* collectors.
+	return cosmosstorageutils.InstrumentTransaction(newCosmosDBTransaction(pk, d.resources), transactionType, legacyregistry.Registerer())
 }
 
 func (d *resourcesCosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD {
