@@ -795,9 +795,49 @@ func TestLoadQueriesConfigEmbedded(t *testing.T) {
 	if len(cfg.Panels) == 0 {
 		t.Fatal("embedded queries.yaml should contain at least one panel")
 	}
+
+	// Index panels by title and guard against duplicate/lost panels. A
+	// duplicate "queries:" key in a panel (or a dropped panel title) causes
+	// go-yaml to silently merge mappings — last key wins — which is invalid
+	// YAML that still parses. Unique, non-empty titles catch that class of bug.
+	byTitle := map[string]PanelSpec{}
 	for _, p := range cfg.Panels {
+		if p.Title == "" {
+			t.Errorf("panel with %d queries has an empty title", len(p.Queries))
+		}
+		if _, dup := byTitle[p.Title]; dup {
+			t.Errorf("duplicate panel title %q", p.Title)
+		}
+		byTitle[p.Title] = p
 		if len(p.Queries) == 0 {
 			t.Errorf("panel %q should contain at least one query", p.Title)
+		}
+	}
+
+	// Assert the panels that are easy to clobber when editing adjacent blocks
+	// still carry their own queries (regression guard for a duplicate-key merge
+	// that attached Maestro's queries to the CosmosDB Throttled Requests panel
+	// and dropped the Maestro Metrics panel entirely).
+	wantQuery := map[string]string{
+		"CosmosDB Metrics":            "RP CosmosDB RU Utilization vs Autoscale Ceiling",
+		"CosmosDB Throttled Requests": "Throttled Requests (429) by Container",
+		"Maestro Metrics":             "REST API Request Rate by Status",
+	}
+	for panelTitle, queryTitle := range wantQuery {
+		p, ok := byTitle[panelTitle]
+		if !ok {
+			t.Errorf("expected panel %q not found", panelTitle)
+			continue
+		}
+		found := false
+		for _, q := range p.Queries {
+			if q.Title == queryTitle {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("panel %q missing expected query %q; has %d queries", panelTitle, queryTitle, len(p.Queries))
 		}
 	}
 }

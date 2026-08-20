@@ -187,7 +187,7 @@ panels:
         StatusCode: "429"
     unit: requests
     step: "60s"
-
+- title: "Maestro Metrics"
   queries:
   - title: "REST API Request Rate by Status"
     description: "Rate of REST API requests grouped by HTTP status code. Clusters-service and backend use this API for resource CRUD. Non-2xx codes indicate client errors (4xx) or server failures (5xx)."
