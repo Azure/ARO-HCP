@@ -53,7 +53,7 @@ spec:
         short_window: 5m
       annotations:
         summary: "{{ $labels.cluster }}: Frontend HTTP 5xx error rate critically high (>0.72%)"
-        description: "Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.72% on both the 1h and 5m windows (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~12h."
+        description: "Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.72% on both the 1h and 5m windows (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~2d (~50h)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
     - alert: userJourneyFrontendErrors6h30m
       expr: |
