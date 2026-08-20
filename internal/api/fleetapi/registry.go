@@ -26,10 +26,14 @@ const (
 	ManagementClusterResourceTypeName = "managementClusters"
 	ManagementClusterResourceName     = "default"
 	ControllerResourceTypeName        = "controllers"
+
+	ControlPlaneVersionRolloutResourceTypeName = "controlPlaneVersionRollouts"
 )
 
 var (
 	StampResourceType                       = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName)
 	ManagementClusterResourceType           = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName)
 	ManagementClusterControllerResourceType = azcorearm.NewResourceType(coreapi.ProviderNamespace, StampResourceTypeName+"/"+ManagementClusterResourceTypeName+"/"+ControllerResourceTypeName)
+
+	ControlPlaneVersionRolloutResourceType = azcorearm.NewResourceType(coreapi.ProviderNamespace, ControlPlaneVersionRolloutResourceTypeName)
 )
