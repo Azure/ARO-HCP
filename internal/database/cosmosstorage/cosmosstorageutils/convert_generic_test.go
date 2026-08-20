@@ -51,6 +51,11 @@ func TestTimeToLiveForInternal(t *testing.T) {
 			obj:  nil,
 			want: 0,
 		},
+		{
+			name: "typed nil operation pointer has no TTL",
+			obj:  (*coreapi.Operation)(nil),
+			want: 0,
+		},
 	}
 
 	for _, tt := range tests {

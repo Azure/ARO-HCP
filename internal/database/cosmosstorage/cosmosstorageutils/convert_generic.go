@@ -30,8 +30,13 @@ const operationTimeToLive = 604800 // 7 days
 // migration controller (to avoid re-writing ephemeral, TTL-governed documents,
 // which would reset their _ts and therefore their TTL clock).
 func TimeToLiveForInternal(internalObj any) int {
-	switch internalObj.(type) {
+	switch v := internalObj.(type) {
 	case *coreapi.Operation:
+		// A typed nil pointer still matches this case; honor the documented
+		// "nil => no TTL" contract rather than returning a TTL for it.
+		if v == nil {
+			return 0
+		}
 		return operationTimeToLive
 	}
 	return 0
