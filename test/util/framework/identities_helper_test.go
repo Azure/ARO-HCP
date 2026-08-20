@@ -130,3 +130,118 @@ func TestRelease(t *testing.T) {
 		})
 	}
 }
+
+func TestAssignFromEnv(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		containers []string
+		count      int
+		wantErr    bool
+		wantLen    int
+	}{
+		{
+			name:       "exact match",
+			containers: []string{"rg-00", "rg-01"},
+			count:      2,
+			wantLen:    2,
+		},
+		{
+			name:       "more available than requested",
+			containers: []string{"rg-00", "rg-01", "rg-02"},
+			count:      2,
+			wantLen:    2,
+		},
+		{
+			name:       "single container",
+			containers: []string{"rg-00"},
+			count:      1,
+			wantLen:    1,
+		},
+		{
+			name:       "not enough containers",
+			containers: []string{"rg-00"},
+			count:      2,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tc := &perItOrDescribeTestContext{}
+			err := tc.assignFromEnv(tt.containers, tt.count)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(tc.envAssignedContainers) != tt.wantLen {
+				t.Fatalf("envAssignedContainers length = %d, want %d", len(tc.envAssignedContainers), tt.wantLen)
+			}
+			if tc.envAssignedIdx != 0 {
+				t.Fatalf("envAssignedIdx = %d, want 0", tc.envAssignedIdx)
+			}
+		})
+	}
+}
+
+func TestLeaseFromEnv(t *testing.T) {
+	t.Parallel()
+
+	tc := &perItOrDescribeTestContext{}
+	tc.envAssignedContainers = []string{"rg-00", "rg-01", "rg-02"}
+	tc.envAssignedIdx = 0
+
+	for i, wantRG := range []string{"rg-00", "rg-01", "rg-02"} {
+		pool, err := tc.leaseFromEnv()
+		if err != nil {
+			t.Fatalf("lease %d: unexpected error: %v", i, err)
+		}
+		if pool.ResourceGroupName != wantRG {
+			t.Fatalf("lease %d: ResourceGroupName = %q, want %q", i, pool.ResourceGroupName, wantRG)
+		}
+	}
+
+	_, err := tc.leaseFromEnv()
+	if err == nil {
+		t.Fatal("expected error after exhausting all containers, got nil")
+	}
+}
+
+func TestAssignFromEnvThenLeaseFromEnv(t *testing.T) {
+	t.Parallel()
+
+	tc := &perItOrDescribeTestContext{}
+	if err := tc.assignFromEnv([]string{"rg-00", "rg-01", "rg-02"}, 2); err != nil {
+		t.Fatalf("assignFromEnv: %v", err)
+	}
+
+	pool1, err := tc.leaseFromEnv()
+	if err != nil {
+		t.Fatalf("first lease: %v", err)
+	}
+	if pool1.ResourceGroupName != "rg-00" {
+		t.Fatalf("first lease RG = %q, want rg-00", pool1.ResourceGroupName)
+	}
+
+	pool2, err := tc.leaseFromEnv()
+	if err != nil {
+		t.Fatalf("second lease: %v", err)
+	}
+	if pool2.ResourceGroupName != "rg-01" {
+		t.Fatalf("second lease RG = %q, want rg-01", pool2.ResourceGroupName)
+	}
+
+	_, err = tc.leaseFromEnv()
+	if err == nil {
+		t.Fatal("expected error after exhausting assigned containers, got nil")
+	}
+}
