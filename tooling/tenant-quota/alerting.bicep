@@ -26,7 +26,7 @@ var prowE2EParallelMinSuccessfulRuns = 20
 var prowE2EParallelP95MaxSeconds = 9000 // 2h30m
 var prowCollectionMaxAgeSeconds = 900 // 15 minutes
 var prowBatchMaxConsecutiveFailures = 4
-var prowInvalidJobsMaxPercentage = 0.10
+var prowInvalidJobsMaxPercentage = '0.10'
 
 var prowHighFrequencyRuns = 'sum by (job_name, job_type) (prow_ci_job_info{job_type=~"presubmit|batch"})'
 var prowHighFrequencyFailures = 'sum by (job_name, job_type) (prow_ci_job_info{job_type=~"presubmit|batch",result=~"failure|error"})'
@@ -531,7 +531,7 @@ resource prowCIAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         }
         annotations: {
           summary: 'High rate of malformed completed Prow CI jobs detected'
-          description: 'Malformed completed Prow jobs exceeded ${prowInvalidJobsMaxPercentage * 100}% of all completed jobs in the last 24h.'
+          description: 'Malformed completed Prow jobs exceeded 10% of all completed jobs in the last 24h.'
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/ci/dev-ci-monitoring.md#exporter-health-checks'
         }
         actions: [
