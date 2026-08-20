@@ -11,9 +11,9 @@ metadata:
 spec:
   groups:
   # ========================================
-  # Frontend (ARM RP) SLO Alerts — Errors
+  # Frontend (ARM RP) SLO Alerts
   # ========================================
-  # Driven by errors:frontend_http:error_rate:rate5m (ARO-28705 recording rules).
+  # Driven by ARO-28705 recording rules (errors / availability / latency rate5m).
   # Naming: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
   #
   # Availability SLO 99.95% -> error budget 0.05% (0.0005):
@@ -21,21 +21,30 @@ spec:
   #   Medium (6x):  6 * 0.0005 = 0.003 -> 0.30% 5xx share
   #   Slow (1x):    1 * 0.0005 = 0.0005 -> 0.05% 5xx share
   #
-  # Rate-based SLI: 'for' approximates the short window (Access / Node Pool pattern).
+  # Multi-window multi-burn-rate (ADR 79 / Google MWMBR): fast and medium
+  # require BOTH long-window and short-window avg_over_time on the rate5m
+  # series (same pattern as kube-apiserver burnrate1h AND burnrate5m). `for`
+  # is a short pending duration only - not a substitute for the short window.
+  # Slow uses 3d long + 6h short at 1x.
+  #
   # Fast/medium Errors + Latency page Sev 3 (customer-facing UJ).
-  # Availability is Sev 4 only — complementary to Errors on the same denominator,
+  # Availability is Sev 4 only - complementary to Errors on the same denominator,
   # so dual Sev3 would open two IcMs per 5xx event (review feedback).
-  # Slow/degradation/traffic/saturation Sev 4 ticket.
+  # Slow/traffic/saturation Sev 4 ticket.
   #
   # summary includes {{ $labels.cluster }} (Access / Node Pool convention; prometheus-rules
-  # generator requires it). IcM.Title may also prepend cluster — same as other RP alerts.
+  # generator requires it). IcM.Title may also prepend cluster - same as other RP alerts.
   # component is on each rule (not group) for promtool compatibility.
   - name: arohcp_frontend_slo_error_alerts
     rules:
     - alert: userJourneyFrontendErrors1h5m
       expr: |
-        errors:frontend_http:error_rate:rate5m > 0.0072
-      for: 5m
+        (
+          avg_over_time(errors:frontend_http:error_rate:rate5m[1h]) > 0.0072
+          and
+          avg_over_time(errors:frontend_http:error_rate:rate5m[5m]) > 0.0072
+        )
+      for: 2m
       labels:
         component: slo
         severity: "3"
@@ -44,12 +53,16 @@ spec:
         short_window: 5m
       annotations:
         summary: "{{ $labels.cluster }}: Frontend HTTP 5xx error rate critically high (>0.72%)"
-        description: "Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.72% for 5m (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~12h."
+        description: "Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.72% on both the 1h and 5m windows (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~12h."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
     - alert: userJourneyFrontendErrors6h30m
       expr: |
-        errors:frontend_http:error_rate:rate5m > 0.003
-      for: 30m
+        (
+          avg_over_time(errors:frontend_http:error_rate:rate5m[6h]) > 0.003
+          and
+          avg_over_time(errors:frontend_http:error_rate:rate5m[30m]) > 0.003
+        )
+      for: 15m
       labels:
         component: slo
         severity: "3"
@@ -57,40 +70,37 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP 5xx error rate elevated (>0.30%) for 30+ minutes"
-        description: "Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.30% for 30m (6x burn of the 0.05% error budget)."
+        summary: "{{ $labels.cluster }}: Frontend HTTP 5xx error rate elevated (>0.30%)"
+        description: "Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.30% on both the 6h and 30m windows (6x burn of the 0.05% error budget)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendErrors3d
+    - alert: userJourneyFrontendErrors3d6h
       expr: |
-        errors:frontend_http:error_rate:rate5m > 0.0005
-      for: 6h
+        (
+          avg_over_time(errors:frontend_http:error_rate:rate5m[3d]) > 0.0005
+          and
+          avg_over_time(errors:frontend_http:error_rate:rate5m[6h]) > 0.0005
+        )
+      for: 1h
       labels:
         component: slo
         severity: "4"
         slo: frontend-errors
         long_window: 3d
+        short_window: 6h
       annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP 5xx error rate exceeds SLO (>0.05%) for 6+ hours"
-        description: "Frontend 5xx share on cluster {{ $labels.cluster }} is above the 0.05% SLO boundary for 6h (1x burn)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendErrorsDegradation
-      expr: |
-        errors:frontend_http:error_rate:rate5m > 0.0015
-      for: 30m
-      labels:
-        component: slo
-        severity: "4"
-        slo: frontend-errors
-      annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP 5xx error rate exceeds 0.15% for 30 minutes"
-        description: "Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.15% (3x budget) for 30m - precursor before medium/fast burn pages."
+        summary: "{{ $labels.cluster }}: Frontend HTTP 5xx error rate exceeds SLO (>0.05%)"
+        description: "Frontend 5xx share on cluster {{ $labels.cluster }} is above the 0.05% SLO boundary on both the 3d and 6h windows (1x burn)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_availability_alerts
     rules:
     - alert: userJourneyFrontendAvailability1h5m
       expr: |
-        sli:frontend_http:availability:rate5m < 0.9928
-      for: 5m
+        (
+          avg_over_time(sli:frontend_http:availability:rate5m[1h]) < 0.9928
+          and
+          avg_over_time(sli:frontend_http:availability:rate5m[5m]) < 0.9928
+        )
+      for: 2m
       labels:
         component: slo
         severity: "4"
@@ -99,12 +109,16 @@ spec:
         short_window: 5m
       annotations:
         summary: "{{ $labels.cluster }}: Frontend HTTP availability critically low (<99.28%)"
-        description: "Frontend availability on cluster {{ $labels.cluster }} is below 99.28% for 5m (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket — Errors family pages on the complementary 5xx burn."
+        description: "Frontend availability on cluster {{ $labels.cluster }} is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
     - alert: userJourneyFrontendAvailability6h30m
       expr: |
-        sli:frontend_http:availability:rate5m < 0.997
-      for: 30m
+        (
+          avg_over_time(sli:frontend_http:availability:rate5m[6h]) < 0.997
+          and
+          avg_over_time(sli:frontend_http:availability:rate5m[30m]) < 0.997
+        )
+      for: 15m
       labels:
         component: slo
         severity: "4"
@@ -112,28 +126,37 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%) for 30+ minutes"
-        description: "Frontend availability on cluster {{ $labels.cluster }} is below 99.70% for 30m (6x burn). Sev4 ticket — Errors family pages on the complementary 5xx burn."
+        summary: "{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%)"
+        description: "Frontend availability on cluster {{ $labels.cluster }} is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendAvailability3d
+    - alert: userJourneyFrontendAvailability3d6h
       expr: |
-        sli:frontend_http:availability:rate5m < 0.9995
-      for: 6h
+        (
+          avg_over_time(sli:frontend_http:availability:rate5m[3d]) < 0.9995
+          and
+          avg_over_time(sli:frontend_http:availability:rate5m[6h]) < 0.9995
+        )
+      for: 1h
       labels:
         component: slo
         severity: "4"
         slo: frontend-availability
         long_window: 3d
+        short_window: 6h
       annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP availability below SLO (<99.95%) for 6+ hours"
-        description: "Frontend availability on cluster {{ $labels.cluster }} is below the 99.95% SLO for 6h (1x burn)."
+        summary: "{{ $labels.cluster }}: Frontend HTTP availability below SLO (<99.95%)"
+        description: "Frontend availability on cluster {{ $labels.cluster }} is below the 99.95% SLO on both the 3d and 6h windows (1x burn)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_latency_alerts
     rules:
     - alert: userJourneyFrontendLatency1h5m
       expr: |
-        sli:frontend_http:latency:rate5m < 0.856
-      for: 5m
+        (
+          avg_over_time(sli:frontend_http:latency:rate5m[1h]) < 0.856
+          and
+          avg_over_time(sli:frontend_http:latency:rate5m[5m]) < 0.856
+        )
+      for: 2m
       labels:
         component: slo
         severity: "3"
@@ -142,12 +165,16 @@ spec:
         short_window: 5m
       annotations:
         summary: "{{ $labels.cluster }}: Frontend HTTP latency SLI critically low (share <=1s <85.6%)"
-        description: "Share of Frontend requests completing within 1s on cluster {{ $labels.cluster }} is below 85.6% for 5m (14.4x burn of the 1% latency budget for the p99 < 1s SLO)."
+        description: "Share of Frontend requests completing within 1s on cluster {{ $labels.cluster }} is below 85.6% on both the 1h and 5m windows (14.4x burn of the 1% latency budget for the p99 < 1s SLO)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
     - alert: userJourneyFrontendLatency6h30m
       expr: |
-        sli:frontend_http:latency:rate5m < 0.94
-      for: 30m
+        (
+          avg_over_time(sli:frontend_http:latency:rate5m[6h]) < 0.94
+          and
+          avg_over_time(sli:frontend_http:latency:rate5m[30m]) < 0.94
+        )
+      for: 15m
       labels:
         component: slo
         severity: "3"
@@ -155,21 +182,26 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP latency SLI degraded (share <=1s <94%) for 30+ minutes"
-        description: "Share of Frontend requests within 1s on cluster {{ $labels.cluster }} is below 94% for 30m (6x burn)."
+        summary: "{{ $labels.cluster }}: Frontend HTTP latency SLI degraded (share <=1s <94%)"
+        description: "Share of Frontend requests within 1s on cluster {{ $labels.cluster }} is below 94% on both the 6h and 30m windows (6x burn)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendLatency3d
+    - alert: userJourneyFrontendLatency3d6h
       expr: |
-        sli:frontend_http:latency:rate5m < 0.99
-      for: 6h
+        (
+          avg_over_time(sli:frontend_http:latency:rate5m[3d]) < 0.99
+          and
+          avg_over_time(sli:frontend_http:latency:rate5m[6h]) < 0.99
+        )
+      for: 1h
       labels:
         component: slo
         severity: "4"
         slo: frontend-latency
         long_window: 3d
+        short_window: 6h
       annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP latency SLI below target (share <=1s <99%) for 6+ hours"
-        description: "Share of Frontend requests within 1s on cluster {{ $labels.cluster }} is below 99% for 6h (1x burn of the p99 < 1s latency budget)."
+        summary: "{{ $labels.cluster }}: Frontend HTTP latency SLI below target (share <=1s <99%)"
+        description: "Share of Frontend requests within 1s on cluster {{ $labels.cluster }} is below 99% on both the 3d and 6h windows (1x burn of the p99 < 1s latency budget)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_traffic_alerts
     rules:

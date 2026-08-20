@@ -3,75 +3,70 @@ rule_files:
 evaluation_interval: 1m
 tests:
 # ----------------------------------------
-# Healthy — no alerts
+# Healthy - no alerts
 # ----------------------------------------
 - interval: 1m
   input_series:
   - series: 'errors:frontend_http:error_rate:rate5m{cluster="svc-1"}'
-    values: "0.0001+0x50"
+    values: "0.0001+0x80"
   - series: 'sli:frontend_http:availability:rate5m{cluster="svc-1"}'
-    values: "0.9999+0x50"
+    values: "0.9999+0x80"
   - series: 'sli:frontend_http:latency:rate5m{cluster="svc-1"}'
-    values: "0.995+0x50"
+    values: "0.995+0x80"
   - series: 'sli:frontend:saturation_cpu:ratio5m{cluster="svc-1"}'
-    values: "0.4+0x50"
+    values: "0.4+0x80"
   - series: 'sli:frontend:saturation_memory:ratio5m{cluster="svc-1"}'
-    values: "0.4+0x50"
+    values: "0.4+0x80"
   - series: 'traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}'
-    values: "2+0x50"
+    values: "2+0x80"
   alert_rule_test:
-  - eval_time: 40m
+  - eval_time: 70m
     alertname: userJourneyFrontendErrors1h5m
     exp_alerts: []
-  - eval_time: 40m
+  - eval_time: 70m
     alertname: userJourneyFrontendErrors6h30m
     exp_alerts: []
-  - eval_time: 40m
-    alertname: userJourneyFrontendErrors3d
+  - eval_time: 70m
+    alertname: userJourneyFrontendErrors3d6h
     exp_alerts: []
-  - eval_time: 40m
-    alertname: userJourneyFrontendErrorsDegradation
-    exp_alerts: []
-  - eval_time: 40m
+  - eval_time: 70m
     alertname: userJourneyFrontendAvailability1h5m
     exp_alerts: []
-  - eval_time: 40m
+  - eval_time: 70m
     alertname: userJourneyFrontendAvailability6h30m
     exp_alerts: []
-  - eval_time: 40m
-    alertname: userJourneyFrontendAvailability3d
+  - eval_time: 70m
+    alertname: userJourneyFrontendAvailability3d6h
     exp_alerts: []
-  - eval_time: 40m
+  - eval_time: 70m
     alertname: userJourneyFrontendLatency1h5m
     exp_alerts: []
-  - eval_time: 40m
+  - eval_time: 70m
     alertname: userJourneyFrontendLatency6h30m
     exp_alerts: []
-  - eval_time: 40m
-    alertname: userJourneyFrontendLatency3d
+  - eval_time: 70m
+    alertname: userJourneyFrontendLatency3d6h
     exp_alerts: []
-  - eval_time: 40m
+  - eval_time: 70m
     alertname: userJourneyFrontendSaturationCPU
     exp_alerts: []
-  - eval_time: 40m
+  - eval_time: 70m
     alertname: userJourneyFrontendSaturationMemory
     exp_alerts: []
-  - eval_time: 40m
+  - eval_time: 70m
     alertname: userJourneyFrontendTrafficDrop
     exp_alerts: []
 # ----------------------------------------
+# Errors fast burn + Availability fast (MWMBR 1h AND 5m)
+# ----------------------------------------
 - interval: 1m
-  # ----------------------------------------
-
-  # Errors fast burn + degradation + Availability fast
-
   input_series:
   - series: 'errors:frontend_http:error_rate:rate5m{cluster="svc-1"}'
-    values: "0.01+0x50"
+    values: "0.01+0x80"
   - series: 'sli:frontend_http:availability:rate5m{cluster="svc-1"}'
-    values: "0.99+0x50"
+    values: "0.99+0x80"
   alert_rule_test:
-  - eval_time: 7m
+  - eval_time: 10m
     alertname: userJourneyFrontendErrors1h5m
     exp_alerts:
     - exp_labels:
@@ -84,22 +79,9 @@ tests:
         short_window: 5m
       exp_annotations:
         summary: "svc-1: Frontend HTTP 5xx error rate critically high (>0.72%)"
-        description: "Frontend 5xx share on cluster svc-1 is above 0.72% for 5m (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~12h."
+        description: "Frontend 5xx share on cluster svc-1 is above 0.72% on both the 1h and 5m windows (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~12h."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-  - eval_time: 32m
-    alertname: userJourneyFrontendErrorsDegradation
-    exp_alerts:
-    - exp_labels:
-        alertname: userJourneyFrontendErrorsDegradation
-        cluster: svc-1
-        component: slo
-        severity: "4"
-        slo: frontend-errors
-      exp_annotations:
-        summary: "svc-1: Frontend HTTP 5xx error rate exceeds 0.15% for 30 minutes"
-        description: "Frontend 5xx share on cluster svc-1 is above 0.15% (3x budget) for 30m - precursor before medium/fast burn pages."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-  - eval_time: 7m
+  - eval_time: 10m
     alertname: userJourneyFrontendAvailability1h5m
     exp_alerts:
     - exp_labels:
@@ -112,18 +94,16 @@ tests:
         short_window: 5m
       exp_annotations:
         summary: "svc-1: Frontend HTTP availability critically low (<99.28%)"
-        description: "Frontend availability on cluster svc-1 is below 99.28% for 5m (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket — Errors family pages on the complementary 5xx burn."
+        description: "Frontend availability on cluster svc-1 is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-# Errors medium burn (0.4%) — not fast
+# Errors medium burn (0.4%) - not fast
 # ----------------------------------------
 - interval: 1m
-  # ----------------------------------------
-
   input_series:
   - series: 'errors:frontend_http:error_rate:rate5m{cluster="svc-1"}'
-    values: "0.004+0x50"
+    values: "0.004+0x80"
   alert_rule_test:
-  - eval_time: 32m
+  - eval_time: 50m
     alertname: userJourneyFrontendErrors6h30m
     exp_alerts:
     - exp_labels:
@@ -135,23 +115,21 @@ tests:
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "svc-1: Frontend HTTP 5xx error rate elevated (>0.30%) for 30+ minutes"
-        description: "Frontend 5xx share on cluster svc-1 is above 0.30% for 30m (6x burn of the 0.05% error budget)."
+        summary: "svc-1: Frontend HTTP 5xx error rate elevated (>0.30%)"
+        description: "Frontend 5xx share on cluster svc-1 is above 0.30% on both the 6h and 30m windows (6x burn of the 0.05% error budget)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-  - eval_time: 32m
+  - eval_time: 50m
     alertname: userJourneyFrontendErrors1h5m
     exp_alerts: []
 # ----------------------------------------
+# Availability medium burn - not fast
+# ----------------------------------------
 - interval: 1m
-  # ----------------------------------------
-
-  # Availability medium burn — not fast
-
   input_series:
   - series: 'sli:frontend_http:availability:rate5m{cluster="svc-1"}'
-    values: "0.995+0x50"
+    values: "0.995+0x80"
   alert_rule_test:
-  - eval_time: 32m
+  - eval_time: 50m
     alertname: userJourneyFrontendAvailability6h30m
     exp_alerts:
     - exp_labels:
@@ -163,22 +141,20 @@ tests:
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "svc-1: Frontend HTTP availability degraded (<99.70%) for 30+ minutes"
-        description: "Frontend availability on cluster svc-1 is below 99.70% for 30m (6x burn). Sev4 ticket — Errors family pages on the complementary 5xx burn."
+        summary: "svc-1: Frontend HTTP availability degraded (<99.70%)"
+        description: "Frontend availability on cluster svc-1 is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-  - eval_time: 32m
+  - eval_time: 50m
     alertname: userJourneyFrontendAvailability1h5m
     exp_alerts: []
-# Latency medium burn — not fast
+# Latency medium burn - not fast
 # ----------------------------------------
 - interval: 1m
-  # ----------------------------------------
-
   input_series:
   - series: 'sli:frontend_http:latency:rate5m{cluster="svc-1"}'
-    values: "0.90+0x50"
+    values: "0.90+0x80"
   alert_rule_test:
-  - eval_time: 32m
+  - eval_time: 50m
     alertname: userJourneyFrontendLatency6h30m
     exp_alerts:
     - exp_labels:
@@ -190,23 +166,21 @@ tests:
         long_window: 6h
         short_window: 30m
       exp_annotations:
-        summary: "svc-1: Frontend HTTP latency SLI degraded (share <=1s <94%) for 30+ minutes"
-        description: "Share of Frontend requests within 1s on cluster svc-1 is below 94% for 30m (6x burn)."
+        summary: "svc-1: Frontend HTTP latency SLI degraded (share <=1s <94%)"
+        description: "Share of Frontend requests within 1s on cluster svc-1 is below 94% on both the 6h and 30m windows (6x burn)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-  - eval_time: 32m
+  - eval_time: 50m
     alertname: userJourneyFrontendLatency1h5m
     exp_alerts: []
 # ----------------------------------------
+# Latency fast burn
+# ----------------------------------------
 - interval: 1m
-  # ----------------------------------------
-
-  # Latency fast burn
-
   input_series:
   - series: 'sli:frontend_http:latency:rate5m{cluster="svc-1"}'
-    values: "0.8+0x35"
+    values: "0.8+0x80"
   alert_rule_test:
-  - eval_time: 7m
+  - eval_time: 10m
     alertname: userJourneyFrontendLatency1h5m
     exp_alerts:
     - exp_labels:
@@ -219,14 +193,12 @@ tests:
         short_window: 5m
       exp_annotations:
         summary: "svc-1: Frontend HTTP latency SLI critically low (share <=1s <85.6%)"
-        description: "Share of Frontend requests completing within 1s on cluster svc-1 is below 85.6% for 5m (14.4x burn of the 1% latency budget for the p99 < 1s SLO)."
+        description: "Share of Frontend requests completing within 1s on cluster svc-1 is below 85.6% on both the 1h and 5m windows (14.4x burn of the 1% latency budget for the p99 < 1s SLO)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
 # ----------------------------------------
+# Saturation CPU + memory
+# ----------------------------------------
 - interval: 1m
-  # ----------------------------------------
-
-  # Saturation CPU + memory
-
   input_series:
   - series: 'sli:frontend:saturation_cpu:ratio5m{cluster="svc-1"}'
     values: "0.9+0x35"
@@ -263,10 +235,6 @@ tests:
 # promtool expand counts are decimal (not hex): 5x288 = 288 samples @ 5 RPS
 # (~24h @ 5m step), then 0.2x13 = 13 samples (~65m) so drop is active by eval_time 25h.
 - interval: 5m
-  # ----------------------------------------
-
-  # Traffic drop vs 1d baseline (5m step)
-
   input_series:
   - series: 'traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}'
     values: "5x288 0.2x13"
