@@ -30,9 +30,15 @@ import (
 
 // Default relist durations. With changefeed, the relist is only a safety net;
 // near-real-time updates arrive via the change feed poll loop.
+//
+// Relist intervals use distinct prime-number durations (in seconds) between
+// 30 and 60 minutes. Using different primes makes it very unlikely that two
+// informers will align their relist cycles, preventing thundering-herd list
+// storms on Cosmos DB. When adding a new informer, pick the next unused
+// prime from this range.
 const (
-	ApplyDesireRelistDuration = 30 * time.Minute
-	ReadDesireRelistDuration  = 30 * time.Minute
+	ApplyDesireRelistDuration = 3391 * time.Second // ~56 minutes 31 seconds
+	ReadDesireRelistDuration  = 3529 * time.Second // ~58 minutes 49 seconds
 )
 
 // desireIndexers is the standard set registered on every *Desire informer.

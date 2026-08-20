@@ -37,21 +37,29 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// Relist intervals use distinct prime-number durations (in seconds) between
+// 30 and 60 minutes. Using different primes makes it very unlikely that two
+// informers will align their relist cycles, preventing thundering-herd list
+// storms on Cosmos DB. When adding a new informer, pick the next unused
+// prime from this range.
+//
+// The sub-minute durations below (ManagementClusterContent, Billing) are
+// intentionally fast change-detection paths and are exempt from this scheme.
 const (
 	// These durations indicate the maximum time it will take for us to notice a new instance of a particular type.
 	// Remember that these will not fire in order, so it's entirely possible to get an operation for subscription we have no observed.
-	SubscriptionRelistDuration                    = 30 * time.Minute
-	ClusterRelistDuration                         = 30 * time.Minute
-	NodePoolRelistDuration                        = 30 * time.Minute
-	ExternalAuthRelistDuration                    = 30 * time.Minute
-	ServiceProviderClusterRelistDuration          = 30 * time.Minute
-	ServiceProviderNodePoolRelistDuration         = 30 * time.Minute
-	ControllerRelistDuration                      = 30 * time.Minute
-	AllOperationsRelistDuration                   = 30 * time.Minute
-	ActiveOperationsRelistDuration                = 30 * time.Minute
+	SubscriptionRelistDuration                    = 1871 * time.Second // ~31 minutes 11 seconds
+	ClusterRelistDuration                         = 2011 * time.Second // ~33 minutes 31 seconds
+	NodePoolRelistDuration                        = 2143 * time.Second // ~35 minutes 43 seconds
+	ExternalAuthRelistDuration                    = 2287 * time.Second // ~38 minutes 7 seconds
+	ServiceProviderClusterRelistDuration          = 2423 * time.Second // ~40 minutes 23 seconds
+	ServiceProviderNodePoolRelistDuration         = 2557 * time.Second // ~42 minutes 37 seconds
+	ControllerRelistDuration                      = 2699 * time.Second // ~44 minutes 59 seconds
+	AllOperationsRelistDuration                   = 2837 * time.Second // ~47 minutes 17 seconds
+	ActiveOperationsRelistDuration                = 2971 * time.Second // ~49 minutes 31 seconds
 	ManagementClusterContentRelistDuration        = 30 * time.Second
-	SystemAdminCredentialRequestRelistDuration    = 30 * time.Minute
-	SystemAdminCredentialRevocationRelistDuration = 30 * time.Minute
+	SystemAdminCredentialRequestRelistDuration    = 3119 * time.Second // ~51 minutes 59 seconds
+	SystemAdminCredentialRevocationRelistDuration = 3253 * time.Second // ~54 minutes 13 seconds
 	BillingRelistDuration                         = 30 * time.Second
 )
 
