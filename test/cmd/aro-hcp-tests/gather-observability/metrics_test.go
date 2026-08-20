@@ -15,11 +15,13 @@
 package gatherobservability
 
 import (
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"k8s.io/utils/ptr"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 )
 
 func TestStepToISO8601(t *testing.T) {
@@ -102,7 +104,7 @@ func TestMetricToResultsMerged(t *testing.T) {
 	}
 
 	// No SplitBy -> single merged result labeled by the metric label.
-	results := metricToResults(metric, MetricSpec{Name: "NormalizedRUConsumption"}, "Normalized RU", false, selectMax)
+	results := metricToResults(metric, MetricSpec{Name: "NormalizedRUConsumption"}, "Normalized RU", false, selectMax, nil)
 	if len(results) != 1 {
 		t.Fatalf("got %d results, want 1", len(results))
 	}
@@ -160,7 +162,7 @@ func TestMetricToResultsSplitByDimension(t *testing.T) {
 
 	// Single metric split by container -> one series per container, labeled by
 	// the dimension value only (no metric-label prefix).
-	results := metricToResults(metric, MetricSpec{Name: "NormalizedRUConsumption", SplitBy: "CollectionName"}, "Normalized RU", false, selectMax)
+	results := metricToResults(metric, MetricSpec{Name: "NormalizedRUConsumption", SplitBy: "CollectionName"}, "Normalized RU", false, selectMax, nil)
 	if len(results) != 2 {
 		t.Fatalf("got %d results, want 2", len(results))
 	}
@@ -174,9 +176,54 @@ func TestMetricToResultsSplitByDimension(t *testing.T) {
 
 	// With multiple metrics in the query, the metric label prefixes the
 	// dimension value to disambiguate.
-	prefixed := metricToResults(metric, MetricSpec{Name: "NormalizedRUConsumption", SplitBy: "CollectionName"}, "Normalized RU", true, selectMax)
+	prefixed := metricToResults(metric, MetricSpec{Name: "NormalizedRUConsumption", SplitBy: "CollectionName"}, "Normalized RU", true, selectMax, nil)
 	if prefixed[0].Metric["metric"] != "Normalized RU: Resources" {
 		t.Errorf("prefixed label = %q, want %q", prefixed[0].Metric["metric"], "Normalized RU: Resources")
+	}
+}
+
+func TestMetricToResultsNormalizeByAutoscaleMax(t *testing.T) {
+	t.Parallel()
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	selectMax, _ := metricValueSelector("Maximum")
+
+	metric := &armmonitor.Metric{
+		Timeseries: []*armmonitor.TimeSeriesElement{
+			makeDimTimeseries("collectionname", "Resources", t0, 4000.0),     // ceiling 8000 -> 50%
+			makeDimTimeseries("collectionname", "Billing", t0, 1000.0),       // ceiling 4000 -> 25%
+			makeDimTimeseries("collectionname", "Manifests-MC-2", t0, 800.0), // prefix ceiling 8000 -> 10%
+			makeDimTimeseries("collectionname", "Unknown", t0, 1234.0),       // unknown ceiling -> unscaled
+		},
+	}
+	maxFor := func(container string) float64 {
+		switch {
+		case container == "Resources":
+			return 8000
+		case container == "Billing":
+			return 4000
+		case strings.HasPrefix(container, "Manifests-MC-"):
+			return 8000
+		default:
+			return 0
+		}
+	}
+
+	results := metricToResults(metric, MetricSpec{Name: "AutoscaledRU", SplitBy: "CollectionName", NormalizeByAutoscaleMax: true}, "Autoscaled RU", true, selectMax, maxFor)
+
+	got := map[string]string{}
+	for _, r := range results {
+		got[r.Metric["metric"]] = r.Values[0][1].(string)
+	}
+	want := map[string]string{
+		"Autoscaled RU: Resources":      "50",
+		"Autoscaled RU: Billing":        "25",
+		"Autoscaled RU: Manifests-MC-2": "10",
+		"Autoscaled RU: Unknown":        "1234", // ceiling unknown -> left as-is
+	}
+	for label, wantVal := range want {
+		if got[label] != wantVal {
+			t.Errorf("series %q = %q, want %q", label, got[label], wantVal)
+		}
 	}
 }
 
@@ -211,7 +258,7 @@ func TestBuildMetricFilter(t *testing.T) {
 func TestMetricToResultsEmpty(t *testing.T) {
 	t.Parallel()
 	selectMax, _ := metricValueSelector("Maximum")
-	results := metricToResults(&armmonitor.Metric{}, MetricSpec{Name: "X"}, "Empty", false, selectMax)
+	results := metricToResults(&armmonitor.Metric{}, MetricSpec{Name: "X"}, "Empty", false, selectMax, nil)
 	if len(results) != 1 || len(results[0].Values) != 0 {
 		t.Errorf("empty metric produced %+v, want single result with 0 values", results)
 	}

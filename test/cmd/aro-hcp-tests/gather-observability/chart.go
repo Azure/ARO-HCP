@@ -91,6 +91,7 @@ type chartData struct {
 	QueryLang        string // "PromQL" or "Azure Monitor", shown in the query footer
 	HasData          bool
 	Error            string
+	Warning          string        // non-fatal notice shown alongside a rendered chart (e.g. partial failures)
 	ChartHTML        template.HTML // raw HTML from go-echarts, not escaped
 	MinPeakThreshold float64
 	ChartType        string
@@ -152,18 +153,23 @@ func estimateLegendHeight(labels []string, chartWidth int) int {
 
 // buildChartData builds the chart HTML for a single PromQL query result.
 // Each PrometheusResult becomes a separate series, labeled by its metric
-// labels.
-func buildChartData(q QuerySpec, queryErr string, results []PrometheusResult, tw timing.TimeWindow) chartData {
+// labels. warning carries a non-fatal notice (e.g. partial-failure details)
+// that is displayed alongside the chart when it still has data.
+func buildChartData(q QuerySpec, queryErr, warning string, results []PrometheusResult, tw timing.TimeWindow) chartData {
 	lang, body := queryFooter(q)
 	series := parseResultsToSeries(results)
 	if len(series) == 0 {
-		return chartData{Title: q.Title, Description: q.Description, Query: body, QueryLang: lang, Error: queryErr, MinPeakThreshold: q.MinPeakThreshold}
+		return chartData{Title: q.Title, Description: q.Description, Query: body, QueryLang: lang, Error: queryErr, Warning: warning, MinPeakThreshold: q.MinPeakThreshold}
 	}
 	switch q.ChartType {
 	case chartTypeFacetedStackedArea:
-		return buildFacetedStackedAreaChartData(q, series, tw)
+		cd := buildFacetedStackedAreaChartData(q, series, tw)
+		cd.Warning = warning
+		return cd
 	case chartTypeLine:
-		return buildLineChartData(q, series, tw)
+		cd := buildLineChartData(q, series, tw)
+		cd.Warning = warning
+		return cd
 	default:
 		return chartData{Title: q.Title, Description: q.Description, Query: body, QueryLang: lang, Error: fmt.Sprintf("unknown chartType: %q", q.ChartType)}
 	}

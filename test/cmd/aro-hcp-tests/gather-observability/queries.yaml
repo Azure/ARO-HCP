@@ -160,7 +160,7 @@ panels:
 - title: "CosmosDB Metrics"
   queries:
   - title: "RP CosmosDB RU Utilization vs Autoscale Ceiling"
-    description: "Max Normalized RU Consumption (%) split per container (CollectionName) and max Autoscaled RU (RU/s) for the RP Cosmos DB account, plotted together. Normalized RU Consumption is the per-minute peak utilization of provisioned throughput per container (the same signal as the 'Normalized RU Consumption High' alert, which fires per CollectionName); Autoscaled RU is the throughput the autoscale controller provisioned in response to that load. Splitting consumption by container shows which container (resources, Manifests-MC-1, Billing, Fleet, locks) is driving utilization. Both are Azure Monitor platform metrics (Microsoft.DocumentDB/databaseAccounts) aggregated by Max, not Prometheus. Note the series share one Y axis despite differing units (% vs RU/s)."
+    description: "Max Normalized RU Consumption (%) and Autoscaled RU as a percentage of each container's configured autoscale ceiling, both split per container (CollectionName) for the RP Cosmos DB account. Normalized RU Consumption is the per-minute peak utilization of provisioned throughput per container (the same signal as the 'Normalized RU Consumption High' alert, which fires per CollectionName); Autoscaled RU is the throughput the autoscale controller provisioned in response to that load, here divided by that container's configured maxThroughput (from the rendered config) so it shares the same 0-100% axis. Splitting by container shows which container (Resources, Manifests-MC-*, Billing, Fleet, Locks) is driving utilization and how close each is to its autoscale ceiling. Both are Azure Monitor platform metrics (Microsoft.DocumentDB/databaseAccounts) aggregated by Max, not Prometheus."
     source: azureMonitor
     resource: cosmosdb
     aggregation: Maximum
@@ -169,8 +169,10 @@ panels:
       label: "Normalized RU Consumption (%)"
       splitBy: CollectionName
     - name: AutoscaledRU
-      label: "Autoscaled RU (RU/s)"
-    unit: "% / RU per second"
+      label: "Autoscaled RU (% of ceiling)"
+      splitBy: CollectionName
+      normalizeByAutoscaleMax: true
+    unit: "%"
     step: "60s"
 - title: "CosmosDB Throttled Requests"
   queries:

@@ -761,6 +761,21 @@ func TestLoadQueriesConfig(t *testing.T) {
 `,
 			wantErr: "resource/aggregation/metrics are only valid with source",
 		},
+		{
+			name: "normalizeByAutoscaleMax without CollectionName split returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+      metrics:
+      - name: AutoscaledRU
+        normalizeByAutoscaleMax: true
+`,
+			wantErr: "normalizeByAutoscaleMax requires splitBy",
+		},
 	}
 
 	for _, tt := range tests {

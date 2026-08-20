@@ -72,6 +72,11 @@ const (
 // infrastructure metric panels are introduced.
 const resourceCosmosDB = "cosmosdb"
 
+// dimensionCollectionName is the Azure Monitor dimension that splits Cosmos DB
+// metrics per container (collection). It is required when normalizing a metric
+// by each container's autoscale ceiling.
+const dimensionCollectionName = "CollectionName"
+
 // knownMetricResources is the set of resource selectors accepted in the
 // azureMonitor query "resource" field. The values are resolved to concrete
 // Azure resource IDs at runtime (see options.go).
@@ -98,6 +103,13 @@ type MetricSpec struct {
 	// Filter restricts the metric to matching dimension values (e.g.
 	// {"StatusCode": "429"}). Combined with SplitBy via logical AND.
 	Filter map[string]string `json:"filter,omitempty" yaml:"filter,omitempty"`
+	// NormalizeByAutoscaleMax, when true, divides each split series' RU/s
+	// values by that container's configured autoscale maximum throughput and
+	// expresses the result as a percentage (0-100). It is used to render the
+	// absolute AutoscaledRU metric on the same percentage axis as
+	// NormalizedRUConsumption. Requires SplitBy to be "CollectionName" so each
+	// series can be matched to its container's ceiling.
+	NormalizeByAutoscaleMax bool `json:"normalizeByAutoscaleMax,omitempty" yaml:"normalizeByAutoscaleMax,omitempty"`
 }
 
 // QuerySpec describes a single query to execute and chart. Depending on
@@ -245,6 +257,9 @@ func validateAzureMonitorQuery(pi, qi int, panelTitle string, q QuerySpec) error
 	for mi, m := range q.Metrics {
 		if m.Name == "" {
 			return fmt.Errorf("panel %d (%s), query %d (%s), metric %d: name is required", pi, panelTitle, qi, q.Title, mi)
+		}
+		if m.NormalizeByAutoscaleMax && !strings.EqualFold(m.SplitBy, dimensionCollectionName) {
+			return fmt.Errorf("panel %d (%s), query %d (%s), metric %d (%s): normalizeByAutoscaleMax requires splitBy %q", pi, panelTitle, qi, q.Title, mi, m.Name, dimensionCollectionName)
 		}
 	}
 	if q.FacetBy != "" {

@@ -40,6 +40,14 @@ var metricNamespaceForResource = map[string]string{
 	resourceCosmosDB: metricNamespaceCosmosDB,
 }
 
+// autoscaleMaxLookup returns the configured autoscale maximum throughput
+// (RU/s) for a Cosmos DB container identified by its CollectionName dimension
+// value, or 0 when the container's ceiling is unknown. It is used to normalize
+// the absolute AutoscaledRU metric (RU/s) into a percentage of each container's
+// provisioned ceiling so it can share a percentage Y axis with
+// NormalizedRUConsumption.
+type autoscaleMaxLookup func(container string) float64
+
 // metricValueSelector returns a function extracting the requested aggregation
 // value from an Azure Monitor MetricValue. It also validates the aggregation
 // string, returning an error for unsupported aggregations.
@@ -84,15 +92,20 @@ func stepToISO8601(step string) string {
 // metric is fetched in its own request so per-metric errors do not fail the
 // whole query and so metrics with differing supported granularities can each
 // use the requested interval independently.
-func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, resourceID azcorearm.ResourceID, q QuerySpec, start, end time.Time) ([]PrometheusResult, error) {
+//
+// The returned warning is non-empty when some (but not all) metrics failed:
+// the successful series are still returned so the chart renders, and the
+// warning surfaces the partial failures so they are not silently hidden. A
+// non-nil error is returned only when the query produced no data at all.
+func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, resourceID azcorearm.ResourceID, q QuerySpec, start, end time.Time, maxFor autoscaleMaxLookup) (results []PrometheusResult, warning string, err error) {
 	client, err := armmonitor.NewMetricsClient(resourceID.SubscriptionID, cred, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create metrics client: %w", err)
+		return nil, "", fmt.Errorf("failed to create metrics client: %w", err)
 	}
 
 	selectValue, err := metricValueSelector(q.Aggregation)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	namespace := metricNamespaceForResource[q.Resource]
@@ -100,7 +113,6 @@ func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, 
 	interval := stepToISO8601(q.Step)
 	multiMetric := len(q.Metrics) > 1
 
-	var results []PrometheusResult
 	var errs []string
 	for _, m := range q.Metrics {
 		label := m.Label
@@ -133,7 +145,7 @@ func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, 
 				errs = append(errs, fmt.Sprintf("%s: %s: %s", m.Name, *metric.ErrorCode, msg))
 				continue
 			}
-			for _, r := range metricToResults(metric, m, label, multiMetric, selectValue) {
+			for _, r := range metricToResults(metric, m, label, multiMetric, selectValue, maxFor) {
 				if len(r.Values) > 0 {
 					results = append(results, r)
 				}
@@ -141,10 +153,17 @@ func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, 
 		}
 	}
 
-	if len(results) == 0 && len(errs) > 0 {
-		return nil, fmt.Errorf("all metric queries failed: %s", strings.Join(errs, "; "))
+	if len(errs) > 0 {
+		joined := strings.Join(errs, "; ")
+		if len(results) == 0 {
+			// Nothing succeeded: fail the query so it renders as an error card.
+			return nil, "", fmt.Errorf("all metric queries failed: %s", joined)
+		}
+		// Partial success: return data plus a warning so the failures are
+		// visible on the panel and in logs rather than silently dropped.
+		return results, fmt.Sprintf("some metric queries failed: %s", joined), nil
 	}
-	return results, nil
+	return results, "", nil
 }
 
 // buildMetricFilter constructs the Azure Monitor $filter expression that splits
@@ -166,19 +185,34 @@ func buildMetricFilter(m MetricSpec) string {
 // When the metric is split by a dimension it produces one result per dimension
 // value (labeled by that value); otherwise it merges all timeseries into a
 // single result labeled by the metric label.
-func metricToResults(metric *armmonitor.Metric, m MetricSpec, label string, multiMetric bool, selectValue func(*armmonitor.MetricValue) *float64) []PrometheusResult {
+//
+// When m.NormalizeByAutoscaleMax is set (and the metric is split by
+// CollectionName), each series' values are divided by the container's
+// configured autoscale ceiling and expressed as a percentage, so an absolute
+// RU/s metric renders on the same percentage axis as NormalizedRUConsumption.
+func metricToResults(metric *armmonitor.Metric, m MetricSpec, label string, multiMetric bool, selectValue func(*armmonitor.MetricValue) *float64, maxFor autoscaleMaxLookup) []PrometheusResult {
 	if m.SplitBy == "" {
-		return []PrometheusResult{mergeTimeseries(metric.Timeseries, label, selectValue)}
+		return []PrometheusResult{mergeTimeseries(metric.Timeseries, label, selectValue, 1)}
 	}
 	var results []PrometheusResult
 	for _, ts := range metric.Timeseries {
-		seriesLabel := dimensionValue(ts, m.SplitBy)
+		dimension := dimensionValue(ts, m.SplitBy)
+		seriesLabel := dimension
 		if seriesLabel == "" {
 			seriesLabel = label
 		} else if multiMetric {
 			seriesLabel = fmt.Sprintf("%s: %s", label, seriesLabel)
 		}
-		results = append(results, mergeTimeseries([]*armmonitor.TimeSeriesElement{ts}, seriesLabel, selectValue))
+		scale := 1.0
+		if m.NormalizeByAutoscaleMax && maxFor != nil {
+			// Divide RU/s by the container's ceiling to get a percentage
+			// (0-100). A zero/unknown ceiling leaves the series unscaled
+			// rather than producing a divide-by-zero.
+			if max := maxFor(dimension); max > 0 {
+				scale = 100.0 / max
+			}
+		}
+		results = append(results, mergeTimeseries([]*armmonitor.TimeSeriesElement{ts}, seriesLabel, selectValue, scale))
 	}
 	return results
 }
@@ -199,9 +233,10 @@ func dimensionValue(ts *armmonitor.TimeSeriesElement, dimension string) string {
 }
 
 // mergeTimeseries flattens the given timeseries elements into a single
-// PrometheusResult labeled by label, reading the selected aggregation value and
-// sorting points by timestamp.
-func mergeTimeseries(elements []*armmonitor.TimeSeriesElement, label string, selectValue func(*armmonitor.MetricValue) *float64) PrometheusResult {
+// PrometheusResult labeled by label, reading the selected aggregation value,
+// multiplying it by scale (pass 1 for no scaling), and sorting points by
+// timestamp.
+func mergeTimeseries(elements []*armmonitor.TimeSeriesElement, label string, selectValue func(*armmonitor.MetricValue) *float64, scale float64) PrometheusResult {
 	type point struct {
 		ts  int64
 		val float64
@@ -216,7 +251,7 @@ func mergeTimeseries(elements []*armmonitor.TimeSeriesElement, label string, sel
 			if val == nil {
 				continue
 			}
-			points = append(points, point{ts: v.TimeStamp.Unix(), val: *val})
+			points = append(points, point{ts: v.TimeStamp.Unix(), val: *val * scale})
 		}
 	}
 	// Azure may return timeseries elements unordered; the chart gap-marker

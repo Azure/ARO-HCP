@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/clock"
 
+	configtypes "github.com/Azure/ARO-Tools/config/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -83,6 +85,10 @@ type completedOptions struct {
 	SeverityThreshold int // -1 means no filter; 0=Sev0 .. 4=Sev4
 	cred              azcore.TokenCredential
 	knownIssues       []knownIssue
+	// cosmosAutoscaleMax resolves a Cosmos container's configured autoscale
+	// ceiling (RU/s) by CollectionName, used to normalize AutoscaledRU into a
+	// percentage. Nil-safe callers tolerate an unset lookup.
+	cosmosAutoscaleMax autoscaleMaxLookup
 }
 
 type Options struct {
@@ -151,6 +157,17 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to get frontend.cosmosDB.name from config: %w", err)
 	}
 
+	// The autoscale ceiling (max RU/s) is configured per Cosmos container. We
+	// read the values from the same rendered config used to deploy them so the
+	// absolute AutoscaledRU metric can be normalized into a percentage of each
+	// container's ceiling (see queries.yaml / metricToResults). The Manifests
+	// containers (one per management cluster, named "Manifests-MC-<n>") share
+	// the kube-applier max-scale value.
+	cosmosAutoscaleMax, err := buildCosmosAutoscaleMaxLookup(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	testTimingInfo, err := timing.LoadTestTimingInfo(ctx, o.TimingInputDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load test timing info: %w", err)
@@ -204,15 +221,53 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	logger.Info("loaded known issues config", "patterns", len(knownIssues))
 
 	return &Options{completedOptions: &completedOptions{
-		OutputDir:         o.OutputDir,
-		Workspaces:        workspaces,
-		MetricResources:   metricResources,
-		TimeWindow:        tw,
-		Queries:           queries,
-		SeverityThreshold: o.severityThreshold,
-		cred:              cred,
-		knownIssues:       knownIssues,
+		OutputDir:          o.OutputDir,
+		Workspaces:         workspaces,
+		MetricResources:    metricResources,
+		TimeWindow:         tw,
+		Queries:            queries,
+		SeverityThreshold:  o.severityThreshold,
+		cred:               cred,
+		knownIssues:        knownIssues,
+		cosmosAutoscaleMax: cosmosAutoscaleMax,
 	}}, nil
+}
+
+// buildCosmosAutoscaleMaxLookup reads the per-container autoscale maximum
+// throughput (RU/s) from the rendered configuration and returns a lookup keyed
+// by Azure Monitor's CollectionName dimension. The fixed RP containers map to
+// dedicated config values; the per-management-cluster "Manifests-MC-<n>"
+// containers share the kube-applier max-scale value. Unknown containers resolve
+// to 0 so callers leave them unscaled rather than dividing by zero.
+func buildCosmosAutoscaleMaxLookup(cfg configtypes.Configuration) (autoscaleMaxLookup, error) {
+	fixed := map[string]string{
+		"Resources": "frontend.cosmosDB.resourceContainerMaxScale",
+		"Billing":   "frontend.cosmosDB.billingContainerMaxScale",
+		"Fleet":     "frontend.cosmosDB.fleetContainerMaxScale",
+		"Locks":     "frontend.cosmosDB.locksContainerMaxScale",
+	}
+	byContainer := make(map[string]float64, len(fixed))
+	for container, path := range fixed {
+		v, err := testutil.ConfigGetInt(cfg, path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get %s from config: %w", path, err)
+		}
+		byContainer[container] = float64(v)
+	}
+	manifestsMax, err := testutil.ConfigGetInt(cfg, "kubeApplier.cosmosContainerMaxScale")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kubeApplier.cosmosContainerMaxScale from config: %w", err)
+	}
+
+	return func(container string) float64 {
+		if v, ok := byContainer[container]; ok {
+			return v
+		}
+		if strings.HasPrefix(container, "Manifests-MC-") {
+			return float64(manifestsMax)
+		}
+		return 0
+	}, nil
 }
 
 func (o Options) Run(ctx context.Context) error {
@@ -355,6 +410,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 		for _, q := range panel.Queries {
 			var results []PrometheusResult
 			var queryErr string
+			var warning string
 
 			switch q.Source {
 			case sourceAzureMonitor:
@@ -363,12 +419,16 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				if !ok {
 					return fmt.Errorf("unknown metric resource %q for query %q", q.Resource, q.Title)
 				}
-				res, err := queryAzureMonitorMetrics(ctx, o.cred, resourceID, q, o.TimeWindow.Start, o.TimeWindow.End)
+				res, warn, err := queryAzureMonitorMetrics(ctx, o.cred, resourceID, q, o.TimeWindow.Start, o.TimeWindow.End, o.cosmosAutoscaleMax)
 				if err != nil {
 					logger.Error(err, "Azure Monitor metrics query failed", "title", q.Title)
 					queryErr = err.Error()
 				} else {
 					results = res
+					if warn != "" {
+						logger.Info("Azure Monitor metrics query partially failed", "title", q.Title, "warning", warn)
+						warning = warn
+					}
 				}
 			default:
 				ws, ok := workspaces[q.Workspace]
@@ -388,7 +448,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				}
 			}
 
-			panelCharts = append(panelCharts, buildChartData(q, queryErr, results, o.TimeWindow))
+			panelCharts = append(panelCharts, buildChartData(q, queryErr, warning, results, o.TimeWindow))
 		}
 
 		// filename must match the Spyglass HTML lens regex .*-summary.*\.html
