@@ -92,3 +92,19 @@ tests:
     exp_samples:
     - labels: '{__name__="errors:frontend_http:error_rate:rate5m", cluster="svc-2"}'
       value: 0
+# All-5xx traffic — availability must emit 0 (not drop), errors 1
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_total{cluster="svc-3", code="500", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+60x15"
+  promql_expr_test:
+  - expr: sli:frontend_http:availability:rate5m{cluster="svc-3"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend_http:availability:rate5m", cluster="svc-3"}'
+      value: 0
+  - expr: errors:frontend_http:error_rate:rate5m{cluster="svc-3"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="errors:frontend_http:error_rate:rate5m", cluster="svc-3"}'
+      value: 1

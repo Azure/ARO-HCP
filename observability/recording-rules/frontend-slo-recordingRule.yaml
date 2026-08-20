@@ -34,15 +34,26 @@ spec:
     interval: 1m
     rules:
     # Availability SLI: non-5xx / total (ratio in [0,1]).
+    # `or 0 * total` keeps availability=0 when traffic is all 5xx (non-5xx series gone).
     - record: sli:frontend_http:availability:rate5m
       expr: |
         (
-          sum by (cluster) (
-            max without (prometheus_replica) (
-              rate(frontend_http_requests_total{
-                code!~"5..",
-                route!~".*hcpoperation(results|statuses).*"
-              }[5m])
+          (
+            sum by (cluster) (
+              max without (prometheus_replica) (
+                rate(frontend_http_requests_total{
+                  code!~"5..",
+                  route!~".*hcpoperation(results|statuses).*"
+                }[5m])
+              )
+            )
+            or
+            0 * sum by (cluster) (
+              max without (prometheus_replica) (
+                rate(frontend_http_requests_total{
+                  route!~".*hcpoperation(results|statuses).*"
+                }[5m])
+              )
             )
           )
           /
