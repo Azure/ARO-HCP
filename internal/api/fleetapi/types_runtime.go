@@ -85,3 +85,69 @@ var _ runtime.Object = &ManagementClusterList{}
 func (l *ManagementClusterList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
+
+var (
+	_ runtime.Object            = &ManagementClusterScheduling{}
+	_ metav1.ObjectMetaAccessor = &ManagementClusterScheduling{}
+)
+
+func (o *ManagementClusterScheduling) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ManagementClusterScheduling) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// ManagementClusterSchedulingList is a list of ManagementClusterScheduling resources.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ManagementClusterSchedulingList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ManagementClusterScheduling `json:"items"`
+}
+
+var _ runtime.Object = &ManagementClusterSchedulingList{}
+
+func (l *ManagementClusterSchedulingList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &HCPResourceRequirements{}
+	_ metav1.ObjectMetaAccessor = &HCPResourceRequirements{}
+)
+
+func (o *HCPResourceRequirements) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *HCPResourceRequirements) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// HCPResourceRequirementsList is a list of HCPResourceRequirements resources.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type HCPResourceRequirementsList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []HCPResourceRequirements `json:"items"`
+}
+
+var _ runtime.Object = &HCPResourceRequirementsList{}
+
+func (l *HCPResourceRequirementsList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}

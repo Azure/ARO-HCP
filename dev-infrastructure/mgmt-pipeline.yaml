@@ -439,6 +439,25 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: sessiongate
+    - name: fleetMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: fleet
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
+  - name: fleet-subscription-permissions
+    action: ARM
+    template: templates/fleet-subscription-permissions.bicep
+    parameters: configurations/fleet-subscription-permissions.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: fleetMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: fleet
     dependsOn:
     - resourceGroup: management
       step: cluster

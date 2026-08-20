@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -164,6 +165,7 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 }
 
 type controllerOptions struct {
+	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	fleetDBClient                fleetcosmosstorage.FleetDBClient
 	clustersServiceClient        ocm.ClusterServiceClientSpec
 	maestroConsumerClientFactory maestroregistration.MaestroConsumerClientFactory
@@ -217,23 +219,25 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, err
 	}
 
-	var azureCredential azcore.TokenCredential
-	var azureClientOptions *policy.ClientOptions
-	if len(o.AMWWorkspaceResourceIDs) > 0 {
-		azureCredential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
-			ClientOptions:                clientOpts,
-			RequireAzureTokenCredentials: true,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Azure credential for AMW scaling: %w", err)
-		}
-		azureClientOptions = &policy.ClientOptions{
-			Cloud: clientOpts.Cloud,
-		}
+	azureCredential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		ClientOptions:                clientOpts,
+		RequireAzureTokenCredentials: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 	}
+	azureClientOptions := &policy.ClientOptions{
+		Cloud: clientOpts.Cloud,
+	}
+
+	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(
+		dbClient,
+		kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient),
+	)
 
 	return &ControllerOptions{
 		controllerOptions: &controllerOptions{
+			kubeApplierDBClients:         kubeApplierDBClients,
 			fleetDBClient:                fleetDBClient,
 			clustersServiceClient:        clustersServiceClient,
 			maestroConsumerClientFactory: maestroConsumerClientFactory,
@@ -251,6 +255,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 func (o *ControllerOptions) Run(ctx context.Context) error {
 	mgr := &manager.Manager{
+		KubeApplierDBClients:         o.kubeApplierDBClients,
 		FleetDBClient:                o.fleetDBClient,
 		ClustersServiceClient:        o.clustersServiceClient,
 		MaestroConsumerClientFactory: o.maestroConsumerClientFactory,

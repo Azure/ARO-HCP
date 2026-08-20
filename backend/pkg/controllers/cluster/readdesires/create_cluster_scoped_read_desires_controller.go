@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -158,12 +159,12 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	}
 
 	desiredReadDesires := []*kubeapplierapi.ReadDesire{
-		controllerutils.BuildReadDesire(
+		controllerutil.BuildReadDesire(
 			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, readDesireNameReadonlyHostedCluster),
 			mcResourceID,
 			hostedClusterTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix),
 		),
-		controllerutils.BuildReadDesire(
+		controllerutil.BuildReadDesire(
 			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler),
 			mcResourceID,
 			clusterAutoscalerTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix),
@@ -172,7 +173,7 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 
 	controlPlaneNamespace := serviceProviderCluster.Status.ControlPlaneNamespace
 	if len(controlPlaneNamespace) > 0 {
-		desiredReadDesires = append(desiredReadDesires, controllerutils.BuildReadDesire(
+		desiredReadDesires = append(desiredReadDesires, controllerutil.BuildReadDesire(
 			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, kubeapplierhelpers.ReadDesireNameServingCA),
 			mcResourceID,
 			servingCATarget(controlPlaneNamespace),
@@ -240,7 +241,7 @@ func (c *createClusterScopedReadDesiresSyncer) ensureReadDesire(ctx context.Cont
 	if err != nil {
 		return err
 	}
-	if !controllerutils.ReadDesireNeedsWork(existing, desired) {
+	if !controllerutil.ReadDesireNeedsWork(existing, desired) {
 		return nil
 	}
 	name := desired.ResourceID.Name
