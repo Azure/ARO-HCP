@@ -77,6 +77,7 @@ type ValidatedOptions struct {
 type completedOptions struct {
 	OutputDir         string
 	Workspaces        map[string]azcorearm.ResourceID
+	MetricResources   map[string]azcorearm.ResourceID
 	TimeWindow        timing.TimeWindow
 	Queries           *QueriesConfig
 	SeverityThreshold int // -1 means no filter; 0=Sev0 .. 4=Sev4
@@ -141,6 +142,15 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to get monitoring.hcpWorkspaceName from config: %w", err)
 	}
 
+	// The RP Cosmos DB account is deployed into the region resource group with
+	// the name from frontend.cosmosDB.name (see region.bicep / output-region.bicep).
+	// Its platform metrics (NormalizedRUConsumption, AutoscaledRU, ...) are queried
+	// via the Azure Monitor metrics API rather than Prometheus.
+	cosmosDBName, err := testutil.ConfigGetString(cfg, "frontend.cosmosDB.name")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get frontend.cosmosDB.name from config: %w", err)
+	}
+
 	testTimingInfo, err := timing.LoadTestTimingInfo(ctx, o.TimingInputDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load test timing info: %w", err)
@@ -173,6 +183,10 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		workspaceHcp: *metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", o.SubscriptionID, regionRG, hcpWorkspace))),
 	}
 
+	metricResources := map[string]azcorearm.ResourceID{
+		resourceCosmosDB: *metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.DocumentDB/databaseAccounts/%s", o.SubscriptionID, regionRG, cosmosDBName))),
+	}
+
 	queries, err := loadQueriesConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load queries config: %w", err)
@@ -192,6 +206,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	return &Options{completedOptions: &completedOptions{
 		OutputDir:         o.OutputDir,
 		Workspaces:        workspaces,
+		MetricResources:   metricResources,
 		TimeWindow:        tw,
 		Queries:           queries,
 		SeverityThreshold: o.severityThreshold,
@@ -307,10 +322,10 @@ func (o Options) Run(ctx context.Context) error {
 	}
 	logger.Info("wrote alert JUnit artifact", "path", junitPath)
 
-	// Execute PromQL queries and render timeseries charts
+	// Execute panel queries (Prometheus and Azure Monitor) and render timeseries charts
 	if o.Queries != nil {
 		if err := o.runQueries(ctx, workspaces); err != nil {
-			return utils.TrackError(fmt.Errorf("PromQL query execution failed: %w", err))
+			return utils.TrackError(fmt.Errorf("panel query execution failed: %w", err))
 		}
 	}
 
@@ -338,22 +353,39 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 
 		var panelCharts []chartData
 		for _, q := range panel.Queries {
-			ws, ok := workspaces[q.Workspace]
-			if !ok {
-				return fmt.Errorf("unknown workspace %q for query %q", q.Workspace, q.Title)
-			}
-			endpoint := ws.PromEndpoint
-
-			logger.Info("executing PromQL query", "panel", panel.Title, "title", q.Title, "workspace", q.Workspace)
-
 			var results []PrometheusResult
 			var queryErr string
-			resp, err := queryRange(ctx, httpClient, o.cred, endpoint, q.Query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
-			if err != nil {
-				logger.Error(err, "PromQL query failed", "title", q.Title)
-				queryErr = err.Error()
-			} else {
-				results = resp.Data.Result
+
+			switch q.Source {
+			case sourceAzureMonitor:
+				logger.Info("executing Azure Monitor metrics query", "panel", panel.Title, "title", q.Title, "resource", q.Resource)
+				resourceID, ok := o.MetricResources[q.Resource]
+				if !ok {
+					return fmt.Errorf("unknown metric resource %q for query %q", q.Resource, q.Title)
+				}
+				res, err := queryAzureMonitorMetrics(ctx, o.cred, resourceID, q, o.TimeWindow.Start, o.TimeWindow.End)
+				if err != nil {
+					logger.Error(err, "Azure Monitor metrics query failed", "title", q.Title)
+					queryErr = err.Error()
+				} else {
+					results = res
+				}
+			default:
+				ws, ok := workspaces[q.Workspace]
+				if !ok {
+					return fmt.Errorf("unknown workspace %q for query %q", q.Workspace, q.Title)
+				}
+				endpoint := ws.PromEndpoint
+
+				logger.Info("executing PromQL query", "panel", panel.Title, "title", q.Title, "workspace", q.Workspace)
+
+				resp, err := queryRange(ctx, httpClient, o.cred, endpoint, q.Query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
+				if err != nil {
+					logger.Error(err, "PromQL query failed", "title", q.Title)
+					queryErr = err.Error()
+				} else {
+					results = resp.Data.Result
+				}
 			}
 
 			panelCharts = append(panelCharts, buildChartData(q, queryErr, results, o.TimeWindow))

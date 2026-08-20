@@ -610,6 +610,157 @@ func TestLoadQueriesConfig(t *testing.T) {
 `,
 			wantErr: "facetBy is only valid with chartType",
 		},
+		{
+			name: "azureMonitor source is valid",
+			yaml: `panels:
+  - title: "CosmosDB Metrics"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+      metrics:
+      - name: NormalizedRUConsumption
+        label: "Normalized RU"
+      - name: AutoscaledRU
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				q := cfg.Panels[0].Queries[0]
+				if q.Source != "azureMonitor" {
+					t.Errorf("Source = %q, want %q", q.Source, "azureMonitor")
+				}
+				if q.ChartType != "line" {
+					t.Errorf("ChartType = %q, want %q", q.ChartType, "line")
+				}
+				if q.Step != "60s" {
+					t.Errorf("Step = %q, want default %q", q.Step, "60s")
+				}
+				if len(q.Metrics) != 2 || q.Metrics[1].Name != "AutoscaledRU" {
+					t.Errorf("Metrics = %+v, want two metrics ending in AutoscaledRU", q.Metrics)
+				}
+			},
+		},
+		{
+			name: "source defaults to prometheus",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].Source != "prometheus" {
+					t.Errorf("Source = %q, want default %q", cfg.Panels[0].Queries[0].Source, "prometheus")
+				}
+			},
+		},
+		{
+			name: "unknown source returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      source: kusto
+      query: "foo"
+      workspace: svc
+`,
+			wantErr: `source must be "prometheus" or "azureMonitor"`,
+		},
+		{
+			name: "azureMonitor with query returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+      query: "rate(foo[5m])"
+      metrics:
+      - name: NormalizedRUConsumption
+`,
+			wantErr: "query/workspace are only valid with source",
+		},
+		{
+			name: "azureMonitor with unknown resource returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: postgres
+      aggregation: Maximum
+      metrics:
+      - name: NormalizedRUConsumption
+`,
+			wantErr: "resource must be one of",
+		},
+		{
+			name: "azureMonitor without aggregation returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      metrics:
+      - name: NormalizedRUConsumption
+`,
+			wantErr: "aggregation is required",
+		},
+		{
+			name: "azureMonitor with unsupported aggregation returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Median
+      metrics:
+      - name: NormalizedRUConsumption
+`,
+			wantErr: "unsupported aggregation",
+		},
+		{
+			name: "azureMonitor without metrics returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+`,
+			wantErr: "at least one metric is required",
+		},
+		{
+			name: "azureMonitor metric without name returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+      metrics:
+      - label: "no name"
+`,
+			wantErr: "name is required",
+		},
+		{
+			name: "prometheus with metrics field returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU"
+      query: "rate(foo[5m])"
+      workspace: svc
+      aggregation: Maximum
+`,
+			wantErr: "resource/aggregation/metrics are only valid with source",
+		},
 	}
 
 	for _, tt := range tests {

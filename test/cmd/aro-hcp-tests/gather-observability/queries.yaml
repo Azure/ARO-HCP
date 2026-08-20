@@ -157,7 +157,20 @@ panels:
     unit: /s
     workspace: svc
     step: "60s"
-- title: "Maestro Metrics"
+- title: "CosmosDB Metrics"
+  queries:
+  - title: "RP CosmosDB RU Utilization vs Autoscale Ceiling"
+    description: "Max Normalized RU Consumption (%, one series) and max Autoscaled RU (RU/s, one series) for the RP Cosmos DB account, plotted together. Normalized RU Consumption is the per-minute peak utilization of provisioned throughput across partitions (the same signal as the 'Normalized RU Consumption High' alert); Autoscaled RU is the throughput the autoscale controller provisioned in response to that load. Reading them together shows whether utilization spikes are being absorbed by autoscale headroom or are pinning against the ceiling. Both are Azure Monitor platform metrics (Microsoft.DocumentDB/databaseAccounts) aggregated by Max, not Prometheus. Note the two series share one Y axis despite differing units (% vs RU/s)."
+    source: azureMonitor
+    resource: cosmosdb
+    aggregation: Maximum
+    metrics:
+    - name: NormalizedRUConsumption
+      label: "Normalized RU Consumption (%)"
+    - name: AutoscaledRU
+      label: "Autoscaled RU (RU/s)"
+    unit: "% / RU per second"
+    step: "60s"
   queries:
   - title: "REST API Request Rate by Status"
     description: "Rate of REST API requests grouped by HTTP status code. Clusters-service and backend use this API for resource CRUD. Non-2xx codes indicate client errors (4xx) or server failures (5xx)."

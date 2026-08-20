@@ -88,11 +88,29 @@ type chartData struct {
 	Title            string
 	Description      string
 	Query            string
+	QueryLang        string // "PromQL" or "Azure Monitor", shown in the query footer
 	HasData          bool
 	Error            string
 	ChartHTML        template.HTML // raw HTML from go-echarts, not escaped
 	MinPeakThreshold float64
 	ChartType        string
+}
+
+// queryFooter returns the human-readable label and body shown in the collapsed
+// query footer of a chart, adapting to the query source.
+func queryFooter(q QuerySpec) (lang, body string) {
+	if q.Source == sourceAzureMonitor {
+		var lines []string
+		lines = append(lines, fmt.Sprintf("resource: %s", q.Resource))
+		lines = append(lines, fmt.Sprintf("aggregation: %s", q.Aggregation))
+		lines = append(lines, fmt.Sprintf("interval: %s", stepToISO8601(q.Step)))
+		lines = append(lines, "metrics:")
+		for _, m := range q.Metrics {
+			lines = append(lines, fmt.Sprintf("  - %s", m.Name))
+		}
+		return "Azure Monitor", strings.Join(lines, "\n")
+	}
+	return "PromQL", q.Query
 }
 
 // renderPanel assembles multiple charts into a single HTML page.
@@ -136,9 +154,10 @@ func estimateLegendHeight(labels []string, chartWidth int) int {
 // Each PrometheusResult becomes a separate series, labeled by its metric
 // labels.
 func buildChartData(q QuerySpec, queryErr string, results []PrometheusResult, tw timing.TimeWindow) chartData {
+	lang, body := queryFooter(q)
 	series := parseResultsToSeries(results)
 	if len(series) == 0 {
-		return chartData{Title: q.Title, Description: q.Description, Query: q.Query, Error: queryErr, MinPeakThreshold: q.MinPeakThreshold}
+		return chartData{Title: q.Title, Description: q.Description, Query: body, QueryLang: lang, Error: queryErr, MinPeakThreshold: q.MinPeakThreshold}
 	}
 	switch q.ChartType {
 	case chartTypeFacetedStackedArea:
@@ -146,7 +165,7 @@ func buildChartData(q QuerySpec, queryErr string, results []PrometheusResult, tw
 	case chartTypeLine:
 		return buildLineChartData(q, series, tw)
 	default:
-		return chartData{Title: q.Title, Description: q.Description, Query: q.Query, Error: fmt.Sprintf("unknown chartType: %q", q.ChartType)}
+		return chartData{Title: q.Title, Description: q.Description, Query: body, QueryLang: lang, Error: fmt.Sprintf("unknown chartType: %q", q.ChartType)}
 	}
 }
 
@@ -229,10 +248,12 @@ func buildLineChartData(q QuerySpec, series []parsedSeries, tw timing.TimeWindow
 	rendered := line.RenderContent()
 	html := extractChartBody(rendered)
 
+	lang, body := queryFooter(q)
 	return chartData{
 		Title:            q.Title,
 		Description:      q.Description,
-		Query:            q.Query,
+		Query:            body,
+		QueryLang:        lang,
 		HasData:          true,
 		ChartHTML:        template.HTML(html), //nolint:gosec // trusted go-echarts output
 		MinPeakThreshold: q.MinPeakThreshold,
@@ -368,10 +389,12 @@ func buildFacetedStackedAreaChartData(q QuerySpec, series []parsedSeries, tw tim
 	rendered := line.RenderContent()
 	html := extractChartBody(rendered)
 
+	lang, body := queryFooter(q)
 	return chartData{
 		Title:       q.Title,
 		Description: q.Description,
-		Query:       q.Query,
+		Query:       body,
+		QueryLang:   lang,
 		HasData:     true,
 		ChartHTML:   template.HTML(html), //nolint:gosec // trusted go-echarts output
 		ChartType:   q.ChartType,
