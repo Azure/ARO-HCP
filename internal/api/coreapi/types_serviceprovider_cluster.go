@@ -232,6 +232,102 @@ type ServiceProviderClusterStatus struct {
 	// AzureResources tracks the lifecycle of Azure resources associated with
 	// the cluster, including deny assignments and the managed resource group.
 	AzureResources AzureResources `json:"azureResources,omitempty"`
+
+	// MSIManagedIdentities tracks resolved ClientID/PrincipalID for
+	// the Managed Service Identity (MSI) based Azure User-Assigned Managed Identities
+	// associated to the cluster. Those are the cluster's control plane operators and
+	// the cluster's service managed identity.
+	// A cluster's control plane operator is a kubernetes operator associated to
+	// the cluster that runs in the cluster's control plane. For example,
+	// the Cluster's CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
+	// map contains (and is not limited to) the set of required control plane operators associated to a Cluster.
+	// The cluster's service managed identity is used to read and modify
+	// customer-provided Azure resources (for example the cluster subnet),
+	// subject to the permissions granted to that identity.
+	// MSI-based user-assigned managed identities are the identities defined in
+	// the Cluster's `identity` section. Credentials for those identities can be
+	// obtained from Microsoft's Managed Identities Data Plane service.
+	// In ARO-HCP environments where Microsoft's Managed Identities Data Plane
+	// service is unavailable, a fake Managed Identities Data Plane client is
+	// used. That client always returns the same identity metadata and
+	// credentials, regardless of which identity is requested. The returned
+	// values belong to the "MI Mock" identity, so the ClientID and PrincipalID
+	// stored for each entry here will not match that entry's ResourceID key,
+	// nor the real ClientID/PrincipalID of the corresponding identity in the
+	// Cluster's `identity` section.
+	// Additionally, this also tracks when Azure should next be re-queried for that info.
+	// Written by: FetchMSIIdentitiesInfo
+	MSIManagedIdentities ServiceProviderClusterMSIManagedIdentities `json:"msiManagedIdentities,omitempty"`
+}
+
+// ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)
+// based identity metadata resolved by FetchMSIIdentitiesInfo and consumed by ClusterIdentitySync to
+// populate HCPOpenShiftCluster.Identity.UserAssignedIdentities.
+type ServiceProviderClusterMSIManagedIdentities struct {
+	// EarliestRecheckTime is the earliest time at which the controller
+	// should re-query Azure for ClientID/PrincipalID of ControlPlaneOperatorsIdentities
+	// and ServiceManagedIdentity.
+	// Nil means recheck immediately.
+	// The same recheck time applies across all entries in ControlPlaneOperatorsIdentities
+	// and ServiceManagedIdentity.
+	// This allows the controller to avoid repeatedly hitting an Azure API to
+	// recheck that the desired state is true.
+	// Controllers should set this field with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources
+	// outside of their active phases. Order of at least six hours is, with
+	// durations up to 24 hours considered normal.
+	// Written by: FetchMSIIdentitiesInfo
+	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+	// ControlPlaneOperatorsIdentities is a map containing resolved ClientID/PrincipalID
+	// for Managed Service Identity (MSI) based Azure User-Assigned Managed Identities
+	// used by the cluster's control plane operators. The key is the fully lowercased
+	// Azure Resource ID of the identity. Which operators reference each identity is
+	// tracked on Cluster.CustomerProperties, not here. Multiple operators may share
+	// one identity entry.
+	// Written by: FetchMSIIdentitiesInfo
+	ControlPlaneOperatorsIdentities map[string]*ServiceProviderClusterControlPlaneOperatorIdentity `json:"controlPlaneOperatorsIdentities,omitempty"`
+	// ServiceManagedIdentity holds resolved ClientID/PrincipalID for the cluster's
+	// service managed identity.
+	// Written by: FetchMSIIdentitiesInfo
+	ServiceManagedIdentity *ServiceProviderClusterServiceManagedIdentity `json:"serviceManagedIdentity,omitempty"`
+}
+
+// ServiceProviderClusterControlPlaneOperatorIdentity is the resolved metadata for a
+// single Managed Service Identity (MSI) based Azure User-Assigned Managed Identity
+// used by one or more control plane operators.
+// Which operators reference this identity is tracked on
+// Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators.
+type ServiceProviderClusterControlPlaneOperatorIdentity struct {
+	// ResourceID is the Azure Resource ID of the Azure User Assigned Managed Identity.
+	// Its value comes from the Cluster's CustomerProperties.
+	// The ControlPlaneOperatorsIdentities map key is the fully lowercased form
+	// of this ID used for lookups.
+	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
+	// ClientID is the Client ID of the Azure User Assigned Managed Identity represented by ResourceID.
+	// Fetched from Azure and written here by the FetchMSIIdentitiesInfo.
+	// It may be nil or empty.
+	ClientID *string `json:"clientId,omitempty"`
+	// PrincipalID is the Principal ID of the Azure User Assigned Managed Identity represented by ResourceID.
+	// Fetched from Azure and written here by the FetchMSIIdentitiesInfo.
+	// It may be nil or empty.
+	PrincipalID *string `json:"principalId,omitempty"`
+}
+
+// ServiceProviderClusterServiceManagedIdentity is the resolved metadata for the
+// cluster's service managed identity.
+type ServiceProviderClusterServiceManagedIdentity struct {
+	// ResourceID is the Azure Resource ID of the Azure User Assigned Managed Identity that is associated to the cluster's Service Managed Identity.
+	// Its value comes from the Cluster's CustomerProperties.
+	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
+	// ClientID is the Client ID of the Azure User Assigned Managed Identity represented by ResourceID.
+	// Fetched from Azure and written here by the FetchMSIIdentitiesInfo.
+	// It may be nil or empty.
+	ClientID *string `json:"clientId,omitempty"`
+	// PrincipalID is the Principal ID of the Azure User Assigned Managed Identity represented by ResourceID.
+	// Fetched from Azure and written here by the FetchMSIIdentitiesInfo.
+	// It may be nil or empty.
+	PrincipalID *string `json:"principalId,omitempty"`
 }
 
 // AzureResources groups the Azure resource references associated with a cluster.
