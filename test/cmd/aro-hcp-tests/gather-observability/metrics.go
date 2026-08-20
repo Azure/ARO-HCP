@@ -18,6 +18,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -97,6 +98,7 @@ func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, 
 	namespace := metricNamespaceForResource[q.Resource]
 	timespan := fmt.Sprintf("%s/%s", start.UTC().Format(time.RFC3339), end.UTC().Format(time.RFC3339))
 	interval := stepToISO8601(q.Step)
+	multiMetric := len(q.Metrics) > 1
 
 	var results []PrometheusResult
 	var errs []string
@@ -113,6 +115,9 @@ func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, 
 			Aggregation:     &q.Aggregation,
 			Metricnamespace: &namespace,
 		}
+		if filter := buildMetricFilter(m); filter != "" {
+			opts.Filter = &filter
+		}
 		resp, err := client.List(ctx, resourceID.String(), opts)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", m.Name, err))
@@ -128,9 +133,10 @@ func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, 
 				errs = append(errs, fmt.Sprintf("%s: %s: %s", m.Name, *metric.ErrorCode, msg))
 				continue
 			}
-			result := metricToResult(metric, label, selectValue)
-			if len(result.Values) > 0 {
-				results = append(results, result)
+			for _, r := range metricToResults(metric, m, label, multiMetric, selectValue) {
+				if len(r.Values) > 0 {
+					results = append(results, r)
+				}
 			}
 		}
 	}
@@ -141,18 +147,67 @@ func queryAzureMonitorMetrics(ctx context.Context, cred azcore.TokenCredential, 
 	return results, nil
 }
 
-// metricToResult flattens all timeseries of a single Azure Monitor metric into
-// one PrometheusResult labeled by the provided display label. Timeseries are
-// merged because the queried resource carries a single set of dimensions for
-// the panels we render; if a metric is ever split by dimension, callers should
-// switch to a $filter and one label per dimension value.
-func metricToResult(metric *armmonitor.Metric, label string, selectValue func(*armmonitor.MetricValue) *float64) PrometheusResult {
+// buildMetricFilter constructs the Azure Monitor $filter expression that splits
+// a metric by a dimension (SplitBy) and/or restricts it to specific dimension
+// values (Filter). Returns "" when neither is set. Filter keys are sorted for
+// deterministic output.
+func buildMetricFilter(m MetricSpec) string {
+	var parts []string
+	for _, k := range slices.Sorted(maps.Keys(m.Filter)) {
+		parts = append(parts, fmt.Sprintf("%s eq '%s'", k, m.Filter[k]))
+	}
+	if m.SplitBy != "" {
+		parts = append(parts, fmt.Sprintf("%s eq '*'", m.SplitBy))
+	}
+	return strings.Join(parts, " and ")
+}
+
+// metricToResults converts a single Azure Monitor metric into PrometheusResults.
+// When the metric is split by a dimension it produces one result per dimension
+// value (labeled by that value); otherwise it merges all timeseries into a
+// single result labeled by the metric label.
+func metricToResults(metric *armmonitor.Metric, m MetricSpec, label string, multiMetric bool, selectValue func(*armmonitor.MetricValue) *float64) []PrometheusResult {
+	if m.SplitBy == "" {
+		return []PrometheusResult{mergeTimeseries(metric.Timeseries, label, selectValue)}
+	}
+	var results []PrometheusResult
+	for _, ts := range metric.Timeseries {
+		seriesLabel := dimensionValue(ts, m.SplitBy)
+		if seriesLabel == "" {
+			seriesLabel = label
+		} else if multiMetric {
+			seriesLabel = fmt.Sprintf("%s: %s", label, seriesLabel)
+		}
+		results = append(results, mergeTimeseries([]*armmonitor.TimeSeriesElement{ts}, seriesLabel, selectValue))
+	}
+	return results
+}
+
+// dimensionValue returns the value of the named dimension from a timeseries
+// element's metadata, matching the dimension name case-insensitively (Azure
+// lowercases dimension names in the metadata). Returns "" when not found.
+func dimensionValue(ts *armmonitor.TimeSeriesElement, dimension string) string {
+	for _, md := range ts.Metadatavalues {
+		if md.Name == nil || md.Name.Value == nil || md.Value == nil {
+			continue
+		}
+		if strings.EqualFold(*md.Name.Value, dimension) {
+			return *md.Value
+		}
+	}
+	return ""
+}
+
+// mergeTimeseries flattens the given timeseries elements into a single
+// PrometheusResult labeled by label, reading the selected aggregation value and
+// sorting points by timestamp.
+func mergeTimeseries(elements []*armmonitor.TimeSeriesElement, label string, selectValue func(*armmonitor.MetricValue) *float64) PrometheusResult {
 	type point struct {
 		ts  int64
 		val float64
 	}
 	var points []point
-	for _, ts := range metric.Timeseries {
+	for _, ts := range elements {
 		for _, v := range ts.Data {
 			if v == nil || v.TimeStamp == nil {
 				continue

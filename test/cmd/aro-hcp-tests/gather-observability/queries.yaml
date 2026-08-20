@@ -160,17 +160,34 @@ panels:
 - title: "CosmosDB Metrics"
   queries:
   - title: "RP CosmosDB RU Utilization vs Autoscale Ceiling"
-    description: "Max Normalized RU Consumption (%, one series) and max Autoscaled RU (RU/s, one series) for the RP Cosmos DB account, plotted together. Normalized RU Consumption is the per-minute peak utilization of provisioned throughput across partitions (the same signal as the 'Normalized RU Consumption High' alert); Autoscaled RU is the throughput the autoscale controller provisioned in response to that load. Reading them together shows whether utilization spikes are being absorbed by autoscale headroom or are pinning against the ceiling. Both are Azure Monitor platform metrics (Microsoft.DocumentDB/databaseAccounts) aggregated by Max, not Prometheus. Note the two series share one Y axis despite differing units (% vs RU/s)."
+    description: "Max Normalized RU Consumption (%) split per container (CollectionName) and max Autoscaled RU (RU/s) for the RP Cosmos DB account, plotted together. Normalized RU Consumption is the per-minute peak utilization of provisioned throughput per container (the same signal as the 'Normalized RU Consumption High' alert, which fires per CollectionName); Autoscaled RU is the throughput the autoscale controller provisioned in response to that load. Splitting consumption by container shows which container (resources, Manifests-MC-1, Billing, Fleet, locks) is driving utilization. Both are Azure Monitor platform metrics (Microsoft.DocumentDB/databaseAccounts) aggregated by Max, not Prometheus. Note the series share one Y axis despite differing units (% vs RU/s)."
     source: azureMonitor
     resource: cosmosdb
     aggregation: Maximum
     metrics:
     - name: NormalizedRUConsumption
       label: "Normalized RU Consumption (%)"
+      splitBy: CollectionName
     - name: AutoscaledRU
       label: "Autoscaled RU (RU/s)"
     unit: "% / RU per second"
     step: "60s"
+- title: "CosmosDB Throttled Requests"
+  queries:
+  - title: "Throttled Requests (429) by Container"
+    description: "Count of throttled requests (HTTP 429 - request rate too large) returned by the RP Cosmos DB account, split per container (CollectionName). Sustained 429s mean a container is exceeding its provisioned throughput (RU/s) and can surface as client-visible failures once SDK retries are exhausted — the same signal as the throttled-requests metric alert. Uses the TotalRequests platform metric filtered to StatusCode=429 with a Count aggregation (Count is the only aggregation TotalRequests supports). Any non-zero series indicates active throttling on that container."
+    source: azureMonitor
+    resource: cosmosdb
+    aggregation: Count
+    metrics:
+    - name: TotalRequests
+      label: "429s"
+      splitBy: CollectionName
+      filter:
+        StatusCode: "429"
+    unit: requests
+    step: "60s"
+
   queries:
   - title: "REST API Request Rate by Status"
     description: "Rate of REST API requests grouped by HTTP status code. Clusters-service and backend use this API for resource CRUD. Non-2xx codes indicate client errors (4xx) or server failures (5xx)."

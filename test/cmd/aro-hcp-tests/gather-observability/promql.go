@@ -87,8 +87,17 @@ type MetricSpec struct {
 	// (e.g. "NormalizedRUConsumption", "AutoscaledRU").
 	Name string `json:"name" yaml:"name"`
 	// Label is the human-readable series label shown on the chart. Defaults
-	// to Name when empty.
+	// to Name when empty. When SplitBy is set, the split dimension value is
+	// used as the series label instead (or as a suffix when the query plots
+	// more than one metric).
 	Label string `json:"label,omitempty" yaml:"label,omitempty"`
+	// SplitBy is an Azure Monitor dimension (e.g. "CollectionName") to split
+	// the metric into one series per dimension value. When empty the metric
+	// is returned as a single series aggregated across all dimensions.
+	SplitBy string `json:"splitBy,omitempty" yaml:"splitBy,omitempty"`
+	// Filter restricts the metric to matching dimension values (e.g.
+	// {"StatusCode": "429"}). Combined with SplitBy via logical AND.
+	Filter map[string]string `json:"filter,omitempty" yaml:"filter,omitempty"`
 }
 
 // QuerySpec describes a single query to execute and chart. Depending on

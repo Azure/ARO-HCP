@@ -76,7 +76,7 @@ func TestMetricValueSelector(t *testing.T) {
 	}
 }
 
-func TestMetricToResult(t *testing.T) {
+func TestMetricToResultsMerged(t *testing.T) {
 	t.Parallel()
 	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	t1 := t0.Add(time.Minute)
@@ -101,7 +101,12 @@ func TestMetricToResult(t *testing.T) {
 		},
 	}
 
-	result := metricToResult(metric, "Normalized RU", selectMax)
+	// No SplitBy -> single merged result labeled by the metric label.
+	results := metricToResults(metric, MetricSpec{Name: "NormalizedRUConsumption"}, "Normalized RU", false, selectMax)
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	result := results[0]
 	if got := result.Metric["metric"]; got != "Normalized RU" {
 		t.Errorf("label = %q, want %q", got, "Normalized RU")
 	}
@@ -120,7 +125,7 @@ func TestMetricToResult(t *testing.T) {
 	}
 
 	// The converted result flows through the existing series parser.
-	series := parseResultsToSeries([]PrometheusResult{result})
+	series := parseResultsToSeries(results)
 	if len(series) != 1 {
 		t.Fatalf("parseResultsToSeries returned %d series, want 1", len(series))
 	}
@@ -129,11 +134,85 @@ func TestMetricToResult(t *testing.T) {
 	}
 }
 
-func TestMetricToResultEmpty(t *testing.T) {
+func makeDimTimeseries(dimName, dimValue string, ts time.Time, val float64) *armmonitor.TimeSeriesElement {
+	return &armmonitor.TimeSeriesElement{
+		Metadatavalues: []*armmonitor.MetadataValue{
+			{Name: &armmonitor.LocalizableString{Value: ptr.To(dimName)}, Value: ptr.To(dimValue)},
+		},
+		Data: []*armmonitor.MetricValue{
+			{TimeStamp: ptr.To(ts), Maximum: ptr.To(val), Count: ptr.To(val)},
+		},
+	}
+}
+
+func TestMetricToResultsSplitByDimension(t *testing.T) {
+	t.Parallel()
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	selectMax, _ := metricValueSelector("Maximum")
+
+	metric := &armmonitor.Metric{
+		Timeseries: []*armmonitor.TimeSeriesElement{
+			// Azure lowercases the dimension name in metadata.
+			makeDimTimeseries("collectionname", "Resources", t0, 90.0),
+			makeDimTimeseries("collectionname", "Billing", t0, 40.0),
+		},
+	}
+
+	// Single metric split by container -> one series per container, labeled by
+	// the dimension value only (no metric-label prefix).
+	results := metricToResults(metric, MetricSpec{Name: "NormalizedRUConsumption", SplitBy: "CollectionName"}, "Normalized RU", false, selectMax)
+	if len(results) != 2 {
+		t.Fatalf("got %d results, want 2", len(results))
+	}
+	labels := map[string]bool{
+		results[0].Metric["metric"]: true,
+		results[1].Metric["metric"]: true,
+	}
+	if !labels["Resources"] || !labels["Billing"] {
+		t.Errorf("labels = %v, want Resources and Billing", labels)
+	}
+
+	// With multiple metrics in the query, the metric label prefixes the
+	// dimension value to disambiguate.
+	prefixed := metricToResults(metric, MetricSpec{Name: "NormalizedRUConsumption", SplitBy: "CollectionName"}, "Normalized RU", true, selectMax)
+	if prefixed[0].Metric["metric"] != "Normalized RU: Resources" {
+		t.Errorf("prefixed label = %q, want %q", prefixed[0].Metric["metric"], "Normalized RU: Resources")
+	}
+}
+
+func TestBuildMetricFilter(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		m    MetricSpec
+		want string
+	}{
+		{"none", MetricSpec{}, ""},
+		{"split only", MetricSpec{SplitBy: "CollectionName"}, "CollectionName eq '*'"},
+		{"filter only", MetricSpec{Filter: map[string]string{"StatusCode": "429"}}, "StatusCode eq '429'"},
+		{
+			"split and filter",
+			MetricSpec{SplitBy: "CollectionName", Filter: map[string]string{"StatusCode": "429"}},
+			"StatusCode eq '429' and CollectionName eq '*'",
+		},
+		{
+			"multiple filters sorted",
+			MetricSpec{Filter: map[string]string{"StatusCode": "429", "Region": "eastus"}},
+			"Region eq 'eastus' and StatusCode eq '429'",
+		},
+	}
+	for _, tt := range tests {
+		if got := buildMetricFilter(tt.m); got != tt.want {
+			t.Errorf("%s: buildMetricFilter = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestMetricToResultsEmpty(t *testing.T) {
 	t.Parallel()
 	selectMax, _ := metricValueSelector("Maximum")
-	result := metricToResult(&armmonitor.Metric{}, "Empty", selectMax)
-	if len(result.Values) != 0 {
-		t.Errorf("empty metric produced %d values, want 0", len(result.Values))
+	results := metricToResults(&armmonitor.Metric{}, MetricSpec{Name: "X"}, "Empty", false, selectMax)
+	if len(results) != 1 || len(results[0].Values) != 0 {
+		t.Errorf("empty metric produced %+v, want single result with 0 values", results)
 	}
 }
