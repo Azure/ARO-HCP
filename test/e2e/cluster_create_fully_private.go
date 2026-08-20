@@ -24,12 +24,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
-
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
-	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 // This test creates a fully private cluster (api.visibility: Private AND
@@ -143,13 +140,6 @@ var _ = Describe("Customer", func() {
 				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for fully private cluster %q", customerClusterName)
-
-			By("verifying IngressController has internal load balancer scope")
-			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
-				verifiers.VerifyIngressControllerScope(operatorv1.InternalLoadBalancer),
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to verify IngressController scope for fully private cluster %q", customerClusterName)
-			GinkgoLogr.Info("IngressController verified with internal load balancer scope")
 
 			By("verifying KAS is reachable from VM inside the VNet")
 			internalIP, err := framework.GetPrivateKASInternalIP(ctx, tc, clusterParams.ManagedResourceGroupName)

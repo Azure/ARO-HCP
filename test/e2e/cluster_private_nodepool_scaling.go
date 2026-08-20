@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -28,7 +29,6 @@ import (
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
-	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 // This test creates a cluster with private KAS and validates that NodePool
@@ -150,10 +150,28 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "KAS should be reachable from VM via private endpoint")
 
 			By("verifying initial node count and ready status")
-			Expect(verifiers.VerifyNodeCount(customerClusterName, int(initialReplicas)).Verify(ctx, adminRESTConfig)).To(Succeed(),
-				"failed to verify initial node count of %d", initialReplicas)
-			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(),
-				"failed to verify all nodes are ready after initial creation")
+			Eventually(func(g Gomega) {
+				nodesCmd := fmt.Sprintf(
+					"KUBECONFIG=$(mktemp) && "+
+						"trap 'rm -f $KUBECONFIG' EXIT && "+
+						"echo '%s' | base64 -d > $KUBECONFIG && "+
+						"chmod 600 $KUBECONFIG && "+
+						"kubectl --kubeconfig=$KUBECONFIG get nodes --no-headers 2>/dev/null",
+					kubeconfigB64,
+				)
+				output, runErr := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, nodesCmd, 2*time.Minute)
+				g.Expect(runErr).NotTo(HaveOccurred(), "failed to get nodes via VM")
+				var nodeLines []string
+				for _, l := range strings.Split(strings.TrimSpace(output), "\n") {
+					if strings.TrimSpace(l) != "" {
+						nodeLines = append(nodeLines, l)
+					}
+				}
+				g.Expect(nodeLines).To(HaveLen(int(initialReplicas)), "expected %d nodes, got output: %s", initialReplicas, output)
+				for _, line := range nodeLines {
+					g.Expect(line).To(ContainSubstring(" Ready "), "node not in Ready state: %s", line)
+				}
+			}, framework.NodePoolScalingTimeout, 30*time.Second).Should(Succeed(), "all %d initial nodes should be Ready", initialReplicas)
 			GinkgoLogr.Info("Initial node pool verified", "replicas", initialReplicas)
 
 			By("scaling up the nodepool from 1 to 2 replicas")
@@ -179,10 +197,28 @@ var _ = Describe("Customer", func() {
 				"expected scale up response replicas to equal %d", scaledUpReplicas)
 
 			By("verifying scaled-up node count and ready status")
-			Expect(verifiers.VerifyNodeCount(customerClusterName, int(scaledUpReplicas)).Verify(ctx, adminRESTConfig)).To(Succeed(),
-				"failed to verify node count of %d after scale up", scaledUpReplicas)
-			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(),
-				"failed to verify all nodes are ready after scale up")
+			Eventually(func(g Gomega) {
+				nodesCmd := fmt.Sprintf(
+					"KUBECONFIG=$(mktemp) && "+
+						"trap 'rm -f $KUBECONFIG' EXIT && "+
+						"echo '%s' | base64 -d > $KUBECONFIG && "+
+						"chmod 600 $KUBECONFIG && "+
+						"kubectl --kubeconfig=$KUBECONFIG get nodes --no-headers 2>/dev/null",
+					kubeconfigB64,
+				)
+				output, runErr := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, nodesCmd, 2*time.Minute)
+				g.Expect(runErr).NotTo(HaveOccurred(), "failed to get nodes via VM")
+				var nodeLines []string
+				for _, l := range strings.Split(strings.TrimSpace(output), "\n") {
+					if strings.TrimSpace(l) != "" {
+						nodeLines = append(nodeLines, l)
+					}
+				}
+				g.Expect(nodeLines).To(HaveLen(int(scaledUpReplicas)), "expected %d nodes after scale up, got output: %s", scaledUpReplicas, output)
+				for _, line := range nodeLines {
+					g.Expect(line).To(ContainSubstring(" Ready "), "node not in Ready state after scale up: %s", line)
+				}
+			}, framework.NodePoolScalingTimeout, 30*time.Second).Should(Succeed(), "all %d nodes should be Ready after scale up", scaledUpReplicas)
 			GinkgoLogr.Info("Scale up verified", "replicas", scaledUpReplicas)
 
 			By("scaling down the nodepool from 2 to 1 replica")
@@ -207,10 +243,28 @@ var _ = Describe("Customer", func() {
 				"expected scale down response replicas to equal %d", initialReplicas)
 
 			By("verifying scaled-down node count and ready status")
-			Expect(verifiers.VerifyNodeCount(customerClusterName, int(initialReplicas)).Verify(ctx, adminRESTConfig)).To(Succeed(),
-				"failed to verify node count of %d after scale down", initialReplicas)
-			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(),
-				"failed to verify all nodes are ready after scale down")
+			Eventually(func(g Gomega) {
+				nodesCmd := fmt.Sprintf(
+					"KUBECONFIG=$(mktemp) && "+
+						"trap 'rm -f $KUBECONFIG' EXIT && "+
+						"echo '%s' | base64 -d > $KUBECONFIG && "+
+						"chmod 600 $KUBECONFIG && "+
+						"kubectl --kubeconfig=$KUBECONFIG get nodes --no-headers 2>/dev/null",
+					kubeconfigB64,
+				)
+				output, runErr := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, nodesCmd, 2*time.Minute)
+				g.Expect(runErr).NotTo(HaveOccurred(), "failed to get nodes via VM")
+				var nodeLines []string
+				for _, l := range strings.Split(strings.TrimSpace(output), "\n") {
+					if strings.TrimSpace(l) != "" {
+						nodeLines = append(nodeLines, l)
+					}
+				}
+				g.Expect(nodeLines).To(HaveLen(int(initialReplicas)), "expected %d nodes after scale down, got output: %s", initialReplicas, output)
+				for _, line := range nodeLines {
+					g.Expect(line).To(ContainSubstring(" Ready "), "node not in Ready state after scale down: %s", line)
+				}
+			}, framework.NodePoolScalingTimeout, 30*time.Second).Should(Succeed(), "all %d nodes should be Ready after scale down", initialReplicas)
 			GinkgoLogr.Info("Private cluster nodepool scaling verified successfully",
 				"clusterName", customerClusterName)
 		},
