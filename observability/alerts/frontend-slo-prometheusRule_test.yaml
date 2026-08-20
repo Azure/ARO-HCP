@@ -80,7 +80,7 @@ tests:
       exp_annotations:
         summary: "svc-1: Frontend HTTP 5xx error rate critically high (>0.72%)"
         description: "Frontend 5xx share on cluster svc-1 is above 0.72% on both the 1h and 5m windows (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~2d (~50h)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
   - eval_time: 10m
     alertname: userJourneyFrontendAvailability1h5m
     exp_alerts:
@@ -95,7 +95,7 @@ tests:
       exp_annotations:
         summary: "svc-1: Frontend HTTP availability critically low (<99.28%)"
         description: "Frontend availability on cluster svc-1 is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
 # Errors medium burn (0.4%) - not fast
 # ----------------------------------------
 - interval: 1m
@@ -117,7 +117,7 @@ tests:
       exp_annotations:
         summary: "svc-1: Frontend HTTP 5xx error rate elevated (>0.30%)"
         description: "Frontend 5xx share on cluster svc-1 is above 0.30% on both the 6h and 30m windows (6x burn of the 0.05% error budget)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
   - eval_time: 50m
     alertname: userJourneyFrontendErrors1h5m
     exp_alerts: []
@@ -143,7 +143,7 @@ tests:
       exp_annotations:
         summary: "svc-1: Frontend HTTP availability degraded (<99.70%)"
         description: "Frontend availability on cluster svc-1 is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
   - eval_time: 50m
     alertname: userJourneyFrontendAvailability1h5m
     exp_alerts: []
@@ -168,7 +168,7 @@ tests:
       exp_annotations:
         summary: "svc-1: Frontend HTTP latency SLI degraded (share <=1s <94%)"
         description: "Share of Frontend requests within 1s on cluster svc-1 is below 94% on both the 6h and 30m windows (6x burn)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
   - eval_time: 50m
     alertname: userJourneyFrontendLatency1h5m
     exp_alerts: []
@@ -194,7 +194,7 @@ tests:
       exp_annotations:
         summary: "svc-1: Frontend HTTP latency SLI critically low (share <=1s <85.6%)"
         description: "Share of Frontend requests completing within 1s on cluster svc-1 is below 85.6% on both the 1h and 5m windows (14.4x burn of the 1% latency budget for the p99 < 1s SLO)."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
 # ----------------------------------------
 # Saturation CPU + memory
 # ----------------------------------------
@@ -217,7 +217,7 @@ tests:
       exp_annotations:
         summary: "svc-1: Frontend pod CPU above 85% of request for 15+ minutes"
         description: "Frontend container CPU (usage/request) on cluster svc-1 is above 85% for 15m."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
   - eval_time: 17m
     alertname: userJourneyFrontendSaturationMemory
     exp_alerts:
@@ -230,7 +230,7 @@ tests:
       exp_annotations:
         summary: "svc-1: Frontend pod memory above 85% of limit for 15+ minutes"
         description: "Frontend container memory (working set/limit) on cluster svc-1 is above 85% for 15m."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
 # ----------------------------------------
 # promtool expand counts are decimal (not hex): 5x288 = 288 samples @ 5 RPS
 # (~24h @ 5m step), then 0.2x13 = 13 samples (~65m) so drop is active by eval_time 25h.
@@ -251,4 +251,4 @@ tests:
       exp_annotations:
         summary: "svc-1: Frontend HTTP traffic collapsed below 10% of 1d baseline"
         description: "Frontend request rate on cluster svc-1 is below 10% of its 1-day average for 15m while the baseline exceeded 0.5 RPS."
-        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend"
