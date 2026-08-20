@@ -23,6 +23,20 @@ import (
 
 const operationTimeToLive = 604800 // 7 days
 
+// TimeToLiveForInternal returns the Cosmos DB TTL (in seconds) that a given
+// internal object should be stored with, or 0 for "no TTL". This is the single
+// source of truth for which document types are TTL-governed: it is used both
+// when serializing documents (to stamp the ttl field) and by the Cosmos
+// migration controller (to avoid re-writing ephemeral, TTL-governed documents,
+// which would reset their _ts and therefore their TTL clock).
+func TimeToLiveForInternal(internalObj any) int {
+	switch internalObj.(type) {
+	case *coreapi.Operation:
+		return operationTimeToLive
+	}
+	return 0
+}
+
 func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) (*GenericDocument[InternalAPIType], error) {
 	if internalObj == nil {
 		return nil, nil
@@ -59,11 +73,10 @@ func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) 
 	}
 
 	// this isn't pretty, but on balance it's a better choice so that we can share all the rest.
-	switch any(internalObj).(type) {
-	case *coreapi.Operation:
-		// TODO Add TTL to cosmosMetadata
-		cosmosObj.TimeToLive = operationTimeToLive
-	}
+	// TimeToLiveForInternal is the single source of truth for which document
+	// types are TTL-governed (see also the Cosmos migration controller).
+	// TODO Add TTL to cosmosMetadata
+	cosmosObj.TimeToLive = TimeToLiveForInternal(any(internalObj))
 
 	return cosmosObj, nil
 }
