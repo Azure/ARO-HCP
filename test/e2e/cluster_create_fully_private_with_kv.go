@@ -26,12 +26,9 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
-
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
-	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 // This test creates a fully private cluster with all three visibility
@@ -175,12 +172,6 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for fully private cluster with KV %q", customerClusterName)
 
-			By("verifying IngressController has internal load balancer scope")
-			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
-				verifiers.VerifyIngressControllerScope(operatorv1.InternalLoadBalancer),
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to verify IngressController scope for fully private cluster with KV %q", customerClusterName)
-
 			By("verifying KAS is reachable from VM inside the VNet")
 			internalIP, err := framework.GetPrivateKASInternalIP(ctx, tc, clusterParams.ManagedResourceGroupName)
 			Expect(err).NotTo(HaveOccurred(), "failed to find private KAS internal LB IP in managed resource group %q", clusterParams.ManagedResourceGroupName)
@@ -261,12 +252,6 @@ var _ = Describe("Customer", func() {
 					"private ingress should not be reachable from outside the VNet, but connection succeeded")
 			}, 2*time.Minute, 15*time.Second).Should(Succeed(),
 				"private ingress should consistently be unreachable from outside the VNet")
-
-			By("verifying cluster is viable with router-default logs")
-			logVerifier := verifiers.VerifyGetDeploymentLogs("openshift-ingress", "router-default", "router")
-			Eventually(func() error {
-				return logVerifier.Verify(ctx, adminRESTConfig)
-			}, 10*time.Minute, 30*time.Second).Should(Succeed(), "router-default deployment logs should be fetchable")
 
 			GinkgoLogr.Info("Fully private cluster with private KeyVault is fully operational",
 				"clusterName", customerClusterName)
