@@ -70,6 +70,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.APIVisibility = "Private"
 			clusterParams.IngressType = "Private"
 			clusterParams.KeyVaultVisibility = "Private"
+			clusterParams.OpenshiftVersionId = "4.22"
 
 			By("creating customer resources with private KeyVault")
 			clusterParams, err = tc.CreateClusterCustomerResources20260630(ctx,
