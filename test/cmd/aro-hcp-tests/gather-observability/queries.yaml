@@ -84,6 +84,28 @@ panels:
     unit: /s
     workspace: svc
     step: "60s"
+  - title: "Database Transaction Latency (p99)"
+    description: "P99 latency of Cosmos DB transactional batches executed by the frontend (e.g. resource create/update flows), by transaction type (a stable name identifying the code path) and HTTP status code. Sourced from database_transaction_duration_seconds. No minPeakThreshold so fast transactions stay visible for CI triage."
+    query: |
+      histogram_quantile(0.99,
+        sum by (le, transaction_type, code, cluster) (
+          rate(database_transaction_duration_seconds_bucket{job="aro-hcp-frontend-metrics"}[5m])
+        )
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Database Transaction Rate"
+    description: "Rate of Cosmos DB transactions executed by the frontend, by transaction type and HTTP status code (database_transaction_total). Deduplicates HA Prometheus replicas with max without(prometheus_replica) before summing. A 412 code indicates an optimistic-concurrency precondition failure on the batch."
+    query: |
+      sum by (transaction_type, code, cluster) (
+        max without (prometheus_replica) (
+          rate(database_transaction_total{job="aro-hcp-frontend-metrics"}[5m])
+        )
+      )
+    unit: /s
+    workspace: svc
+    step: "60s"
 - title: "Backend Metrics"
   queries:
   - title: "Controller Workqueue Retry Ratio"
@@ -174,6 +196,39 @@ panels:
       sum by (verb, resource_type, code, cluster) (
         max without (prometheus_replica) (
           rate(database_request_total{job="aro-hcp-backend-metrics"}[5m])
+        )
+      )
+    unit: /s
+    workspace: svc
+    step: "60s"
+  - title: "Database Transaction Latency (p99)"
+    description: "P99 latency of Cosmos DB transactional batches executed by the backend controllers, by transaction type (a stable name identifying the code path) and HTTP status code. Sourced from database_transaction_duration_seconds. No minPeakThreshold so fast transactions stay visible for CI triage."
+    query: |
+      histogram_quantile(0.99,
+        sum by (le, transaction_type, code, cluster) (
+          rate(database_transaction_duration_seconds_bucket{job="aro-hcp-backend-metrics"}[5m])
+        )
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Database Transaction Rate"
+    description: "Rate of Cosmos DB transactions executed by the backend controllers, by transaction type and HTTP status code (database_transaction_total). Deduplicates HA Prometheus replicas with max without(prometheus_replica) before summing. A 412 code indicates an optimistic-concurrency precondition failure on the batch."
+    query: |
+      sum by (transaction_type, code, cluster) (
+        max without (prometheus_replica) (
+          rate(database_transaction_total{job="aro-hcp-backend-metrics"}[5m])
+        )
+      )
+    unit: /s
+    workspace: svc
+    step: "60s"
+  - title: "Database Transaction Step Rate"
+    description: "Rate of individual steps committed by backend Cosmos DB transactions, by transaction type, step verb (create/replace), step resource type, and HTTP status code (database_transaction_step_total). Reveals which verbs and resource types the transactional batches actually carry. Deduplicates HA Prometheus replicas with max without(prometheus_replica) before summing."
+    query: |
+      sum by (transaction_type, step_verb, step_resource_type, code, cluster) (
+        max without (prometheus_replica) (
+          rate(database_transaction_step_total{job="aro-hcp-backend-metrics"}[5m])
         )
       )
     unit: /s
