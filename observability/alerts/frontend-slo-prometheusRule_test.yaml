@@ -56,12 +56,11 @@ tests:
   - eval_time: 70m
     alertname: userJourneyFrontendTrafficDrop
     exp_alerts: []
-# ----------------------------------------
 - interval: 1m
   # ----------------------------------------
 
+  # ----------------------------------------
   # Errors fast burn + Availability fast (MWMBR 1h AND 5m)
-
   input_series:
   - series: 'errors:frontend_http:error_rate:rate5m{cluster="svc-1"}'
     values: "0.01+0x80"
@@ -102,7 +101,6 @@ tests:
   # Errors medium burn (0.4%) - not fast
 
   # ----------------------------------------
-
   input_series:
   - series: 'errors:frontend_http:error_rate:rate5m{cluster="svc-1"}'
     values: "0.004+0x80"
@@ -125,12 +123,11 @@ tests:
   - eval_time: 50m
     alertname: userJourneyFrontendErrors1h5m
     exp_alerts: []
-# ----------------------------------------
 - interval: 1m
   # ----------------------------------------
 
+  # ----------------------------------------
   # Availability medium burn - not fast
-
   input_series:
   - series: 'sli:frontend_http:availability:rate5m{cluster="svc-1"}'
     values: "0.995+0x80"
@@ -157,7 +154,6 @@ tests:
   # Latency medium burn - not fast
 
   # ----------------------------------------
-
   input_series:
   - series: 'sli:frontend_http:latency:rate5m{cluster="svc-1"}'
     values: "0.90+0x80"
@@ -180,12 +176,11 @@ tests:
   - eval_time: 50m
     alertname: userJourneyFrontendLatency1h5m
     exp_alerts: []
-# ----------------------------------------
 - interval: 1m
   # ----------------------------------------
 
+  # ----------------------------------------
   # Latency fast burn
-
   input_series:
   - series: 'sli:frontend_http:latency:rate5m{cluster="svc-1"}'
     values: "0.8+0x80"
@@ -205,12 +200,11 @@ tests:
         summary: "svc-1: Frontend HTTP latency SLI critically low (share <=1s <85.6%)"
         description: "Share of Frontend requests completing within 1s on cluster svc-1 is below 85.6% on both the 1h and 5m windows (14.4x burn of the 1% latency budget for the p99 < 1s SLO)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-# ----------------------------------------
 - interval: 1m
   # ----------------------------------------
 
+  # ----------------------------------------
   # Saturation CPU + memory
-
   input_series:
   - series: 'sli:frontend:saturation_cpu:ratio5m{cluster="svc-1"}'
     values: "0.9+0x35"
@@ -243,12 +237,11 @@ tests:
         summary: "svc-1: Frontend pod memory above 85% of limit for 15+ minutes"
         description: "Frontend container memory (working set/limit) on cluster svc-1 is above 85% for 15m."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-# (~24h @ 5m step), then 0.2x13 = 13 samples (~65m) so drop is active by eval_time 25h.
 - interval: 5m
   # ----------------------------------------
 
+  # (~24h @ 5m step), then 0.2x13 = 13 samples (~65m) so drop is active by eval_time 25h.
   # promtool expand counts are decimal (not hex): 5x288 = 288 samples @ 5 RPS
-
   input_series:
   - series: 'traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}'
     values: "5x288 0.2x13"
