@@ -127,8 +127,8 @@ func (p DesireParent) readDesireCRUD(client kubeappliercosmosstorage.KubeApplier
 	return client.ReadDesiresFor(scope)
 }
 
-// EnsureApplyDesire creates desire, or replaces the stored one when its spec has
-// drifted. It consults the ApplyDesire lister first — keyed by the desire's own
+// EnsureApplyDesire creates desire, or replaces the stored one when its spec or
+// tags have drifted. It consults the ApplyDesire lister first — keyed by the desire's own
 // resource ID — so an already-correct desire is never rewritten, and logs
 // whenever it writes. The caller constructs the full desire in its own package
 // (each controller builds the ApplyDesire it wants), so this function stays a
@@ -158,9 +158,10 @@ func EnsureApplyDesire(
 		}
 		logger.Info("created ApplyDesire", "desire", desireName, "targetResource", target.Resource, "targetName", target.Name)
 		return nil
-	case !applyDesireSpecEqual(existing.Spec, desire.Spec):
+	case !applyDesireSpecEqual(existing.Spec, desire.Spec) || !reflect.DeepEqual(existing.Tags, desire.Tags):
 		replacement := existing.DeepCopy()
 		replacement.Spec = desire.Spec
+		replacement.Tags = desire.Tags
 		replacement.Status = kubeapplierapi.ApplyDesireStatus{}
 		_, err := crud.Replace(ctx, replacement, nil)
 		switch {
@@ -176,8 +177,8 @@ func EnsureApplyDesire(
 	}
 }
 
-// EnsureReadDesire creates desire, or replaces the stored one when its spec has
-// drifted. Like EnsureApplyDesire it consults the lister (keyed by the desire's
+// EnsureReadDesire creates desire, or replaces the stored one when its spec or
+// tags have drifted. Like EnsureApplyDesire it consults the lister (keyed by the desire's
 // resource ID) and leaves construction to the caller, which builds the ReadDesire
 // in its own package. It is shared by the desires-creator, revocation-desires,
 // backup-schedule, and read-desire creator controllers.
@@ -205,9 +206,10 @@ func EnsureReadDesire(
 		}
 		logger.Info("created ReadDesire", "desire", desireName, "targetResource", target.Resource, "targetName", target.Name)
 		return nil
-	case !readDesireSpecEqual(existing.Spec, desire.Spec):
+	case !readDesireSpecEqual(existing.Spec, desire.Spec) || !reflect.DeepEqual(existing.Tags, desire.Tags):
 		replacement := existing.DeepCopy()
 		replacement.Spec = desire.Spec
+		replacement.Tags = desire.Tags
 		replacement.Status = kubeapplierapi.ReadDesireStatus{}
 		_, err := crud.Replace(ctx, replacement, nil)
 		switch {

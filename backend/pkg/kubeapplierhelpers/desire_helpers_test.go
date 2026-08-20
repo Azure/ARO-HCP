@@ -184,6 +184,36 @@ func TestEnsureApplyDesire(t *testing.T) {
 	}
 }
 
+// TestEnsureApplyDesireTagsDrift proves that a change confined to the top-level
+// .Tags map (spec byte-for-byte identical) is still detected as drift and
+// triggers a replacement that persists the new tags — guarding the field the
+// spec-only equality check ignores.
+func TestEnsureApplyDesireTagsDrift(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	desireName := "test-apply-desire-tags"
+
+	// Existing desire: identical spec, but stale tags and a populated status.
+	existing := buildTestApplyDesire(t, desireName, testCSR(t))
+	existing.Tags = map[string]string{"owner": "old"}
+	existing.Status = kubeapplierapi.ApplyDesireStatus{
+		Conditions: []metav1.Condition{{Type: "Successful", Status: metav1.ConditionTrue}},
+	}
+
+	mockDB, applyLister, _ := newMockDBAndListers(ctx, t, []any{existing})
+	crud, err := mockDB.ApplyDesiresForSystemAdminCredentialRequest(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName)
+	require.NoError(t, err)
+
+	// Desired: same spec, new tags — so only the tags have drifted.
+	desire := buildTestApplyDesire(t, desireName, testCSR(t))
+	desire.Tags = map[string]string{"owner": "new"}
+	require.NoError(t, EnsureApplyDesire(ctx, crud, applyLister, desire))
+
+	got, err := crud.Get(ctx, desireName)
+	require.NoError(t, err)
+	assert.Equal(t, desire.Tags, got.Tags, "tags drift must be persisted onto the stored desire")
+	assert.Empty(t, got.Status.Conditions, "status should be cleared on replace triggered by tags drift")
+}
+
 func TestEnsureReadDesire(t *testing.T) {
 	desireName := "test-read-desire"
 	target := testTarget()
@@ -283,6 +313,37 @@ func TestEnsureReadDesire(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestEnsureReadDesireTagsDrift proves that a change confined to the top-level
+// .Tags map (spec byte-for-byte identical) is still detected as drift and
+// triggers a replacement that persists the new tags — guarding the field the
+// spec-only equality check ignores.
+func TestEnsureReadDesireTagsDrift(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	desireName := "test-read-desire-tags"
+	target := testTarget()
+
+	// Existing desire: identical spec, but stale tags and a populated status.
+	existing := buildTestReadDesire(t, desireName, target)
+	existing.Tags = map[string]string{"owner": "old"}
+	existing.Status = kubeapplierapi.ReadDesireStatus{
+		Conditions: []metav1.Condition{{Type: "Successful", Status: metav1.ConditionTrue}},
+	}
+
+	mockDB, _, readLister := newMockDBAndListers(ctx, t, []any{existing})
+	crud, err := mockDB.ReadDesiresForSystemAdminCredentialRequest(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName)
+	require.NoError(t, err)
+
+	// Desired: same spec, new tags — so only the tags have drifted.
+	desire := buildTestReadDesire(t, desireName, target)
+	desire.Tags = map[string]string{"owner": "new"}
+	require.NoError(t, EnsureReadDesire(ctx, crud, readLister, desire))
+
+	got, err := crud.Get(ctx, desireName)
+	require.NoError(t, err)
+	assert.Equal(t, desire.Tags, got.Tags, "tags drift must be persisted onto the stored desire")
+	assert.Empty(t, got.Status.Conditions, "status should be cleared on replace triggered by tags drift")
 }
 
 // buildTestApplyDesire constructs a credential-request-scoped ApplyDesire the way
