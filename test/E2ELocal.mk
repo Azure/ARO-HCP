@@ -25,6 +25,7 @@ e2e-local/run-test: $(ARO_HCP_TESTS)
 	export LOCATION="$${LOCATION:-${REGION}}"; \
 	export AROHCP_ENV="development"; \
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
+	export AZURE_TENANT_ID="$$(az account show --output tsv --query 'tenantId')"; \
 	export SKIP_CERT_VERIFICATION=$${SKIP_CERT_VERIFICATION:-false}; \
 	export FRONTEND_ADDRESS=$${FRONTEND_ADDRESS:-http://localhost:8443}; \
 	export ADMIN_API_ADDRESS=$${ADMIN_API_ADDRESS:-http://localhost:8444}; \
