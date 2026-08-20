@@ -953,15 +953,15 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (needsWork):**
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
-- `ServiceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime` is nil or in the past, OR
-- stored MSI identities on SPC no longer match `OperatorsAuthentication` (control-plane operator bindings / service managed identity resource ID), in which case EarliestRecheckTime is ignored
+- `ServiceProviderCluster.Spec.EarliestRecheckTimesByController["FetchMSIIdentitiesInfo"]` is nil or in the past, OR
+- stored MSI identities on SPC no longer match `OperatorsAuthentication` (control-plane operator bindings / service managed identity resource ID), in which case the recheck time is ignored
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators`</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.MSIManagedIdentities.EarliestRecheckTime` (NeedsWork)</li><li>`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities` (deep-equal before write)</li><li>`Status.MSIManagedIdentities.ServiceManagedIdentity` (deep-equal before write)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.EarliestRecheckTimesByController["FetchMSIIdentitiesInfo"]` (NeedsWork)</li><li>`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities` (deep-equal before write)</li><li>`Status.MSIManagedIdentities.ServiceManagedIdentity` (deep-equal before write)</li></ul> |
 | Read | Managed Identities Data Plane | <ul><li>`GetUserAssignedIdentitiesCredentials`</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities`** = map keyed by lowercased resource ID (`ResourceID`, `ClientID`, `PrincipalID`)</li><li>**`Status.MSIManagedIdentities.ServiceManagedIdentity`** = `ResourceID`, `ClientID`, `PrincipalID`</li><li>**`Status.MSIManagedIdentities.EarliestRecheckTime`** = now + jittered 12h interval</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities`** = map keyed by lowercased resource ID (`ResourceID`, `ClientID`, `PrincipalID`)</li><li>**`Status.MSIManagedIdentities.ServiceManagedIdentity`** = `ResourceID`, `ClientID`, `PrincipalID`</li><li>**`Spec.EarliestRecheckTimesByController["FetchMSIIdentitiesInfo"]`** = now + jittered 12h interval</li></ul> |
 
 ---
 
@@ -1142,15 +1142,15 @@ No writes to the Cosmos Resources container.
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (needsWork on ServiceProviderCluster):**
 - Skipped entirely when `HCPOpenShiftCluster.ServiceProviderProperties.DeletionTimestamp` != nil
-- Honors `ServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime` only when the unique data plane operator ResourceID set on `Status.DataPlaneOperatorsManagedIdentities.Identities` still matches the desired set from `CustomerProperties`; returns true (query Azure) immediately on any mismatch
-- When identities match: returns false while `EarliestRecheckTime` is in the future; true when `EarliestRecheckTime` is nil or already past
+- Honors `ServiceProviderCluster.Spec.EarliestRecheckTimesByController["FetchDataPlaneOperatorsManagedIdentitiesInfo"]` only when the unique data plane operator ResourceID set on `Status.DataPlaneOperatorsManagedIdentities.Identities` still matches the desired set from `CustomerProperties`; returns true (query Azure) immediately on any mismatch
+- When identities match: returns false while the recheck time is in the future; true when it is nil or already past
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (SyncOnce: must be nil)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators` (desired identity ResourceIDs, deduplicated + lowercased)</li><li>`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity` (SyncOnce: must not be nil)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (used to build the SMI client)</li><li>`ID` (subscription / resource group / name)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.DataPlaneOperatorsManagedIdentities.Identities` (needsWork: compared to the desired ResourceID set)</li><li>`Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime` (needsWork: honored only when identities match)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.DataPlaneOperatorsManagedIdentities.Identities` (needsWork: compared to the desired ResourceID set)</li><li>`Spec.EarliestRecheckTimesByController["FetchDataPlaneOperatorsManagedIdentitiesInfo"]` (needsWork: honored only when identities match)</li></ul> |
 | Read | Azure (UserAssignedIdentitiesClient) | <ul><li>`Get` once per unique ResourceID -> `Properties.ClientID`, `Properties.PrincipalID`</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>]`** = `{ResourceID, ClientID, PrincipalID, RetrievalError}` — ClientID/PrincipalID from Azure on success (RetrievalError nil); on any Get failure (including ResourceNotFound) ClientID/PrincipalID are cleared (nil) and RetrievalError is set to the first 1024 chars of the error. Identities no longer present on the cluster are pruned.</li><li>**`Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime`** = now + jittered 12h interval when all Gets succeed; left nil (cleared) when any Get error is accumulated, so the next needsWork re-queries Azure</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>]`** = `{ResourceID, ClientID, PrincipalID, RetrievalError}` — ClientID/PrincipalID from Azure on success (RetrievalError nil); on any Get failure (including ResourceNotFound) ClientID/PrincipalID are cleared (nil) and RetrievalError is set to the first 1024 chars of the error. Identities no longer present on the cluster are pruned.</li><li>**`Spec.EarliestRecheckTimesByController["FetchDataPlaneOperatorsManagedIdentitiesInfo"]`** = now + jittered 12h interval when all Gets succeed; left cleared (absent) when any Get error is accumulated, so the next needsWork re-queries Azure</li></ul> |
 
 ---
 
@@ -1501,7 +1501,7 @@ Single writer, but tracks the namespace containing control plane pods (etcd, kub
 
 | Actor | When |
 |-------|------|
-| [FetchMSIIdentitiesInfo](#fetchmsiidentitiesinfo) | Sets ControlPlaneOperatorsIdentities (lowercased resource ID keys), ServiceManagedIdentity, and EarliestRecheckTime from Managed Identities Data Plane |
+| [FetchMSIIdentitiesInfo](#fetchmsiidentitiesinfo) | Sets ControlPlaneOperatorsIdentities (lowercased resource ID keys) and ServiceManagedIdentity from Managed Identities Data Plane, plus its `Spec.EarliestRecheckTimesByController` entry |
 
 Single writer. Read by [ClusterIdentitySync](#clusteridentitysync) to populate `HCPOpenShiftCluster.Identity.UserAssignedIdentities`.
 
@@ -1509,7 +1509,7 @@ Single writer. Read by [ClusterIdentitySync](#clusteridentitysync) to populate `
 
 | Actor | When |
 |-------|------|
-| [FetchDataPlaneOperatorsManagedIdentitiesInfo](#fetchdataplaneoperatorsmanagedidentitiesinfo) | Resolves each data plane operator identity's `ClientID`/`PrincipalID` from Azure (or clears them and sets `RetrievalError` on a Get failure), and sets `EarliestRecheckTime` for the next Azure recheck |
+| [FetchDataPlaneOperatorsManagedIdentitiesInfo](#fetchdataplaneoperatorsmanagedidentitiesinfo) | Resolves each data plane operator identity's `ClientID`/`PrincipalID` from Azure (or clears them and sets `RetrievalError` on a Get failure), and sets its `Spec.EarliestRecheckTimesByController` entry for the next Azure recheck |
 
 Single writer. Mirrors the customer's data plane operator managed identities (`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`) into `Identities` keyed by lowercased Azure ResourceID, each carrying the Azure-resolved `ClientID`/`PrincipalID` or a `RetrievalError`.
 
