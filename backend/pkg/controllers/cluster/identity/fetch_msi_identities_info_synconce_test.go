@@ -103,14 +103,18 @@ func newTestClusterForFetch(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi
 
 // newTestServiceProviderClusterWithMatchingMSIIdentities returns a ServiceProviderCluster whose
 // stored MSI identity set matches newTestClusterForFetch, so
-// desiredMSIResourceIDsMatchServiceProviderCluster is true. recheck controls
-// Status.MSIManagedIdentities.EarliestRecheckTime.
+// desiredMSIResourceIDsMatchServiceProviderCluster is true. recheck controls this
+// controller's entry in Spec.EarliestRecheckTimesByController.
 func newTestServiceProviderClusterWithMatchingMSIIdentities(recheck *metav1.Time) *coreapi.ServiceProviderCluster {
 	serviceProviderCluster := newTestServiceProviderCluster()
 	lowerOperator := strings.ToLower(testOperatorIdentityResourceID)
 	lowerSMI := strings.ToLower(testServiceManagedIdentityID)
+	if recheck != nil {
+		serviceProviderCluster.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{
+			FetchMSIIdentitiesInfoControllerName: recheck,
+		}
+	}
 	serviceProviderCluster.Status.MSIManagedIdentities = coreapi.ServiceProviderClusterMSIManagedIdentities{
-		EarliestRecheckTime: recheck,
 		ControlPlaneOperatorsIdentities: map[string]*coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{
 			lowerOperator: {
 				ResourceID:  metadataapi.Must(azcorearm.ParseResourceID(lowerOperator)),
@@ -184,8 +188,9 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 				require.NotNil(t, msi.ServiceManagedIdentity.PrincipalID, "service managed identity principal ID should be set")
 				assert.Equal(t, "smi-principal", *msi.ServiceManagedIdentity.PrincipalID)
 
-				require.NotNil(t, msi.EarliestRecheckTime, "earliest recheck time should be set after a successful fetch")
-				assert.True(t, msi.EarliestRecheckTime.After(now), "earliest recheck time should be in the future")
+				recheck := serviceProviderCluster.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName]
+				require.NotNil(t, recheck, "earliest recheck time should be set after a successful fetch")
+				assert.True(t, recheck.After(now), "earliest recheck time should be in the future")
 			},
 		},
 		{
@@ -208,7 +213,7 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 				require.NotNil(t, msi.ServiceManagedIdentity, "service managed identity should still be recorded")
 				assert.Nil(t, msi.ServiceManagedIdentity.ClientID, "service managed identity client ID should be nil")
 				assert.Nil(t, msi.ServiceManagedIdentity.PrincipalID, "service managed identity principal ID should be nil")
-				require.NotNil(t, msi.EarliestRecheckTime, "recheck time should still be set")
+				require.NotNil(t, serviceProviderCluster.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName], "recheck time should still be set")
 			},
 		},
 		{
@@ -271,8 +276,9 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 				require.NotNil(t, op, "existing control plane operator identity should be preserved")
 				require.NotNil(t, op.ClientID, "existing control plane operator client ID should be preserved")
 				assert.Equal(t, "existing-op-client", *op.ClientID, "existing values should be untouched while recheck is in the future")
-				require.NotNil(t, serviceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime, "recheck time should be preserved")
-				assert.True(t, serviceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime.After(now), "recheck time should still be in the future when work is skipped")
+				recheck := serviceProviderCluster.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName]
+				require.NotNil(t, recheck, "recheck time should be preserved")
+				assert.True(t, recheck.After(now), "recheck time should still be in the future when work is skipped")
 			},
 		},
 		{
@@ -291,8 +297,9 @@ func TestFetchMSIIdentitiesInfoSyncer_SyncOnce(t *testing.T) {
 				require.NotNil(t, op, "control plane operator identity should be present")
 				require.NotNil(t, op.ClientID, "control plane operator client ID should be updated")
 				assert.Equal(t, "new-op-client", *op.ClientID, "stale value should be replaced with the freshly fetched one")
-				require.NotNil(t, serviceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime, "recheck time should be set")
-				assert.True(t, serviceProviderCluster.Status.MSIManagedIdentities.EarliestRecheckTime.After(now), "recheck time should be pushed into the future after a refetch")
+				recheck := serviceProviderCluster.Spec.EarliestRecheckTimesByController[FetchMSIIdentitiesInfoControllerName]
+				require.NotNil(t, recheck, "recheck time should be set")
+				assert.True(t, recheck.After(now), "recheck time should be pushed into the future after a refetch")
 			},
 		},
 		{
