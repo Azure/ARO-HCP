@@ -15,6 +15,8 @@
 package backup
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"time"
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -27,10 +29,13 @@ import (
 
 const (
 	BackupScheduleDesireNamePrefix = "backupschedule-"
+	OndemandBackupDesireNamePrefix = "ondemandbackup-"
 	DesireTagKeySchedule           = "backupschedule"
+	DesireTagKeyOndemandBackup     = "ondemandbackup"
 	VeleroGroup                    = "velero.io"
 	VeleroVersion                  = "v1"
 	VeleroScheduleResource         = "schedules"
+	VeleroBackupResource           = "backups"
 	VeleroNamespace                = "velero"
 )
 
@@ -64,11 +69,23 @@ var backupIncludedResources = []string{
 	"clusterdeployment",
 }
 
-func NewBackup(backupName, resourceID string, ttl time.Duration, namespaces ...string) *velerov1api.Backup {
+// AzureKMSKeyFingerprint mirrors HyperShift's FingerprintAzureKMSKey.
+func AzureKMSKeyFingerprint(keyVaultName, keyName, keyVersion string) string {
+	h := sha256.Sum256([]byte(keyVaultName + "/" + keyName + "/" + keyVersion))
+	return fmt.Sprintf("%x", h)
+}
+
+func NewBackup(backupName, resourceID string, kmsKeyFingerprint string, ttl time.Duration, namespaces ...string) *velerov1api.Backup {
+	annotations := map[string]string{
+		controllerutils.HcpClusterAzureResourceIdAnnotation: resourceID,
+	}
+	if kmsKeyFingerprint != "" {
+		annotations[controllerutils.HcpClusterKmsKeyFingerprintAnnotation] = kmsKeyFingerprint
+	}
 	backup := builder.ForBackup("velero", backupName).
 		StorageLocation("default").
 		ObjectMeta(func(object metav1.Object) {
-			object.SetAnnotations(map[string]string{controllerutils.HcpClusterAzureResourceIdAnnotation: resourceID})
+			object.SetAnnotations(annotations)
 		}).
 		IncludedNamespaces(namespaces...).
 		IncludedResources(backupIncludedResources...).

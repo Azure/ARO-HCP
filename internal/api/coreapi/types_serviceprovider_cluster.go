@@ -268,6 +268,13 @@ type ServiceProviderClusterStatus struct {
 	// contains the set of required data plane operators associated with a Cluster.
 	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
 	DataPlaneOperatorsManagedIdentities ServiceProviderClusterDataPlaneOperatorsManagedIdentities `json:"dataPlaneOperatorsManagedIdentities,omitempty"`
+
+	// KeyRotationBackupFingerprint identifies the latest successful on-demand
+	// key-rotation backup and prevents duplicate backups for the active key.
+	// It is persisted before the corresponding ApplyDesire is deleted so a crash
+	// cannot lose the record. Empty means no backup has completed.
+	// Written by: KeyRotationBackup
+	KeyRotationBackupFingerprint string `json:"keyRotationBackupFingerprint,omitempty"`
 }
 
 // ServiceProviderClusterMSIManagedIdentities holds Managed Service Identity (MSI)

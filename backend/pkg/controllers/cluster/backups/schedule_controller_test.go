@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/backup"
+	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
@@ -460,7 +461,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		configSchedules := config.Schedules()
 		schedules := make([]*velerov1api.Schedule, 0, len(configSchedules))
 		for _, scheduleConfig := range configSchedules {
-			schedules = append(schedules, NewScheduledBackup(testArmResourceIDStr, hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, false))
+			schedules = append(schedules, NewScheduledBackup(testArmResourceIDStr, "", hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, false))
 		}
 		applyDesires, err := buildApplyDesiresFromSchedules(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, managementClusterResourceID, schedules)
 		require.NoError(t, err)
@@ -889,6 +890,93 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
+			name: "updates schedule annotation when KMS key rotates",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
+					c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+						Kms: &coreapi.KmsEncryptionProfile{
+							ActiveKey: coreapi.KmsKey{Version: "v2", Name: "key1", VaultName: "vault1"},
+						},
+					}
+				}), nil)
+				require.NoError(t, err)
+			},
+			clusterOpts: []func(*coreapi.HCPOpenShiftCluster){func(c *coreapi.HCPOpenShiftCluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{
+					Kms: &coreapi.KmsEncryptionProfile{
+						ActiveKey: coreapi.KmsKey{Version: "v2", Name: "key1", VaultName: "vault1"},
+					},
+				}
+			}},
+			hasPlacement: true,
+			seedKubeApplier: func(t *testing.T, ctx context.Context, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) ([]*kubeapplierapi.ApplyDesire, []*kubeapplierapi.ReadDesire) {
+				t.Helper()
+				hostedClusterNamespace := controllerutils.HostedClusterNamespace(testEnvID, testClusterID)
+				controlPlaneNamespace := fmt.Sprintf("%s-%s", hostedClusterNamespace, testDomainPrefix)
+				managementClusterResourceID := testMgmtClusterResourceID()
+
+				oldFingerprint := backup.AzureKMSKeyFingerprint("vault1", "key1", "v1")
+				configSchedules := testBackupConfig.Schedules()
+				oldSchedules := make([]*velerov1api.Schedule, 0, len(configSchedules))
+				for _, scheduleConfig := range configSchedules {
+					oldSchedules = append(oldSchedules, NewScheduledBackup(testArmResourceIDStr, oldFingerprint, hostedClusterNamespace, controlPlaneNamespace, scheduleConfig, false))
+				}
+
+				applyDesires, err := buildApplyDesiresFromSchedules(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, managementClusterResourceID, oldSchedules)
+				require.NoError(t, err)
+				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				for _, applyDesire := range applyDesires {
+					_, err := applyDesireCRUD.Create(ctx, applyDesire, nil)
+					require.NoError(t, err)
+				}
+
+				readDesireCRUD, err := mockKubeApplier.ReadDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				var readDesires []*kubeapplierapi.ReadDesire
+				for _, applyDesire := range applyDesires {
+					rdResourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+						testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, applyDesire.ResourceID.Name,
+					)
+					rdResourceID := metadataapi.Must(azcorearm.ParseResourceID(rdResourceIDStr))
+					readDesire := &kubeapplierapi.ReadDesire{
+						CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rdResourceID, PartitionKey: applyDesire.PartitionKey},
+						Spec: kubeapplierapi.ReadDesireSpec{
+							ManagementCluster: applyDesire.Spec.ManagementCluster,
+							TargetItem:        applyDesire.Spec.TargetItem,
+						},
+						Tags: applyDesire.Tags,
+					}
+					_, err := readDesireCRUD.Create(ctx, readDesire, nil)
+					require.NoError(t, err)
+					readDesires = append(readDesires, readDesire)
+				}
+				return applyDesires, readDesires
+			},
+			// 3 production schedules need updating (one per sync)
+			syncCount: 3,
+			verify: func(t *testing.T, ctx context.Context, _ *corecosmosstoragetesting.MockResourcesDBClient, mockKubeApplier *kubeappliercosmosstoragetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				applyDesireCRUD, err := mockKubeApplier.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+
+				for _, scheduleConfig := range testBackupConfig.Schedules() {
+					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testSchedulePrefix, scheduleConfig.Name))
+					applyDesire, err := applyDesireCRUD.Get(ctx, desireName)
+					require.NoError(t, err, "ApplyDesire %s should exist", desireName)
+					assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, applyDesire.Spec.Type)
+					require.NotNil(t, applyDesire.Spec.ServerSideApply)
+
+					var got velerov1api.Schedule
+					require.NoError(t, json.Unmarshal(applyDesire.Spec.ServerSideApply.KubeContent.Raw, &got))
+					expectedFingerprint := backup.AzureKMSKeyFingerprint("vault1", "key1", "v2")
+					assert.Equal(t, expectedFingerprint, got.Annotations[internalcontrollerutils.HcpClusterKmsKeyFingerprintAnnotation],
+						"%s should have updated KMS key fingerprint annotation", scheduleConfig.Name)
+				}
+			},
+		},
+		{
 			name: "updates existing production desires when config parameters change",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *corecosmosstoragetesting.MockResourcesDBClient) {
 				t.Helper()
@@ -910,7 +998,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 
 				oldSchedules := []*velerov1api.Schedule{}
 				for _, schedule := range schedules {
-					oldSchedules = append(oldSchedules, NewScheduledBackup(testArmResourceIDStr, hostedClusterNamespace, controlPlaneNamespace, schedule, false))
+					oldSchedules = append(oldSchedules, NewScheduledBackup(testArmResourceIDStr, "", hostedClusterNamespace, controlPlaneNamespace, schedule, false))
 				}
 
 				applyDesires, err := buildApplyDesiresFromSchedules(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, managementClusterResourceID, oldSchedules)
