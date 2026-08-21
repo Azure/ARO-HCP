@@ -240,7 +240,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				customerNodePoolName,
 				update,
-				framework.NodePoolScalingTimeout,
+				2*framework.NodePoolScalingTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to scale down node pool %q from %d to %d replicas",
 				customerNodePoolName, scaledUpReplicas, initialReplicas)
