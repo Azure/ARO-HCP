@@ -83,15 +83,17 @@ func NewManagedResourceGroupController(
 	)
 }
 
-// SyncOnce observes the managed resource group and reflects its state onto the
-// ServiceProviderCluster. Behavior branches on whether the cluster is being
-// deleted:
+// SyncOnce observes the managed resource group and always reflects its observed
+// existence onto the ServiceProviderCluster:
 //
-//   - Not deleting: if the MRG is missing it is recorded as PendingAzureResource;
-//     once it exists it is recorded as AzureResource (and Pending is cleared).
-//   - Deleting: once the MRG is gone both references are cleared; while it still
-//     exists the reflected state is left untouched so the deletion gate keeps the
-//     ServiceProviderCluster document alive.
+//   - MRG exists (whether or not the cluster is being deleted): it is recorded as
+//     AzureResource and PendingAzureResource is cleared. During deletion this
+//     ensures the ServiceProviderCluster deletion gate blocks even if the
+//     reference was never populated before deletion started.
+//   - MRG missing while the cluster is being deleted: both references are cleared,
+//     opening the deletion gate.
+//   - MRG missing while the cluster is not being deleted (creation path): it is
+//     recorded as PendingAzureResource and AzureResource is cleared.
 //
 // This controller never creates or deletes the resource group.
 func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -128,18 +130,17 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 	}
 
 	isDeleting := cluster.ServiceProviderProperties.DeletionTimestamp != nil
-	existingReference := existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup
-
-	// Deletion fast-path: nothing left to reflect once both references are cleared.
-	if isDeleting && existingReference.AzureResource == nil && existingReference.PendingAzureResource == nil {
-		return nil
-	}
 
 	rgClient, err := c.resourceGroupsClient(ctx, cluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	// Always query Azure to observe the managed resource group, including during
+	// deletion. We must detect a still-existing resource group so the
+	// ServiceProviderCluster deletion gate keeps blocking until the MRG is
+	// actually gone, even when the reference was never populated before deletion
+	// started (for example when a cluster is deleted shortly after creation).
 	_, getErr := rgClient.Get(ctx, managedResourceGroupID.Name, nil)
 	resourceGroupMissing := azureclient.IsResourceGroupNotFoundErr(getErr)
 	if getErr != nil && !resourceGroupMissing {
@@ -149,20 +150,21 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 	replacement := existingServiceProviderCluster.DeepCopy()
 	managedResourceGroupReference := &replacement.Status.AzureResources.ManagedResourceGroup
 	switch {
-	case isDeleting:
-		if !resourceGroupMissing {
-			// Still present while deleting: leave reflected state untouched so the
-			// ServiceProviderCluster deletion gate keeps waiting.
-			return nil
-		}
-		managedResourceGroupReference.AzureResource = nil
-		managedResourceGroupReference.PendingAzureResource = nil
-	case resourceGroupMissing:
-		managedResourceGroupReference.PendingAzureResource = managedResourceGroupID
-		managedResourceGroupReference.AzureResource = nil
-	default:
+	case !resourceGroupMissing:
+		// Managed resource group exists (whether or not the cluster is being
+		// deleted): reflect it as confirmed so the deletion gate blocks.
 		managedResourceGroupReference.AzureResource = managedResourceGroupID
 		managedResourceGroupReference.PendingAzureResource = nil
+	case isDeleting:
+		// Managed resource group is gone during deletion: clear both references so
+		// the deletion gate opens.
+		managedResourceGroupReference.AzureResource = nil
+		managedResourceGroupReference.PendingAzureResource = nil
+	default:
+		// Managed resource group does not exist yet (creation path): reflect it as
+		// pending.
+		managedResourceGroupReference.PendingAzureResource = managedResourceGroupID
+		managedResourceGroupReference.AzureResource = nil
 	}
 
 	if equality.Semantic.DeepEqual(existingServiceProviderCluster, replacement) {

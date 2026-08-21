@@ -206,6 +206,20 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			expectAzure:      mrgID,
 			expectPending:    nil,
 		},
+		{
+			// Regression test for the deletion-gate race: a cluster deleted shortly
+			// after creation may start deletion with an empty reference while the
+			// managed resource group still exists in Azure. The controller must
+			// still record AzureResource so the deletion gate blocks removal of the
+			// ServiceProviderCluster document.
+			name:             "deleting and resource group present with empty reference sets actual",
+			deleting:         true,
+			initialReference: coreapi.AzureReference{},
+			getResponse:      resourceGroupPresentResponse(),
+			getErr:           nil,
+			expectAzure:      mrgID,
+			expectPending:    nil,
+		},
 	}
 
 	for _, tc := range testCases {
