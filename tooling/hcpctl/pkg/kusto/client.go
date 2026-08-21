@@ -115,7 +115,10 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, out
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 
-	return processPrimaryResult(ctx, dataset.Tables(), query, outputChannel)
+	// Use queryCtx (not the parent ctx) so the QueryTimeout deadline applied to
+	// IterativeQuery is also honored while consuming rows and sending them to
+	// outputChannel.
+	return processPrimaryResult(queryCtx, dataset.Tables(), query, outputChannel)
 }
 
 // processPrimaryResult consumes the primary (first) table emitted on the
