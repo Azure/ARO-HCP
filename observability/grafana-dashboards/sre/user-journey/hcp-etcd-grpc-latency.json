@@ -1585,7 +1585,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Heatmap of P50 vs P99 latency per gRPC method. Helps identify methods with high tail latency (large gap between P50 and P99).",
+      "description": "Table of P50 vs P99 latency per gRPC method. Helps identify methods with high tail latency (large gap between P50 and P99).",
       "fieldConfig": {
         "defaults": {
           "color": {
