@@ -81,13 +81,13 @@ tests:
     exp_samples:
     - labels: 'errors:backend_cluster_deletion_operation:error_rate{cluster="svc-1"}'
       value: 0.6
-# Zero-fallback: all fast (600s < 1800s) → timeliness_error_rate = 0 with
+# Zero-fallback: all fast (600s < 1800s) → latency_error_rate = 0 with
 # cluster label preserved.
-- name: timeliness_error_rate_zero_when_all_fast
+- name: latency_error_rate_zero_when_all_fast
   # ─────────────────────────────────────────────────────────────────────────────
-  # errors:backend_cluster_deletion_operation:timeliness_error_rate
+  # errors:backend_cluster_deletion_operation:latency_error_rate
   #
-  # Rule: count(succeeded where duration >= 1800s) / clamp_min(count(succeeded), 1)
+  # Rule: count(succeeded where duration > 1800s) / clamp_min(count(succeeded), 1)
   # Duration = last_transition_time_seconds - start_time_seconds.
   # The "or 0 * count(...)" fallback preserves the cluster label when all
   # operations are fast, producing 0 rather than an empty result set.
@@ -114,13 +114,13 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="f3",subscription_id="sub1",cluster="svc-1"}'
     values: "600+0x15"
   promql_expr_test:
-  - expr: errors:backend_cluster_deletion_operation:timeliness_error_rate
+  - expr: errors:backend_cluster_deletion_operation:latency_error_rate
     eval_time: 5m
     exp_samples:
-    - labels: 'errors:backend_cluster_deletion_operation:timeliness_error_rate{cluster="svc-1"}'
+    - labels: 'errors:backend_cluster_deletion_operation:latency_error_rate{cluster="svc-1"}'
       value: 0
 # Arithmetic: 1 slow (1900s > 1800s) + 4 fast (600s) = 1/5 = 0.2
-- name: timeliness_error_rate_arithmetic
+- name: latency_error_rate_arithmetic
   interval: 1m
   input_series:
   # 1 slow operation: duration = 1900 - 0 = 1900s (31.7 min, exceeds 30-min threshold)
@@ -156,18 +156,18 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast4",subscription_id="sub1",cluster="svc-1"}'
     values: "600+0x15"
   promql_expr_test:
-  - expr: errors:backend_cluster_deletion_operation:timeliness_error_rate
+  - expr: errors:backend_cluster_deletion_operation:latency_error_rate
     eval_time: 5m
     exp_samples:
-    - labels: 'errors:backend_cluster_deletion_operation:timeliness_error_rate{cluster="svc-1"}'
+    - labels: 'errors:backend_cluster_deletion_operation:latency_error_rate{cluster="svc-1"}'
       value: 0.2
-# Boundary: exactly 1800s (30 min) counts as slow because the threshold is >= 1800.
-# 1 boundary op (1800s) + 4 fast (600s) = 1/5 = 0.2.
-# A value of 1799s would NOT be counted as slow.
-- name: timeliness_error_rate_exactly_30min_counts_as_slow
+# Boundary: exactly 1800s (30 min) does NOT count as slow because the threshold is > 1800.
+# 1 boundary op (1800s) + 4 fast (600s) = 0/5 = 0.
+# A value of 1801s would be counted as slow.
+- name: latency_error_rate_exactly_30min_counts_as_fast
   interval: 1m
   input_series:
-  # 1 operation at exactly the threshold: duration = 1800 - 0 = 1800s (>= 1800 → slow)
+  # 1 operation at exactly the threshold: duration = 1800 - 0 = 1800s (> 1800 → fast, not slow)
   - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="boundary1",subscription_id="sub1",cluster="svc-1"}'
     values: "1+0x15"
   - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="boundary1",subscription_id="sub1",cluster="svc-1"}'
@@ -200,8 +200,8 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast4",subscription_id="sub1",cluster="svc-1"}'
     values: "600+0x15"
   promql_expr_test:
-  - expr: errors:backend_cluster_deletion_operation:timeliness_error_rate
+  - expr: errors:backend_cluster_deletion_operation:latency_error_rate
     eval_time: 5m
     exp_samples:
-    - labels: 'errors:backend_cluster_deletion_operation:timeliness_error_rate{cluster="svc-1"}'
-      value: 0.2
+    - labels: 'errors:backend_cluster_deletion_operation:latency_error_rate{cluster="svc-1"}'
+      value: 0

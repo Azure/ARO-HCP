@@ -653,7 +653,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
           slo: 'cluster-deletion-errors'
         }
         annotations: {
-          correlationId: 'userJourneyClusterDeletionErrors1h5m/{{ $labels.cluster }}'
+          correlationId: 'userJourneyClusterDeletionErrors/{{ $labels.cluster }}'
           description: 'More than 72% of cluster delete operations are in failed or canceled state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
           info: 'More than 72% of cluster delete operations are in failed or canceled state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
           runbook_url: 'aka.ms/arohcp-runbook-cluster-deletion'
@@ -680,7 +680,7 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
           slo: 'cluster-deletion-errors'
         }
         annotations: {
-          correlationId: 'userJourneyClusterDeletionErrors6h30m/{{ $labels.cluster }}'
+          correlationId: 'userJourneyClusterDeletionErrors/{{ $labels.cluster }}'
           description: 'More than 30% of cluster delete operations are in failed or canceled state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           info: 'More than 30% of cluster delete operations are in failed or canceled state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           runbook_url: 'aka.ms/arohcp-runbook-cluster-deletion'
@@ -758,17 +758,17 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         labels: {
           component: 'slo'
           severity: '3'
-          slo: 'cluster-deletion-timeliness'
+          slo: 'cluster-deletion-latency'
         }
         annotations: {
-          correlationId: 'userJourneyClusterDeletionLatency1h5m/{{ $labels.cluster }}'
-          description: 'More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Timeliness SLO — on track to exhaust the budget in ~12 hours.'
-          info: 'More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Timeliness SLO — on track to exhaust the budget in ~12 hours.'
+          correlationId: 'userJourneyClusterDeletionLatency/{{ $labels.cluster }}'
+          description: 'More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Latency SLO — on track to exhaust the budget in ~12 hours.'
+          info: 'More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Latency SLO — on track to exhaust the budget in ~12 hours.'
           runbook_url: 'aka.ms/arohcp-runbook-cluster-deletion'
-          summary: 'Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)'
-          title: 'Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)'
+          summary: 'Cluster deletion Latency SLO fast burn (>72% slow for 5m)'
+          title: 'Cluster deletion Latency SLO fast burn (>72% slow for 5m)'
         }
-        expression: 'errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.72 and clamp_min(count by (cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or vector(0), 0) >= 5'
+        expression: 'errors:backend_cluster_deletion_operation:latency_error_rate > 0.72 and clamp_min(count by (cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or vector(0), 0) >= 5'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -785,17 +785,17 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         labels: {
           component: 'slo'
           severity: '3'
-          slo: 'cluster-deletion-timeliness'
+          slo: 'cluster-deletion-latency'
         }
         annotations: {
-          correlationId: 'userJourneyClusterDeletionLatency6h30m/{{ $labels.cluster }}'
-          description: 'More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Timeliness SLO — on track to exhaust the budget in ~28 hours.'
-          info: 'More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Timeliness SLO — on track to exhaust the budget in ~28 hours.'
+          correlationId: 'userJourneyClusterDeletionLatency/{{ $labels.cluster }}'
+          description: 'More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Latency SLO — on track to exhaust the budget in ~28 hours.'
+          info: 'More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Latency SLO — on track to exhaust the budget in ~28 hours.'
           runbook_url: 'aka.ms/arohcp-runbook-cluster-deletion'
-          summary: 'Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)'
-          title: 'Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)'
+          summary: 'Cluster deletion Latency SLO medium burn (>30% slow for 30m)'
+          title: 'Cluster deletion Latency SLO medium burn (>30% slow for 30m)'
         }
-        expression: 'errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.3 and clamp_min(count by (cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or vector(0), 0) >= 5'
+        expression: 'errors:backend_cluster_deletion_operation:latency_error_rate > 0.3 and clamp_min(count by (cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or vector(0), 0) >= 5'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -812,17 +812,17 @@ resource arohcpClusterDeletionSloErrorAlerts 'Microsoft.AlertsManagement/prometh
         labels: {
           component: 'slo'
           severity: '4'
-          slo: 'cluster-deletion-timeliness'
+          slo: 'cluster-deletion-latency'
         }
         annotations: {
           correlationId: 'userJourneyClusterDeletionLatency3d/{{ $labels.cluster }}'
-          description: 'More than 5% of successful cluster deletes exceeded 30 minutes, sustained for 6 hours. Slow burn rate (1x) against the 95% Timeliness SLO — budget will be exhausted in ~7 days.'
-          info: 'More than 5% of successful cluster deletes exceeded 30 minutes, sustained for 6 hours. Slow burn rate (1x) against the 95% Timeliness SLO — budget will be exhausted in ~7 days.'
+          description: 'More than 5% of successful cluster deletes exceeded 30 minutes, sustained for 6 hours. Slow burn rate (1x) against the 95% Latency SLO — budget will be exhausted in ~7 days.'
+          info: 'More than 5% of successful cluster deletes exceeded 30 minutes, sustained for 6 hours. Slow burn rate (1x) against the 95% Latency SLO — budget will be exhausted in ~7 days.'
           runbook_url: 'aka.ms/arohcp-runbook-cluster-deletion'
-          summary: 'Cluster deletion Timeliness SLO slow burn (>5% slow for 6h)'
-          title: 'Cluster deletion Timeliness SLO slow burn (>5% slow for 6h)'
+          summary: 'Cluster deletion Latency SLO slow burn (>5% slow for 6h)'
+          title: 'Cluster deletion Latency SLO slow burn (>5% slow for 6h)'
         }
-        expression: 'errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.05 and clamp_min(count by (cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or vector(0), 0) >= 5'
+        expression: 'errors:backend_cluster_deletion_operation:latency_error_rate > 0.05 and clamp_min(count by (cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="succeeded",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) or vector(0), 0) >= 5'
         for: 'PT6H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

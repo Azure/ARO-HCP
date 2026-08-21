@@ -13,7 +13,7 @@ spec:
   # ========================================
   # Cluster Deletion SLO Recording Rules
   # ========================================
-  # These rules track the Errors and Timeliness SLOs for cluster delete operations.
+  # These rules track the Errors and Latency SLOs for cluster delete operations.
   # SLO: 95% of cluster delete operations should succeed (not reach "failed" or "canceled" terminal phase)
   # Error Budget: 5% (1 - 0.95)
   # Scope: covers cluster delete operations only.
@@ -25,7 +25,7 @@ spec:
   # budget-exhaustion timelines, not actual PromQL time windows. Gauge metrics
   # don't support rate(), so we can't evaluate a long and short window simultaneously
   # the way true MWMBR does. The `for:` duration in each alert acts as the short window.
-  # As is accepting the same gauge approximation as used by existing user journeys.
+  # We accept the same gauge approximation used by existing user journeys.
   # ================================================
   - name: arohcp_cluster_deletion_slo_recording_rules
     interval: 1m
@@ -57,9 +57,9 @@ spec:
           }),
           1
         )
-    # Timeliness error rate: fraction of succeeded operations that exceeded the 30-minute target.
+    # Latency error rate: fraction of succeeded operations that exceeded the 30-minute target.
     # Uses count by (cluster) to preserve the cluster label per nodepool production pattern.
-    - record: errors:backend_cluster_deletion_operation:timeliness_error_rate
+    - record: errors:backend_cluster_deletion_operation:latency_error_rate
       expr: |
         (
           count by (cluster) (
@@ -75,7 +75,7 @@ spec:
                 operation_type="delete",
                 phase="succeeded"
               }
-            ) >= 1800
+            ) > 1800
             and
             backend_resource_operation_phase_info{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
