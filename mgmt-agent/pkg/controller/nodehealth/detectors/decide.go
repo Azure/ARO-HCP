@@ -96,7 +96,7 @@ type Detector interface {
 
 // registry is the hard-coded set of detectors. A new fault family is a new
 // Detector added here, reusing the shared primitives, shipped and tested as code.
-var registry = []Detector{swiftVFTeardown}
+var registry = []Detector{swiftVFTeardown, cniPluginNotInitialized}
 
 // AnyApplies reports whether any detector owns this node. It reads only the
 // node, so a caller can answer the ownership question before doing the work of

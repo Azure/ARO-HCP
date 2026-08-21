@@ -202,8 +202,14 @@ never a candidate. On those nodes it matches `FailedCreatePodSandBox` Events in 
 `route ip+net: no such network interface` family (plus the network-unreachable,
 mtpnc-not-ready, and dhcp-discover-timeout variants seen for this fault). It lives
 in its own file and contributes only its specifics; its signature, thresholds, and
-node-applicability label are constants in code, not config. A second fault family
-would be another detector reusing the shared primitives, shipped and tested as code.
+node-applicability label are constants in code, not config.
+
+The second detector, `cni-plugin-not-initialized`, covers a different Ready-but-
+broken failure. The kubelet repeatedly emits `NetworkNotReady` Events with
+`NetworkPluginNotReady: cni plugin not initialized`; `azure-cns` was unhealthy,
+and newly scheduled pods could not get sandboxes. It is scoped to SWIFT-v2 nodes
+and reuses the same three-pod floor, 10-minute dwell and window, and zero-success
+requirement. The exact Event message is pinned in the detector tests.
 
 The decision is **rate, continuity, and success-presence, never an absolute error
 count**. The measured evidence is explicit about why an absolute count misleads:
