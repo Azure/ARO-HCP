@@ -559,10 +559,10 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li><li>`Status.MaestroReadonlyBundles`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li><li>`Status.MaestroReadonlyBundles`</li><li>`Status.AzureResources.ManagedResourceGroup` (gate: ServiceProviderCluster is not deleted while `AzureResource` or `PendingAzureResource` is set)</li></ul> |
 | Read | Child NodePools | <ul><li>list (must be empty)</li></ul> |
 | Read | Child ExternalAuths | <ul><li>list (must be empty)</li></ul> |
-| **Write** | Child Cosmos docs | <ul><li>**DELETES** ServiceProviderCluster (when MaestroReadonlyBundles empty and kube-applier desires gone)</li><li>**DELETES** ManagementClusterContent docs</li><li>**DELETES** kube-applier desire documents</li></ul> |
+| **Write** | Child Cosmos docs | <ul><li>**DELETES** ServiceProviderCluster (when the managed resource group is reflected as gone, MaestroReadonlyBundles empty, and kube-applier desires gone)</li><li>**DELETES** ManagementClusterContent docs</li><li>**DELETES** kube-applier desire documents</li></ul> |
 
 #### ClusterDeletionController
 
@@ -1152,6 +1152,22 @@ No writes to the Cosmos Resources container.
 | Read | Azure (UserAssignedIdentitiesClient) | <ul><li>`Get` once per unique ResourceID -> `Properties.ClientID`, `Properties.PrincipalID`</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.DataPlaneOperatorsManagedIdentities.Identities[<lowercased resourceID>]`** = `{ResourceID, ClientID, PrincipalID, RetrievalError}` — ClientID/PrincipalID from Azure on success (RetrievalError nil); on any Get failure (including ResourceNotFound) ClientID/PrincipalID are cleared (nil) and RetrievalError is set to the first 1024 chars of the error. Identities no longer present on the cluster are pruned.</li><li>**`Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime`** = now + jittered 12h interval when all Gets succeed; left nil (cleared) when any Get error is accumulated, so the next needsWork re-queries Azure</li></ul> |
 
+#### ObserveManagedResourceGroup
+
+**File:** [managed_resource_group_controller.go](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go)
+**Trigger:** Cluster informer, 5-minute resync
+**Behavior:** Observe-only — never creates or deletes the managed resource group.
+- Not deleting: records the managed resource group as `PendingAzureResource` while it is missing; sets `AzureResource` (and clears `PendingAzureResource`) once it exists.
+- Deleting: clears both references once the managed resource group is gone; leaves reflected state untouched while it still exists.
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Platform.ManagedResourceGroup` (SyncOnce: skipped when empty)</li><li>`ServiceProviderProperties.DeletionTimestamp` (branches deletion vs non-deletion)</li><li>`ID` (subscription / resource group / name)</li></ul> |
+| Read | `Subscription` | <ul><li>`Properties.TenantId` (to build the FPA ResourceGroups client)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.AzureResources.ManagedResourceGroup` (compared before write; deletion fast-path when both references already nil)</li></ul> |
+| Read | Azure (ResourceGroupsClient) | <ul><li>`Get` on the managed resource group -> exists / ResourceGroupNotFound</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.ManagedResourceGroup.AzureResource`** = managed resource group resource ID when it exists (non-deletion); cleared once it is gone during deletion</li><li>**`Status.AzureResources.ManagedResourceGroup.PendingAzureResource`** = managed resource group resource ID when it does not yet exist (non-deletion); cleared once it exists or is gone</li></ul> |
+
 ---
 
 ## 3. Execution Order Digraphs
@@ -1512,6 +1528,14 @@ Single writer. Read by [ClusterIdentitySync](#clusteridentitysync) to populate `
 | [FetchDataPlaneOperatorsManagedIdentitiesInfo](#fetchdataplaneoperatorsmanagedidentitiesinfo) | Resolves each data plane operator identity's `ClientID`/`PrincipalID` from Azure (or clears them and sets `RetrievalError` on a Get failure), and sets `EarliestRecheckTime` for the next Azure recheck |
 
 Single writer. Mirrors the customer's data plane operator managed identities (`CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators`) into `Identities` keyed by lowercased Azure ResourceID, each carrying the Azure-resolved `ClientID`/`PrincipalID` or a `RetrievalError`.
+
+### `ServiceProviderCluster.Status.AzureResources.ManagedResourceGroup`
+
+| Actor | When |
+|-------|------|
+| [ObserveManagedResourceGroup](#observemanagedresourcegroup) | Observe-only: sets `AzureResource` when the managed resource group exists and `PendingAzureResource` when it does not; clears both once the resource group is gone during deletion |
+
+Single writer. Read by [ClusterChildResourcesCleanupController](#clusterchildresourcescleanupcontroller) to gate deletion of the `ServiceProviderCluster` document until the managed resource group is gone.
 
 ### `ServiceProviderCluster.Status.Validations`
 
