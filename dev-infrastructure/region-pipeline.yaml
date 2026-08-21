@@ -78,6 +78,8 @@ resourceGroups:
       configRef: acr.svc.name
     - name: REPLICATION_REGION
       configRef: region
+    - name: REPLICATION_STATE
+      configRef: acr.svc.replicationState
     shellIdentity:
       input:
         resourceGroup: global

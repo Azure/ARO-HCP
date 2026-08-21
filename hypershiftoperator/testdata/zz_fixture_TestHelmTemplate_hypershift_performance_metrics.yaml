@@ -678,7 +678,7 @@ data:
         sourceLabels: ["__name__"]
     cvo:
       - action:       "keep"
-        regex:        "cluster_operator_conditions|go_gc_duration_seconds(_sum|_count)?|go_goroutines|go_memstats_(alloc_bytes(_total)?|heap_(alloc|inuse)_bytes|mallocs_total|stack_inuse_bytes)|process_(cpu_seconds_total|resident_memory_bytes)"
+        regex:        "cluster_operator_conditions|cluster_version|go_gc_duration_seconds(_sum|_count)?|go_goroutines|go_memstats_(alloc_bytes(_total)?|heap_(alloc|inuse)_bytes|mallocs_total|stack_inuse_bytes)|process_(cpu_seconds_total|resident_memory_bytes)"
         sourceLabels: ["__name__"]
 ---
 # Source: aro-hcp-hypershift-operator/templates/installer.clusterrolebinding.yaml

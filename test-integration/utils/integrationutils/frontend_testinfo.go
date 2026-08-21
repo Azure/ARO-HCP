@@ -35,8 +35,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260901preview "github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 type StorageIntegrationTestInfo interface {
@@ -86,6 +87,58 @@ func Get20240610ClientFactory(frontendURL string, subscriptionID string) *hcpsdk
 	}
 	return metadataapi.Must(
 		hcpsdk20240610preview.NewClientFactory(subscriptionID, nil,
+			&azcorearm.ClientOptions{
+				ClientOptions: clientOpts,
+			},
+		),
+	)
+}
+
+func Get20260630ClientFactory(frontendURL string, subscriptionID string) *hcpsdk20260630preview.ClientFactory {
+	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
+	clientOpts.Retry = policy.RetryOptions{
+		MaxRetries: -1,
+	}
+	clientOpts.Cloud = cloud.Configuration{
+		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+			cloud.ResourceManager: {
+				Audience: "https://management.core.windows.net/",
+				Endpoint: frontendURL,
+			},
+		},
+	}
+	clientOpts.InsecureAllowCredentialWithHTTP = true
+	clientOpts.PerCallPolicies = []policy.Policy{
+		emptySystemData{},
+	}
+	return metadataapi.Must(
+		hcpsdk20260630preview.NewClientFactory(subscriptionID, nil,
+			&azcorearm.ClientOptions{
+				ClientOptions: clientOpts,
+			},
+		),
+	)
+}
+
+func Get20260901ClientFactory(frontendURL string, subscriptionID string) *hcpsdk20260901preview.ClientFactory {
+	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
+	clientOpts.Retry = policy.RetryOptions{
+		MaxRetries: -1,
+	}
+	clientOpts.Cloud = cloud.Configuration{
+		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+			cloud.ResourceManager: {
+				Audience: "https://management.core.windows.net/",
+				Endpoint: frontendURL,
+			},
+		},
+	}
+	clientOpts.InsecureAllowCredentialWithHTTP = true
+	clientOpts.PerCallPolicies = []policy.Policy{
+		emptySystemData{},
+	}
+	return metadataapi.Must(
+		hcpsdk20260901preview.NewClientFactory(subscriptionID, nil,
 			&azcorearm.ClientOptions{
 				ClientOptions: clientOpts,
 			},
@@ -163,7 +216,7 @@ func resourceIDToDir(resourceID *azcorearm.ResourceID) string {
 		)
 
 	default:
-		if armhelpers.ResourceTypeEqual(resourceID.Parent.ResourceType, azcorearm.ResourceGroupResourceType) {
+		if metadataapi.ResourceTypeEqual(resourceID.Parent.ResourceType, azcorearm.ResourceGroupResourceType) {
 			return filepath.Join(
 				startingDir,
 				resourceID.ResourceType.String(),

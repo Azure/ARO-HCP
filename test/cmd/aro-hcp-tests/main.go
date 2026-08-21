@@ -346,6 +346,91 @@ func miDemandPriority(spec *et.ExtensionTestSpec) int {
 	return demand
 }
 
+type miSchedulerConfig struct {
+	pooledIdentitiesEnabled bool
+	containerCount          int
+	containerCountSource    string
+}
+
+var (
+	miSchedulerSetup     miSchedulerConfig
+	miSchedulerSpecs     et.ExtensionTestSpecs
+	miSchedulerConfigure sync.Once
+)
+
+func initMIScheduler(specs et.ExtensionTestSpecs, cfg miSchedulerConfig) {
+	miSchedulerSpecs = specs
+	miSchedulerSetup = cfg
+}
+
+// configureMIScheduler walks specs to wire up per-test MI container demands for the
+// openshift-tests-extension resource-aware scheduler. Each spec's MIContainers(N) label
+// declares how many pooled identity containers it will lease. When pooled identities are
+// enabled, we set spec.Resources.ResourcePools["mi-containers"] = N so the scheduler
+// won't start the test until N slots are free in the pool.
+func configureMIScheduler(specs et.ExtensionTestSpecs, cfg miSchedulerConfig) {
+	var missingLabel []string
+	var demand0, demand1, demandN int
+	specs.Walk(func(spec *et.ExtensionTestSpec) {
+		demand, ok := parseMIContainersLabel(spec)
+		if !ok {
+			missingLabel = append(missingLabel, spec.Name)
+			return
+		}
+		switch demand {
+		case 0:
+			demand0++
+		case 1:
+			demand1++
+		default:
+			demandN++
+		}
+		if cfg.pooledIdentitiesEnabled && demand > 0 {
+			if spec.Resources.ResourcePools == nil {
+				spec.Resources.ResourcePools = make(map[string]int)
+			}
+			spec.Resources.ResourcePools["mi-containers"] = demand
+		}
+	})
+	if len(missingLabel) > 0 {
+		fmt.Fprintf(os.Stderr, "FATAL: %d tests missing MIContainers label:\n", len(missingLabel))
+		for _, name := range missingLabel {
+			fmt.Fprintf(os.Stderr, "  - %s\n", name)
+		}
+		os.Exit(1)
+	}
+	total := demand0 + demand1 + demandN
+	if cfg.pooledIdentitiesEnabled {
+		fmt.Fprintf(os.Stderr, "[scheduler] pool mi-containers=%d (source: %s), %d specs (%d×0, %d×1, %d×2+)\n",
+			cfg.containerCount, cfg.containerCountSource, total, demand0, demand1, demandN)
+	} else {
+		fmt.Fprintf(os.Stderr, "[scheduler] pooled identities disabled (%s!=true), skipping mi-containers pool demands; %d specs (%d×0, %d×1, %d×2+)\n",
+			framework.UsePooledIdentitiesEnvvar, total, demand0, demand1, demandN)
+	}
+
+	if os.Getenv("ARO_HCP_DISABLE_MI_SORT") != "true" {
+		sort.SliceStable(specs, func(i, j int) bool {
+			return miDemandPriority(specs[i]) > miDemandPriority(specs[j])
+		})
+	}
+}
+
+func ensureMISchedulerConfigured() {
+	miSchedulerConfigure.Do(func() {
+		configureMIScheduler(miSchedulerSpecs, miSchedulerSetup)
+	})
+}
+
+func wrapMISchedulerPreRun(cmd *cobra.Command) {
+	existingPreRun := cmd.PersistentPreRun
+	cmd.PersistentPreRun = func(c *cobra.Command, args []string) {
+		ensureMISchedulerConfigured()
+		if existingPreRun != nil {
+			existingPreRun(c, args)
+		}
+	}
+}
+
 // isRunSuiteProcess returns true when this is the long-lived parent run-suite
 // process (os.Args[1] == "run-suite"), not a per-spec run-test worker subprocess.
 // The openshift-tests-extension framework spawns each spec as a separate
@@ -425,7 +510,7 @@ func setupCli() *cobra.Command {
 
 	// The tests that a suite is composed of can be filtered by CEL expressions. By
 	// default, the qualifiers only apply to tests from this extension.
-	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0])
+	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0], labels.StageAndProdOnly[0], labels.HypershiftPresubmit[0])
 	integrationTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "integration/parallel",
@@ -451,7 +536,7 @@ func setupCli() *cobra.Command {
 		ResourcePools: miPools,
 	})
 
-	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0])
+	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
 	stageTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "stage/parallel",
@@ -476,7 +561,7 @@ func setupCli() *cobra.Command {
 		ResourcePools: miPools,
 	})
 
-	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0])
+	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0], labels.HypershiftPresubmit[0])
 	prodTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "prod/parallel",
@@ -539,6 +624,16 @@ func setupCli() *cobra.Command {
 		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
 		Parallelism:   parallelism(24),
 		TestTimeout:   &rpApiCompatTestTimeout,
+		ResourcePools: miPools,
+	})
+
+	hypershiftPresubmitQuery := fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.HypershiftPresubmit[0])
+	hypershiftPresubmitTimeout := 150 * time.Minute
+	ext.AddSuite(e.Suite{
+		Name:          "hypershift-presubmit/parallel",
+		Qualifiers:    []string{hypershiftPresubmitQuery},
+		Parallelism:   parallelism(24),
+		TestTimeout:   &hypershiftPresubmitTimeout,
 		ResourcePools: miPools,
 	})
 
@@ -656,68 +751,33 @@ func setupCli() *cobra.Command {
 	//	}
 	// })
 
-	// Walk specs to wire up per-test MI container demands for the
-	// openshift-tests-extension resource-aware scheduler. Each spec's
-	// MIContainers(N) label declares how many pooled identity containers
-	// it will lease. When pooled identities are enabled, we set
-	// spec.Resources.ResourcePools["mi-containers"] = N so the scheduler
-	// won't start the test until N slots are free in the pool.
-	// demand0/demand1/demandN bucket counts are for the log summary only.
-	var missingLabel []string
-	var demand0, demand1, demandN int
-	specs.Walk(func(spec *et.ExtensionTestSpec) {
-		demand, ok := parseMIContainersLabel(spec)
-		if !ok {
-			missingLabel = append(missingLabel, spec.Name)
-			return
-		}
-		switch demand {
-		case 0:
-			demand0++
-		case 1:
-			demand1++
-		default:
-			demandN++
-		}
-		if pooledIdentitiesEnabled && demand > 0 {
-			if spec.Resources.ResourcePools == nil {
-				spec.Resources.ResourcePools = make(map[string]int)
-			}
-			spec.Resources.ResourcePools["mi-containers"] = demand
-		}
-	})
-	if len(missingLabel) > 0 {
-		fmt.Fprintf(os.Stderr, "FATAL: %d tests missing MIContainers label:\n", len(missingLabel))
-		for _, name := range missingLabel {
-			fmt.Fprintf(os.Stderr, "  - %s\n", name)
-		}
-		os.Exit(1)
-	}
-	total := demand0 + demand1 + demandN
-	if pooledIdentitiesEnabled {
-		fmt.Fprintf(os.Stderr, "[scheduler] pool mi-containers=%d (source: %s), %d specs (%d×0, %d×1, %d×2+)\n",
-			containerCount, containerCountSource, total, demand0, demand1, demandN)
-	} else {
-		fmt.Fprintf(os.Stderr, "[scheduler] pooled identities disabled (%s!=true), skipping mi-containers pool demands; %d specs (%d×0, %d×1, %d×2+)\n",
-			framework.UsePooledIdentitiesEnvvar, total, demand0, demand1, demandN)
-	}
-
-	if os.Getenv("ARO_HCP_DISABLE_MI_SORT") != "true" {
-		sort.SliceStable(specs, func(i, j int) bool {
-			return miDemandPriority(specs[i]) > miDemandPriority(specs[j])
-		})
-	}
-
 	registerEV2RetryCatcher(specs)
 
 	ext.AddSpecs(specs)
 	registry.Register(ext)
 
+	// AddSpecs copies specs into a new backing array (ext.specs), so the
+	// scheduler must be wired against ext.GetSpecs() rather than the local
+	// specs slice above — otherwise the demand-based sort in
+	// configureMIScheduler reorders a slice run-suite/run-test never reads.
+	initMIScheduler(ext.GetSpecs(), miSchedulerConfig{
+		pooledIdentitiesEnabled: pooledIdentitiesEnabled,
+		containerCount:          containerCount,
+		containerCountSource:    containerCountSource,
+	})
+
 	root := &cobra.Command{
 		Long: "ARO-HCP E2E Tests",
 	}
 
-	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
+	extensionCmds := cmd.DefaultExtensionCommands(registry)
+	for _, c := range extensionCmds {
+		switch c.Name() {
+		case "run-suite", "run-test":
+			wrapMISchedulerPreRun(c)
+		}
+	}
+	root.AddCommand(extensionCmds...)
 	root.AddCommand(cleanup.NewCommand())
 	root.AddCommand(metadataapi.Must(visualize.NewCommand()))
 	root.AddCommand(metadataapi.Must(customlinktools.NewCommand()))

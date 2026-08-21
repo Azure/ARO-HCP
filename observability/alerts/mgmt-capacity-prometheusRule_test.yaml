@@ -323,3 +323,40 @@ tests:
   - eval_time: 20m
     alertname: MgmtClusterHCPCapacityCritical
     exp_alerts: []
+# Test capacity reporting sync failing - alert fires after sustained errors
+- interval: 30s
+  input_series:
+  - series: 'capacity_reporting_sync_errors_total{cluster="mgmt-sync-fail"}'
+    values: "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: MgmtAgentCapacityReportingSyncFailing
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-sync-fail
+        component: capacity
+        severity: warning
+        team: hcp-sl
+      exp_annotations:
+        summary: Capacity reporting sync failing on mgmt-sync-fail
+        description: Capacity reporting on management cluster mgmt-sync-fail has been failing continuously for at least 5 minutes. The CapacityReport CR may contain stale data, which can affect fleet-level placement decisions. Check mgmt-agent logs for root cause.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        owning_team: hcp-sl
+# Test capacity reporting sync failing - no alert with occasional errors
+- interval: 30s
+  input_series:
+  - series: 'capacity_reporting_sync_errors_total{cluster="mgmt-sync-ok"}'
+    values: "0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: MgmtAgentCapacityReportingSyncFailing
+    exp_alerts: []
+# Test capacity reporting sync failing - no alert when counter is flat (no errors)
+- interval: 30s
+  input_series:
+  - series: 'capacity_reporting_sync_errors_total{cluster="mgmt-sync-healthy"}'
+    values: "5+0x20"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: MgmtAgentCapacityReportingSyncFailing
+    exp_alerts: []

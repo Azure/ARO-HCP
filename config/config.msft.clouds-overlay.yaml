@@ -179,9 +179,11 @@ clouds:
             kusto:
               location: "eastus2"
             # Canary/EUAP replica: keep its regional data endpoint disabled so it
-            # doesn't serve co-located prod pulls (AROSLSRE-1592).
+            # doesn't serve co-located prod pulls (AROSLSRE-1592, AROSLSRE-1810).
             acr:
               ocp:
+                replicationState: false
+              svc:
                 replicationState: false
           switzerlandnorth:
             kusto:

@@ -24,8 +24,10 @@
 //     reports WaitingForDeletion until the target disappears (finalizers
 //     complete).
 //
-// The outcome is recorded on .status.conditions["Successful"] / ["Degraded"]
-// and persisted via the StatusWriter.
+// The outcome is recorded on .status.conditions: ["SuccessfullyApplied"] for
+// ServerSideApply or ["SuccessfullyDeleted"] for Delete, the legacy
+// ["Successful"] (retained for backwards compatibility), and ["Degraded"]; it is
+// persisted via the StatusWriter.
 package apply_desire
 
 import (
@@ -260,7 +262,7 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 		}
 
 		return c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessful(&d.Status.Conditions, syncErr)
+			conditions.SetSuccessfullyApplied(&d.Status.Conditions, syncErr)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
 			d.Status.AppliedKubeGeneration = appliedKubeGeneration
 		})
@@ -279,7 +281,7 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 // applyDesired performs the kubeContent decode and SSA call. The GVR comes
 // straight from spec.targetItem; we don't consult a RESTMapper or guess. The
 // dynamic client surfaces a kube error if the GVR doesn't resolve, and that
-// lands in SetSuccessful as KubeAPIError.
+// lands in SetSuccessfullyApplied as KubeAPIError.
 //
 // PreCheckError is returned for pre-flight failures (parse, missing fields)
 // so they classify as PreCheckFailed; everything else is treated as a
@@ -309,8 +311,9 @@ func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier
 		Force:        true,
 	})
 	if applyErr != nil {
-		// Wrap with a contextual prefix; keep the original kind so SetSuccessful
-		// classifies it as a kube-apiserver error (NOT a *PreCheckError).
+		// Wrap with a contextual prefix; keep the original kind so
+		// SetSuccessfullyApplied classifies it as a kube-apiserver error (NOT a
+		// *PreCheckError).
 		return nil, fmt.Errorf("server-side apply: %w", applyErr)
 	}
 	return result, nil
@@ -322,18 +325,18 @@ func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier
 // State machine:
 //
 //	get target
-//	  not found             -> Successful=True
+//	  not found             -> SuccessfullyDeleted=True
 //	  has deletion timestamp -> WaitingForDeletion
 //	  no deletion timestamp -> issue Delete; on error -> KubeAPIError
 //	                           re-issue get
-//	                             not found              -> Successful=True
+//	                             not found              -> SuccessfullyDeleted=True
 //	                             has deletion timestamp  -> WaitingForDeletion
 func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeapplierapi.ApplyDesire) desirestatuswriter.MutateFunc[kubeapplierapi.ApplyDesire] {
 	target := d.Spec.TargetItem
 	if len(target.Resource) == 0 || len(target.Version) == 0 || len(target.Name) == 0 {
 		err := conditions.NewPreCheckError(errors.New("spec.targetItem requires version, resource, and name"))
 		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessful(&d.Status.Conditions, err)
+			conditions.SetSuccessfullyDeleted(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}
 	}
@@ -348,14 +351,14 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 	got, getErr := kubeResourceAccessor.Get(ctx, target.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(getErr) {
 		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessful(&d.Status.Conditions, nil)
+			conditions.SetSuccessfullyDeleted(&d.Status.Conditions, nil)
 			conditions.SetDegraded(&d.Status.Conditions, nil)
 		}
 	}
 	if getErr != nil {
 		err := fmt.Errorf("get target: %w", getErr)
 		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessful(&d.Status.Conditions, err)
+			conditions.SetSuccessfullyDeleted(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}
 	}
@@ -363,7 +366,7 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 	if dt := got.GetDeletionTimestamp(); dt != nil {
 		uid := got.GetUID()
 		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessfulWaitingForDeletion(&d.Status.Conditions, *dt, uid)
+			conditions.SetWaitingForDeletion(&d.Status.Conditions, *dt, uid)
 			conditions.SetDegraded(&d.Status.Conditions, nil)
 		}
 	}
@@ -371,13 +374,13 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 	if delErr := kubeResourceAccessor.Delete(ctx, target.Name, metav1.DeleteOptions{}); delErr != nil {
 		if apierrors.IsNotFound(delErr) {
 			return func(d *kubeapplierapi.ApplyDesire) {
-				conditions.SetSuccessful(&d.Status.Conditions, nil)
+				conditions.SetSuccessfullyDeleted(&d.Status.Conditions, nil)
 				conditions.SetDegraded(&d.Status.Conditions, nil)
 			}
 		}
 		err := fmt.Errorf("delete target: %w", delErr)
 		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessful(&d.Status.Conditions, err)
+			conditions.SetSuccessfullyDeleted(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}
 	}
@@ -387,14 +390,14 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 	post, postErr := kubeResourceAccessor.Get(ctx, target.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(postErr) {
 		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessful(&d.Status.Conditions, nil)
+			conditions.SetSuccessfullyDeleted(&d.Status.Conditions, nil)
 			conditions.SetDegraded(&d.Status.Conditions, nil)
 		}
 	}
 	if postErr != nil {
 		err := fmt.Errorf("post-delete get: %w", postErr)
 		return func(d *kubeapplierapi.ApplyDesire) {
-			conditions.SetSuccessful(&d.Status.Conditions, err)
+			conditions.SetSuccessfullyDeleted(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}
 	}
@@ -405,7 +408,7 @@ func (c *ApplyDesireController) evaluateDelete(ctx context.Context, d *kubeappli
 		dt = &now
 	}
 	return func(d *kubeapplierapi.ApplyDesire) {
-		conditions.SetSuccessfulWaitingForDeletion(&d.Status.Conditions, *dt, uid)
+		conditions.SetWaitingForDeletion(&d.Status.Conditions, *dt, uid)
 		conditions.SetDegraded(&d.Status.Conditions, nil)
 	}
 }

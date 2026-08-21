@@ -24,7 +24,9 @@
 Reference files:
 
 - `internal/database/kube_applier_client.go` &mdash; `KubeApplierDBClient`,
-  `KubeApplierListers`, `KubeApplierDBClients`, `ResourceParent`, constructors.
+  `KubeApplierListers`, `KubeApplierDBClients`, constructors.
+- `internal/database/kubeappliercosmosstorage/desire_scope.go` &mdash;
+  `DesireScope`, `Ancestry`, scope constructors, `ParseDesireScope`.
 - `internal/database/crud_kube_applier.go` &mdash; per-MC `ResourceCRUD`
   implementation; partition key is the management cluster's name.
 - `internal/database/crud_untyped_kube_applier.go` &mdash; cross-partition
@@ -88,14 +90,17 @@ type ManagementClusterLister interface {
     List(ctx context.Context) ([]*fleet.ManagementCluster, error)
 }
 
-// ResourceParent identifies what the *Desires are nested under.
-// Either a cluster (NodePoolName == "") or a nodepool under a cluster.
-type ResourceParent struct {
-    SubscriptionID    string
-    ResourceGroupName string
-    ClusterName       string
-    NodePoolName      string // optional
-}
+// DesireScope is a validated parent resource that scopes a set of desires.
+// Constructed via ClusterScope, NodePoolScope, CredentialRequestScope,
+// CredentialRevocationScope, or ParseDesireScope. An invalid scope cannot be
+// represented (the constructors reject unknown parent types).
+type DesireScope struct { /* unexported fields: ancestry Ancestry, resourceID *azcorearm.ResourceID */ }
+
+func ClusterScope(sub, rg, cluster string) (DesireScope, error)
+func NodePoolScope(sub, rg, cluster, np string) (DesireScope, error)
+func CredentialRequestScope(sub, rg, cluster, credReq string) (DesireScope, error)
+func CredentialRevocationScope(sub, rg, cluster, revocation string) (DesireScope, error)
+func ParseDesireScope(id *azcorearm.ResourceID) (DesireScope, error)
 
 // Constructors.
 func NewKubeApplierDBClient(container *azcosmos.ContainerClient, managementClusterPartitionKey string) KubeApplierDBClient

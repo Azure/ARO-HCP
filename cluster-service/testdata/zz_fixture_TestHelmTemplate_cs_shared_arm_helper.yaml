@@ -59,19 +59,19 @@ data:
     channelGroups:
       - url: https://api.openshift.com/api/upgrades_info/graph
         channelGroupName: stable
-        minVersion: 4.19.0
+        minVersion: 4.20.0
         maxVersion: ""
       - url: https://api.openshift.com/api/upgrades_info/graph
         channelGroupName: fast
-        minVersion: 4.19.0
+        minVersion: 4.20.0
         maxVersion: ""
       - url: https://api.openshift.com/api/upgrades_info/graph
         channelGroupName: candidate
-        minVersion: 4.19.7
+        minVersion: 4.20.0
         maxVersion: ""
       - url: https://multi.ocp.releases.ci.openshift.org/graph
         channelGroupName: nightly
-        minVersion: 4.19.0-0.nightly-20200101
+        minVersion: 4.20.0-0.nightly-20200101
         maxVersion: ""
 ---
 # Source: clusters-service/templates/authentication.configmap.yaml
@@ -7889,7 +7889,7 @@ spec:
       annotations:
         checksum/db: '7d748725a08edbe974bbd237e5dd517833a82eaa0f0b211fc2881961bf4515a8'
         checksum/operatorcfg: '110eacb1e465d620a2c26da89d5b6246433bb53a2dd3f9853e2daaa035e53df5'
-        checksum/ocpversionscfg: '9e5cff6bf43f7b8d712e0b54656c6b1ec66693e7fe17ba6801070134b28b2900'
+        checksum/ocpversionscfg: 'b4b40e1ecfb6e659a166da0bc97f69a8d8d19b8cc1c0f9a3ef50d2d1b23cbe71'
         checksum/cskv: '9d2f2676d1e93dbd4633b77a7ab993e9b3a3d1d86dfd615cdeb3d901f11101f1'
         checksum/provisionshard: 'd2d4582f46da482e7a0c56f8a4372d95839bf6ced1d48a964d7030dc7e1b5b4b'
         checksum/cs: '7f91f7a8dc3a8b51073043defb13df2c3864a9c93f5a5588a2431f012bc2ae28'

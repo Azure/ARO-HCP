@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -124,7 +125,7 @@ func NewReadDesireKubernetesController(
 			workqueue.TypedRateLimitingQueueConfig[keys.ReadDesireKey]{
 				// Underscores rather than slashes: this name surfaces as a
 				// Prometheus label and slashes complicate downstream tooling.
-				Name: fmt.Sprintf("%s_%s_%s_%s_%s", ReadDesireKubernetesControllerName, key.ClusterName, key.SubResourceType, key.SubResourceName, key.Name),
+				Name: ReadDesireKubernetesControllerName + strings.ReplaceAll(key.GetResourceID().String(), "/", "_"),
 			},
 		),
 		writer: desirestatuswriter.New[kubeapplierapi.ReadDesire, keys.ReadDesireKey, *kubeapplierapi.ReadDesire](

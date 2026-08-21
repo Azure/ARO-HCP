@@ -36,12 +36,14 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	breakglasshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp/breakglass"
+	hcpresourcerequirementshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcpresourcerequirements"
 	stamphandlers "github.com/Azure/ARO-HCP/admin/server/handlers/stamp"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/errorutils"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -83,6 +85,7 @@ func NewAdminAPI(
 	maxSessionTTL time.Duration,
 	allowedBreakglassGroups set.Set[string],
 	gatherer prometheus.Gatherer,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 ) *AdminAPI {
 	// Pre-mux middleware (runs on all admin routes before pattern matching)
 	middlewareMux := middleware.NewMiddlewareMux(
@@ -128,6 +131,14 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("POST", "/desiredcontrolplanesize"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient).ServeHTTP)),
 	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("GET", "/backupschedules"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPGetBackupScheduleHandler(resourcesDBClient, kubeApplierDBClients).ServeHTTP)),
+	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("PATCH", "/backupschedules"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPPatchBackupScheduleHandler(resourcesDBClient).ServeHTTP)),
+	)
 
 	// Non-HCP admin routes
 	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
@@ -139,8 +150,12 @@ func NewAdminAPI(
 		errorutils.ReportError(stamphandlers.NewStampGetHandler(fleetDBClient).ServeHTTP))
 	middlewareMux.Handle("GET /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}",
 		errorutils.ReportError(stamphandlers.NewManagementClusterGetHandler(fleetDBClient).ServeHTTP))
+	middlewareMux.Handle("GET /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}/scheduling",
+		errorutils.ReportError(stamphandlers.NewManagementClusterSchedulingGetHandler(fleetDBClient).ServeHTTP))
 	middlewareMux.Handle("POST /admin/v1/stamps/{stampIdentifier}/approval",
 		errorutils.ReportError(stamphandlers.NewStampApprovalHandler(fleetDBClient).ServeHTTP))
+	middlewareMux.Handle("GET /admin/v1/hcpresourcerequirements/{name}",
+		errorutils.ReportError(hcpresourcerequirementshandlers.NewHCPResourceRequirementsGetHandler(fleetDBClient).ServeHTTP))
 
 	// Top-level mux (healthz bypasses all middleware)
 	apiMux := http.NewServeMux()

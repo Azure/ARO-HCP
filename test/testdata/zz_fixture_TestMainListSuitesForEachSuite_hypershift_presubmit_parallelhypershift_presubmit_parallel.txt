@@ -1,0 +1,1 @@
+ARO-HCP HyperShift Presubmit should create a cluster and nodepool to completion

@@ -1,0 +1,87 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: userjourney-kubeapiserver-availability-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: userjourney-kubeapiserver-availability-recording-rules
+    rules:
+    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_5m
+      expr: |
+        sum by (name, namespace, _id, resource_id, cluster) (
+          sum_over_time(
+            (
+              hostedClusterAPI_kubeapiserver_available{status="True"}
+              and on (name, namespace, _id, resource_id, cluster)
+              max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+            )[5m:1m]
+          )
+        )
+        and on (name, namespace, _id, resource_id, cluster)
+        count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+    - record: hostedClusterAPI_kubeapiserver_available:sli_count_5m
+      expr: |
+        sum by (name, namespace, _id, resource_id, cluster) (
+          count_over_time(
+            (
+              max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+              and on (name, namespace, _id, resource_id, cluster)
+              max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+            )[5m:1m]
+          )
+        )
+        and on (name, namespace, _id, resource_id, cluster)
+        count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_1h
+      expr: |
+        sum by (name, namespace, _id, resource_id, cluster) (
+          sum_over_time(
+            (
+              hostedClusterAPI_kubeapiserver_available{status="True"}
+              and on (name, namespace, _id, resource_id, cluster)
+              max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+            )[1h:1m]
+          )
+        )
+        and on (name, namespace, _id, resource_id, cluster)
+        count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+    - record: hostedClusterAPI_kubeapiserver_available:sli_count_1h
+      expr: |
+        sum by (name, namespace, _id, resource_id, cluster) (
+          count_over_time(
+            (
+              max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+              and on (name, namespace, _id, resource_id, cluster)
+              max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+            )[1h:1m]
+          )
+        )
+        and on (name, namespace, _id, resource_id, cluster)
+        count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_30m
+      expr: |
+        sum by (name, namespace, _id, resource_id, cluster) (
+          sum_over_time(
+            (
+              hostedClusterAPI_kubeapiserver_available{status="True"}
+              and on (name, namespace, _id, resource_id, cluster)
+              max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+            )[30m:1m]
+          )
+        )
+        and on (name, namespace, _id, resource_id, cluster)
+        count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+    - record: hostedClusterAPI_kubeapiserver_available:sli_count_30m
+      expr: |
+        sum by (name, namespace, _id, resource_id, cluster) (
+          count_over_time(
+            (
+              max by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)
+              and on (name, namespace, _id, resource_id, cluster)
+              max by (name, namespace, _id, resource_id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+            )[30m:1m]
+          )
+        )
+        and on (name, namespace, _id, resource_id, cluster)
+        count by (name, namespace, _id, resource_id, cluster) (hostedClusterAPI_kubeapiserver_available)

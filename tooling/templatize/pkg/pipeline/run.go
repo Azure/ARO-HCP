@@ -51,6 +51,10 @@ import (
 
 var DefaultDeploymentTimeoutSeconds = 30 * 6
 
+// defaultStepContextTimeout is the outer sanity timeout for a pipeline step when
+// the step definition does not specify a type-specific override.
+const defaultStepContextTimeout = 30 * time.Minute
+
 func compressTimingMetadata() bool {
 	ret, _ := strconv.ParseBool(os.Getenv("COMPRESS_TIMING_METADATA"))
 	return ret
@@ -683,7 +687,23 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Lock()
 					state.Timing[step].StartedAt = time.Now().Format(time.RFC3339)
 					state.Unlock()
-					stepCtx, stepCtxCancel := context.WithTimeoutCause(consumerCtx, 30*time.Minute, errors.New("exceeded the single-step timeout for sanity"))
+					stepDef, stepExists := executionGraph.GetStep(step)
+					if !stepExists {
+						errs <- fmt.Errorf("could not find step definition for %v", step)
+						consumerCancel()
+						return
+					}
+					stepTimeoutDuration, stepTimeoutErr := stepContextTimeout(stepDef)
+					if stepTimeoutErr != nil {
+						errs <- fmt.Errorf("step %v: %w", step, stepTimeoutErr)
+						consumerCancel()
+						return
+					}
+					stepTimeoutCause := errors.New("exceeded the single-step timeout for sanity")
+					if stepTimeoutDuration != defaultStepContextTimeout {
+						stepTimeoutCause = fmt.Errorf("exceeded the step timeout of %s", stepTimeoutDuration)
+					}
+					stepCtx, stepCtxCancel := context.WithTimeoutCause(consumerCtx, stepTimeoutDuration, stepTimeoutCause)
 					details, runCount, err := executeNode(stepLogger, executor, executionGraph, step, stepCtx, options, state)
 					stepCtxCancel()
 					if details != nil {
@@ -779,6 +799,26 @@ func stampConfigExecutor(
 	}
 }
 
+// waitForRetry waits for the specified duration, respecting context cancellation.
+// If the timer fires normally, it returns nil. If the context is cancelled first,
+// it stops and drains the timer, then returns context.Cause(ctx) to preserve the
+// cancellation reason (e.g., a configured step timeout).
+func waitForRetry(ctx context.Context, duration time.Duration) error {
+	timer := time.NewTimer(duration)
+	select {
+	case <-timer.C:
+		// Timer fired normally, retry delay complete
+		return nil
+	case <-ctx.Done():
+		// Context cancelled before timer fired, stop and drain the timer
+		if !timer.Stop() {
+			// Timer just fired (race condition), drain it
+			<-timer.C
+		}
+		return context.Cause(ctx)
+	}
+}
+
 func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) (DetailsProducer, int, error) {
 	state.RLock()
 	alreadyDone := state.Executed.Has(node)
@@ -826,20 +866,32 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 		}
 		pipelineDirectory = filepath.Join(topoDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath))
 		for shouldExecuteStep(step, runCount) {
-			output, details, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
+			stepTimeoutDuration, stepTimeoutErr := stepContextTimeout(step)
+			if stepTimeoutErr != nil {
+				return nil, 0, fmt.Errorf("step %s: %w", step.StepName(), stepTimeoutErr)
+			}
+			stepTimeoutCause := errors.New("exceeded the single-step timeout for sanity")
+			if stepTimeoutDuration != defaultStepContextTimeout {
+				stepTimeoutCause = fmt.Errorf("exceeded the step timeout of %s", stepTimeoutDuration)
+			}
+			attemptCtx, attemptCancel := context.WithTimeoutCause(ctx, stepTimeoutDuration, stepTimeoutCause)
+			output, details, stepRunErr = executor(node, step, logr.NewContext(attemptCtx, logger), target, &StepRunOptions{
 				BaseRunOptions:    options.BaseRunOptions,
 				PipelineDirectory: pipelineDirectory,
 				RetryAttempt:      runCount,
 				Environment:       options.Environment,
 				Stamp:             options.Stamp,
 			}, state)
+			attemptCancel()
 			runCount++
 			if shouldRetryError(logger, step, stepRunErr) {
 				duration, err := time.ParseDuration(step.AutomatedRetries().DurationBetweenRetries)
 				if err != nil {
 					return nil, 0, fmt.Errorf("failed to parse duration between retries: %w", err)
 				}
-				time.Sleep(duration)
+				if err := waitForRetry(ctx, duration); err != nil {
+					return details, runCount, err
+				}
 			} else {
 				break
 			}
@@ -860,6 +912,24 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	state.Executed.Insert(node)
 	state.Unlock()
 	return details, runCount, nil
+}
+
+func stepContextTimeout(step types.Step) (time.Duration, error) {
+	istioStep, ok := step.(*types.IstioUpgradeStep)
+	if !ok {
+		return defaultStepContextTimeout, nil
+	}
+	if istioStep.Timeout == "" {
+		return defaultStepContextTimeout, nil
+	}
+	d, err := time.ParseDuration(istioStep.Timeout)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse istio upgrade step timeout %q: %w", istioStep.Timeout, err)
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("istio upgrade step timeout must be positive, got %q", istioStep.Timeout)
+	}
+	return d, nil
 }
 
 func shouldExecuteStep(step types.Step, runCount int) bool {

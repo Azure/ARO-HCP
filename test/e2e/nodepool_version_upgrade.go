@@ -16,9 +16,8 @@ package e2e
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"sort"
+	"net/http"
 	"strings"
 	"time"
 
@@ -27,22 +26,42 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	configv1 "github.com/openshift/api/config/v1"
-	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-
+	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
+
+// resolveNodePoolTestVersion resolves an exact OpenShift version at the given z-stream offset from
+// the tip of the channel for the minor, the same way the control plane upgrade tests select
+// versions. Offset 0 is the channel tip, offset 1 the penultimate release, and so on. Nightly
+// builds are not served by the update-service graph API, so only offset 0 (the latest accepted
+// nightly) is available there; a non-zero nightly offset returns an empty string so the caller can
+// Skip. An empty string with a nil error likewise means "no version resolved at this offset".
+func resolveNodePoolTestVersion(ctx context.Context, channelGroup, minor string, offset uint) (string, error) {
+	if channelGroup == "nightly" {
+		if offset != 0 {
+			return "", nil
+		}
+		return framework.GetLatestNightlyInstallVersion(ctx, channelGroup, minor)
+	}
+	release, err := controlplaneversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minor), offset)
+	if err != nil {
+		return "", err
+	}
+	if release == nil {
+		return "", nil
+	}
+	return release.Version, nil
+}
 
 var _ = Describe("Customer", func() {
 	DescribeTable("should upgrade and update a nodepool",
@@ -51,34 +70,34 @@ var _ = Describe("Customer", func() {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 			targetMinorVersion := metadataapi.Must(semver.ParseTolerant(targetMinor))
 			nodePoolMinorVersion := metadataapi.Must(semver.ParseTolerant(nodePoolMinor))
+			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
 
-			var (
-				nodePoolInitialVersion string
-				hasUpgradePath         bool
-				err                    error
-			)
+			// Resolve versions the same way the control plane upgrade tests do. The control plane
+			// installs at the channel tip for the target minor and the node pool upgrades to match it.
+			clusterInstallVersion, err := resolveNodePoolTestVersion(ctx, channelGroup, targetMinor, normalOffset)
+			if err != nil {
+				Skip(fmt.Sprintf("failed to resolve control plane version for %s-%s: %v", channelGroup, targetMinor, err))
+			}
+			if clusterInstallVersion == "" {
+				Skip(fmt.Sprintf("no control plane version resolved for %s-%s", channelGroup, targetMinor))
+			}
+			nodePoolDesiredVersion := clusterInstallVersion
+
+			// The node pool installs behind the control plane: one z-stream back for a z-stream
+			// upgrade (same minor), or the tip of an older minor for a y-stream upgrade.
+			var nodePoolInitialVersion string
 			if nodePoolMinorVersion.EQ(targetMinorVersion) {
-				// z-stream: same y.z line — older patch on node pool, cluster on latest patch.
-				nodePoolInitialVersion, hasUpgradePath, err = framework.GetInstallVersionForZStreamUpgrade(ctx, channelGroup, targetMinor)
-				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("Cincinnati returned version not found for target minor %s on channel %s", targetMinor, channelGroup))
-				}
-				Expect(err).NotTo(HaveOccurred(), "failed to determine z-stream install version for minor %s", targetMinor)
-				if !hasUpgradePath {
-					Skip(fmt.Sprintf("no z-stream upgrade path for minor %s on channel %s", targetMinor, channelGroup))
-				}
+				nodePoolInitialVersion, err = resolveNodePoolTestVersion(ctx, channelGroup, targetMinor, normalOffset+1)
 			} else {
-				// y-stream: node pool on an older minor than the cluster (target minor).
 				Expect(nodePoolMinorVersion.LT(targetMinorVersion)).To(BeTrue(),
 					"when nodePoolMinor and targetMinor differ, node pool minor must be less than target minor (y-stream)")
-				nodePoolInitialVersion, hasUpgradePath, err = framework.GetLatestVersionInMinorWithUpgradePathTo(ctx, channelGroup, nodePoolMinor, targetMinor)
-				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("Cincinnati returned version not found for node pool minor %s on channel %s", nodePoolMinor, channelGroup))
-				}
-				Expect(err).NotTo(HaveOccurred(), "failed to find version in minor %s with upgrade path to %s", nodePoolMinor, targetMinor)
-				if !hasUpgradePath {
-					Skip(fmt.Sprintf("no version in %s with upgrade path to target minor %s", nodePoolMinor, targetMinor))
-				}
+				nodePoolInitialVersion, err = resolveNodePoolTestVersion(ctx, channelGroup, nodePoolMinor, normalOffset)
+			}
+			if err != nil {
+				Skip(fmt.Sprintf("failed to resolve node pool install version on channel %s: %v", channelGroup, err))
+			}
+			if nodePoolInitialVersion == "" {
+				Skip(fmt.Sprintf("no node pool install version resolved on channel %s for %s -> %s", channelGroup, nodePoolMinor, targetMinor))
 			}
 
 			tc := framework.NewTestContext()
@@ -98,11 +117,6 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters at control plane version")
 			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
-			clusterInstallVersion, err := framework.GetLatestVersionInMinor(ctx, channelGroup, targetMinor)
-			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("Cincinnati returned version not found for target minor %s on channel %s", targetMinor, channelGroup))
-			}
-			Expect(err).NotTo(HaveOccurred(), "failed to get latest version in minor %s", targetMinor)
 			clusterParams.OpenshiftVersionId = clusterInstallVersion
 			clusterParams.ChannelGroup = channelGroup
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-np-upgrade-"+suffix, "-managed", 64)
@@ -132,7 +146,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s with version %s", clusterName, clusterInstallVersion)
 
-			By(fmt.Sprintf("creating nodepool with version %s (behind control plane; upgrade path validated via Cincinnati)", nodePoolInitialVersion))
+			By(fmt.Sprintf("creating nodepool with version %s (behind control plane)", nodePoolInitialVersion))
 			// Node pool name must be a DNS label (no '.'); encode minor as e.g. 4.20 -> npupgrade-4-20.
 			customerNodePoolName := fmt.Sprintf("npupgrade-%s", strings.ReplaceAll(nodePoolMinor, ".", "-"))
 			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
@@ -151,44 +165,15 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s with version %s", customerNodePoolName, nodePoolInitialVersion)
 
-			By("getting admin credentials and lowest control plane version from OpenShift version history")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			By("getting admin credentials")
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", clusterName)
-			configClient, err := configv1client.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to create OpenShift config client")
-			clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to get ClusterVersion resource")
-			var parseableVersions []string
-			for _, h := range clusterVersion.Status.History {
-				if _, err := semver.ParseTolerant(h.Version); err != nil {
-					continue
-				}
-				parseableVersions = append(parseableVersions, h.Version)
-				if h.State == configv1.CompletedUpdate {
-					break
-				}
-			}
-			sort.Slice(parseableVersions, func(i, j int) bool {
-				vi, _ := semver.ParseTolerant(parseableVersions[i])
-				vj, _ := semver.ParseTolerant(parseableVersions[j])
-				return vi.LT(vj)
-			})
-			Expect(parseableVersions).NotTo(BeEmpty(), "no clusterversion status.history entry with valid parseable version")
-
-			By("computing nodepool desired version from Cincinnati (lowest <= lowest control plane version with upgrade path from nodepool)")
-			candidates, err := framework.GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx,
-				channelGroup, parseableVersions[0], nodePoolInitialVersion)
-			Expect(err).NotTo(HaveOccurred(), "failed to get upgrade candidates from Cincinnati for node pool version %s", nodePoolInitialVersion)
-			if len(candidates) == 0 {
-				Skip(fmt.Sprintf("skipping: no Cincinnati upgrade path from nodepool version %s to any version <= %s (lowest control plane version in history); cannot exercise nodepool upgrade", nodePoolInitialVersion, parseableVersions[0]))
-			}
-			nodePoolDesiredVersion := candidates[len(candidates)-1].String()
 
 			By("capturing node release images before upgrade")
 			previousReleaseImages, err := framework.NodePoolReleaseImages(ctx, adminRESTConfig, customerNodePoolName)
@@ -243,30 +228,33 @@ var _ = Describe("Customer", func() {
 			"4.20", "4.20"),
 	)
 
-	// Nodepool upgrade without Cincinnati edge: proves the no-edge scenario works for forward
-	// upgrades. HCP nodepools use Replace strategy — nodes are recreated, not upgraded in-place —
-	// so Cincinnati upgrade edges are irrelevant. The backend only validates that the target
-	// version exists in Cincinnati, not that an edge exists from the current version.
+	// Nodepool z-stream upgrade: install the node pool one z-stream behind the channel tip and
+	// upgrade it to the tip. HCP nodepools use Replace strategy — nodes are recreated, not upgraded
+	// in-place — so a Cincinnati upgrade edge between the two versions is not required; the backend
+	// only validates that the target version exists.
 	DescribeTable("should upgrade a nodepool to a version without Cincinnati upgrade edge",
 		labels.MIContainers(1),
 		func(ctx context.Context, minor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
+			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
 
-			fromVersion, toVersion, err := framework.GetVersionPairWithoutUpgradeEdge(ctx, channelGroup, minor)
-			if errors.Is(err, framework.ErrNoEdgePairFound) {
-				Skip(fmt.Sprintf("no version pair without upgrade edge in minor %s on channel %s", minor, channelGroup))
+			// Resolve versions the same way the control plane upgrade tests do: the control plane and
+			// the upgrade target are the channel tip; the node pool installs one z-stream behind it.
+			clusterInstallVersion, err := resolveNodePoolTestVersion(ctx, channelGroup, minor, normalOffset)
+			if err != nil {
+				Skip(fmt.Sprintf("failed to resolve control plane version for %s-%s: %v", channelGroup, minor, err))
 			}
-			Expect(err).NotTo(HaveOccurred(), "failed to get version pair without upgrade edge for minor %s", minor)
-
-			clusterInstallVersion, err := framework.GetLatestVersionInMinor(ctx, channelGroup, minor)
-			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("Cincinnati returned version not found for minor %s on channel %s", minor, channelGroup))
+			if clusterInstallVersion == "" {
+				Skip(fmt.Sprintf("no control plane version resolved for %s-%s", channelGroup, minor))
 			}
-			Expect(err).NotTo(HaveOccurred(), "failed to get latest version in minor %s", minor)
-
-			clusterVersion := metadataapi.Must(semver.ParseTolerant(clusterInstallVersion))
-			Expect(toVersion.LTE(clusterVersion)).To(BeTrue(),
-				"target version %s must not exceed control plane version %s", toVersion, clusterVersion)
+			toVersion := clusterInstallVersion
+			fromVersion, err := resolveNodePoolTestVersion(ctx, channelGroup, minor, normalOffset+1)
+			if err != nil {
+				Skip(fmt.Sprintf("failed to resolve node pool install version for %s-%s: %v", channelGroup, minor, err))
+			}
+			if fromVersion == "" {
+				Skip(fmt.Sprintf("no penultimate node pool version resolved for %s-%s", channelGroup, minor))
+			}
 
 			tc := framework.NewTestContext()
 
@@ -313,11 +301,11 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", clusterName)
 
-			By(fmt.Sprintf("creating nodepool at version %s (no Cincinnati edge to %s)", fromVersion, toVersion))
+			By(fmt.Sprintf("creating nodepool at version %s (one z-stream behind %s)", fromVersion, toVersion))
 			customerNodePoolName := fmt.Sprintf("npnoedge-%s", strings.ReplaceAll(minor, ".", "-"))
 			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.NodePoolName = customerNodePoolName
-			nodePoolParams.OpenshiftVersionId = fromVersion.String()
+			nodePoolParams.OpenshiftVersionId = fromVersion
 			nodePoolParams.ChannelGroup = channelGroup
 			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(10))
 			err = tc.CreateNodePoolFromParam20240610(
@@ -332,9 +320,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s at version %s", customerNodePoolName, fromVersion)
 
 			By("getting admin credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -346,12 +334,12 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to capture node release images for nodepool %s", customerNodePoolName)
 			Expect(previousReleaseImages).NotTo(BeEmpty(), "expected node pool nodes to report at least one release image ref before upgrade")
 
-			By(fmt.Sprintf("triggering nodepool upgrade from %s to %s (no Cincinnati edge)", fromVersion, toVersion))
+			By(fmt.Sprintf("triggering nodepool upgrade from %s to %s", fromVersion, toVersion))
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 			update := hcpsdk20240610preview.NodePoolUpdate{
 				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
 					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
-						ID:           to.Ptr(toVersion.String()),
+						ID:           to.Ptr(toVersion),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
@@ -361,7 +349,7 @@ var _ = Describe("Customer", func() {
 
 			By("verifying nodes are recreated at the target version")
 			Eventually(func() error {
-				return verifiers.VerifyNodePoolUpgrade(toVersion.String(), customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
+				return verifiers.VerifyNodePoolUpgrade(toVersion, customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
 			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 
 			By("verifying node pool GET reflects the target version")
@@ -370,7 +358,7 @@ var _ = Describe("Customer", func() {
 			Expect(npGetResponse.Properties).NotTo(BeNil(), "nodepool %s response Properties was nil", customerNodePoolName)
 			Expect(npGetResponse.Properties.Version).NotTo(BeNil(), "nodepool %s Properties.Version was nil", customerNodePoolName)
 			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "nodepool %s Properties.Version.ID was nil", customerNodePoolName)
-			Expect(*npGetResponse.Properties.Version.ID).To(Equal(toVersion.String()), "nodepool %s version should be %s but got %s", customerNodePoolName, toVersion, *npGetResponse.Properties.Version.ID)
+			Expect(*npGetResponse.Properties.Version.ID).To(Equal(toVersion), "nodepool %s version should be %s but got %s", customerNodePoolName, toVersion, *npGetResponse.Properties.Version.ID)
 		},
 		Entry("z-stream upgrade without Cincinnati edge in 4.20",
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
@@ -384,34 +372,26 @@ var _ = Describe("Customer", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context, nodePoolMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
+			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
 
-			// On nightly, Cincinnati returns bare GA versions that don't exist in CS as nightly builds.
-			// Use GetLatestInstallVersion (release stream API) for nightly; GetLatestVersionInMinor
-			// (Cincinnati) for non-nightly to preserve existing behavior.
-			var (
-				nodePoolInstallVersion string
-				err                    error
-			)
-			if channelGroup == "nightly" {
-				nodePoolInstallVersion, err = framework.GetLatestInstallVersion(ctx, channelGroup, nodePoolMinor)
-			} else {
-				nodePoolInstallVersion, err = framework.GetLatestVersionInMinor(ctx, channelGroup, nodePoolMinor)
+			// Resolve versions the same way the control plane upgrade tests do: the node pool and the
+			// control plane each install at the tip of their minor. The node pool then upgrades +2
+			// minors to match the control plane.
+			nodePoolInstallVersion, err := resolveNodePoolTestVersion(ctx, channelGroup, nodePoolMinor, normalOffset)
+			if err != nil {
+				Skip(fmt.Sprintf("failed to resolve node pool version for %s-%s: %v", channelGroup, nodePoolMinor, err))
 			}
-			if framework.IsVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("version not found for minor %s on channel %s", nodePoolMinor, channelGroup))
+			if nodePoolInstallVersion == "" {
+				Skip(fmt.Sprintf("no node pool version resolved for %s-%s", channelGroup, nodePoolMinor))
 			}
-			Expect(err).NotTo(HaveOccurred(), "failed to get latest version for nodepool minor %s", nodePoolMinor)
 
-			var clusterInstallVersion string
-			if channelGroup == "nightly" {
-				clusterInstallVersion, err = framework.GetLatestInstallVersion(ctx, channelGroup, targetMinor)
-			} else {
-				clusterInstallVersion, err = framework.GetLatestVersionInMinor(ctx, channelGroup, targetMinor)
+			clusterInstallVersion, err := resolveNodePoolTestVersion(ctx, channelGroup, targetMinor, normalOffset)
+			if err != nil {
+				Skip(fmt.Sprintf("failed to resolve control plane version for %s-%s: %v", channelGroup, targetMinor, err))
 			}
-			if framework.IsVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("version not found for minor %s on channel %s", targetMinor, channelGroup))
+			if clusterInstallVersion == "" {
+				Skip(fmt.Sprintf("no control plane version resolved for %s-%s", channelGroup, targetMinor))
 			}
-			Expect(err).NotTo(HaveOccurred(), "failed to get latest version for target minor %s", targetMinor)
 
 			nodePoolDesiredVersion := clusterInstallVersion
 
@@ -480,9 +460,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s at version %s", customerNodePoolName, nodePoolInstallVersion)
 
 			By("getting admin credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -532,19 +512,27 @@ var _ = Describe("Customer", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context, minor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
+			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
 
-			versions, err := framework.GetAllVersionsInMinorStartingWith(ctx, channelGroup, minor)
-			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("Cincinnati returned version not found for minor %s on channel %s", minor, channelGroup))
+			// Resolve versions the same way the control plane upgrade tests do: install the control
+			// plane and node pool at the channel tip, then downgrade the node pool one z-stream back.
+			// Cincinnati has no backward edges, so this exercises a version change without an upgrade
+			// path; HCP node pools use Replace strategy so no edge is required.
+			clusterInstallVersion, err := resolveNodePoolTestVersion(ctx, channelGroup, minor, normalOffset)
+			if err != nil {
+				Skip(fmt.Sprintf("failed to resolve control plane version for %s-%s: %v", channelGroup, minor, err))
 			}
-			Expect(err).NotTo(HaveOccurred(), "failed to get versions for minor %s", minor)
-			if len(versions) < 2 {
-				Skip(fmt.Sprintf("fewer than 2 versions in minor %s on channel %s; cannot test downgrade", minor, channelGroup))
+			if clusterInstallVersion == "" {
+				Skip(fmt.Sprintf("no control plane version resolved for %s-%s", channelGroup, minor))
 			}
-
-			clusterInstallVersion := versions[0].String()
-			nodePoolInstallVersion := versions[0].String()
-			nodePoolDowngradeTarget := versions[1].String()
+			nodePoolInstallVersion := clusterInstallVersion
+			nodePoolDowngradeTarget, err := resolveNodePoolTestVersion(ctx, channelGroup, minor, normalOffset+1)
+			if err != nil {
+				Skip(fmt.Sprintf("failed to resolve node pool downgrade target for %s-%s: %v", channelGroup, minor, err))
+			}
+			if nodePoolDowngradeTarget == "" {
+				Skip(fmt.Sprintf("no penultimate version resolved for %s-%s; cannot test downgrade", channelGroup, minor))
+			}
 
 			tc := framework.NewTestContext()
 
@@ -611,9 +599,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s", customerNodePoolName)
 
 			By("getting admin credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -663,36 +651,28 @@ var _ = Describe("Customer", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context, cpMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
+			normalOffset := clusterversion.GetZStreamOffset(channelGroup)
 
-			// On nightly, Cincinnati returns bare GA versions that don't exist in CS as nightly builds.
-			// Use GetLatestInstallVersion (release stream API) for nightly; GetLatestVersionInMinor
-			// (Cincinnati) for non-nightly to preserve existing behavior.
-			var (
-				clusterInstallVersion string
-				err                   error
-			)
-			if channelGroup == "nightly" {
-				clusterInstallVersion, err = framework.GetLatestInstallVersion(ctx, channelGroup, cpMinor)
-			} else {
-				clusterInstallVersion, err = framework.GetLatestVersionInMinor(ctx, channelGroup, cpMinor)
+			// Resolve versions the same way the control plane upgrade tests do: the control plane and
+			// node pool install at the tip of cpMinor, then the node pool downgrades to the tip of the
+			// lower targetMinor (-2 minors).
+			clusterInstallVersion, err := resolveNodePoolTestVersion(ctx, channelGroup, cpMinor, normalOffset)
+			if err != nil {
+				Skip(fmt.Sprintf("failed to resolve control plane version for %s-%s: %v", channelGroup, cpMinor, err))
 			}
-			if framework.IsVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("version not found for minor %s on channel %s", cpMinor, channelGroup))
+			if clusterInstallVersion == "" {
+				Skip(fmt.Sprintf("no control plane version resolved for %s-%s", channelGroup, cpMinor))
 			}
-			Expect(err).NotTo(HaveOccurred(), "failed to get latest version for minor %s", cpMinor)
 
 			nodePoolInstallVersion := clusterInstallVersion
 
-			var nodePoolDowngradeTarget string
-			if channelGroup == "nightly" {
-				nodePoolDowngradeTarget, err = framework.GetLatestInstallVersion(ctx, channelGroup, targetMinor)
-			} else {
-				nodePoolDowngradeTarget, err = framework.GetLatestVersionInMinor(ctx, channelGroup, targetMinor)
+			nodePoolDowngradeTarget, err := resolveNodePoolTestVersion(ctx, channelGroup, targetMinor, normalOffset)
+			if err != nil {
+				Skip(fmt.Sprintf("failed to resolve node pool downgrade target for %s-%s: %v", channelGroup, targetMinor, err))
 			}
-			if framework.IsVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("version not found for minor %s on channel %s", targetMinor, channelGroup))
+			if nodePoolDowngradeTarget == "" {
+				Skip(fmt.Sprintf("no node pool downgrade target resolved for %s-%s", channelGroup, targetMinor))
 			}
-			Expect(err).NotTo(HaveOccurred(), "failed to get latest version for minor %s", targetMinor)
 
 			tc := framework.NewTestContext()
 
@@ -759,9 +739,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s", customerNodePoolName)
 
 			By("getting admin credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260901(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20260901ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				framework.GetAdminRESTConfigTimeout,
@@ -799,8 +779,8 @@ var _ = Describe("Customer", func() {
 			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "nodepool %s Properties.Version.ID was nil", customerNodePoolName)
 			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDowngradeTarget), "nodepool %s version should be %s but got %s", customerNodePoolName, nodePoolDowngradeTarget, *npGetResponse.Properties.Version.ID)
 		},
-		Entry("from 4.21.zLatest to 4.19.zLatest",
+		Entry("from 4.22.zLatest to 4.20.zLatest",
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
-			"4.21", "4.19"),
+			"4.22", "4.20"),
 	)
 })

@@ -106,6 +106,11 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Validation](dev-ci-monitoring.md#validation)
 - [Sources of Truth](dev-ci-monitoring.md#sources-of-truth)
 
+### [DEV CI Regional Failover And Failback](dev-region-failover.md)
+
+- Review regional provision health and switch the DEV CI region
+- Validate the switch and fail back when appropriate
+
 ### [Opstool CI Platform](opstool.md)
 
 - Standalone AKS architecture and rollout model
@@ -212,6 +217,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [CI Image Lifecycle](image-lifecycle.md) explains the shared CI build root, job-local image graph, local E2E image injection, and the difference between CI promotion and ACR mirroring.
 - [CI Identity Leasing](identity-leasing.md) explains the managed identity container pool, the MSI mock SP pool, and the current staged model: slot-manager for DEV `e2e-parallel`, legacy ci-operator identity-container leases elsewhere.
 - [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md) is the canonical Slack and PagerDuty runbook for DEV CI telemetry, alert response, exporter checks, and routing maintenance.
+- [DEV CI Regional Failover And Failback](dev-region-failover.md) defines when and how operators move DEV presubmit provisioning between `westus3`, `centralus`, and `canadacentral`.
 - [Opstool CI Platform](opstool.md) explains the standalone AKS platform, shared monitoring infrastructure, and workload rollout model that host DEV CI tools.
 - [CI EV2 Integration](ev2-integration.md) explains how EV2 selects Prow jobs, authenticates to Gangway, and pins runs to the exact rollout commit.
 - [EV2 Retry Catcher](ev2-retry-catcher.md) explains how a narrow, deliberately labeled set of known-issue test failures triggers an automatic single retry of an EV2 gating run instead of a manual retrigger.
@@ -231,4 +237,5 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Environments](../environments.md)
 - [Pipelines](../pipelines.md)
 - [EV2 Deployment](../ev2-deployment.md)
+- [Manually Trigger an E2E Gate Run](../sops/manual-e2e-gate-run.md)
 - [Test Test Tenant Access](../sops/test-test-tenant-access.md)

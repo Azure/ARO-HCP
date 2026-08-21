@@ -28,6 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+
+	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
 // ErrNoUsableVMSize is returned by SelectVMSize when no VM size in the target
@@ -90,6 +92,11 @@ type VMSizeSelector struct {
 	// EphemeralOSDiskSupported capability ("True"). SKUs without local/cache
 	// storage (e.g. Dsv5) do not support ephemeral OS disks and are excluded.
 	RequireEphemeralOSDisk bool
+	// IgnoreRPAllowlist, when true, skips filtering candidates against the
+	// ARO-HCP RP's node pool VM size allowlist. Use for selectors that create
+	// VMs directly via Azure Compute (e.g. jumpbox) rather than through the
+	// ARO-HCP RP.
+	IgnoreRPAllowlist bool
 }
 
 // SelectVMSize queries the Azure Resource SKUs API for the test location and
@@ -129,11 +136,16 @@ type vmSizeSelectionTrace struct {
 	// viaFallback is true when selection used the deterministic fallback rather
 	// than a preferred candidate.
 	viaFallback bool
+	// filteredByRPAllowlist counts SKUs that passed Azure-side checks but were
+	// excluded by the RP allowlist. Helps distinguish Azure restriction issues
+	// from allowlist gaps when debugging CI failures.
+	filteredByRPAllowlist int
 }
 
 type vmSizePreferredAttempt struct {
-	name   string
-	usable bool
+	name             string
+	usable           bool
+	notInRPAllowlist bool
 }
 
 // logVMSizeSelection writes a human-readable decision trace to the Ginkgo
@@ -141,11 +153,17 @@ type vmSizePreferredAttempt struct {
 func logVMSizeSelection(selector VMSizeSelector, location string, trace vmSizeSelectionTrace, selErr error) {
 	fmt.Fprintf(ginkgo.GinkgoWriter, "VM size selection for selector %q in %s:\n", selector.Name, location)
 	for _, attempt := range trace.preferredAttempts {
-		if attempt.usable {
+		switch {
+		case attempt.usable:
 			fmt.Fprintf(ginkgo.GinkgoWriter, "  preferred candidate %q: available/usable\n", attempt.name)
-		} else {
+		case attempt.notInRPAllowlist:
+			fmt.Fprintf(ginkgo.GinkgoWriter, "  preferred candidate %q: NOT in RP allowlist (skipping)\n", attempt.name)
+		default:
 			fmt.Fprintf(ginkgo.GinkgoWriter, "  preferred candidate %q: NOT available/usable in this subscription/region (skipping)\n", attempt.name)
 		}
+	}
+	if trace.filteredByRPAllowlist > 0 {
+		fmt.Fprintf(ginkgo.GinkgoWriter, "  %d SKU(s) passed Azure checks but excluded by RP allowlist\n", trace.filteredByRPAllowlist)
 	}
 	switch {
 	case selErr != nil:
@@ -207,9 +225,16 @@ func cloneResourceSKUSlice(skus []*armcompute.ResourceSKU) []*armcompute.Resourc
 	return append([]*armcompute.ResourceSKU(nil), skus...)
 }
 
-// selectVMSize is the pure selection logic over a list of Resource SKUs. It returns
+// selectVMSize is the selection logic over a list of Resource SKUs. It returns
 // the selected SKU together with a trace describing how the decision was reached.
 func selectVMSize(skus []*armcompute.ResourceSKU, location string, selector VMSizeSelector) (string, vmSizeSelectionTrace, error) {
+	var rpAllowlist sets.Set[string]
+	if !selector.IgnoreRPAllowlist {
+		rpAllowlist = validation.EnabledNodePoolAzureVMSizes()
+	}
+
+	var trace vmSizeSelectionTrace
+
 	usable := map[string]struct{}{}
 	for _, sku := range skus {
 		if sku == nil || sku.Name == nil {
@@ -218,16 +243,22 @@ func selectVMSize(skus []*armcompute.ResourceSKU, location string, selector VMSi
 		if !skuUsable(sku, location, selector) {
 			continue
 		}
+		if rpAllowlist != nil && !rpAllowlist.Has(*sku.Name) {
+			trace.filteredByRPAllowlist++
+			continue
+		}
 		usable[*sku.Name] = struct{}{}
 	}
-
-	var trace vmSizeSelectionTrace
 
 	// Preferred entries win when they survive restriction/capability filtering.
 	// Record every attempt (including misses) so the caller can log the path.
 	for _, name := range selector.Preferred {
 		_, ok := usable[name]
-		trace.preferredAttempts = append(trace.preferredAttempts, vmSizePreferredAttempt{name: name, usable: ok})
+		attempt := vmSizePreferredAttempt{name: name, usable: ok}
+		if !ok && rpAllowlist != nil && !rpAllowlist.Has(name) {
+			attempt.notInRPAllowlist = true
+		}
+		trace.preferredAttempts = append(trace.preferredAttempts, attempt)
 	}
 	for _, attempt := range trace.preferredAttempts {
 		if attempt.usable {
@@ -477,10 +508,11 @@ func SmallWorkerVMSizeSelector() VMSizeSelector {
 // low. The [^p] exclusion prevents matching Arm64 variants.
 func JumpboxVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
-		Name:        "jumpbox",
-		Preferred:   []string{JumpboxVMSize, "Standard_D2s_v4", "Standard_D2ds_v5", "Standard_D2lds_v6"},
-		NamePattern: regexp.MustCompile(`^Standard_D[2-4][^p]*s_v[3456]$`),
-		MinVCPUs:    2,
+		Name:              "jumpbox",
+		Preferred:         []string{JumpboxVMSize, "Standard_D2s_v4", "Standard_D2ds_v5", "Standard_D2lds_v6"},
+		NamePattern:       regexp.MustCompile(`^Standard_D[2-4][^p]*s_v[3456]$`),
+		MinVCPUs:          2,
+		IgnoreRPAllowlist: true,
 	}
 }
 

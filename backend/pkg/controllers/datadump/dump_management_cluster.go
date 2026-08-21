@@ -20,11 +20,11 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/fleetinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
-	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -72,7 +72,7 @@ func (c *managementClusterDataDump) SyncOnce(ctx context.Context, key controller
 	logger.Info(fmt.Sprintf("dumping resourceID %v", mc.CosmosMetadata.ResourceID),
 		"snapshotType", "cosmos",
 		"currentResourceID", mc.CosmosMetadata.ResourceID.String(),
-		"objectMetadata", serverutils.ObjectMetadataForResourceID("fleet", mc.CosmosMetadata.ResourceID),
+		"objectMetadata", metadataapi.ObjectMetadataForResourceID("fleet", mc.CosmosMetadata.ResourceID),
 		"content", mc,
 	)
 

@@ -29,12 +29,12 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/informerutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 const (
@@ -70,6 +70,7 @@ func NewSubscriptionInformerWithRelistDuration(lister cosmosstorageutils.GlobalL
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -147,6 +148,7 @@ func NewClusterInformerWithRelistDuration(lister cosmosstorageutils.GlobalLister
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -177,6 +179,7 @@ func NewNodePoolInformerWithRelistDuration(lister cosmosstorageutils.GlobalListe
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -208,6 +211,7 @@ func NewExternalAuthInformerWithRelistDuration(lister cosmosstorageutils.GlobalL
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -239,6 +243,7 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister cosmosstorageuti
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -319,6 +324,7 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister cosmosstorageut
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -349,6 +355,7 @@ func NewSystemAdminCredentialRequestInformerWithRelistDuration(lister cosmosstor
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -379,6 +386,7 @@ func NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister cosmoss
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -417,6 +425,7 @@ func NewControllerInformerWithRelistDuration(lister cosmosstorageutils.GlobalLis
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -452,6 +461,7 @@ func NewOperationInformerWithRelistDuration(lister cosmosstorageutils.GlobalList
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	)
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -481,6 +491,7 @@ func NewActiveOperationInformerWithRelistDuration(lister cosmosstorageutils.Glob
 		lister,
 		cosmosClient,
 		relistDuration,
+		"resources",
 	).WithShouldDeliverItemFn(func(obj *coreapi.Operation) bool {
 		return !obj.Status.IsTerminal()
 	})
@@ -530,13 +541,13 @@ func selfOrDirectParentResourceID(resourceType azcorearm.ResourceType, resourceI
 	if resourceID == nil {
 		return nil, nil
 	}
-	if armhelpers.ResourceTypeEqual(resourceID.ResourceType, resourceType) {
+	if metadataapi.ResourceTypeEqual(resourceID.ResourceType, resourceType) {
 		return []string{strings.ToLower(resourceID.String())}, nil
 	}
 	if resourceID.Parent == nil {
 		return nil, nil
 	}
-	if armhelpers.ResourceTypeEqual(resourceID.Parent.ResourceType, resourceType) {
+	if metadataapi.ResourceTypeEqual(resourceID.Parent.ResourceType, resourceType) {
 		return []string{strings.ToLower(resourceID.Parent.String())}, nil
 	}
 	return nil, nil

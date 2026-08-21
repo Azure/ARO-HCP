@@ -16,7 +16,9 @@ package frontend
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
@@ -30,8 +32,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/operation"
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -51,8 +55,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
@@ -323,6 +327,12 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	ctx := request.Context()
 
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	apiVersion := metadataapi.APIVersion(versionedInterface.String())
+
 	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
@@ -334,6 +344,37 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
+	}
+
+	// Starting with v20260901, callers provide a CSR in the request body and we
+	// store it on the Cosmos operation. This lets us distinguish at the operation
+	// level whether the new admin credential API path (CSR-based) or the legacy
+	// Cluster Service break-glass path is in use.
+	var certificateSigningRequest string
+	if apiVersion.GE(metadataapi.APIVersionV20260901Preview) {
+		body, err := BodyFromContext(ctx)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+
+		credentialRequest, err := versionedInterface.UnmarshalHCPOpenShiftClusterAdminCredentialRequest(body)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+
+		var errs field.ErrorList
+		csrPath := field.NewPath("certificateSigningRequest")
+		if credentialRequest == nil {
+			errs = append(errs, field.Required(csrPath, ""))
+		} else if credentialRequest.CertificateSigningRequest == "" {
+			errs = append(errs, field.Required(csrPath, ""))
+		} else {
+			errs = append(errs, validateCSRSubject(credentialRequest.CertificateSigningRequest, csrPath)...)
+		}
+		if err := coreapi.CloudErrorFromFieldErrors(errs); err != nil {
+			return err
+		}
+		certificateSigningRequest = credentialRequest.CertificateSigningRequest
 	}
 
 	cluster, err := f.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
@@ -366,6 +407,11 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		request.Header.Get(coreapi.HeaderNameClientObjectID),
 		request.Header.Get(coreapi.HeaderNameAsyncNotificationURI),
 		correlationData)
+	if certificateSigningRequest != "" {
+		operationDoc.SystemAdminCredentialRequest = &coreapi.OperationSystemAdminCredentialRequest{
+			CertificateSigningRequest: certificateSigningRequest,
+		}
+	}
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	_, err = f.resourcesDBClient.Operations(clusterResourceID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
@@ -1004,7 +1050,21 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	var responseBody []byte
 
+	// If the operation carries a SystemAdminCredentialRequest, it used the new
+	// CSR-based admin credential API and the credential is assembled from Cosmos.
+	// Otherwise, fall back to the legacy Cluster Service break-glass credential
+	// path identified by the operation's InternalID kind.
 	switch {
+	case operation.SystemAdminCredentialRequest != nil:
+		adminCred, err := f.assembleAdminCredentialFromCosmos(ctx, operation)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(adminCred)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+
 	case operation.InternalID.Kind() == cmv1.BreakGlassCredentialKind:
 		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, operation.InternalID)
 		if err != nil {
@@ -1016,7 +1076,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 			return utils.TrackError(err)
 		}
 
-	case armhelpers.ResourceTypeEqual(operation.ExternalID.ResourceType, coreapi.ClusterResourceType):
+	case metadataapi.ResourceTypeEqual(operation.ExternalID.ResourceType, coreapi.ClusterResourceType):
 		resultingInternalCluster, err := f.getInternalClusterFromStorage(ctx, operation.ExternalID)
 		if err != nil {
 			return utils.TrackError(err)
@@ -1055,6 +1115,86 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return utils.TrackError(err)
 	}
 	return nil
+}
+
+// assembleAdminCredentialFromCosmos looks up the SystemAdminCredentialRequest
+// Cosmos document referenced by Operation.SystemAdminCredentialRequest and
+// assembles a kubeconfig from its signed certificate and the serving CA bundle
+// from the ServiceProviderCluster. The kubeconfig does not include the private
+// key; the service never has access to it for security reasons. The caller must
+// combine this kubeconfig with the private key they hold client-side.
+func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *coreapi.Operation) (*coreapi.HCPOpenShiftClusterAdminCredential, error) {
+	if op.SystemAdminCredentialRequest == nil || op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID == nil {
+		return nil, fmt.Errorf("operation has no SystemAdminCredentialRequestResourceID")
+	}
+	credResourceID := op.SystemAdminCredentialRequest.SystemAdminCredentialRequestResourceID
+
+	credCRUD := f.resourcesDBClient.HCPClusters(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName).SystemAdminCredentialRequests(
+		op.ExternalID.Name,
+	)
+	cred, err := credCRUD.Get(ctx, credResourceID.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err)
+	}
+
+	if !meta.IsStatusConditionTrue(cred.Status.Conditions, coreapi.SystemAdminCredentialRequestConditionIssued) {
+		return nil, fmt.Errorf("credential request is not in Issued state")
+	}
+
+	cluster, err := f.resourcesDBClient.HCPClusters(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName).Get(ctx, op.ExternalID.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cluster: %w", err)
+	}
+	apiURL := cluster.ServiceProviderProperties.API.URL
+
+	serviceProviderCluster, err := f.resourcesDBClient.ServiceProviderClusters(
+		op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName, op.ExternalID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ServiceProviderCluster: %w", err)
+	}
+
+	kubeconfigBytes, err := systemadmincredential.BuildKubeconfig(
+		cred.Status.SignedCertificate,
+		apiURL,
+		serviceProviderCluster.Status.ServingCABundle,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build kubeconfig: %w", err)
+	}
+
+	return &coreapi.HCPOpenShiftClusterAdminCredential{
+		ExpirationTimestamp: cred.Spec.ExpirationTimestamp.Time,
+		Kubeconfig:          string(kubeconfigBytes),
+	}, nil
+}
+
+const (
+	requiredCSRCommonName   = "system:customer-break-glass:system-admin"
+	requiredCSROrganization = "system:masters"
+)
+
+func validateCSRSubject(csrPEM string, fldPath *field.Path) field.ErrorList {
+	var errs field.ErrorList
+
+	block, _ := pem.Decode([]byte(csrPEM))
+	if block == nil || block.Type != "CERTIFICATE REQUEST" {
+		return append(errs, field.Invalid(fldPath, "", "failed to decode PEM block as CERTIFICATE REQUEST"))
+	}
+	csr, err := x509.ParseCertificateRequest(block.Bytes)
+	if err != nil {
+		return append(errs, field.Invalid(fldPath, "", fmt.Sprintf("failed to parse certificate request: %v", err)))
+	}
+
+	if csr.Subject.CommonName != requiredCSRCommonName {
+		errs = append(errs, field.Invalid(fldPath, csr.Subject.CommonName,
+			fmt.Sprintf("subject common name must be %q", requiredCSRCommonName)))
+	}
+	if len(csr.Subject.Organization) != 1 || csr.Subject.Organization[0] != requiredCSROrganization {
+		errs = append(errs, field.Invalid(fldPath, csr.Subject.Organization,
+			fmt.Sprintf("subject organization must be exactly [%q]", requiredCSROrganization)))
+	}
+
+	return errs
 }
 
 func featuresMap(features *[]coreapi.Feature) map[string]string {

@@ -29,6 +29,8 @@ import (
 	"sync"
 	"time"
 
+	_ "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/runtime" // contains init() function which populates ARM cloud services
+
 	"github.com/onsi/ginkgo/v2/types"
 	"golang.org/x/net/http2"
 
@@ -53,6 +55,7 @@ type perBinaryInvocationTestContext struct {
 	pullSecretPath           string
 	frontendAddress          string
 	adminAPIAddress          string
+	resourceManagerEndpoint  string
 	skipCertVerification     bool
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
@@ -113,6 +116,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 			pullSecretPath:                       pullSecretPath(),
 			frontendAddress:                      frontendAddress(),
 			adminAPIAddress:                      adminAPIAddress(),
+			resourceManagerEndpoint:              resourceManagerEndpoint(),
 			skipCertVerification:                 skipCertVerification(),
 			isDevelopmentEnvironment:             IsDevelopmentEnvironment(),
 			skipCleanup:                          skipCleanup(),
@@ -192,28 +196,59 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 		}
 		clientOpts.PerCallPolicies = append([]policy.Policy{&requestIDPolicy{}}, clientOpts.PerCallPolicies...)
 	}
+
+	if tc.resourceManagerEndpoint != "" {
+		clientOpts.Cloud = cloud.Configuration{
+			ActiveDirectoryAuthorityHost: cloud.AzurePublic.ActiveDirectoryAuthorityHost,
+			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+				cloud.ResourceManager: {
+					Audience: cloud.AzurePublic.Services[cloud.ResourceManager].Audience,
+					Endpoint: tc.resourceManagerEndpoint,
+				},
+			},
+		}
+	}
+
 	return &azcorearm.ClientOptions{
 		ClientOptions: clientOpts,
 	}
 }
 
 func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
+	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
+	clientOpts.Retry = azureRetryOptions
+	if tc.resourceManagerEndpoint != "" {
+		clientOpts.Cloud = cloud.Configuration{
+			ActiveDirectoryAuthorityHost: cloud.AzurePublic.ActiveDirectoryAuthorityHost,
+			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+				cloud.ResourceManager: {
+					Audience: cloud.AzurePublic.Services[cloud.ResourceManager].Audience,
+					Endpoint: tc.resourceManagerEndpoint,
+				},
+			},
+		}
+	}
+	clientOpts.PerCallPolicies = []policy.Policy{
+		NewRetryVersionNotFoundPolicy(),
+		&sanitizeAuthHeaderPolicy{},
+	}
+
 	if tc.isDevelopmentEnvironment {
 		transport := tc.defaultTransport
 		if tc.skipCertVerification {
 			transport.TLSClientConfig.InsecureSkipVerify = true
 		}
-		clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
-		clientOpts.Retry = azureRetryOptions
+
 		clientOpts.Cloud = cloud.Configuration{
-			ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
+			ActiveDirectoryAuthorityHost: cloud.AzurePublic.ActiveDirectoryAuthorityHost,
 			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
 				cloud.ResourceManager: {
-					Audience: "https://management.core.windows.net/",
+					Audience: cloud.AzurePublic.Services[cloud.ResourceManager].Audience,
 					Endpoint: tc.frontendAddress,
 				},
 			},
 		}
+
 		clientOpts.Transport = &proxiedConnectionTransporter{
 			delegate: transport,
 		}
@@ -225,16 +260,8 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 			NewRetryVersionNotFoundPolicy(),
 			&sanitizeAuthHeaderPolicy{},
 		}
-		return &azcorearm.ClientOptions{
-			ClientOptions: clientOpts,
-		}
 	}
-	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
-	clientOpts.Retry = azureRetryOptions
-	clientOpts.PerCallPolicies = []policy.Policy{
-		NewRetryVersionNotFoundPolicy(),
-		&sanitizeAuthHeaderPolicy{},
-	}
+
 	return &azcorearm.ClientOptions{
 		ClientOptions: clientOpts,
 	}
@@ -416,6 +443,13 @@ func adminAPIAddress() string {
 		return "http://localhost:8444"
 	}
 	return address
+}
+
+// resourceManagerEndpoint returns the value of RESOURCE_MANAGER_ENDPOINT environment variable.
+// When set, it overrides the Azure Resource Manager endpoint used by HCP SDK clients,
+// allowing tests to target canary regions (e.g. https://eastus2euap.management.azure.com).
+func resourceManagerEndpoint() string {
+	return os.Getenv("RESOURCE_MANAGER_ENDPOINT")
 }
 
 // skipCertVerification returns the value of SKIP_CERT_VERIFICATION environment variable

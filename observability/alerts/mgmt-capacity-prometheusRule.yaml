@@ -54,3 +54,15 @@ spec:
       labels:
         severity: info
         team: hcp-sl
+    - alert: MgmtAgentCapacityReportingSyncFailing
+      annotations:
+        description: Capacity reporting on management cluster {{ $labels.cluster }} has been failing continuously for at least 5 minutes. The CapacityReport CR may contain stale data, which can affect fleet-level placement decisions. Check mgmt-agent logs for root cause.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Capacity reporting sync failing on {{ $labels.cluster }}
+        owning_team: hcp-sl
+      expr: |
+        increase(capacity_reporting_sync_errors_total[5m]) >= 8
+      for: 5m
+      labels:
+        severity: warning
+        team: hcp-sl

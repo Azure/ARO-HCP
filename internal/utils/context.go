@@ -22,6 +22,8 @@ import (
 	"github.com/go-logr/logr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 type ContextError struct {
@@ -153,9 +155,12 @@ func (lv LogValues) AddCosmosResourceID(value string) LogValues {
 	return append(lv, "cosmos_resource_id", strings.ToLower(value))
 }
 
-// AddHCPClusterName adds the "hcp_cluster_name" key with the lowercased value.
+// AddHCPClusterName adds the "hcp_cluster_name" key with the lowercased value. The same value (the
+// cluster's full resource ID) is also mirrored into "cluster_id", which cosmosResourceSnapshots
+// ingests as its cluster_id column.
 func (lv LogValues) AddHCPClusterName(value string) LogValues {
-	return append(lv, "hcp_cluster_name", strings.ToLower(value))
+	lowered := strings.ToLower(value)
+	return append(lv, "hcp_cluster_name", lowered, "cluster_id", lowered)
 }
 
 // AddInternalID adds the "internal_id" key with the lowercased value.
@@ -215,27 +220,6 @@ func (lv LogValues) AddSubscriptionID(value string) LogValues {
 	return append(lv, "subscription_id", strings.ToLower(value))
 }
 
-// Composite helper functions for parsing resource IDs
-
-// hcpClusterNameFromResourceID walks up the resource ID parent chain to find an HCP cluster ancestor.
-// Returns the cluster's resource ID string if found, empty string otherwise.
-func hcpClusterNameFromResourceID(resourceID *azcorearm.ResourceID) string {
-	if resourceID == nil {
-		return ""
-	}
-
-	// Check if this resource is in our provider namespace
-	if !strings.EqualFold(resourceID.ResourceType.Namespace, "Microsoft.RedHatOpenShift") { // can't use constant due to import cycle. need to move functions out of api
-		return ""
-	}
-	// Check if this is an HCP cluster resource type
-	if strings.EqualFold(resourceID.ResourceType.Type, "hcpOpenShiftClusters") { // can't use constant due to import cycle. need to move functions out of api
-		return resourceID.String()
-	}
-	// Walk up the parent chain
-	return hcpClusterNameFromResourceID(resourceID.Parent)
-}
-
 // AddLogValuesForResourceID adds common logging key/value pairs from a resource ID.
 // It adds: subscription_id, resource_group, resource_name, resource_id, and hcp_cluster_name (if applicable).
 func (lv LogValues) AddLogValuesForResourceID(resourceID *azcorearm.ResourceID) LogValues {
@@ -248,7 +232,7 @@ func (lv LogValues) AddLogValuesForResourceID(resourceID *azcorearm.ResourceID) 
 		AddResourceName(resourceID.Name).
 		AddResourceID(resourceID.String())
 
-	if hcpClusterName := hcpClusterNameFromResourceID(resourceID); hcpClusterName != "" {
+	if hcpClusterName := metadataapi.ClusterNameFromResourceID(resourceID); hcpClusterName != "" {
 		lv = lv.AddHCPClusterName(hcpClusterName)
 	}
 	return lv

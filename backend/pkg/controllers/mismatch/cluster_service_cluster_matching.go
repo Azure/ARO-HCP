@@ -23,19 +23,23 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
+	utilsclock "k8s.io/utils/clock"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type clusterServiceClusterMatching struct {
-	name string
+	name  string
+	clock utilsclock.PassiveClock
 
 	subscriptionLister   corelisters.SubscriptionLister
 	resourcesDBClient    corecosmosstorage.ResourcesDBClient
@@ -47,9 +51,10 @@ type clusterServiceClusterMatching struct {
 }
 
 // NewClusterServiceClusterMatchingController periodically looks for mismatched cluster-service and cosmos clusters
-func NewClusterServiceClusterMatchingController(resourcesDBClient corecosmosstorage.ResourcesDBClient, subscriptionLister corelisters.SubscriptionLister, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.Controller {
+func NewClusterServiceClusterMatchingController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, subscriptionLister corelisters.SubscriptionLister, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.Controller {
 	c := &clusterServiceClusterMatching{
 		name:                 "ClusterServiceMatchingClusters",
+		clock:                clock,
 		subscriptionLister:   subscriptionLister,
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
@@ -81,15 +86,23 @@ func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (m
 
 		for _, cluster := range allHCPClusters.Items(ctx) {
 			ret = append(ret, cluster)
-			// we skip items without a clusterServiceID because they make be about to get them and shouldn't be deleted.
-			if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+			// we skip items without a ClusterServiceID or PendingClusterServiceID because they may be about to get them and shouldn't be deleted.
+			if cluster.ServiceProviderProperties.ClusterServiceID == nil && cluster.ServiceProviderProperties.PendingClusterServiceID == nil {
 				continue
 			}
-			existingCluster, exists := clusterServiceIDToCluster[cluster.ServiceProviderProperties.ClusterServiceID.String()]
+
+			var clusterServiceID string
+			if cluster.ServiceProviderProperties.ClusterServiceID != nil {
+				clusterServiceID = cluster.ServiceProviderProperties.ClusterServiceID.String()
+			} else {
+				clusterServiceID = cluster.ServiceProviderProperties.PendingClusterServiceID.String()
+			}
+
+			existingCluster, exists := clusterServiceIDToCluster[clusterServiceID]
 			if exists {
 				return nil, nil, utils.TrackError(fmt.Errorf("duplicate obj found: %s, owned by %q and %q", cluster.ID.String(), existingCluster.ID.String(), cluster.ID.String()))
 			}
-			clusterServiceIDToCluster[cluster.ServiceProviderProperties.ClusterServiceID.String()] = cluster
+			clusterServiceIDToCluster[clusterServiceID] = cluster
 		}
 		if err := allHCPClusters.GetError(); err != nil {
 			return nil, nil, utils.TrackError(err)
@@ -144,12 +157,58 @@ func (c *clusterServiceClusterMatching) synchronizeAllClusters(ctx context.Conte
 	}
 
 	for _, clusterServiceCluster := range allClusterServiceClusters {
+		clusterLogger := logger.WithValues("clusterServiceID", clusterServiceCluster.HREF())
 		_, exists := clusterServiceIDToCosmosCluster[clusterServiceCluster.HREF()]
-		if !exists {
-			logger.Info("cluster service cluster doesn't have matching cosmos cluster",
-				"clusterServiceID", clusterServiceCluster.HREF(),
-			)
+		if exists {
+			continue
 		}
+
+		clusterServiceCreationTimestamp, ok := clusterServiceCluster.GetCreationTimestamp()
+		if !ok {
+			clusterLogger.Error(
+				utils.TrackError(fmt.Errorf("cluster service cluster without creation_timestamp and a matching cosmos cluster detected")),
+				"cluster service cluster without creation_timestamp and a matching cosmos cluster detected")
+			continue
+		}
+
+		// if the cluster service cluster isn't older than an hour, we skip it
+		if c.clock.Since(clusterServiceCreationTimestamp) < time.Hour {
+			clusterLogger.Info("cluster service cluster doesn't have matching cosmos cluster detected but is not old enough to delete")
+			continue
+		}
+
+		// before deleting, double check in the cosmos database that the cluster service cluster is still not in the cosmos database
+		clusterServiceAzurePlatform, ok := clusterServiceCluster.GetAzure()
+		if !ok {
+			clusterLogger.Error(
+				utils.TrackError(fmt.Errorf("cluster service cluster without Azure properties and a matching cosmos cluster detected")),
+				"cluster service cluster without Azure properties and a matching cosmos cluster detected")
+			continue
+		}
+		_, err := c.resourcesDBClient.HCPClusters(clusterServiceAzurePlatform.SubscriptionID(), clusterServiceAzurePlatform.ResourceGroupName()).
+			Get(ctx, clusterServiceAzurePlatform.ResourceName())
+		if err == nil {
+			clusterLogger.Info("cluster service cluster exists in the cosmos database, no need to delete")
+			continue
+		}
+
+		if !cosmosstorageutils.IsNotFoundError(err) {
+			clusterLogger.Error(err, "error getting cluster service cluster from cosmos database")
+			continue
+		}
+
+		// cluster is confirmed to not be in cosmos database, we can delete it from cluster service
+		clusterServiceID, err := metadataapi.NewInternalID(clusterServiceCluster.HREF())
+		if err != nil {
+			clusterLogger.Error(err, "error creating internal ID for cluster service cluster")
+			continue
+		}
+		err = c.clusterServiceClient.DeleteCluster(ctx, clusterServiceID)
+		if err != nil {
+			clusterLogger.Error(err, "error deleting cluster service cluster")
+			continue
+		}
+		clusterLogger.Info("cluster service cluster without matching cosmos cluster deleted from cluster service")
 	}
 
 	return nil

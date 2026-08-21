@@ -1,7 +1,5 @@
 using '../templates/svc-cluster.bicep'
 
-param istioVersions = '{{ .svc.istio.versions }}'
-
 // AKS
 param kubernetesVersion = '{{ .svc.aks.kubernetesVersion }}'
 param vnetAddressPrefix = '{{ .svc.aks.vnetAddressPrefix }}'
@@ -40,8 +38,13 @@ param infraZoneRedundantMode = '{{ .svc.aks.infraAgentPool.zoneRedundantMode }}'
 param infraOsDiskSizeGB = {{ .svc.aks.infraAgentPool.osDiskSizeGB }}
 param userOsDiskSizeGB = {{ .svc.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressIPTags }}'
+// istioVersions intentionally not passed — mesh revisions are managed by the
+// IstioUpgrade pipeline step, not baked into the ARM template. Passing them
+// here would cause every ARM deployment to overwrite revisions the pipeline
+// step had already advanced, potentially rolling back an in-progress upgrade.
+// istioctlVersion and targetVersion will be removed in a future cleanup.
 param aksNetworkDataplane = '{{ .svc.aks.networkDataplane }}'
-param aksNetworkPolicy = '{{ .svc.aks.networkDataplane }}'
+param aksNetworkPolicy = '{{ .svc.aks.networkPolicy }}'
 param aksUpgradeSettingsMaxSurge = '{{ .svc.aks.upgradeSettings.maxSurge }}'
 param aksUpgradeSettingsMaxUnavailable = '{{ .svc.aks.upgradeSettings.maxUnavailable }}'
 

@@ -20,6 +20,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
 
 const (
@@ -54,4 +55,20 @@ var (
 	SystemAdminCredentialRevocationScopedApplyDesireResourceType = nestedResourceType(coreapi.ClusterResourceTypeName, coreapi.SystemAdminCredentialRevocationResourceTypeName, ApplyDesireResourceTypeName)
 	// SystemAdminCredentialRevocationScopedReadDesireResourceType is readDesires nested under a SystemAdminCredentialRevocation under a Cluster.
 	SystemAdminCredentialRevocationScopedReadDesireResourceType = nestedResourceType(coreapi.ClusterResourceTypeName, coreapi.SystemAdminCredentialRevocationResourceTypeName, ReadDesireResourceTypeName)
+
+	// ManagementClusterScopedApplyDesireResourceType is applyDesires nested under a ManagementCluster under a Stamp.
+	ManagementClusterScopedApplyDesireResourceType = nestedResourceType(fleetapi.StampResourceTypeName, fleetapi.ManagementClusterResourceTypeName, ApplyDesireResourceTypeName)
+	// ManagementClusterScopedReadDesireResourceType is readDesires nested under a ManagementCluster under a Stamp.
+	ManagementClusterScopedReadDesireResourceType = nestedResourceType(fleetapi.StampResourceTypeName, fleetapi.ManagementClusterResourceTypeName, ReadDesireResourceTypeName)
 )
+
+// ApplyDesireResourceTypeForParent derives the nested ApplyDesire resource type for
+// an arbitrary parent by appending the applyDesires leaf to the parent's own type.
+func ApplyDesireResourceTypeForParent(parent *azcorearm.ResourceID) azcorearm.ResourceType {
+	return nestedResourceType(parent.ResourceType.Type, ApplyDesireResourceTypeName)
+}
+
+// ReadDesireResourceTypeForParent is the ReadDesire parallel of ApplyDesireResourceTypeForParent.
+func ReadDesireResourceTypeForParent(parent *azcorearm.ResourceID) azcorearm.ResourceType {
+	return nestedResourceType(parent.ResourceType.Type, ReadDesireResourceTypeName)
+}

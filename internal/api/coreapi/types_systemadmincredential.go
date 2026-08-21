@@ -37,9 +37,6 @@ type SystemAdminCredentialRequest struct {
 // SystemAdminCredentialRequestSpec contains the desired state of the credential request.
 // Written by: SystemAdminCredentialDispatchRequestCredential (all fields set at creation)
 type SystemAdminCredentialRequestSpec struct {
-	// Username is the K8s username embedded in the cert CN.
-	// Written by: SystemAdminCredentialDispatchRequestCredential
-	Username string `json:"username,omitempty"`
 	// CreationTimestamp is when the credential request was created (server-set).
 	// The garbage collector deletes each request once it is older than the
 	// retention window, regardless of the request's status.

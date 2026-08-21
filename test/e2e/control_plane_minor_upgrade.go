@@ -25,18 +25,15 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/blang/semver/v4"
-	"github.com/google/uuid"
 
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
-
 	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -47,81 +44,54 @@ var _ = Describe("Customer", func() {
 	DescribeTable("should be able to successfully upgrade control plane minor version",
 		labels.MIContainers(1),
 		func(ctx context.Context, targetMinor string) {
-			channelGroup := framework.DefaultOpenshiftChannelGroup()
-			targetVer := metadataapi.Must(semver.ParseTolerant(targetMinor))
-			targetPlusOneVer := semver.Version{Major: targetVer.Major, Minor: targetVer.Minor + 1}
-			if targetMinor == "4.22" {
-				targetPlusOneVer = semver.Version{Major: 5, Minor: 0}
-			}
-
-			var previousMinor semver.Version
+			// The 4.22 -> 5.0 minor upgrade is not yet supported by Cluster Service, so skip it
+			// until CS gains support. This entry is the only one whose target minor is "5.0".
 			if targetMinor == "5.0" {
-				previousMinor = semver.Version{Major: 4, Minor: 22}
+				Skip(`cluster service doesn't support this yet: VerifyHostedControlPlaneYStreamUpgrade(previousMinor=4.22, targetMinor=5.0) failed: clusterversion status.history has no version in target minor "5.0"`)
+			}
+
+			channelGroup := framework.DefaultOpenshiftChannelGroup()
+			upgradeVersion := metadataapi.Must(semver.ParseTolerant(targetMinor))
+
+			var installVersion semver.Version
+			if targetMinor == "5.0" {
+				installVersion = semver.Version{Major: 4, Minor: 22}
 			} else {
-				previousMinor = semver.Version{Major: targetVer.Major, Minor: targetVer.Minor - 1}
+				installVersion = semver.Version{Major: upgradeVersion.Major, Minor: upgradeVersion.Minor - 1}
 			}
 
-			if previousMinor.Major == 4 && targetVer.Major == 5 {
-				Skip("CS does not support major upgrade yet; skipping until https://redhat.atlassian.net/browse/ARO-25230 is resolved")
-			}
-
-			previousMinorLine := fmt.Sprintf("%d.%d", previousMinor.Major, previousMinor.Minor)
-			targetMinorLine := fmt.Sprintf("%d.%d", targetVer.Major, targetVer.Minor)
-
-			var installVersion *semver.Version
-			cincinnatiClient := cvocincinnati.NewClient(uuid.NameSpaceDNS, &http.Transport{}, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
-
-			possibleInstallVersions, err := framework.GetAllVersionsInMinorStartingWith(ctx, channelGroup, previousMinorLine)
-			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("Cincinnati returned version not found for previous minor %s on channel %s: %v",
-					previousMinor.String(),
-					channelGroup, err))
-			}
-			Expect(err).NotTo(HaveOccurred(), "failed to get versions in previous minor %s on channel %s", previousMinor.String(), channelGroup)
-
-			for _, possibleInstallVersion := range possibleInstallVersions {
-				possibleUpgradeVersions, err := clusterversion.FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetVer, []semver.Version{possibleInstallVersion})
-				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("Cincinnati returned version not found for target minor %s on channel %s: %v",
-						targetVer.String(),
-						channelGroup, err))
-				}
-				Expect(err).NotTo(HaveOccurred(), "failed to find upgrade targets in minor %s for install version %s", targetVer.String(), possibleInstallVersion.String())
-
-				for _, possibleUpgradeVersion := range possibleUpgradeVersions {
-					possibleNextUpgradeVersions, err := clusterversion.FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetPlusOneVer, []semver.Version{possibleUpgradeVersion})
-					if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-						// in this case we allow it because without a 4.y+2, we allow any 4.y+1
-						installVersion = &possibleInstallVersion
-						break
-					}
-					Expect(err).NotTo(HaveOccurred(), "failed to find upgrade targets in minor %s for upgrade version %s", targetPlusOneVer.String(), possibleUpgradeVersion.String())
-					if len(possibleNextUpgradeVersions) > 0 {
-						// in this case we allow it because the possibleInstallVersion has a possibleUpgradeVersion that can upgrade to 4.y+2
-						installVersion = &possibleInstallVersion
-						break
-					}
-				}
-				if installVersion != nil {
-					break
-				}
-			}
-
-			if installVersion == nil {
-				Skip(fmt.Sprintf("no install version in %s found with upgrade path to %s",
-					previousMinor.String(), targetVer.String()))
-			}
-
-			// Resolve the upgrade target version early so a missing nightly tag skips
-			// before burning resources on cluster creation.
-			upgradeVersionId := targetMinor
+			// Resolve the install (previous minor) and upgrade (target minor) version strings up front
+			// so a missing version skips before we burn resources on cluster creation. For nightly,
+			// each resolves to its exact build tag (the RP cannot resolve major.minor to a nightly
+			// build). For other channel groups, each is the bare major.minor string, verified
+			// resolvable via the OpenShift update service at the channel's z-stream offset.
+			installVersionId := fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
+			upgradeVersionId := fmt.Sprintf("%d.%d", upgradeVersion.Major, upgradeVersion.Minor)
 			if channelGroup == "nightly" {
-				resolved, err := framework.GetLatestInstallVersion(ctx, channelGroup, targetMinor)
+				resolvedInstall, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, installVersionId)
 				if framework.IsVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("no nightly version for %s: %v", targetMinor, err))
+					Skip(fmt.Sprintf("no nightly version for %s: %v", installVersionId, err))
 				}
-				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly upgrade version")
-				upgradeVersionId = resolved
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version for %s", installVersionId)
+				installVersionId = resolvedInstall
+
+				resolvedUpgrade, err := framework.GetLatestNightlyInstallVersion(ctx, channelGroup, upgradeVersionId)
+				if framework.IsVersionNotFoundError(err) {
+					Skip(fmt.Sprintf("no nightly version for %s: %v", upgradeVersionId, err))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly upgrade version for %s", upgradeVersionId)
+				upgradeVersionId = resolvedUpgrade
+			} else {
+				for _, minorLine := range []string{installVersionId, upgradeVersionId} {
+					desiredVersion, err := controlplaneversion.SelectControlPlaneVersion(ctx, http.DefaultTransport.RoundTrip, nil, fmt.Sprintf("%s-%s", channelGroup, minorLine), clusterversion.GetZStreamOffset(channelGroup))
+					if err != nil {
+						Skip(fmt.Sprintf("failed to resolve a version for channel %s-%s: %v", channelGroup, minorLine, err))
+					}
+					if desiredVersion == nil {
+						Skip(fmt.Sprintf("no version resolved for channel %s-%s; skipping y-stream upgrade %s -> %s",
+							channelGroup, minorLine, installVersionId, upgradeVersionId))
+					}
+				}
 			}
 
 			tc := framework.NewTestContext()
@@ -141,18 +111,7 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters at install (previous minor) version")
 			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
-			// Nightly needs the full version tag; the RP cannot resolve Major.Minor to a nightly build.
-			// GetLatestInstallVersion dispatches to the release stream API for nightly.
-			clusterVersionId := fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
-			if channelGroup == "nightly" {
-				resolved, err := framework.GetLatestInstallVersion(ctx, channelGroup, clusterVersionId)
-				if framework.IsVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("no nightly version for %s: %v", clusterVersionId, err))
-				}
-				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version")
-				clusterVersionId = resolved
-			}
-			clusterParams.OpenshiftVersionId = clusterVersionId
+			clusterParams.OpenshiftVersionId = installVersionId
 			clusterParams.ChannelGroup = channelGroup
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-cp-ystream-"+suffix, "-managed", 64)
 
@@ -170,8 +129,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for y-stream upgrade cluster %q", clusterName)
 
-			By(fmt.Sprintf("creating the HCP cluster with install version %s (previous minor %s)", installVersion,
-				previousMinorLine))
+			By(fmt.Sprintf("creating the HCP cluster at install version %s (previous minor)", installVersionId))
 			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
@@ -179,7 +137,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				framework.ClusterCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with install version %s", clusterName, installVersion)
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q at install version %s", clusterName, installVersionId)
 
 			By("getting admin credentials")
 			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
@@ -203,7 +161,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get pre-upgrade kube-apiserver version for cluster %q", clusterName)
 
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", upgradeVersionId,
-				targetVer.String()))
+				upgradeVersion.String()))
 			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
 				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20240610preview.VersionProfile{
@@ -220,8 +178,8 @@ var _ = Describe("Customer", func() {
 				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
 					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion),
 					verifiers.VerifyHostedControlPlaneYStreamUpgrade(
-						previousMinorLine,
-						targetMinorLine))
+						installVersionId,
+						upgradeVersionId))
 			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 		},
 		Entry("from 4.20 minor to 4.21 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),

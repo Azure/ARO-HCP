@@ -4,6 +4,9 @@ This is the canonical runbook linked from Slack and PagerDuty for DEV CI alerts.
 
 The deployed workload is still named `tenant-quota` for historical reasons. It began as a tenant-quota collector, but it is now the extensible DEV CI telemetry exporter rather than a quota-only tool.
 
+For a regional provision-health incident, use
+[DEV CI Regional Failover And Failback](dev-region-failover.md).
+
 ## At A Glance
 
 | Item | Value |
@@ -53,7 +56,12 @@ Use the incident payload to identify the affected signal, but use [`tooling/tena
 3. Investigate the issue and record all findings, evidence, and relevant links in the Jira bug.
 4. Assess the issue's priority and impact. If it warrants continued attention, include the Jira bug in the handover for the next shift.
 
-This runbook intentionally does not prescribe remediation. Operational knowledge should be recorded in the Jira bug during the investigation and promoted into a dedicated operational knowledge base once the response is understood and repeatable.
+This runbook intentionally does not prescribe general remediation. For
+`ProwCIHealthcheckProvisionSuccessRateLow`, follow the
+[DEV regional failover SOP](dev-region-failover.md). Other operational
+knowledge should be recorded in the Jira bug during the investigation and
+promoted into a dedicated operational knowledge base once the response is
+understood and repeatable.
 
 ## Exporter Health Checks
 

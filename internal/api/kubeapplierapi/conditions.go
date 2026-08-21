@@ -18,7 +18,27 @@ package kubeapplierapi
 const (
 	// ConditionTypeSuccessful is true when the controller most-recently observed the
 	// desired effect of the *Desire achieved against the kube-apiserver.
+	//
+	// For an ApplyDesire it is retained for backwards compatibility and mirrors
+	// whichever operation-specific condition applies — ConditionTypeSuccessfullyApplied
+	// for Type=ServerSideApply, ConditionTypeSuccessfullyDeleted for Type=Delete.
+	// Readers should prefer the operation-specific condition (see
+	// kubeapplierapihelpers.IsConditionTruePreferring) and fall back to this one
+	// only when the operation-specific condition is absent (e.g. a document last
+	// written by an older kube-applier). It remains the primary condition for a
+	// ReadDesire, which has a single observe operation.
 	ConditionTypeSuccessful = "Successful"
+
+	// ConditionTypeSuccessfullyApplied is true when the controller most-recently
+	// observed that an ApplyDesire with Type=ServerSideApply achieved its desired
+	// effect (the server-side apply succeeded).
+	ConditionTypeSuccessfullyApplied = "SuccessfullyApplied"
+
+	// ConditionTypeSuccessfullyDeleted is true when the controller most-recently
+	// observed that an ApplyDesire with Type=Delete achieved its desired effect
+	// (the target is gone). While finalizers are running it stays False with reason
+	// ConditionReasonWaitingForDeletion.
+	ConditionTypeSuccessfullyDeleted = "SuccessfullyDeleted"
 
 	// ConditionTypeDegraded reports controller-level health for the *Desire.
 	// True means the controller failed in a way unrelated to the kube-apiserver
@@ -31,8 +51,10 @@ const (
 	// ConditionReasonKubeAPIError is set when the kube-apiserver returned an error for our request.
 	ConditionReasonKubeAPIError = "KubeAPIError"
 
-	// ConditionReasonPreCheckFailed is set when we could not issue the kube-apiserver request
-	// (e.g. malformed kubeContent, GVR not present in the RESTMapper, etc.).
+	// ConditionReasonPreCheckFailed is set when we could not even issue the kube-apiserver request
+	// (e.g. malformed kubeContent, or missing required spec.targetItem fields). An unresolvable GVR
+	// is not a pre-check failure: the controller passes the GVR straight to the dynamic client
+	// without consulting a RESTMapper, so the kube-apiserver rejects it as a ConditionReasonKubeAPIError.
 	ConditionReasonPreCheckFailed = "PreCheckFailed"
 
 	// ConditionReasonWaitingForDeletion is set on an ApplyDesire with Type=Delete when the

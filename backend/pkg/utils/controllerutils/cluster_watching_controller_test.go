@@ -35,6 +35,18 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+type capturingNotifier struct {
+	addFunc    func(any)
+	updateFunc func(any, any)
+}
+
+func (n *capturingNotifier) AddEventHandlerWithOptions(handler cache.ResourceEventHandler, opts cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error) {
+	f := handler.(cache.ResourceEventHandlerFuncs)
+	n.addFunc = f.AddFunc
+	n.updateFunc = f.UpdateFunc
+	return nil, nil
+}
+
 type mockClusterSyncer struct {
 	syncOnceFunc func(ctx context.Context, key HCPClusterKey) error
 	cooldown     controllerutil.CooldownChecker
@@ -80,10 +92,13 @@ func TestClusterWatchingControllerSyncHasLoggerContextValues(t *testing.T) {
 	resourceGroup := "test-rg"
 	clusterName := "test-cluster"
 
-	var capturedCtx context.Context
+	capturedCtxCh := make(chan context.Context, 1)
 	mockSyncer := &mockClusterSyncer{
 		syncOnceFunc: func(ctx context.Context, key HCPClusterKey) error {
-			capturedCtx = ctx
+			select {
+			case capturedCtxCh <- ctx:
+			default:
+			}
 			return nil
 		},
 	}
@@ -97,24 +112,37 @@ func TestClusterWatchingControllerSyncHasLoggerContextValues(t *testing.T) {
 		clusterLister:     newFakeClusterLister(subscriptionID, resourceGroup, clusterName),
 	}
 	gwc := newGenericWatchingController("test-controller", coreapi.ClusterResourceType, inner)
-	gwc.queue.Add(HCPClusterKey{
-		SubscriptionID:    subscriptionID,
-		ResourceGroupName: resourceGroup,
-		HCPClusterName:    clusterName,
-	})
+
+	notifier := &capturingNotifier{}
+	require.NoError(t, gwc.QueueForInformers(time.Minute, notifier))
+
+	clusterResourceID := metadataapi.Must(coreapi.ToClusterResourceID(subscriptionID, resourceGroup, clusterName))
+	notifier.addFunc(&coreapi.CosmosMetadata{ResourceID: clusterResourceID})
 
 	var logOutput strings.Builder
 	logger := funcr.New(func(prefix, args string) {
 		logOutput.WriteString(prefix)
 		logOutput.WriteString(args)
 	}, funcr.Options{})
-	ctx := utils.ContextWithLogger(context.Background(), logger)
 
-	gwc.processNextWorkItem(ctx)
+	ctx, cancel := context.WithCancel(utils.ContextWithLogger(context.Background(), logger))
 
-	require.NotNil(t, capturedCtx, "syncer should have been called")
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		gwc.Run(ctx, 1)
+	}()
 
-	// Log a message using the captured logger to verify its values
+	var capturedCtx context.Context
+	select {
+	case capturedCtx = <-capturedCtxCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("syncer should have been called")
+	}
+
+	cancel()
+	<-done
+
 	capturedLogger := utils.LoggerFromContext(capturedCtx)
 	capturedLogger.Info("test")
 

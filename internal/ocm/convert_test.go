@@ -81,7 +81,7 @@ func normalizeDesiredVersionForSemver(version string) string {
 	if len(parts) >= 3 {
 		return version
 	}
-	if patch, ok := map[string]string{"4.19": "34", "4.20": "25", "4.21": "20", "4.22": "1"}[version]; ok {
+	if patch, ok := map[string]string{"4.20": "25", "4.21": "20", "4.22": "1"}[version]; ok {
 		return version + "." + patch
 	}
 	return version + ".0"
@@ -150,16 +150,6 @@ func TestWithImmutableAttributes(t *testing.T) {
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.21.0-0.nightly-2025-01-01-nightly").
 					ChannelGroup("nightly"))),
-		},
-		{
-			name: "with version 4.19",
-			hcpCluster: &coreapi.HCPOpenShiftCluster{
-				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
-					Version: coreapi.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
-				},
-			},
-			want: ocmCluster(t, ocmClusterDefaults(coreapitesting.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.34").ChannelGroup("stable"))),
 		},
 		{
 			name: "with version 4.21",

@@ -35,7 +35,11 @@ func BuildStampList(stamp, stampCountConfigRef string, cfg configtypes.Configura
 		var stampCount int
 		switch v := rawCount.(type) {
 		case int:
+			// it would only fire if someone constructed a Configuration manually in Go code with a literal int value
 			stampCount = v
+		case int64:
+			// it fires when a config is read from a YAML and ARO-Tools unmarshals a json.Number into an int64 or float64
+			stampCount = int(v)
 		case float64:
 			if v != float64(int(v)) {
 				return nil, fmt.Errorf("stamp count at %q must be an integer, got %v", stampCountConfigRef, v)

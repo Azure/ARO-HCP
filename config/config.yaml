@@ -95,6 +95,10 @@ defaults:
       untaggedImagesRetention:
         enabled: true
         days: 90
+      # Same rationale as acr.ocp.replicationState below. A degraded eastus2euap
+      # replica served co-located eastus2 prod pulls and took ARO-HCP eastus2 down
+      # for 35+ hours (AROSLSRE-1810, IcM 850354110/851089087).
+      replicationState: true
     ocp:
       name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled
@@ -150,14 +154,14 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/command/runtime
-      digest: sha256:6b0c4aa35ad89cc0532280ba1b0d8597a350b07e2d7125c0d8d4d6a1ffdb9072 # master.260806.1 (2026-08-06 00:00)
+      digest: sha256:1fa09488bf407f4b1bfd44f02ff60af191218075be0a2050d737165acfcbda23 # master.260813.1 (2026-08-13 00:00)
   # Arobit
   arobit:
     forwarder:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:e8df41b2461b466e5f1d28157f7931f7c68b4b0917258e12de4d7922fd283703 # v5.0.4 (2026-07-31 18:54)
+        digest: sha256:cbd11c06832e260e7a844f3c6fc958d1929726e9a0b91db8f2628a4a16dbf8c8 # v5.0.4 (2026-08-17 21:19)
       resources:
         requests:
           cpu: 100m
@@ -173,14 +177,14 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:83b9cbd2662c56a6d6858210bfb375e81a5d6bea5462786d5005a473ad2ee657 # 1.43.0-20260730-1 (2026-07-30 17:43)
+        digest: sha256:e30f7f43b91003747b502d0be1918cb534f72a3f4d8e91ea374885e1e21057a1 # 1.43.0-20260814-1 (2026-08-14 13:52)
   # Kube Events
   kubeEvents:
     enabled: true
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:b1473b04f721c0e2a44bc7bc09b6ce3d0e31fd93f7dbaa4533fd656bb1135c92 # 20260809.1 (2026-08-09 03:24)
+      digest: sha256:937e9dfbffb8ae616983b63a1f4c53fc35470637574984ddc3ee0b0a11e85f8c # 20260816.1 (2026-08-16 03:26)
     k8s:
       namespace: monitoring
       serviceAccountName: ke-serviceaccount
@@ -405,7 +409,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:a1de6a260ae8950d82da412eb7770ee320f2f8dcb7085c7be964078cc5e90709 # 52557a11e34d004ffe0c64ce8443e191004a26fe (2026-08-11 20:07)
+      digest: sha256:f51c7fb65dc82fb31ba0982a4f7c7f3982f82c5c03d51888ea02509073ae3144 # b678378ebea88c897c9d0c50e7e08b1de76f531b (2026-08-18 11:53)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -486,6 +490,28 @@ defaults:
         actionGroupShortName: ""
         routingId: ""
         automitigationEnabled: ""
+  genevaHealthFunction:
+    deploy: false
+    monitoringAccount: ""
+    healthEnvironment: ""
+    functionAppName: 'arohcp-{{ .ctx.environment }}-geneva-health-{{ .ctx.regionShort }}'
+    storageAccountName: 'arohcp{{ .ctx.environment }}genhlt{{ .ctx.regionShort }}'
+    appServicePlanName: 'arohcp-{{ .ctx.environment }}-geneva-health-plan-{{ .ctx.regionShort }}'
+    managedIdentityName: 'arohcp-{{ .ctx.environment }}-geneva-health-mi-{{ .ctx.regionShort }}'
+    image:
+      registry: "empty-sentinel"
+      repository: "empty-sentinel"
+      digest: ""
+    certificate:
+      name: "geneva-health-publisher"
+      issuer: OneCertV2-PrivateCA
+      manage: true
+      commonName: ""
+      sanDnsNames: []
+    imageArtifact:
+      adoProject: ""
+      artifactName: ""
+      buildId: 0
   quotaizer:
     quotaGroup:
       id: "aro-{{ .ctx.environment }}-{{ .ctx.region }}"
@@ -504,15 +530,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:56949abf0c1e7fac54247b1d2690a24bd8e6213678bae28bd8bbe19e576692b6 # 1.6.1 (2026-08-11 20:58)
+      digest: sha256:da1bbef5aa67a5ffcd7a2293af20e4d7ccb6e6034a3ee141d8f4ad953cabba10 # 1.6.1 (2026-08-17 05:56)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:162ce9e4d64fdbea0cdc238ac859d0d09468fa9faa6a3b84ff5da62c1b957e44 # 1.6.1 (2026-08-11 20:51)
+      digest: sha256:4996c8e84600c188c69691f8d2163c544a7bff4398a636d5e8b220fa48024bb5 # 1.6.1 (2026-08-17 05:27)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:646267ab4556add20d632a2701bc0b44dbde628b397fa476834f9bb32b2b73de # 1.6.1 (2026-08-11 21:00)
+      digest: sha256:b42575c5d2d34141d85cf122c6710f99bd3c8ebc4d8d18c1a9b013be534cc95f # 1.6.1 (2026-08-17 05:55)
   # SVC cluster specifics
   svc:
     subscription:
@@ -552,9 +578,16 @@ defaults:
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
+    # Consumed by the IstioUpgrade pipeline step (svc-pipeline.yaml, action:
+    # IstioUpgrade) via config path svc.istio.versions — not read by bicep,
+    # because passing revisions through ARM would overwrite upgrades the
+    # pipeline step had already applied.
+    # istioctlVersion and targetVersion will be removed in a future cleanup.
     istio:
       istioctlVersion: 1.30.3 # 1.30.3 (2026-07-16 16:50)
       tag: "prod-stable"
+      targetVersion: "asm-1-29"
+      versions: "asm-1-29"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
     opsIngress:
@@ -620,7 +653,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: addf21a90b6d1af9c3e3b8bf3242209a307880ce93daa354b7c6e4cf08e4c95d # v3.12.0 (2026-07-27 19:17)
+          sha: 543f1a735fef5ed76b72f07a2aee1bb6c3d3bce11be3296445e6c6c3022e87de # v3.12.0 (2026-08-18 03:44)
         version: ""
         resources:
           requests:
@@ -639,7 +672,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:bcd0475c8f223ffe01a78b35446583584a691356327da0eeeb19a2c4e7755a21 # v2.19.1 (2026-07-27 10:55)
+          digest: sha256:04fa83123f919c52b098242fd3f14c5b8fd7bf31200e9b8221226794360ae420 # v2.20.0 (2026-08-18 19:04)
       admissionWebhook:
         patch:
           image:
@@ -753,7 +786,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: addf21a90b6d1af9c3e3b8bf3242209a307880ce93daa354b7c6e4cf08e4c95d # v3.12.0 (2026-07-27 19:17)
+          sha: 543f1a735fef5ed76b72f07a2aee1bb6c3d3bce11be3296445e6c6c3022e87de # v3.12.0 (2026-08-18 03:44)
         resources:
           requests:
             cpu: NONE
@@ -771,7 +804,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:bcd0475c8f223ffe01a78b35446583584a691356327da0eeeb19a2c4e7755a21 # v2.19.1 (2026-07-27 10:55)
+          digest: sha256:04fa83123f919c52b098242fd3f14c5b8fd7bf31200e9b8221226794360ae420 # v2.20.0 (2026-08-18 19:04)
       admissionWebhook:
         patch:
           image:
@@ -1034,7 +1067,7 @@ defaults:
         image:
           registry: mcr.microsoft.com
           repository: azurelinux/base/nginx
-          digest: sha256:2c0ba08f2ebb48b3938b103cdce87450110a2f8ad76dd6a082d0dcd3e02c289e # 1.28.3-8-azl3.0.20260728 (2026-07-31 23:27)
+          digest: sha256:bf23c3b25d0f0383736ab2380ed90a25cf5d7aae416de00accc27f8ed6c2e42c # 1.28.3-8-azl3.0.20260809 (2026-08-11 02:39)
     eventGrid:
       name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
@@ -1060,25 +1093,25 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:f70df67b0e2125b9809f551fc608c057d9aa970935da6c58265ac3c622eb4802 # ab480c6578bcbcbceeeb2c964c7bef6aed119c18 (2026-08-04 15:37)
+      digest: sha256:46e44a9a9cfbd4e157110a6dcc88abdfd569b49315b4ad5088eb42fb69b45b60 # 36cd08663b9c1542c5d42477fd86589d298f5f2e (2026-08-19 07:33)
   # ACM
   acm:
     operator:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:598c56d52522381b287469b241c1aafa22e2311672b2ffcb7b6ea766048cb67f # v2.16.3-559 (2026-08-11 18:17)
+        digest: sha256:bfedebcbc5cabe8756e60f5597be86fe3a4e43a2ff9f19b01998392b8f83d477 # v2.16.3-568 (2026-08-18 20:40)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:c4dcd8461058845da3d94eea7a2bb6f770c73614c75ac7e25096bab401323806 # v2.11.5-607 (2026-08-11 18:21)
+        digest: sha256:b12a1c878fd6d3ad884abf6cedbb716dcae6df8c2d0df56b89041eedb2b19df5 # v2.11.5-616 (2026-08-18 21:46)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:3a968f5c78be125d937537ad0d0667aafe6c1eb9a9b38ee9c8647618ba677c57 # 134fe857f15b05af2292fe4515a31a635b85c7f2 (2026-08-11 11:23)
+      digest: sha256:f5a9a9a12a6cd7c5d8a780b1c04cad8ce949a880cc85dda589bc23f405b3f8e9 # b9ed42aa526b8bf4783af7e0b47b06230c4b8c89 (2026-08-18 08:00)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1140,9 +1173,9 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:6d9cd9d64081ad15e036495e98d332e013c50d1a71c10e832abfa4ee36874b46 # 7778604 (2026-08-11 21:13)
+        digest: sha256:b01fd7873401c13605b4428bd5b903c946c25e41b78b9fb31ad73158bf3e1ff8 # 98dd52b (2026-08-19 03:49)
       pullSecretName: ocmirror-pull-secret
-      operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
+      operatorVersionsToMirror: "4.20,4.21,4.22"
   # Automation Account
   automationDryRun: true
   # Entra Application Owner IDs (replaces nested ownerIds in entraApplication objects)
@@ -1365,9 +1398,6 @@ clouds:
           - '*.hcpsvc.osadev.cloud'
         nsp:
           accessMode: 'Learning'
-        istio:
-          targetVersion: "asm-1-28"
-          versions: "asm-1-28"
         aks:
           etcd:
             softDelete: false
@@ -1679,6 +1709,8 @@ clouds:
               deploy: true
       perf:
         defaults:
+          kubeApplier:
+            cosmosContainerMaxScale: 10000
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1687,6 +1719,9 @@ clouds:
           hypershift:
             metricsSet:
               performanceMetrics: true
+          frontend:
+            cosmosDB:
+              resourceContainerMaxScale: 10000
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
           maestro:
@@ -1714,6 +1749,8 @@ clouds:
                 secondaryNicCount: 7
       ci00:
         defaults:
+          kubeApplier:
+            cosmosContainerMaxScale: 10000
           customExporter:
             clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           kusto:
@@ -1769,6 +1806,7 @@ clouds:
               connectSocket: false
             cosmosDB:
               private: false
+              resourceContainerMaxScale: 10000
               zoneRedundantMode: 'Disabled'
             tracing:
               address: "http://ingest.observability:4318"
@@ -1814,6 +1852,8 @@ clouds:
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
+          kubeApplier:
+            cosmosContainerMaxScale: 10000
           customExporter:
             clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           auditLogsEventHub:
@@ -1871,6 +1911,7 @@ clouds:
               connectSocket: false
             cosmosDB:
               private: false
+              resourceContainerMaxScale: 10000
               zoneRedundantMode: 'Disabled'
             tracing:
               address: "http://ingest.observability:4318"

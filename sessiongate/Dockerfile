@@ -6,7 +6,8 @@ COPY internal/go.mod internal/go.sum internal/
 COPY sessiongate/go.mod sessiongate/go.sum sessiongate/
 RUN cd sessiongate && go mod download
 WORKDIR /app
-COPY . .
+COPY internal/ internal/
+COPY --exclude=sessiongate/bin sessiongate/ sessiongate/
 
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject

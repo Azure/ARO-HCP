@@ -119,9 +119,6 @@ param podSubnetPrefix string
 @description('Kubernetes version to use with AKS')
 param kubernetesVersion string
 
-@description('Istio control plane versions to use with AKS. CSV format')
-param istioVersions string
-
 @description('The name of the keyvault for AKS.')
 @maxLength(24)
 param aksKeyVaultName string
@@ -638,6 +635,9 @@ module nodeSubnetCreation '../modules/network/aks-node-subnet.bicep' = {
   ]
 }
 
+// istioVersions intentionally omitted — mesh revisions are managed by the
+// IstioUpgrade pipeline step, not baked into the ARM template. Passing them
+// here would roll the mesh profile back on every deployment.
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup()
@@ -651,7 +651,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksClusterOutboundIPAddressIPTags: aksClusterOutboundIPAddressIPTags
     kubernetesVersion: kubernetesVersion
     deployIstio: true
-    istioVersions: split(istioVersions, ',')
     vnetName: vnetName
     nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix

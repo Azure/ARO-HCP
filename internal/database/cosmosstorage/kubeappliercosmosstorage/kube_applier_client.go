@@ -16,13 +16,13 @@ package kubeappliercosmosstorage
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -93,6 +93,15 @@ type KubeApplierDBClient interface {
 	ReadDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error)
 	// ReadDesiresForSystemAdminCredentialRevocation returns a CRUD scoped to a SystemAdminCredentialRevocation parent.
 	ReadDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, revocationName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error)
+	// ApplyDesiresForManagementCluster returns a CRUD scoped to a management cluster parent.
+	ApplyDesiresForManagementCluster(stampIdentifier string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error)
+	// ReadDesiresForManagementCluster returns a CRUD scoped to a management cluster parent.
+	ReadDesiresForManagementCluster(stampIdentifier string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error)
+
+	// ApplyDesiresFor returns an ApplyDesire CRUD scoped to the given parent.
+	ApplyDesiresFor(parent DesireScope) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error)
+	// ReadDesiresFor returns a ReadDesire CRUD scoped to the given parent.
+	ReadDesiresFor(parent DesireScope) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error)
 
 	// Listers lists every *Desire of each kind in this container — i.e. across the
 	// one management cluster's worth of data. Replaces the old GlobalListers /
@@ -115,21 +124,18 @@ type KubeApplierListers interface {
 }
 
 // KubeApplierApplyDesireCRUD is the narrow per-type peer interface that the
-// apply_desire controller takes as its database dependency. KubeApplierDBClient
-// satisfies it; tests can also provide a one-method fake.
+// apply_desire controller takes as its database dependency. The controllers key
+// off a parent resource ID, so the single parent-agnostic accessor is all they
+// call; the enumerated per-level accessors live on KubeApplierDBClient for the
+// field-driven callers. KubeApplierDBClient satisfies this; tests can also
+// provide a one-method fake.
 type KubeApplierApplyDesireCRUD interface {
-	ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error)
-	ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error)
-	ApplyDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error)
-	ApplyDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, revocationName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error)
+	ApplyDesiresFor(parent DesireScope) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error)
 }
 
 // KubeApplierReadDesireCRUD is the ReadDesire peer of KubeApplierApplyDesireCRUD.
 type KubeApplierReadDesireCRUD interface {
-	ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error)
-	ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error)
-	ReadDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error)
-	ReadDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, revocationName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error)
+	ReadDesiresFor(parent DesireScope) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error)
 }
 
 // kubeApplierCosmosDBClient implements KubeApplierDBClient against a Cosmos
@@ -164,90 +170,104 @@ func NewKubeApplierDBClientFromDatabase(database *azcosmos.DatabaseClient, conta
 }
 
 func (c *kubeApplierCosmosDBClient) ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
-	parentID, err := coreapi.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+	parent, err := ClusterScope(subscriptionID, resourceGroupName, clusterName)
 	if err != nil {
 		return nil, err
 	}
-	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
-		c.kubeApplier, parentID, kubeapplierapi.ClusterScopedApplyDesireResourceType,
-		cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, cosmosstorageutils.ClusterNestedResourceIDBuilder{},
-	), nil
+	return c.ApplyDesiresFor(parent)
 }
 
 func (c *kubeApplierCosmosDBClient) ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
-	parentID, err := coreapi.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	parent, err := NodePoolScope(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	if err != nil {
 		return nil, err
 	}
-	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
-		c.kubeApplier, parentID, kubeapplierapi.NodePoolScopedApplyDesireResourceType,
-		cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, cosmosstorageutils.ClusterNestedResourceIDBuilder{},
-	), nil
+	return c.ApplyDesiresFor(parent)
 }
 
 func (c *kubeApplierCosmosDBClient) ApplyDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
-	parentID, err := coreapi.ToSystemAdminCredentialRequestResourceID(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+	parent, err := CredentialRequestScope(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
 	if err != nil {
 		return nil, err
 	}
-	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
-		c.kubeApplier, parentID, kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType,
-		cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, cosmosstorageutils.ClusterNestedResourceIDBuilder{},
-	), nil
+	return c.ApplyDesiresFor(parent)
 }
 
 func (c *kubeApplierCosmosDBClient) ApplyDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, revocationName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
-	parentID, err := coreapi.ToSystemAdminCredentialRevocationResourceID(subscriptionID, resourceGroupName, clusterName, revocationName)
+	parent, err := CredentialRevocationScope(subscriptionID, resourceGroupName, clusterName, revocationName)
 	if err != nil {
 		return nil, err
 	}
-	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
-		c.kubeApplier, parentID, kubeapplierapi.SystemAdminCredentialRevocationScopedApplyDesireResourceType,
-		cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, cosmosstorageutils.ClusterNestedResourceIDBuilder{},
-	), nil
+	return c.ApplyDesiresFor(parent)
 }
 
 func (c *kubeApplierCosmosDBClient) ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
-	parentID, err := coreapi.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+	parent, err := ClusterScope(subscriptionID, resourceGroupName, clusterName)
 	if err != nil {
 		return nil, err
 	}
-	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ReadDesire]](
-		c.kubeApplier, parentID, kubeapplierapi.ClusterScopedReadDesireResourceType,
-		cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, cosmosstorageutils.ClusterNestedResourceIDBuilder{},
-	), nil
+	return c.ReadDesiresFor(parent)
 }
 
 func (c *kubeApplierCosmosDBClient) ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
-	parentID, err := coreapi.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	parent, err := NodePoolScope(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	if err != nil {
 		return nil, err
 	}
-	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ReadDesire]](
-		c.kubeApplier, parentID, kubeapplierapi.NodePoolScopedReadDesireResourceType,
-		cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, cosmosstorageutils.ClusterNestedResourceIDBuilder{},
-	), nil
+	return c.ReadDesiresFor(parent)
 }
 
 func (c *kubeApplierCosmosDBClient) ReadDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
-	parentID, err := coreapi.ToSystemAdminCredentialRequestResourceID(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+	parent, err := CredentialRequestScope(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
 	if err != nil {
 		return nil, err
 	}
-	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ReadDesire]](
-		c.kubeApplier, parentID, kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType,
-		cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, cosmosstorageutils.ClusterNestedResourceIDBuilder{},
-	), nil
+	return c.ReadDesiresFor(parent)
 }
 
 func (c *kubeApplierCosmosDBClient) ReadDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, revocationName string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
-	parentID, err := coreapi.ToSystemAdminCredentialRevocationResourceID(subscriptionID, resourceGroupName, clusterName, revocationName)
+	parent, err := CredentialRevocationScope(subscriptionID, resourceGroupName, clusterName, revocationName)
 	if err != nil {
 		return nil, err
 	}
+	return c.ReadDesiresFor(parent)
+}
+
+func (c *kubeApplierCosmosDBClient) ApplyDesiresForManagementCluster(stampIdentifier string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
+	parent, err := ManagementClusterScope(stampIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	return c.ApplyDesiresFor(parent)
+}
+
+func (c *kubeApplierCosmosDBClient) ReadDesiresForManagementCluster(stampIdentifier string) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
+	parent, err := ManagementClusterScope(stampIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	return c.ReadDesiresFor(parent)
+}
+
+// ApplyDesiresFor returns an ApplyDesire CRUD scoped to the given parent.
+func (c *kubeApplierCosmosDBClient) ApplyDesiresFor(parent DesireScope) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
+	if parent.resourceID == nil {
+		return nil, errors.New("desire scope is not initialized")
+	}
+	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ApplyDesire]](
+		c.kubeApplier, parent.resourceID, kubeapplierapi.ApplyDesireResourceTypeForParent(parent.resourceID),
+		cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, parent.ResourceIDBuilder(),
+	), nil
+}
+
+// ReadDesiresFor returns a ReadDesire CRUD scoped to the given parent.
+func (c *kubeApplierCosmosDBClient) ReadDesiresFor(parent DesireScope) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
+	if parent.resourceID == nil {
+		return nil, errors.New("desire scope is not initialized")
+	}
 	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire, cosmosstorageutils.GenericDocument[kubeapplierapi.ReadDesire]](
-		c.kubeApplier, parentID, kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType,
-		cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, cosmosstorageutils.ClusterNestedResourceIDBuilder{},
+		c.kubeApplier, parent.resourceID, kubeapplierapi.ReadDesireResourceTypeForParent(parent.resourceID),
+		cosmosstorageutils.KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, parent.ResourceIDBuilder(),
 	), nil
 }
 
@@ -293,6 +313,7 @@ func (g *cosmosKubeApplierListers) ApplyDesires() cosmosstorageutils.GlobalListe
 			kubeapplierapi.NodePoolScopedApplyDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRequestScopedApplyDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRevocationScopedApplyDesireResourceType,
+			kubeapplierapi.ManagementClusterScopedApplyDesireResourceType,
 		},
 	}
 }
@@ -305,6 +326,7 @@ func (g *cosmosKubeApplierListers) ReadDesires() cosmosstorageutils.GlobalLister
 			kubeapplierapi.NodePoolScopedReadDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRequestScopedReadDesireResourceType,
 			kubeapplierapi.SystemAdminCredentialRevocationScopedReadDesireResourceType,
+			kubeapplierapi.ManagementClusterScopedReadDesireResourceType,
 		},
 	}
 }

@@ -41,6 +41,7 @@ import (
 	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
@@ -120,6 +121,10 @@ func TestBackendExposesMetrics(t *testing.T) {
 			MaestroSourceEnvironmentIdentifier: "test",
 			ExitOnPanic:                        false,
 			CloudEnvironment:                   cloudEnvironment,
+			BackupConfig: &backups.BackupConfig{
+				BackupScheduleState:  coreapi.BackupScheduleStateEnabled,
+				BackupCadenceProfile: backups.BackupCadenceProduction,
+			},
 		}
 
 		backendErrCh := make(chan error, 1)

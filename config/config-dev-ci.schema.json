@@ -588,7 +588,6 @@
       "description": "Configuration for monitoring quota in a single subscription",
       "properties": {
         "name": { "type": "string", "description": "Subscription display name (used to resolve the subscription ID at runtime)" },
-        "roleAssignmentLimit": { "type": "integer", "description": "Role assignment limit for the subscription (default 4000)" },
         "regions": {
           "type": "array",
           "description": "Azure regions to monitor for regional quotas",

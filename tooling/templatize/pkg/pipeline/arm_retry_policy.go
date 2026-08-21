@@ -41,7 +41,7 @@ func newLROPollerRetryDeploymentNotFoundPolicy() *lroPollerRetryDeploymentNotFou
 			Duration: time.Second,
 			Factor:   2,
 			Jitter:   0.1,
-			Steps:    3,
+			Steps:    6,
 		},
 	}
 }

@@ -45,6 +45,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/fleetcosmosstorage"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -152,6 +153,7 @@ type completedOptions struct {
 	MaxSessionTTL           time.Duration
 	AllowedBreakglassGroups set.Set[string]
 	Registry                *prometheus.Registry
+	KubeApplierDBClients    kubeappliercosmosstorage.KubeApplierDBClients
 }
 
 type Options struct {
@@ -291,6 +293,9 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 
 	sessionClient := sessiongateClientset.SessiongateV1alpha1().Sessions(o.SessiongateNamespace)
 
+	mcLister := kubeappliercosmosstorage.NewDBBackedManagementClusterLister(fleetDBClient)
+	kubeApplierDBClients := kubeappliercosmosstorage.NewKubeApplierDBClients(cosmosDatabaseClient, mcLister)
+
 	return &Options{
 		completedOptions: &completedOptions{
 			Port:                    o.Port,
@@ -309,6 +314,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			MaxSessionTTL:           o.MaxSessionTTL,
 			AllowedBreakglassGroups: set.New[string](o.AllowedBreakglassGroups...),
 			Registry:                registry,
+			KubeApplierDBClients:    kubeApplierDBClients,
 		},
 	}, nil
 }
@@ -365,6 +371,7 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.MaxSessionTTL,
 		opts.AllowedBreakglassGroups,
 		opts.Registry,
+		opts.KubeApplierDBClients,
 	)
 
 	runErrCh := make(chan error, 1)

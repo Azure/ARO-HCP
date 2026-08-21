@@ -412,17 +412,33 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-04-02-previ
     serviceMeshProfile: (deployIstio)
       ? {
           mode: 'Istio'
-          istio: {
-            components: {
-              ingressGateways: [
-                {
-                  enabled: true
-                  mode: 'External'
-                }
-              ]
-            }
-            revisions: istioVersions
-          }
+          // ISTIO REVISION DECOUPLING
+          //
+          // Mesh revisions are managed in two places:
+          //   1. Here (bicep) — sets serviceMeshProfile.istio.revisions at cluster create
+          //   2. IstioUpgrade pipeline step (svc-pipeline.yaml) — manages revisions at
+          //      deploy time via ARO-Tools istio-upgrade, reading svc.istio.versions
+          //      from config
+          //
+          // If bicep always set a concrete revision list, every ARM deployment would
+          // overwrite whatever the pipeline step had installed — potentially rolling
+          // back a completed upgrade. So istioVersions defaults to [], and we omit
+          // the revisions property entirely (ARM treats explicit null as "clear",
+          // which could wipe existing mesh revisions). Callers only pass a value
+          // for initial cluster bootstrap; after that, the pipeline step owns it.
+          istio: union(
+            {
+              components: {
+                ingressGateways: [
+                  {
+                    enabled: true
+                    mode: 'External'
+                  }
+                ]
+              }
+            },
+            empty(istioVersions) ? {} : { revisions: istioVersions }
+          )
         }
       : null
     ingressProfile: deployIstio

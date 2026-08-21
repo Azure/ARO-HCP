@@ -18,36 +18,39 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
+	"net/http"
 	"time"
 
 	"github.com/blang/semver/v4"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/api/operation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controlplaneversion"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
-	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
-	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
+
+// controlPlaneDesiredVersionControllerName is the Cosmos controller document ID for this syncer.
+// It is intentionally kept as "ControlPlaneDesiredVersion" (rather than renamed to match the
+// upgrade split) to preserve metrics continuity and the existing controller document identity.
+const controlPlaneDesiredVersionControllerName = "ControlPlaneDesiredVersion"
 
 // clusterCreateGracePeriod is how long after a cluster's CreatedAt we
 // suppress automatic desired-version recomputation while an active Create
@@ -55,61 +58,63 @@ import (
 // to have finished, so resuming z-stream selection is safe.
 const clusterCreateGracePeriod = 2 * time.Hour
 
-// controlPlaneDesiredVersionControllerName is the Cosmos controller document ID for this syncer.
-const controlPlaneDesiredVersionControllerName = "ControlPlaneDesiredVersion"
+// controlPlaneVersionSyncer manages the control plane desired version for a cluster: it seeds
+// the initial desired version when none is set yet and advances it (z-stream/y-stream) thereafter. It
+// validates the requested minor-version change and selects the desired z-stream from the tip of the
+// customer's desired minor channel.
+type controlPlaneVersionSyncer struct {
+	clock                        utilsclock.PassiveClock
+	resourcesDBClient            corecosmosstorage.ResourcesDBClient
+	clusterLister                corelisters.ClusterLister
+	activeOperationLister        corelisters.ActiveOperationLister
+	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 
-// controlPlaneDesiredVersionSyncer is a Cluster syncer that manages control plane desired version.
-// It handles automated (managed) z-stream (patch) upgrades and assists with y-stream (minor)
-// version upgrades by selecting the appropriate z-stream within the user-desired minor version.
-type controlPlaneDesiredVersionSyncer struct {
-	clock                         utilsclock.PassiveClock
-	readDesireLister              kubeapplierlisters.ReadDesireLister
-	resourcesDBClient             corecosmosstorage.ResourcesDBClient
+	// roundTripper is used by selectControlPlaneVersion to query the OpenShift update service (graph
+	// API) for tip selection. Production wiring sets this to the default HTTP transport.
+	roundTripper controlplaneversion.RoundTrip
+
 	clusterServiceClient          ocm.ClusterServiceClientSpec
-	subscriptionLister            corelisters.SubscriptionLister
-	activeOperationLister         corelisters.ActiveOperationLister
-	serviceProviderClusterLister  corelisters.ServiceProviderClusterLister
+	nodePoolLister                corelisters.NodePoolLister
 	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister
-
-	cincinnatiClientCache cincinnati.ClientCache
-	graphClient           cincinnati.GraphClient
 }
 
-var _ controllerutils.ClusterSyncer = (*controlPlaneDesiredVersionSyncer)(nil)
+var _ controllerutils.ClusterSyncer = (*controlPlaneVersionSyncer)(nil)
 
-// NewControlPlaneDesiredVersionController creates a new controller that manages the desired
-// control plane version. It periodically checks each cluster and sets the desired version
-// based on the OCPVersion logic documented in the ServiceProviderCluster type.
+// NewControlPlaneDesiredVersionController creates a new controller that manages the control plane
+// desired version for every cluster: it seeds the initial desired version and drives z-stream and
+// y-stream upgrades thereafter, based on the OCPVersion logic documented in the ServiceProviderCluster
+// type.
 func NewControlPlaneDesiredVersionController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
+	clusterLister corelisters.ClusterLister,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister corelisters.ActiveOperationLister,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	nodePoolLister corelisters.NodePoolLister,
 	serviceProviderNodePoolLister corelisters.ServiceProviderNodePoolLister,
 	informers coreinformers.BackendInformers,
-	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
-	readDesireLister kubeapplierlisters.ReadDesireLister,
-	subscriptionLister corelisters.SubscriptionLister,
 ) controllerutils.Controller {
-	syncer := &controlPlaneDesiredVersionSyncer{
+	syncer := &controlPlaneVersionSyncer{
 		clock:                         clock,
-		readDesireLister:              readDesireLister,
-		cincinnatiClientCache:         cincinnati.NewClientCache(),
-		graphClient:                   cincinnati.NewGraphClient(),
 		resourcesDBClient:             resourcesDBClient,
-		clusterServiceClient:          clusterServiceClient,
-		subscriptionLister:            subscriptionLister,
+		clusterLister:                 clusterLister,
 		activeOperationLister:         activeOperationLister,
 		serviceProviderClusterLister:  serviceProviderClusterLister,
+		roundTripper:                  http.DefaultTransport.RoundTrip,
+		clusterServiceClient:          clusterServiceClient,
+		nodePoolLister:                nodePoolLister,
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 	}
 
+	// kubeApplierInformers is intentionally omitted: this controller resolves versions from the
+	// OpenShift update service and cluster/subscription state only, so it should not be re-enqueued on
+	// kube-applier events.
 	controller := controllerutils.NewClusterWatchingController(
 		controlPlaneDesiredVersionControllerName,
 		resourcesDBClient,
 		informers,
-		kubeApplierInformers,
+		nil,
 		5*time.Minute, // Check for upgrades every 5 minutes
 		syncer,
 	)
@@ -117,21 +122,30 @@ func NewControlPlaneDesiredVersionController(
 	return controller
 }
 
+// NeedsWork reports whether this controller applies to the given cluster. version.id and
+// version.channelGroup are both required by static validation, so the only gate here is that the
+// cluster has an associated ServiceProviderCluster (created by the backend): this controller seeds
+// the initial desired control plane version when none is set yet, and advances it (z-stream/y-stream)
+// once one has been seeded.
+func (c *controlPlaneVersionSyncer) NeedsWork(_ *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	return serviceProviderCluster != nil
+}
+
 // SyncOnce performs a single reconciliation of the desired control plane version for a given cluster.
 //
 // High-level flow:
 //  1. Fetch the customer's desired cluster configuration and service provider state
-//  2. (Active versions are updated by the control plane active version controller.)
-//  3. Compute the desired z-stream version based on upgrade logic (initial/z-stream/y-stream)
+//  2. Skip unless NeedsWork (a desired version is already seeded, and customer minor + channel group present)
+//  3. Compute the desired z-stream version based on upgrade logic (z-stream/y-stream)
 //  4. If the computed desired version is greater than the previously stored desired version:
 //     - Update the DesiredVersion field
 //     Only SRE-enforced rollback targets are permitted to decrease desired; automatic graph
 //     resolution must not lower a previously selected z-stream.
-//  5. Save the updated service provider cluster state
-func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+//  5. Save the updated service provider cluster state and clear/raise the IntentFailed condition
+func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
@@ -151,6 +165,10 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
+	if !c.NeedsWork(existingCluster, cachedServiceProviderCluster) {
+		return nil
+	}
+
 	// here we check to see if we should be determining upgrade versions. We do this by
 	// 1. if existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion is empty, then we must run so we can fill it in.
 	// 2. if the cluster was created more than two hours ago, then we can run
@@ -162,443 +180,129 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
-	// Use it as best effort. If we cannot find it, use an empty value to make progress without a specific value.
-	clusterUUID, found, err := kubeapplierhelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
-	}
-	if !found {
-		logger.Info("missing cluster UUID, continuing with empty")
-	}
-	cincinnatiClient := c.cincinnatiClientCache.GetOrCreateClient(clusterUUID)
-
-	customerDesiredMinor := existingCluster.CustomerProperties.Version.ID
-	channelGroup := existingCluster.CustomerProperties.Version.ChannelGroup
-	activeVersions := cachedServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
-	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	operation := operation.Operation{
-		Type:    operation.Update,
-		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
-	}
-	desiredVersion, err := c.desiredControlPlaneZVersion(ctx, cincinnatiClient, key.GetResourceID(), customerDesiredMinor, channelGroup, activeVersions,
-		operation.HasOption(metadataapi.FeatureExperimentalReleaseFeatures))
-
-	if err != nil {
-		// Persist IntentFailed on the controller document for Cincinnati VersionNotFound or any non-Cincinnati resolution error.
-		// Other Cincinnati errors are treated as transient graph or transport issues.
-		var cincinnatiErr *cvocincinnati.Error
-		persistIntentFailed := cincinnati.IsCincinnatiVersionNotFoundError(err) || !errors.As(err, &cincinnatiErr)
-		if persistIntentFailed {
-			logger.Error(err, "desired version resolution failed, persisting IntentFailed condition")
-			controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName)
-			if writeErr := controllerutils.WriteController(ctx, controllerCRUD, controlPlaneDesiredVersionControllerName, key.InitialController,
-				func(ctrl *coreapi.Controller) {
-					apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
-						Type:    coreapi.ControllerConditionTypeIntentFailed,
-						Status:  metav1.ConditionTrue,
-						Reason:  coreapi.VersionUpgradeNotAcceptedReason,
-						Message: utils.ErrorMessageWithoutLineTracking(err),
-					})
-				}); writeErr != nil {
-				return utils.TrackError(writeErr)
+	if exact := existingCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion; exact != nil {
+		// Experimental exact-version pin: use it directly as the desired version and skip the
+		// z-stream/y-stream Cincinnati/gateway resolution entirely.
+		replacement := cachedServiceProviderCluster.DeepCopy()
+		replacement.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(*exact)
+		// Skip the write when nothing changed. DesiredVersion is a *semver.Version, so a fresh
+		// pointer to the same value (e.g. an already-pinned 4.21.12) must not trigger a Replace;
+		// equality.Semantic.DeepEqual compares values, not pointer identity.
+		if !equality.Semantic.DeepEqual(cachedServiceProviderCluster, replacement) {
+			logger.Info("Using pinned exact control plane version", "exactVersion", exact.String())
+			_, replaceErr := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil)
+			if cosmosstorageutils.IsPreconditionFailedError(replaceErr) {
+				return nil
 			}
-			return nil
+			if replaceErr != nil {
+				return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", replaceErr))
+			}
 		}
-		return utils.TrackError(err)
+
+		return clearIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName)
 	}
 
 	previousDesiredVersion := cachedServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
-	// Only advance stored desired when the newly resolved version is greater, so graph changes
-	// cannot automatically select a lower z-stream. When rollback support is added, relax this
-	// so that only SRE-enforced rollback targets can decrease desired.
-	if desiredVersion != nil && (previousDesiredVersion == nil || desiredVersion.GT(*previousDesiredVersion)) {
-		logger.Info("Selected desired version", "desiredVersion", desiredVersion, "previousDesiredVersion", previousDesiredVersion)
-		// on successful resolution of the desired version.
-		// update the ServiceProviderCluster first and only afterwards
-		// clear the IntentFailed condition
-		replacement := cachedServiceProviderCluster.DeepCopy()
-		replacement.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
-		serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-		_, err := serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
-		}
+	customerDesiredMinor := existingCluster.CustomerProperties.Version.ID
+	channelGroup := existingCluster.CustomerProperties.Version.ChannelGroup
+
+	// The nightly channel group is not supported for control plane version selection: nightly builds
+	// are published to the CI releasestream API rather than the Cincinnati graph API used here.
+	if channelGroup == nightlyChannelGroup {
+		return utils.TrackError(fmt.Errorf("channel group %q is not supported for control plane version selection", channelGroup))
 	}
 
-	controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName)
-	if err = controllerutils.WriteController(ctx, controllerCRUD, controlPlaneDesiredVersionControllerName, key.InitialController,
-		func(ctrl *coreapi.Controller) {
-			apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
-				Type:    coreapi.ControllerConditionTypeIntentFailed,
-				Status:  metav1.ConditionFalse,
-				Reason:  coreapi.ControllerConditionReasonAsExpected,
-				Message: "",
-			})
-		}); err != nil {
-		return utils.TrackError(err)
+	activeVersions := cachedServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
+	if validateErr := c.validateRequestedMinorVersionChange(ctx, key, customerDesiredMinor, activeVersions); validateErr != nil {
+		return setIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName, validateErr)
 	}
-	return nil
+
+	// Active versions have no impact on which version is selected; resolve the desired version from the
+	// tip (with the z-stream offset) of the customer's desired minor channel via the OpenShift update
+	// service. ParseTolerant handles both "4.19" and "4.19.0" formats.
+	parsedDesired, parseErr := semver.ParseTolerant(customerDesiredMinor)
+	if parseErr != nil {
+		return utils.TrackError(fmt.Errorf("failed to parse customer desired minor version %q: %w", customerDesiredMinor, parseErr))
+	}
+	desiredMinorVersion := semver.MustParse(fmt.Sprintf("%d.%d.0", parsedDesired.Major, parsedDesired.Minor))
+	desiredVersion, resolveErr := selectControlPlaneVersion(ctx, c.roundTripper, channelGroup, desiredMinorVersion, GetZStreamOffset(channelGroup))
+
+	// Only advance stored desired when the newly resolved version is greater, so graph changes cannot
+	// automatically select a lower z-stream. When rollback support is added, relax this so that only
+	// SRE-enforced rollback targets can decrease desired.
+	switch {
+	case resolveErr != nil:
+		return setIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName, resolveErr)
+	case desiredVersion == nil:
+		// No upgrade is needed.
+		return clearIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName)
+	case previousDesiredVersion != nil && desiredVersion.LE(*previousDesiredVersion):
+		// Newly resolved version is not greater than the stored desired; leave it unchanged.
+		return clearIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName)
+	default:
+		logger.Info("Selected desired version", "desiredVersion", desiredVersion, "previousDesiredVersion", previousDesiredVersion)
+	}
+
+	replacement := cachedServiceProviderCluster.DeepCopy()
+	replacement.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(*desiredVersion)
+	_, replaceErr := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil)
+	if cosmosstorageutils.IsPreconditionFailedError(replaceErr) {
+		return nil
+	}
+	if replaceErr != nil {
+		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", replaceErr))
+	}
+	return clearIntentFailed(ctx, c.resourcesDBClient, key, controlPlaneDesiredVersionControllerName)
 }
 
-// desiredControlPlaneZVersion determines the desired z-stream version for the control plane.
-//
-// The desired version selection logic is executed on each controller sync.
-// NOTE: Rollback to a previous z-stream is not currently supported (future enhancement).
-//
-// It dispatches to one of three resolution methods based on the current cluster state:
-// - Case 1: Initial version selection (no active versions yet)
-// - Case 2: Z-stream managed upgrade (customer desired minor == actual minor)
-// - Case 3: Next Y-stream user-initiated upgrade (customer desired minor == actual minor + 1)
-//
-// customerDesiredMinor and channelGroup are required. If they are not specified, no version is returned.
-// Returns nil if no upgrade is needed.
-func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx context.Context, cincinnatiClient cincinnati.Client, clusterResourceID *azcorearm.ResourceID,
-	customerDesiredMinor string, channelGroup string, activeVersions []coreapi.HCPClusterActiveVersion, allowExperimentalReleaseFeatures bool) (*semver.Version, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	if len(customerDesiredMinor) == 0 {
-		logger.Info("No desired minor version specified. Terminating version resolution.")
-		return nil, nil
-	}
-	if len(channelGroup) == 0 {
-		logger.Info("No channel group specified. Terminating version resolution.")
-		return nil, nil
-	}
-
+// validateRequestedMinorVersionChange validates that moving the cluster's control plane to the
+// customer's desired minor is permitted. It short-circuits (returns nil) when the cluster has no
+// active versions yet — there is nothing to validate against. Otherwise it rejects downgrades,
+// unsupported OpenShift v5+ jumps, more-than-one minor skew, and node-pool minor-version skew for a
+// y-stream upgrade. Active versions do not influence which version is selected; that is done by
+// selectControlPlaneVersion.
+func (c *controlPlaneVersionSyncer) validateRequestedMinorVersionChange(ctx context.Context, key controllerutils.HCPClusterKey, customerDesiredMinor string, activeVersions []coreapi.HCPClusterActiveVersion) error {
 	if len(activeVersions) == 0 {
-		logger.Info("Resolving initial desired version", "customerDesiredMinor", customerDesiredMinor, "channelGroup", channelGroup)
-
-		// ParseTolerant handles both "4.19" and "4.19.0" formats
-		customerDotZeroRelease := metadataapi.Must(semver.ParseTolerant(customerDesiredMinor))
-
-		initialDesiredVersion, err := FindBestVersionInMinor(ctx, cincinnatiClient, c.graphClient, channelGroup, customerDotZeroRelease, []semver.Version{customerDotZeroRelease}, false)
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-
-		// If no desired version found, fall back to customerDotZeroRelease
-		// This happens when either:
-		// - there is no latestVersion greater than customerDotZeroRelease
-		// - or there is a latestVersion greater than customerDotZeroRelease but it doesn't have an upgrade path to the next minor
-		// if the next minor existed
-		// In both cases, customerDotZeroRelease is guaranteed to exist (since we didn't get a VersionNotFound error back when querying
-		// for it from Cincinnati).  It is safe to use.
-		if initialDesiredVersion == nil {
-			return &customerDotZeroRelease, nil
-		}
-
-		return initialDesiredVersion, nil
+		return nil
 	}
 
-	// Extract active versions and determine actual minor (if any)
-	// Use the most recent version to determine the minor version
+	// Use the most recent active version to determine the current minor.
 	actualLatestVersion := activeVersions[0].Version
-
 	actualLatestMinorVersion := semver.MustParse(fmt.Sprintf("%d.%d.0", actualLatestVersion.Major, actualLatestVersion.Minor))
 
-	// ParseTolerant handles both "4.19", "4.19.0" and full versions like "4.20.15". Normalize to major.minor.0
-	// so that same-minor z-stream (e.g. 4.20.0 -> 4.20.15) is not mistaken for a y-stream upgrade.
-	parsedDesired := metadataapi.Must(semver.ParseTolerant(customerDesiredMinor))
+	// ParseTolerant handles both "4.19", "4.19.0" and full versions like "4.20.15". Normalize to
+	// major.minor.0 so a same-minor z-stream is not mistaken for a y-stream upgrade.
+	parsedDesired, err := semver.ParseTolerant(customerDesiredMinor)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to parse customer desired minor version %q: %w", customerDesiredMinor, err))
+	}
 	desiredMinorVersion := semver.MustParse(fmt.Sprintf("%d.%d.0", parsedDesired.Major, parsedDesired.Minor))
 
 	if desiredMinorVersion.LT(actualLatestMinorVersion) {
-		return nil, utils.TrackError(fmt.Errorf(
+		return utils.TrackError(fmt.Errorf(
 			"invalid next y-stream upgrade path from %s to %s: only upgrades to the next minor version are allowed, no downgrades",
 			actualLatestMinorVersion.String(), desiredMinorVersion.String(),
 		))
 	}
 
 	if desiredMinorVersion.GT(actualLatestMinorVersion) {
-		if desiredMinorVersion.Major >= 5 && !allowExperimentalReleaseFeatures {
-			return nil, utils.TrackError(errors.New("OpenShift v5 and above is not supported"))
-		}
 		if err := validation.OpenshiftVersionAtMostOneMinorSkew(actualLatestMinorVersion.String(), desiredMinorVersion.String()); err != nil {
-			return nil, utils.TrackError(err)
+			return utils.TrackError(err)
 		}
-		clusterNodePools, ready, err := c.listClusterAdmissionNodePools(ctx, clusterResourceID)
+		clusterNodePools, err := c.listClusterAdmissionNodePools(ctx, key.GetResourceID())
 		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-		if !ready {
-			// Skip until every node pool has its ServiceProviderNodePool;
-			// without complete version data we can't validate minor skew.
-			return nil, nil
+			return utils.TrackError(err)
 		}
 		if err := admission.AdmitClusterNodePoolsMinorVersionSkew(ctx, clusterNodePools, desiredMinorVersion); err != nil {
-			return nil, utils.TrackError(err)
+			return utils.TrackError(err)
 		}
 	}
 
-	activeVersionList := make([]semver.Version, 0, len(activeVersions))
-	for _, av := range activeVersions {
-		activeVersionList = append(activeVersionList, *av.Version)
-	}
-
-	if desiredMinorVersion.EQ(actualLatestMinorVersion) {
-		return FindBestVersionInMinor(ctx, cincinnatiClient, c.graphClient, channelGroup, desiredMinorVersion, activeVersionList, false)
-	}
-
-	logger.Info("Resolving user-initiated upgrade desired version", "actualMinor", actualLatestMinorVersion.String(), "activeVersions", activeVersions,
-		"channelGroup", channelGroup, "targetMinor", desiredMinorVersion.String())
-
-	latestVersion, err := FindBestVersionInMinor(ctx, cincinnatiClient, c.graphClient, channelGroup, desiredMinorVersion, activeVersionList, true)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	if latestVersion != nil {
-		return latestVersion, nil
-	}
-
-	// User-requested control plane minor has no path yet; advance to latest patch on the current minor toward a gateway for a later user-initiated upgrade.
-	fallbackVersion, err := FindBestVersionInMinor(ctx, cincinnatiClient, c.graphClient, channelGroup, actualLatestMinorVersion, activeVersionList, false)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	if fallbackVersion != nil {
-		return fallbackVersion, nil
-	}
-
-	return nil, utils.TrackError(fmt.Errorf(
-		"no upgrade path found from %s to %s: no reachable versions in target minor and no gateway version in current minor",
-		actualLatestVersion.String(), desiredMinorVersion.String(),
-	))
+	return nil
 }
 
-// listClusterAdmissionNodePools prefetches every node pool that is not in the process of being deleted
-// under clusterResourceID paired with its service-provider record, in the same shape that
-// frontend.newClusterAdmissionContext builds for cluster admission. The upgrade
-// controller passes the result to admission.AdmitClusterNodePoolsMinorVersionSkew
-// directly so that admission code stays free of any DB dependency.
-//
-// Returns (_, false, nil) when any node pool is missing its
-// ServiceProviderNodePool. CreateServiceProviderNodePool will populate it.
-// ClusterWatchingController does not watch the ServiceProviderNodePool
-// informer (a child-document arrival doesn't naturally route to its parent
-// cluster), so the retry happens on the controller's periodic resync or on
-// the next Cluster / ServiceProviderCluster event for this cluster.
-// Skipping admission avoids using stale or missing node-pool version data
-// for skew validation.
-func (c *controlPlaneDesiredVersionSyncer) listClusterAdmissionNodePools(ctx context.Context, clusterResourceID *azcorearm.ResourceID) ([]admission.ClusterAdmissionNodePool, bool, error) {
-	nodePoolIterator, err := c.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).NodePools(clusterResourceID.Name).List(ctx, nil)
-	if err != nil {
-		return nil, false, utils.TrackError(err)
-	}
-	var clusterNodePools []admission.ClusterAdmissionNodePool
-	for _, nodePool := range nodePoolIterator.Items(ctx) {
-		// When performing version skew validation, we do not include node pools
-		// that are in the process of being deleted.
-		if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
-			continue
-		}
-		serviceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, nodePool.ID.Name)
-		if cosmosstorageutils.IsNotFoundError(err) {
-			return nil, false, nil
-		}
-		if err != nil {
-			return nil, false, utils.TrackError(err)
-		}
-		clusterNodePools = append(clusterNodePools, admission.ClusterAdmissionNodePool{
-			NodePool:                nodePool,
-			ServiceProviderNodePool: serviceProviderNodePool,
-		})
-	}
-	if err := nodePoolIterator.GetError(); err != nil {
-		return nil, false, utils.TrackError(err)
-	}
-	return clusterNodePools, true, nil
-}
-
-// FindAllUpgradeTargetVersionsInMinor queries Cincinnati and finds the latest version within the specified target minor.
-//
-// This method implements the core version selection logic for all upgrade scenarios (both Y-stream and Z-stream).
-// It prioritizes versions that have an upgrade path to the next minor version (gateway versions).
-//
-// Version selection algorithm:
-//  1. Query Cincinnati for all available updates from EACH active version in the target minor channel
-//  2. Filter candidates: only include versions within the target minor
-//  3. Intersect candidate sets: only keep versions reachable from ALL active versions
-//  4. Sort candidates by version (descending - latest first)
-//
-// Examples:
-//   - Z-stream (4.19.15 → 4.19.z): Find latest 4.19.z with path to 4.20, or latest 4.19.z
-//   - Y-stream (4.19.x → 4.20.z): Find latest 4.20.z with path to 4.21, or latest 4.20.z
-//
-// When multiple active versions are provided, this method ensures that the selected version
-// is reachable from ALL active versions by intersecting the upgrade paths.
-//
-// Returns nil if no suitable version is found.
-func FindAllUpgradeTargetVersionsInMinor(
-	ctx context.Context,
-	cincinnatiClient cincinnati.Client,
-	channelGroup string,
-	targetMinorVersion semver.Version,
-	activeVersions []semver.Version,
-) ([]semver.Version, error) {
-	cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get Cincinnati URI for channel %s: %w", channelGroup, err))
-	}
-
-	targetMinorString := fmt.Sprintf("%d.%d", targetMinorVersion.Major, targetMinorVersion.Minor)
-	cincinnatiChannel := fmt.Sprintf("%s-%s", channelGroup, targetMinorString)
-
-	// For active versions, intersect their upgrade candidates
-	candidatesByVersion := map[string]struct {
-		version semver.Version
-		count   int
-	}{}
-
-	for _, activeVersion := range activeVersions {
-		_, candidateReleases, _, err := cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", cincinnatiChannel, activeVersion)
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-
-		for _, candidate := range candidateReleases {
-			candidateTargetVersion := semver.MustParse(candidate.Version)
-
-			// Filter: only include versions in target minor
-			if candidateTargetVersion.Major != targetMinorVersion.Major || candidateTargetVersion.Minor != targetMinorVersion.Minor {
-				continue
-			}
-
-			candidateEntry := candidatesByVersion[candidateTargetVersion.String()]
-			candidateEntry.version = candidateTargetVersion
-			candidateEntry.count++
-			candidatesByVersion[candidateTargetVersion.String()] = candidateEntry
-		}
-	}
-
-	// Extract only candidates that appeared for ALL active versions (intersection)
-	commonCandidates := []semver.Version{}
-	for _, candidateEntry := range candidatesByVersion {
-		if candidateEntry.count == len(activeVersions) {
-			commonCandidates = append(commonCandidates, candidateEntry.version)
-		}
-	}
-
-	return commonCandidates, nil
-}
-
-// FindBestVersionInMinor queries Cincinnati and finds the latest version within the specified target minor.
-//
-// This method implements the core version selection logic for all upgrade scenarios (both Y-stream and Z-stream).
-// It prioritizes versions that have an upgrade path to the next minor version (gateway versions).
-//
-// Version selection algorithm:
-//  1. Query Cincinnati for all available updates from EACH active version in the target minor channel
-//  2. Filter candidates: only include versions within the target minor
-//  3. Intersect candidate sets: only keep versions reachable from ALL active versions
-//  4. Sort candidates by version (descending - latest first)
-//  5. Check if next minor (4.(y+1)) channel exists in Cincinnati
-//  6. If next minor doesn't exist: return the latest candidate
-//  7. If next minor exists: iterate through candidates to find a gateway version to the next minor
-//     - For each candidate, check if it has an upgrade path to the next minor
-//     - If yes: return this version (latest gateway found)
-//     - If no: continue checking older versions
-//  8. If no gateway found and preferLatestOverGateway (y-stream): return the latest candidate
-//  9. If no gateway found and !preferLatestOverGateway (z-stream): return nil
-//
-// Examples:
-//   - Z-stream (4.19.15 → 4.19.z): Find latest 4.19.z with path to 4.20, or nil if none
-//   - Y-stream (4.19.x → 4.20.z): Find latest 4.20.z with path to 4.21, or latest 4.20.z
-//
-// When multiple active versions are provided, this method ensures that the selected version
-// is reachable from ALL active versions by intersecting the upgrade paths.
-//
-// Returns nil if no suitable version is found.
-func FindBestVersionInMinor(
-	ctx context.Context,
-	cincinnatiClient cincinnati.Client,
-	graphClient cincinnati.GraphClient,
-	channelGroup string,
-	targetMinorVersion semver.Version,
-	activeVersions []semver.Version,
-	preferLatestOverGateway bool,
-) (*semver.Version, error) {
-	commonCandidates, err := FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetMinorVersion, activeVersions)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	return selectBestVersionFromCandidates(ctx, cincinnatiClient, graphClient, channelGroup, targetMinorVersion, commonCandidates, preferLatestOverGateway)
-}
-
-// selectBestVersionFromCandidates finds the best version to upgrade to from a list of candidate versions.
-// It accepts a list of candidates (already filtered within the target minor) and prioritizes versions
-// that are gateways to the next minor version.
-//
-// When preferLatestOverGateway is true (y-stream upgrades), the latest candidate is returned even if
-// no gateway to the next minor exists. When false (z-stream upgrades), nil is returned if no gateway
-// exists, preserving upgradeability to the next minor.
-//
-// Algorithm:
-//  1. Sort candidates by version (descending - latest first)
-//  2. Check if the next minor channel exists in Cincinnati
-//  3. If next minor doesn't exist: return the latest candidate
-//  4. If next minor exists: iterate through candidates to find a gateway version to the next minor
-//  5. If no gateway found and preferLatestOverGateway: return the latest candidate
-//  6. If no gateway found and !preferLatestOverGateway: return nil
-func selectBestVersionFromCandidates(
-	ctx context.Context,
-	cincinnatiClient cincinnati.Client,
-	graphClient cincinnati.GraphClient,
-	channelGroup string,
-	targetMinorVersion semver.Version,
-	candidates []semver.Version,
-	preferLatestOverGateway bool,
-) (*semver.Version, error) {
-	if len(candidates) == 0 {
-		return nil, nil
-	}
-
-	// Sort candidates by version (descending - latest first)
-	slices.SortFunc(candidates, func(a, b semver.Version) int {
-		return b.Compare(a)
-	})
-
-	// Check if next minor channel exists before checking for gateways.
-	// Query the public graph API directly (not GetUpdates from a candidate version).
-	nextMinorVersion := metadataapi.NextMinorReleaseLine(targetMinorVersion)
-	nextMinor := fmt.Sprintf("%d.%d", nextMinorVersion.Major, nextMinorVersion.Minor)
-	nextMinorExists, err := graphClient.ChannelExists(ctx, channelGroup, nextMinor)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to check if channel %s-%s exists: %w", channelGroup, nextMinor, err))
-	}
-
-	if !nextMinorExists {
-		// If the next minor doesn't exist, return the latest version in the target minor
-		return &candidates[0], nil
-	}
-
-	// Prefer a candidate that is a gateway to the next minor
-	for _, candidate := range candidates {
-		isGateway, err := isGatewayToNextMinor(ctx, candidate, cincinnatiClient, channelGroup, nextMinor)
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-
-		if isGateway {
-			return &candidate, nil
-		}
-	}
-
-	if preferLatestOverGateway {
-		return &candidates[0], nil
-	}
-
-	// TODO: If the next minor exists but none of the candidates have a gateway to it,
-	// and none of the active versions have a gateway to it either, prefer the latest
-	// candidate instead of returning nil — there is no existing next-minor path to preserve.
-	return nil, nil
-}
-
-// shouldDetermineDesiredVersion decides whether the syncer should compute a
-// desired control plane version on this pass. It returns true when ANY of:
+// shouldDetermineDesiredVersion decides whether the upgrade syncer should compute a desired control
+// plane version on this pass. It returns true when ANY of:
 //
 //  1. ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion is unset
 //     — we have nothing seeded yet, so we must run to fill it in.
@@ -611,7 +315,7 @@ func selectBestVersionFromCandidates(
 // Otherwise (DesiredVersion already set, cluster still young, Create in
 // flight) we skip so a freshly created cluster doesn't have its initial
 // desired version overwritten while creation is still in progress.
-func (c *controlPlaneDesiredVersionSyncer) shouldDetermineDesiredVersion(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (bool, error) {
+func (c *controlPlaneVersionSyncer) shouldDetermineDesiredVersion(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) (bool, error) {
 	if spc.Spec.ControlPlaneVersion.DesiredVersion == nil {
 		return true, nil
 	}
@@ -629,18 +333,18 @@ func (c *controlPlaneDesiredVersionSyncer) shouldDetermineDesiredVersion(ctx con
 // is more than clusterCreateGracePeriod in the past. A missing CreatedAt is
 // treated as "old enough" so a malformed document does not pin the controller
 // in skip-forever mode.
-func (c *controlPlaneDesiredVersionSyncer) clusterOlderThanGracePeriod(cluster *coreapi.HCPOpenShiftCluster) bool {
+func (c *controlPlaneVersionSyncer) clusterOlderThanGracePeriod(cluster *coreapi.HCPOpenShiftCluster) bool {
 	if cluster.SystemData == nil || cluster.SystemData.CreatedAt == nil {
 		return true
 	}
 	return c.clock.Since(*cluster.SystemData.CreatedAt) > clusterCreateGracePeriod
 }
 
-// hasActiveClusterCreateOperation reports whether there is a non-terminal
+// clusterHasActiveCreateOperation reports whether there is a non-terminal
 // Create operation whose ExternalID is the cluster itself. Operations on
 // child resources (node pools, external auths) under the cluster are
 // ignored on purpose: they don't gate control-plane upgrade selection.
-func (c *controlPlaneDesiredVersionSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (bool, error) {
+func (c *controlPlaneVersionSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 	if len(cluster.ServiceProviderProperties.ActiveOperationID) == 0 {
 		logger.Info("Cluster has no active create operation", "cluster", cluster.Name)
@@ -660,4 +364,137 @@ func (c *controlPlaneDesiredVersionSyncer) clusterHasActiveCreateOperation(ctx c
 	}
 	logger.Info("Cluster has active create operation", "cluster", cluster.Name, "operation", operation.Request)
 	return true, nil
+}
+
+// listClusterAdmissionNodePools prefetches every node pool that is not in the process of being deleted
+// under clusterResourceID paired with its service-provider record, in the same shape that
+// frontend.newClusterAdmissionContext builds for cluster admission. The upgrade
+// controller passes the result to admission.AdmitClusterNodePoolsMinorVersionSkew
+// directly so that admission code stays free of any DB dependency.
+//
+// A node pool missing its ServiceProviderNodePool is returned as an error: we
+// cannot validate minor skew without complete node-pool version data.
+// CreateServiceProviderNodePool populates the missing record; ClusterWatchingController
+// does not watch the ServiceProviderNodePool informer (a child-document arrival
+// doesn't naturally route to its parent cluster), so the retry happens on the
+// controller's periodic resync or on the next Cluster / ServiceProviderCluster
+// event for this cluster.
+func (c *controlPlaneVersionSyncer) listClusterAdmissionNodePools(ctx context.Context, clusterResourceID *azcorearm.ResourceID) ([]admission.ClusterAdmissionNodePool, error) {
+	nodePools, err := c.nodePoolLister.ListForCluster(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	var clusterNodePools []admission.ClusterAdmissionNodePool
+	for _, nodePool := range nodePools {
+		// When performing version skew validation, we do not include node pools
+		// that are in the process of being deleted.
+		if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+			continue
+		}
+		serviceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, nodePool.ID.Name)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		clusterNodePools = append(clusterNodePools, admission.ClusterAdmissionNodePool{
+			NodePool:                nodePool,
+			ServiceProviderNodePool: serviceProviderNodePool,
+		})
+	}
+	return clusterNodePools, nil
+}
+
+// nightlyChannelGroup is the OpenShift channel group whose builds are published to the CI
+// releasestream API rather than the Cincinnati graph API. selectControlPlaneVersion resolves versions
+// via the graph API (api.openshift.com) and therefore cannot serve nightly; SyncOnce rejects it.
+const nightlyChannelGroup = "nightly"
+
+// stableChannelGroup is the OpenShift channel group of generally-available stable releases.
+const stableChannelGroup = "stable"
+
+// defaultControlPlaneVersionOffset is the offset from the tip of a channel used when selecting a
+// desired control plane version. Offset 0 selects the most recent (tip) release in the channel.
+const defaultControlPlaneVersionOffset uint = 0
+
+// GetZStreamOffset returns the offset from the tip of a channel to use when selecting a z-stream
+// control plane version (offset 0 = the most recent release). The stable channel group uses the
+// penultimate release (offset 1) to avoid selecting a brand-new stable z-stream immediately; all
+// other channel groups use the tip.
+func GetZStreamOffset(channel string) uint {
+	if channel == stableChannelGroup {
+		return 1
+	}
+	return defaultControlPlaneVersionOffset
+}
+
+// selectControlPlaneVersion resolves the desired control plane version for a minor by querying the
+// OpenShift update service (Cincinnati graph API) for that minor's channel and selecting the release
+// at the given offset from the tip (offset 0 = most recent release). It bridges
+// controlplaneversion.SelectControlPlaneVersion, which returns a configv1.Release, into the
+// *semver.Version used throughout this controller.
+//
+// This must not be called for the nightly channel group: the graph API does not serve nightly
+// builds. See the nightly channel guard in SyncOnce.
+func selectControlPlaneVersion(ctx context.Context, roundTripper controlplaneversion.RoundTrip, channelGroup string, minorVersion semver.Version, offset uint) (*semver.Version, error) {
+	channel := fmt.Sprintf("%s-%d.%d", channelGroup, minorVersion.Major, minorVersion.Minor)
+	release, err := controlplaneversion.SelectControlPlaneVersion(ctx, roundTripper, nil, channel, offset)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	selected, err := semver.ParseTolerant(release.Version)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse selected control plane version %q for channel %s: %w", release.Version, channel, err))
+	}
+	return &selected, nil
+}
+
+// setIntentFailed records a failed desired control plane version resolution on the controller
+// document's IntentFailed condition. resolveErr must be non-nil.
+//
+//   - For Cincinnati VersionNotFound or any non-Cincinnati resolution error, persist IntentFailed
+//     on the controller document and return nil.
+//   - Other (transient) Cincinnati errors are returned so the sync is retried.
+func setIntentFailed(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, key controllerutils.HCPClusterKey, controllerName string, resolveErr error) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	// Transient Cincinnati graph or transport errors are returned so the sync is retried; Cincinnati
+	// VersionNotFound and any non-Cincinnati resolution error are persisted as IntentFailed.
+	var cincinnatiErr *cvocincinnati.Error
+	persistIntentFailed := cincinnati.IsCincinnatiVersionNotFoundError(resolveErr) || !errors.As(resolveErr, &cincinnatiErr)
+	if !persistIntentFailed {
+		return utils.TrackError(resolveErr)
+	}
+
+	logger.Error(resolveErr, "desired version resolution failed, persisting IntentFailed condition")
+	controllerCRUD := resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName)
+	if writeErr := controllerutils.WriteController(ctx, controllerCRUD, controllerName, key.InitialController,
+		func(ctrl *coreapi.Controller) {
+			apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
+				Type:    coreapi.ControllerConditionTypeIntentFailed,
+				Status:  metav1.ConditionTrue,
+				Reason:  coreapi.VersionUpgradeNotAcceptedReason,
+				Message: utils.ErrorMessageWithoutLineTracking(resolveErr),
+			})
+		}); writeErr != nil {
+		return utils.TrackError(writeErr)
+	}
+	return nil
+}
+
+// clearIntentFailed sets the controller document's IntentFailed condition to False. It is called
+// once a desired control plane version has been resolved and, when applicable, the resolved
+// DesiredVersion has been persisted onto the ServiceProviderCluster.
+func clearIntentFailed(ctx context.Context, resourcesDBClient corecosmosstorage.ResourcesDBClient, key controllerutils.HCPClusterKey, controllerName string) error {
+	controllerCRUD := resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName)
+	if err := controllerutils.WriteController(ctx, controllerCRUD, controllerName, key.InitialController,
+		func(ctrl *coreapi.Controller) {
+			apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
+				Type:    coreapi.ControllerConditionTypeIntentFailed,
+				Status:  metav1.ConditionFalse,
+				Reason:  coreapi.ControllerConditionReasonAsExpected,
+				Message: "",
+			})
+		}); err != nil {
+		return utils.TrackError(err)
+	}
+	return nil
 }

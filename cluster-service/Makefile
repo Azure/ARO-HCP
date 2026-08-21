@@ -46,7 +46,8 @@ deploy-pr-env-deps:
 		--resource-group "${RESOURCEGROUP}" \
 		--cx-keyvault "${CX_SECRETS_KV_NAME}" \
 		--mi-keyvault "${CX_MI_KV_NAME}" \
-		--acr-name "${OCP_ACR_NAME}"
+		--acr-name "${OCP_ACR_NAME}" \
+		--istio-tag "${SVC_ISTIO_TAG}"
 
 cspr-jenkins-kubeconfig:
 	./cspr-kubeconfig.sh cluster-service-admin cluster-service-mgmt ./cspr.kubeconfig

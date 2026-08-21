@@ -6,7 +6,8 @@ COPY internal/go.mod internal/go.sum internal/
 COPY mgmt-agent/go.mod mgmt-agent/go.sum mgmt-agent/
 RUN cd mgmt-agent && go mod download
 WORKDIR /app
-COPY . .
+COPY internal/ internal/
+COPY --exclude=mgmt-agent/bin mgmt-agent/ mgmt-agent/
 ARG ARO_HCP_REVISION
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject

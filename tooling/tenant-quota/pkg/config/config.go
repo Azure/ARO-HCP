@@ -27,13 +27,12 @@ import (
 )
 
 const (
-	DefaultTimeout             = 30 * time.Second
-	DefaultInterval            = 15 * time.Minute
-	DefaultCacheTTL            = 24 * time.Hour
-	DefaultRoleAssignmentLimit = 4000
-	DefaultScope               = "https://graph.microsoft.com/.default"
-	DefaultProwInterval        = 5 * time.Minute
-	DefaultProwRetention       = 24 * time.Hour
+	DefaultTimeout       = 30 * time.Second
+	DefaultInterval      = 15 * time.Minute
+	DefaultCacheTTL      = 24 * time.Hour
+	DefaultScope         = "https://graph.microsoft.com/.default"
+	DefaultProwInterval  = 5 * time.Minute
+	DefaultProwRetention = 24 * time.Hour
 )
 
 type Config struct {
@@ -76,9 +75,8 @@ type TenantConfig struct {
 }
 
 type SubscriptionConfig struct {
-	Name                string   `yaml:"name"`
-	RoleAssignmentLimit int      `yaml:"roleAssignmentLimit,omitempty"`
-	Regions             []string `yaml:"regions"`
+	Name    string   `yaml:"name"`
+	Regions []string `yaml:"regions"`
 
 	// SubscriptionID is resolved at runtime from the Name field using the
 	// Azure subscriptions API. Not parsed from config YAML.
@@ -251,11 +249,4 @@ func (t *TenantConfig) IsDirectoryQuotaEnabled() bool {
 		return true
 	}
 	return *t.DirectoryQuota
-}
-
-func (s *SubscriptionConfig) GetRoleAssignmentLimit() int {
-	if s.RoleAssignmentLimit > 0 {
-		return s.RoleAssignmentLimit
-	}
-	return DefaultRoleAssignmentLimit
 }

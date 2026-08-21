@@ -109,17 +109,17 @@ import (
 //     and persistence onto HCPOpenShiftClusterExternalAuth. Internal-only fields still need
 //     whatever backend path writes the value Cosmos holds.
 type externalAuthUpdateDispatchConfig struct {
-	Issuer  externalAuthUpdateDispatchConfigIssuer   `json:"issuer"`
-	Clients []externalAuthUpdateDispatchConfigClient `json:"clients"`
-	Claim   externalAuthUpdateDispatchConfigClaim    `json:"claim"`
+	Issuer  externalAuthUpdateDispatchConfigIssuer   `json:"issuer,omitempty"`
+	Clients []externalAuthUpdateDispatchConfigClient `json:"clients,omitempty"`
+	Claim   externalAuthUpdateDispatchConfigClaim    `json:"claim,omitempty"`
 }
 
 // externalAuthUpdateDispatchConfigIssuer is the curated issuer subset used for dispatch hash and
 // sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.TokenIssuerProfile.
 type externalAuthUpdateDispatchConfigIssuer struct {
-	URL       string   `json:"url"`
-	Audiences []string `json:"audiences"`
-	CA        string   `json:"ca"`
+	URL       string   `json:"url,omitempty"`
+	Audiences []string `json:"audiences,omitempty"`
+	CA        string   `json:"ca,omitempty"`
 }
 
 // externalAuthUpdateDispatchConfigClient is the curated client subset used for dispatch hash and
@@ -128,54 +128,54 @@ type externalAuthUpdateDispatchConfigIssuer struct {
 // through convertExternalAuthClientTypeCSToRP and convertExternalAuthClientTypeRPToCS because CS
 // uses lowercase values ("public", "confidential") while RP uses PascalCase ("Public", "Confidential").
 type externalAuthUpdateDispatchConfigClient struct {
-	ComponentName      string                             `json:"componentName"`
-	ComponentNamespace string                             `json:"componentNamespace"`
-	ClientID           string                             `json:"clientId"`
-	ExtraScopes        []string                           `json:"extraScopes"`
-	Type               metadataapi.ExternalAuthClientType `json:"type"`
+	ComponentName      string                             `json:"componentName,omitempty"`
+	ComponentNamespace string                             `json:"componentNamespace,omitempty"`
+	ClientID           string                             `json:"clientId,omitempty"`
+	ExtraScopes        []string                           `json:"extraScopes,omitempty"`
+	Type               metadataapi.ExternalAuthClientType `json:"type,omitempty"`
 }
 
 // externalAuthUpdateDispatchConfigClaim is the curated claim subset used for dispatch hash and
 // sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.ExternalAuthClaimProfile.
 type externalAuthUpdateDispatchConfigClaim struct {
-	Mappings        externalAuthUpdateDispatchConfigClaimMappings    `json:"mappings"`
-	ValidationRules []externalAuthUpdateDispatchConfigValidationRule `json:"validationRules"`
+	Mappings        externalAuthUpdateDispatchConfigClaimMappings    `json:"mappings,omitempty"`
+	ValidationRules []externalAuthUpdateDispatchConfigValidationRule `json:"validationRules,omitempty"`
 }
 
 // externalAuthUpdateDispatchConfigClaimMappings is the curated claim mappings subset used for
 // dispatch hash and sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.TokenClaimMappingsProfile.
 type externalAuthUpdateDispatchConfigClaimMappings struct {
-	Username externalAuthUpdateDispatchConfigUsernameClaim `json:"username"`
-	Groups   *externalAuthUpdateDispatchConfigGroupsClaim  `json:"groups"`
+	Username externalAuthUpdateDispatchConfigUsernameClaim `json:"username,omitempty"`
+	Groups   *externalAuthUpdateDispatchConfigGroupsClaim  `json:"groups,omitempty"`
 }
 
 // externalAuthUpdateDispatchConfigUsernameClaim is the curated username claim subset used for
 // dispatch hash and sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.UsernameClaimProfile.
 type externalAuthUpdateDispatchConfigUsernameClaim struct {
-	Claim        string                                `json:"claim"`
-	Prefix       string                                `json:"prefix"`
-	PrefixPolicy metadataapi.UsernameClaimPrefixPolicy `json:"prefixPolicy"`
+	Claim        string                                `json:"claim,omitempty"`
+	Prefix       string                                `json:"prefix,omitempty"`
+	PrefixPolicy metadataapi.UsernameClaimPrefixPolicy `json:"prefixPolicy,omitempty"`
 }
 
 // externalAuthUpdateDispatchConfigGroupsClaim is the curated groups claim subset used for dispatch
 // hash and sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.GroupClaimProfile.
 type externalAuthUpdateDispatchConfigGroupsClaim struct {
-	Claim  string `json:"claim"`
-	Prefix string `json:"prefix"`
+	Claim  string `json:"claim,omitempty"`
+	Prefix string `json:"prefix,omitempty"`
 }
 
 // externalAuthUpdateDispatchConfigValidationRule is the curated validation rule subset used for
 // dispatch hash and sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.TokenClaimValidationRule.
 type externalAuthUpdateDispatchConfigValidationRule struct {
-	Type          metadataapi.TokenValidationRuleType           `json:"type"`
-	RequiredClaim externalAuthUpdateDispatchConfigRequiredClaim `json:"requiredClaim"`
+	Type          metadataapi.TokenValidationRuleType           `json:"type,omitempty"`
+	RequiredClaim externalAuthUpdateDispatchConfigRequiredClaim `json:"requiredClaim,omitempty"`
 }
 
 // externalAuthUpdateDispatchConfigRequiredClaim is the curated required-claim subset used for
 // dispatch hash and sync. See externalAuthUpdateDispatchConfig: do not embed coreapi.TokenRequiredClaim.
 type externalAuthUpdateDispatchConfigRequiredClaim struct {
-	Claim         string `json:"claim"`
-	RequiredValue string `json:"requiredValue"`
+	Claim         string `json:"claim,omitempty"`
+	RequiredValue string `json:"requiredValue,omitempty"`
 }
 
 // ExternalAuthUpdateDispatchConfigJSONFromRP returns the canonical JSON of the dispatch config

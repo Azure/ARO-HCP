@@ -1,0 +1,27 @@
+apiVersion: mgmtagent.aro-hcp.azure.com/v1alpha1
+kind: CapacityReport
+metadata:
+  name: cluster
+status:
+  conditions:
+  - lastTransitionTime: "2025-01-01T00:00:00Z"
+    message: ""
+    observedGeneration: 0
+    reason: DataCollected
+    status: "True"
+    type: ReportCurrent
+  hostedControlPlanes:
+    notReadyResourceIDs:
+    - /subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-a
+    - /subscriptions/sub-2/resourceGroups/rg-2/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/cluster-b
+  lastReportedAt: "2025-01-01T00:00:00Z"
+  nodes:
+  - allocatable:
+      memory: 128Gi
+    notReady: 0
+    ready: 1
+    sku: Standard_D32s_v3
+  requested:
+    memory: 4Gi
+  usage:
+    memory: 2Gi

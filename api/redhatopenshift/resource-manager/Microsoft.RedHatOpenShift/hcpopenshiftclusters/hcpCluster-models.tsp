@@ -207,12 +207,11 @@ model VersionProfile {
    *  Each version belongs to only a single set.
    *
    *  If not specified, the default value is 'stable'.
-   *
-   *  Note: The default value is not declared in the API specification because
-   *        of a TypeSpec bug with updatable fields. The default value will be
-   *        declared in a future API version once the TypeSpec bug is fixed.
-   *        https://github.com/Azure/typespec-azure/issues/1586
    */
+  //  Note: The default value is not declared in the API specification because
+  //        of a TypeSpec bug with updatable fields. The default value will be
+  //        declared in a future API version once the TypeSpec bug is fixed.
+  //        https://github.com/Azure/typespec-azure/issues/1586
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   channelGroup?: string;
 }
@@ -394,23 +393,22 @@ model ClusterAutoscalingProfile {
 
   /** maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.
    * The default is 600 seconds.
-   *
-   *  Note: The default value is not declared in the API specification because
-   *        of a TypeSpec bug with updatable fields. The default value will be
-   *        declared in a future API version once the TypeSpec bug is fixed.
-   *        https://github.com/Azure/typespec-azure/issues/1586
    */
+  // Note: The default value is not declared in the API specification because
+  //       of a TypeSpec bug with updatable fields. The default value will be
+  //       declared in a future API version once the TypeSpec bug is fixed.
+  //       https://github.com/Azure/typespec-azure/issues/1586
+  //
   @minValue(0)
   maxPodGracePeriodSeconds?: int32;
 
   /** maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the
    *  provisioning to be unsuccessful. The default is 900 seconds, or 15 minutes.
-   *
-   *  Note: The default value is not declared in the API specification because
-   *        of a TypeSpec bug with updatable fields. The default value will be
-   *        declared in a future API version once the TypeSpec bug is fixed.
-   *        https://github.com/Azure/typespec-azure/issues/1586
    */
+  // Note: The default value is not declared in the API specification because
+  //       of a TypeSpec bug with updatable fields. The default value will be
+  //       declared in a future API version once the TypeSpec bug is fixed.
+  //       https://github.com/Azure/typespec-azure/issues/1586
   @minValue(0)
   maxNodeProvisionTimeSeconds?: int32;
 
@@ -418,12 +416,11 @@ model ClusterAutoscalingProfile {
    * but only run when there are spare resources available. The default is -10.
    * See the following for more details:
    * https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
-   *
-   *  Note: The default value is not declared in the API specification because
-   *        of a TypeSpec bug with updatable fields. The default value will be
-   *        declared in a future API version once the TypeSpec bug is fixed.
-   *        https://github.com/Azure/typespec-azure/issues/1586
    */
+  // Note: The default value is not declared in the API specification because
+  //       of a TypeSpec bug with updatable fields. The default value will be
+  //       declared in a future API version once the TypeSpec bug is fixed.
+  //       https://github.com/Azure/typespec-azure/issues/1586
   podPriorityThreshold?: int32;
 }
 
@@ -864,12 +861,11 @@ model NodePoolVersionProfile {
    *  Each version belongs to only a single set.
    *
    *  If not specified, the default value is 'stable'.
-   *
-   *  Note: The default value is not declared in the API specification because
-   *        of a TypeSpec bug with updatable fields. The default value will be
-   *        declared in a future API version once the TypeSpec bug is fixed.
-   *        https://github.com/Azure/typespec-azure/issues/1586
    */
+  // Note: The default value is not declared in the API specification because
+  //       of a TypeSpec bug with updatable fields. The default value will be
+  //       declared in a future API version once the TypeSpec bug is fixed.
+  //       https://github.com/Azure/typespec-azure/issues/1586
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   channelGroup?: string;
 }
@@ -1388,12 +1384,11 @@ model UsernameClaimProfile {
    *    and `claim` is set to:
    *    - "username": the mapped value will be "https://myoidc.tld#userA"
    *    - "email": the mapped value will be "userA@myoidc.tld"
-   *
-   * Note: The default value is not declared in the API specification because
-   *       of a TypeSpec bug with updatable fields. The default value will be
-   *       declared in a future API version once the TypeSpec bug is fixed.
-   *       https://github.com/Azure/typespec-azure/issues/1586
    */
+  // Note: The default value is not declared in the API specification because
+  //       of a TypeSpec bug with updatable fields. The default value will be
+  //       declared in a future API version once the TypeSpec bug is fixed.
+  //       https://github.com/Azure/typespec-azure/issues/1586
   prefixPolicy?: UsernameClaimPrefixPolicy;
 }
 

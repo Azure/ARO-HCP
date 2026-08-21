@@ -38,9 +38,17 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
+	clusterbackups "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
-	credentialsoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentials/operations"
+	credentialrequestcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/creation"
+	credentialrequestdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/deletion"
+	credentialrequestoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrequest/operations"
+	credentialrevocationcreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/creation"
+	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
+	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
 	clusterproperties "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/properties"
@@ -110,6 +118,7 @@ type BackendOptions struct {
 	ExitOnPanic                                         bool
 	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
 	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
+	BackupConfig                                        *clusterbackups.BackupConfig
 	SMIClientBuilder                                    azureclient.ServiceManagedIdentityClientBuilder
 	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
@@ -188,7 +197,9 @@ func (o *BackendOptions) validate() error {
 		return fmt.Errorf("metrics registerer and gatherer must both be set (registerer set=%t, gatherer set=%t)",
 			o.MetricsRegisterer != nil, o.MetricsGatherer != nil)
 	}
-
+	if o.BackupConfig == nil {
+		return fmt.Errorf("backup config must be set")
+	}
 	return nil
 }
 
@@ -419,6 +430,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	unionKubeApplierInformers := unionKubeApplierInformersController.Union()
 	_, unionReadDesireLister := unionKubeApplierInformers.ReadDesires()
+	_, unionApplyDesireLister := unionKubeApplierInformers.ApplyDesires()
 
 	clusterInformer, clusterLister := backendInformers.Clusters()
 	clusterHandler := metrics.NewClusterMetricsHandler(b.options.MetricsRegisterer)
@@ -456,17 +468,92 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	billingDumpController := datadump.NewBillingDumpController(b.options.ResourcesDBClient, b.options.BillingDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers)
 	managementClusterDumpController := datadump.NewManagementClusterDataDumpController(b.options.FleetDBClient, managementClusterLister, fleetInformers)
 	doNothingController := example.NewDoNothingExampleController(b.options.ResourcesDBClient, subscriptionLister)
-	dispatchRequestCredentialController := credentialsoperations.NewDispatchRequestCredentialController(
+	dispatchRequestCredentialController := legacycredentialrequest.NewDispatchRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationInformer,
 	)
-	dispatchRevokeCredentialsController := credentialsoperations.NewDispatchRevokeCredentialsController(
+	adminCredentialsDispatchRequestCredentialController := credentialrequestoperations.NewDispatchRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
+		clusterLister,
 		activeOperationInformer,
+	)
+	adminCredentialsDispatchRevokeCredentialsController := credentialrevocationoperations.NewDispatchRevokeCredentialsController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		clusterLister,
+		activeOperationInformer,
+	)
+	adminCredentialsOperationRequestCredentialPollController := credentialrequestoperations.NewOperationRequestCredentialPollController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		http.DefaultClient,
+		activeOperationInformer,
+	)
+	adminCredentialsOperationRevokeCredentialsPollController := credentialrevocationoperations.NewOperationRevokeCredentialsPollController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		clusterLister,
+		http.DefaultClient,
+		activeOperationInformer,
+	)
+	adminCredentialsIssuanceObserverController := credentialrequestcreation.NewIssuanceObserverController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		unionKubeApplierInformers,
+		unionReadDesireLister,
+	)
+	adminCredentialsDesiresCreatorController := credentialrequestcreation.NewDesiresCreatorController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	adminCredentialsPostIssuanceCleanupController := credentialrequestdeletion.NewPostIssuanceCleanupController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	adminCredentialsRevokedGCController := credentialrequestdeletion.NewRevokedGCController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+	adminCredentialsClusterDeletionCleanupController := credentialrequestdeletion.NewClusterDeletionCleanupController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	systemAdminCredentialRevocationMarkRequestsController := credentialrevocationcreation.NewRevocationMarkRequestsController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+	systemAdminCredentialRevocationDesiresController := credentialrevocationcreation.NewRevocationDesiresController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+		unionApplyDesireLister,
+		unionReadDesireLister,
+	)
+	systemAdminCredentialRevocationCompletionController := credentialrevocationdeletion.NewRevocationCompletionController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		unionKubeApplierInformers,
+		unionReadDesireLister,
+	)
+	systemAdminCredentialRevocationDeletionController := credentialrevocationdeletion.NewRevocationDeletionController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
 	)
 
 	operationClusterCreateController := clusteroperations.NewOperationClusterCreateController(
@@ -545,14 +632,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		http.DefaultClient,
 		activeOperationInformer,
 	)
-	operationRequestCredentialController := credentialsoperations.NewOperationRequestCredentialController(
-		b.clock,
-		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
-		http.DefaultClient,
-		activeOperationInformer,
-	)
-	operationRevokeCredentialsController := credentialsoperations.NewOperationRevokeCredentialsController(
+	operationRequestCredentialController := legacycredentialrequest.NewOperationRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -560,7 +640,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationInformer,
 	)
 
-	clusterServiceMatchingClusterController := mismatch.NewClusterServiceClusterMatchingController(b.options.ResourcesDBClient, subscriptionLister, b.options.ClustersServiceClient)
+	clusterServiceMatchingClusterController := mismatch.NewClusterServiceClusterMatchingController(b.clock, b.options.ResourcesDBClient, subscriptionLister, b.options.ClustersServiceClient)
 	alwaysSuccessClusterValidationController := clustervalidation.NewClusterValidationController(
 		validationutils.NewAlwaysSuccessValidation(),
 		b.options.ResourcesDBClient,
@@ -586,14 +666,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	controlPlaneDesiredVersionController := clusterversion.NewControlPlaneDesiredVersionController(
 		b.clock,
 		b.options.ResourcesDBClient,
+		clusterLister,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		serviceProviderClusterLister,
+		nodePoolLister,
 		serviceProviderNodePoolLister,
 		backendInformers,
-		unionKubeApplierInformers,
-		unionReadDesireLister,
-		subscriptionLister,
 	)
 	triggerControlPlaneUpgradeController := clusterversion.NewTriggerControlPlaneUpgradeController(
 		b.clock,
@@ -616,9 +695,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
-	identityMigrationController := clusterproperties.NewIdentityMigrationController(
+	clusterIdentitySyncController := clusteridentity.NewClusterIdentitySyncController(
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
@@ -633,6 +711,15 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
+	)
+
+	backupScheduleController := clusterbackups.NewBackupScheduleController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+		b.options.MaestroSourceEnvironmentIdentifier,
+		b.options.BackupConfig,
 	)
 
 	// Each aggregator hardcodes its own inertia inside the statusutils
@@ -881,6 +968,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	clusterCredentialDeletionMarkerController := clusterdeletion.NewClusterCredentialDeletionMarkerController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+
 	clusterChildResourcesCleanupController := clusterdeletion.NewClusterChildResourcesCleanupController(
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
@@ -912,6 +1005,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	fetchMSIIdentitiesInfoController := clusteridentity.NewFetchMSIIdentitiesInfoController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.FPAMIDataplaneClientBuilder,
+	)
+
+	fetchDataPlaneOperatorsManagedIdentitiesInfoController := clusteridentity.NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.SMIClientBuilder,
+	)
+
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
@@ -936,7 +1043,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go managementClusterDumpController.Run(ctx, 20)
 				go doNothingController.Run(ctx, 20)
 				go dispatchRequestCredentialController.Run(ctx, 20)
-				go dispatchRevokeCredentialsController.Run(ctx, 20)
+				go adminCredentialsDispatchRequestCredentialController.Run(ctx, 20)
+				go adminCredentialsDispatchRevokeCredentialsController.Run(ctx, 20)
+				go adminCredentialsOperationRequestCredentialPollController.Run(ctx, 20)
+				go adminCredentialsOperationRevokeCredentialsPollController.Run(ctx, 20)
+				go adminCredentialsIssuanceObserverController.Run(ctx, 20)
+				go adminCredentialsDesiresCreatorController.Run(ctx, 20)
+				go adminCredentialsPostIssuanceCleanupController.Run(ctx, 20)
+				go adminCredentialsRevokedGCController.Run(ctx, 20)
+				go adminCredentialsClusterDeletionCleanupController.Run(ctx, 20)
+				go systemAdminCredentialRevocationMarkRequestsController.Run(ctx, 20)
+				go systemAdminCredentialRevocationDesiresController.Run(ctx, 20)
+				go systemAdminCredentialRevocationCompletionController.Run(ctx, 20)
+				go systemAdminCredentialRevocationDeletionController.Run(ctx, 20)
 				go clusterPendingClusterServiceIDAssignController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
 				go nodePoolClusterServiceCreateController.Run(ctx, 20)
@@ -951,7 +1070,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go operationExternalAuthUpdateController.Run(ctx, 20)
 				go operationExternalAuthDeleteController.Run(ctx, 20)
 				go operationRequestCredentialController.Run(ctx, 20)
-				go operationRevokeCredentialsController.Run(ctx, 20)
 				go clusterServiceMatchingClusterController.Run(ctx, 20)
 				go alwaysSuccessClusterValidationController.Run(ctx, 20)
 				go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
@@ -964,7 +1082,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
-				go identityMigrationController.Run(ctx, 20)
+				go clusterIdentitySyncController.Run(ctx, 20)
 				go clusterDegradedAggregatorController.Run(ctx, 20)
 				go clusterRequirementsValidAggregatorController.Run(ctx, 20)
 				go nodePoolDegradedAggregatorController.Run(ctx, 20)
@@ -996,12 +1114,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthDeletionController.Run(ctx, 20)
 				go clusterDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
 				go clusterClusterServiceIDClearerController.Run(ctx, 20)
+				go clusterCredentialDeletionMarkerController.Run(ctx, 20)
 				go clusterChildResourcesCleanupController.Run(ctx, 20)
 				go clusterDeletionController.Run(ctx, 20)
 				go clusterClusterServiceUpdateDispatchController.Run(ctx, 20)
 				go nodePoolClusterServiceUpdateDispatchController.Run(ctx, 20)
 				go externalAuthClusterServiceUpdateDispatchController.Run(ctx, 20)
-				go operationPhaseMetricsController.Run(ctx, 1)
+				go operationPhaseMetricsController.Run(ctx, 1) // threadiness=1 required; see operation_phase_metrics_controller.operationPhaseMetricsHandler field comments
 				go clusterMetricsController.Run(ctx, 1)
 				go clusterVersionMetricsController.Run(ctx, 1)
 				go nodePoolMetricsController.Run(ctx, 1)
@@ -1010,6 +1129,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go placementSyncController.Run(ctx, 20)
 				go cosmosMigrationController.Run(ctx, 5)
 				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
+				go backupScheduleController.Run(ctx, 20)
+				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
+				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

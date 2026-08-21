@@ -93,3 +93,24 @@ rules:
   - watch
   - create
   - patch
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - capacityreports
+  verbs:
+  - get
+  - create
+  - patch
+- apiGroups:
+  - mgmtagent.aro-hcp.azure.com
+  resources:
+  - capacityreports/status
+  verbs:
+  - get
+  - patch
+- apiGroups:
+  - metrics.k8s.io
+  resources:
+  - pods
+  verbs:
+  - list

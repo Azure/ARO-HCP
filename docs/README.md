@@ -173,6 +173,8 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 
 - [Renew the Prow Token](sops/renew-prow-token.md)
   - How to renew the `prow-token` used by EV2 to trigger Prow E2E gating jobs
+- [Manually Trigger an E2E Gate Run](sops/manual-e2e-gate-run.md)
+  - Reproducing a failed EV2 `regionalGating` run in INT/STG, which have no rollout retry
 - [Dump Custom Resources](sops/dump-crs.md)
   - How to use `hcpctl mc dump-crs` to dump CRs for a HostedCluster
 - [Gather Logs](sops/gather-logs.md)

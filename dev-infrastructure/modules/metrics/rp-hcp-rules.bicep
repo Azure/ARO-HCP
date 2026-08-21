@@ -1,3 +1,5 @@
+// Alerts for HCP KubeAPIServer availability, routed to the RP ICM queue.
+
 @description('The Azure resource ID of the Azure Monitor Workspace (stores Prometheus metrics for hosted control planes)')
 param azureMonitoringWorkspaceId string
 

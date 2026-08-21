@@ -293,7 +293,6 @@ func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, ope
 // minVersionsWithValidSuccessCondition maps from <major>.<micro> to the first z-stream version that includes the fix for
 // control plane validation success.
 var minVersionsWithValidSuccessCondition = map[string]semver.Version{
-	"4.19": metadataapi.Must(semver.Parse("4.19.999")),
 	"4.20": metadataapi.Must(semver.Parse("4.20.15")),
 	"4.21": metadataapi.Must(semver.Parse("4.21.1")),
 	"4.22": metadataapi.Must(semver.Parse("4.22.0")),

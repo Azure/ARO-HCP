@@ -350,17 +350,10 @@ resourceGroups:
       step: infra
   # create global ARO HCP ACRs for OCP and SVC images
   - name: acrs
-    action: ARMStack
+    action: ARM
     template: templates/global-acr.bicep
     parameters: configurations/global-acr-stg.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-    actionOnUnmanage: delete
-    bypassStackOutOfSyncError: false
-    automatedRetry:
-      errorContainsAny:
-      - "DeploymentStackInNonTerminalState"
-      maximumRetryCount: 3
-      durationBetweenRetries: 2m
     dependsOn:
     - resourceGroup: singleton
       step: infra
@@ -412,17 +405,10 @@ resourceGroups:
       durationBetweenRetries: 1m
   # deploys the image mirror for the ACRs
   - name: imagemirror
-    action: ARMStack
+    action: ARM
     template: templates/global-image-sync.bicep
     parameters: configurations/global-image-sync-stg.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-    actionOnUnmanage: delete
-    bypassStackOutOfSyncError: false
-    automatedRetry:
-      errorContainsAny:
-      - "DeploymentStackInNonTerminalState"
-      maximumRetryCount: 3
-      durationBetweenRetries: 2m
     dependsOn:
     - resourceGroup: singleton
       step: mirror-oc-mirror-image

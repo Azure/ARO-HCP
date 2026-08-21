@@ -32,9 +32,10 @@ import (
 const desireCollectInterval = 30 * time.Second
 
 type desireCollector struct {
-	applyStore cache.Store
-	readStore  cache.Store
-	total      *prometheus.GaugeVec
+	applyStore       cache.Store
+	readStore        cache.Store
+	total            *prometheus.GaugeVec
+	operationMetrics *desireOperationMetrics
 }
 
 func newDesireCollector(
@@ -51,6 +52,7 @@ func newDesireCollector(
 			},
 			[]string{"type", "condition"},
 		),
+		operationMetrics: newDesireOperationMetrics(registerer),
 	}
 }
 
@@ -67,11 +69,15 @@ func (c *desireCollector) collect() {
 	for _, obj := range c.applyStore.List() {
 		if d, ok := obj.(*kubeapplierapi.ApplyDesire); ok {
 			countTrueConditions(counts["apply"], d.Status.Conditions)
+			// Record operation-level metrics for ApplyDesires
+			c.operationMetrics.recordApplyDesireOperation(d)
 		}
 	}
 	for _, obj := range c.readStore.List() {
 		if d, ok := obj.(*kubeapplierapi.ReadDesire); ok {
 			countTrueConditions(counts["read"], d.Status.Conditions)
+			// Record operation-level metrics for ReadDesires
+			c.operationMetrics.recordReadDesireOperation(d)
 		}
 	}
 
@@ -85,14 +91,28 @@ func (c *desireCollector) collect() {
 	}
 }
 
-// initCounts pre-seeds all label combinations to 0 so gauges go to zero when desires disappear.
+// initCounts pre-seeds all label combinations to 0 so gauges go to zero when
+// desires disappear. Condition types are per desire type: ApplyDesires report the
+// operation-specific SuccessfullyApplied / SuccessfullyDeleted conditions (plus
+// the legacy Successful) while ReadDesires only report Successful.
 func initCounts() map[string]map[string]float64 {
-	condTypes := []string{kubeapplierapi.ConditionTypeSuccessful, kubeapplierapi.ConditionTypeDegraded}
+	condTypesByDesireType := map[string][]string{
+		"apply": {
+			kubeapplierapi.ConditionTypeSuccessful,
+			kubeapplierapi.ConditionTypeSuccessfullyApplied,
+			kubeapplierapi.ConditionTypeSuccessfullyDeleted,
+			kubeapplierapi.ConditionTypeDegraded,
+		},
+		"read": {
+			kubeapplierapi.ConditionTypeSuccessful,
+			kubeapplierapi.ConditionTypeDegraded,
+		},
+	}
 	counts := map[string]map[string]float64{}
-	for _, t := range []string{"apply", "read"} {
-		counts[t] = map[string]float64{}
+	for desireType, condTypes := range condTypesByDesireType {
+		counts[desireType] = map[string]float64{}
 		for _, cond := range condTypes {
-			counts[t][cond] = 0
+			counts[desireType][cond] = 0
 		}
 	}
 	return counts

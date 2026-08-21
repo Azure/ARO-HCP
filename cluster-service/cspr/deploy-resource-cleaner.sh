@@ -18,6 +18,7 @@ set -euo pipefail
 #   --acr-name <name>          Azure Container Registry name (required)
 #   --maestro-url <url>        Maestro API URL (default: http://maestro.maestro.svc.cluster.local:8000)
 #   --retention-hours <hours>  Retention period in hours (default: 3)
+#   --istio-tag <tag>          Istio revision tag to label the namespace with (default: prod-stable)
 #   --help                     Show this help message
 ###############################################################################
 
@@ -33,6 +34,7 @@ MAESTRO_URL="http://maestro.maestro.svc.cluster.local:8000"
 RETENTION_HOURS="3"
 NAMESPACE="resource-cleaner"
 MI_NAME="cspr-cleaner-mi"
+ISTIO_REVISION_TAG="prod-stable"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -59,6 +61,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --retention-hours)
             RETENTION_HOURS="$2"
+            shift 2
+            ;;
+        --istio-tag)
+            ISTIO_REVISION_TAG="$2"
             shift 2
             ;;
         --help)
@@ -261,6 +267,7 @@ echo "  MI Key Vault: ${MI_KEYVAULT}"
 echo "  ACR Name: ${ACR_NAME}"
 echo "  Maestro URL: ${MAESTRO_URL}"
 echo "  Retention Hours: ${RETENTION_HOURS}"
+echo "  Istio Revision Tag: ${ISTIO_REVISION_TAG}"
 echo "  Namespace: ${NAMESPACE}"
 echo ""
 
@@ -273,19 +280,12 @@ kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply
 # Step 1.5: Label namespace for Istio injection
 echo "Step 1.5: Labeling namespace for Istio sidecar injection..."
 
-# Get Istio version from aks-istio-system
-ISTIO_VERSION=$(kubectl get deploy -n aks-istio-system -o name 2>/dev/null | \
-    grep -oE 'istiod-(asm-[0-9]+-[0-9]+)' | \
-    sed 's/istiod-//' | \
-    head -n1)
-
-if [[ -z "${ISTIO_VERSION}" ]]; then
-    echo "  ⚠️  WARNING: Could not find Istio version in aks-istio-system namespace"
-    echo "  Skipping Istio namespace labeling. Pods will not have Istio sidecars."
+if kubectl get deploy -n aks-istio-system -o name 2>/dev/null | grep -q '^deployment.apps/istiod'; then
+    kubectl label namespace "${NAMESPACE}" "istio.io/rev=${ISTIO_REVISION_TAG}" --overwrite
+    echo "  ✓ Namespace labeled with istio.io/rev=${ISTIO_REVISION_TAG}"
 else
-    echo "  Found Istio version: ${ISTIO_VERSION}"
-    kubectl label namespace "${NAMESPACE}" "istio.io/rev=${ISTIO_VERSION}" --overwrite
-    echo "  ✓ Namespace labeled with istio.io/rev=${ISTIO_VERSION}"
+    echo "  ⚠️  WARNING: Istio deployment not found in aks-istio-system namespace"
+    echo "  Skipping Istio namespace labeling. Pods will not have Istio sidecars."
 fi
 
 # Delete existing ConfigMap if it exists

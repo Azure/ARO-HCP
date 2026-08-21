@@ -20,7 +20,6 @@ package version
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -28,14 +27,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -43,8 +39,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
-	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
-	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 )
 
 const (
@@ -52,7 +46,6 @@ const (
 	testResourceGroupName = "test-rg"
 	testClusterName       = "test-cluster"
 	testCSClusterIDStr    = "/api/aro_hcp/v1alpha1/clusters/" + testClusterName
-	testClusterExternalID = "11111111-1111-1111-1111-111111111111"
 )
 
 // createTestSubscription creates a subscription in the mock database.
@@ -82,38 +75,6 @@ func hostedClusterReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 	return metadataapi.Must(azcorearm.ParseResourceID(
 		kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)))
-}
-
-// newHostedClusterReadDesire builds a ReadDesire whose Status.KubeContent.Raw is
-// the serialized HostedCluster carrying the given Spec.ClusterID.
-func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplierapi.ReadDesire {
-	t.Helper()
-	hostedCluster := &v1beta1.HostedCluster{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "HostedCluster",
-			APIVersion: v1beta1.GroupVersion.String(),
-		},
-		Spec: v1beta1.HostedClusterSpec{
-			ClusterID: clusterID,
-		},
-	}
-	raw, err := json.Marshal(hostedCluster)
-	require.NoError(t, err)
-	return &kubeapplierapi.ReadDesire{
-		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: hostedClusterReadDesireResourceID(t)},
-		Status: kubeapplierapi.ReadDesireStatus{
-			KubeContent: &kruntime.RawExtension{Raw: raw},
-		},
-	}
-}
-
-// newValidHostedClusterReadDesireLister returns a lister with a HostedCluster
-// ReadDesire carrying the canonical test UUID.
-func newValidHostedClusterReadDesireLister(t *testing.T) kubeapplierlisters.ReadDesireLister {
-	t.Helper()
-	return &kubeapplierlistertesting.SliceReadDesireLister{
-		Desires: []*kubeapplierapi.ReadDesire{newHostedClusterReadDesire(t, testClusterExternalID)},
-	}
 }
 
 // assertSyncResult asserts on the error returned by a SyncOnce call.

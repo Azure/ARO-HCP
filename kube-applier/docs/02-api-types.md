@@ -103,8 +103,17 @@ Add a small `conditions.go` next to the types:
 
 ```go
 const (
+    // ApplyDesire operation-specific success conditions.
+    ConditionSuccessfullyApplied = "SuccessfullyApplied" // Type=ServerSideApply
+    ConditionSuccessfullyDeleted = "SuccessfullyDeleted" // Type=Delete
+
+    // Successful is retained for backwards compatibility. For an ApplyDesire it
+    // mirrors whichever operation-specific condition applies; it is the primary
+    // condition for a ReadDesire. Readers prefer the operation-specific condition
+    // and fall back to Successful (see IsConditionTruePreferring).
     ConditionSuccessful = "Successful"
-    ConditionDegraded   = "Degraded"
+
+    ConditionDegraded = "Degraded"
 )
 
 const (
@@ -182,15 +191,20 @@ These produce resource IDs of the form:
   applyDesires/{name}
 ```
 
-**Cosmos CRUD** (in `internal/database/kube_applier_client.go`): the
-`KubeApplierDBClient` interface exposes per-parent CRUD accessors alongside the
-existing cluster/node-pool ones:
+**Cosmos CRUD** (in `internal/database/kubeappliercosmosstorage/kube_applier_client.go`):
+`KubeApplierDBClient` exposes both per-level convenience accessors and
+parent-agnostic accessors:
 
 ```go
-ApplyDesiresForCredentialRequest(sub, rg, cluster, credReq string) (ResourceCRUD[...], error)
-ReadDesiresForCredentialRequest(sub, rg, cluster, credReq string) (ResourceCRUD[...], error)
-ApplyDesiresForRevocation(sub, rg, cluster, revocation string) (ResourceCRUD[...], error)
-ReadDesiresForRevocation(sub, rg, cluster, revocation string) (ResourceCRUD[...], error)
+// Per-level (used by backend controllers that know the parent type):
+ApplyDesiresForSystemAdminCredentialRequest(sub, rg, cluster, credReq string) (ResourceCRUD[...], error)
+ReadDesiresForSystemAdminCredentialRequest(sub, rg, cluster, credReq string) (ResourceCRUD[...], error)
+ApplyDesiresForSystemAdminCredentialRevocation(sub, rg, cluster, revocation string) (ResourceCRUD[...], error)
+ReadDesiresForSystemAdminCredentialRevocation(sub, rg, cluster, revocation string) (ResourceCRUD[...], error)
+
+// Parent-agnostic (used by kube-applier controllers that key off a resource ID):
+ApplyDesiresFor(parent DesireScope) (ResourceCRUD[...], error)
+ReadDesiresFor(parent DesireScope) (ResourceCRUD[...], error)
 ```
 
 The per-management-cluster listers and change-feed informers list all four

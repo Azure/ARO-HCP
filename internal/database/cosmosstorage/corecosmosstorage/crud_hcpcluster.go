@@ -37,8 +37,9 @@ type OperationCRUD interface {
 	cosmosstorageutils.ResourceCRUD[coreapi.Operation, *coreapi.Operation]
 
 	// ListActiveOperations returns an iterator that searches for asynchronous operation documents
-	// with a non-terminal status in the "Resources" container under the given partition key. The
-	// options argument can further limit the search to documents that match the provided values.
+	// in the "Resources" container under the given partition key. By default only non-terminal
+	// operations are returned; set IncludeTerminal to include Succeeded/Failed/Canceled.
+	// The options argument can further limit the search to documents that match the provided values.
 	//
 	// Note that ListActiveOperations does not perform the search, but merely prepares an iterator
 	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
@@ -70,12 +71,16 @@ func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiv
 	query := fmt.Sprintf(
 		"SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, %q, true) "+
 			"AND LENGTH(c.resourceID) > 0 "+
-			"AND (NOT IS_DEFINED(c.deletionTimestamp)) "+
-			"AND NOT ARRAYCONTAINS([%q, %q, %q], c.properties.status)",
-		coreapi.OperationStatusResourceType.String(),
-		coreapi.ProvisioningStateSucceeded,
-		coreapi.ProvisioningStateFailed,
-		coreapi.ProvisioningStateCanceled)
+			"AND (NOT IS_DEFINED(c.deletionTimestamp))",
+		coreapi.OperationStatusResourceType.String())
+
+	if options == nil || !options.IncludeTerminal {
+		query += fmt.Sprintf(
+			" AND NOT ARRAYCONTAINS([%q, %q, %q], c.properties.status)",
+			coreapi.ProvisioningStateSucceeded,
+			coreapi.ProvisioningStateFailed,
+			coreapi.ProvisioningStateCanceled)
+	}
 
 	if options != nil {
 		if options.Request != nil {

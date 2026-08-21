@@ -334,6 +334,28 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "private KAS with Swift networking - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				// VnetIntegrationSubnetID is already set by createValidCluster
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "private KAS without Swift networking (nil vnetIntegrationSubnetId) - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.Visibility = metadataapi.VisibilityPrivate
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "required when customerProperties.api.visibility is Private", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+			},
+		},
+		{
 			name: "missing subnet ID - create",
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -1252,14 +1274,16 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "valid 4.19 version with experimental flag - create",
+			name: "invalid 4.19 version with experimental flag - create",
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
+			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be at least 4.20", FieldPath: "customerProperties.version.id"},
+			},
 		},
 		{
 			name: "invalid 4.19 version without experimental flag - create",
@@ -2344,7 +2368,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name: "update: version can stay the same 4.19 version with experimental flag",
+			name: "update: version 4.19 rejected even with experimental flag",
 			newCluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.19"
@@ -2355,8 +2379,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			opOptions:    testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
-			expectErrors: []utils.ExpectedError{},
+			opOptions: testFeatureOptions(metadataapi.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be at least 4.20", FieldPath: "customerProperties.version.id"},
+			},
 		},
 		{
 			name: "update: version may not skip minor within same major (4.20 to 4.22)",

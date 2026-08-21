@@ -420,6 +420,32 @@ tenants:
 			},
 		},
 		{
+			name: "ignores legacy role assignment limit",
+			setup: func(t *testing.T) string {
+				t.Helper()
+				return writeYAML(t, `
+tenants:
+  - tenantId: "tid-1"
+    servicePrincipalClientId: "sp-id"
+    keyVaultSecretName: "kv-secret"
+    subscriptions:
+      - name: "prod"
+        roleAssignmentLimit: 8000
+        regions:
+          - eastus
+`)
+			},
+			assertions: func(t *testing.T, cfg *Config, err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if len(cfg.Tenants[0].Subscriptions) != 1 {
+					t.Fatalf("subscriptions: got %d, want 1", len(cfg.Tenants[0].Subscriptions))
+				}
+			},
+		},
+		{
 			name: "invalid yaml",
 			setup: func(t *testing.T) string {
 				t.Helper()
@@ -582,40 +608,6 @@ func TestTenantConfigIsDirectoryQuotaEnabled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := tc.tenant.IsDirectoryQuotaEnabled(); got != tc.want {
 				t.Fatalf("IsDirectoryQuotaEnabled() = %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestSubscriptionConfigGetRoleAssignmentLimit(t *testing.T) {
-	type testCase struct {
-		name         string
-		subscription SubscriptionConfig
-		want         int
-	}
-
-	testCases := []testCase{
-		{
-			name:         "custom limit",
-			subscription: SubscriptionConfig{RoleAssignmentLimit: 1000},
-			want:         1000,
-		},
-		{
-			name:         "zero falls back to default",
-			subscription: SubscriptionConfig{},
-			want:         DefaultRoleAssignmentLimit,
-		},
-		{
-			name:         "negative falls back to default",
-			subscription: SubscriptionConfig{RoleAssignmentLimit: -1},
-			want:         DefaultRoleAssignmentLimit,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.subscription.GetRoleAssignmentLimit(); got != tc.want {
-				t.Fatalf("GetRoleAssignmentLimit() = %d, want %d", got, tc.want)
 			}
 		})
 	}

@@ -33,6 +33,7 @@ type ReadDesireLister interface {
 	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplierapi.ReadDesire, error)
 	GetForSystemAdminCredentialRequest(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string) (*kubeapplierapi.ReadDesire, error)
 	GetForSystemAdminCredentialRevocation(ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string) (*kubeapplierapi.ReadDesire, error)
+	GetForManagementCluster(ctx context.Context, stampIdentifier, name string) (*kubeapplierapi.ReadDesire, error)
 	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*kubeapplierapi.ReadDesire, error)
 	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplierapi.ReadDesire, error)
 	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*kubeapplierapi.ReadDesire, error)
@@ -82,6 +83,13 @@ func (l *readDesireLister) GetForSystemAdminCredentialRevocation(
 	key := kubeapplierapi.ToSystemAdminCredentialRevocationScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
+	return listerutils.GetByKey[kubeapplierapi.ReadDesire](l.indexer, key)
+}
+
+func (l *readDesireLister) GetForManagementCluster(
+	ctx context.Context, stampIdentifier, name string,
+) (*kubeapplierapi.ReadDesire, error) {
+	key := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(stampIdentifier, name)
 	return listerutils.GetByKey[kubeapplierapi.ReadDesire](l.indexer, key)
 }
 

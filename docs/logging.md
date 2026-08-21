@@ -44,11 +44,12 @@ Table schemas are defined in KQL files under [`dev-infrastructure/modules/logs/k
 ### ServiceLogs Database
 
 1. **`frontendLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/frontendLogs.kql)): Frontend service logs with HTTP request/response details and tracking IDs
-2. **`backendLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/backendLogs.kql)): Backend service logs with operation tracking and error codes
-3. **`clustersServiceLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/clustersServiceLogs.kql)): Clusters-service logs with cluster resource IDs
-4. **`fleetLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/fleetLogs.kql)): Fleet controller logs with controller name, resource identifiers, and resource type
-5. **`containerLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/containerLogs.kql)): General container logs from non-OCM namespaces
-6. **`kubernetesEvents`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/kubernetesEvents.kql)): Kubernetes events from all clusters
+2. **`backendLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/backendLogs.kql)): Backend service logs with operation tracking, controller name, and error codes
+3. **`kubeApplierLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/kubeApplierLogs.kql)): kube-applier logs, schema-compatible with `backendLogs` (same columns, incl. controller name) so queries port between them
+4. **`clustersServiceLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/clustersServiceLogs.kql)): Clusters-service logs with cluster resource IDs
+5. **`fleetLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/fleetLogs.kql)): Fleet controller logs with controller name, resource identifiers, and resource type
+6. **`containerLogs`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/containerLogs.kql)): General container logs from non-OCM namespaces
+7. **`kubernetesEvents`** ([schema](../../dev-infrastructure/modules/logs/kusto/tables/kubernetesEvents.kql)): Kubernetes events from all clusters
 
 ### HostedControlPlaneLogs Database
 
@@ -79,6 +80,7 @@ Fluent Bit authenticates using **Azure Workload Identity** (MSI client ID, token
 | Backend | Non-OCM | `aro-hcp-backend*` | ServiceLogs | `backendLogs` |
 | Clusters Service | Non-OCM | `clusters-service*` | ServiceLogs | `clustersServiceLogs` |
 | Fleet | Non-OCM | `fleet-controller*` | ServiceLogs | `fleetLogs` |
+| kube-applier | Non-OCM | `kube-applier*` | ServiceLogs | `kubeApplierLogs` |
 | Kubernetes Events | Any | `kube-events*` | ServiceLogs | `kubernetesEvents` |
 | General Containers | Non-OCM | Other | ServiceLogs | `containerLogs` |
 | HCP Containers | `ocm-*` | Any | HostedControlPlaneLogs | `containerLogs` |

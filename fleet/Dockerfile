@@ -2,10 +2,13 @@ ARG PLATFORM
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25.10-1-azurelinux3.0-amd64 AS builder
 COPY internal/go.mod internal/go.sum internal/
+COPY mgmt-agent/go.mod mgmt-agent/go.sum mgmt-agent/
 COPY fleet/go.mod fleet/go.sum fleet/
 RUN cd fleet && go mod download
 WORKDIR /app
-COPY . .
+COPY internal/ internal/
+COPY --exclude=mgmt-agent/bin mgmt-agent/ mgmt-agent/
+COPY --exclude=fleet/fleet fleet/ fleet/
 ARG ARO_HCP_REVISION
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject

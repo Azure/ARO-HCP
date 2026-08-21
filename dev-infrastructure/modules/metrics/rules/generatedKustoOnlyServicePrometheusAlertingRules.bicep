@@ -1727,7 +1727,7 @@ resource svcFrontendPathLatency 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
           title: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
         }
-        expression: 'histogram_quantile(0.99, sum by (le, route, method, cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])))) > 1'
+        expression: 'histogram_quantile(0.99, sum by (le, route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m]))) > 1'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

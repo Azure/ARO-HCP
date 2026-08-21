@@ -4,6 +4,9 @@ This document is the operator and maintainer view of ARO HCP CI. Use it when you
 
 For DEV CI PagerDuty and Slack alerts, start with [DEV CI Monitoring and Alert Response](dev-ci-monitoring.md). For the execution model and cross-tenant request flow, start with [CI Execution](execution.md). For contributor-facing E2E usage including how to trigger jobs, see [E2E Testing In CI](e2e-testing.md).
 
+For a DEV regional provision-health incident, use
+[DEV CI Regional Failover And Failback](dev-region-failover.md).
+
 ## Inspecting Runs
 
 The normal observation path is:
@@ -82,4 +85,5 @@ For the full list of ci-operator config files and step-registry components, see 
 - [CI Identity Leasing](identity-leasing.md)
 - [CI EV2 Integration](ev2-integration.md)
 - [CI Cleanup](cleanup.md)
+- [DEV CI Regional Failover And Failback](dev-region-failover.md)
 - [E2E Testing In CI](e2e-testing.md)

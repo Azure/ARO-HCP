@@ -18,14 +18,14 @@ spec:
     # severity: warning → Sev3 so gather-observability (--severity-threshold Sev3) fails CI.
     # Short rate window so the alert can fire within a typical e2e run (ARO-28090).
     # Keep cluster in the aggregation so firings stay per-cluster (correlationId uses $labels.cluster).
-    # Dedup HA Prometheus replicas before summing (same pattern as the control-plane latency dashboard).
+    # HA Prometheus replicas are handled by sum (not max): histogram_quantile works on
+    # ratios between buckets, so doubled counts from two replicas cancel out. Using max
+    # per-bucket broke cumulative monotonicity and caused false positives (AROSLSRE-1746).
     - alert: FrontendPathLatency
       expr: |
         histogram_quantile(0.99,
           sum by (le, route, method, cluster) (
-            max without(prometheus_replica) (
-              rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])
-            )
+            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])
           )
         ) > 1
       for: 1m
