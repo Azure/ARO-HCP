@@ -172,16 +172,20 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for fully private cluster with KV %q", customerClusterName)
 
-			// Generate kubeconfig before any Host override — private DNS inside the VNet
-			// resolves the public hostname to the internal LB IP, so TLS validation succeeds.
-			kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig from admin REST config")
-			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
-
 			By("verifying KAS is reachable from VM inside the VNet")
 			internalIP, err := framework.GetPrivateKASInternalIP(ctx, tc, clusterParams.ManagedResourceGroupName)
 			Expect(err).NotTo(HaveOccurred(), "failed to find private KAS internal LB IP in managed resource group %q", clusterParams.ManagedResourceGroupName)
 			GinkgoLogr.Info("Found private KAS internal LB", "ip", internalIP)
+
+			// Connect to the internal LB IP, but keep TLS cert validation against the public
+			// hostname via ServerName — the KAS cert is issued for the hostname, not the IP.
+			kasHostname := strings.SplitN(strings.TrimPrefix(adminRESTConfig.Host, "https://"), ":", 2)[0]
+			adminRESTConfig.ServerName = kasHostname
+			adminRESTConfig.Host = fmt.Sprintf("https://%s:443", internalIP)
+
+			kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig from admin REST config")
+			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
 
 			versionCmd := fmt.Sprintf(
 				"KUBECONFIG=$(mktemp) && "+
