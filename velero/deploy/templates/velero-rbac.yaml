@@ -17,6 +17,11 @@ rules:
   - serviceaccounts
   - namespaces
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+# pods/exec is used for velero backup pre/post hooks
+- apiGroups: [""]
+  resources:
+  - pods/exec
+  verbs: ["create"]
 - apiGroups: ["apps"]
   resources:
   - deployments
