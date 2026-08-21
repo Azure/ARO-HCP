@@ -567,6 +567,7 @@ func GPUNodePoolVMSizeSelector() VMSizeSelector {
 			"Standard_NC8as_T4_v3",
 			"Standard_NC16as_T4_v3",
 			"Standard_NC64as_T4_v3",
+			"Standard_NC6s_v3",
 		},
 		NamePattern: regexp.MustCompile(`^Standard_N`),
 		RequireGPU:  true,
