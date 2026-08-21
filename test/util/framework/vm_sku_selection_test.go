@@ -346,14 +346,28 @@ func TestSelectVMSize(t *testing.T) {
 			wantErr: ErrNoUsableVMSize,
 		},
 		{
-			name: "RP allowlist filters non-allowlisted GPU SKUs on fallback",
+			name: "GPU selector has no fallback: non-preferred GPU SKUs are not selected",
 			skus: []*armcompute.ResourceSKU{
 				makeSKU("Standard_NC4as_T4_v3", testLocation, withCapability(capabilityGPUs, "1"), withLocationRestriction(testLocation)),
 				makeSKU("Standard_NC16ads_A10_v4", testLocation, withCapability(capabilityGPUs, "1")),
 				makeSKU("Standard_NC24ads_A100_v4", testLocation, withCapability(capabilityGPUs, "1")),
 			},
 			selector: GPUNodePoolVMSizeSelector(),
-			want:     "Standard_NC24ads_A100_v4",
+			wantErr:  ErrNoUsableVMSize,
+		},
+		{
+			name: "nil NamePattern disables fallback (preferred-only)",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", testLocation, withCapability(capabilityVCPUs, "8"), withLocationRestriction(testLocation)),
+				makeSKU("Standard_D8s_v4", testLocation, withCapability(capabilityVCPUs, "8")),
+			},
+			selector: VMSizeSelector{
+				Name:      "no-fallback",
+				Preferred: []string{"Standard_D8s_v3"},
+				MinVCPUs:  8,
+				// NamePattern intentionally nil: no fallback even though Standard_D8s_v4 is usable.
+			},
+			wantErr: ErrNoUsableVMSize,
 		},
 		{
 			name: "IgnoreRPAllowlist lets non-allowlisted preferred through",
