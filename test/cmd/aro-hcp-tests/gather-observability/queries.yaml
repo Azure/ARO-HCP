@@ -189,31 +189,38 @@ panels:
     step: "60s"
 - title: "CosmosDB Metrics"
   queries:
-  - title: "RP CosmosDB RU Utilization vs Autoscale Ceiling"
-    description: "Max Normalized RU Consumption (%) and Autoscaled RU as a percentage of each container's configured autoscale ceiling, both split per container (CollectionName) for the RP Cosmos DB account. Normalized RU Consumption is the per-minute peak utilization of provisioned throughput per container (the same signal as the 'Normalized RU Consumption High' alert, which fires per CollectionName); Autoscaled RU is the throughput the autoscale controller provisioned in response to that load, here divided by that container's configured maxThroughput (from the rendered config) so it shares the same 0-100% axis. Splitting by container shows which container (Resources, Manifests-MC-*, Billing, Fleet, Locks) is driving utilization and how close each is to its autoscale ceiling. Both are Azure Monitor platform metrics (Microsoft.DocumentDB/databaseAccounts) aggregated by Max, not Prometheus."
+  # One panel (one iframe) with three per-container charts. Each is a single
+  # Azure Monitor platform metric (Microsoft.DocumentDB/databaseAccounts) split
+  # by CollectionName, so every legend entry is just the container name; the
+  # aggregation is stated here in the blurb rather than repeated per series.
+  - title: "RU Consumption vs Provisioned"
+    description: "Per-container peak utilization of currently-provisioned throughput (max NormalizedRUConsumption). Sustained values near 100% mean the container is saturating its provisioned RU/s and will start throttling (429). Same signal as the 'Normalized RU Consumption High' alert."
     source: azureMonitor
     resource: cosmosdb
     aggregation: Maximum
     metrics:
     - name: NormalizedRUConsumption
-      label: "Normalized RU Consumption (%)"
       splitBy: CollectionName
+    unit: "%"
+    step: "60s"
+  - title: "Autoscale Provisioned RU vs Ceiling"
+    description: "Per-container autoscale-provisioned throughput (max AutoscaledRU) as a percentage of that container's configured autoscale maximum (from the rendered config). At 100% the autoscaler is at its ceiling and further load turns into throttling. Normalized client-side; the copyable query returns the raw RU/s."
+    source: azureMonitor
+    resource: cosmosdb
+    aggregation: Maximum
+    metrics:
     - name: AutoscaledRU
-      label: "Autoscaled RU (% of ceiling)"
       splitBy: CollectionName
       normalizeByAutoscaleMax: true
     unit: "%"
     step: "60s"
-- title: "CosmosDB Throttled Requests"
-  queries:
-  - title: "Throttled Requests (429) by Container"
-    description: "Count of throttled requests (HTTP 429 - request rate too large) returned by the RP Cosmos DB account, split per container (CollectionName). Sustained 429s mean a container is exceeding its provisioned throughput (RU/s) and can surface as client-visible failures once SDK retries are exhausted — the same signal as the throttled-requests metric alert. Uses the TotalRequests platform metric filtered to StatusCode=429 with a Count aggregation (Count is the only aggregation TotalRequests supports). Any non-zero series indicates active throttling on that container."
+  - title: "Throttled Requests (429)"
+    description: "Per-container count of throttled requests (TotalRequests filtered to StatusCode=429). Any sustained non-zero series means the container is exceeding its provisioned RU/s and clients are being rate-limited once SDK retries are exhausted."
     source: azureMonitor
     resource: cosmosdb
     aggregation: Count
     metrics:
     - name: TotalRequests
-      label: "429s"
       splitBy: CollectionName
       filter:
         StatusCode: "429"

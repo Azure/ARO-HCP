@@ -831,12 +831,11 @@ func TestLoadQueriesConfigEmbedded(t *testing.T) {
 
 	// Assert the panels that are easy to clobber when editing adjacent blocks
 	// still carry their own queries (regression guard for a duplicate-key merge
-	// that attached Maestro's queries to the CosmosDB Throttled Requests panel
-	// and dropped the Maestro Metrics panel entirely).
+	// that attached Maestro's queries to the CosmosDB panel and dropped the
+	// Maestro Metrics panel entirely).
 	wantQuery := map[string]string{
-		"CosmosDB Metrics":            "RP CosmosDB RU Utilization vs Autoscale Ceiling",
-		"CosmosDB Throttled Requests": "Throttled Requests (429) by Container",
-		"Maestro Metrics":             "REST API Request Rate by Status",
+		"CosmosDB Metrics": "RU Consumption vs Provisioned",
+		"Maestro Metrics":  "REST API Request Rate by Status",
 	}
 	for panelTitle, queryTitle := range wantQuery {
 		p, ok := byTitle[panelTitle]
@@ -853,6 +852,25 @@ func TestLoadQueriesConfigEmbedded(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("panel %q missing expected query %q; has %d queries", panelTitle, queryTitle, len(p.Queries))
+		}
+	}
+
+	// All CosmosDB charts must live under a single panel so the Prow job
+	// renders one iframe. Guard against a regression that splits them back out
+	// into separate panels (extra iframes).
+	if _, ok := byTitle["CosmosDB Throttled Requests"]; ok {
+		t.Error("CosmosDB charts must be a single panel; found a separate \"CosmosDB Throttled Requests\" panel")
+	}
+	if p, ok := byTitle["CosmosDB Metrics"]; ok {
+		wantCharts := []string{"RU Consumption vs Provisioned", "Autoscale Provisioned RU vs Ceiling", "Throttled Requests (429)"}
+		have := map[string]bool{}
+		for _, q := range p.Queries {
+			have[q.Title] = true
+		}
+		for _, want := range wantCharts {
+			if !have[want] {
+				t.Errorf("CosmosDB Metrics panel missing chart %q; has %d charts", want, len(p.Queries))
+			}
 		}
 	}
 }
