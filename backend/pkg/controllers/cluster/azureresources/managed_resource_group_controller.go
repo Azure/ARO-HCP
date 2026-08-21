@@ -16,6 +16,7 @@ package azureresources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -171,7 +172,27 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 	getResponse, getErr := rgClient.Get(ctx, managedResourceGroupID.Name, nil)
 	resourceGroupMissing := azureclient.IsResourceGroupNotFoundErr(getErr)
 	if getErr != nil && !resourceGroupMissing {
-		return utils.TrackError(fmt.Errorf("failed to get managed resource group %q: %w", managedResourceGroupName, getErr))
+		getFailure := utils.TrackError(fmt.Errorf("failed to get managed resource group %q: %w", managedResourceGroupName, getErr))
+
+		// Fail-closed during deletion: a non-404 error means we could not determine
+		// whether the managed resource group still exists. If we have not recorded
+		// any reference yet, a nil/nil ManagedResourceGroup would let the
+		// ServiceProviderCluster deletion gate delete the document even though the
+		// MRG might still exist. Record it as pending first so the gate stays closed,
+		// then return the error so the syncer retries once Azure is reachable. In the
+		// non-deletion path, or when a reference already holds the gate closed, there
+		// is nothing to persist and we just return the error.
+		if isDeleting && existingReference.AzureResource == nil && existingReference.PendingAzureResource == nil {
+			replacement := existingServiceProviderCluster.DeepCopy()
+			replacement.Status.AzureResources.ManagedResourceGroup.PendingAzureResource = managedResourceGroupID
+			logger.Info("managed resource group query failed during deletion; recording pending marker to keep the deletion gate closed",
+				"managedResourceGroup", managedResourceGroupName)
+			if _, replaceErr := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); replaceErr != nil && !cosmosstorageutils.IsPreconditionFailedError(replaceErr) {
+				return errors.Join(getFailure, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", replaceErr)))
+			}
+		}
+
+		return getFailure
 	}
 
 	// The managed resource group is only "owned and present" when it exists AND is

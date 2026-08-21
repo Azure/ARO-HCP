@@ -16,6 +16,7 @@ package azureresources
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -181,6 +182,7 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 		getErr           error
 		expectAzure      *azcorearm.ResourceID
 		expectPending    *azcorearm.ResourceID
+		expectErr        bool
 	}{
 		{
 			name:             "not deleting and resource group missing sets pending",
@@ -276,6 +278,32 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			expectAzure:      nil,
 			expectPending:    nil,
 		},
+		{
+			// Fail-closed: during deletion a transient (non-404) Azure error with no
+			// reference yet must record the MRG as pending so the deletion gate stays
+			// closed, and still surface the error so the syncer retries.
+			name:             "deleting and transient Get error with empty reference sets pending and errors",
+			deleting:         true,
+			initialReference: coreapi.AzureReference{},
+			getResponse:      armresources.ResourceGroupsClientGetResponse{},
+			getErr:           errors.New("transient azure error"),
+			expectAzure:      nil,
+			expectPending:    mrgID,
+			expectErr:        true,
+		},
+		{
+			// Fail-closed: during deletion a transient (non-404) Azure error when the
+			// reference already holds the gate closed makes no extra write and still
+			// surfaces the error.
+			name:             "deleting and transient Get error with existing reference errors without change",
+			deleting:         true,
+			initialReference: coreapi.AzureReference{AzureResource: mrgID},
+			getResponse:      armresources.ResourceGroupsClientGetResponse{},
+			getErr:           errors.New("transient azure error"),
+			expectAzure:      mrgID,
+			expectPending:    nil,
+			expectErr:        true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -316,7 +344,12 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 				HCPClusterName:    testClusterName,
 			}
 
-			require.NoError(t, syncer.SyncOnce(ctx, key))
+			syncErr := syncer.SyncOnce(ctx, key)
+			if tc.expectErr {
+				require.Error(t, syncErr)
+			} else {
+				require.NoError(t, syncErr)
+			}
 
 			updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 			require.NoError(t, err)
