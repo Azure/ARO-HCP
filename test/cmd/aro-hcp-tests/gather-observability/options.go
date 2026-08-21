@@ -411,6 +411,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 			var results []PrometheusResult
 			var queryErr string
 			var warning string
+			var metricResourceID string
 
 			switch q.Source {
 			case sourceAzureMonitor:
@@ -419,6 +420,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				if !ok {
 					return fmt.Errorf("unknown metric resource %q for query %q", q.Resource, q.Title)
 				}
+				metricResourceID = resourceID.String()
 				res, warn, err := queryAzureMonitorMetrics(ctx, o.cred, resourceID, q, o.TimeWindow.Start, o.TimeWindow.End, o.cosmosAutoscaleMax)
 				if err != nil {
 					logger.Error(err, "Azure Monitor metrics query failed", "title", q.Title)
@@ -448,7 +450,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				}
 			}
 
-			panelCharts = append(panelCharts, buildChartData(q, queryErr, warning, results, o.TimeWindow))
+			panelCharts = append(panelCharts, buildChartData(q, metricResourceID, queryErr, warning, results, o.TimeWindow))
 		}
 
 		// filename must match the Spyglass HTML lens regex .*-summary.*\.html

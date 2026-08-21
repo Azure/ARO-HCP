@@ -22,6 +22,8 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
+
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 func TestStepToISO8601(t *testing.T) {
@@ -262,4 +264,80 @@ func TestMetricToResultsEmpty(t *testing.T) {
 	if len(results) != 1 || len(results[0].Values) != 0 {
 		t.Errorf("empty metric produced %+v, want single result with 0 values", results)
 	}
+}
+
+func TestAzMetricsCommand(t *testing.T) {
+	tw := timing.TimeWindow{
+		Start: time.Date(2026, 4, 13, 6, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 4, 13, 8, 0, 0, 0, time.UTC),
+	}
+	const resourceID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.DocumentDB/databaseAccounts/acct"
+
+	t.Run("split metric with dimension filter", func(t *testing.T) {
+		q := QuerySpec{
+			Source:      sourceAzureMonitor,
+			Resource:    resourceCosmosDB,
+			Aggregation: "Count",
+			Step:        "60s",
+			Metrics: []MetricSpec{{
+				Name:    "TotalRequests",
+				SplitBy: "CollectionName",
+				Filter:  map[string]string{"StatusCode": "429"},
+			}},
+		}
+		got := azMetricsCommand(q, resourceID, tw)
+		for _, want := range []string{
+			"az monitor metrics list",
+			"--resource " + resourceID,
+			"--namespace Microsoft.DocumentDB/databaseAccounts",
+			"--metrics TotalRequests",
+			"--aggregation Count",
+			"--interval PT1M",
+			`--filter "StatusCode eq '429' and CollectionName eq '*'"`,
+			"--start-time 2026-04-13T06:00:00Z",
+			"--end-time 2026-04-13T08:00:00Z",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("command missing %q\n---\n%s", want, got)
+			}
+		}
+	})
+
+	t.Run("split metric without filter still filters by dimension wildcard", func(t *testing.T) {
+		q := QuerySpec{
+			Source:      sourceAzureMonitor,
+			Resource:    resourceCosmosDB,
+			Aggregation: "Maximum",
+			Step:        "60s",
+			Metrics:     []MetricSpec{{Name: "NormalizedRUConsumption", SplitBy: "CollectionName"}},
+		}
+		got := azMetricsCommand(q, resourceID, tw)
+		if !strings.Contains(got, `--filter "CollectionName eq '*'"`) {
+			t.Errorf("expected splitBy wildcard filter, got:\n%s", got)
+		}
+		if !strings.Contains(got, "--metrics NormalizedRUConsumption") {
+			t.Errorf("expected metric name, got:\n%s", got)
+		}
+	})
+
+	t.Run("promql source returns the query verbatim", func(t *testing.T) {
+		lang, body := queryFooter(QuerySpec{Source: sourcePrometheus, Query: "up == 1"}, "", tw)
+		if lang != "PromQL" || body != "up == 1" {
+			t.Errorf("queryFooter = (%q, %q), want (PromQL, up == 1)", lang, body)
+		}
+	})
+
+	t.Run("azure source is labeled Azure Monitor", func(t *testing.T) {
+		q := QuerySpec{
+			Source:      sourceAzureMonitor,
+			Resource:    resourceCosmosDB,
+			Aggregation: "Maximum",
+			Step:        "60s",
+			Metrics:     []MetricSpec{{Name: "AutoscaledRU", SplitBy: "CollectionName"}},
+		}
+		lang, _ := queryFooter(q, resourceID, tw)
+		if lang != "Azure Monitor" {
+			t.Errorf("lang = %q, want Azure Monitor", lang)
+		}
+	})
 }

@@ -98,20 +98,60 @@ type chartData struct {
 }
 
 // queryFooter returns the human-readable label and body shown in the collapsed
-// query footer of a chart, adapting to the query source.
-func queryFooter(q QuerySpec) (lang, body string) {
+// query footer of a chart, adapting to the query source. For Azure Monitor
+// charts the body is a copy-pasteable `az monitor metrics list` command that
+// reproduces the plotted data.
+func queryFooter(q QuerySpec, resourceID string, tw timing.TimeWindow) (lang, body string) {
 	if q.Source == sourceAzureMonitor {
-		var lines []string
-		lines = append(lines, fmt.Sprintf("resource: %s", q.Resource))
-		lines = append(lines, fmt.Sprintf("aggregation: %s", q.Aggregation))
-		lines = append(lines, fmt.Sprintf("interval: %s", stepToISO8601(q.Step)))
-		lines = append(lines, "metrics:")
-		for _, m := range q.Metrics {
-			lines = append(lines, fmt.Sprintf("  - %s", m.Name))
-		}
-		return "Azure Monitor", strings.Join(lines, "\n")
+		return "Azure Monitor", azMetricsCommand(q, resourceID, tw)
 	}
 	return "PromQL", q.Query
+}
+
+// azMetricsCommand renders a copy-pasteable `az monitor metrics list` invocation
+// that reproduces the data plotted for an azureMonitor chart. A reader can paste
+// it into a shell (after `az login`) to pull the same timeseries straight from
+// Azure Monitor. One command is emitted per metric so each carries its own
+// dimension filter.
+func azMetricsCommand(q QuerySpec, resourceID string, tw timing.TimeWindow) string {
+	namespace := metricNamespaceForResource[q.Resource]
+	start := tw.Start.UTC().Format(time.RFC3339)
+	end := tw.End.UTC().Format(time.RFC3339)
+	interval := stepToISO8601(q.Step)
+
+	var cmds []string
+	for _, m := range q.Metrics {
+		var b strings.Builder
+		b.WriteString("az monitor metrics list \\\n")
+		fmt.Fprintf(&b, "  --resource %s \\\n", shellQuote(resourceID))
+		if namespace != "" {
+			fmt.Fprintf(&b, "  --namespace %s \\\n", shellQuote(namespace))
+		}
+		fmt.Fprintf(&b, "  --metrics %s \\\n", shellQuote(m.Name))
+		fmt.Fprintf(&b, "  --aggregation %s \\\n", q.Aggregation)
+		fmt.Fprintf(&b, "  --interval %s \\\n", interval)
+		if filter := buildMetricFilter(m); filter != "" {
+			fmt.Fprintf(&b, "  --filter %s \\\n", shellQuote(filter))
+		}
+		fmt.Fprintf(&b, "  --start-time %s \\\n", start)
+		fmt.Fprintf(&b, "  --end-time %s", end)
+		cmds = append(cmds, b.String())
+	}
+	return strings.Join(cmds, "\n\n")
+}
+
+// shellQuote wraps a value in double quotes when it contains characters a shell
+// would otherwise interpret. Azure $filter expressions embed single quotes
+// (e.g. CollectionName eq '*'), so double quoting is used and any embedded
+// double quote is escaped.
+func shellQuote(s string) string {
+	if s == "" {
+		return `""`
+	}
+	if !strings.ContainsAny(s, " \t'\"*|&;<>()$`\\") {
+		return s
+	}
+	return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
 }
 
 // renderPanel assembles multiple charts into a single HTML page.
@@ -155,19 +195,19 @@ func estimateLegendHeight(labels []string, chartWidth int) int {
 // Each PrometheusResult becomes a separate series, labeled by its metric
 // labels. warning carries a non-fatal notice (e.g. partial-failure details)
 // that is displayed alongside the chart when it still has data.
-func buildChartData(q QuerySpec, queryErr, warning string, results []PrometheusResult, tw timing.TimeWindow) chartData {
-	lang, body := queryFooter(q)
+func buildChartData(q QuerySpec, resourceID, queryErr, warning string, results []PrometheusResult, tw timing.TimeWindow) chartData {
+	lang, body := queryFooter(q, resourceID, tw)
 	series := parseResultsToSeries(results)
 	if len(series) == 0 {
 		return chartData{Title: q.Title, Description: q.Description, Query: body, QueryLang: lang, Error: queryErr, Warning: warning, MinPeakThreshold: q.MinPeakThreshold}
 	}
 	switch q.ChartType {
 	case chartTypeFacetedStackedArea:
-		cd := buildFacetedStackedAreaChartData(q, series, tw)
+		cd := buildFacetedStackedAreaChartData(q, resourceID, series, tw)
 		cd.Warning = warning
 		return cd
 	case chartTypeLine:
-		cd := buildLineChartData(q, series, tw)
+		cd := buildLineChartData(q, resourceID, series, tw)
 		cd.Warning = warning
 		return cd
 	default:
@@ -175,7 +215,7 @@ func buildChartData(q QuerySpec, queryErr, warning string, results []PrometheusR
 	}
 }
 
-func buildLineChartData(q QuerySpec, series []parsedSeries, tw timing.TimeWindow) chartData {
+func buildLineChartData(q QuerySpec, resourceID string, series []parsedSeries, tw timing.TimeWindow) chartData {
 	for i := range series {
 		series[i].data = insertGapMarkers(series[i].data)
 	}
@@ -254,7 +294,7 @@ func buildLineChartData(q QuerySpec, series []parsedSeries, tw timing.TimeWindow
 	rendered := line.RenderContent()
 	html := extractChartBody(rendered)
 
-	lang, body := queryFooter(q)
+	lang, body := queryFooter(q, resourceID, tw)
 	return chartData{
 		Title:            q.Title,
 		Description:      q.Description,
@@ -279,7 +319,7 @@ func extractChartBody(rendered []byte) []byte {
 	return rendered
 }
 
-func buildFacetedStackedAreaChartData(q QuerySpec, series []parsedSeries, tw timing.TimeWindow) chartData {
+func buildFacetedStackedAreaChartData(q QuerySpec, resourceID string, series []parsedSeries, tw timing.TimeWindow) chartData {
 	facets := groupSeriesByFacet(series, q.FacetBy, q.StackBy)
 	facetNames := make([]string, 0, len(facets))
 	for name := range facets {
@@ -395,7 +435,7 @@ func buildFacetedStackedAreaChartData(q QuerySpec, series []parsedSeries, tw tim
 	rendered := line.RenderContent()
 	html := extractChartBody(rendered)
 
-	lang, body := queryFooter(q)
+	lang, body := queryFooter(q, resourceID, tw)
 	return chartData{
 		Title:       q.Title,
 		Description: q.Description,
