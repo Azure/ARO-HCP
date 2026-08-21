@@ -40,7 +40,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### Frontend Control Plane Latency (S360)\n\n**KPI:** synchronous Frontend (RP) responses — **P99 < 1 second**.\n\n**Metric:** `frontend_http_requests_duration_seconds` (histogram; dense buckets around 1s).\n\n**Alerts:** `FrontendLatency` (1h P99>1s), `FrontendPathLatency` (5m P99>1s, Sev3/CI).\n\n**Excluded (matches alerts):** route `.../hcpoperationresults/{operationid}` — known slow break-glass path (route filter only; same as alert PromQL).\n\nUse this for PR evidence and day-to-day triage — not the 30-day S360 Power BI report.",
+        "content": "### Frontend Control Plane Latency (S360)\n\n**KPI:** synchronous Frontend (RP) responses — **P99 < 1 second**.\n\n**Metric:** `frontend_http_requests_duration_seconds` (histogram; dense buckets around 1s).\n\n**Alerts:** `FrontendLatency` (1h P99>1s, Sev4/info), `FrontendPathLatency` (30m slow-fraction — >5% of requests slower than 1s, gated on >=50 req/30m and >=3 slow calls, Sev3/CI), `FrontendPathMedianLatency` (30m P50>250ms, gated on >=10 req/30m, Sev3/CI).\n\n**Excluded (matches alerts):** route `.../hcpoperationresults/{operationid}` — known slow break-glass path (route filter only; same as alert PromQL).\n\nUse this for PR evidence and day-to-day triage — not the 30-day S360 Power BI report.",
         "mode": "markdown"
       },
       "title": "Dashboard Info",

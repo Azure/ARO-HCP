@@ -1721,13 +1721,41 @@ resource svcFrontendPathLatency 'Microsoft.AlertsManagement/prometheusRuleGroups
         }
         annotations: {
           correlationId: 'FrontendPathLatency/{{ $labels.cluster }}/{{ $labels.method }}/{{ $labels.route }}'
-          description: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 5 minutes.'
-          info: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 5 minutes.'
+          description: 'More than 5% of frontend requests for {{ $labels.method }} {{ $labels.route }} exceeded 1 second over the past 30 minutes (cluster {{ $labels.cluster }}).'
+          info: 'More than 5% of frontend requests for {{ $labels.method }} {{ $labels.route }} exceeded 1 second over the past 30 minutes (cluster {{ $labels.cluster }}).'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-          summary: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
-          title: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
+          summary: 'Frontend latency is high: over 5% of {{ $labels.method }} {{ $labels.route }} requests on cluster {{ $labels.cluster }} exceeded 1 second over the past 30 minutes'
+          title: 'Frontend latency is high: over 5% of {{ $labels.method }} {{ $labels.route }} requests on cluster {{ $labels.cluster }} exceeded 1 second over the past 30 minutes'
         }
-        expression: 'histogram_quantile(0.99, sum by (le, route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m]))) > 1'
+        expression: '((sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])) - sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{le="1",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))) / sum by (route, method, cluster) (rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))) > 0.05 and on (route, method, cluster) (sum by (route, method, cluster) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])))) >= 50 and on (route, method, cluster) (sum by (route, method, cluster) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))) - sum by (route, method, cluster) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_bucket{le="1",route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])))) >= 3'
+        for: 'PT1M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendPathMedianLatency'
+        enabled: true
+        labels: {
+          component: 'frontend'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FrontendPathMedianLatency/{{ $labels.cluster }}/{{ $labels.method }}/{{ $labels.route }}'
+          description: 'The median (p50) of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 250ms over the past 30 minutes (cluster {{ $labels.cluster }}).'
+          info: 'The median (p50) of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 250ms over the past 30 minutes (cluster {{ $labels.cluster }}).'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+          summary: 'Frontend median latency is high: p50 exceeds 250ms for {{ $labels.method }} {{ $labels.route }} on cluster {{ $labels.cluster }} over the past 30 minutes'
+          title: 'Frontend median latency is high: p50 exceeds 250ms for {{ $labels.method }} {{ $labels.route }} on cluster {{ $labels.cluster }} over the past 30 minutes'
+        }
+        expression: 'histogram_quantile(0.5, sum by (le, route, method, cluster) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m]))) > 0.25 and on (route, method, cluster) (sum by (route, method, cluster) (max without (prometheus_replica) (increase(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])))) >= 10'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
