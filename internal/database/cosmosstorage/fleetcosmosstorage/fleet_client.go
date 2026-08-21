@@ -37,6 +37,7 @@ const fleetContainer = "Fleet"
 type FleetDBClient interface {
 	cosmosstorageutils.ChangeFeedClient
 	Stamps() StampsCRUD
+	HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements]
 	GlobalListers() FleetGlobalListers
 }
 
@@ -48,10 +49,11 @@ type StampsCRUD interface {
 }
 
 // ManagementClustersCRUD provides CRUD operations for management clusters
-// and access to their nested controller status documents.
+// and access to their nested controller status and scheduling documents.
 type ManagementClustersCRUD interface {
 	cosmosstorageutils.ValidatingResourceCRUD[fleetapi.ManagementCluster, *fleetapi.ManagementCluster]
 	Controllers() cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller]
+	Scheduling() cosmosstorageutils.ResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling]
 }
 
 // FleetGlobalListers provides cross-partition listers for fleet resource types.
@@ -101,6 +103,12 @@ func (c *cosmosFleetDBClient) Stamps() StampsCRUD {
 	}
 }
 
+func (c *cosmosFleetDBClient) HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements] {
+	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
+		c.container, nil, fleetapi.HCPResourceRequirementsResourceType,
+		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
+}
+
 func (c *cosmosFleetDBClient) GlobalListers() FleetGlobalListers {
 	return &cosmosFleetGlobalListers{container: c.container}
 }
@@ -135,12 +143,22 @@ type cosmosManagementClustersCRUD struct {
 }
 
 func (m *cosmosManagementClustersCRUD) Controllers() cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
-	mcResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
 	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](
-		m.containerClient, mcResourceID, fleetapi.ManagementClusterControllerResourceType,
+		m.containerClient, managementClusterResourceID, fleetapi.ManagementClusterControllerResourceType,
+		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
+}
+
+func (m *cosmosManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling] {
+	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	if err != nil {
+		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
+	}
+	return cosmosstorageutils.NewCosmosResourceCRUDWithStrategies[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling, cosmosstorageutils.GenericDocument[fleetapi.ManagementClusterScheduling]](
+		m.containerClient, managementClusterResourceID, fleetapi.ManagementClusterSchedulingResourceType,
 		cosmosstorageutils.FleetPartitionKeyDeriver{}, cosmosstorageutils.FleetResourceIDBuilder{})
 }
 

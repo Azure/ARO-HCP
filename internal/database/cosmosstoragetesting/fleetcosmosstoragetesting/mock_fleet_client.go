@@ -56,6 +56,8 @@ func NewMockFleetDBClient() *MockFleetDBClient {
 // it with the given resources. Supported types:
 //   - *fleetapi.Stamp
 //   - *fleetapi.ManagementCluster
+//   - *fleetapi.ManagementClusterScheduling
+//   - *fleetapi.HCPResourceRequirements
 func NewMockFleetDBClientWithResources(ctx context.Context, resources []any) (*MockFleetDBClient, error) {
 	mock := NewMockFleetDBClient()
 	for i, r := range resources {
@@ -72,6 +74,10 @@ func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error
 		return m.addStamp(ctx, r)
 	case *fleetapi.ManagementCluster:
 		return m.addManagementCluster(ctx, r)
+	case *fleetapi.ManagementClusterScheduling:
+		return m.addManagementClusterScheduling(ctx, r)
+	case *fleetapi.HCPResourceRequirements:
+		return m.addHCPResourceRequirements(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type for MockFleetDBClient: %T", resource)
 	}
@@ -94,6 +100,22 @@ func (m *MockFleetDBClient) addManagementCluster(ctx context.Context, mc *fleeta
 	}
 	crud := m.Stamps().ManagementClusters(stampIdentifier)
 	_, err := crud.Create(ctx, mc, nil)
+	return err
+}
+
+func (m *MockFleetDBClient) addManagementClusterScheduling(ctx context.Context, scheduling *fleetapi.ManagementClusterScheduling) error {
+	stampIdentifier := scheduling.PartitionKey
+	if len(stampIdentifier) == 0 {
+		return fmt.Errorf("management cluster scheduling has empty partition key")
+	}
+	crud := m.Stamps().ManagementClusters(stampIdentifier).Scheduling()
+	_, err := crud.Create(ctx, scheduling, nil)
+	return err
+}
+
+func (m *MockFleetDBClient) addHCPResourceRequirements(ctx context.Context, requirements *fleetapi.HCPResourceRequirements) error {
+	crud := m.HCPResourceRequirements()
+	_, err := crud.Create(ctx, requirements, nil)
 	return err
 }
 
@@ -213,6 +235,12 @@ func (m *MockFleetDBClient) Stamps() fleetcosmosstorage.StampsCRUD {
 	}
 }
 
+func (m *MockFleetDBClient) HCPResourceRequirements() cosmosstorageutils.ResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements] {
+	return newMockFleetResourceCRUD[fleetapi.HCPResourceRequirements, *fleetapi.HCPResourceRequirements, cosmosstorageutils.GenericDocument[fleetapi.HCPResourceRequirements]](
+		m, nil, fleetapi.HCPResourceRequirementsResourceType,
+	)
+}
+
 func (m *MockFleetDBClient) GlobalListers() fleetcosmosstorage.FleetGlobalListers {
 	return &mockFleetGlobalListers{client: m}
 }
@@ -251,12 +279,22 @@ type mockManagementClustersCRUD struct {
 }
 
 func (m *mockManagementClustersCRUD) Controllers() cosmosstorageutils.ResourceCRUD[coreapi.Controller, *coreapi.Controller] {
-	mcResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
 	return newMockFleetResourceCRUD[coreapi.Controller, *coreapi.Controller, cosmosstorageutils.GenericDocument[coreapi.Controller]](
-		m.store, mcResourceID, fleetapi.ManagementClusterControllerResourceType,
+		m.store, managementClusterResourceID, fleetapi.ManagementClusterControllerResourceType,
+	)
+}
+
+func (m *mockManagementClustersCRUD) Scheduling() cosmosstorageutils.ResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling] {
+	managementClusterResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
+	if err != nil {
+		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
+	}
+	return newMockFleetResourceCRUD[fleetapi.ManagementClusterScheduling, *fleetapi.ManagementClusterScheduling, cosmosstorageutils.GenericDocument[fleetapi.ManagementClusterScheduling]](
+		m.store, managementClusterResourceID, fleetapi.ManagementClusterSchedulingResourceType,
 	)
 }
 

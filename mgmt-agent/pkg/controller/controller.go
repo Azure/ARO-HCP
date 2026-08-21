@@ -39,11 +39,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	"github.com/Azure/ARO-HCP/internal/kuberesources"
 )
 
 const (
-	// SwiftNICResourceName is the extended resource name for SWIFT NICs.
-	SwiftNICResourceName corev1.ResourceName = "aro.openshift.io/swift-nic"
+	SwiftNICResourceName = kuberesources.SwiftNICResourceName
 
 	// fieldManager is the SSA field manager name for this controller.
 	fieldManager = "mgmt-agent-swift-nic"

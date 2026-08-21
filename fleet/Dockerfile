@@ -2,6 +2,7 @@ ARG PLATFORM
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25.10-1-azurelinux3.0-amd64 AS builder
 COPY internal/go.mod internal/go.sum internal/
+COPY mgmt-agent/go.mod mgmt-agent/go.sum mgmt-agent/
 COPY fleet/go.mod fleet/go.sum fleet/
 RUN cd fleet && go mod download
 WORKDIR /app

@@ -39,6 +39,19 @@ Service Provider should upgrade the control plane z-stream automatically on beha
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.21
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.22
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.23
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.0
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.1
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.2
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.3
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.4
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.5
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.6
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.7
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.8
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.9
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.10
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.11
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.12
 Customer should be able to successfully upgrade control plane minor version from 4.20 minor to 4.21 minor
 Customer should be able to successfully upgrade control plane minor version from 4.21 minor to 4.22 minor
 Customer should be able to successfully upgrade control plane minor version from 4.22 minor to 4.23 minor

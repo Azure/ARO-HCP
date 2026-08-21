@@ -39,6 +39,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	"github.com/Azure/ARO-HCP/admin/server/handlers/stamp"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 )
 
 const (
@@ -501,6 +502,38 @@ func (tc *perItOrDescribeTestContext) GetManagementCluster(ctx context.Context, 
 	var result stamp.ManagementCluster
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal management cluster: %w", err)
+	}
+	return &result, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetManagementClusterScheduling(ctx context.Context, stampIdentifier string, managementClusterName string, identityDetails *AzureIdentityDetails) (*fleetapi.ManagementClusterSchedulingStatus, error) {
+	endpoint := fmt.Sprintf("%s/admin/v1/stamps/%s/managementclusters/%s/scheduling", tc.perBinaryInvocationTestContext.adminAPIAddress, stampIdentifier, managementClusterName)
+
+	By(fmt.Sprintf("getting scheduling for management cluster %s in stamp %s via admin API: %s", managementClusterName, stampIdentifier, endpoint))
+	body, err := adminAPIGet(ctx, createAdminAPIHTTPClient(identityDetails), endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	var result fleetapi.ManagementClusterSchedulingStatus
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal management cluster scheduling: %w", err)
+	}
+	return &result, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetHCPResourceRequirements(ctx context.Context, name string, identityDetails *AzureIdentityDetails) (*fleetapi.HCPResourceRequirementsStatus, error) {
+	endpoint := fmt.Sprintf("%s/admin/v1/hcpresourcerequirements/%s", tc.perBinaryInvocationTestContext.adminAPIAddress, name)
+
+	By(fmt.Sprintf("getting HCP resource requirements %q via admin API: %s", name, endpoint))
+	body, err := adminAPIGet(ctx, createAdminAPIHTTPClient(identityDetails), endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	var result fleetapi.HCPResourceRequirementsStatus
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal HCP resource requirements: %w", err)
 	}
 	return &result, nil
 }

@@ -1,0 +1,58 @@
+name: "hcpctl Nightly Build"
+on:
+  schedule:
+  # Check hourly; the "skip if unchanged" step below keeps this a no-op
+  # unless tooling/hcpctl actually changed since the last successful build.
+  # The nightly tag is only moved after a successful GoReleaser publish, so
+  # a failed run doesn't mask itself as "up to date" for the next check.
+  - cron: '0 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        ref: main
+        fetch-depth: 0
+    - name: Check for changes since last nightly build
+      id: check
+      run: |
+        git fetch origin refs/tags/hcpctl-nightly:refs/tags/hcpctl-nightly || true
+        if git rev-parse -q --verify refs/tags/hcpctl-nightly >/dev/null && \
+           git diff --quiet refs/tags/hcpctl-nightly HEAD -- tooling/hcpctl; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Set up Go
+      if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: 'go.work'
+        cache-dependency-path: '**/go.sum'
+    - name: Run GoReleaser
+      if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+      uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.4.0
+      with:
+        distribution: goreleaser
+        version: "~> 2"
+        args: release --clean --skip=validate --config tooling/hcpctl/.goreleaser.yaml
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GORELEASER_CURRENT_TAG: hcpctl-nightly
+    # GitHub's release API only moves target_commitish for a tag that doesn't exist yet,
+    # so once hcpctl-nightly exists we have to force-move it ourselves. Doing this after
+    # a successful GoReleaser run means a failed run leaves the tag (and thus the next
+    # change-detection check) pointing at the last commit that actually published.
+    - name: Move rolling nightly tag
+      if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+      run: |
+        git tag -f hcpctl-nightly
+        git push origin hcpctl-nightly --force

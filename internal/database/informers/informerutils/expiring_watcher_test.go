@@ -24,9 +24,13 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 )
 
+// noopJitter is injected by these tests so watch expiry timings stay
+// deterministic; production code uses defaultJitter.
+func noopJitter(d time.Duration) time.Duration { return d }
+
 func TestExpiringWatcher_SendsExpiredEvent(t *testing.T) {
 	ctx := context.Background()
-	w := NewExpiringWatcher(ctx, 50*time.Millisecond)
+	w := newExpiringWatcher(ctx, 50*time.Millisecond, noopJitter)
 	defer w.Stop()
 
 	select {
@@ -58,7 +62,7 @@ func TestExpiringWatcher_ContextCancelDuringDelivery(t *testing.T) {
 	// Use a short expiry so the timer fires quickly, but never read from
 	// ResultChan — this simulates the prior hang where the goroutine blocked
 	// forever trying to send the expired event.
-	w := NewExpiringWatcher(ctx, 10*time.Millisecond)
+	w := newExpiringWatcher(ctx, 10*time.Millisecond, noopJitter)
 
 	// Wait for the timer to fire and the goroutine to block on send.
 	time.Sleep(50 * time.Millisecond)
@@ -78,7 +82,7 @@ func TestExpiringWatcher_ContextCancelDuringDelivery(t *testing.T) {
 
 func TestExpiringWatcher_StopBeforeExpiry(t *testing.T) {
 	ctx := context.Background()
-	w := NewExpiringWatcher(ctx, 10*time.Minute)
+	w := newExpiringWatcher(ctx, 10*time.Minute, noopJitter)
 
 	// Stop immediately — the goroutine should exit and close ResultChan.
 	w.Stop()
@@ -95,7 +99,7 @@ func TestExpiringWatcher_StopBeforeExpiry(t *testing.T) {
 
 func TestExpiringWatcher_ContextCancelBeforeExpiry(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	w := NewExpiringWatcher(ctx, 10*time.Minute)
+	w := newExpiringWatcher(ctx, 10*time.Minute, noopJitter)
 
 	cancel()
 
@@ -113,7 +117,7 @@ func TestExpiringWatcher_StopDuringDelivery(t *testing.T) {
 	ctx := context.Background()
 
 	// Short expiry, never read from ResultChan.
-	w := NewExpiringWatcher(ctx, 10*time.Millisecond)
+	w := newExpiringWatcher(ctx, 10*time.Millisecond, noopJitter)
 
 	// Wait for timer to fire and goroutine to block on send.
 	time.Sleep(50 * time.Millisecond)
