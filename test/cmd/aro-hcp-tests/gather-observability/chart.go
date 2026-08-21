@@ -132,11 +132,13 @@ func estimateLegendHeight(labels []string, chartWidth int) int {
 	return max(minLegendHeight, rows*legendRowHeight)
 }
 
-// buildChartDataFromSeries builds chart HTML from pre-parsed series. Used by
-// both PromQL (via parseResultsToSeries) and Azure Monitor metric paths.
-func buildChartDataFromSeries(q QuerySpec, queryErr string, series []parsedSeries, tw timing.TimeWindow) chartData {
+// buildChartData builds the chart HTML for a single PromQL query result.
+// Each PrometheusResult becomes a separate series, labeled by its metric
+// labels.
+func buildChartData(q QuerySpec, queryErr string, results []PrometheusResult, tw timing.TimeWindow) chartData {
+	series := parseResultsToSeries(results)
 	if len(series) == 0 {
-		return chartData{Title: q.Title, Description: q.Description, Query: q.queryDisplay(), Error: queryErr, MinPeakThreshold: q.MinPeakThreshold}
+		return chartData{Title: q.Title, Description: q.Description, Query: q.Query, Error: queryErr, MinPeakThreshold: q.MinPeakThreshold}
 	}
 	switch q.ChartType {
 	case chartTypeFacetedStackedArea:
@@ -144,15 +146,8 @@ func buildChartDataFromSeries(q QuerySpec, queryErr string, series []parsedSerie
 	case chartTypeLine:
 		return buildLineChartData(q, series, tw)
 	default:
-		return chartData{Title: q.Title, Description: q.Description, Query: q.queryDisplay(), Error: fmt.Sprintf("unknown chartType: %q", q.ChartType)}
+		return chartData{Title: q.Title, Description: q.Description, Query: q.Query, Error: fmt.Sprintf("unknown chartType: %q", q.ChartType)}
 	}
-}
-
-// buildChartData builds the chart HTML for a single PromQL query result.
-// Each PrometheusResult becomes a separate series, labeled by its metric
-// labels.
-func buildChartData(q QuerySpec, queryErr string, results []PrometheusResult, tw timing.TimeWindow) chartData {
-	return buildChartDataFromSeries(q, queryErr, parseResultsToSeries(results), tw)
 }
 
 func buildLineChartData(q QuerySpec, series []parsedSeries, tw timing.TimeWindow) chartData {
@@ -237,7 +232,7 @@ func buildLineChartData(q QuerySpec, series []parsedSeries, tw timing.TimeWindow
 	return chartData{
 		Title:            q.Title,
 		Description:      q.Description,
-		Query:            q.queryDisplay(),
+		Query:            q.Query,
 		HasData:          true,
 		ChartHTML:        template.HTML(html), //nolint:gosec // trusted go-echarts output
 		MinPeakThreshold: q.MinPeakThreshold,
@@ -376,7 +371,7 @@ func buildFacetedStackedAreaChartData(q QuerySpec, series []parsedSeries, tw tim
 	return chartData{
 		Title:       q.Title,
 		Description: q.Description,
-		Query:       q.queryDisplay(),
+		Query:       q.Query,
 		HasData:     true,
 		ChartHTML:   template.HTML(html), //nolint:gosec // trusted go-echarts output
 		ChartType:   q.ChartType,

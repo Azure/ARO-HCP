@@ -48,7 +48,7 @@
         {{if .Description}}<div class="chart-description">{{.Description}}</div>{{end}}
         <div class="query-footer">
             <details>
-                <summary>Query: {{.Title}}
+                <summary>PromQL: {{.Title}}
                     <button class="copy-btn" onclick="var t=this.closest('.query-footer').querySelector('pre').textContent;navigator.clipboard.writeText(t).then(function(){event.target.textContent='Copied!';setTimeout(function(){event.target.textContent='Copy'},1500)})">Copy</button>
                 </summary>
                 <pre>{{.Query}}</pre>

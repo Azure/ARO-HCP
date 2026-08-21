@@ -26,10 +26,48 @@ import (
 	"strings"
 	"time"
 
+	_ "embed"
+
+	"sigs.k8s.io/yaml"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 )
+
+// QueriesConfig holds panels of grouped PromQL queries to run against Azure
+// Monitor Prometheus workspaces. Each panel produces one HTML page with
+// multiple charts.
+type QueriesConfig struct {
+	Panels []PanelSpec `json:"panels" yaml:"panels"`
+}
+
+// PanelSpec groups related queries that should be rendered together on a
+// single HTML page.
+type PanelSpec struct {
+	Title   string      `json:"title" yaml:"title"`
+	Queries []QuerySpec `json:"queries" yaml:"queries"`
+}
+
+const (
+	chartTypeLine               = "line"
+	chartTypeFacetedStackedArea = "faceted-stacked-area"
+)
+
+// QuerySpec describes a single PromQL query to execute and chart.
+type QuerySpec struct {
+	Title            string            `json:"title" yaml:"title"`
+	Description      string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Query            string            `json:"query" yaml:"query"`
+	Unit             string            `json:"unit,omitempty" yaml:"unit,omitempty"`
+	Workspace        string            `json:"workspace" yaml:"workspace"` // "svc" or "hcp"
+	Step             string            `json:"step,omitempty" yaml:"step,omitempty"`
+	MinPeakThreshold float64           `json:"minPeakThreshold,omitempty" yaml:"minPeakThreshold,omitempty"`
+	ChartType        string            `json:"chartType,omitempty" yaml:"chartType,omitempty"`
+	FacetBy          string            `json:"facetBy,omitempty" yaml:"facetBy,omitempty"`
+	StackBy          string            `json:"stackBy,omitempty" yaml:"stackBy,omitempty"`
+	Colors           map[string]string `json:"colors,omitempty" yaml:"colors,omitempty"`
+}
 
 // PrometheusResponse is the top-level Prometheus HTTP API response.
 type PrometheusResponse struct {
@@ -49,6 +87,55 @@ type PrometheusData struct {
 type PrometheusResult struct {
 	Metric map[string]string `json:"metric"`
 	Values [][]any           `json:"values"` // each element is [unix_timestamp_float, "string_value"]
+}
+
+//go:embed queries.yaml
+var defaultQueriesYAML []byte
+
+func loadQueriesConfig() (*QueriesConfig, error) {
+	return parseQueriesConfig(defaultQueriesYAML)
+}
+
+func parseQueriesConfig(data []byte) (*QueriesConfig, error) {
+	var cfg QueriesConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse queries config: %w", err)
+	}
+	for pi, p := range cfg.Panels {
+		if p.Title == "" {
+			return nil, fmt.Errorf("panel %d: title is required", pi)
+		}
+		if len(p.Queries) == 0 {
+			return nil, fmt.Errorf("panel %d (%s): at least one query is required", pi, p.Title)
+		}
+		for qi, q := range p.Queries {
+			if q.Title == "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d: title is required", pi, p.Title, qi)
+			}
+			if q.Query == "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): query is required", pi, p.Title, qi, q.Title)
+			}
+			if q.Workspace != workspaceSvc && q.Workspace != workspaceHcp {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): workspace must be \"svc\" or \"hcp\", got %q", pi, p.Title, qi, q.Title, q.Workspace)
+			}
+			if q.Step == "" {
+				cfg.Panels[pi].Queries[qi].Step = "60s"
+			}
+			if q.ChartType == "" {
+				cfg.Panels[pi].Queries[qi].ChartType = chartTypeLine
+			}
+			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeLine && cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): chartType must be %q or %q, got %q", pi, p.Title, qi, q.Title, chartTypeLine, chartTypeFacetedStackedArea, cfg.Panels[pi].Queries[qi].ChartType)
+			}
+			if cfg.Panels[pi].Queries[qi].ChartType == chartTypeFacetedStackedArea && q.FacetBy == "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is required when chartType is %q", pi, p.Title, qi, q.Title, chartTypeFacetedStackedArea)
+			}
+			if cfg.Panels[pi].Queries[qi].ChartType != chartTypeFacetedStackedArea && q.FacetBy != "" {
+				return nil, fmt.Errorf("panel %d (%s), query %d (%s): facetBy is only valid with chartType %q", pi, p.Title, qi, q.Title, chartTypeFacetedStackedArea)
+			}
+		}
+	}
+	return &cfg, nil
 }
 
 // lookupPrometheusEndpoint retrieves the Prometheus query endpoint for an

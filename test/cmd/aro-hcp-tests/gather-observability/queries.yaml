@@ -251,23 +251,3 @@ panels:
     unit: /s
     workspace: svc
     step: "60s"
-- title: "CosmosDB Metrics"
-  queries:
-  - title: "Normalized RU Consumption"
-    description: "Maximum normalized RU consumption per collection. Values above 70% indicate the collection is approaching its provisioned throughput limit. Sustained values near 100% cause request throttling (HTTP 429)."
-    type: azureMetric
-    resource: cosmosdb
-    metricName: NormalizedRuConsumption
-    aggregation: Maximum
-    interval: PT1M
-    filter: "CollectionName eq '*'"
-    unit: percent
-  - title: "Throttled Requests (429s)"
-    description: "Count of requests throttled by CosmosDB (HTTP 429 status code) per collection. Non-zero values indicate the collection has exceeded its provisioned throughput and clients are being rate-limited."
-    type: azureMetric
-    resource: cosmosdb
-    metricName: TotalRequests
-    aggregation: Count
-    interval: PT1M
-    filter: "StatusCode eq '429'"
-    unit: requests

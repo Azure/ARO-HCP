@@ -77,7 +77,6 @@ type ValidatedOptions struct {
 type completedOptions struct {
 	OutputDir         string
 	Workspaces        map[string]azcorearm.ResourceID
-	Resources         map[string]azcorearm.ResourceID
 	TimeWindow        timing.TimeWindow
 	Queries           *QueriesConfig
 	SeverityThreshold int // -1 means no filter; 0=Sev0 .. 4=Sev4
@@ -174,15 +173,6 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		workspaceHcp: *metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", o.SubscriptionID, regionRG, hcpWorkspace))),
 	}
 
-	cosmosDBName, err := testutil.ConfigGetString(cfg, "frontend.cosmosDB.name")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get frontend.cosmosDB.name from config: %w", err)
-	}
-	resources := map[string]azcorearm.ResourceID{
-		"cosmosdb": *metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.DocumentDB/databaseAccounts/%s", o.SubscriptionID, regionRG, cosmosDBName))),
-	}
-	logger.Info("resolved Azure resources for metric queries", "resources", len(resources))
-
 	queries, err := loadQueriesConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load queries config: %w", err)
@@ -202,7 +192,6 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	return &Options{completedOptions: &completedOptions{
 		OutputDir:         o.OutputDir,
 		Workspaces:        workspaces,
-		Resources:         resources,
 		TimeWindow:        tw,
 		Queries:           queries,
 		SeverityThreshold: o.severityThreshold,
@@ -318,10 +307,10 @@ func (o Options) Run(ctx context.Context) error {
 	}
 	logger.Info("wrote alert JUnit artifact", "path", junitPath)
 
-	// Execute queries and render timeseries charts
+	// Execute PromQL queries and render timeseries charts
 	if o.Queries != nil {
 		if err := o.runQueries(ctx, workspaces); err != nil {
-			return utils.TrackError(fmt.Errorf("query execution failed: %w", err))
+			return utils.TrackError(fmt.Errorf("PromQL query execution failed: %w", err))
 		}
 	}
 
@@ -349,14 +338,25 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 
 		var panelCharts []chartData
 		for _, q := range panel.Queries {
-			var cd chartData
-			switch q.Type {
-			case queryTypeAzureMetric:
-				cd = o.executeAzureMetricQuery(ctx, logger, q)
-			default:
-				cd = o.executePromQLQuery(ctx, httpClient, logger, q, workspaces)
+			ws, ok := workspaces[q.Workspace]
+			if !ok {
+				return fmt.Errorf("unknown workspace %q for query %q", q.Workspace, q.Title)
 			}
-			panelCharts = append(panelCharts, cd)
+			endpoint := ws.PromEndpoint
+
+			logger.Info("executing PromQL query", "panel", panel.Title, "title", q.Title, "workspace", q.Workspace)
+
+			var results []PrometheusResult
+			var queryErr string
+			resp, err := queryRange(ctx, httpClient, o.cred, endpoint, q.Query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
+			if err != nil {
+				logger.Error(err, "PromQL query failed", "title", q.Title)
+				queryErr = err.Error()
+			} else {
+				results = resp.Data.Result
+			}
+
+			panelCharts = append(panelCharts, buildChartData(q, queryErr, results, o.TimeWindow))
 		}
 
 		// filename must match the Spyglass HTML lens regex .*-summary.*\.html
@@ -375,42 +375,4 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 		logger.Info("wrote panel", "path", panelPath, "charts", len(panelCharts))
 	}
 	return nil
-}
-
-func (o Options) executePromQLQuery(ctx context.Context, httpClient *http.Client, logger logr.Logger, q QuerySpec, workspaces map[string]*workspaceData) chartData {
-	ws, ok := workspaces[q.Workspace]
-	if !ok {
-		return chartData{Title: q.Title, Description: q.Description, Query: q.queryDisplay(), Error: fmt.Sprintf("unknown workspace %q", q.Workspace), MinPeakThreshold: q.MinPeakThreshold}
-	}
-	logger.Info("executing PromQL query", "title", q.Title, "workspace", q.Workspace)
-
-	var results []PrometheusResult
-	var queryErr string
-	resp, err := queryRange(ctx, httpClient, o.cred, ws.PromEndpoint, q.Query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
-	if err != nil {
-		logger.Error(err, "PromQL query failed", "title", q.Title)
-		queryErr = err.Error()
-	} else {
-		results = resp.Data.Result
-	}
-	return buildChartData(q, queryErr, results, o.TimeWindow)
-}
-
-func (o Options) executeAzureMetricQuery(ctx context.Context, logger logr.Logger, q QuerySpec) chartData {
-	resourceID, ok := o.Resources[q.Resource]
-	if !ok {
-		return chartData{Title: q.Title, Description: q.Description, Query: q.queryDisplay(), Error: fmt.Sprintf("unknown resource %q", q.Resource), MinPeakThreshold: q.MinPeakThreshold}
-	}
-	logger.Info("executing Azure metric query", "title", q.Title, "resource", q.Resource, "metric", q.MetricName)
-
-	var series []parsedSeries
-	var queryErr string
-	resp, err := fetchAzureMetrics(ctx, o.cred, resourceID.SubscriptionID, resourceID.String(), q, o.TimeWindow.Start, o.TimeWindow.End)
-	if err != nil {
-		logger.Error(err, "Azure metric query failed", "title", q.Title)
-		queryErr = err.Error()
-	} else {
-		series = azureMetricsToSeries(resp, q.Aggregation)
-	}
-	return buildChartDataFromSeries(q, queryErr, series, o.TimeWindow)
 }
