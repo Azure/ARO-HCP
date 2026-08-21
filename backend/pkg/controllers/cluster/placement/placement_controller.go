@@ -91,8 +91,15 @@ func (c *placementSyncer) needsWork(serviceProviderCluster *coreapi.ServiceProvi
 	return serviceProviderCluster.Spec.ManagementClusterResourceID == nil
 }
 
-// SyncOnce resolves placement for a single HCP cluster: it selects an eligible
-// management cluster and records it on ServiceProviderCluster.Spec.
+// SyncOnce resolves placement for a single HCP cluster and records it on
+// ServiceProviderCluster.Spec.ManagementClusterResourceID.
+//
+// During the transition to scheduler-owned placement, a ServiceProviderCluster
+// may already have an observed placement on Status.ManagementClusterResourceID
+// (written by ManagementClusterPlacementSync) while the new Spec intent is still
+// nil. In that case SyncOnce backfills the intent from the observed Status
+// placement rather than running a fresh selection, so an already-placed HCP is
+// never moved. A fresh selection runs only when both Spec and Status are nil.
 func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -110,22 +117,7 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 		return nil
 	}
 
-	// Gather the inputs for placement selection from cache.
-	managementClusters, err := c.managementClusterLister.List(ctx)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list management clusters: %w", err))
-	}
-	serviceProviderClusters, err := c.serviceProviderClusterLister.List(ctx)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list service provider clusters: %w", err))
-	}
-
-	chosen, err := selectManagementCluster(managementClusters, serviceProviderClusters)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to select management cluster for %s: %w", key.HCPClusterName, err))
-	}
-
-	// Write the chosen placement onto the live document with conflict retry.
+	// Write the resolved placement onto the live document with conflict retry.
 	serviceProviderClusterCRUD := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	for attempt := 0; ; attempt++ {
 		existingServiceProviderCluster, err := serviceProviderClusterCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
@@ -143,12 +135,35 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 			return nil
 		}
 
+		// Backfill the intent from the observed placement when present; otherwise
+		// run a fresh selection over the eligible management clusters.
+		chosen := existingServiceProviderCluster.Status.ManagementClusterResourceID
+		backfilledFromStatus := chosen != nil
+		if !backfilledFromStatus {
+			managementClusters, err := c.managementClusterLister.List(ctx)
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to list management clusters: %w", err))
+			}
+			serviceProviderClusters, err := c.serviceProviderClusterLister.List(ctx)
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to list service provider clusters: %w", err))
+			}
+			chosen, err = selectManagementCluster(managementClusters, serviceProviderClusters)
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to select management cluster for %s: %w", key.HCPClusterName, err))
+			}
+		}
+
 		replacement := existingServiceProviderCluster.DeepCopy()
-		replacement.Spec.ManagementClusterResourceID = chosen
+		replacement.Spec.ManagementClusterResourceID = coreapi.DeepCopyResourceID(chosen)
 
 		_, err = serviceProviderClusterCRUD.Replace(ctx, replacement, nil)
 		if err == nil {
-			logger.Info("assigned management cluster placement", "managementClusterID", chosen.String())
+			if backfilledFromStatus {
+				logger.Info("backfilled management cluster placement intent from observed status", "managementClusterID", chosen.String())
+			} else {
+				logger.Info("assigned management cluster placement", "managementClusterID", chosen.String())
+			}
 			return nil
 		}
 		if cosmosstorageutils.IsPreconditionFailedError(err) {
@@ -170,12 +185,17 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 // Eligible management clusters are those whose Spec.SchedulingPolicy is
 // Schedulable AND whose Status has the Ready condition set to True. Among the
 // eligible clusters it returns the one with the HIGHEST number of
-// ServiceProviderClusters already assigned to it (counted by
-// Spec.ManagementClusterResourceID). This is intentional bin-packing: packing
-// HCPs onto the fullest eligible management cluster makes placement behavior
-// easy to observe in E2E. Ties (equal counts) are broken deterministically by
-// the lowest management-cluster resource ID string so the selection is stable
-// and unit-testable.
+// ServiceProviderClusters already assigned to it. This is intentional
+// bin-packing: packing HCPs onto the fullest eligible management cluster makes
+// placement behavior easy to observe in E2E. Ties (equal counts) are broken
+// deterministically by the lowest management-cluster resource ID string so the
+// selection is stable and unit-testable.
+//
+// Existing placements are counted by Spec.ManagementClusterResourceID when set,
+// falling back to Status.ManagementClusterResourceID otherwise. The fallback
+// keeps counts accurate during the transition to scheduler-owned placement,
+// when clusters placed by ManagementClusterPlacementSync have an observed
+// Status placement but not yet a backfilled Spec intent.
 //
 // It returns an error when no eligible management cluster is available.
 func selectManagementCluster(
@@ -185,10 +205,18 @@ func selectManagementCluster(
 	// Count existing placements per management cluster.
 	assignedCounts := map[string]int{}
 	for _, serviceProviderCluster := range serviceProviderClusters {
-		if serviceProviderCluster == nil || serviceProviderCluster.Spec.ManagementClusterResourceID == nil {
+		if serviceProviderCluster == nil {
 			continue
 		}
-		assignedCounts[strings.ToLower(serviceProviderCluster.Spec.ManagementClusterResourceID.String())]++
+		// Prefer the Spec intent; fall back to the observed Status placement.
+		placement := serviceProviderCluster.Spec.ManagementClusterResourceID
+		if placement == nil {
+			placement = serviceProviderCluster.Status.ManagementClusterResourceID
+		}
+		if placement == nil {
+			continue
+		}
+		assignedCounts[strings.ToLower(placement.String())]++
 	}
 
 	var (

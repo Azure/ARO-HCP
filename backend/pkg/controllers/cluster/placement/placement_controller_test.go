@@ -72,10 +72,22 @@ func ridForStamp(stamp string) *azcorearm.ResourceID {
 }
 
 // spcAssignedToStamp builds a ServiceProviderCluster already placed on the
-// management cluster identified by stamp (used to seed placement counts).
+// management cluster identified by stamp via Spec intent (used to seed
+// placement counts).
 func spcAssignedToStamp(stamp string) *coreapi.ServiceProviderCluster {
 	return &coreapi.ServiceProviderCluster{
 		Spec: coreapi.ServiceProviderClusterSpec{
+			ManagementClusterResourceID: ridForStamp(stamp),
+		},
+	}
+}
+
+// spcAssignedToStampViaStatus builds a ServiceProviderCluster placed on the
+// management cluster identified by stamp only via the observed Status (Spec
+// intent still nil), as happens during the transition before backfill.
+func spcAssignedToStampViaStatus(stamp string) *coreapi.ServiceProviderCluster {
+	return &coreapi.ServiceProviderCluster{
+		Status: coreapi.ServiceProviderClusterStatus{
 			ManagementClusterResourceID: ridForStamp(stamp),
 		},
 	}
@@ -155,6 +167,31 @@ func TestSelectManagementCluster(t *testing.T) {
 			},
 			expectedStamp: "1",
 		},
+		{
+			name: "count fallback - Status placement counts when Spec unset",
+			managementClusters: []*fleetapi.ManagementCluster{
+				mcForStamp("1", true, true),
+				mcForStamp("2", true, true),
+			},
+			serviceProviderClusters: []*coreapi.ServiceProviderCluster{
+				spcAssignedToStampViaStatus("2"),
+				spcAssignedToStampViaStatus("2"),
+			},
+			expectedStamp: "2",
+		},
+		{
+			name: "count fallback - Spec preferred, Status used as fallback (mixed)",
+			managementClusters: []*fleetapi.ManagementCluster{
+				mcForStamp("1", true, true),
+				mcForStamp("2", true, true),
+			},
+			serviceProviderClusters: []*coreapi.ServiceProviderCluster{
+				spcAssignedToStamp("1"),          // Spec -> 1  (count 1)
+				spcAssignedToStampViaStatus("2"), // Status -> 2
+				spcAssignedToStampViaStatus("2"), // Status -> 2 (count 2)
+			},
+			expectedStamp: "2",
+		},
 	}
 
 	for _, tc := range tests {
@@ -230,6 +267,25 @@ func TestPlacementSyncer_SyncOnce(t *testing.T) {
 				mcForStamp("2", true, true),
 			},
 			expectedStamp: "2",
+		},
+		{
+			// Spec nil + Status set: backfill Spec from the observed Status
+			// placement. No fresh selection runs — proven by there being NO
+			// eligible MC, which selectManagementCluster would reject with an error.
+			name: "backfill - Spec nil but Status set, backfills from Status without selection",
+			existingSPC: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.ManagementClusterResourceID = ridForStamp("2")
+			}),
+			managementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", false, true)}, // ineligible
+			expectError:        false,
+			expectedStamp:      "2",
+		},
+		{
+			// Both Spec and Status nil → genuinely unscheduled → fresh selection.
+			name:               "fresh selection - both Spec and Status nil",
+			existingSPC:        newTestSPC(),
+			managementClusters: []*fleetapi.ManagementCluster{mcForStamp("1", true, true)},
+			expectedStamp:      "1",
 		},
 	}
 

@@ -485,9 +485,10 @@ which performs a **transactional batch** to atomically update the operation and 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li><li>All `CustomerProperties.*` (for building CS cluster request)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`ServiceProviderProperties.ExperimentalFeatures.*`</li><li>`ID`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (precondition: must be non-nil)</li><li>`Spec.DesiredHostedClusterControlPlaneSize`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (precondition: must be non-nil)</li><li>`Spec.DesiredHostedClusterControlPlaneSize`</li><li>`Spec.ManagementClusterResourceID` (resolves the placed management cluster for provision-shard pinning)</li></ul> |
+| Read | `ManagementCluster` | <ul><li>`Status.ClusterServiceProvisionShardID` (via lister `Get` by the stamp identifier from `Spec.ManagementClusterResourceID`; supplies the `provision_shard_id` property)</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
-| Read | Cluster Service | <ul><li>`ListClusters` (search by Azure info), `PostCluster`</li></ul> |
+| Read | Cluster Service | <ul><li>`ListClusters` (search by Azure info), `PostCluster` (with the `provision_shard_id` required property)</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = CS internal ID</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>Created if not exists (via `GetOrCreateServiceProviderCluster`)</li></ul> |
 
@@ -966,6 +967,20 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 ---
 
 ### Other Controllers
+
+#### PlacementController
+
+**File:** [placement_controller.go](../backend/pkg/controllers/cluster/placement/placement_controller.go)
+**Trigger:** Cluster informer, 5-minute resync
+**Gate (needsWork on ServiceProviderCluster):**
+- `ServiceProviderCluster.Spec.ManagementClusterResourceID` == nil
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ManagementClusterResourceID` (NeedsWork: must be nil)</li><li>`Status.ManagementClusterResourceID` (backfill source when already placed during the transition)</li></ul> |
+| Read | `ServiceProviderCluster` (all) | <ul><li>`Spec.ManagementClusterResourceID`, else `Status.ManagementClusterResourceID` (placement counts per management cluster for bin-packing)</li></ul> |
+| Read | `ManagementCluster` (all) | <ul><li>`Spec.SchedulingPolicy` (eligibility: `Schedulable`)</li><li>`Status.Conditions[Ready]` (eligibility: `True`)</li><li>`ResourceID`</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Spec.ManagementClusterResourceID`** = observed `Status.ManagementClusterResourceID` when already placed (backfill), otherwise the selected eligible management cluster (bin-packed onto the fullest); conflict-retried</li></ul> |
 
 #### ManagementClusterPlacementSync
 
@@ -1473,13 +1488,21 @@ Single writer today (`RequirementsValid` only).
 
 Single writer, but read by `ClusterClusterServiceCreate` (gate), `OperationClusterUpdate`, and `TriggerControlPlaneUpgrade`.
 
+### `ServiceProviderCluster.Spec.ManagementClusterResourceID`
+
+| Actor | When |
+|-------|------|
+| [PlacementController](#placementcontroller) | Sets the scheduler's placement intent: backfilled from `Status.ManagementClusterResourceID` when the HCP is already placed (transition), otherwise the selected eligible management cluster |
+
+Single writer (scheduler intent), but read by `ClusterPendingClusterServiceIDAssign` (gate: must be non-nil before a pending CS ID is assigned) and `ClusterClusterServiceCreate` (resolves the placed management cluster to pin the CS provision shard). This is the *desired* placement; it is distinct from the *observed* `Status.ManagementClusterResourceID` below, which `ManagementClusterPlacementSync` mirrors from the CS provision shard.
+
 ### `ServiceProviderCluster.Status.ManagementClusterResourceID`
 
 | Actor | When |
 |-------|------|
 | [ManagementClusterPlacementSync](#managementclusterplacementsync) | Sets from CS provision shard |
 
-Single writer, but gates `CreateClusterScopedReadDesires` and deletion cleanup.
+Single writer, but gates `CreateClusterScopedReadDesires` and deletion cleanup. This is the *observed* placement; the scheduler's *intent* lives on `Spec.ManagementClusterResourceID` (above).
 
 ### `ServiceProviderCluster.Status.HostedClusterNamespace`
 
