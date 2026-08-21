@@ -333,8 +333,8 @@ services_all = $(join services_svc,services_mgmt)
 # Pipelines section
 # This sections is used to reference pipeline runs and should replace
 # the usage of `svc-deploy.sh` script in the future.
-services_svc_pipelines = backend frontend cluster-service maestro.server observability.tracing
-services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent observability.tracing
+services_svc_pipelines = backend frontend cluster-service maestro.server observability.tracing cert-exporter.svc
+services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent observability.tracing cert-exporter.mgmt
 %.deploy_pipeline: $(ORAS_LINK) $(YQ)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run
@@ -398,7 +398,7 @@ generate-kiota:
 PERS_OVERRIDE_FILE ?= /tmp/personal-dev-override.yaml
 
 build-services:
-	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier build-fleet build-aro-hcp-exporter
+	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier build-fleet build-aro-hcp-exporter build-cert-exporter-rbac-controller
 .PHONY: build-services
 
 build-frontend:
@@ -433,6 +433,10 @@ build-aro-hcp-exporter:
 	$(MAKE) -C tooling/aro-hcp-exporter build-and-push
 .PHONY: build-aro-hcp-exporter
 
+build-cert-exporter-rbac-controller:
+	$(MAKE) -C cert-exporter build-and-push
+.PHONY: build-cert-exporter-rbac-controller
+
 record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C frontend record-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml
 	$(MAKE) -C backend record-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml
@@ -442,6 +446,7 @@ record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C kube-applier record-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml
 	$(MAKE) -C fleet record-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml
 	$(MAKE) -C tooling/aro-hcp-exporter record-override OVERRIDE_CONFIG_FILE=/tmp/_aro-hcp-exporter-override.yaml
+	$(MAKE) -C cert-exporter record-override OVERRIDE_CONFIG_FILE=/tmp/_cert-exporter-rbac-controller-override.yaml
 	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
 	  /tmp/_frontend-override.yaml \
 	  /tmp/_backend-override.yaml \
@@ -451,6 +456,7 @@ record-services-override: $(YQ) $(ORAS)
 	  /tmp/_kube-applier-override.yaml \
 	  /tmp/_fleet-override.yaml \
 	  /tmp/_aro-hcp-exporter-override.yaml \
+	  /tmp/_cert-exporter-rbac-controller-override.yaml \
 	  > $(PERS_OVERRIDE_FILE)
 .PHONY: record-services-override
 

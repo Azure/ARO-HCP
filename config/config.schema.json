@@ -1356,6 +1356,16 @@
         "maestro": {
           "$ref": "#/definitions/backendMaestroConfig"
         },
+        "backupCadenceProfile": {
+          "type": "string",
+          "description": "Backup cadence profile: 'production' creates hourly/daily/weekly schedules, 'testing' creates a 10-minute cycle schedule",
+          "enum": ["production", "testing"]
+        },
+        "backupScheduleState": {
+          "type": "string",
+          "description": "Controls Velero schedule CRs for hosted cluster backups: 'Enabled' sets spec.paused=false, 'Disabled' sets spec.paused=true",
+          "enum": ["Enabled", "Disabled"]
+        },
         "exitOnPanic": {
           "type": "boolean",
           "description": "If true, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
@@ -1377,6 +1387,8 @@
         "managedIdentityName",
         "azureRuntimeConfig",
         "maestro",
+        "backupCadenceProfile",
+        "backupScheduleState",
         "exitOnPanic",
         "logVerbosity",
         "clusterScopedIdentitiesConfig"
@@ -2814,6 +2826,39 @@
         "providerImage"
       ]
     },
+    "certExporter": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "rbacController": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            },
+            "k8s": {
+              "$ref": "#/definitions/k8sDeployment"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "image",
+            "k8s"
+          ]
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "rbacController",
+        "k8s"
+      ]
+    },
     "maestro": {
       "type": "object",
       "properties": {
@@ -3701,6 +3746,7 @@
   "required": [
     "administration",
     "azureGeoShortId",
+    "certExporter",
     "cloudEnvironmentName",
     "kvCertOfficerPrincipalId",
     "clustersService",
