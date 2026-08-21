@@ -17,14 +17,16 @@ package azureresources
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
@@ -120,9 +122,10 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 
 	managedResourceGroupName := cluster.CustomerProperties.Platform.ManagedResourceGroup
 	if managedResourceGroupName == "" {
-		// Cluster Service has not recorded a managed resource group name yet;
-		// nothing to observe.
-		return nil
+		// A cluster should always have a managed resource group name recorded on
+		// its CustomerProperties. If it is empty, something is wrong upstream;
+		// return a hard error so the syncer retries rather than silently skipping.
+		return utils.TrackError(fmt.Errorf("managed resource group name is empty for cluster %q", cluster.ID.String()))
 	}
 
 	managedResourceGroupID, err := coreapi.ToResourceGroupResourceID(cluster.ID.SubscriptionID, managedResourceGroupName)
@@ -173,11 +176,18 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 
 	// The managed resource group is only "owned and present" when it exists AND is
 	// managed by this cluster (ManagedBy == the cluster resource ID). A resource
-	// group that exists but is owned by something else is treated the same as
-	// missing, so we neither claim it nor block this cluster's deletion on it.
+	// group that exists but is owned by something else — or whose ManagedBy is
+	// absent or not a parseable resource ID — is treated the same as missing, so we
+	// neither claim it nor block this cluster's deletion on it.
+	var managedByID *azcorearm.ResourceID
+	var parseErr error
+	if getResponse.ManagedBy != nil {
+		managedByID, parseErr = azcorearm.ParseResourceID(*getResponse.ManagedBy)
+	}
 	ownedAndPresent := getErr == nil &&
 		getResponse.ManagedBy != nil &&
-		strings.EqualFold(*getResponse.ManagedBy, cluster.ID.String())
+		parseErr == nil &&
+		controllerutil.ResourceIDsEqual(managedByID, cluster.ID)
 
 	replacement := existingServiceProviderCluster.DeepCopy()
 	managedResourceGroupReference := &replacement.Status.AzureResources.ManagedResourceGroup

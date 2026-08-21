@@ -1156,13 +1156,13 @@ No writes to the Cosmos Resources container.
 
 **File:** [managed_resource_group_controller.go](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go)
 **Trigger:** Cluster informer, 5-minute resync
-**Behavior:** Observe-only — never creates or deletes the managed resource group. It always queries Azure (there is no early-return fast-path during deletion). The managed resource group is treated as "owned and present" only when it exists AND its `ManagedBy` equals this cluster's resource ID (case-insensitive); a resource group that exists but is owned by something else is treated the same as missing.
+**Behavior:** Observe-only — never creates or deletes the managed resource group. When the cluster is not being deleted and `Status.AzureResources.ManagedResourceGroup.AzureResource` is already set, the controller returns early without querying Azure (the managed resource group is immutable, so a confirmed reference never needs re-checking). Otherwise it queries Azure; the deletion path always queries. The managed resource group is treated as "owned and present" only when it exists AND its `ManagedBy` parses to a resource ID equal — via the `ResourceIDsEqual` helper — to this cluster's resource ID; a resource group that exists but is owned by something else, or whose `ManagedBy` is absent or unparseable, is treated the same as missing.
 - Not deleting: sets `AzureResource` (and clears `PendingAzureResource`) when owned and present; otherwise (missing or not owned) records it as `PendingAzureResource` and clears `AzureResource`.
 - Deleting: sets `AzureResource` (and clears `PendingAzureResource`) while owned and present, so the deletion gate keeps blocking; once it is missing or not owned, both references are cleared and the gate opens.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Platform.ManagedResourceGroup` (SyncOnce: skipped when empty)</li><li>`ServiceProviderProperties.DeletionTimestamp` (branches deletion vs non-deletion)</li><li>`ID` (subscription / resource group / name; also compared against the resource group's `ManagedBy` for ownership)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Platform.ManagedResourceGroup` (SyncOnce: returns an error when empty, since a cluster should always have one)</li><li>`ServiceProviderProperties.DeletionTimestamp` (branches deletion vs non-deletion)</li><li>`ID` (subscription / resource group / name; also compared against the resource group's `ManagedBy` for ownership)</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId` (to build the FPA ResourceGroups client)</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Status.AzureResources.ManagedResourceGroup` (compared before write to skip no-op replacements)</li></ul> |
 | Read | Azure (ResourceGroupsClient) | <ul><li>`Get` on the managed resource group -> `ManagedBy` (ownership check) / ResourceGroupNotFound</li></ul> |

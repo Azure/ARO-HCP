@@ -169,6 +169,9 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 	differentOwnerID := "/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/other-cluster"
+	// unparseableManagedBy is not a valid Azure resource ID, so ParseResourceID
+	// fails and the resource group must be treated as not owned by this cluster.
+	unparseableManagedBy := "not-a-valid-resource-id"
 
 	testCases := []struct {
 		name             string
@@ -251,6 +254,28 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			expectAzure:      nil,
 			expectPending:    nil,
 		},
+		{
+			// A resource group whose ManagedBy is not a parseable resource ID must be
+			// treated as not owned: while not deleting, reflect it as pending.
+			name:             "not deleting and resource group ManagedBy unparseable sets pending",
+			deleting:         false,
+			initialReference: coreapi.AzureReference{},
+			getResponse:      resourceGroupPresentResponse(unparseableManagedBy),
+			getErr:           nil,
+			expectAzure:      nil,
+			expectPending:    mrgID,
+		},
+		{
+			// A resource group whose ManagedBy is not a parseable resource ID must be
+			// treated as not owned: while deleting, clear both references.
+			name:             "deleting and resource group ManagedBy unparseable clears both",
+			deleting:         true,
+			initialReference: coreapi.AzureReference{AzureResource: mrgID},
+			getResponse:      resourceGroupPresentResponse(unparseableManagedBy),
+			getErr:           nil,
+			expectAzure:      nil,
+			expectPending:    nil,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -304,7 +329,8 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 }
 
 // TestManagedResourceGroupSyncerSyncOnceEmptyManagedResourceGroupName verifies that
-// a cluster without a managed resource group name is skipped without touching Azure.
+// a cluster without a managed resource group name is a hard error (a cluster should
+// always have one) and that Azure is never queried.
 func TestManagedResourceGroupSyncerSyncOnceEmptyManagedResourceGroupName(t *testing.T) {
 	t.Parallel()
 
@@ -337,7 +363,9 @@ func TestManagedResourceGroupSyncerSyncOnceEmptyManagedResourceGroupName(t *test
 		HCPClusterName:    testClusterName,
 	}
 
-	require.NoError(t, syncer.SyncOnce(ctx, key))
+	err = syncer.SyncOnce(ctx, key)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "managed resource group name is empty")
 }
 
 // TestManagedResourceGroupSyncerSyncOnceSkipsAzureWhenAlreadyReflected verifies
