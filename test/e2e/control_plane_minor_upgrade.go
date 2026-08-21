@@ -94,17 +94,6 @@ var _ = Describe("Customer", func() {
 				}
 			}
 
-			// TIMEBOMB: upstream cincinnati-graph-data promoted 4.20.35 as a node in
-			// candidate-4.21 on 2026-08-21 but has not yet added outgoing 4.20.35 -> 4.21.z
-			// edges. Because the RP picks the channel tip (offset 0) for candidate/fast,
-			// every 4.20 -> 4.21 run lands on 4.20.35 and is rejected by frontend admission
-			// with "no upgrade path to update channel \"candidate-4.21\"". Skip until
-			// upstream publishes the edge or the deadline passes (revisit and remove).
-			if channelGroup != "nightly" && installVersionId == "4.20" && upgradeVersionId == "4.21" &&
-				time.Now().Before(time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC)) {
-				Skip("timebomb: upstream cincinnati-graph-data has no 4.20.35 -> 4.21.z edge yet; re-evaluate after 2026-08-31")
-			}
-
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
