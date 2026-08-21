@@ -453,6 +453,128 @@ func TestManagedResourceGroupSyncerSyncOnceSkipsAzureWhenAlreadyReflected(t *tes
 	assertResourceIDEqual(t, nil, gotReference.PendingAzureResource, "PendingAzureResource")
 }
 
+// TestManagedResourceGroupSyncerSyncOnceFailClosedOnFPAClientBuildError verifies
+// that when the FPA ResourceGroups client cannot be built during deletion, the
+// controller fails closed: it records a pending marker when no reference has been
+// recorded yet (keeping the deletion gate closed), makes no extra write when a
+// reference already holds the gate closed, and returns the error in both cases.
+func TestManagedResourceGroupSyncerSyncOnceFailClosedOnFPAClientBuildError(t *testing.T) {
+	t.Parallel()
+
+	mrgID := testManagedResourceGroupID(t)
+
+	testCases := []struct {
+		name             string
+		initialReference coreapi.AzureReference
+		expectAzure      *azcorearm.ResourceID
+		expectPending    *azcorearm.ResourceID
+	}{
+		{
+			name:             "empty reference records pending",
+			initialReference: coreapi.AzureReference{},
+			expectAzure:      nil,
+			expectPending:    mrgID,
+		},
+		{
+			name:             "existing reference is left unchanged",
+			initialReference: coreapi.AzureReference{AzureResource: mrgID},
+			expectAzure:      mrgID,
+			expectPending:    nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			cluster := newTestCluster(true) // deleting
+			serviceProviderCluster := newTestServiceProviderCluster(tc.initialReference)
+
+			mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+			require.NoError(t, err)
+
+			ctrl := gomock.NewController(t)
+			fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+			// The FPA client build fails; Azure Get is therefore never reached.
+			fpaClientBuilder.EXPECT().
+				ResourceGroupsClient(testTenantID, testSubscriptionID).
+				Return(nil, errors.New("fpa build error")).
+				Times(1)
+
+			syncer := &managedResourceGroupSyncer{
+				resourcesDBClient:            mockResourcesDB,
+				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+				subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
+				azureFPAClientBuilder:        fpaClientBuilder,
+			}
+
+			key := controllerutils.HCPClusterKey{
+				SubscriptionID:    testSubscriptionID,
+				ResourceGroupName: testResourceGroupName,
+				HCPClusterName:    testClusterName,
+			}
+
+			require.Error(t, syncer.SyncOnce(ctx, key))
+
+			updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+			require.NoError(t, err)
+			gotReference := updated.Status.AzureResources.ManagedResourceGroup
+			assertResourceIDEqual(t, tc.expectAzure, gotReference.AzureResource, "AzureResource")
+			assertResourceIDEqual(t, tc.expectPending, gotReference.PendingAzureResource, "PendingAzureResource")
+		})
+	}
+}
+
+// TestManagedResourceGroupSyncerSyncOnceFailClosedOnSubscriptionResolutionError
+// verifies that when the subscription (and thus tenant) cannot be resolved during
+// deletion with an empty reference, the controller records a pending marker to keep
+// the deletion gate closed and returns the error, without ever building the FPA
+// client or querying Azure.
+func TestManagedResourceGroupSyncerSyncOnceFailClosedOnSubscriptionResolutionError(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mrgID := testManagedResourceGroupID(t)
+
+	cluster := newTestCluster(true) // deleting
+	serviceProviderCluster := newTestServiceProviderCluster(coreapi.AzureReference{})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	// Subscription resolution fails first, so the FPA client is never built.
+	fpaClientBuilder.EXPECT().
+		ResourceGroupsClient(gomock.Any(), gomock.Any()).
+		Times(0)
+
+	syncer := &managedResourceGroupSyncer{
+		resourcesDBClient:            mockResourcesDB,
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+		// Empty subscription lister -> Get returns not-found, so tenant resolution fails.
+		subscriptionLister:    &corelistertesting.SliceSubscriptionLister{Subscriptions: nil},
+		azureFPAClientBuilder: fpaClientBuilder,
+	}
+
+	key := controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}
+
+	require.Error(t, syncer.SyncOnce(ctx, key))
+
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	gotReference := updated.Status.AzureResources.ManagedResourceGroup
+	assertResourceIDEqual(t, nil, gotReference.AzureResource, "AzureResource")
+	assertResourceIDEqual(t, mrgID, gotReference.PendingAzureResource, "PendingAzureResource")
+}
+
 // assertResourceIDEqual compares two optional resource IDs by their canonical string form.
 func assertResourceIDEqual(t *testing.T, expected, actual *azcorearm.ResourceID, field string) {
 	t.Helper()

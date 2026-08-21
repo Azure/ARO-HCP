@@ -159,9 +159,36 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 		return nil
 	}
 
+	// failClosed persists a pending managed resource group marker before returning
+	// err, but only while the cluster is being deleted and no reference has been
+	// recorded yet. It keeps the ServiceProviderCluster deletion gate closed for any
+	// error that prevents us from positively determining the managed resource
+	// group's state (subscription/tenant resolution, FPA client build, or a non-404
+	// Get): a nil/nil reference would otherwise let the gate delete the document
+	// even though the managed resource group might still exist. The marker write is
+	// best-effort; a Replace failure other than a precondition conflict is joined
+	// with the original error. Non-deletion errors, and deletion errors when a
+	// reference already holds the gate closed, are returned unchanged.
+	failClosed := func(err error) error {
+		if !isDeleting || existingReference.AzureResource != nil || existingReference.PendingAzureResource != nil {
+			return err
+		}
+		replacement := existingServiceProviderCluster.DeepCopy()
+		replacement.Status.AzureResources.ManagedResourceGroup.PendingAzureResource = managedResourceGroupID
+		if equality.Semantic.DeepEqual(existingServiceProviderCluster, replacement) {
+			return err
+		}
+		logger.Info("recording pending managed resource group marker to keep the deletion gate closed after failing to determine its state",
+			"managedResourceGroup", managedResourceGroupName)
+		if _, replaceErr := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); replaceErr != nil && !cosmosstorageutils.IsPreconditionFailedError(replaceErr) {
+			return errors.Join(err, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", replaceErr)))
+		}
+		return err
+	}
+
 	rgClient, err := c.resourceGroupsClient(ctx, cluster.ID.SubscriptionID)
 	if err != nil {
-		return utils.TrackError(err)
+		return failClosed(utils.TrackError(err))
 	}
 
 	// Always query Azure to observe the managed resource group, including during
@@ -172,27 +199,10 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 	getResponse, getErr := rgClient.Get(ctx, managedResourceGroupID.Name, nil)
 	resourceGroupMissing := azureclient.IsResourceGroupNotFoundErr(getErr)
 	if getErr != nil && !resourceGroupMissing {
-		getFailure := utils.TrackError(fmt.Errorf("failed to get managed resource group %q: %w", managedResourceGroupName, getErr))
-
-		// Fail-closed during deletion: a non-404 error means we could not determine
-		// whether the managed resource group still exists. If we have not recorded
-		// any reference yet, a nil/nil ManagedResourceGroup would let the
-		// ServiceProviderCluster deletion gate delete the document even though the
-		// MRG might still exist. Record it as pending first so the gate stays closed,
-		// then return the error so the syncer retries once Azure is reachable. In the
-		// non-deletion path, or when a reference already holds the gate closed, there
-		// is nothing to persist and we just return the error.
-		if isDeleting && existingReference.AzureResource == nil && existingReference.PendingAzureResource == nil {
-			replacement := existingServiceProviderCluster.DeepCopy()
-			replacement.Status.AzureResources.ManagedResourceGroup.PendingAzureResource = managedResourceGroupID
-			logger.Info("managed resource group query failed during deletion; recording pending marker to keep the deletion gate closed",
-				"managedResourceGroup", managedResourceGroupName)
-			if _, replaceErr := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); replaceErr != nil && !cosmosstorageutils.IsPreconditionFailedError(replaceErr) {
-				return errors.Join(getFailure, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", replaceErr)))
-			}
-		}
-
-		return getFailure
+		// A non-404 error means we could not determine whether the managed resource
+		// group still exists; fail closed so deletion cannot proceed on a nil/nil
+		// reference while it might still exist.
+		return failClosed(utils.TrackError(fmt.Errorf("failed to get managed resource group %q: %w", managedResourceGroupName, getErr)))
 	}
 
 	// The managed resource group is only "owned and present" when it exists AND is
