@@ -194,6 +194,54 @@ func TestAllocated(t *testing.T) {
 	}
 }
 
+func TestAllocateReturnIsIndependent(t *testing.T) {
+	p, err := New("rg-00 rg-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := p.Allocate("test-a", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got[0] = "mutated"
+	got = got[:0]
+
+	allocated := p.Allocated("test-a")
+	if len(allocated) != 2 || allocated[0] != "rg-00" || allocated[1] != "rg-01" {
+		t.Fatalf("internal allocation mutated via Allocate return: %v", allocated)
+	}
+	if env := p.FormatEnv("test-a"); env != "rg-00 rg-01" {
+		t.Fatalf("FormatEnv() = %q after mutating Allocate return, want %q", env, "rg-00 rg-01")
+	}
+	if err := p.Release("test-a"); err != nil {
+		t.Fatal(err)
+	}
+	if p.Free() != 2 {
+		t.Fatalf("Free() = %d after release, want 2", p.Free())
+	}
+}
+
+func TestAllocatedReturnIsIndependent(t *testing.T) {
+	p, err := New("rg-00 rg-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := p.Allocate("test-a", 2); err != nil {
+		t.Fatal(err)
+	}
+
+	got := p.Allocated("test-a")
+	got[0] = "mutated"
+	got = got[:0]
+
+	allocated := p.Allocated("test-a")
+	if len(allocated) != 2 || allocated[0] != "rg-00" || allocated[1] != "rg-01" {
+		t.Fatalf("internal allocation mutated via Allocated return: %v", allocated)
+	}
+}
+
 func TestFormatEnv(t *testing.T) {
 	p, err := New("rg-00 rg-01 rg-02")
 	if err != nil {
@@ -298,6 +346,62 @@ func TestReleaseWithCleanupUnknown(t *testing.T) {
 	err = p.ReleaseWithCleanup("nonexistent", func(string) error { return nil })
 	if err == nil {
 		t.Fatal("expected error for unknown test, got nil")
+	}
+}
+
+func TestReleaseWithCleanupConcurrentWithRelease(t *testing.T) {
+	p, err := New("rg-00 rg-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Allocate("test-a", 2); err != nil {
+		t.Fatal(err)
+	}
+
+	inCleanup := make(chan struct{})
+	proceed := make(chan struct{})
+	closeProceed := sync.OnceFunc(func() { close(proceed) })
+	t.Cleanup(closeProceed)
+	done := make(chan error, 1)
+
+	go func() {
+		done <- p.ReleaseWithCleanup("test-a", func(string) error {
+			select {
+			case <-inCleanup:
+			default:
+				close(inCleanup)
+			}
+			<-proceed
+			return nil
+		})
+	}()
+
+	<-inCleanup
+	if got := p.Size(); got != 2 {
+		t.Fatalf("Size() = %d during cleanup, want 2", got)
+	}
+	if got := p.Free(); got != 0 {
+		t.Fatalf("Free() = %d during cleanup, want 0", got)
+	}
+	if all := p.AllContainers(); len(all) != 2 {
+		t.Fatalf("AllContainers() = %v during cleanup, want 2 entries", all)
+	}
+	if got := p.Allocated("test-a"); got != nil {
+		t.Fatalf("Allocated() = %v during cleanup, want nil", got)
+	}
+	releaseErr := p.Release("test-a")
+	closeProceed()
+	if cleanupErr := <-done; cleanupErr != nil {
+		t.Fatalf("ReleaseWithCleanup: %v", cleanupErr)
+	}
+	if releaseErr == nil {
+		t.Fatal("expected Release to fail while ReleaseWithCleanup owns the allocation")
+	}
+	if got := p.Free(); got != 2 {
+		t.Fatalf("Free() = %d, want 2 (double-release would yield 4)", got)
+	}
+	if got := p.Size(); got != 2 {
+		t.Fatalf("Size() = %d, want 2", got)
 	}
 }
 
