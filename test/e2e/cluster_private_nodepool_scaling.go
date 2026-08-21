@@ -148,6 +148,7 @@ var _ = Describe("Customer", func() {
 				kubeconfigB64,
 			)
 			versionOutput, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
+			Expect(err).NotTo(HaveOccurred(), "RunVMCommand failed for kubectl version (output: %s)", versionOutput)
 			Expect(versionOutput).To(ContainSubstring("Server Version"),
 				"KAS should be reachable from VM via private endpoint (output: %s)", versionOutput)
 
