@@ -35,7 +35,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### HCP etcd gRPC Latency \u2014 Fleet Summary\n\nThis dashboard tracks **etcd gRPC request latency** (P99/P95) for HCP clusters across all regional Prometheus workspaces.\n\n- **SLO threshold**: 500ms P99 latency (gives 500ms headroom before KAS 1s SLO boundary)\n- **Metric source**: `grpc_server_handling_seconds` histogram (requires `ETCD_METRICS=extensive`)\n- **Alerts**: `userJourneyEtcdReadLatencyP99*` / `userJourneyEtcdWriteLatencyP99*` (MWMBR, RP lane)\n\n#### etcd gRPC Services\n\n| Service | Description |\n|---|---|\n| `etcdserverpb.KV` | Key-value store operations \u2014 primary data path for KAS reads/writes |\n| `etcdserverpb.Watch` | Watch streams for key change notifications (used by KAS informers) |\n| `etcdserverpb.Lease` | Lease management for TTL-based key expiration (leader election, endpoints) |\n| `etcdserverpb.Cluster` | Cluster membership operations (member add/remove/list) |\n| `etcdserverpb.Maintenance` | Maintenance operations (defrag, snapshot, alarm) |\n| `etcdserverpb.Auth` | Authentication and authorization (user/role management) |\n\n#### KV Methods (etcdserverpb.KV)\n\n| Method | Type | Description |\n|---|---|---|\n| `Range` | Read | Primary KAS read path \u2014 fetches keys/ranges from etcd store |\n| `Txn` | Write | Primary KAS write path \u2014 atomic compare-and-swap transactions |\n| `Put` | Write | Direct key-value writes (less common from KAS, used internally) |\n| `DeleteRange` | Write | Delete keys by range (garbage collection, resource deletion) |\n| `Compact` | Maintenance | History compaction \u2014 reclaims storage from old revisions |",
+        "content": "### HCP etcd gRPC Latency — Fleet Summary\n\nThis dashboard tracks **etcd gRPC request latency** (P99/P95) for HCP clusters across all regional Prometheus workspaces.\n\n- **SLO threshold**: 500ms P99 latency (gives 500ms headroom before KAS 1s SLO boundary)\n- **Metric source**: `grpc_server_handling_seconds` histogram (requires `ETCD_METRICS=extensive`)\n- **Alerts**: `userJourneyEtcdReadLatencyP99*` / `userJourneyEtcdWriteLatencyP99*` (MWMBR, RP lane)\n\n#### etcd gRPC Services\n\n| Service | Description |\n|---|---|\n| `etcdserverpb.KV` | Key-value store operations — primary data path for KAS reads/writes |\n| `etcdserverpb.Watch` | Watch streams for key change notifications (used by KAS informers) |\n| `etcdserverpb.Lease` | Lease management for TTL-based key expiration (leader election, endpoints) |\n| `etcdserverpb.Cluster` | Cluster membership operations (member add/remove/list) |\n| `etcdserverpb.Maintenance` | Maintenance operations (defrag, snapshot, alarm) |\n| `etcdserverpb.Auth` | Authentication and authorization (user/role management) |\n\n#### KV Methods (etcdserverpb.KV)\n\n| Method | Type | Description |\n|---|---|---|\n| `Range` | Read | Primary KAS read path — fetches keys/ranges from etcd store |\n| `Txn` | Write | Primary KAS write path — atomic compare-and-swap transactions |\n| `Put` | Write | Direct key-value writes (less common from KAS, used internally) |\n| `DeleteRange` | Write | Delete keys by range (garbage collection, resource deletion) |\n| `Compact` | Maintenance | History compaction — reclaims storage from old revisions |",
         "mode": "markdown"
       },
       "title": "Dashboard Info",
@@ -109,7 +109,26 @@
         }
       ],
       "title": "Worst Cluster P99 Read Latency (5m)",
-      "type": "stat"
+      "type": "stat",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "mode": "reduceFields",
+            "reducers": [
+              "max"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
@@ -179,7 +198,26 @@
         }
       ],
       "title": "Worst Cluster P99 Write Latency (5m)",
-      "type": "stat"
+      "type": "stat",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "mode": "reduceFields",
+            "reducers": [
+              "max"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
@@ -249,7 +287,26 @@
         }
       ],
       "title": "Worst Cluster P95 Read Latency (5m)",
-      "type": "stat"
+      "type": "stat",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "mode": "reduceFields",
+            "reducers": [
+              "max"
+            ]
+          }
+        }
+      ]
     },
     {
       "datasource": {
@@ -319,7 +376,26 @@
         }
       ],
       "title": "Worst Cluster P95 Write Latency (5m)",
-      "type": "stat"
+      "type": "stat",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "mode": "reduceFields",
+            "reducers": [
+              "max"
+            ]
+          }
+        }
+      ]
     },
     {
       "collapsed": false,
@@ -626,6 +702,10 @@
       ],
       "title": "Read Latency SLO Violations (P99 > 500ms)",
       "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
         {
           "id": "organize",
           "options": {
@@ -949,6 +1029,10 @@
       ],
       "title": "Write Latency SLO Violations (P99 > 500ms)",
       "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
         {
           "id": "organize",
           "options": {
