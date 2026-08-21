@@ -156,19 +156,21 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig from admin REST config")
 			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
 
-			versionCmd := fmt.Sprintf(
-				"KUBECONFIG=$(mktemp) && "+
-					"trap 'rm -f $KUBECONFIG' EXIT && "+
-					"echo '%s' | base64 -d > $KUBECONFIG && "+
-					"chmod 600 $KUBECONFIG && "+
-					"kubectl --kubeconfig=$KUBECONFIG version 2>&1",
-				kubeconfigB64,
-			)
-			versionOutput, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
-			Expect(err).NotTo(HaveOccurred(), "RunVMCommand failed for kubectl version (output: %s)", versionOutput)
-			Expect(versionOutput).To(ContainSubstring("Server Version"),
-				"kubectl version should show Server Version, proving KAS is reachable from VM (output: %s)", versionOutput)
-			GinkgoLogr.Info("KAS is reachable from VM inside VNet", "output", versionOutput)
+			Eventually(func(g Gomega) {
+				versionCmd := fmt.Sprintf(
+					"KUBECONFIG=$(mktemp) && "+
+						"trap 'rm -f $KUBECONFIG' EXIT && "+
+						"echo '%s' | base64 -d > $KUBECONFIG && "+
+						"chmod 600 $KUBECONFIG && "+
+						"kubectl --kubeconfig=$KUBECONFIG version 2>&1",
+					kubeconfigB64,
+				)
+				versionOutput, runErr := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
+				g.Expect(runErr).NotTo(HaveOccurred(), "RunVMCommand failed for kubectl version (output: %s)", versionOutput)
+				g.Expect(versionOutput).To(ContainSubstring("Server Version"),
+					"kubectl version should show Server Version, proving KAS is reachable from VM (output: %s)", versionOutput)
+			}, 3*time.Minute, 15*time.Second).Should(Succeed(), "KAS should be reachable from VM via internal LB")
+			GinkgoLogr.Info("KAS is reachable from VM inside VNet")
 
 			By("verifying KAS is NOT reachable from outside the VNet")
 			Consistently(func(g Gomega) {
