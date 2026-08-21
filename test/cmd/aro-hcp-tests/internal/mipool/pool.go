@@ -34,9 +34,11 @@ const AssignedMIContainersEnvvar = "ASSIGNED_MI_CONTAINERS"
 // mutex protects the free/assigned bookkeeping but is never held during
 // network calls — callers must perform Azure cleanup outside of Allocate/Release.
 type Pool struct {
-	mu       sync.Mutex
-	free     []string
-	assigned map[string][]string // testName -> container RG names
+	mu        sync.Mutex
+	free      []string
+	assigned  map[string][]string // testName -> container RG names
+	releasing map[int][]string    // in-flight ReleaseWithCleanup ownership
+	nextRel   int
 }
 
 // New creates a pool from the space-separated container resource group names
@@ -50,8 +52,9 @@ func New(containers string) (*Pool, error) {
 	free := make([]string, len(names))
 	copy(free, names)
 	return &Pool{
-		free:     free,
-		assigned: make(map[string][]string),
+		free:      free,
+		assigned:  make(map[string][]string),
+		releasing: make(map[int][]string),
 	}, nil
 }
 
@@ -72,11 +75,10 @@ func (p *Pool) Allocate(testName string, n int) ([]string, error) {
 		return nil, fmt.Errorf("requested %d containers but only %d free", n, len(p.free))
 	}
 
-	allocated := make([]string, n)
-	copy(allocated, p.free[:n])
+	internal := cloneStrings(p.free[:n])
 	p.free = p.free[n:]
-	p.assigned[testName] = allocated
-	return allocated, nil
+	p.assigned[testName] = internal
+	return cloneStrings(internal), nil
 }
 
 // Release returns the containers assigned to testName back to the free pool.
@@ -105,23 +107,32 @@ func (p *Pool) Release(testName string) error {
 func (p *Pool) ReleaseWithCleanup(testName string, cleanupFn func(resourceGroup string) error) error {
 	p.mu.Lock()
 	containers, exists := p.assigned[testName]
-	p.mu.Unlock()
-
 	if !exists {
+		p.mu.Unlock()
 		return fmt.Errorf("test %q has no allocation to release", testName)
 	}
+	// Take ownership of the assignment under the lock so a concurrent
+	// Release cannot return the same containers to the free pool twice.
+	delete(p.assigned, testName)
+	copied := cloneStrings(containers)
+	id := p.nextRel
+	p.nextRel++
+	p.releasing[id] = copied
+	p.mu.Unlock()
+
+	defer func() {
+		p.mu.Lock()
+		p.free = append(p.free, copied...)
+		delete(p.releasing, id)
+		p.mu.Unlock()
+	}()
 
 	var errs []error
-	for _, rg := range containers {
+	for _, rg := range copied {
 		if err := cleanupFn(rg); err != nil {
 			errs = append(errs, fmt.Errorf("cleanup %s: %w", rg, err))
 		}
 	}
-
-	p.mu.Lock()
-	p.free = append(p.free, containers...)
-	delete(p.assigned, testName)
-	p.mu.Unlock()
 
 	if len(errs) > 0 {
 		return fmt.Errorf("cleanup errors for %s: %w", testName, errors.Join(errs...))
@@ -140,7 +151,7 @@ func (p *Pool) Free() int {
 func (p *Pool) Size() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return len(p.free) + p.assignedCount()
+	return len(p.free) + p.assignedCount() + p.releasingCount()
 }
 
 func (p *Pool) assignedCount() int {
@@ -151,12 +162,20 @@ func (p *Pool) assignedCount() int {
 	return n
 }
 
+func (p *Pool) releasingCount() int {
+	n := 0
+	for _, v := range p.releasing {
+		n += len(v)
+	}
+	return n
+}
+
 // Allocated returns the containers currently assigned to testName, or nil
 // if the test has no allocation.
 func (p *Pool) Allocated(testName string) []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.assigned[testName]
+	return cloneStrings(p.assigned[testName])
 }
 
 // AllContainers returns every container resource group name in the pool,
@@ -164,9 +183,12 @@ func (p *Pool) Allocated(testName string) []string {
 func (p *Pool) AllContainers() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	all := make([]string, 0, len(p.free)+p.assignedCount())
+	all := make([]string, 0, len(p.free)+p.assignedCount()+p.releasingCount())
 	all = append(all, p.free...)
 	for _, v := range p.assigned {
+		all = append(all, v...)
+	}
+	for _, v := range p.releasing {
 		all = append(all, v...)
 	}
 	return all
@@ -178,4 +200,13 @@ func (p *Pool) FormatEnv(testName string) string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return strings.Join(p.assigned[testName], " ")
+}
+
+func cloneStrings(s []string) []string {
+	if s == nil {
+		return nil
+	}
+	out := make([]string, len(s))
+	copy(out, s)
+	return out
 }
