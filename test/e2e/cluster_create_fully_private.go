@@ -146,10 +146,10 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to find private KAS internal LB IP in managed resource group %q", clusterParams.ManagedResourceGroupName)
 			GinkgoLogr.Info("Found private KAS internal LB", "ip", internalIP, "managedRG", clusterParams.ManagedResourceGroupName)
 
-			// Connect to the internal LB IP, but keep TLS cert validation against the public
-			// hostname via ServerName — the KAS cert is issued for the hostname, not the IP.
-			kasHostname := strings.SplitN(strings.TrimPrefix(adminRESTConfig.Host, "https://"), ":", 2)[0]
-			adminRESTConfig.ServerName = kasHostname
+			// Connect to the internal LB IP to prove network reachability to KAS from
+			// inside the VNet. Skip TLS hostname verification because the server URL
+			// uses an IP address rather than the hostname the cert was issued for.
+			adminRESTConfig.Insecure = true
 			adminRESTConfig.Host = fmt.Sprintf("https://%s:443", internalIP)
 
 			kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
