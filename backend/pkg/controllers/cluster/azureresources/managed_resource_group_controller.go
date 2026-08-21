@@ -102,7 +102,9 @@ func NewManagedResourceGroupController(
 //
 // As an optimization, when the cluster is not being deleted and the managed
 // resource group is already reflected as AzureResource, the Azure query is
-// skipped entirely. The deletion path always re-queries.
+// skipped entirely. The managed resource group is immutable, so a non-nil
+// AzureResource is sufficient to skip re-querying. The deletion path always
+// re-queries.
 //
 // This controller never creates or deletes the resource group.
 func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -144,12 +146,12 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 	// Optimization: when the cluster is not being deleted and we have already
 	// reflected this managed resource group as confirmed (AzureResource), there is
 	// nothing new to observe, so skip building the FPA client and querying Azure
-	// entirely. During deletion we must always re-query to detect when the
-	// resource group is finally gone, so this short-circuit only applies while the
-	// cluster is not deleting.
-	if !isDeleting &&
-		existingReference.AzureResource != nil &&
-		strings.EqualFold(existingReference.AzureResource.String(), managedResourceGroupID.String()) {
+	// entirely. The managed resource group is immutable, so a non-nil
+	// AzureResource is sufficient here — there is no need to compare it against the
+	// derived resource ID. During deletion we must always re-query to detect when
+	// the resource group is finally gone, so this short-circuit only applies while
+	// the cluster is not deleting.
+	if !isDeleting && existingReference.AzureResource != nil {
 		return nil
 	}
 
