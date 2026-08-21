@@ -27,12 +27,12 @@ func TestStatusEndpointsTrackReconciliation(t *testing.T) {
 	mux := http.NewServeMux()
 	status.registerHandlers(mux, time.Minute)
 
-	assertStatusCode(t, mux, "/healthz", http.StatusServiceUnavailable)
-	assertStatusCode(t, mux, "/readyz", http.StatusServiceUnavailable)
+	assertStatusCode(t, mux, "/healthz", http.StatusOK)                // no reconciliation yet - healthy at startup
+	assertStatusCode(t, mux, "/readyz", http.StatusServiceUnavailable) // no reconciliation yet - not ready
 
 	status.recordReconcile(false)
 	assertStatusCode(t, mux, "/healthz", http.StatusOK)
-	assertStatusCode(t, mux, "/readyz", http.StatusServiceUnavailable)
+	assertStatusCode(t, mux, "/readyz", http.StatusServiceUnavailable) // last reconciliation was a failure
 
 	status.recordReconcile(true)
 	assertStatusCode(t, mux, "/healthz", http.StatusOK)

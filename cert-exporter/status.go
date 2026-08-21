@@ -43,16 +43,26 @@ func (s *controllerStatus) recordReconcile(success bool) {
 
 func (s *controllerStatus) registerHandlers(mux *http.ServeMux, staleAfter time.Duration) {
 	mux.HandleFunc("/healthz", func(writer http.ResponseWriter, _ *http.Request) {
-		writeFreshness(writer, s.lastAttempt.Load(), staleAfter)
+		writeFreshness(writer, s.lastAttempt.Load(), staleAfter, true)
 	})
 	mux.HandleFunc("/readyz", func(writer http.ResponseWriter, _ *http.Request) {
-		writeFreshness(writer, s.lastSuccess.Load(), staleAfter)
+		writeFreshness(writer, s.lastSuccess.Load(), staleAfter, false)
 	})
 	mux.HandleFunc("/metrics", s.serveMetrics)
 }
 
-func writeFreshness(writer http.ResponseWriter, timestamp int64, staleAfter time.Duration) {
-	if timestamp == 0 || time.Since(time.Unix(0, timestamp)) > staleAfter {
+func writeFreshness(writer http.ResponseWriter, timestamp int64, staleAfter time.Duration, okIfNeverStarted bool) {
+	// For healthz: timestamp == 0 means reconciliation hasn't started yet (startup) - this is OK
+	// For readyz: timestamp == 0 means never succeeded - this is NOT OK
+	if timestamp == 0 {
+		if okIfNeverStarted {
+			writer.WriteHeader(http.StatusOK)
+			return
+		}
+		http.Error(writer, "reconciliation has never succeeded", http.StatusServiceUnavailable)
+		return
+	}
+	if time.Since(time.Unix(0, timestamp)) > staleAfter {
 		http.Error(writer, "reconciliation is stale", http.StatusServiceUnavailable)
 		return
 	}
