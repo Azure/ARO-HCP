@@ -205,7 +205,6 @@ func TestAllocateReturnIsIndependent(t *testing.T) {
 		t.Fatal(err)
 	}
 	got[0] = "mutated"
-	got = got[:0]
 
 	allocated := p.Allocated("test-a")
 	if len(allocated) != 2 || allocated[0] != "rg-00" || allocated[1] != "rg-01" {
@@ -234,7 +233,6 @@ func TestAllocatedReturnIsIndependent(t *testing.T) {
 
 	got := p.Allocated("test-a")
 	got[0] = "mutated"
-	got = got[:0]
 
 	allocated := p.Allocated("test-a")
 	if len(allocated) != 2 || allocated[0] != "rg-00" || allocated[1] != "rg-01" {
