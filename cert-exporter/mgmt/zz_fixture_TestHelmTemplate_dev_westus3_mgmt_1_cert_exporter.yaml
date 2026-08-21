@@ -1,0 +1,401 @@
+---
+# Source: cert-exporter/templates/rbac-controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cert-exporter-rbac-controller
+  namespace: cert-exporter
+  labels:
+    app.kubernetes.io/name: cert-exporter-rbac-controller
+automountServiceAccountToken: true
+---
+# Source: cert-exporter/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: cert-exporter
+  name: cert-exporter
+  namespace: cert-exporter
+automountServiceAccountToken: true
+---
+# Source: cert-exporter/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cert-exporter-config
+  namespace: cert-exporter
+  labels:
+    app.kubernetes.io/name: cert-exporter
+data:
+  config.yaml: |
+    server:
+      listen: ":9793"
+    log:
+      level: info
+      format: text
+    metrics:
+      exposeNotBefore: true
+    sources:
+      - kind: kubernetes
+        name: apiserver-tls-certs
+        namespaces:
+          include: ["ocm-*"]
+          exclude: []
+        secrets:
+          include: ["kube-apiserver-tls-cert"]
+          exclude: []
+          types:
+            - type: "kubernetes.io/tls"
+              keyPatterns: ["^tls\\.crt$"]
+              format: pem
+      - kind: kubernetes
+        name: ingress-tls-certs
+        namespaces:
+          include: ["open-cluster-management-policies"]
+          exclude: []
+        secrets:
+          include: ["default-ingress-tls-cert-*"]
+          exclude: []
+          types:
+            - type: "kubernetes.io/tls"
+              keyPatterns: ["^tls\\.crt$"]
+              format: pem
+---
+# Source: cert-exporter/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cert-exporter
+  labels:
+    app.kubernetes.io/name: cert-exporter
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["list", "watch"]
+---
+# Source: cert-exporter/templates/rbac-controller-clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cert-exporter-rbac-controller
+  labels:
+    app.kubernetes.io/name: cert-exporter-rbac-controller
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["list"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["rolebindings"]
+  verbs: ["create"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["rolebindings"]
+  resourceNames: ["cert-exporter"]
+  verbs: ["get", "update", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterroles"]
+  resourceNames: ["cert-exporter"]
+  verbs: ["bind"]
+---
+# Source: cert-exporter/templates/rbac-controller-clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cert-exporter-rbac-controller
+  labels:
+    app.kubernetes.io/name: cert-exporter-rbac-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cert-exporter-rbac-controller
+subjects:
+- kind: ServiceAccount
+  name: cert-exporter-rbac-controller
+  namespace: cert-exporter
+---
+# Source: cert-exporter/templates/rbac-controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cert-exporter-rbac-controller-metrics
+  namespace: 'cert-exporter'
+  labels:
+    app.kubernetes.io/name: cert-exporter-rbac-controller
+    port: metrics
+spec:
+  ports:
+  - name: metrics
+    port: 8081
+    protocol: TCP
+    targetPort: healthz
+  selector:
+    app.kubernetes.io/name: cert-exporter-rbac-controller
+---
+# Source: cert-exporter/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: cert-exporter
+    port: metrics
+  name: cert-exporter-metrics
+  namespace: 'cert-exporter'
+spec:
+  ports:
+  - port: 9793
+    protocol: TCP
+    targetPort: 9793
+    name: metrics
+  selector:
+    app.kubernetes.io/name: cert-exporter
+---
+# Source: cert-exporter/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-exporter
+  namespace: cert-exporter
+  labels:
+    app.kubernetes.io/name: cert-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cert-exporter
+    spec:
+      serviceAccountName: cert-exporter
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: cert-exporter
+        image: 'arohcpsvcdev.azurecr.io/enix/x509-certificate-exporter@sha256:1234567890'
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+        args:
+        - --config=/etc/x509-certificate-exporter/config.yaml
+        volumeMounts:
+        - name: config
+          mountPath: /etc/x509-certificate-exporter
+          readOnly: true
+        ports:
+        - name: metrics
+          containerPort: 9793
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: config
+        configMap:
+          name: cert-exporter-config
+---
+# Source: cert-exporter/templates/rbac-controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-exporter-rbac-controller
+  namespace: cert-exporter
+  labels:
+    app.kubernetes.io/name: cert-exporter-rbac-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-exporter-rbac-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cert-exporter-rbac-controller
+    spec:
+      serviceAccountName: cert-exporter-rbac-controller
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: rbac-controller
+        image: 'arohcpsvcdev.azurecr.io/cert-exporter-rbac-controller@sha256:1234567890'
+        args:
+        - --exporter-namespace=cert-exporter
+        - --exporter-service-account=cert-exporter
+        - --target-namespace-prefix=ocm-
+        - --target-namespace=open-cluster-management-policies
+        ports:
+        - name: healthz
+          containerPort: 8081
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: healthz
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 64Mi
+---
+# Source: cert-exporter/templates/acrpullbinding.yaml
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: cert-exporter-pull-binding
+  namespace: 'cert-exporter'
+spec:
+  acr:
+    environment: PublicCloud
+    server: 'arohcpsvcdev.azurecr.io'
+    scope: 'repository:enix/x509-certificate-exporter:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: 'cert-exporter'
+      clientID: '__imagePullerMsiClientId__'
+      tenantID: '__imagePullerMsiTenantId__'
+  serviceAccountName: 'cert-exporter'
+---
+# Source: cert-exporter/templates/rbac-controller-acrpullbinding.yaml
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: cert-exporter-rbac-controller-pull-binding
+  namespace: 'cert-exporter'
+spec:
+  acr:
+    environment: PublicCloud
+    server: 'arohcpsvcdev.azurecr.io'
+    scope: 'repository:cert-exporter-rbac-controller:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: 'cert-exporter-rbac-controller'
+      clientID: '__imagePullerMsiClientId__'
+      tenantID: '__imagePullerMsiTenantId__'
+  serviceAccountName: 'cert-exporter-rbac-controller'
+---
+# Source: cert-exporter/templates/rbac-controller-servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cert-exporter-rbac-controller
+  namespace: 'cert-exporter'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'cert-exporter'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-exporter-rbac-controller
+      port: metrics
+---
+# Source: cert-exporter/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cert-exporter
+  namespace: 'cert-exporter'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'cert-exporter'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-exporter
+      port: metrics
+---
+# Source: cert-exporter/templates/rbac-controller-validatingadmissionpolicy.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: cert-exporter-rbac-controller
+  labels:
+    app.kubernetes.io/name: cert-exporter-rbac-controller
+spec:
+  failurePolicy: Fail
+  matchConditions:
+  - name: user-is-cert-exporter-rbac-controller
+    expression: "request.userInfo.username == 'system:serviceaccount:cert-exporter:cert-exporter-rbac-controller'"
+  matchConstraints:
+    matchPolicy: Equivalent
+    resourceRules:
+    - apiGroups: ["rbac.authorization.k8s.io"]
+      apiVersions: ["v1"]
+      operations: ["CREATE", "UPDATE", "DELETE"]
+      resources: ["rolebindings"]
+      scope: Namespaced
+  variables:
+  - name: isTargetNamespace
+    expression: "request.namespace.startsWith('ocm-') || request.namespace == 'open-cluster-management-policies'"
+  - name: isManagedDelete
+    expression: "request.operation == 'DELETE' && oldObject.metadata.name == 'cert-exporter' && 'app.kubernetes.io/managed-by' in oldObject.metadata.?labels.orValue({}) && oldObject.metadata.labels['app.kubernetes.io/managed-by'] == 'cert-exporter-rbac-controller'"
+  - name: isValidMutation
+    expression: "request.operation != 'DELETE' && variables.isTargetNamespace && object.metadata.name == 'cert-exporter' && 'app.kubernetes.io/managed-by' in object.metadata.?labels.orValue({}) && object.metadata.labels['app.kubernetes.io/managed-by'] == 'cert-exporter-rbac-controller' && object.roleRef.apiGroup == 'rbac.authorization.k8s.io' && object.roleRef.kind == 'ClusterRole' && object.roleRef.name == 'cert-exporter' && size(object.subjects) == 1 && object.subjects[0].kind == 'ServiceAccount' && object.subjects[0].name == 'cert-exporter' && object.subjects[0].namespace == 'cert-exporter'"
+  validations:
+  - expression: "variables.isManagedDelete || variables.isValidMutation"
+    message: The cert-exporter RBAC controller may only manage its exact RoleBinding in approved namespaces.
+    reason: Forbidden
+---
+# Source: cert-exporter/templates/rbac-controller-validatingadmissionpolicy.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: cert-exporter-rbac-controller
+  labels:
+    app.kubernetes.io/name: cert-exporter-rbac-controller
+spec:
+  policyName: cert-exporter-rbac-controller
+  validationActions: [Deny]
+
