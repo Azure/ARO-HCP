@@ -87,8 +87,8 @@ func NewPlacementController(
 
 // needsWork reports whether the ServiceProviderCluster still needs its
 // Spec.ManagementClusterResourceID (scheduler intent) resolved.
-func (c *placementSyncer) needsWork(spc *coreapi.ServiceProviderCluster) bool {
-	return spc.Spec.ManagementClusterResourceID == nil
+func (c *placementSyncer) needsWork(serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	return serviceProviderCluster.Spec.ManagementClusterResourceID == nil
 }
 
 // SyncOnce resolves placement for a single HCP cluster: it selects an eligible
@@ -97,7 +97,7 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 	logger := utils.LoggerFromContext(ctx)
 
 	// Cheap cache check first.
-	cachedSPC, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		logger.V(1).Info("ServiceProviderCluster not found in cache, skipping")
 		return nil
@@ -105,7 +105,7 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
 	}
-	if !c.needsWork(cachedSPC) {
+	if !c.needsWork(cachedServiceProviderCluster) {
 		logger.V(1).Info("ServiceProviderCluster already has Spec.ManagementClusterResourceID, skipping")
 		return nil
 	}
@@ -126,9 +126,9 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 	}
 
 	// Write the chosen placement onto the live document with conflict retry.
-	spcCRUD := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	serviceProviderClusterCRUD := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	for attempt := 0; ; attempt++ {
-		existingSPC, err := spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+		existingServiceProviderCluster, err := serviceProviderClusterCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 		if cosmosstorageutils.IsNotFoundError(err) {
 			logger.V(1).Info("ServiceProviderCluster not found in Cosmos, skipping")
 			return nil
@@ -138,15 +138,15 @@ func (c *placementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPC
 		}
 		// Re-check against the live document: another actor may have resolved
 		// placement since we read the cache.
-		if !c.needsWork(existingSPC) {
+		if !c.needsWork(existingServiceProviderCluster) {
 			logger.V(1).Info("ServiceProviderCluster already has Spec.ManagementClusterResourceID (live read), skipping")
 			return nil
 		}
 
-		replacement := existingSPC.DeepCopy()
+		replacement := existingServiceProviderCluster.DeepCopy()
 		replacement.Spec.ManagementClusterResourceID = chosen
 
-		_, err = spcCRUD.Replace(ctx, replacement, nil)
+		_, err = serviceProviderClusterCRUD.Replace(ctx, replacement, nil)
 		if err == nil {
 			logger.Info("assigned management cluster placement", "managementClusterID", chosen.String())
 			return nil
@@ -184,32 +184,32 @@ func selectManagementCluster(
 ) (*azcorearm.ResourceID, error) {
 	// Count existing placements per management cluster.
 	assignedCounts := map[string]int{}
-	for _, spc := range serviceProviderClusters {
-		if spc == nil || spc.Spec.ManagementClusterResourceID == nil {
+	for _, serviceProviderCluster := range serviceProviderClusters {
+		if serviceProviderCluster == nil || serviceProviderCluster.Spec.ManagementClusterResourceID == nil {
 			continue
 		}
-		assignedCounts[strings.ToLower(spc.Spec.ManagementClusterResourceID.String())]++
+		assignedCounts[strings.ToLower(serviceProviderCluster.Spec.ManagementClusterResourceID.String())]++
 	}
 
 	var (
 		chosen      *fleetapi.ManagementCluster
 		chosenCount int
 	)
-	for _, mc := range managementClusters {
-		if mc == nil || mc.ResourceID == nil {
+	for _, managementCluster := range managementClusters {
+		if managementCluster == nil || managementCluster.ResourceID == nil {
 			continue
 		}
-		if !isEligibleManagementCluster(mc) {
+		if !isEligibleManagementCluster(managementCluster) {
 			continue
 		}
-		count := assignedCounts[strings.ToLower(mc.ResourceID.String())]
+		count := assignedCounts[strings.ToLower(managementCluster.ResourceID.String())]
 		switch {
 		case chosen == nil:
-			chosen, chosenCount = mc, count
+			chosen, chosenCount = managementCluster, count
 		case count > chosenCount:
-			chosen, chosenCount = mc, count
-		case count == chosenCount && mc.ResourceID.String() < chosen.ResourceID.String():
-			chosen, chosenCount = mc, count
+			chosen, chosenCount = managementCluster, count
+		case count == chosenCount && managementCluster.ResourceID.String() < chosen.ResourceID.String():
+			chosen, chosenCount = managementCluster, count
 		}
 	}
 
@@ -221,9 +221,9 @@ func selectManagementCluster(
 
 // isEligibleManagementCluster reports whether a management cluster can accept a
 // new HCP: it must be Schedulable and Ready.
-func isEligibleManagementCluster(mc *fleetapi.ManagementCluster) bool {
-	if mc.Spec.SchedulingPolicy != fleetapi.ManagementClusterSchedulingPolicySchedulable {
+func isEligibleManagementCluster(managementCluster *fleetapi.ManagementCluster) bool {
+	if managementCluster.Spec.SchedulingPolicy != fleetapi.ManagementClusterSchedulingPolicySchedulable {
 		return false
 	}
-	return meta.IsStatusConditionTrue(mc.Status.Conditions, string(fleetapi.ManagementClusterConditionReady))
+	return meta.IsStatusConditionTrue(managementCluster.Status.Conditions, string(fleetapi.ManagementClusterConditionReady))
 }

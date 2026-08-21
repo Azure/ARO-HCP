@@ -20,13 +20,10 @@ import (
 	"strings"
 	"time"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -276,10 +273,20 @@ func (c *clusterClusterServiceCreateSyncer) provisionShardRequiredProperties(ctx
 	if managementClusterResourceID == nil {
 		return nil, fmt.Errorf("ServiceProviderCluster has no Spec.ManagementClusterResourceID; placement is not resolved")
 	}
+	// A management cluster is a singleton within a stamp, so its resource ID is
+	// .../stamps/<stampIdentifier>/managementClusters/default and the lister is
+	// keyed by the stamp identifier (the parent segment's name).
+	if managementClusterResourceID.Parent == nil {
+		return nil, fmt.Errorf("management cluster resource ID %q has no parent stamp", managementClusterResourceID.String())
+	}
+	stampIdentifier := managementClusterResourceID.Parent.Name
 
-	managementCluster, err := c.lookupManagementCluster(ctx, managementClusterResourceID)
+	managementCluster, err := c.managementClusterLister.Get(ctx, stampIdentifier)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return nil, fmt.Errorf("management cluster %q not found", managementClusterResourceID.String())
+	}
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(fmt.Errorf("failed to get management cluster %q: %w", managementClusterResourceID.String(), err))
 	}
 
 	if managementCluster.Status.ClusterServiceProvisionShardID == nil {
@@ -288,25 +295,4 @@ func (c *clusterClusterServiceCreateSyncer) provisionShardRequiredProperties(ctx
 	provisionShardID := managementCluster.Status.ClusterServiceProvisionShardID.ID()
 
 	return map[string]string{ocm.CSPropertyProvisionShardID: provisionShardID}, nil
-}
-
-// lookupManagementCluster returns the ManagementCluster whose resource ID
-// matches the given ID from the fleet lister cache.
-func (c *clusterClusterServiceCreateSyncer) lookupManagementCluster(ctx context.Context, resourceID *azcorearm.ResourceID) (*fleetapi.ManagementCluster, error) {
-	managementClusters, err := c.managementClusterLister.List(ctx)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to list management clusters: %w", err))
-	}
-
-	want := strings.ToLower(resourceID.String())
-	for _, managementCluster := range managementClusters {
-		if managementCluster == nil || managementCluster.ResourceID == nil {
-			continue
-		}
-		if strings.ToLower(managementCluster.ResourceID.String()) == want {
-			return managementCluster, nil
-		}
-	}
-
-	return nil, fmt.Errorf("management cluster %q not found", resourceID.String())
 }
