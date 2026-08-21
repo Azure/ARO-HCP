@@ -230,6 +230,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		"nsgName":                  cfg.parameters["nsgName"],
 		"vnetName":                 cfg.parameters["vnetName"],
 		"subnetName":               cfg.parameters["subnetName"],
+		"integrationSubnetName":    cfg.parameters["integrationSubnetName"],
 		"keyVaultName":             cfg.parameters["keyVaultName"],
 		"useMsiPool":               usePooled,
 		"clusterResourceGroupName": cfg.resourceGroup,

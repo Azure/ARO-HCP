@@ -135,7 +135,7 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
 			nodePoolName := "np-" + suffix
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
 			nodePoolParams.ClusterName = clusterName
 			nodePoolParams.NodePoolName = nodePoolName
 			// Calculate the node pool version
@@ -164,7 +164,7 @@ var _ = Describe("ARO-HCP", func() {
 			nodePoolParams.OpenshiftVersionId = parseableVersions[0]
 
 			By(fmt.Sprintf("creating node pool %q with version '%s' on %s channel", nodePoolName, nodePoolParams.OpenshiftVersionId, nodePoolParams.ChannelGroup))
-			err = tc.CreateNodePoolFromParam20240610(
+			err = tc.CreateNodePoolFromParam20251223(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -176,8 +176,8 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for cluster %q", nodePoolName, clusterName)
 
 			By("verifying nodepool DiskStorageAccountType matches framework default")
-			err = framework.ValidateNodePoolDiskStorageAccountType20240610(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			err = framework.ValidateNodePoolDiskStorageAccountType20251223(ctx,
+				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				clusterName,
 				nodePoolName,

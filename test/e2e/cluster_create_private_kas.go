@@ -128,9 +128,9 @@ var _ = Describe("Customer", func() {
 			// Get admin credentials via ARM and override the server URL with
 			// the internal LB IP so kubectl on the VM connects through the
 			// private KAS endpoint.
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20251223(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				framework.GetAdminRESTConfigTimeout,

@@ -64,6 +64,7 @@ type ClusterParams20260901 struct {
 	EncryptionKeyManagementMode   string
 	EncryptionType                string
 	VnetIntegrationSubnetID       string
+	IntegrationSubnetName         string
 	KeyVaultVisibility            string
 	IngressType                   string
 	Network                       NetworkConfig
@@ -221,12 +222,17 @@ func PopulateClusterParamsFromCustomerInfraDeployment20260901(
 	if err != nil {
 		return params, fmt.Errorf("failed to get vnetSubnetName from customer infra deployment: %w", err)
 	}
+	integrationSubnetName, err := GetOutputValueString(customerInfraDeploymentResult, "integrationSubnetName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get integrationSubnetName from customer infra deployment: %w", err)
+	}
 	params.KeyVaultName = keyVaultName
 	params.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
 	params.EtcdEncryptionKeyName = etcdEncryptionKeyName
 	params.NsgResourceID = nsgResourceID
 	params.SubnetResourceID = subnetResourceID
 	params.VnetIntegrationSubnetID = vnetIntegrationSubnetID
+	params.IntegrationSubnetName = integrationSubnetName
 	params.VnetName = vnetName
 	params.NsgName = nsgName
 	params.SubnetName = subnetName
@@ -309,10 +315,11 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20260901(ctx
 		WithDeploymentName(managedIdentitiesDeploymentName),
 		WithClusterResourceGroup(*resourceGroup.Name),
 		WithParameters(map[string]interface{}{
-			"nsgName":      clusterParams.NsgName,
-			"vnetName":     clusterParams.VnetName,
-			"subnetName":   clusterParams.SubnetName,
-			"keyVaultName": clusterParams.KeyVaultName,
+			"nsgName":               clusterParams.NsgName,
+			"vnetName":              clusterParams.VnetName,
+			"subnetName":            clusterParams.SubnetName,
+			"integrationSubnetName": clusterParams.IntegrationSubnetName,
+			"keyVaultName":          clusterParams.KeyVaultName,
 		}),
 	)
 
@@ -524,6 +531,7 @@ func BuildHCPClusterFromParams20260901(
 				},
 			},
 			ImageDigestMirrors: imageDigestMirrors,
+			Autoscaling:        parameters.Autoscaling,
 		},
 	}, nil
 }
@@ -809,12 +817,12 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260901(
 		nil,
 	)
 	if err != nil {
-		// Fall back to the old 0240610 mechanism during the transition period.
-		fallbackFactory, fallbackErr := tc.Get20240610ClientFactory(ctx)
+		// Fall back to the old 20251223 mechanism during the transition period.
+		fallbackFactory, fallbackErr := tc.Get20251223ClientFactory(ctx)
 		if fallbackErr != nil {
 			return nil, fmt.Errorf("0901 credential request failed: %w; fallback client factory error: %w", err, fallbackErr)
 		}
-		return tc.GetAdminRESTConfigForHCPCluster20240610(ctx, fallbackFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, hcpClusterName, timeout)
+		return tc.GetAdminRESTConfigForHCPCluster20251223(ctx, fallbackFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, hcpClusterName, timeout)
 	}
 
 	operationResult, err := adminCredentialRequestPoller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{

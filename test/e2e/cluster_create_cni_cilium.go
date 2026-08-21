@@ -55,7 +55,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for cilium CNI test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -68,7 +68,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.Network.HostPrefix = 23
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{},
@@ -78,11 +78,12 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cilium CNI cluster")
 
 			By("creating HCP cluster without CNI")
-			err = tc.CreateHCPClusterFromParam20240610(
+			err = tc.CreateHCPClusterFromParam20251223(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
+				nil,
 				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q without CNI", customerClusterName)
@@ -152,9 +153,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to install Cilium chart via Helm")
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
 			nodePoolParams.NodePoolName = customerNodePoolName
-			nodePoolErr := tc.CreateNodePoolFromParam20240610(
+			nodePoolErr := tc.CreateNodePoolFromParam20251223(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
