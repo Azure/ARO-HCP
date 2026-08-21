@@ -1,0 +1,228 @@
+---
+# Source: cert-exporter/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: cert-exporter
+  name: cert-exporter
+  namespace: cert-exporter
+---
+# Source: cert-exporter/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cert-exporter-config
+  namespace: cert-exporter
+  labels:
+    app.kubernetes.io/name: cert-exporter
+data:
+  config.yaml: |
+    server:
+      listen: ":9793"
+    log:
+      level: info
+      format: text
+    metrics:
+      exposeNotBefore: true
+    sources:
+      - kind: kubernetes
+        name: istio-ingress-secrets
+        namespaces:
+          include: ["aks-istio-ingress"]
+          exclude: []
+        secrets:
+          include:
+            - "frontend-credential"
+            - "admin-api-credential"
+            - "sessiongate-credential"
+          exclude: []
+          types:
+            - type: "kubernetes.io/tls"
+              keyPatterns: ["^tls\\.crt$"]
+              format: pem
+---
+# Source: cert-exporter/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cert-exporter
+  labels:
+    app.kubernetes.io/name: cert-exporter
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+---
+# Source: cert-exporter/templates/rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cert-exporter
+  namespace: aks-istio-ingress
+  labels:
+    app.kubernetes.io/name: cert-exporter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cert-exporter
+subjects:
+- kind: ServiceAccount
+  name: cert-exporter
+  namespace: cert-exporter
+---
+# Source: cert-exporter/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: cert-exporter
+    port: metrics
+  name: cert-exporter-metrics
+  namespace: 'cert-exporter'
+spec:
+  ports:
+  - port: 9793
+    protocol: TCP
+    targetPort: 9793
+    name: metrics
+  selector:
+    app.kubernetes.io/name: cert-exporter
+---
+# Source: cert-exporter/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-exporter
+  namespace: cert-exporter
+  labels:
+    app.kubernetes.io/name: cert-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cert-exporter
+    spec:
+      serviceAccountName: cert-exporter
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: cert-exporter
+        image: 'arohcpsvcdev.azurecr.io/enix/x509-certificate-exporter@sha256:1234567890'
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+        args:
+        - --config=/etc/x509-certificate-exporter/config.yaml
+        volumeMounts:
+        - name: config
+          mountPath: /etc/x509-certificate-exporter
+          readOnly: true
+        ports:
+        - name: metrics
+          containerPort: 9793
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: config
+        configMap:
+          name: cert-exporter-config
+---
+# Source: cert-exporter/templates/acrpullbinding.yaml
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: cert-exporter-pull-binding
+  namespace: 'cert-exporter'
+spec:
+  acr:
+    environment: PublicCloud
+    server: 'arohcpsvcdev.azurecr.io'
+    scope: 'repository:enix/x509-certificate-exporter:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: 'cert-exporter'
+      clientID: '__imagePullerMsiClientId__'
+      tenantID: '__imagePullerMsiTenantId__'
+  serviceAccountName: 'cert-exporter'
+---
+# Source: cert-exporter/templates/allow-metrics.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics-cert-exporter
+  namespace: 'cert-exporter'
+spec:
+  action: "ALLOW"
+  rules:
+  - to:
+    - operation:
+        paths: ["/metrics"]
+        methods: ["GET"]
+        ports: ["9793"]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "cert-exporter"
+---
+# Source: cert-exporter/templates/peerauthentication.yaml
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: cert-exporter-metrics
+  namespace: 'cert-exporter'
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-exporter
+  portLevelMtls:
+    9793:
+      mode: PERMISSIVE
+---
+# Source: cert-exporter/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cert-exporter
+  namespace: 'cert-exporter'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'cert-exporter'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-exporter
+      port: metrics
+
