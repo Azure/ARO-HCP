@@ -1,0 +1,40 @@
+version: 2
+project_name: hcpctl
+dist: tooling/hcpctl/dist
+builds:
+- id: hcpctl
+  dir: tooling/hcpctl
+  main: .
+  binary: hcpctl
+  env:
+  - CGO_ENABLED=0
+  goos:
+  - linux
+  - windows
+  goarch:
+  - amd64
+  - arm64
+  ignore:
+  - goos: linux
+    goarch: arm64
+  ldflags:
+  - -X github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/version.commit={{ .ShortCommit }}
+  - -X github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/version.buildDate={{ .Date }}
+archives:
+- id: hcpctl
+  ids: [hcpctl]
+  name_template: >-
+    {{ .ProjectName }}_{{ .Os }}_{{ .Arch }}
+  formats: [binary]
+checksum:
+  name_template: checksums.txt
+changelog:
+  disable: true
+release:
+  target_commitish: main
+  name_template: "hcpctl (nightly)"
+  header: |
+    Automatically-built `hcpctl` binaries from the current `main` branch. Not a versioned release.
+  prerelease: true
+  mode: replace
+  replace_existing_artifacts: true

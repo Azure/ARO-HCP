@@ -39,8 +39,8 @@ require (
 	github.com/go-logr/stdr v1.2.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/onsi/ginkgo/v2 v2.28.1
-	github.com/onsi/gomega v1.39.1
+	github.com/onsi/ginkgo/v2 v2.28.3
+	github.com/onsi/gomega v1.40.0
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260812190735-a8b44e9f9fed
 	github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9
 	github.com/openshift/client-go v0.0.0-20260429123927-c81f86abfa6a
@@ -210,7 +210,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.2.0 // indirect
+	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
@@ -281,7 +281,7 @@ require (
 	github.com/trivago/tgo v1.0.7 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.13 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
-	github.com/vmware-tanzu/velero v1.17.2 // indirect
+	github.com/vmware-tanzu/velero v1.18.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	go.lsp.dev/jsonrpc2 v0.10.0 // indirect

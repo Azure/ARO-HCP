@@ -31,22 +31,39 @@ import (
 // drive SharedInformers backed by non-Kubernetes data sources (like CosmosDB)
 // that do not support a native watch protocol.
 type expiringWatcher struct {
-	result chan watch.Event
-	done   chan struct{}
+	result   chan watch.Event
+	done     chan struct{}
+	jitterFn JitterFunc
 }
 
 // NewExpiringWatcher creates a watcher that terminates after the given duration
 // by sending an HTTP 410 Gone / StatusReasonExpired error, causing the
-// reflector to relist.
+// reflector to relist. The expiry is jittered (see defaultJitter) so informers
+// sharing a relist duration do not relist against Cosmos DB in lockstep.
 func NewExpiringWatcher(ctx context.Context, expiry time.Duration) watch.Interface {
+	return newExpiringWatcher(ctx, expiry, defaultJitter)
+}
+
+// newExpiringWatcher is the injectable form of NewExpiringWatcher. Tests pass a
+// no-op jitterFn (func(d time.Duration) time.Duration { return d }) to keep
+// expiry timings deterministic. A nil jitterFn falls back to defaultJitter.
+func newExpiringWatcher(ctx context.Context, expiry time.Duration, jitterFn JitterFunc) watch.Interface {
+	if jitterFn == nil {
+		jitterFn = defaultJitter
+	}
 	w := &expiringWatcher{
-		result: make(chan watch.Event),
-		done:   make(chan struct{}),
+		result:   make(chan watch.Event),
+		done:     make(chan struct{}),
+		jitterFn: jitterFn,
 	}
 	go func() {
 		defer utilruntime.HandleCrash()
 		logger := utils.LoggerFromContext(ctx)
-		timer := time.NewTimer(expiry)
+		// Jitter the expiry so watchers created from the same relist duration
+		// fire at slightly different times, de-synchronizing Cosmos relists.
+		// Compute once so the timer and the log line report the same value.
+		jitteredExpiry := w.jitterFn(expiry)
+		timer := time.NewTimer(jitteredExpiry)
 		defer timer.Stop()
 		select {
 		case <-timer.C:
@@ -60,7 +77,7 @@ func NewExpiringWatcher(ctx context.Context, expiry time.Duration) watch.Interfa
 					Message: "watch expired",
 				},
 			}:
-				logger.V(4).Info("expiring watcher expired; sent Gone/Expired event to trigger relist", "expiry", expiry.String())
+				logger.V(4).Info("expiring watcher expired; sent Gone/Expired event to trigger relist", "expiry", jitteredExpiry.String())
 			case <-w.done:
 				logger.V(4).Info("expiring watcher stopped while delivering the expired event")
 			case <-ctx.Done():

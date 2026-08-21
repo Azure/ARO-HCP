@@ -6,3 +6,7 @@ param aksClusterName = '{{ .mgmt.aks.name }}'
 // Session Gate identity
 // used for AKS access
 param sessiongateMIResourceId = '__sessiongateMIResourceId__'
+
+// Fleet identity
+// used for AKS read access (node pool scaling)
+param fleetMIResourceId = '__fleetMIResourceId__'

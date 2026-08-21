@@ -47,6 +47,7 @@ import (
 	credentialrevocationdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/deletion"
 	credentialrevocationoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentialrevocation/operations"
 	clusterdeletion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/deletion"
+	clusteridentity "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/identity"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/legacycredentialrequest"
 	clusteroperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/operations"
 	clusterplacement "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/placement"
@@ -694,9 +695,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
-	identityMigrationController := clusterproperties.NewIdentityMigrationController(
+	clusterIdentitySyncController := clusteridentity.NewClusterIdentitySyncController(
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
@@ -1005,6 +1005,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	fetchMSIIdentitiesInfoController := clusteridentity.NewFetchMSIIdentitiesInfoController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.FPAMIDataplaneClientBuilder,
+	)
+
+	fetchDataPlaneOperatorsManagedIdentitiesInfoController := clusteridentity.NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.SMIClientBuilder,
+	)
+
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
@@ -1068,7 +1082,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
-				go identityMigrationController.Run(ctx, 20)
+				go clusterIdentitySyncController.Run(ctx, 20)
 				go clusterDegradedAggregatorController.Run(ctx, 20)
 				go clusterRequirementsValidAggregatorController.Run(ctx, 20)
 				go nodePoolDegradedAggregatorController.Run(ctx, 20)
@@ -1116,6 +1130,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go cosmosMigrationController.Run(ctx, 5)
 				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
 				go backupScheduleController.Run(ctx, 20)
+				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
+				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

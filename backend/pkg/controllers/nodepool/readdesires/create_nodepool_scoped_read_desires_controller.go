@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
@@ -132,7 +133,7 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	csClusterID := existingNodePool.ServiceProviderProperties.ClusterServiceID.ClusterID()
 
 	target := nodePoolTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix, existingNodePool.ID.Name)
-	desired := controllerutils.BuildReadDesire(
+	desired := controllerutil.BuildReadDesire(
 		kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
 			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName,
 			readDesireNameReadonlyNodePool,
@@ -153,7 +154,7 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	if err != nil {
 		return err
 	}
-	if !controllerutils.ReadDesireNeedsWork(existing, desired) {
+	if !controllerutil.ReadDesireNeedsWork(existing, desired) {
 		return nil
 	}
 	if existing == nil {

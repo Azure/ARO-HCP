@@ -48,6 +48,10 @@ build-and-push: image $(ORAS) $(YQ)
 	fi
 .PHONY: build-and-push
 
+deploy: build-and-push record-override
+	make -C .. pipeline/Fleet OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
+.PHONY: deploy
+
 MAKE_RUN_TS := $(shell date +%s)
 OVERRIDE_CONFIG_FILE ?= /tmp/fleet-override-config-$(MAKE_RUN_TS).yaml
 
