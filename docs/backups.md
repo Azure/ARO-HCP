@@ -66,12 +66,52 @@ Captured resources include:
 - HyperShift resources: `hostedcluster`, `nodepool`, `hostedcontrolplane`
 - Cluster API resources: `cluster`, `machinedeployment`, `machineset`, `machine`, `clusterdeployment`
 - Azure-specific resources: `azurecluster`, `azuremachine`, `azuremachinetemplate`
-- Standard workload resources: `deployments`, `statefulsets`, `configmap`, `secrets`, `services`, `sa`, `role`, `rolebinding`, `secretproviderclass`, `route`
+- Standard workload resources: `deployments`, `statefulsets`, `pods`, `configmap`, `secrets`, `services`, `sa`, `role`, `rolebinding`, `secretproviderclass`, `route`
+  - `pods` must be included for the [etcd snapshot hooks](#etcd-snapshot-hooks) to fire — Velero only runs exec hooks against pods that are part of the backup.
 - Policy resources: `priorityclasses`, `pdb`
 - Storage resources: `pvc`, `pv`
 - Swift Networking resources: `multitenantpodnetworkconfigs`, `podnetworks`,
 
 Volume snapshots are enabled. Snapshot data is moved to the backup storage location so it is durable outside of the originating Azure region.
+
+### etcd snapshot hooks
+
+A raw block-level snapshot of a live etcd data directory is not guaranteed to be a consistent, restorable etcd database. To capture a clean logical snapshot, each backup carries a Velero exec hook (`etcd-snapshot`), scoped to the control-plane namespace and selecting pods labeled `app=etcd`, with both a pre-backup and a post-backup phase that run inside the `etcd` container.
+
+**Pre-backup hook** (`onError: Fail`, 10-minute timeout) — takes the logical snapshot and flushes it to the underlying block device:
+
+```sh
+ETCDCTL_API=3 etcdctl \
+  --endpoints=https://etcd-client.<control-plane-ns>.svc:2379 \
+  --cacert /etc/etcd/tls/etcd-ca/ca.crt \
+  --cert /etc/etcd/tls/client/etcd-client.crt \
+  --key /etc/etcd/tls/client/etcd-client.key \
+  snapshot save /var/lib/backup.db \
+  && sync -f /var/lib/backup.db
+```
+
+The trailing `sync -f` is required for restore correctness. `etcdctl snapshot save` writes to `<path>.part`, fsyncs that file, then atomically renames it to `<path>` — but it does **not** fsync the parent directory. Because the CSI snapshot captures block-device state, the rename (a directory metadata operation still sitting in page cache / the filesystem journal) can be missing from the snapshot, leaving only `backup.db.part` on the restored PVC. `sync -f <path>` issues `syncfs()` on the data PVC, committing the file data **and** the rename to the block device before Velero snapshots the volume. Velero runs the pre-hook to completion before snapshotting the pod's volumes, so the flush is guaranteed to land first.
+
+**Post-backup hook** (`onError: Continue`, 2-minute timeout) — deletes the snapshot to reclaim space on the data PVC once Velero has finished snapshotting the pod's volumes:
+
+```sh
+rm -f /var/lib/backup.db
+```
+
+The post-hook uses `onError: Continue` because the snapshot has already been captured by the time it runs; a failed cleanup should not fail the backup. (This replaces the previous behavior of leaving `/var/lib/backup.db` in place to be overwritten on the next run.)
+
+The pre-backup hook plays two independent roles:
+
+- **Where the snapshot data comes from** — the `--endpoints` value is the `etcd-client` ClusterIP Service, not a pod or the headless discovery service. `etcd-client` leaves `publishNotReadyAddresses` unset (false), so it routes only to Ready endpoints; the etcd `readinessProbe` (`readyz` on port 9980) reflects serving health, so the Service load-balances to a healthy member. `etcdctl snapshot save` opens a single gRPC connection, so the snapshot is pulled from exactly one healthy member — the readiness semantics do the "pick a healthy member" for us. The headless `etcd-discovery` service must **not** be used here: it sets `publishNotReadyAddresses: true` and could hand back a crash-looping member.
+- **Which pods Velero execs into** — the hook selects all etcd members via the `app=etcd` label. Velero runs the exec once per matched pod, so every running member writes a `backup.db` to its own PVC. This is deliberately independent of any single pod's health: the backup does not hinge on `etcd-0` being up. The snapshot *data* in every case still comes from a healthy member via the Service, so each member's `backup.db` is equally consistent.
+
+`/var/lib/backup.db` sits on the member's data PVC (mounted at `/var/lib`) but outside etcd's live data directory (`/var/lib/data`, set via `ETCD_DATA_DIR`), so live etcd ignores the file while the CSI snapshot of that PVC still captures it. Velero runs the pod pre-hook before snapshotting that pod's volumes, so the clean snapshot is present when the volume snapshot is taken. The post-hook removes the file after the volume snapshot completes, so it does not accumulate on the data PVC between runs.
+
+The pre-hook uses `onError: Fail`. If a member's exec fails, Velero records the error, skips that pod, and continues — the other members' snapshots and all CSI volume snapshots are still taken, and the backup is marked **PartiallyFailed** (it does *not* abort the whole backup). This makes a failing member visible rather than letting a total failure (e.g. a bad cert path on every member) silently pass as it would with `onError: Continue`.
+
+### Restoring from the etcd snapshot
+
+All etcd PVCs (`data-etcd-0/1/2`) are CSI-snapshotted, and each running member's snapshot contains a fresh `backup.db`. There is no single designated "primary" snapshot — any etcd PVC snapshot whose `/var/lib/backup.db` validates is usable, since they are all pulled from a healthy member and are equally consistent. To pick one at restore time, restore/mount an etcd PVC snapshot and run `etcdctl snapshot status /var/lib/backup.db` (which reports the hash, revision, and key count); use any that validates, or the highest revision for the freshest.
 
 ## Components
 
