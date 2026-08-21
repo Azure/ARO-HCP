@@ -231,6 +231,69 @@ func TestReplaceWithRetry(t *testing.T) {
 	}
 }
 
+// opStubCRUD implements cosmosstorageutils.ResourceCRUD[coreapi.Operation, *coreapi.Operation]
+// just enough for the TTL-skip test. Only Get and Replace are exercised.
+type opStubCRUD struct {
+	getFunc     func(ctx context.Context, resourceID string) (*coreapi.Operation, error)
+	replaceFunc func(ctx context.Context, newObj *coreapi.Operation, options *azcosmos.ItemOptions) (*coreapi.Operation, error)
+}
+
+func (s *opStubCRUD) Get(ctx context.Context, resourceID string) (*coreapi.Operation, error) {
+	return s.getFunc(ctx, resourceID)
+}
+
+func (s *opStubCRUD) Replace(ctx context.Context, newObj *coreapi.Operation, options *azcosmos.ItemOptions) (*coreapi.Operation, error) {
+	return s.replaceFunc(ctx, newObj, options)
+}
+
+func (s *opStubCRUD) GetByID(context.Context, string) (*coreapi.Operation, error) {
+	panic("not implemented")
+}
+
+func (s *opStubCRUD) List(context.Context, *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[coreapi.Operation], error) {
+	panic("not implemented")
+}
+
+func (s *opStubCRUD) Create(context.Context, *coreapi.Operation, *azcosmos.ItemOptions) (*coreapi.Operation, error) {
+	panic("not implemented")
+}
+
+func (s *opStubCRUD) Delete(context.Context, string) error {
+	panic("not implemented")
+}
+
+func (s *opStubCRUD) AddCreateToTransaction(context.Context, cosmosstorageutils.DBTransaction, *coreapi.Operation, *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	panic("not implemented")
+}
+
+func (s *opStubCRUD) AddReplaceToTransaction(context.Context, cosmosstorageutils.DBTransaction, *coreapi.Operation, *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	panic("not implemented")
+}
+
+// TestReplaceWithRetrySkipsTTLDocuments verifies that replaceWithRetry does not
+// re-write TTL-governed documents (e.g. operations). Rewriting them would bump
+// the document's _ts and reset the Cosmos TTL clock, preventing expiry.
+func TestReplaceWithRetrySkipsTTLDocuments(t *testing.T) {
+	ctx := context.Background()
+	logger := testr.New(t)
+
+	getCalled := false
+	crud := &opStubCRUD{
+		getFunc: func(_ context.Context, _ string) (*coreapi.Operation, error) {
+			getCalled = true
+			return &coreapi.Operation{}, nil
+		},
+		replaceFunc: func(_ context.Context, _ *coreapi.Operation, _ *azcosmos.ItemOptions) (*coreapi.Operation, error) {
+			t.Fatal("Replace must not be called for TTL-governed documents; doing so resets their TTL clock")
+			return nil, nil
+		},
+	}
+
+	err := replaceWithRetry(ctx, logger, crud, "test-operation", "operation")
+	require.NoError(t, err)
+	assert.True(t, getCalled, "expected Get to be called before deciding to skip")
+}
+
 func TestSyncOnceSkipsAlreadyCompletedSubscription(t *testing.T) {
 	ctx := context.Background()
 
