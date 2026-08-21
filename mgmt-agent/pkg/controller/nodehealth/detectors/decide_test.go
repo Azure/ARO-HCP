@@ -58,10 +58,14 @@ func testNode(swift, ready bool) *corev1.Node {
 // node and whose involved object is the named pod (correlated by UID), matching
 // the SWIFT signature.
 func failEventFor(pod string, last time.Time, msg string) *corev1.Event {
+	return eventFor(pod, last, reasonFailedCreatePodSandBox, msg)
+}
+
+func eventFor(pod string, last time.Time, reason, msg string) *corev1.Event {
 	return &corev1.Event{
 		InvolvedObject: corev1.ObjectReference{Kind: "Pod", Namespace: "ns", Name: pod, UID: podUID(pod)},
 		Source:         corev1.EventSource{Host: nodeName, Component: "kubelet"},
-		Reason:         reasonFailedCreatePodSandBox,
+		Reason:         reason,
 		Message:        msg,
 		LastTimestamp:  metav1.NewTime(last),
 		FirstTimestamp: metav1.NewTime(last),
@@ -451,6 +455,47 @@ func TestSignatureVariantsMatch(t *testing.T) {
 	if _, ok := swiftVFTeardown.matchSignature("image pull backoff"); ok {
 		t.Error("unrelated message should not match")
 	}
+}
+
+func TestCNIPluginNotInitialized(t *testing.T) {
+	const message = "network is not ready: container runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:Network plugin returns error: cni plugin not initialized"
+
+	events := []*corev1.Event{
+		eventFor("p0", ago(20*time.Second), reasonNetworkNotReady, message),
+		eventFor("p1", ago(20*time.Second), reasonNetworkNotReady, message),
+		eventFor("p2", ago(20*time.Second), reasonNetworkNotReady, message),
+	}
+	pods := []*corev1.Pod{
+		stuckPod("p0", ago(15*time.Minute)),
+		stuckPod("p1", ago(15*time.Minute)),
+		stuckPod("p2", ago(15*time.Minute)),
+	}
+
+	t.Run("persistent failure wedges a Ready SWIFT node", func(t *testing.T) {
+		got, snap := Decide(testNode(true, true), events, pods, testNow)
+		if got != DecisionWedged {
+			t.Fatalf("Decide() = %v, want Wedged", got)
+		}
+		if snap.DetectorName != cniPluginNotInitialized.name {
+			t.Errorf("snapshot detector = %q, want %q", snap.DetectorName, cniPluginNotInitialized.name)
+		}
+		if snap.MatchedSignature != cniPluginNotInitialized.signatures[0].String() {
+			t.Errorf("matched signature = %q, want %q", snap.MatchedSignature, cniPluginNotInitialized.signatures[0].String())
+		}
+	})
+
+	t.Run("recent sandbox success suppresses the wedge", func(t *testing.T) {
+		withSuccess := append(append([]*corev1.Pod{}, pods...), startedPod("ok", ago(2*time.Minute), false))
+		if got, _ := Decide(testNode(true, true), events, withSuccess, testNow); got != DecisionHealthy {
+			t.Errorf("Decide() = %v, want Healthy", got)
+		}
+	})
+
+	t.Run("non-SWIFT node is outside the observed failure scope", func(t *testing.T) {
+		if got, _ := Decide(testNode(false, true), events, pods, testNow); got != DecisionNotApplicable {
+			t.Errorf("Decide() = %v, want NotApplicable", got)
+		}
+	})
 }
 
 func TestMatchedSignatureReportsDominantFailureMode(t *testing.T) {

@@ -202,8 +202,18 @@ never a candidate. On those nodes it matches `FailedCreatePodSandBox` Events in 
 `route ip+net: no such network interface` family (plus the network-unreachable,
 mtpnc-not-ready, and dhcp-discover-timeout variants seen for this fault). It lives
 in its own file and contributes only its specifics; its signature, thresholds, and
-node-applicability label are constants in code, not config. A second fault family
-would be another detector reusing the shared primitives, shipped and tested as code.
+node-applicability label are constants in code, not config.
+
+The second detector, `cni-plugin-not-initialized`, covers a different Ready-but-
+broken failure. The kubelet repeatedly emits pod-scoped `NetworkNotReady` Events
+(`InvolvedObject.Kind: Pod`) whose message contains `cni plugin not initialized`,
+and newly scheduled pods cannot get sandboxes. The node stays Ready because
+kubelet's `NetworkReady` condition only gates the initial Ready transition; once
+the node has been Ready, a CNI failure does not drive it back to NotReady. It is
+scoped to SWIFT-v2 nodes and uses a three-pod floor, 10-minute dwell and
+window, and zero-success requirement (the same dwell, window, and success gate
+as `swift-vf-teardown`, though that detector's floor is 2). The exact Event
+message is pinned in the detector tests.
 
 The decision is **rate, continuity, and success-presence, never an absolute error
 count**. The measured evidence is explicit about why an absolute count misleads:
