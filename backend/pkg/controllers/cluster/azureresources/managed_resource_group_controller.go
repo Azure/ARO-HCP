@@ -100,6 +100,10 @@ func NewManagedResourceGroupController(
 //   - Missing or not owned while the cluster is not being deleted (creation path):
 //     it is recorded as PendingAzureResource and AzureResource is cleared.
 //
+// As an optimization, when the cluster is not being deleted and the managed
+// resource group is already reflected as AzureResource, the Azure query is
+// skipped entirely. The deletion path always re-queries.
+//
 // This controller never creates or deletes the resource group.
 func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
@@ -135,6 +139,19 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 	}
 
 	isDeleting := cluster.ServiceProviderProperties.DeletionTimestamp != nil
+	existingReference := existingServiceProviderCluster.Status.AzureResources.ManagedResourceGroup
+
+	// Optimization: when the cluster is not being deleted and we have already
+	// reflected this managed resource group as confirmed (AzureResource), there is
+	// nothing new to observe, so skip building the FPA client and querying Azure
+	// entirely. During deletion we must always re-query to detect when the
+	// resource group is finally gone, so this short-circuit only applies while the
+	// cluster is not deleting.
+	if !isDeleting &&
+		existingReference.AzureResource != nil &&
+		strings.EqualFold(existingReference.AzureResource.String(), managedResourceGroupID.String()) {
+		return nil
+	}
 
 	rgClient, err := c.resourceGroupsClient(ctx, cluster.ID.SubscriptionID)
 	if err != nil {

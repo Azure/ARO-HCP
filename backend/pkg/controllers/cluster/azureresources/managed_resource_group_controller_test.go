@@ -340,6 +340,58 @@ func TestManagedResourceGroupSyncerSyncOnceEmptyManagedResourceGroupName(t *test
 	require.NoError(t, syncer.SyncOnce(ctx, key))
 }
 
+// TestManagedResourceGroupSyncerSyncOnceSkipsAzureWhenAlreadyReflected verifies
+// that when the cluster is not being deleted and the ServiceProviderCluster
+// already reflects the managed resource group as AzureResource, the controller
+// short-circuits without building the FPA client or calling Azure Get.
+func TestManagedResourceGroupSyncerSyncOnceSkipsAzureWhenAlreadyReflected(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mrgID := testManagedResourceGroupID(t)
+
+	cluster := newTestCluster(false)
+	serviceProviderCluster := newTestServiceProviderCluster(coreapi.AzureReference{AzureResource: mrgID})
+
+	mockResourcesDB, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, serviceProviderCluster})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	// Neither the FPA client build nor the Azure Get must happen: the reflected
+	// state is already up to date and the cluster is not being deleted.
+	mockRGClient := azureclient.NewMockResourceGroupsClient(ctrl)
+	mockRGClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+	fpaClientBuilder := azureclient.NewMockFirstPartyApplicationClientBuilder(ctrl)
+	fpaClientBuilder.EXPECT().
+		ResourceGroupsClient(gomock.Any(), gomock.Any()).
+		Times(0)
+
+	syncer := &managedResourceGroupSyncer{
+		resourcesDBClient:            mockResourcesDB,
+		serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDB},
+		subscriptionLister:           &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{newTestSubscription(ptr.To(testTenantID))}},
+		azureFPAClientBuilder:        fpaClientBuilder,
+	}
+
+	key := controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, key))
+
+	// The reflected reference must be unchanged.
+	updated, err := mockResourcesDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	gotReference := updated.Status.AzureResources.ManagedResourceGroup
+	assertResourceIDEqual(t, mrgID, gotReference.AzureResource, "AzureResource")
+	assertResourceIDEqual(t, nil, gotReference.PendingAzureResource, "PendingAzureResource")
+}
+
 // assertResourceIDEqual compares two optional resource IDs by their canonical string form.
 func assertResourceIDEqual(t *testing.T, expected, actual *azcorearm.ResourceID, field string) {
 	t.Helper()
