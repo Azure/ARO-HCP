@@ -38,6 +38,32 @@ resourceGroups:
       - "unauthorized: authentication required"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
+  - name: mirror-rbac-controller-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: certExporter.rbacController.image.registry
+    repository:
+      configRef: certExporter.rbacController.image.repository
+    digest:
+      configRef: certExporter.rbacController.image.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      - "unexpected EOF"
+      - "unauthorized: authentication required"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -87,6 +113,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: global
       step: mirror-image
+    - resourceGroup: global
+      step: mirror-rbac-controller-image
     identityFrom:
       resourceGroup: global
       step: output

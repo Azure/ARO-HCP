@@ -2832,6 +2832,22 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
+        "rbacController": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            },
+            "k8s": {
+              "$ref": "#/definitions/k8sDeployment"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "image",
+            "k8s"
+          ]
+        },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         }
@@ -2839,6 +2855,7 @@
       "additionalProperties": false,
       "required": [
         "image",
+        "rbacController",
         "k8s"
       ]
     },

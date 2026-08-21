@@ -18,7 +18,7 @@ data:
       - kind: kubernetes
         name: apiserver-tls-certs
         namespaces:
-          include: ["ocm-*"]
+          include: ["{{ .Values.targetNamespaces.prefix }}*"]
           exclude: []
         secrets:
           include: ["kube-apiserver-tls-cert"]
@@ -30,7 +30,7 @@ data:
       - kind: kubernetes
         name: ingress-tls-certs
         namespaces:
-          include: ["open-cluster-management-policies"]
+          include: ["{{ .Values.targetNamespaces.exact }}"]
           exclude: []
         secrets:
           include: ["default-ingress-tls-cert-*"]

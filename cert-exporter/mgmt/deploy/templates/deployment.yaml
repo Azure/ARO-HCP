@@ -16,6 +16,7 @@ spec:
         app.kubernetes.io/name: cert-exporter
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: true
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532

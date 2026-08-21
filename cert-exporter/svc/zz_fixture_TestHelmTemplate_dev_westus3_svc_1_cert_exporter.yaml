@@ -27,12 +27,15 @@ data:
       exposeNotBefore: true
     sources:
       - kind: kubernetes
-        name: cluster-secrets
+        name: istio-ingress-secrets
         namespaces:
           include: ["aks-istio-ingress"]
           exclude: []
         secrets:
-          include: ["*"]
+          include:
+            - "frontend-credential"
+            - "admin-api-credential"
+            - "sessiongate-credential"
           exclude: []
           types:
             - type: "kubernetes.io/tls"
