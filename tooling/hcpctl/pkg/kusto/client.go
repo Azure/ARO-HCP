@@ -115,6 +115,24 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, out
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 
+	return processPrimaryResult(ctx, dataset.Tables(), query, outputChannel)
+}
+
+// processPrimaryResult consumes the primary (first) table emitted on the
+// dataset's tables channel, streams its rows to outputChannel, and returns
+// aggregate query statistics.
+//
+// tables yields values of the azkquery.TableResult interface type. When the
+// result stream is empty or already closed (for example when the server emits
+// no primary table), a receive yields the interface zero value (nil); calling
+// any method on it would panic with a nil-pointer dereference. Because this
+// runs inside an errgroup goroutine (see mustgather.ConcurrentQueries), such a
+// panic would crash the whole process instead of failing the individual query.
+// Guard against it with a two-value receive and an explicit nil check before
+// dereferencing the result.
+func processPrimaryResult(ctx context.Context, tables <-chan azkquery.TableResult, query Query, outputChannel chan<- TaggedRow) (*QueryResult, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
 	// Process results
 	var columns azkquery.Columns
 	var totalRows int
@@ -123,10 +141,12 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, out
 
 	// Process the first table (primary result)
 	logger.V(6).Info("Processing primary result")
-	primaryResult := <-dataset.Tables()
+	primaryResult, ok := <-tables
+	if !ok || primaryResult == nil {
+		return nil, fmt.Errorf("query %q returned no primary result (empty or closed result stream)", query.GetName())
+	}
 
-	err = primaryResult.Err()
-	if err != nil {
+	if err := primaryResult.Err(); err != nil {
 		return nil, fmt.Errorf("failed to get primary result: %w", err)
 	}
 
