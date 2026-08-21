@@ -129,25 +129,27 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for private cluster %q", customerClusterName)
 
-			internalIP, err := framework.GetPrivateKASInternalIP(ctx, tc, clusterParams.ManagedResourceGroupName)
-			Expect(err).NotTo(HaveOccurred(), "failed to find private KAS internal LB IP")
-
-			adminRESTConfig.Host = fmt.Sprintf("https://%s:443", internalIP)
-
+			// Generate kubeconfig before any Host override — private DNS inside the VNet
+			// resolves the public hostname to the internal LB IP, so TLS validation succeeds.
 			kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig")
 			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
+
+			internalIP, err := framework.GetPrivateKASInternalIP(ctx, tc, clusterParams.ManagedResourceGroupName)
+			Expect(err).NotTo(HaveOccurred(), "failed to find private KAS internal LB IP")
+			GinkgoLogr.Info("Found private KAS internal LB", "ip", internalIP)
 
 			versionCmd := fmt.Sprintf(
 				"KUBECONFIG=$(mktemp) && "+
 					"trap 'rm -f $KUBECONFIG' EXIT && "+
 					"echo '%s' | base64 -d > $KUBECONFIG && "+
 					"chmod 600 $KUBECONFIG && "+
-					"kubectl --kubeconfig=$KUBECONFIG version 2>/dev/null",
+					"kubectl --kubeconfig=$KUBECONFIG version 2>&1",
 				kubeconfigB64,
 			)
-			_, err = framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
-			Expect(err).NotTo(HaveOccurred(), "KAS should be reachable from VM via private endpoint")
+			versionOutput, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
+			Expect(versionOutput).To(ContainSubstring("Server Version"),
+				"KAS should be reachable from VM via private endpoint (output: %s)", versionOutput)
 
 			By("verifying initial node count and ready status")
 			Eventually(func(g Gomega) {

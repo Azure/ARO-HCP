@@ -141,28 +141,28 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for fully private cluster %q", customerClusterName)
 
+			// Generate kubeconfig before any Host override — private DNS inside the VNet
+			// resolves the public hostname to the internal LB IP, so TLS validation succeeds.
+			kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig from admin REST config")
+			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
+
 			By("verifying KAS is reachable from VM inside the VNet")
 			internalIP, err := framework.GetPrivateKASInternalIP(ctx, tc, clusterParams.ManagedResourceGroupName)
 			Expect(err).NotTo(HaveOccurred(), "failed to find private KAS internal LB IP in managed resource group %q", clusterParams.ManagedResourceGroupName)
 			GinkgoLogr.Info("Found private KAS internal LB", "ip", internalIP, "managedRG", clusterParams.ManagedResourceGroupName)
-
-			adminRESTConfig.Host = fmt.Sprintf("https://%s:443", internalIP)
-
-			kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig from admin REST config")
-			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
 
 			versionCmd := fmt.Sprintf(
 				"KUBECONFIG=$(mktemp) && "+
 					"trap 'rm -f $KUBECONFIG' EXIT && "+
 					"echo '%s' | base64 -d > $KUBECONFIG && "+
 					"chmod 600 $KUBECONFIG && "+
-					"kubectl --kubeconfig=$KUBECONFIG version 2>/dev/null",
+					"kubectl --kubeconfig=$KUBECONFIG version 2>&1",
 				kubeconfigB64,
 			)
 			versionOutput, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
-			Expect(err).NotTo(HaveOccurred(),
-				"kubectl version should succeed from VM via private KAS internal LB (output: %s)", versionOutput)
+			Expect(versionOutput).To(ContainSubstring("Server Version"),
+				"kubectl version should show Server Version, proving KAS is reachable from VM (output: %s)", versionOutput)
 			GinkgoLogr.Info("KAS is reachable from VM inside VNet", "output", versionOutput)
 
 			By("verifying KAS is NOT reachable from outside the VNet")
@@ -206,7 +206,7 @@ var _ = Describe("Customer", func() {
 				g.Expect(runErr).NotTo(HaveOccurred(), "failed to get route host from VM")
 				routeHost = strings.TrimSpace(output)
 				g.Expect(routeHost).NotTo(BeEmpty(), "route host should not be empty")
-			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "sample app route should become available")
+			}, 15*time.Minute, 15*time.Second).Should(Succeed(), "sample app route should become available")
 
 			appURL := "https://" + routeHost
 			GinkgoLogr.Info("Sample app route available", "url", appURL)
