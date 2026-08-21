@@ -192,6 +192,7 @@ var _ = Describe("Customer", func() {
 				kubeconfigB64,
 			)
 			versionOutput, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, versionCmd, 2*time.Minute)
+			Expect(err).NotTo(HaveOccurred(), "RunVMCommand failed for kubectl version (output: %s)", versionOutput)
 			Expect(versionOutput).To(ContainSubstring("Server Version"),
 				"kubectl version should show Server Version, proving KAS is reachable from VM (output: %s)", versionOutput)
 			GinkgoLogr.Info("KAS is reachable from VM inside VNet", "output", versionOutput)
