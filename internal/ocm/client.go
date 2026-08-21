@@ -36,6 +36,7 @@ const (
 	CSPropertySingleReplica    = "hosted_cluster_single_replica"
 	CSPropertySizeOverride     = "hosted_cluster_size_override"
 	CSPropertyCPOImageOverride = "control_plane_operator_image"
+	CSPropertyProvisionShardID = "provision_shard_id"
 
 	CSPropertyEnabled                    = "true"
 	CSPropertyE2EMinimalControlPlaneSize = "e2e_minimal"

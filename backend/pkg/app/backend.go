@@ -881,6 +881,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
+	placementController := clusterplacement.NewPlacementController(
+		b.options.ResourcesDBClient,
+		managementClusterLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
 
 	nodePoolClusterServiceCreateController := nodepoolcreation.NewNodePoolClusterServiceCreateController(
 		b.options.ResourcesDBClient,
@@ -952,6 +958,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	clusterClusterServiceCreateController := clustercreation.NewClusterClusterServiceCreateController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
+		managementClusterLister,
 		backendInformers,
 	)
 
@@ -1127,6 +1134,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthMetricsController.Run(ctx, 1)
 				go clusterInfoMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
+				go placementController.Run(ctx, 1) // single worker: placement selection reads all MCs/SPCs and must not race itself
 				go cosmosMigrationController.Run(ctx, 5)
 				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
 				go backupScheduleController.Run(ctx, 20)

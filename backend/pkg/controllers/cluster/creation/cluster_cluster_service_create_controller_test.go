@@ -34,10 +34,12 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apitesting/coreapitesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -52,7 +54,37 @@ const (
 	testClusterUID          = "00000000-0000-0000-0000-000000000000"
 	// testManagedResourceGroup must match what coreapitesting.MinimumValidClusterTestCase() sets.
 	testManagedResourceGroup = "testManagedResourceGroup"
+	// testStampIdentifier and testProvisionShardID drive the management-cluster
+	// placement / provision-shard-pinning test fixtures.
+	testStampIdentifier  = "1"
+	testProvisionShardID = "shard-abc123"
 )
+
+// testManagementClusterResourceID returns the resource ID of the test management cluster.
+func testManagementClusterResourceID() *azcorearm.ResourceID {
+	return metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier))
+}
+
+// testProvisionShardHREF is the CS provision shard HREF whose ID() is testProvisionShardID.
+func testProvisionShardHREF() string {
+	return "/api/aro_hcp/v1alpha1/provision_shards/" + testProvisionShardID
+}
+
+// newTestManagementCluster returns a management cluster carrying the CS provision
+// shard used by the provision-shard-pinning tests.
+func newTestManagementCluster() *fleetapi.ManagementCluster {
+	resourceID := testManagementClusterResourceID()
+	return &fleetapi.ManagementCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: testStampIdentifier,
+		},
+		ResourceID: resourceID,
+		Status: fleetapi.ManagementClusterStatus{
+			ClusterServiceProvisionShardID: ptr.To(metadataapi.Must(metadataapi.NewInternalID(testProvisionShardHREF()))),
+		},
+	}
+}
 
 // testClusterResourceID builds the ARM resource ID for the test cluster.
 func testClusterResourceID() *azcorearm.ResourceID {
@@ -128,6 +160,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 		listCluster                    *coreapi.HCPOpenShiftCluster    // cluster seeded into the lister (nil = not found)
 		dbCluster                      *coreapi.HCPOpenShiftCluster    // cluster stored in the DB
 		existingServiceProviderCluster *coreapi.ServiceProviderCluster // nil = not pre-seeded; controller get-or-creates
+		managementClusters             []*fleetapi.ManagementCluster   // seeded into the fleet lister
 		setupMockCS                    func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
 		expectError                    bool
 		verifyDB                       func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
@@ -142,7 +175,9 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 			}),
+			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mockCS.EXPECT().
@@ -154,6 +189,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 						built, buildErr := builder.Build()
 						require.NoError(t, buildErr)
 						assert.Equal(t, pendingClusterServiceID.ID(), built.ID(), "PostCluster should use the final segment of PendingClusterServiceID")
+						assert.Equal(t, testProvisionShardID, built.Properties()[ocm.CSPropertyProvisionShardID], "PostCluster should pin the provision shard from the placed management cluster")
 						csCluster, err := arohcpv1alpha1.NewCluster().
 							ID(pendingClusterServiceID.ID()).
 							HREF(testClusterServiceIDStr).
@@ -232,7 +268,9 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			}),
 			existingServiceProviderCluster: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
 			}),
+			managementClusters: []*fleetapi.ManagementCluster{newTestManagementCluster()},
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 				// Build the CS cluster with Azure fields matching the test cluster so it
@@ -284,10 +322,11 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				listerClusters = []*coreapi.HCPOpenShiftCluster{tt.listCluster}
 			}
 			syncer := &clusterClusterServiceCreateSyncer{
-				resourcesDBClient:     mockDB,
-				clusterLister:         &corelistertesting.SliceClusterLister{Clusters: listerClusters},
-				subscriptionLister:    &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
-				clustersServiceClient: mockCS,
+				resourcesDBClient:       mockDB,
+				clusterLister:           &corelistertesting.SliceClusterLister{Clusters: listerClusters},
+				subscriptionLister:      &corelistertesting.SliceSubscriptionLister{Subscriptions: []*coreapi.Subscription{subscription}},
+				managementClusterLister: &fleetlistertesting.SliceManagementClusterLister{ManagementClusters: tt.managementClusters},
+				clustersServiceClient:   mockCS,
 			}
 
 			key := controllerutils.HCPClusterKey{
