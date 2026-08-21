@@ -7,4 +7,5 @@ alert:
   severity: Sev2
   state: ""
 metadata:
+  categoryTier: 0
   knownIssue: false

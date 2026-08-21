@@ -46,6 +46,7 @@ type alertsSummary struct {
 	Known      int                                  `json:"known"`
 	Unknown    int                                  `json:"unknown"`
 	BySeverity map[armalertsmanagement.Severity]int `json:"bySeverity"`
+	ByCategory map[string]int                       `json:"byCategory,omitempty"`
 }
 
 type timeWindow struct {
@@ -88,7 +89,7 @@ func sanitizeTitle(title string) string {
 	return strings.Trim(title, "-")
 }
 
-var filterKeyOrder = append(filterLabelKeys, "workspace", "classification")
+var filterKeyOrder = append(filterLabelKeys, "workspace", "category", "classification")
 
 func collectFilterOptions(alerts []alert) ([]string, map[string][]string) {
 	seen := map[string]map[string]bool{}
@@ -96,6 +97,7 @@ func collectFilterOptions(alerts []alert) ([]string, map[string][]string) {
 		seen[key] = map[string]bool{}
 	}
 	seen["workspace"] = map[string]bool{}
+	seen["category"] = map[string]bool{}
 
 	for _, a := range alerts {
 		for _, key := range filterLabelKeys {
@@ -108,6 +110,7 @@ func collectFilterOptions(alerts []alert) ([]string, map[string][]string) {
 		if len(a.Metadata.MonitoringWorkspaceType) > 0 {
 			seen["workspace"][a.Metadata.MonitoringWorkspaceType] = true
 		}
+		seen["category"][categoryFilterValue(a)] = true
 	}
 
 	options := map[string][]string{}
@@ -133,6 +136,18 @@ func collectFilterOptions(alerts []alert) ([]string, map[string][]string) {
 	return keys, options
 }
 
+// categoryFilterValue returns the value used to bucket an alert by category
+// in the HTML dashboard's filter bar, e.g. "customer-visible-region-outage
+// (tier 1)". Uncategorized firings (no category config matched) are called
+// out distinctly since, per David Eads' ARO-28187 review, an uncategorized
+// firing is treated as failing like tier 1 until it's explicitly assigned.
+func categoryFilterValue(a alert) string {
+	if a.Metadata.Category == "" {
+		return "uncategorized"
+	}
+	return fmt.Sprintf("%s (tier %d)", a.Metadata.Category, a.Metadata.CategoryTier)
+}
+
 func alertFilterJSON(a alert) template.JS {
 	m := map[string]string{}
 	for _, key := range filterLabelKeys {
@@ -145,6 +160,7 @@ func alertFilterJSON(a alert) template.JS {
 	if len(a.Metadata.MonitoringWorkspaceType) > 0 {
 		m["workspace"] = a.Metadata.MonitoringWorkspaceType
 	}
+	m["category"] = categoryFilterValue(a)
 	if a.Metadata.KnownIssue {
 		m["classification"] = "known"
 	} else {

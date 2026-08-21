@@ -1,0 +1,11 @@
+- alert:
+    condition: ""
+    name: BackendControllerRetryHotLoop
+    severity: ""
+    state: ""
+  metadata:
+    category: first
+    categoryPolicy: warn
+    categoryReason: first pattern
+    categoryTier: 0
+    knownIssue: false

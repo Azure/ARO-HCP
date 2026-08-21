@@ -82,7 +82,7 @@ type completedOptions struct {
 	Queries           *QueriesConfig
 	SeverityThreshold int // -1 means no filter; 0=Sev0 .. 4=Sev4
 	cred              azcore.TokenCredential
-	knownIssues       []knownIssue
+	categories        []category
 }
 
 type Options struct {
@@ -193,11 +193,11 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 	logger.Info("loaded embedded queries config", "panels", len(queries.Panels), "queries", totalQueries)
 
-	knownIssues, err := parseKnownIssues(defaultKnownIssuesData)
+	categories, err := parseCategories(defaultCategoriesData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse known issues config: %w", err)
+		return nil, fmt.Errorf("failed to parse alert categories config: %w", err)
 	}
-	logger.Info("loaded known issues config", "patterns", len(knownIssues))
+	logger.Info("loaded alert categories config", "categories", len(categories))
 
 	return &Options{completedOptions: &completedOptions{
 		OutputDir:         o.OutputDir,
@@ -207,7 +207,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		Queries:           queries,
 		SeverityThreshold: o.severityThreshold,
 		cred:              cred,
-		knownIssues:       knownIssues,
+		categories:        categories,
 	}}, nil
 }
 
@@ -247,14 +247,14 @@ func (o Options) Run(ctx context.Context) error {
 
 	workspaces := make(map[string]*workspaceData, len(o.Workspaces)+1)
 	for wsType, ws := range o.Workspaces {
-		wsData, err := fetchWorkspaceData(ctx, o.cred, wsType, ws, allAlerts, o.SeverityThreshold, o.knownIssues)
+		wsData, err := fetchWorkspaceData(ctx, o.cred, wsType, ws, allAlerts, o.SeverityThreshold, o.categories)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to fetch data for %s workspace: %w", wsType, err))
 		}
 		workspaces[wsType] = wsData
 	}
 
-	workspaces[workspaceInfra] = buildInfraAlertData(allAlerts, metricAlertRules, o.SeverityThreshold, o.knownIssues)
+	workspaces[workspaceInfra] = buildInfraAlertData(allAlerts, metricAlertRules, o.SeverityThreshold, o.categories)
 
 	// Collect all alerts across workspaces for JSON/HTML output
 	var alerts []alert
@@ -264,16 +264,22 @@ func (o Options) Run(ctx context.Context) error {
 
 	// Build output used for both JSON and HTML
 	severityCounts := map[armalertsmanagement.Severity]int{}
+	byCategory := map[string]int{}
 	var knownCount int
 	for _, a := range alerts {
 		severityCounts[a.Alert.Severity]++
+		category := a.Metadata.Category
+		if category == "" {
+			category = "uncategorized"
+		}
+		byCategory[category]++
 		if a.Metadata.KnownIssue {
 			knownCount++
 		}
 	}
 	unknownCount := len(alerts) - knownCount
 
-	logger.Info("classified alerts", "known", knownCount, "unknown", unknownCount)
+	logger.Info("classified alerts", "known", knownCount, "unknown", unknownCount, "categories", len(byCategory))
 
 	filterKeys, filterOptions := collectFilterOptions(alerts)
 	output := alertsOutput{
@@ -283,6 +289,7 @@ func (o Options) Run(ctx context.Context) error {
 			Known:      knownCount,
 			Unknown:    unknownCount,
 			BySeverity: severityCounts,
+			ByCategory: byCategory,
 		},
 		TimeWindow: timeWindow{
 			Start: o.TimeWindow.Start.UTC().Format(time.RFC3339),

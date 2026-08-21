@@ -4,6 +4,10 @@
     severity: ""
     state: ""
   metadata:
+    category: exact-backend
+    categoryPolicy: ignore
+    categoryReason: exact match only
+    categoryTier: 0
     knownIssue: true
     knownIssueReason: exact match only
 - alert:
@@ -12,4 +16,5 @@
     severity: ""
     state: ""
   metadata:
+    categoryTier: 0
     knownIssue: false

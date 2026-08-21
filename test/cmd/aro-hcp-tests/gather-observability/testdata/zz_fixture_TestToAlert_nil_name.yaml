@@ -4,4 +4,5 @@ alert:
   severity: ""
   state: ""
 metadata:
+  categoryTier: 0
   knownIssue: false

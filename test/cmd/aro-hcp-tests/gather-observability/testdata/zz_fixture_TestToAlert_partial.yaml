@@ -4,4 +4,5 @@ alert:
   severity: Sev1
   state: Acknowledged
 metadata:
+  categoryTier: 0
   knownIssue: false

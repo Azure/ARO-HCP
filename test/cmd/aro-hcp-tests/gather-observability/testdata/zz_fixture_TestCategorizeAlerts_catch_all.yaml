@@ -1,0 +1,23 @@
+- alert:
+    condition: ""
+    name: SomeSpecificAlert
+    severity: ""
+    state: ""
+  metadata:
+    category: specific
+    categoryPolicy: ignore
+    categoryReason: specific reason
+    categoryTier: 0
+    knownIssue: true
+    knownIssueReason: specific reason
+- alert:
+    condition: ""
+    name: SomethingElseEntirely
+    severity: ""
+    state: ""
+  metadata:
+    category: catch-all
+    categoryPolicy: fail
+    categoryReason: unclassified
+    categoryTier: 0
+    knownIssue: false

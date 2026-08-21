@@ -268,22 +268,34 @@ func TestAlertsPipeline(t *testing.T) {
 		alerts = append(alerts, toAlert(raw))
 	}
 
-	knownIssues := mustParse(t, `knownIssues:
-- name: "BackendControllerRetryHotLoop"
+	categories := mustParseCategories(t, `categories:
+- name: "delete-controller-churn"
+  policy: ignore
   reason: "known for delete controllers"
-  labels:
-    name: "operation.*delete"
-- name: "MiseEnvoyScrapeDown"
+  match:
+  - name: "BackendControllerRetryHotLoop"
+    labels:
+      name: "operation.*delete"
+- name: "envoy-scrape-flaky"
+  policy: ignore
   reason: "envoy scrape flaky during provisioning"
+  match:
+  - name: "MiseEnvoyScrapeDown"
 `)
 
 	filtered := filterAlertsBySeverity(alerts, 4)
-	classified := classifyAlerts(filtered, knownIssues)
+	classified := categorizeAlerts(filtered, categories)
 
 	severityCounts := map[armalertsmanagement.Severity]int{}
+	byCategory := map[string]int{}
 	var knownCount int
 	for _, a := range classified {
 		severityCounts[a.Alert.Severity]++
+		category := a.Metadata.Category
+		if category == "" {
+			category = "uncategorized"
+		}
+		byCategory[category]++
 		if a.Metadata.KnownIssue {
 			knownCount++
 		}
@@ -297,6 +309,7 @@ func TestAlertsPipeline(t *testing.T) {
 			Known:      knownCount,
 			Unknown:    len(classified) - knownCount,
 			BySeverity: severityCounts,
+			ByCategory: byCategory,
 		},
 		FilterKeys:    filterKeys,
 		FilterOptions: filterOptions,

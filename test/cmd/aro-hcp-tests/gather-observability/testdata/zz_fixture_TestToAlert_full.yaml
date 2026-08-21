@@ -9,5 +9,6 @@ alert:
   startsAt: "2025-01-15T10:00:00Z"
   state: New
 metadata:
+  categoryTier: 0
   knownIssue: false
   monitoringWorkspace: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Monitor/accounts/myWorkspace

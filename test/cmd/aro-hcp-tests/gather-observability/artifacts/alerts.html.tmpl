@@ -494,6 +494,7 @@
     <details class="known-details">
       <summary>
         <span class="badge badge-workspace">{{$a.Metadata.MonitoringWorkspaceType}}</span>
+        <span class="badge badge-workspace" title="blast-radius category (ARO-28187)">{{if $a.Metadata.Category}}{{$a.Metadata.Category}} (tier {{$a.Metadata.CategoryTier}}){{else}}uncategorized{{end}}</span>
         <span class="badge {{severityClass $a.Alert.Severity}}">{{$a.Alert.Severity}}</span>
         <span class="{{conditionClass $a.Alert.Condition}}">{{$a.Alert.Condition}}</span>
         <span class="alert-title-inline">{{$a.Alert.Name}}</span>
@@ -530,6 +531,7 @@
   <div class="alert-card">
     <div class="alert-header">
       <span class="badge badge-workspace">{{$a.Metadata.MonitoringWorkspaceType}}</span>
+      <span class="badge badge-workspace" title="blast-radius category (ARO-28187)">{{if $a.Metadata.Category}}{{$a.Metadata.Category}} (tier {{$a.Metadata.CategoryTier}}){{else}}uncategorized{{end}}</span>
       <span class="badge {{severityClass $a.Alert.Severity}}">{{$a.Alert.Severity}}</span>
       <span class="{{conditionClass $a.Alert.Condition}}">{{$a.Alert.Condition}}</span>
       <span class="alert-time">

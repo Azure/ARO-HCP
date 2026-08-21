@@ -125,6 +125,9 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Tiny source-of-truth appendix for job families
 - [Snapshot Gathering and Analysis](snapshot-analysis.md)
   - Using `hcpctl snapshot` to gather diagnostics and run LLM-driven root cause analysis
+- [ARO-28187: Alert Blast-Radius Categorization](ci/ARO-28187-alert-categorization.md)
+  - How `gather-observability` sorts CI alert firings by customer/service blast radius instead of a known-issues skip list
+  - Alert-to-tier mapping and open questions for the ARO HCP Architecture Office Hours
 
 ### Observability
 

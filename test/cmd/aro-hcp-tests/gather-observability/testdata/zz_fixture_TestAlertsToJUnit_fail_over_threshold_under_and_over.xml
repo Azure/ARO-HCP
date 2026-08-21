@@ -1,0 +1,11 @@
+<testsuites>
+  <testsuite name="aro-hcp-tests" tests="2" skipped="1" failures="1" time="1200">
+    <properties></properties>
+    <testcase name="[aro-hcp-observability] [hcp] alert KubeApplierApplyFailed does not fire" time="300">
+      <skipped message="non-blocking: management-cluster-outage (tier 3, fail-over-threshold): kube-applier failures threaten every HCP on the management cluster."></skipped>
+    </testcase>
+    <testcase name="[aro-hcp-observability] [hcp] alert HypershiftOperatorDegraded does not fire" time="900">
+      <failure message="alert fired 3 time(s); failing categories: management-cluster-outage (tier 3, fail-over-threshold)">Firing 1: [category: management-cluster-outage (tier 3, fail-over-threshold)] hypershift operator failures threaten every HCP on the management cluster.&#xA;  State:       Fired (not resolved)&#xA;  Started:     2026-04-13T06:00:00Z&#xA;  Ended:       2026-04-13T06:05:00Z&#xA;  Severity:    Sev3&#xA;  Labels:      alertname=&#34;HypershiftOperatorDegraded&#34;, namespace=&#34;hypershift&#34;&#xA;Firing 2: [category: management-cluster-outage (tier 3, fail-over-threshold)] hypershift operator failures threaten every HCP on the management cluster.&#xA;  State:       Fired (not resolved)&#xA;  Started:     2026-04-13T06:10:00Z&#xA;  Ended:       2026-04-13T06:15:00Z&#xA;  Severity:    Sev3&#xA;  Labels:      alertname=&#34;HypershiftOperatorDegraded&#34;, namespace=&#34;hypershift&#34;&#xA;Firing 3: [category: management-cluster-outage (tier 3, fail-over-threshold)] hypershift operator failures threaten every HCP on the management cluster.&#xA;  State:       Fired (not resolved)&#xA;  Started:     2026-04-13T06:20:00Z&#xA;  Ended:       2026-04-13T06:25:00Z&#xA;  Severity:    Sev3&#xA;  Labels:      alertname=&#34;HypershiftOperatorDegraded&#34;, namespace=&#34;hypershift&#34;&#xA;</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

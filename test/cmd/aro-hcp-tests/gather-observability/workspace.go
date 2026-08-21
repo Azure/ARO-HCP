@@ -40,7 +40,7 @@ type workspaceData struct {
 	FiredAlerts  []alert
 }
 
-func fetchWorkspaceData(ctx context.Context, cred azcore.TokenCredential, wsType string, workspaceResourceID azcorearm.ResourceID, allAlerts []alert, severityThreshold int, knownIssues []knownIssue) (*workspaceData, error) {
+func fetchWorkspaceData(ctx context.Context, cred azcore.TokenCredential, wsType string, workspaceResourceID azcorearm.ResourceID, allAlerts []alert, severityThreshold int, categories []category) (*workspaceData, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
@@ -67,7 +67,7 @@ func fetchWorkspaceData(ctx context.Context, cred azcore.TokenCredential, wsType
 	}
 
 	alerts = filterAlertsBySeverity(alerts, severityThreshold)
-	alerts = classifyAlerts(alerts, knownIssues)
+	alerts = categorizeAlerts(alerts, categories)
 	logger.Info("fetched fired alerts", "workspace", wsType, "count", len(alerts))
 
 	return &workspaceData{
@@ -80,7 +80,7 @@ func fetchWorkspaceData(ctx context.Context, cred azcore.TokenCredential, wsType
 
 const azureMonitorResourceType = "microsoft.monitor/accounts"
 
-func buildInfraAlertData(allAlerts []alert, metricAlertRules []string, severityThreshold int, knownIssues []knownIssue) *workspaceData {
+func buildInfraAlertData(allAlerts []alert, metricAlertRules []string, severityThreshold int, categories []category) *workspaceData {
 	var alerts []alert
 	for _, a := range allAlerts {
 		if isWorkspaceTargeted(a) {
@@ -91,7 +91,7 @@ func buildInfraAlertData(allAlerts []alert, metricAlertRules []string, severityT
 	}
 
 	alerts = filterAlertsBySeverity(alerts, severityThreshold)
-	alerts = classifyAlerts(alerts, knownIssues)
+	alerts = categorizeAlerts(alerts, categories)
 
 	return &workspaceData{
 		Type:        workspaceInfra,

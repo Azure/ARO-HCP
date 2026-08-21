@@ -7,6 +7,10 @@
     severity: ""
     state: ""
   metadata:
+    category: delete-controller
+    categoryPolicy: ignore
+    categoryReason: known for delete controller
+    categoryTier: 0
     knownIssue: true
     knownIssueReason: known for delete controller
 - alert:
@@ -18,6 +22,7 @@
     severity: ""
     state: ""
   metadata:
+    categoryTier: 0
     knownIssue: false
 - alert:
     condition: ""
@@ -25,4 +30,5 @@
     severity: ""
     state: ""
   metadata:
+    categoryTier: 0
     knownIssue: false

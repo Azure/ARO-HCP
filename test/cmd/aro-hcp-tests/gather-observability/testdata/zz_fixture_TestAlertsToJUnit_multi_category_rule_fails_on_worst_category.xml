@@ -1,0 +1,9 @@
+<testsuites>
+  <testsuite name="aro-hcp-tests" tests="1" skipped="0" failures="1" time="1200">
+    <properties></properties>
+    <testcase name="[aro-hcp-observability] [hcp] alert KubePodNotReady does not fire" time="1200">
+      <failure message="alert fired 2 time(s); failing categories: customer-visible-cluster-outage (tier 4, fail)">Firing 1: [category: customer-visible-cluster-outage (tier 4, fail)] Pods in a single HCP&#39;s controlplane namespace are directly customer-visible for that hosted cluster.&#xA;  State:       Fired (not resolved)&#xA;  Started:     2026-04-13T06:00:00Z&#xA;  Ended:       2026-04-13T06:10:00Z&#xA;  Severity:    Sev2&#xA;  Labels:      alertname=&#34;KubePodNotReady&#34;, namespace=&#34;ocm-arohcpdev-abc123-primary&#34;, pod=&#34;kube-apiserver-0&#34;&#xA;</failure>
+      <system-out>Non-failing firings (not counted as failures):&#xA;Firing 1: [category: non-customer-visible-cluster-outage (tier 5, warn)] Pods in a single HCP&#39;s hostedcluster namespace are not directly customer-visible.&#xA;  State:       Fired (not resolved)&#xA;  Started:     2026-04-13T06:05:00Z&#xA;  Ended:       2026-04-13T06:20:00Z&#xA;  Severity:    Sev3&#xA;  Labels:      alertname=&#34;KubePodNotReady&#34;, namespace=&#34;ocm-arohcpdev-abc123&#34;, pod=&#34;cluster-api-provider-0&#34;&#xA;</system-out>
+    </testcase>
+  </testsuite>
+</testsuites>
