@@ -40,7 +40,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Cluster Deletion SLO - Fleet Wide\n\nFleet-wide view of HCP cluster deletion health from backend delete-operation and cluster provisioning-state metrics.\n\n**SLO targets**\n- `Success SLO: Successful Deletes` target is **95%** successful completed deletes in the selected lookback window.\n- `Timeliness SLO: Successful Deletes Within 30m` target is **95%** of successful deletes completing within 30 minutes.\n- Delete latency target is **p95 within 30 minutes** for successful deletes.\n\n**How the time range works**\n- The dashboard time picker is the lookback window (default `last 24 hours`).\n- `Completed`, `Successful`, `Failed / Canceled`, `Success SLO`, `Timeliness SLO`, and `Delete Duration p50/p95/p99` use cluster `operation_type=delete` attempts that reached a terminal phase within the selected window.\n- `Successful` means `phase=\"succeeded\"`; `Failed / Canceled` means `phase=~\"failed|canceled\"`.\n- `24h` is the normal default; `7d` is the practical upper bound for the current retained operation history.\n\n**Top-level panels**\n- The top summary rows show fleet size, completed attempts, failed/canceled attempts, fleet-weighted success and timeliness SLOs, and delete-duration percentiles.\n- `Clusters by Provisioning State` shows the current cluster fleet mix over time.\n- `Delete Ops Stuck > 1 Hour` highlights in-flight delete operations that may be hung.\n- `Subscription Breakdown` highlights where failed or canceled attempts are concentrated.\n- `Detail Tables` provides the exact terminal and active delete operations behind the summary panels.\n\n**Datasource**\n- Select a single service-cluster Prometheus datasource from the top bar, or choose `All` to fan out across all matching service-cluster datasources.\n- Top-level fleet SLO panels sum raw counts across the selected datasources before calculating ratios.\n- Metrics come from backend service clusters (`Managed_Prometheus_services-*`).",
+        "content": "### Cluster Deletion SLO - Fleet Wide\n\nFleet-wide view of HCP cluster deletion health from backend delete-operation and cluster provisioning-state metrics.\n\n**SLO targets**\n- `Success SLO: Successful Deletes` target is **95%** successful completed deletes in the selected lookback window.\n- `Latency SLO: Successful Deletes Within 30m` target is **95%** of successful deletes completing within 30 minutes.\n- Delete latency target is **p95 within 30 minutes** for successful deletes.\n\n**How the time range works**\n- The dashboard time picker is the lookback window (default `last 24 hours`).\n- `Completed`, `Successful`, `Failed / Canceled`, `Success SLO`, `Latency SLO`, and `Delete Duration p50/p95/p99` use cluster `operation_type=delete` attempts that reached a terminal phase within the selected window.\n- `Successful` means `phase=\"succeeded\"`; `Failed / Canceled` means `phase=~\"failed|canceled\"`.\n- `24h` is the normal default; `7d` is the practical upper bound for the current retained operation history.\n\n**Top-level panels**\n- The top summary rows show fleet size, completed attempts, failed/canceled attempts, fleet-weighted success and latency SLOs, and delete-duration percentiles.\n- `Clusters by Provisioning State` shows the current cluster fleet mix over time.\n- `Delete Ops Stuck > 1 Hour` highlights in-flight delete operations that may be hung.\n- `Subscription Breakdown` highlights where failed or canceled attempts are concentrated.\n- `Detail Tables` provides the exact terminal and active delete operations behind the summary panels.\n\n**Datasource**\n- Select a single service-cluster Prometheus datasource from the top bar, or choose `All` to fan out across all matching service-cluster datasources.\n- Top-level fleet SLO panels sum raw counts across the selected datasources before calculating ratios.\n- Metrics come from backend service clusters (`Managed_Prometheus_services-*`).",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -476,7 +476,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Fleet-weighted Timeliness SLO: successful deletes under 30 minutes divided by all successful deletes across the selected service-cluster datasources.",
+      "description": "Fleet-weighted Latency SLO: successful deletes under 30 minutes divided by all successful deletes across the selected service-cluster datasources.",
       "fieldConfig": {
         "defaults": {
           "decimals": 1,
@@ -555,7 +555,7 @@
           "refId": "B"
         }
       ],
-      "title": "Timeliness SLO: Successful Deletes Within 30m",
+      "title": "Latency SLO: Successful Deletes Within 30m",
       "transformations": [
         {
           "id": "seriesToRows",
@@ -596,7 +596,7 @@
         {
           "id": "calculateField",
           "options": {
-            "alias": "Timeliness SLO %",
+            "alias": "Latency SLO %",
             "binary": {
               "left": "Timely x100",
               "operator": "/",

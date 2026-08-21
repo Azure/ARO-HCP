@@ -4,7 +4,7 @@
 # Design notes:
 # - backend_resource_operation_phase_info is a gauge always equal to 1.
 #   count() over N such series returns N (one per operation).
-# - Recording rules (error_rate, timeliness_error_rate) are evaluated first
+# - Recording rules (error_rate, latency_error_rate) are evaluated first
 #   at each step; alert expressions then reference those results.
 # - time() at eval_time Nm = N * 60 seconds (promtool starts at Unix epoch 0).
 #   This matters for the stuck-operations alert which compares time() to
@@ -60,7 +60,7 @@ tests:
         summary: "Cluster deletion operation error rate high (>72%)"
         description: "More than 72% of cluster delete operations are in failed or canceled state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
-        correlationId: "userJourneyClusterDeletionErrors1h5m/svc-1"
+        correlationId: "userJourneyClusterDeletionErrors/svc-1"
 # Fast burn does NOT fire when error rate is below 72 %
 # Setup: 5 failed + 8 succeeded = 5/13 = 38.5 % < 72 %
 - name: fast_burn_no_fire_below_72pct
@@ -144,7 +144,7 @@ tests:
         summary: "Cluster deletion operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of cluster delete operations are in failed or canceled state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
-        correlationId: "userJourneyClusterDeletionErrors6h30m/svc-1"
+        correlationId: "userJourneyClusterDeletionErrors/svc-1"
 # Medium burn does NOT fire when error rate is below 30 %
 # Setup: 2 failed + 13 succeeded = 2/15 = 13.3 % < 30 %
 - name: medium_burn_no_fire_below_30pct
@@ -363,10 +363,10 @@ tests:
     exp_alerts: []
 # ─────────────────────────────────────────────────────────────────────────────
 # userJourneyClusterDeletionLatency1h5m
-# Timeliness fast burn: timeliness_error_rate > 0.72 sustained for 5 minutes.
+# Latency fast burn: latency_error_rate > 0.72 sustained for 5 minutes.
 # Setup: 8 slow ops + 2 fast ops = 8/10 = 80% > 72% threshold.
 # ─────────────────────────────────────────────────────────────────────────────
-- name: timeliness_fast_burn_fires
+- name: latency_fast_burn_fires
   interval: 1m
   input_series:
   # 8 slow operations: duration = 1900s > 1800s (30 min threshold)
@@ -438,20 +438,20 @@ tests:
     - exp_labels:
         cluster: svc-1
         severity: "3"
-        slo: cluster-deletion-timeliness
+        slo: cluster-deletion-latency
         component: slo
       exp_annotations:
-        title: "Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)"
-        summary: "Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)"
-        description: "More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Timeliness SLO — on track to exhaust the budget in ~12 hours."
+        title: "Cluster deletion Latency SLO fast burn (>72% slow for 5m)"
+        summary: "Cluster deletion Latency SLO fast burn (>72% slow for 5m)"
+        description: "More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Latency SLO — on track to exhaust the budget in ~12 hours."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
-        correlationId: "userJourneyClusterDeletionLatency1h5m/svc-1"
+        correlationId: "userJourneyClusterDeletionLatency/svc-1"
 # ─────────────────────────────────────────────────────────────────────────────
 # userJourneyClusterDeletionLatency6h30m
-# Timeliness medium burn: timeliness_error_rate > 0.30 sustained for 30 minutes.
+# Latency medium burn: latency_error_rate > 0.30 sustained for 30 minutes.
 # Setup: 2 slow ops + 2 fast ops = 2/4 = 50% > 30% threshold.
 # ─────────────────────────────────────────────────────────────────────────────
-- name: timeliness_medium_burn_fires
+- name: latency_medium_burn_fires
   interval: 1m
   input_series:
   # 2 slow operations: last_transition - start = 1900 - 0 = 1900s (31.7 min > 30 min threshold)
@@ -494,16 +494,72 @@ tests:
     - exp_labels:
         cluster: svc-1
         severity: "3"
-        slo: cluster-deletion-timeliness
+        slo: cluster-deletion-latency
         component: slo
       exp_annotations:
-        title: "Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)"
-        summary: "Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)"
-        description: "More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Timeliness SLO — on track to exhaust the budget in ~28 hours."
+        title: "Cluster deletion Latency SLO medium burn (>30% slow for 30m)"
+        summary: "Cluster deletion Latency SLO medium burn (>30% slow for 30m)"
+        description: "More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Latency SLO — on track to exhaust the budget in ~28 hours."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
-        correlationId: "userJourneyClusterDeletionLatency6h30m/svc-1"
-# Timeliness does NOT fire when all operations are fast (all <30 min)
-- name: timeliness_no_fire_all_fast
+        correlationId: "userJourneyClusterDeletionLatency/svc-1"
+# ─────────────────────────────────────────────────────────────────────────────
+# userJourneyClusterDeletionLatency3d
+# Latency slow burn: latency_error_rate > 0.05 sustained for 6 hours (for: 6h).
+# Setup: 1 slow op + 4 fast ops = 1/5 = 20% > 5% threshold.
+# for: 6h = 360m → fires at 361m, test at 370m.
+# ─────────────────────────────────────────────────────────────────────────────
+- name: latency_slow_burn_fires
+  interval: 1m
+  input_series:
+  # 1 slow operation: duration = 1900s > 1800s
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="slow1",subscription_id="sub1", cluster="svc-1"}'
+    values: "1+0x380"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="slow1",subscription_id="sub1", cluster="svc-1"}'
+    values: "0+0x380"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="slow1",subscription_id="sub1", cluster="svc-1"}'
+    values: "1900+0x380"
+  # 4 fast operations: duration = 600s < 1800s
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast1",subscription_id="sub1", cluster="svc-1"}'
+    values: "1+0x380"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast1",subscription_id="sub1", cluster="svc-1"}'
+    values: "0+0x380"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast1",subscription_id="sub1", cluster="svc-1"}'
+    values: "600+0x380"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast2",subscription_id="sub1", cluster="svc-1"}'
+    values: "1+0x380"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast2",subscription_id="sub1", cluster="svc-1"}'
+    values: "0+0x380"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast2",subscription_id="sub1", cluster="svc-1"}'
+    values: "600+0x380"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast3",subscription_id="sub1", cluster="svc-1"}'
+    values: "1+0x380"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast3",subscription_id="sub1", cluster="svc-1"}'
+    values: "0+0x380"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast3",subscription_id="sub1", cluster="svc-1"}'
+    values: "600+0x380"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast4",subscription_id="sub1", cluster="svc-1"}'
+    values: "1+0x380"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast4",subscription_id="sub1", cluster="svc-1"}'
+    values: "0+0x380"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast4",subscription_id="sub1", cluster="svc-1"}'
+    values: "600+0x380"
+  alert_rule_test:
+  - eval_time: 370m
+    alertname: userJourneyClusterDeletionLatency3d
+    exp_alerts:
+    - exp_labels:
+        cluster: svc-1
+        severity: "4"
+        slo: cluster-deletion-latency
+        component: slo
+      exp_annotations:
+        title: "Cluster deletion Latency SLO slow burn (>5% slow for 6h)"
+        summary: "Cluster deletion Latency SLO slow burn (>5% slow for 6h)"
+        description: "More than 5% of successful cluster deletes exceeded 30 minutes, sustained for 6 hours. Slow burn rate (1x) against the 95% Latency SLO — budget will be exhausted in ~7 days."
+        runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
+        correlationId: "userJourneyClusterDeletionLatency3d/svc-1"
+# Latency does NOT fire when all operations are fast (all <30 min)
+- name: latency_no_fire_all_fast
   interval: 1m
   input_series:
   - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast1",subscription_id="sub1", cluster="svc-1"}'
@@ -617,7 +673,7 @@ tests:
 # All succeeded, no failures, all fast operations.
 # Verifies:
 #   - error_rate recording rule = 0
-#   - timeliness_error_rate recording rule = 0
+#   - latency_error_rate recording rule = 0
 #   - Every SLO and component alert is silent
 # ─────────────────────────────────────────────────────────────────────────────
 - name: all_clear_healthy_baseline
@@ -669,11 +725,11 @@ tests:
     exp_samples:
     - labels: 'errors:backend_cluster_deletion_operation:error_rate{cluster="svc-1"}'
       value: 0
-  # timeliness_error_rate: 0 slow out of 5 succeeded = 0
-  - expr: errors:backend_cluster_deletion_operation:timeliness_error_rate
+  # latency_error_rate: 0 slow out of 5 succeeded = 0
+  - expr: errors:backend_cluster_deletion_operation:latency_error_rate
     eval_time: 10m
     exp_samples:
-    - labels: 'errors:backend_cluster_deletion_operation:timeliness_error_rate{cluster="svc-1"}'
+    - labels: 'errors:backend_cluster_deletion_operation:latency_error_rate{cluster="svc-1"}'
       value: 0
   alert_rule_test:
   - eval_time: 10m
@@ -729,13 +785,13 @@ tests:
     - labels: 'errors:backend_cluster_deletion_operation:error_rate{cluster="svc-1"}'
       value: 0.8
 # ─────────────────────────────────────────────────────────────────────────────
-# timeliness_error_rate recording rule math
+# latency_error_rate recording rule math
 # 1 slow op (duration=1900s > 1800s) + 4 fast ops (duration=600s < 1800s)
 # = 1/5 = 0.2 (clean decimal, easy to verify)
 # Confirms that last_transition_time - start_time is correctly compared
 # against the 1800-second (30-minute) threshold.
 # ─────────────────────────────────────────────────────────────────────────────
-- name: timeliness_error_rate_recording_rule_math
+- name: latency_error_rate_recording_rule_math
   interval: 1m
   input_series:
   # 1 slow operation: duration = 1900 - 0 = 1900s (31.7 min, exceeds 30-min threshold)
@@ -771,8 +827,8 @@ tests:
   - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast4",subscription_id="sub1", cluster="svc-1"}'
     values: "600+0x15"
   promql_expr_test:
-  - expr: errors:backend_cluster_deletion_operation:timeliness_error_rate
+  - expr: errors:backend_cluster_deletion_operation:latency_error_rate
     eval_time: 10m
     exp_samples:
-    - labels: 'errors:backend_cluster_deletion_operation:timeliness_error_rate{cluster="svc-1"}'
+    - labels: 'errors:backend_cluster_deletion_operation:latency_error_rate{cluster="svc-1"}'
       value: 0.2
