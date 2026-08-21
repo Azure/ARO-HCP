@@ -25,7 +25,7 @@ spec:
   - name: arohcp_cluster_deletion_slo_error_alerts
     rules:
     # ----------------------------------------
-    # Fast Burn Alert (info)
+    # Fast Burn Alert (Sev 3)
     # ----------------------------------------
     # 14.4x burn rate → >72% failure rate sustained for 5 minutes
     # Would exhaust 7-day error budget in ~12 hours
@@ -51,9 +51,9 @@ spec:
         summary: "Cluster deletion operation error rate high (>72%)"
         description: "More than 72% of cluster delete operations are in failed or canceled state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
-        correlationId: "userJourneyClusterDeletionErrors1h5m/{{ $labels.cluster }}"
+        correlationId: "userJourneyClusterDeletionErrors/{{ $labels.cluster }}"
     # ----------------------------------------
-    # Medium Burn Alert (info)
+    # Medium Burn Alert (Sev 3)
     # ----------------------------------------
     # 6x burn rate → >30% failure rate sustained for 30 minutes
     # Would exhaust 7-day error budget in ~28 hours
@@ -79,9 +79,9 @@ spec:
         summary: "Cluster deletion operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of cluster delete operations are in failed or canceled state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
-        correlationId: "userJourneyClusterDeletionErrors6h30m/{{ $labels.cluster }}"
+        correlationId: "userJourneyClusterDeletionErrors/{{ $labels.cluster }}"
     # ----------------------------------------
-    # Slow Burn Alert (info)
+    # Slow Burn Alert (Sev 4)
     # ----------------------------------------
     # 1x burn rate → >5% failure rate sustained for 6 hours
     # Would exhaust 7-day error budget in ~7 days
@@ -109,7 +109,7 @@ spec:
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
         correlationId: "userJourneyClusterDeletionErrors3d/{{ $labels.cluster }}"
     # ----------------------------------------
-    # Degradation Alert (info)
+    # Degradation Alert (Sev 4)
     # ----------------------------------------
     # With a 95% SLO, the fast-burn threshold only fires at ~72% failure rate.
     # This provides early warning at 15% failure rate before burn-rate alerts fire.
@@ -137,12 +137,12 @@ spec:
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
         correlationId: "userJourneyClusterDeletionErrorsDegradation/{{ $labels.cluster }}"
     # ----------------------------------------
-    # Timeliness SLO — Fast Burn (info)
+    # Latency SLO — Fast Burn (Sev 3)
     # ----------------------------------------
     # 14.4x burn rate → >72% of successful deletes exceeded 30m, sustained 5m
     - alert: userJourneyClusterDeletionLatency1h5m
       expr: |
-        errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.72
+        errors:backend_cluster_deletion_operation:latency_error_rate > 0.72
         and
         clamp_min(
           count by (cluster) (backend_resource_operation_phase_info{
@@ -155,21 +155,21 @@ spec:
       for: 5m
       labels:
         severity: "3"
-        slo: cluster-deletion-timeliness
+        slo: cluster-deletion-latency
         component: slo
       annotations:
-        title: "Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)"
-        summary: "Cluster deletion Timeliness SLO fast burn (>72% slow for 5m)"
-        description: "More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Timeliness SLO — on track to exhaust the budget in ~12 hours."
+        title: "Cluster deletion Latency SLO fast burn (>72% slow for 5m)"
+        summary: "Cluster deletion Latency SLO fast burn (>72% slow for 5m)"
+        description: "More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Latency SLO — on track to exhaust the budget in ~12 hours."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
-        correlationId: "userJourneyClusterDeletionLatency1h5m/{{ $labels.cluster }}"
+        correlationId: "userJourneyClusterDeletionLatency/{{ $labels.cluster }}"
     # ----------------------------------------
-    # Timeliness SLO — Medium Burn (info)
+    # Latency SLO — Medium Burn (Sev 3)
     # ----------------------------------------
     # 6x burn rate → >30% of successful deletes exceeded 30m, sustained 30m
     - alert: userJourneyClusterDeletionLatency6h30m
       expr: |
-        errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.30
+        errors:backend_cluster_deletion_operation:latency_error_rate > 0.30
         and
         clamp_min(
           count by (cluster) (backend_resource_operation_phase_info{
@@ -182,21 +182,21 @@ spec:
       for: 30m
       labels:
         severity: "3"
-        slo: cluster-deletion-timeliness
+        slo: cluster-deletion-latency
         component: slo
       annotations:
-        title: "Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)"
-        summary: "Cluster deletion Timeliness SLO medium burn (>30% slow for 30m)"
-        description: "More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Timeliness SLO — on track to exhaust the budget in ~28 hours."
+        title: "Cluster deletion Latency SLO medium burn (>30% slow for 30m)"
+        summary: "Cluster deletion Latency SLO medium burn (>30% slow for 30m)"
+        description: "More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Latency SLO — on track to exhaust the budget in ~28 hours."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
-        correlationId: "userJourneyClusterDeletionLatency6h30m/{{ $labels.cluster }}"
+        correlationId: "userJourneyClusterDeletionLatency/{{ $labels.cluster }}"
     # ----------------------------------------
-    # Timeliness SLO — Slow Burn (info)
+    # Latency SLO — Slow Burn (Sev 4)
     # ----------------------------------------
     # 1x burn rate → >5% of successful deletes exceeded 30m, sustained 6h
     - alert: userJourneyClusterDeletionLatency3d
       expr: |
-        errors:backend_cluster_deletion_operation:timeliness_error_rate > 0.05
+        errors:backend_cluster_deletion_operation:latency_error_rate > 0.05
         and
         clamp_min(
           count by (cluster) (backend_resource_operation_phase_info{
@@ -209,16 +209,16 @@ spec:
       for: 6h
       labels:
         severity: "4"
-        slo: cluster-deletion-timeliness
+        slo: cluster-deletion-latency
         component: slo
       annotations:
-        title: "Cluster deletion Timeliness SLO slow burn (>5% slow for 6h)"
-        summary: "Cluster deletion Timeliness SLO slow burn (>5% slow for 6h)"
-        description: "More than 5% of successful cluster deletes exceeded 30 minutes, sustained for 6 hours. Slow burn rate (1x) against the 95% Timeliness SLO — budget will be exhausted in ~7 days."
+        title: "Cluster deletion Latency SLO slow burn (>5% slow for 6h)"
+        summary: "Cluster deletion Latency SLO slow burn (>5% slow for 6h)"
+        description: "More than 5% of successful cluster deletes exceeded 30 minutes, sustained for 6 hours. Slow burn rate (1x) against the 95% Latency SLO — budget will be exhausted in ~7 days."
         runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
         correlationId: "userJourneyClusterDeletionLatency3d/{{ $labels.cluster }}"
     # ----------------------------------------
-    # Stuck Operations Alert (info)
+    # Stuck Operations Alert (Sev 4)
     # ----------------------------------------
     # This alert fires when time in the CURRENT phase
     #     (last_transition_time_seconds) > 1h, monitors all 5 active phases.
