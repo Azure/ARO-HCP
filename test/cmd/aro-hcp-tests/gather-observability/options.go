@@ -362,12 +362,13 @@ func (o Options) Run(ctx context.Context) error {
 	}
 	logger.Info("wrote alert JSON artifact", "path", jsonPath, "alerts", len(alerts))
 
-	// Render HTML artifact
-	htmlPath := filepath.Join(o.OutputDir, "alerts-summary.html")
-	if err := renderTemplate(htmlPath, output); err != nil {
+	// Build the tabbed observability page. The alerts view is the first tab;
+	// each metrics panel becomes an additional tab below.
+	alertsHTML, err := renderAlertsHTML(output)
+	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to render alerts HTML: %w", err))
 	}
-	logger.Info("wrote alert HTML artifact", "path", htmlPath)
+	tabs := []observabilityTab{{Title: "Azure Monitor Alerts", HTML: string(alertsHTML)}}
 
 	// Write JUnit
 	junitPath := filepath.Join(o.OutputDir, "junit_alerts.xml")
@@ -379,10 +380,20 @@ func (o Options) Run(ctx context.Context) error {
 
 	// Execute panel queries (Prometheus and Azure Monitor) and render timeseries charts
 	if o.Queries != nil {
-		if err := o.runQueries(ctx, workspaces); err != nil {
+		panelTabs, err := o.runQueries(ctx, workspaces)
+		if err != nil {
 			return utils.TrackError(fmt.Errorf("panel query execution failed: %w", err))
 		}
+		tabs = append(tabs, panelTabs...)
 	}
+
+	// Emit a single tabbed HTML page. The filename must match the Spyglass HTML
+	// lens regex .*-summary.*\.html so Prow renders it inline as one iframe.
+	htmlPath := filepath.Join(o.OutputDir, "observability-summary.html")
+	if err := renderObservabilityPage(htmlPath, tabs); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to render observability HTML: %w", err))
+	}
+	logger.Info("wrote observability HTML artifact", "path", htmlPath, "tabs", len(tabs))
 
 	// Fail the process when JUnit contains failures
 	var totalFailed uint
@@ -396,13 +407,14 @@ func (o Options) Run(ctx context.Context) error {
 	return nil
 }
 
-func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspaceData) error {
+func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspaceData) ([]observabilityTab, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return fmt.Errorf("logger not found in context: %w", err)
+		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 
+	var tabs []observabilityTab
 	for _, panel := range o.Queries.Panels {
 		logger.Info("executing panel queries", "panel", panel.Title, "queries", len(panel.Queries))
 
@@ -418,7 +430,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				logger.Info("executing Azure Monitor metrics query", "panel", panel.Title, "title", q.Title, "resource", q.Resource)
 				resourceID, ok := o.MetricResources[q.Resource]
 				if !ok {
-					return fmt.Errorf("unknown metric resource %q for query %q", q.Resource, q.Title)
+					return nil, fmt.Errorf("unknown metric resource %q for query %q", q.Resource, q.Title)
 				}
 				metricResourceID = resourceID.String()
 				res, warn, err := queryAzureMonitorMetrics(ctx, o.cred, resourceID, q, o.TimeWindow.Start, o.TimeWindow.End, o.cosmosAutoscaleMax)
@@ -435,7 +447,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 			default:
 				ws, ok := workspaces[q.Workspace]
 				if !ok {
-					return fmt.Errorf("unknown workspace %q for query %q", q.Workspace, q.Title)
+					return nil, fmt.Errorf("unknown workspace %q for query %q", q.Workspace, q.Title)
 				}
 				endpoint := ws.PromEndpoint
 
@@ -453,20 +465,17 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 			panelCharts = append(panelCharts, buildChartData(q, metricResourceID, queryErr, warning, results, o.TimeWindow))
 		}
 
-		// filename must match the Spyglass HTML lens regex .*-summary.*\.html
-		// so that Prow renders it inline in the job UI.
-		fileName := fmt.Sprintf("panel-%s-summary.html", sanitizeTitle(panel.Title))
-		panelPath := filepath.Join(o.OutputDir, fileName)
-
 		pageData := panelPageData{Title: panel.Title, Charts: panelCharts}
 		pageData.TimeWindow.Start = o.TimeWindow.Start.UTC().Format(time.RFC3339)
 		pageData.TimeWindow.End = o.TimeWindow.End.UTC().Format(time.RFC3339)
 
-		if err := renderPanel(panelPath, pageData); err != nil {
+		html, err := renderPanelHTML(pageData)
+		if err != nil {
 			logger.Error(err, "failed to render panel", "panel", panel.Title)
 			continue
 		}
-		logger.Info("wrote panel", "path", panelPath, "charts", len(panelCharts))
+		tabs = append(tabs, observabilityTab{Title: panel.Title, HTML: string(html)})
+		logger.Info("rendered panel tab", "panel", panel.Title, "charts", len(panelCharts))
 	}
-	return nil
+	return tabs, nil
 }

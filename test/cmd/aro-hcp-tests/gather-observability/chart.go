@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"html/template"
 	"math"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -154,21 +153,19 @@ func shellQuote(s string) string {
 	return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
 }
 
-// renderPanel assembles multiple charts into a single HTML page.
-func renderPanel(outputPath string, data panelPageData) error {
+// renderPanelHTML assembles multiple charts into a single self-contained HTML
+// page and returns its bytes.
+func renderPanelHTML(data panelPageData) ([]byte, error) {
 	tmplContent := mustReadArtifact("metricspanel.html.tmpl")
 	tmpl, err := template.New("panel").Parse(string(tmplContent))
 	if err != nil {
-		return fmt.Errorf("failed to parse panel template: %w", err)
+		return nil, fmt.Errorf("failed to parse panel template: %w", err)
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("failed to execute panel template: %w", err)
+		return nil, fmt.Errorf("failed to execute panel template: %w", err)
 	}
-	if err := os.WriteFile(outputPath, buf.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write %s: %w", outputPath, err)
-	}
-	return nil
+	return buf.Bytes(), nil
 }
 
 // estimateLegendHeight approximates the pixel height needed for the ECharts

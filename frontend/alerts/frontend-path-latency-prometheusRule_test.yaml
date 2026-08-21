@@ -82,13 +82,13 @@ tests:
   - eval_time: 40m
     alertname: FrontendPathLatency
     exp_alerts: []
-# ---------------------------------------------------------------------------
-# FrontendPathMedianLatency — p50 > 250ms, 30m window, light ≥10 req/30m floor.
-# The median is robust at low N, so a single outlier must not fire it.
-# ---------------------------------------------------------------------------
-
 # Normal median (all requests ≤0.1s) does not fire.
 - interval: 1m
+  # ---------------------------------------------------------------------------
+  # FrontendPathMedianLatency — p50 > 250ms, 30m window, light ≥10 req/30m floor.
+  # The median is robust at low N, so a single outlier must not fire it.
+  # ---------------------------------------------------------------------------
+
   input_series:
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
     values: '0+10x45'
