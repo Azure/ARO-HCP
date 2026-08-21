@@ -37,6 +37,12 @@ const (
 	// from the management cluster.
 	// +k8s:unionMember
 	ApplyDesireTypeDelete ApplyDesireType = "Delete"
+
+	// TagKeyControllerName is the standard tag key that identifies which
+	// controller owns an ApplyDesire. The value is the controller's name
+	// constant (e.g. ClusterResourcesControllerName). Controllers use this
+	// to scope stale-desire cleanup to only the desires they created.
+	TagKeyControllerName = "controllerName"
 )
 
 // ApplyDesire holds a single intent to either server-side-apply a Kubernetes

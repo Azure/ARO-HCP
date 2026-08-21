@@ -25,6 +25,7 @@ require (
 	github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603
 	github.com/openshift/hypershift/api v0.0.0-20260602200802-c135e0c47b37
+	github.com/openshift/library-go v0.0.0-20260504190829-2dd4388d7b89
 	github.com/prometheus/client_golang v1.23.2
 	github.com/segmentio/ksuid v1.0.4
 	github.com/stretchr/testify v1.11.1

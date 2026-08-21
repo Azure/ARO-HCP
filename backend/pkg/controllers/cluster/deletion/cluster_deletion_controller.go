@@ -25,11 +25,14 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterresources"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -45,6 +48,7 @@ type clusterDeletionController struct {
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	billingDBClient              billingcosmosstorage.BillingDBClient
+	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	passiveClock                 utilsclock.PassiveClock
 }
 
@@ -55,6 +59,7 @@ func NewClusterDeletionController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	billingDBClient billingcosmosstorage.BillingDBClient,
 	informers coreinformers.BackendInformers,
+	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
@@ -63,6 +68,7 @@ func NewClusterDeletionController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		resourcesDBClient:            resourcesDBClient,
 		billingDBClient:              billingDBClient,
+		kubeApplierDBClients:         kubeApplierDBClients,
 		passiveClock:                 clock,
 	}
 
@@ -134,8 +140,18 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
+	// Precondition: all cluster-scoped ApplyDesires tagged by ClusterResourcesController must be gone.
+	// The ClusterResourcesController is responsible for deleting its own desires during cluster deletion.
+	preconditionMet, err := c.deletePreconditionClusterResourceApplyDesiresGone(ctx, key, cachedSPC)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to check ApplyDesire precondition: %w", err))
+	}
+	if !preconditionMet {
+		return nil
+	}
+
 	// Precondition: all cluster-scoped Maestro readonly bundles must be cleared
-	preconditionMet, err := c.deletePreconditionAllMaestroClusterScopedReadonlyBundlesCleared(ctx, key)
+	preconditionMet, err = c.deletePreconditionAllMaestroClusterScopedReadonlyBundlesCleared(ctx, key)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
 	}
@@ -277,5 +293,54 @@ func (c *clusterDeletionController) deletePreconditionCosmosChildResourcesDelete
 		return false, utils.TrackError(fmt.Errorf("error iterating child resources: %w", err))
 	}
 
+	return true, nil
+}
+
+// deletePreconditionClusterResourceApplyDesiresGone checks that no ApplyDesires
+// tagged by the ClusterResourcesController remain for this cluster.
+// The ClusterResourcesController is responsible for deleting its own desires;
+// this controller only verifies they are gone before proceeding.
+func (c *clusterDeletionController) deletePreconditionClusterResourceApplyDesiresGone(ctx context.Context, key controllerutils.HCPClusterKey, spc *coreapi.ServiceProviderCluster) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	if spc == nil || spc.Status.ManagementClusterResourceID == nil {
+		return true, nil
+	}
+
+	managementClusterID := spc.Status.ManagementClusterResourceID
+	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	if kubeApplierDBClient == nil {
+		logger.Info("waiting for kube-applier DB client to be available for ApplyDesire precondition", "managementCluster", managementClusterID.String())
+		return false, nil
+	}
+
+	kubeApplierCRUD, err := kubeApplierDBClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return false, fmt.Errorf("failed to get kube-applier CRUD for ApplyDesire precondition: %w", err)
+	}
+
+	applyDesireIterator, err := kubeApplierCRUD.List(ctx, &cosmosstorageutils.DBClientListResourceDocsOptions{})
+	if err != nil {
+		return false, fmt.Errorf("failed to list ApplyDesire documents for precondition check: %w", err)
+	}
+
+	remaining := 0
+	for _, desire := range applyDesireIterator.Items(ctx) {
+		if desire.Tags == nil {
+			continue
+		}
+		if desire.Tags[kubeapplierapi.TagKeyControllerName] == clusterresources.ClusterResourcesControllerName {
+			remaining++
+		}
+	}
+	if err := applyDesireIterator.GetError(); err != nil {
+		return false, fmt.Errorf("error iterating ApplyDesires for precondition check: %w", err)
+	}
+
+	if remaining > 0 {
+		logger.Info("waiting for ClusterResourcesController to delete its ApplyDesires",
+			"remaining", remaining)
+		return false, nil
+	}
 	return true, nil
 }

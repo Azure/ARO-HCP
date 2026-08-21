@@ -191,7 +191,7 @@ func (c *desiresCreator) ensureDesires(
 	csrObj := systemadmincredential.BuildCSR(owner, credName, controlPlaneNamespace, []byte(cred.Spec.CertificateSigningRequestPEM))
 	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-		csrDesireName, mcResourceID, csrTarget(csrObj), csrObj); err != nil {
+		csrDesireName, mcResourceID, csrTarget(csrObj), csrObj, nil); err != nil {
 		return err
 	}
 
@@ -207,7 +207,7 @@ func (c *desiresCreator) ensureDesires(
 	}
 	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-		csrApprovalDesireName, mcResourceID, csrApprovalTarget, csrApprovalObj); err != nil {
+		csrApprovalDesireName, mcResourceID, csrApprovalTarget, csrApprovalObj, nil); err != nil {
 		return err
 	}
 

@@ -195,6 +195,8 @@ github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea06
 github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603/go.mod h1:5HPAGcvwDreflw2OjJTEz7MicVZ/mTJQv6zYykB+f+M=
 github.com/openshift/hypershift/api v0.0.0-20260602200802-c135e0c47b37 h1:FtGnqS3NnYS98HM4MwCmRDQVZSfuhszjetaU9Cld1sk=
 github.com/openshift/hypershift/api v0.0.0-20260602200802-c135e0c47b37/go.mod h1:ix5Gp7mQxUFIYQWrlC1o/FpXKl2oJVWOHI9UZb0hOUw=
+github.com/openshift/library-go v0.0.0-20260504190829-2dd4388d7b89 h1:etWee1jfkT93YVB+aYDhCARlokHGvWsRKXgKPcGrSZQ=
+github.com/openshift/library-go v0.0.0-20260504190829-2dd4388d7b89/go.mod h1:k1tefCr+PAZ7kY8TJjpE6rW6t6Yu4iOmBwO+1+3qD2s=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c h1:+mdjkGKdHQG3305AYmdv1U2eRNDiU2ErMBj1gwrq8eQ=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c/go.mod h1:7rwL4CYBLnjLxUqIJNnCWiEdr3bn6IUYi15bNlnbCCU=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
