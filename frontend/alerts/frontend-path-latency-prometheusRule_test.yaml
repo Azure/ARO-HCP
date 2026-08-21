@@ -2,39 +2,34 @@ rule_files:
 - frontend-path-latency-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test: FrontendPathLatency does not fire when 99th percentile is below 1 second
+# ---------------------------------------------------------------------------
+# FrontendPathLatency — slow-fraction (>1s) gate, 30m window.
+# Fires only when: fraction slower than 1s > 5% AND ≥50 req/30m AND ≥3 slow calls.
+# ---------------------------------------------------------------------------
+
+# Low-volume outlier must NOT fire (the core robustness fix): a route hit only a
+# handful of times where one call is slow has a high fraction but far too little
+# volume to trust — the ≥50 req/30m gate suppresses it.
 - interval: 1m
   input_series:
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+60x15'
+  # ~3 requests over 30m, 1 of them slower than 1s (le="1" only accrues 2).
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.1x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+60x15'
+    values: '0+0.0667x45'
   alert_rule_test:
-  - eval_time: 10m
+  - eval_time: 40m
     alertname: FrontendPathLatency
     exp_alerts: []
-# Test: FrontendPathLatency fires when 99th percentile exceeds 1 second
+# High volume with a sustained slow fraction (10% > 5%, ≥3 slow, ≥50 req) fires.
 - interval: 1m
   input_series:
-  # All observations land above 1s (cumulative buckets stay flat until le="5")
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+0x15'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+60x15'
+    values: '0+9x45'
   alert_rule_test:
-  - eval_time: 10m
+  - eval_time: 40m
     alertname: FrontendPathLatency
     exp_alerts:
     - exp_labels:
@@ -44,35 +39,91 @@ tests:
         route: /api/clusters
         cluster: test
       exp_annotations:
-        description: 'The 99th percentile of frontend request latency for GET /api/clusters has exceeded 1 second over the past 5 minutes.'
+        description: 'More than 5% of frontend requests for GET /api/clusters exceeded 1 second over the past 30 minutes (cluster test).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend latency is high: 99th percentile exceeds 1 second for GET /api/clusters'
-# Test: HA Prometheus replicas with identical slow series still fire once (sum dedup)
+        summary: 'Frontend latency is high: over 5% of GET /api/clusters requests on cluster test exceeded 1 second over the past 30 minutes'
+# High volume and ≥3 slow calls, but the slow fraction (4%) is under 5% — the
+# fraction gate suppresses it (a small, stable tail is not a regression).
 - interval: 1m
   input_series:
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+0x15'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
-    values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
-    values: '0+0x15'
+    values: '0+9.6x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathLatency
+    exp_alerts: []
+# HA replicas: two replicas each observe ~30 req/30m. The volume gate must dedup
+# them (max without prometheus_replica) to 30 (< 50) rather than summing to 60,
+# so the alert does NOT fire despite a 50% slow fraction.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
+    values: '0+1x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.5x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
-    values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
-    values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
-    values: '0+60x15'
+    values: '0+0.5x45'
   alert_rule_test:
-  - eval_time: 10m
+  - eval_time: 40m
     alertname: FrontendPathLatency
+    exp_alerts: []
+# Excluded hcpoperationresults route never fires, even at high volume and 100% slow.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_count{route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathLatency
+    exp_alerts: []
+# ---------------------------------------------------------------------------
+# FrontendPathMedianLatency — p50 > 250ms, 30m window, light ≥10 req/30m floor.
+# The median is robust at low N, so a single outlier must not fire it.
+# ---------------------------------------------------------------------------
+
+# Normal median (all requests ≤0.1s) does not fire.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.25", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathMedianLatency
+    exp_alerts: []
+# Median lands in the (0.25, 0.5] bucket (~0.375s) with ample volume — fires.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.25", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathMedianLatency
     exp_alerts:
     - exp_labels:
         component: frontend
@@ -81,23 +132,84 @@ tests:
         route: /api/clusters
         cluster: test
       exp_annotations:
-        description: 'The 99th percentile of frontend request latency for GET /api/clusters has exceeded 1 second over the past 5 minutes.'
+        description: 'The median (p50) of frontend request latency for GET /api/clusters has exceeded 250ms over the past 30 minutes (cluster test).'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend latency is high: 99th percentile exceeds 1 second for GET /api/clusters'
-# Test: excluded hcpoperationresults route does not fire even when slow
+        summary: 'Frontend median latency is high: p50 exceeds 250ms for GET /api/clusters on cluster test over the past 30 minutes'
+# Median > 250ms but only ~6 req/30m — the ≥10 volume floor suppresses it.
 - interval: 1m
   input_series:
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+0x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+60x15'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
-    values: '0+60x15'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.25", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.2x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.2x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.2x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.2x45'
   alert_rule_test:
-  - eval_time: 10m
-    alertname: FrontendPathLatency
+  - eval_time: 40m
+    alertname: FrontendPathMedianLatency
+    exp_alerts: []
+# A few >1s outliers among many fast (≤0.1s) calls: p99 would be >1s, but the
+# median stays ~0.05s, so this must NOT fire (median robustness — the whole point).
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+9.9x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.25", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+9.9x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+9.9x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+9.9x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathMedianLatency
+    exp_alerts: []
+# HA replicas: two replicas each ~6 req/30m with a >250ms median. The volume floor
+# must dedup to 6 (< 10), not sum to 12, so it does NOT fire.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.2x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.2x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.2x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+0.2x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
+    values: '0+0.2x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
+    values: '0+0.2x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
+    values: '0+0.2x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/api/clusters", method="GET", cluster="test", prometheus_replica="prometheus-k8s-1"}'
+    values: '0+0.2x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathMedianLatency
+    exp_alerts: []
+# Excluded hcpoperationresults route never fires, even with a slow median and volume.
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  - series: 'frontend_http_requests_duration_seconds_count{route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}", method="GET", cluster="test", prometheus_replica="prometheus-k8s-0"}'
+    values: '0+10x45'
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: FrontendPathMedianLatency
     exp_alerts: []
