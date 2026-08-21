@@ -17,6 +17,7 @@ package azureresources
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -84,16 +85,20 @@ func NewManagedResourceGroupController(
 }
 
 // SyncOnce observes the managed resource group and always reflects its observed
-// existence onto the ServiceProviderCluster:
+// state onto the ServiceProviderCluster. The managed resource group counts as
+// "owned and present" only when it exists in Azure AND its ManagedBy equals this
+// cluster's resource ID (case-insensitive); a resource group that exists but is
+// owned by something else is treated the same as missing, so we never block
+// deletion on (or claim) a group we do not own.
 //
-//   - MRG exists (whether or not the cluster is being deleted): it is recorded as
-//     AzureResource and PendingAzureResource is cleared. During deletion this
-//     ensures the ServiceProviderCluster deletion gate blocks even if the
-//     reference was never populated before deletion started.
-//   - MRG missing while the cluster is being deleted: both references are cleared,
-//     opening the deletion gate.
-//   - MRG missing while the cluster is not being deleted (creation path): it is
-//     recorded as PendingAzureResource and AzureResource is cleared.
+//   - Owned and present (whether or not the cluster is being deleted): it is
+//     recorded as AzureResource and PendingAzureResource is cleared. During
+//     deletion this ensures the ServiceProviderCluster deletion gate blocks even
+//     if the reference was never populated before deletion started.
+//   - Missing or not owned while the cluster is being deleted: both references are
+//     cleared, opening the deletion gate.
+//   - Missing or not owned while the cluster is not being deleted (creation path):
+//     it is recorded as PendingAzureResource and AzureResource is cleared.
 //
 // This controller never creates or deletes the resource group.
 func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -141,28 +146,37 @@ func (c *managedResourceGroupSyncer) SyncOnce(ctx context.Context, key controlle
 	// ServiceProviderCluster deletion gate keeps blocking until the MRG is
 	// actually gone, even when the reference was never populated before deletion
 	// started (for example when a cluster is deleted shortly after creation).
-	_, getErr := rgClient.Get(ctx, managedResourceGroupID.Name, nil)
+	getResponse, getErr := rgClient.Get(ctx, managedResourceGroupID.Name, nil)
 	resourceGroupMissing := azureclient.IsResourceGroupNotFoundErr(getErr)
 	if getErr != nil && !resourceGroupMissing {
 		return utils.TrackError(fmt.Errorf("failed to get managed resource group %q: %w", managedResourceGroupName, getErr))
 	}
 
+	// The managed resource group is only "owned and present" when it exists AND is
+	// managed by this cluster (ManagedBy == the cluster resource ID). A resource
+	// group that exists but is owned by something else is treated the same as
+	// missing, so we neither claim it nor block this cluster's deletion on it.
+	ownedAndPresent := getErr == nil &&
+		getResponse.ManagedBy != nil &&
+		strings.EqualFold(*getResponse.ManagedBy, cluster.ID.String())
+
 	replacement := existingServiceProviderCluster.DeepCopy()
 	managedResourceGroupReference := &replacement.Status.AzureResources.ManagedResourceGroup
 	switch {
-	case !resourceGroupMissing:
-		// Managed resource group exists (whether or not the cluster is being
-		// deleted): reflect it as confirmed so the deletion gate blocks.
+	case ownedAndPresent:
+		// Managed resource group exists and is owned by this cluster (whether or
+		// not the cluster is being deleted): reflect it as confirmed so the
+		// deletion gate blocks.
 		managedResourceGroupReference.AzureResource = managedResourceGroupID
 		managedResourceGroupReference.PendingAzureResource = nil
 	case isDeleting:
-		// Managed resource group is gone during deletion: clear both references so
-		// the deletion gate opens.
+		// Managed resource group is gone (or not owned by this cluster) during
+		// deletion: clear both references so the deletion gate opens.
 		managedResourceGroupReference.AzureResource = nil
 		managedResourceGroupReference.PendingAzureResource = nil
 	default:
-		// Managed resource group does not exist yet (creation path): reflect it as
-		// pending.
+		// Managed resource group does not yet exist for this cluster during
+		// creation (missing, or exists but not owned by us): reflect it as pending.
 		managedResourceGroupReference.PendingAzureResource = managedResourceGroupID
 		managedResourceGroupReference.AzureResource = nil
 	}

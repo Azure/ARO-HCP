@@ -144,11 +144,12 @@ func resourceGroupNotFoundError() *azcore.ResponseError {
 }
 
 // resourceGroupPresentResponse returns a Get response describing an existing
-// managed resource group.
-func resourceGroupPresentResponse() armresources.ResourceGroupsClientGetResponse {
+// managed resource group whose ManagedBy is set to the given owner resource ID.
+func resourceGroupPresentResponse(managedBy string) armresources.ResourceGroupsClientGetResponse {
 	return armresources.ResourceGroupsClientGetResponse{
 		ResourceGroup: armresources.ResourceGroup{
-			Name: ptr.To(testManagedRGName),
+			Name:      ptr.To(testManagedRGName),
+			ManagedBy: ptr.To(managedBy),
 			Properties: &armresources.ResourceGroupProperties{
 				ProvisioningState: ptr.To("Succeeded"),
 			},
@@ -160,6 +161,14 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 	t.Parallel()
 
 	mrgID := testManagedResourceGroupID(t)
+	// ownerClusterID is the resource ID a managed resource group's ManagedBy must
+	// equal for the controller to treat it as owned by this cluster.
+	ownerClusterID := newTestCluster(false).ID.String()
+	// differentOwnerID is a ManagedBy value belonging to a different cluster, used
+	// to exercise the "exists but not owned by us" path.
+	differentOwnerID := "/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/other-cluster"
 
 	testCases := []struct {
 		name             string
@@ -183,7 +192,7 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			name:             "not deleting and resource group present sets actual and clears pending",
 			deleting:         false,
 			initialReference: coreapi.AzureReference{PendingAzureResource: mrgID},
-			getResponse:      resourceGroupPresentResponse(),
+			getResponse:      resourceGroupPresentResponse(ownerClusterID),
 			getErr:           nil,
 			expectAzure:      mrgID,
 			expectPending:    nil,
@@ -201,7 +210,7 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			name:             "deleting and resource group present makes no change",
 			deleting:         true,
 			initialReference: coreapi.AzureReference{AzureResource: mrgID},
-			getResponse:      resourceGroupPresentResponse(),
+			getResponse:      resourceGroupPresentResponse(ownerClusterID),
 			getErr:           nil,
 			expectAzure:      mrgID,
 			expectPending:    nil,
@@ -215,9 +224,31 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			name:             "deleting and resource group present with empty reference sets actual",
 			deleting:         true,
 			initialReference: coreapi.AzureReference{},
-			getResponse:      resourceGroupPresentResponse(),
+			getResponse:      resourceGroupPresentResponse(ownerClusterID),
 			getErr:           nil,
 			expectAzure:      mrgID,
+			expectPending:    nil,
+		},
+		{
+			// The resource group exists but is managed by a different cluster, so it
+			// must be treated as not-ours: reflect as pending, never claim it.
+			name:             "not deleting and resource group present but not owned sets pending",
+			deleting:         false,
+			initialReference: coreapi.AzureReference{},
+			getResponse:      resourceGroupPresentResponse(differentOwnerID),
+			getErr:           nil,
+			expectAzure:      nil,
+			expectPending:    mrgID,
+		},
+		{
+			// During deletion a resource group owned by a different cluster must not
+			// block this cluster's deletion: clear both references (open the gate).
+			name:             "deleting and resource group present but not owned clears both",
+			deleting:         true,
+			initialReference: coreapi.AzureReference{AzureResource: mrgID},
+			getResponse:      resourceGroupPresentResponse(differentOwnerID),
+			getErr:           nil,
+			expectAzure:      nil,
 			expectPending:    nil,
 		},
 	}

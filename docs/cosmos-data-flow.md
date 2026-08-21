@@ -1156,17 +1156,17 @@ No writes to the Cosmos Resources container.
 
 **File:** [managed_resource_group_controller.go](../backend/pkg/controllers/cluster/azureresources/managed_resource_group_controller.go)
 **Trigger:** Cluster informer, 5-minute resync
-**Behavior:** Observe-only — never creates or deletes the managed resource group.
-- Not deleting: records the managed resource group as `PendingAzureResource` while it is missing; sets `AzureResource` (and clears `PendingAzureResource`) once it exists.
-- Deleting: clears both references once the managed resource group is gone; leaves reflected state untouched while it still exists.
+**Behavior:** Observe-only — never creates or deletes the managed resource group. It always queries Azure (there is no early-return fast-path during deletion). The managed resource group is treated as "owned and present" only when it exists AND its `ManagedBy` equals this cluster's resource ID (case-insensitive); a resource group that exists but is owned by something else is treated the same as missing.
+- Not deleting: sets `AzureResource` (and clears `PendingAzureResource`) when owned and present; otherwise (missing or not owned) records it as `PendingAzureResource` and clears `AzureResource`.
+- Deleting: sets `AzureResource` (and clears `PendingAzureResource`) while owned and present, so the deletion gate keeps blocking; once it is missing or not owned, both references are cleared and the gate opens.
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Platform.ManagedResourceGroup` (SyncOnce: skipped when empty)</li><li>`ServiceProviderProperties.DeletionTimestamp` (branches deletion vs non-deletion)</li><li>`ID` (subscription / resource group / name)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Platform.ManagedResourceGroup` (SyncOnce: skipped when empty)</li><li>`ServiceProviderProperties.DeletionTimestamp` (branches deletion vs non-deletion)</li><li>`ID` (subscription / resource group / name; also compared against the resource group's `ManagedBy` for ownership)</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId` (to build the FPA ResourceGroups client)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.AzureResources.ManagedResourceGroup` (compared before write; deletion fast-path when both references already nil)</li></ul> |
-| Read | Azure (ResourceGroupsClient) | <ul><li>`Get` on the managed resource group -> exists / ResourceGroupNotFound</li></ul> |
-| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.ManagedResourceGroup.AzureResource`** = managed resource group resource ID when it exists (non-deletion); cleared once it is gone during deletion</li><li>**`Status.AzureResources.ManagedResourceGroup.PendingAzureResource`** = managed resource group resource ID when it does not yet exist (non-deletion); cleared once it exists or is gone</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.AzureResources.ManagedResourceGroup` (compared before write to skip no-op replacements)</li></ul> |
+| Read | Azure (ResourceGroupsClient) | <ul><li>`Get` on the managed resource group -> `ManagedBy` (ownership check) / ResourceGroupNotFound</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.AzureResources.ManagedResourceGroup.AzureResource`** = managed resource group resource ID when it is owned by this cluster and present; cleared when it is missing or not owned during deletion</li><li>**`Status.AzureResources.ManagedResourceGroup.PendingAzureResource`** = managed resource group resource ID when it is not yet owned/present and the cluster is not being deleted; cleared once it is owned/present or gone</li></ul> |
 
 ---
 
@@ -1533,7 +1533,7 @@ Single writer. Mirrors the customer's data plane operator managed identities (`C
 
 | Actor | When |
 |-------|------|
-| [ObserveManagedResourceGroup](#observemanagedresourcegroup) | Observe-only: sets `AzureResource` when the managed resource group exists and `PendingAzureResource` when it does not; clears both once the resource group is gone during deletion |
+| [ObserveManagedResourceGroup](#observemanagedresourcegroup) | Observe-only: sets `AzureResource` when the managed resource group is owned by this cluster (`ManagedBy` == cluster ID) and present, and `PendingAzureResource` when it is missing or owned by another cluster; during deletion it keeps `AzureResource` set while owned/present and clears both once the group is missing or not owned |
 
 Single writer. Read by [ClusterChildResourcesCleanupController](#clusterchildresourcescleanupcontroller) to gate deletion of the `ServiceProviderCluster` document until the managed resource group is gone.
 
