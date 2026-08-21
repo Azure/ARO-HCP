@@ -16,6 +16,7 @@ package framework
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -165,6 +166,12 @@ func TestAssignFromEnv(t *testing.T) {
 			count:      2,
 			wantErr:    true,
 		},
+		{
+			name:       "zero count",
+			containers: []string{"rg-00", "rg-01"},
+			count:      0,
+			wantLen:    0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -178,10 +185,16 @@ func TestAssignFromEnv(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected error, got nil")
 				}
+				if tc.envAssigned {
+					t.Fatal("envAssigned should be false after assignment error")
+				}
 				return
 			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+			if !tc.envAssigned {
+				t.Fatal("envAssigned should be true after successful env assignment")
 			}
 			if len(tc.envAssignedContainers) != tt.wantLen {
 				t.Fatalf("envAssignedContainers length = %d, want %d", len(tc.envAssignedContainers), tt.wantLen)
@@ -190,6 +203,20 @@ func TestAssignFromEnv(t *testing.T) {
 				t.Fatalf("envAssignedIdx = %d, want 0", tc.envAssignedIdx)
 			}
 		})
+	}
+}
+
+func TestAssignFromEnvIsIndependent(t *testing.T) {
+	t.Parallel()
+
+	containers := []string{"rg-00", "rg-01"}
+	tc := &perItOrDescribeTestContext{}
+	if err := tc.assignFromEnv(containers, 2); err != nil {
+		t.Fatalf("assignFromEnv: %v", err)
+	}
+	containers[0] = "mutated"
+	if tc.envAssignedContainers[0] != "rg-00" {
+		t.Fatalf("internal assignment mutated via caller slice: %v", tc.envAssignedContainers)
 	}
 }
 
@@ -243,5 +270,25 @@ func TestAssignFromEnvThenLeaseFromEnv(t *testing.T) {
 	_, err = tc.leaseFromEnv()
 	if err == nil {
 		t.Fatal("expected error after exhausting assigned containers, got nil")
+	}
+}
+
+func TestGetLeasedIdentitiesUsesEnvPathWhenAssignedEmpty(t *testing.T) {
+	t.Parallel()
+
+	tc := &perItOrDescribeTestContext{}
+	if err := tc.assignFromEnv([]string{"rg-00", "rg-01"}, 0); err != nil {
+		t.Fatalf("assignFromEnv(0): %v", err)
+	}
+	if !tc.envAssigned {
+		t.Fatal("envAssigned should be true after zero-count env assignment")
+	}
+
+	_, err := tc.getLeasedIdentities()
+	if err == nil {
+		t.Fatal("expected error leasing from empty env assignment, got nil")
+	}
+	if !strings.Contains(err.Error(), "parent-assigned") {
+		t.Fatalf("error = %q, want parent-assigned env path (not file-pool fallback)", err)
 	}
 }

@@ -281,8 +281,9 @@ func (tc *perItOrDescribeTestContext) assignFromEnv(containers []string, count i
 		return fmt.Errorf("parent assigned %d MI containers via %s but test requires %d",
 			len(containers), assignedMIContainersEnvvar, count)
 	}
-	tc.envAssignedContainers = containers[:count]
+	tc.envAssignedContainers = slices.Clone(containers[:count])
 	tc.envAssignedIdx = 0
+	tc.envAssigned = true
 	ginkgo.GinkgoLogr.Info("Using parent-assigned identity containers",
 		"count", count, "containers", tc.envAssignedContainers, "specID", specID())
 	return nil
@@ -339,7 +340,7 @@ func (tc *perItOrDescribeTestContext) getLeasedIdentities() (LeasedIdentityPool,
 		tc.RecordTestStep("Lease identity container", startTime, finishTime)
 	}()
 
-	if len(tc.envAssignedContainers) > 0 {
+	if tc.envAssigned {
 		return tc.leaseFromEnv()
 	}
 
