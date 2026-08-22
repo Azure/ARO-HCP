@@ -354,6 +354,65 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 	}
 }
 
+// TestKeyEncryptionKeyURLDefaultsFromActiveKey verifies that KeyEncryptionKeyURL
+// is backfilled from ActiveKey fields when a cluster has KMS encryption configured
+// but no KeyEncryptionKeyURL set. This occurs for clusters created before
+// v2026_09_01_preview, which introduced the keyEncryptionKeyUrl field.
+func TestKeyEncryptionKeyURLDefaultsFromActiveKey(t *testing.T) {
+	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
+	))
+
+	preExistingDoc := &GenericDocument[coreapi.HCPOpenShiftCluster]{
+		TypedDocument: TypedDocument{
+			BaseDocument: BaseDocument{ID: "test-doc-id"},
+			ResourceID:   resourceID,
+		},
+		Content: coreapi.HCPOpenShiftCluster{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID: resourceID,
+			},
+			CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+				Etcd: coreapi.EtcdProfile{
+					DataEncryption: coreapi.EtcdDataEncryptionProfile{
+						KeyManagementMode: metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &coreapi.CustomerManagedEncryptionProfile{
+							EncryptionType: metadataapi.CustomerManagedEncryptionTypeKMS,
+							Kms: &coreapi.KmsEncryptionProfile{
+								Visibility: metadataapi.KeyVaultVisibilityPublic,
+								ActiveKey: coreapi.KmsKey{
+									Name:      "test-key",
+									VaultName: "test-vault",
+									Version:   "v1",
+								},
+							},
+						},
+					},
+				},
+			},
+			ServiceProviderProperties: coreapi.HCPOpenShiftClusterServiceProviderProperties{
+				ClusterServiceID:  ptr.To(metadataapi.Must(metadataapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster"))),
+				ProvisioningState: coreapi.ProvisioningStateSucceeded,
+			},
+		},
+	}
+
+	internalCluster, err := CosmosGenericToInternal(preExistingDoc)
+	if err != nil {
+		t.Fatalf("CosmosToInternalCluster failed: %v", err)
+	}
+
+	kms := internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms
+	if kms == nil {
+		t.Fatal("Kms is nil")
+	}
+
+	wantURL := "https://test-vault.vault.azure.net/keys/test-key/v1"
+	if kms.KeyEncryptionKeyURL != wantURL {
+		t.Errorf("got KeyEncryptionKeyURL = %q, want %q", kms.KeyEncryptionKeyURL, wantURL)
+	}
+}
+
 // TestPreExistingDataNodePool verifies that CosmosGenericToInternal applies
 // canonical defaults when reading a Cosmos document that predates the
 // introduction of DiskStorageAccountType.

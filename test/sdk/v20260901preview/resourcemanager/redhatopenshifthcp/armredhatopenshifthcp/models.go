@@ -618,11 +618,10 @@ type IngressProfile struct {
 // to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
 // set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)
 type KmsEncryptionProfile struct {
-	// REQUIRED; The details of the active key.
-	ActiveKey *KmsKey
-
-	// REQUIRED; vaultName is the name of the keyvault that contains the secret.
-	VaultName *string
+	// REQUIRED; The versioned URL of the key used for ETCD data encryption, hosted in Azure Key Vault or Managed HSM. Format:
+	// https://{vault-name}.vault.azure.net/keys/{key-name}/{key-version} or
+	// https://{hsm-name}.managedhsm.azure.net/keys/{key-name}/{key-version}
+	KeyEncryptionKeyURL *string
 
 	// REQUIRED; visibility of the keyvault that contains the secret.
 	Visibility *KeyVaultVisibility
@@ -632,23 +631,10 @@ type KmsEncryptionProfile struct {
 // used to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
 // set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)
 type KmsEncryptionProfileUpdate struct {
-	// The details of the active key.
-	ActiveKey *KmsKeyUpdate
-}
-
-// KmsKey - A representation of a KeyVault Secret.
-type KmsKey struct {
-	// REQUIRED; name is the name of the keyvault key used for encryption/decryption.
-	Name *string
-
-	// REQUIRED; version contains the version of the key to use.
-	Version *string
-}
-
-// KmsKeyUpdate - A representation of a KeyVault Secret.
-type KmsKeyUpdate struct {
-	// version contains the version of the key to use.
-	Version *string
+	// The versioned URL of the key used for ETCD data encryption, hosted in Azure Key Vault or Managed HSM. Format: https://{vault-name}.vault.azure.net/keys/{key-name}/{key-version}
+	// or
+	// https://{hsm-name}.managedhsm.azure.net/keys/{key-name}/{key-version}
+	KeyEncryptionKeyURL *string
 }
 
 // Label represents the Kubernetes label

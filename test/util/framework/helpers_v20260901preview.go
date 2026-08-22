@@ -513,12 +513,12 @@ func BuildHCPClusterFromParams20260901(
 					CustomerManaged: &hcpsdk20260901preview.CustomerManagedEncryptionProfile{
 						EncryptionType: to.Ptr(hcpsdk20260901preview.CustomerManagedEncryptionType(parameters.EncryptionType)),
 						Kms: &hcpsdk20260901preview.KmsEncryptionProfile{
-							VaultName:  to.Ptr(parameters.KeyVaultName),
 							Visibility: to.Ptr(hcpsdk20260901preview.KeyVaultVisibility(parameters.KeyVaultVisibility)),
-							ActiveKey: &hcpsdk20260901preview.KmsKey{
-								Name:    to.Ptr(parameters.EtcdEncryptionKeyName),
-								Version: to.Ptr(parameters.EtcdEncryptionKeyVersion),
-							},
+							KeyEncryptionKeyURL: to.Ptr(fmt.Sprintf("https://%s.vault.azure.net/keys/%s/%s",
+								parameters.KeyVaultName,
+								parameters.EtcdEncryptionKeyName,
+								parameters.EtcdEncryptionKeyVersion,
+							)),
 						},
 					},
 				},

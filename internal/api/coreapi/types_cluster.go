@@ -15,6 +15,7 @@
 package coreapi
 
 import (
+	"fmt"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -281,6 +282,8 @@ type CustomerManagedEncryptionProfile struct {
 type KmsEncryptionProfile struct {
 	Visibility metadataapi.KeyVaultVisibility `json:"visibility,omitempty"`
 	ActiveKey  KmsKey                         `json:"activeKey,omitempty"`
+	// Written by: Frontend PUT Cluster (Create), Frontend PUT/PATCH Cluster (Update)
+	KeyEncryptionKeyURL string `json:"keyEncryptionKeyUrl,omitempty"`
 }
 
 // KmsKey represents an Azure KeyVault secret.
@@ -404,6 +407,16 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil &&
 		len(cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility) == 0 {
 		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = metadataapi.KeyVaultVisibilityPublic
+	}
+	// Backfill KeyEncryptionKeyURL for clusters created before v2026_09_01_preview.
+	// Safe to assume vault.azure.net — mHSM did not exist before this field.
+	if cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
+		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil &&
+		len(cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.KeyEncryptionKeyURL) == 0 &&
+		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Name != "" {
+		kms := cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms
+		kms.KeyEncryptionKeyURL = fmt.Sprintf("https://%s.vault.azure.net/keys/%s/%s",
+			kms.ActiveKey.VaultName, kms.ActiveKey.Name, kms.ActiveKey.Version)
 	}
 }
 

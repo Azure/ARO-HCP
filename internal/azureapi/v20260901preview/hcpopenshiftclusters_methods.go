@@ -15,6 +15,8 @@
 package v20260901preview
 
 import (
+	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/google/uuid"
@@ -236,28 +238,64 @@ func newCustomerManagedEncryptionProfile(from *coreapi.CustomerManagedEncryption
 		return nil
 	}
 	return &generated.CustomerManagedEncryptionProfile{
-		Kms:            metadataapi.PtrOrNil(newKmsEncryptionProfile(from.Kms)),
 		EncryptionType: metadataapi.PtrOrNil(generated.CustomerManagedEncryptionType(from.EncryptionType)),
+		Kms:            metadataapi.PtrOrNil(newKmsEncryptionProfile(from.Kms)),
 	}
 }
+
 func newKmsEncryptionProfile(from *coreapi.KmsEncryptionProfile) generated.KmsEncryptionProfile {
 	if from == nil {
 		return generated.KmsEncryptionProfile{}
 	}
-	return generated.KmsEncryptionProfile{
-		ActiveKey:  metadataapi.PtrOrNil(newKmsKey(&from.ActiveKey)),
-		VaultName:  metadataapi.PtrOrNil(from.ActiveKey.VaultName),
+	out := generated.KmsEncryptionProfile{
 		Visibility: metadataapi.PtrOrNil(generated.KeyVaultVisibility(from.Visibility)),
 	}
+	if from.KeyEncryptionKeyURL != "" {
+		out.KeyEncryptionKeyURL = metadataapi.PtrOrNil(from.KeyEncryptionKeyURL)
+	} else if from.ActiveKey.Name != "" {
+		// Fallback for old clusters created before keyEncryptionKeyUrl was stored.
+		// Safe to assume vault.azure.net — mHSM did not exist before this field.
+		keyURL := buildKeyEncryptionKeyURL(from.ActiveKey.VaultName, from.ActiveKey.Name, from.ActiveKey.Version)
+		out.KeyEncryptionKeyURL = metadataapi.PtrOrNil(keyURL)
+	}
+	return out
 }
-func newKmsKey(from *coreapi.KmsKey) generated.KmsKey {
-	if from == nil {
-		return generated.KmsKey{}
+
+func buildKeyEncryptionKeyURL(vaultName, keyName, version string) string {
+	base := fmt.Sprintf("https://%s.vault.azure.net/keys/%s", vaultName, keyName)
+	if version != "" {
+		return base + "/" + version
 	}
-	return generated.KmsKey{
-		Name:    metadataapi.PtrOrNil(from.Name),
-		Version: metadataapi.PtrOrNil(from.Version),
+	return base
+}
+
+func parseKeyEncryptionKeyURL(keyURL string) (vaultName, keyName, version string, err error) {
+	u, err := url.Parse(keyURL)
+	if err != nil {
+		return "", "", "", fmt.Errorf("invalid keyEncryptionKeyUrl: %w", err)
 	}
+	if u.Scheme != "https" {
+		return "", "", "", fmt.Errorf("invalid keyEncryptionKeyUrl: scheme must be https, got %q", u.Scheme)
+	}
+	hostname := u.Hostname()
+	if !strings.HasSuffix(hostname, ".vault.azure.net") && !strings.HasSuffix(hostname, ".managedhsm.azure.net") {
+		return "", "", "", fmt.Errorf("invalid keyEncryptionKeyUrl: host must end in .vault.azure.net or .managedhsm.azure.net, got %q", hostname)
+	}
+	if idx := strings.IndexByte(hostname, '.'); idx > 0 {
+		vaultName = hostname[:idx]
+	} else {
+		return "", "", "", fmt.Errorf("invalid keyEncryptionKeyUrl: cannot extract vault name from host %q", hostname)
+	}
+	if vaultName == "" {
+		return "", "", "", fmt.Errorf("invalid keyEncryptionKeyUrl: vault name is empty")
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(parts) != 3 || parts[0] != "keys" || parts[1] == "" || parts[2] == "" {
+		return "", "", "", fmt.Errorf("invalid keyEncryptionKeyUrl: path must be /keys/{name}/{version}")
+	}
+	keyName = parts[1]
+	version = parts[2]
+	return vaultName, keyName, version, nil
 }
 
 func newConditions(from []metav1.Condition) []*generated.Condition {
@@ -526,7 +564,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *coreapi.HCPOpenShiftCl
 			normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
 		}
 		if c.Properties.Etcd != nil {
-			normalizeEtcd(c.Properties.Etcd, &out.CustomerProperties.Etcd)
+			errs = append(errs, normalizeEtcd(c.Properties.Etcd, &out.CustomerProperties.Etcd)...)
 		}
 		if c.Properties.ImageDigestMirrors != nil {
 			normalizeImageDigestMirrors(c.Properties.ImageDigestMirrors, &out.CustomerProperties.ImageDigestMirrors)
@@ -654,44 +692,53 @@ func normalizeAutoscaling(p *generated.ClusterAutoscalingProfile, out *coreapi.C
 	out.PodPriorityThreshold = metadataapi.Deref(p.PodPriorityThreshold)
 }
 
-func normalizeEtcd(p *generated.EtcdProfile, out *coreapi.EtcdProfile) {
+func normalizeEtcd(p *generated.EtcdProfile, out *coreapi.EtcdProfile) field.ErrorList {
 	if p.DataEncryption != nil {
-		normalizeEtcdDataEncryptionProfile(p.DataEncryption, &out.DataEncryption)
-	} else {
-		out.DataEncryption = coreapi.EtcdDataEncryptionProfile{}
+		return normalizeEtcdDataEncryptionProfile(p.DataEncryption, &out.DataEncryption)
 	}
+	out.DataEncryption = coreapi.EtcdDataEncryptionProfile{}
+	return nil
 }
 
-func normalizeEtcdDataEncryptionProfile(p *generated.EtcdDataEncryptionProfile, out *coreapi.EtcdDataEncryptionProfile) {
+func normalizeEtcdDataEncryptionProfile(p *generated.EtcdDataEncryptionProfile, out *coreapi.EtcdDataEncryptionProfile) field.ErrorList {
+	errs := field.ErrorList{}
 	if p.CustomerManaged != nil {
 		if out.CustomerManaged == nil {
 			out.CustomerManaged = &coreapi.CustomerManagedEncryptionProfile{}
 		}
-		normalizeCustomerManaged(p.CustomerManaged, out.CustomerManaged)
+		errs = append(errs, normalizeCustomerManaged(field.NewPath("properties", "etcd", "dataEncryption", "customerManaged"), p.CustomerManaged, out.CustomerManaged)...)
 	} else {
 		out.CustomerManaged = nil
 	}
 	out.KeyManagementMode = metadataapi.EtcdDataEncryptionKeyManagementModeType(metadataapi.Deref(p.KeyManagementMode))
+	return errs
 }
 
-func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out *coreapi.CustomerManagedEncryptionProfile) {
+func normalizeCustomerManaged(fldPath *field.Path, p *generated.CustomerManagedEncryptionProfile, out *coreapi.CustomerManagedEncryptionProfile) field.ErrorList {
+	errs := field.ErrorList{}
 	out.EncryptionType = metadataapi.CustomerManagedEncryptionType(metadataapi.Deref(p.EncryptionType))
-	if p.Kms != nil && p.Kms.ActiveKey != nil && (p.Kms.ActiveKey.Name != nil || p.Kms.ActiveKey.Version != nil) {
-		if out.Kms == nil {
-			out.Kms = &coreapi.KmsEncryptionProfile{}
+	if p.Kms != nil {
+		if p.Kms.KeyEncryptionKeyURL == nil || len(*p.Kms.KeyEncryptionKeyURL) == 0 {
+			errs = append(errs, field.Required(fldPath.Child("kms", "keyEncryptionKeyUrl"), "keyEncryptionKeyUrl is required when kms is specified"))
+		} else {
+			if out.Kms == nil {
+				out.Kms = &coreapi.KmsEncryptionProfile{}
+			}
+			out.Kms.KeyEncryptionKeyURL = *p.Kms.KeyEncryptionKeyURL
+			out.Kms.Visibility = metadataapi.KeyVaultVisibility(metadataapi.Deref(p.Kms.Visibility))
+			vaultName, keyName, version, err := parseKeyEncryptionKeyURL(*p.Kms.KeyEncryptionKeyURL)
+			if err != nil {
+				errs = append(errs, field.Invalid(fldPath.Child("kms", "keyEncryptionKeyUrl"), *p.Kms.KeyEncryptionKeyURL, err.Error()))
+			} else {
+				out.Kms.ActiveKey.VaultName = vaultName
+				out.Kms.ActiveKey.Name = keyName
+				out.Kms.ActiveKey.Version = version
+			}
 		}
-
-		normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
-		out.Kms.ActiveKey.VaultName = metadataapi.Deref(p.Kms.VaultName)
-		out.Kms.Visibility = metadataapi.KeyVaultVisibility(metadataapi.Deref(p.Kms.Visibility))
 	} else {
 		out.Kms = nil
 	}
-}
-
-func normalizeActiveKey(p *generated.KmsKey, out *coreapi.KmsKey) {
-	out.Name = metadataapi.Deref(p.Name)
-	out.Version = metadataapi.Deref(p.Version)
+	return errs
 }
 
 func normalizeClusterImageRegistry(p *generated.ClusterImageRegistryProfile, out *coreapi.ClusterImageRegistryProfile) {

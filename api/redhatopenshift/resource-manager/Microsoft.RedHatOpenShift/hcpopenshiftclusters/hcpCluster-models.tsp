@@ -686,6 +686,7 @@ model KmsEncryptionProfile {
   @maxLength(255)
   @minLength(1)
   @added(Versions.v2025_12_23_preview)
+  @removed(Versions.v2026_09_01_preview)
   vaultName: string;
 
   /** visibility of the keyvault that contains the secret. */
@@ -701,8 +702,17 @@ model KmsEncryptionProfile {
 
   /** The details of the active key. */
   @added(Versions.v2026_06_30_preview)
+  @removed(Versions.v2026_09_01_preview)
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   activeKey: KmsKey;
+
+  /** The versioned URL of the key used for ETCD data encryption, hosted in Azure Key Vault or Managed HSM.
+   * Format: https://{vault-name}.vault.azure.net/keys/{key-name}/{key-version}
+   * or https://{hsm-name}.managedhsm.azure.net/keys/{key-name}/{key-version}
+   */
+  @added(Versions.v2026_09_01_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  keyEncryptionKeyUrl: url;
 }
 
 /** The encryption types supported for a customer managed key. */
