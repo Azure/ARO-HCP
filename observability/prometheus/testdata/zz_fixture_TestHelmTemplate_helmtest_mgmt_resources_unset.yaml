@@ -68754,14 +68754,13 @@ spec:
     #
     # cert-exporter metrics (x509_cert_*) are routed based on secret_namespace,
     # matching HCP namespaces (ocm-*) and the policy namespace.
+    # The regex handles both cases:
+    # 1. Regular HCP metrics: namespace OR hostedcontrolplane matches ocm-*
+    # 2. cert-exporter metrics: __name__=x509_cert_* AND secret_namespace matches ocm-*/policy
     writeRelabelConfigs:
-      - sourceLabels: [namespace, hostedcontrolplane]
+      - sourceLabels: [__name__, secret_namespace, namespace, hostedcontrolplane]
         separator: ;
-        regex: '(ocm-arohcpdev[^;]*;.*|.*;ocm-arohcpdev.*)'
-        action: keep
-      - sourceLabels: [__name__, secret_namespace]
-        separator: ;
-        regex: 'x509_cert_.+;(ocm-arohcpdev.*|open-cluster-management-policies)'
+        regex: '(x509_cert_.+;(ocm-arohcpdev.*|open-cluster-management-policies);.*;.*|.*;.*;ocm-arohcpdev[^;]*;.*|.*;.*;.*;ocm-arohcpdev.*)'
         action: keep
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus/rules-1.14/alertmanager.rules.yaml
