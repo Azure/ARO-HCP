@@ -160,7 +160,7 @@ The key limiting factor for identity pool sizing is **Azure role assignments per
 
 Each HCP cluster created during E2E consumes role assignments in its identity container. The cost depends on the RBAC scope mode:
 
-- **`resourceGroupScope`**: 24 role assignments per HCP (11 from E2E test bicep + 13 from the RP-managed resource group)
+- **`resourceGroupScope`**: 26 role assignments per HCP (13 from E2E test bicep + 13 from the RP-managed resource group)
 - **`resourceScope`**: 41 role assignments per HCP (28 from E2E test bicep + 13 from the RP-managed resource group)
 
 The E2E suite runs all tests in `resourceGroupScope` mode except one test path that uses `resourceScope`.
@@ -177,7 +177,7 @@ Individual test specs may also create additional role assignments beyond this ba
 Given a target suite parallelism and a subscription's role-assignment quota, the maximum identity-pool size for the flat legacy model is:
 
 ```text
-RG_SCOPE_COST  = 24   (current resourceGroupScope cost per HCP)
+RG_SCOPE_COST  = 26   (current resourceGroupScope cost per HCP)
 RES_SCOPE_COST = 41   (current resourceScope cost per HCP)
 
 max-concurrency = floor((role-assignment-quota - 100) / (((suite-parallelism - 1) * RG_SCOPE_COST) + RES_SCOPE_COST))
