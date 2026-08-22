@@ -616,6 +616,54 @@ func GetNodePool20251223(
 	return &resp.NodePool, nil
 }
 
+// UpdateNodePoolAndWait20251223 sends a PATCH (BeginUpdate) request for a nodepool and waits for completion
+// within the provided timeout. It returns the final update response or an error.
+func UpdateNodePoolAndWait20251223(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20251223preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	update hcpsdk20251223preview.NodePoolUpdate,
+	timeout time.Duration,
+) (*hcpsdk20251223preview.NodePool, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateNodePoolAndWait for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
+	defer cancel()
+
+	poller, err := nodePoolsClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, update, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start nodepool %q update in cluster %q resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish updating, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		return nil, fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish updating: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20251223preview.NodePoolsClientUpdateResponse:
+		expect, err := GetNodePool20251223(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed getting nodepool=%q in cluster=%q resourcegroup=%q, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
+			return nil, err
+		}
+		err = checkOperationResult(expect, &m.NodePool)
+		if err != nil {
+			return nil, err
+		}
+		return &m.NodePool, nil
+	default:
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // High-level helpers (from deployment_params.go and deployment_helper.go)
 // ---------------------------------------------------------------------------

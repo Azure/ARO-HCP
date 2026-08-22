@@ -9,15 +9,19 @@ Customer should be able to create an HCP cluster with custom autoscaling and upd
 Customer should be able to create a HCP cluster and use cilium CNI plugin
 Customer should be able to create a no-CNI private cluster with a private key vault, a nodepool and install cilium CNI successfully
 Customer should be able to create a cluster and node pools with aggregated advanced features
+Customer should create a fully private cluster with private KAS and private ingress and verify both are only reachable from VNet
+Customer should create a fully private cluster with private KAS, private ingress, and private KeyVault and verify all are operational
 ARO-HCP HyperShift Presubmit should create a cluster and nodepool to completion
 Customer should be able to create an HCP cluster and custom node pool osDisk size
 Customer should create a cluster with private ingress using v20260630preview and verify the ingress is internal
 Customer should create a cluster with private KAS and verify API server is only reachable from VNet while ingress remains public
 Create HCPOpenShiftCluster with Private KeyVault should create a cluster with private keyvault using v20251223preview API
+Customer should create a default cluster and verify KAS is accessible via both public shared ingress and private Swift networking from worker nodes
 Customer should create a cluster using v20260901preview API and verify cluster health
 ARO HCP Service should successfully provision cluster when MI role assignments are added after cluster creation
 FIPS Mode Support with v2026-06-30 API should create an HCP cluster with FIPS mode enabled via cryptoRestrictions property
 Customer should not be able to reuse subnets and NSGs between clusters
+Customer should create a cluster with private KAS and successfully scale nodepool replicas
 Customer should be able to create an HCP cluster and manage pull secrets
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
 Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
