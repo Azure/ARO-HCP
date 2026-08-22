@@ -1,0 +1,767 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "### Frontend (ARM RP) SLO Dashboard\n\nUser-journey view of Frontend sync ARM SLIs. Prefer recording rules from [ARO-28705](https://redhat.atlassian.net/browse/ARO-28705) / PR [#6554](https://github.com/Azure/ARO-HCP/pull/6554).\n\n| SLI | Recording rule / source | Proposed SLO |\n|-----|-------------------------|--------------|\n| **Availability** | `sli:frontend_http:availability:rate5m` (+ `rate_avg_30d`) | ≥ 99.95% / 30d |\n| **Errors** | `errors:frontend_http:error_rate:rate5m` | &lt; 0.05% 5xx |\n| **Latency** | `sli:frontend_http:latency_p99:rate5m` (+ `_p95:`) | p99 &lt; 1s |\n| **Traffic** | `traffic:frontend_http:request_rate:rate5m` | Baseline + anomaly (alerts: ARO-28707) |\n| **Ready** | `sli:frontend:ready:ratio5m` | kube /healthz available/spec |\n| **Saturation** | `sli:frontend:saturation_cpu:ratio5m` / `_memory:` | CPU &lt; 85% of request; memory vs limit |\n\nExcludes ARM async poll routes `hcpoperationresults` / `hcpoperationstatuses`. Cosmos RU / Istio pool saturation deferred until owned series exist.\n\n**Jira:** [ARO-28706](https://redhat.atlassian.net/browse/ARO-28706) · Epic [ARO-28703](https://redhat.atlassian.net/browse/ARO-28703)  \n**Runbook / TSG:** companion Frontend UJ runbook + [frontend-tsg](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html) · component panels remain on Grafana folder **Frontend** / `frontend.json`",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.6.9",
+      "title": "Dashboard Info",
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 10,
+      "panels": [],
+      "title": "Availability & Errors",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Current availability (non-5xx / total) from sli:frontend_http:availability:rate5m. SLO target ≥ 99.95%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 3,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red" },
+              { "color": "yellow", "value": 99.9 },
+              { "color": "green", "value": 99.95 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 6 },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "avg(sli:frontend_http:availability:rate5m{cluster=\"$cluster\"}) * 100",
+          "instant": true,
+          "legendFormat": "Availability %",
+          "refId": "A"
+        }
+      ],
+      "title": "Availability (5m)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "30-day smoothed availability from sli:frontend_http:availability:rate_avg_30d. Primary SLO status gauge (≥ 99.95%).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 3,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red" },
+              { "color": "yellow", "value": 99.9 },
+              { "color": "green", "value": 99.95 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 6 },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "avg(sli:frontend_http:availability:rate_avg_30d{cluster=\"$cluster\"}) * 100",
+          "instant": true,
+          "legendFormat": "Availability 30d %",
+          "refId": "A"
+        }
+      ],
+      "title": "Availability (30d avg)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "5xx / total from errors:frontend_http:error_rate:rate5m. SLO target < 0.05%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 3,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "yellow", "value": 0.05 },
+              { "color": "red", "value": 0.5 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 6 },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "avg(errors:frontend_http:error_rate:rate5m{cluster=\"$cluster\"}) * 100",
+          "instant": true,
+          "legendFormat": "Error rate %",
+          "refId": "A"
+        }
+      ],
+      "title": "Error Rate (5xx %)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Error budget remaining for 99.95% availability SLO using 30d availability: (avail - 0.9995) / (1 - 0.9995). 100% = full budget left; 0% = budget exhausted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red" },
+              { "color": "yellow", "value": 25 },
+              { "color": "green", "value": 50 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 6 },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "clamp_min(\n  (\n    avg(sli:frontend_http:availability:rate_avg_30d{cluster=\"$cluster\"}) - 0.9995\n  ) / (1 - 0.9995) * 100,\n  0\n)",
+          "instant": true,
+          "legendFormat": "Budget remaining %",
+          "refId": "A"
+        }
+      ],
+      "title": "Error Budget Remaining (30d)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Availability over time with 99.95% SLO target line.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "decimals": 3,
+          "max": 100,
+          "min": 99,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red" },
+              { "color": "green", "value": 99.95 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 11 },
+      "id": 6,
+      "options": {
+        "legend": { "calcs": ["mean", "lastNotNull", "min"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sli:frontend_http:availability:rate5m{cluster=\"$cluster\"} * 100",
+          "legendFormat": "{{ cluster }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Availability Over Time (SLO 99.95%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "5xx error rate over time with 0.05% SLO threshold line.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "decimals": 3,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "red", "value": 0.05 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 11 },
+      "id": 7,
+      "options": {
+        "legend": { "calcs": ["mean", "lastNotNull", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "errors:frontend_http:error_rate:rate5m{cluster=\"$cluster\"} * 100",
+          "legendFormat": "{{ cluster }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Error Rate Over Time (SLO 0.05%)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+      "id": 11,
+      "panels": [],
+      "title": "Latency",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Frontend HTTP p99 latency in seconds (sli:frontend_http:latency_p99:rate5m). SLO: p99 < 1s.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "max": 10,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 20 },
+      "id": 8,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "avg(sli:frontend_http:latency_p99:rate5m{cluster=\"$cluster\"})",
+          "instant": true,
+          "legendFormat": "p99",
+          "refId": "A"
+        }
+      ],
+      "title": "Latency p99 (SLI)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Raw histogram p99 for the selected cluster (excludes ARM async poll routes). SLO target line at 1s.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "yellow", "value": 0.8 },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 20 },
+      "id": 9,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=\"$cluster\",\n        route!~\".*hcpoperation(results|statuses).*\"\n      }[$__rate_interval])\n    )\n  )\n)",
+          "instant": true,
+          "legendFormat": "p99",
+          "refId": "A"
+        }
+      ],
+      "title": "Latency p99 (raw)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Request rate from traffic:frontend_http:request_rate:rate5m.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue" }]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 20 },
+      "id": 12,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum(traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"})",
+          "instant": true,
+          "legendFormat": "RPS",
+          "refId": "A"
+        }
+      ],
+      "title": "Traffic (RPS)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Frontend HTTP p99 latency over time (histogram_quantile recording rule).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "decimals": 3,
+          "max": 10,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "id": 13,
+      "options": {
+        "legend": { "calcs": ["mean", "lastNotNull", "min"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sli:frontend_http:latency_p99:rate5m{cluster=\"$cluster\"}",
+          "legendFormat": "{{ cluster }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Latency p99 Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "p50 / p95 / p99 from frontend_http_requests_duration_seconds for the selected cluster (excludes ARM async poll routes). Red threshold line at 1s (ARM sync SLO).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "id": 14,
+      "options": {
+        "legend": { "calcs": ["mean", "lastNotNull", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=\"$cluster\",\n        route!~\".*hcpoperation(results|statuses).*\"\n      }[$__rate_interval])\n    )\n  )\n)",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=\"$cluster\",\n        route!~\".*hcpoperation(results|statuses).*\"\n      }[$__rate_interval])\n    )\n  )\n)",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99,\n  sum by (le) (\n    max without (prometheus_replica) (\n      rate(frontend_http_requests_duration_seconds_bucket{\n        cluster=\"$cluster\",\n        route!~\".*hcpoperation(results|statuses).*\"\n      }[$__rate_interval])\n    )\n  )\n)",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "title": "Latency p50 / p95 / p99 (SLO 1s)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
+      "id": 15,
+      "panels": [],
+      "title": "Traffic & Saturation",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Request rate (RPS) over time from traffic:frontend_http:request_rate:rate5m. Anomaly thresholds deferred to ARO-28707.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
+      "id": 16,
+      "options": {
+        "legend": { "calcs": ["mean", "lastNotNull", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "traffic:frontend_http:request_rate:rate5m{cluster=\"$cluster\"}",
+          "legendFormat": "{{ cluster }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Traffic Over Time (RPS)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Frontend pod CPU (usage / request) and memory (working set / limit). CPU SLO line at 85%. Cosmos RU / Istio connection pool not wired yet.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 },
+      "id": 17,
+      "options": {
+        "legend": { "calcs": ["mean", "lastNotNull", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sli:frontend:saturation_cpu:ratio5m{cluster=\"$cluster\"} * 100",
+          "legendFormat": "CPU {{ cluster }}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sli:frontend:saturation_memory:ratio5m{cluster=\"$cluster\"} * 100",
+          "legendFormat": "Memory {{ cluster }}",
+          "refId": "B"
+        }
+      ],
+      "title": "Saturation CPU / Memory (SLO CPU 85%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Current Frontend CPU usage vs request (sli:frontend:saturation_cpu:ratio5m). Target < 85%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 42 },
+      "id": 18,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "avg(sli:frontend:saturation_cpu:ratio5m{cluster=\"$cluster\"}) * 100",
+          "instant": true,
+          "legendFormat": "CPU %",
+          "refId": "A"
+        }
+      ],
+      "title": "Saturation — CPU",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Current Frontend memory working set vs limit (sli:frontend:saturation_memory:ratio5m).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 42 },
+      "id": 19,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "avg(sli:frontend:saturation_memory:ratio5m{cluster=\"$cluster\"}) * 100",
+          "instant": true,
+          "legendFormat": "Memory %",
+          "refId": "A"
+        }
+      ],
+      "title": "Saturation — Memory",
+      "type": "stat"
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["aro-hcp", "frontend", "slo", "user-journey"],
+  "templating": {
+    "list": [
+      {
+        "allowCustomValue": false,
+        "current": {},
+        "includeAll": false,
+        "label": "Data Source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_services-.*$",
+        "type": "datasource"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "$datasource" },
+        "definition": "label_values(frontend_http_requests_total, cluster)",
+        "includeAll": false,
+        "label": "cluster",
+        "multi": false,
+        "name": "cluster",
+        "query": "label_values(frontend_http_requests_total, cluster)",
+        "refresh": 2,
+        "regex": "^.*-svc-\\d+$",
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Frontend SLO",
+  "uid": "frontend-slo",
+  "version": 1
+}
