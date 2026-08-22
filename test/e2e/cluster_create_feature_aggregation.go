@@ -327,6 +327,10 @@ var _ = Describe("Customer", func() {
 			// We delay checking the error on purpose to get more details
 			// about the issue by running the verifiers.
 
+			By("allowing DNS pods to reach the kube-apiserver-proxy via CiliumNetworkPolicy (OCP >= 4.22 only)")
+			err = framework.EnsureDNSAllowHostAPIServerCiliumNetworkPolicy(ctx, adminRESTConfig, framework.NodePoolCreationTimeout)
+			Expect(err).NotTo(HaveOccurred(), "failed to create CiliumNetworkPolicy allowing DNS pods to reach the kube-apiserver-proxy")
+
 			By("checking that cilium is running and nodes are in Ready state")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational(ciliumNamespace, "k8s-app=cilium"))
 			Expect(errors.Join(err, nodePoolErrA)).NotTo(HaveOccurred(), "failed to verify cilium is running and nodes are Ready for cluster %q", customerClusterName)

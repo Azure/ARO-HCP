@@ -1,0 +1,226 @@
+@description('If set to true, the cluster will not be deleted automatically after few days.')
+param persistTagValue bool = false
+
+@description('Network Security Group Name')
+param customerNsgName string = 'customer-nsg'
+
+@description('Virtual Network Name')
+param customerVnetName string = 'customer-vnet'
+
+@description('Subnet Name')
+param customerVnetSubnetName string = 'customer-subnet-1'
+
+@description('The name of the encryption key for etcd')
+param customerEtcdEncryptionKeyName string = 'etcd-data-kms-encryption-key'
+
+@description('Cluster name used to ensure unique resource names within the resource group')
+param clusterName string = ''
+
+@description('If set to true, creates a private KeyVault with publicNetworkAccess disabled')
+param privateKeyVault bool = false
+
+@description('Assign Key Vault Crypto Officer role to the deployer on the customer KeyVault that contains etcd encryption key')
+param assignKeyVaultCryptoOfficer bool = false
+
+//
+// Variables
+//
+
+var randomSuffix = toLower(uniqueString(resourceGroup().id, clusterName))
+
+// The Key Vault Name is defined here in a variable instead of using a
+// parameter because of strict Azure requirements for KeyVault names
+// (KeyVault names are globally unique and must be between 3-24 alphanumeric
+// characters).
+var customerKeyVaultName = 'cust-kv-${randomSuffix}'
+
+//
+// Network
+//
+
+var addressPrefix = '10.0.0.0/16'
+var subnetPrefix = '10.0.0.0/24'
+var vnetIntegrationSubnetPrefix = '10.0.1.0/24'
+
+resource customerNsg 'Microsoft.Network/networkSecurityGroups@2023-05-01' = {
+  name: customerNsgName
+  location: resourceGroup().location
+  tags: {
+    persist: string(persistTagValue)
+  }
+}
+
+resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
+  name: customerVnetName
+  location: resourceGroup().location
+  tags: {
+    persist: string(persistTagValue)
+  }
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        addressPrefix
+      ]
+    }
+    subnets: [
+      {
+        name: customerVnetSubnetName
+        properties: {
+          addressPrefix: subnetPrefix
+          networkSecurityGroup: {
+            id: customerNsg.id
+          }
+        }
+      }
+      {
+        name: 'customer-vnet-integration-subnet'
+        properties: {
+          addressPrefix: vnetIntegrationSubnetPrefix
+          delegations: [
+            {
+              name: 'aro-hcp-delegation'
+              properties: {
+                serviceName: 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters'
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+
+//
+// KeyVault
+//
+
+resource customerKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
+  name: customerKeyVaultName
+  location: resourceGroup().location
+  properties: {
+    enableRbacAuthorization: true
+    enableSoftDelete: false
+    tenantId: subscription().tenantId
+    publicNetworkAccess: privateKeyVault ? 'Disabled' : 'Enabled'
+    sku: {
+      family: 'A'
+      name: 'standard'
+    }
+  }
+}
+
+resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' = {
+  parent: customerKeyVault
+  name: customerEtcdEncryptionKeyName
+  properties: {
+    kty: 'RSA'
+    keySize: 2048
+  }
+}
+
+// Key Vault Crypto Officer: allows key management operations (create, rotate, disable).
+// Assigned to the test runner principal so E2E tests can rotate etcd encryption keys.
+// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/security#key-vault-crypto-officer
+var keyVaultCryptoOfficerRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '14b46e9e-c2b7-41b4-b07b-48a6ebf60603'
+)
+
+resource customerKeyVaultCryptoOfficerRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignKeyVaultCryptoOfficer) {
+  name: guid(resourceGroup().id, deployer().objectId, keyVaultCryptoOfficerRoleId, customerKeyVault.id)
+  scope: customerKeyVault
+  properties: {
+    principalId: deployer().objectId
+    principalType: contains(deployer(), 'userPrincipalName') && !empty(deployer().userPrincipalName) ? 'User' : 'ServicePrincipal'
+    roleDefinitionId: keyVaultCryptoOfficerRoleId
+  }
+}
+
+resource privateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (privateKeyVault) {
+  name: 'privatelink.vaultcore.azure.net'
+  location: 'global'
+  properties: {}
+  dependsOn: [
+    privateEndpoint
+  ]
+}
+
+resource privateEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = if (privateKeyVault) {
+  name: 'kv-private-endpoint'
+  properties: {
+    privateLinkServiceConnections: [
+      {
+        name: 'kv-private-endpoint'
+        properties: {
+          privateLinkServiceId: customerKeyVault.id
+          groupIds: ['vault']
+        }
+      }
+    ]
+    subnet: {
+      id: customerVnet.properties.subnets[0].id
+    }
+  }
+  location: resourceGroup().location
+}
+
+resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = if (privateKeyVault) {
+  name: 'kv-private-ep-dns-group'
+  parent: privateEndpoint
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'config1'
+        properties: {
+          privateDnsZoneId: privateEndpointDnsZone.id
+        }
+      }
+    ]
+  }
+  dependsOn: [
+    privateDnsZoneVnetLink
+  ]
+}
+
+resource privateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (privateKeyVault) {
+  name: uniqueString('kv-private-dns-zone-link')
+  parent: privateEndpointDnsZone
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: customerVnet.id
+    }
+  }
+}
+
+//
+// outputs
+//
+
+@description('Network Security Group Name')
+output nsgName string = customerNsgName
+
+@description('Virtual Network Name')
+output vnetName string = customerVnetName
+
+@description('Subnet Name')
+output vnetSubnetName string = customerVnetSubnetName
+
+@description('Key Vault Name')
+output keyVaultName string = customerKeyVaultName
+
+@description('The name of the encryption key for etcd')
+output etcdEncryptionKeyName string = customerEtcdEncryptionKeyName
+
+@description('Network Security Group Resource ID')
+output nsgID string = customerNsg.id
+
+@description('Customer VNet Subnet Resource ID')
+output vnetSubnetID string = '${customerVnet.id}/subnets/${customerVnetSubnetName}'
+
+@description('Customer VNet Integration Subnet Resource ID')
+output vnetIntegrationSubnetID string = '${customerVnet.id}/subnets/customer-vnet-integration-subnet'
+
+@description('The version of the etcd encryption key')
+output etcdEncryptionKeyVersion string = last(split(etcdEncryptionKey.properties.keyUriWithVersion, '/'))
