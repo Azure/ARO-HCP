@@ -64,8 +64,11 @@ func (m *MockResourcesDBClient) SetResourcesGlobalListers(globalListers corecosm
 	m.globalListers = globalListers
 }
 
-// NewTransaction creates a new mock transaction.
-func (m *MockResourcesDBClient) NewTransaction(pk string) cosmosstorageutils.DBTransaction {
+// NewTransaction creates a new mock transaction. The transactionType argument
+// mirrors the production signature (where it becomes the transaction_type metric
+// label); the mock records no metrics and returns the concrete mock transaction
+// unwrapped, so it is intentionally unused here.
+func (m *MockResourcesDBClient) NewTransaction(pk string, transactionType string) cosmosstorageutils.DBTransaction {
 	return newMockTransaction(pk, m)
 }
 
