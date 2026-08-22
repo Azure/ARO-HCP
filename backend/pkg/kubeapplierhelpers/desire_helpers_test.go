@@ -46,6 +46,7 @@ const (
 	testResourceGroupName = "test-rg"
 	testClusterName       = "test-cluster"
 	testCredentialName    = "test-cred"
+	testControllerName    = "test-controller"
 )
 
 var testMCResourceID = metadataapi.Must(azcorearm.ParseResourceID(
@@ -96,7 +97,6 @@ func newMockDBAndListers(ctx context.Context, t *testing.T, resources []any) (
 
 func TestEnsureApplyDesire(t *testing.T) {
 	desireName := "test-apply-desire"
-	parent := CredentialRequestDesireParent(testCredentialName)
 
 	testCases := []struct {
 		name            string
@@ -169,9 +169,8 @@ func TestEnsureApplyDesire(t *testing.T) {
 			crud, err := mockDB.ApplyDesiresForSystemAdminCredentialRequest(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName)
 			require.NoError(t, err)
 
-			err = EnsureApplyDesire(ctx, crud, applyLister, parent,
-				testSubscriptionID, testResourceGroupName, testClusterName, desireName,
-				testMCResourceID, testTarget(), testCSR(t))
+			desire := buildTestApplyDesire(t, desireName, testCSR(t))
+			err = EnsureApplyDesire(ctx, crud, applyLister, desire)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -186,9 +185,38 @@ func TestEnsureApplyDesire(t *testing.T) {
 	}
 }
 
+// TestEnsureApplyDesireTagsDrift proves that a change confined to the top-level
+// .Tags map (spec byte-for-byte identical) is still detected as drift and
+// triggers a replacement that persists the new tags — guarding the field the
+// spec-only equality check ignores.
+func TestEnsureApplyDesireTagsDrift(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	desireName := "test-apply-desire-tags"
+
+	// Existing desire: identical spec, but stale tags and a populated status.
+	existing := buildTestApplyDesire(t, desireName, testCSR(t))
+	existing.Tags = map[string]string{kubeapplierapi.TagControllerName: testControllerName, "owner": "old"}
+	existing.Status = kubeapplierapi.ApplyDesireStatus{
+		Conditions: []metav1.Condition{{Type: "Successful", Status: metav1.ConditionTrue}},
+	}
+
+	mockDB, applyLister, _ := newMockDBAndListers(ctx, t, []any{existing})
+	crud, err := mockDB.ApplyDesiresForSystemAdminCredentialRequest(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName)
+	require.NoError(t, err)
+
+	// Desired: same spec, new tags — so only the tags have drifted.
+	desire := buildTestApplyDesire(t, desireName, testCSR(t))
+	desire.Tags = map[string]string{kubeapplierapi.TagControllerName: testControllerName, "owner": "new"}
+	require.NoError(t, EnsureApplyDesire(ctx, crud, applyLister, desire))
+
+	got, err := crud.Get(ctx, desireName)
+	require.NoError(t, err)
+	assert.Equal(t, desire.Tags, got.Tags, "tags drift must be persisted onto the stored desire")
+	assert.Empty(t, got.Status.Conditions, "status should be cleared on replace triggered by tags drift")
+}
+
 func TestEnsureReadDesire(t *testing.T) {
 	desireName := "test-read-desire"
-	parent := CredentialRequestDesireParent(testCredentialName)
 	target := testTarget()
 
 	testCases := []struct {
@@ -272,9 +300,8 @@ func TestEnsureReadDesire(t *testing.T) {
 			crud, err := mockDB.ReadDesiresForSystemAdminCredentialRequest(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName)
 			require.NoError(t, err)
 
-			err = EnsureReadDesire(ctx, crud, readLister, parent,
-				testSubscriptionID, testResourceGroupName, testClusterName, desireName,
-				testMCResourceID, tc.target)
+			desire := buildTestReadDesire(t, desireName, tc.target)
+			err = EnsureReadDesire(ctx, crud, readLister, desire)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -289,11 +316,46 @@ func TestEnsureReadDesire(t *testing.T) {
 	}
 }
 
+// TestEnsureReadDesireTagsDrift proves that a change confined to the top-level
+// .Tags map (spec byte-for-byte identical) is still detected as drift and
+// triggers a replacement that persists the new tags — guarding the field the
+// spec-only equality check ignores.
+func TestEnsureReadDesireTagsDrift(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	desireName := "test-read-desire-tags"
+	target := testTarget()
+
+	// Existing desire: identical spec, but stale tags and a populated status.
+	existing := buildTestReadDesire(t, desireName, target)
+	existing.Tags = map[string]string{kubeapplierapi.TagControllerName: testControllerName, "owner": "old"}
+	existing.Status = kubeapplierapi.ReadDesireStatus{
+		Conditions: []metav1.Condition{{Type: "Successful", Status: metav1.ConditionTrue}},
+	}
+
+	mockDB, _, readLister := newMockDBAndListers(ctx, t, []any{existing})
+	crud, err := mockDB.ReadDesiresForSystemAdminCredentialRequest(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName)
+	require.NoError(t, err)
+
+	// Desired: same spec, new tags — so only the tags have drifted.
+	desire := buildTestReadDesire(t, desireName, target)
+	desire.Tags = map[string]string{kubeapplierapi.TagControllerName: testControllerName, "owner": "new"}
+	require.NoError(t, EnsureReadDesire(ctx, crud, readLister, desire))
+
+	got, err := crud.Get(ctx, desireName)
+	require.NoError(t, err)
+	assert.Equal(t, desire.Tags, got.Tags, "tags drift must be persisted onto the stored desire")
+	assert.Empty(t, got.Status.Conditions, "status should be cleared on replace triggered by tags drift")
+}
+
+// buildTestApplyDesire constructs a credential-request-scoped ApplyDesire the way
+// a caller would in its own package — using the dedicated kubeapplierapi scoped
+// resource-ID builder rather than any helper on DesireParent (which no longer
+// builds desires).
 func buildTestApplyDesire(t *testing.T, desireName string, obj systemadmincredential.KubeObject) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	parent := CredentialRequestDesireParent(testCredentialName)
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		parent.applyDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, desireName),
+		kubeapplierapi.ToSystemAdminCredentialRequestScopedApplyDesireResourceIDString(
+			testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName, desireName),
 	))
 	target := targetRefForKubeObject(obj)
 
@@ -313,14 +375,17 @@ func buildTestApplyDesire(t *testing.T, desireName string, obj systemadmincreden
 				KubeContent: &runtime.RawExtension{Raw: rawJSON},
 			},
 		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: testControllerName},
 	}
 }
 
+// buildTestReadDesire constructs a credential-request-scoped ReadDesire the way a
+// caller would in its own package.
 func buildTestReadDesire(t *testing.T, desireName string, target kubeapplierapi.ResourceReference) *kubeapplierapi.ReadDesire {
 	t.Helper()
-	parent := CredentialRequestDesireParent(testCredentialName)
 	resourceID := metadataapi.Must(azcorearm.ParseResourceID(
-		parent.readDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, desireName),
+		kubeapplierapi.ToSystemAdminCredentialRequestScopedReadDesireResourceIDString(
+			testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName, desireName),
 	))
 	return &kubeapplierapi.ReadDesire{
 		CosmosMetadata: coreapi.CosmosMetadata{
@@ -331,7 +396,117 @@ func buildTestReadDesire(t *testing.T, desireName string, target kubeapplierapi.
 			ManagementCluster: testMCResourceID,
 			TargetItem:        target,
 		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: testControllerName},
 	}
+}
+
+// newTestReadDesire builds a ReadDesire for an already-computed resource-ID
+// string, letting scope-specific tests pass the exact key from the matching
+// kubeapplierapi scoped builder.
+func newTestReadDesire(t *testing.T, resourceIDStr string, target kubeapplierapi.ResourceReference, tags map[string]string) *kubeapplierapi.ReadDesire {
+	t.Helper()
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(resourceIDStr)),
+			PartitionKey: strings.ToLower(testMCResourceID.String()),
+		},
+		Spec: kubeapplierapi.ReadDesireSpec{
+			ManagementCluster: testMCResourceID,
+			TargetItem:        target,
+		},
+		Tags: tags,
+	}
+}
+
+// TestDesireParentScope asserts that every DesireParent constructor resolves to a
+// valid DesireScope, and — critically — that a zero-value DesireParent produces
+// an error rather than silently defaulting to a scope. A desire with no declared
+// parent is a programming error, so guessing a scope (e.g. cluster) would be
+// nonsensical.
+func TestDesireParentScope(t *testing.T) {
+	const (
+		sub        = "00000000-0000-0000-0000-000000000000"
+		rg         = "test-rg"
+		cluster    = "test-cluster"
+		nodePool   = "test-nodepool"
+		credReq    = "test-cred"
+		revocation = "test-rev"
+	)
+
+	t.Run("zero value errors", func(t *testing.T) {
+		_, err := DesireParent{}.desireScope(sub, rg, cluster)
+		require.Error(t, err, "a zero-value DesireParent has no scope and must error rather than default to one")
+	})
+
+	cases := []struct {
+		name   string
+		parent DesireParent
+	}{
+		{name: "cluster", parent: ClusterDesireParent()},
+		{name: "nodepool", parent: NodePoolDesireParent(nodePool)},
+		{name: "credentialRequest", parent: CredentialRequestDesireParent(credReq)},
+		{name: "revocation", parent: RevocationDesireParent(revocation)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := tc.parent.desireScope(sub, rg, cluster)
+			require.NoError(t, err, "a constructor-built DesireParent must resolve to a valid scope")
+		})
+	}
+}
+
+// TestEnsureDesireScopes exercises EnsureReadDesire end-to-end for the cluster
+// and node-pool parents that this refactor newly routes through the generic
+// helper, proving the DesireScope-derived CRUD, the generated resource ID, and
+// the lister-based GetByResourceID lookup all agree for each scope.
+func TestEnsureDesireScopes(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	const nodePoolName = "test-nodepool"
+	target := testTarget()
+
+	t.Run("cluster scope creates then no-ops on re-run", func(t *testing.T) {
+		mockDB, _, readLister := newMockDBAndListers(ctx, t, nil)
+		crud, err := mockDB.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+		require.NoError(t, err)
+
+		desire := newTestReadDesire(t,
+			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, "clusterscoped"),
+			target, map[string]string{kubeapplierapi.TagControllerName: testControllerName})
+		require.NoError(t, EnsureReadDesire(ctx, crud, readLister, desire))
+
+		got, err := crud.Get(ctx, "clusterscoped")
+		require.NoError(t, err)
+		assert.Equal(t, target, got.Spec.TargetItem)
+		assert.Equal(t,
+			kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, "clusterscoped"),
+			strings.ToLower(got.ResourceID.String()))
+
+		// The DB-backed lister now observes the created desire, so a second
+		// reconcile must be a no-op (no error, still exactly the same desire).
+		require.NoError(t, EnsureReadDesire(ctx, crud, readLister, desire))
+	})
+
+	t.Run("node pool scope creates a node-pool-scoped desire with tags", func(t *testing.T) {
+		mockDB, _, readLister := newMockDBAndListers(ctx, t, nil)
+		crud, err := mockDB.ReadDesiresForNodePool(testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName)
+		require.NoError(t, err)
+		tags := map[string]string{kubeapplierapi.TagControllerName: testControllerName, "owner": "nodepool"}
+
+		desire := newTestReadDesire(t,
+			kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName, "nodepoolscoped"),
+			target, tags)
+		require.NoError(t, EnsureReadDesire(ctx, crud, readLister, desire))
+
+		got, err := crud.Get(ctx, "nodepoolscoped")
+		require.NoError(t, err)
+		assert.Equal(t, target, got.Spec.TargetItem)
+		assert.Equal(t, tags, got.Tags, "tags must be stamped onto the desire")
+		assert.Equal(t,
+			kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName, "nodepoolscoped"),
+			strings.ToLower(got.ResourceID.String()),
+			"desire must be nested under the node pool")
+	})
 }
 
 func targetRefForKubeObject(obj systemadmincredential.KubeObject) kubeapplierapi.ResourceReference {

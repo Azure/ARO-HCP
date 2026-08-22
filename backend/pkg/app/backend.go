@@ -763,13 +763,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	createClusterScopedReadDesiresController := clusterreaddesires.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
-		serviceProviderClusterLister,
+		serviceProviderClusterLister, unionReadDesireLister,
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
 	createNodePoolScopedReadDesiresController := nodepoolreaddesires.NewCreateNodePoolScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
-		serviceProviderClusterLister,
+		serviceProviderClusterLister, unionReadDesireLister,
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 

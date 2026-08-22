@@ -579,6 +579,13 @@ func replaceWithRetry[T any, TPointer coreapi.CosmosMetadataAccessorPtr[T]](ctx 
 		if err != nil {
 			return fmt.Errorf("failed to get %s %q: %w", resourceDesc, name, err)
 		}
+		// Skip TTL-governed documents (e.g. operations). Re-serializing them
+		// would issue a write that bumps the document's _ts, which resets the
+		// Cosmos TTL clock (expiry is _ts + ttl). Rewriting them on every
+		// process restart would therefore prevent them from ever expiring.
+		if cosmosstorageutils.TimeToLiveForInternal(curr) > 0 {
+			return nil
+		}
 		_, err = crud.Replace(ctx, curr, nil)
 		if err == nil {
 			return nil

@@ -20,17 +20,20 @@ import (
 	"strings"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/kubeapplierlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -47,17 +50,23 @@ type createNodePoolScopedReadDesiresSyncer struct {
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	kubeApplierDBClients         kubeappliercosmosstorage.KubeApplierDBClients
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister
+	readDesireLister             kubeapplierlisters.ReadDesireLister
 
 	hostedClusterNamespaceEnvIdentifier string
 }
 
 var _ controllerutils.NodePoolSyncer = (*createNodePoolScopedReadDesiresSyncer)(nil)
 
+// CreateNodePoolScopedReadDesiresControllerName is the controller name, recorded
+// on every desire this controller authors via kubeapplierapi.TagControllerName.
+const CreateNodePoolScopedReadDesiresControllerName = "CreateNodePoolScopedReadDesires"
+
 func NewCreateNodePoolScopedReadDesiresController(
 	activeOperationLister corelisters.ActiveOperationLister,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	kubeApplierDBClients kubeappliercosmosstorage.KubeApplierDBClients,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
+	readDesireLister kubeapplierlisters.ReadDesireLister,
 	informers coreinformers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
@@ -66,11 +75,12 @@ func NewCreateNodePoolScopedReadDesiresController(
 		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
 		serviceProviderClusterLister:        serviceProviderClusterLister,
+		readDesireLister:                    readDesireLister,
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"CreateNodePoolScopedReadDesires",
+		CreateNodePoolScopedReadDesiresControllerName,
 		resourcesDBClient,
 		informers,
 		nil, // do not fire on ReadDesires this controller itself creates
@@ -133,14 +143,6 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	csClusterID := existingNodePool.ServiceProviderProperties.ClusterServiceID.ClusterID()
 
 	target := nodePoolTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix, existingNodePool.ID.Name)
-	desired := controllerutil.BuildReadDesire(
-		kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
-			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName,
-			readDesireNameReadonlyNodePool,
-		),
-		mcResourceID,
-		target,
-	)
 
 	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if kaClient == nil {
@@ -150,25 +152,43 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
-	existing, err := controllerutils.GetExistingReadDesire(ctx, crud, desired.ResourceID.Name)
+
+	readDesire, err := buildNodePoolReadDesire(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		key.HCPNodePoolName, readDesireNameReadonlyNodePool, mcResourceID, target)
 	if err != nil {
 		return err
 	}
-	if !controllerutil.ReadDesireNeedsWork(existing, desired) {
-		return nil
+	return kubeapplierhelpers.EnsureReadDesire(ctx, crud, c.readDesireLister, readDesire)
+}
+
+// buildNodePoolReadDesire builds a node-pool-scoped ReadDesire that observes
+// target, nested under the named node pool. The node pool ReadDesire controller
+// builds its own desires; the shared kubeapplierhelpers.EnsureReadDesire helper
+// then persists them.
+func buildNodePoolReadDesire(
+	subscriptionID, resourceGroupName, clusterName, nodePoolName, desireName string,
+	managementCluster *azcorearm.ResourceID,
+	target kubeapplierapi.ResourceReference,
+) (*kubeapplierapi.ReadDesire, error) {
+	resourceIDStr := kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, nodePoolName, desireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ReadDesire resource ID %q: %w", resourceIDStr, err))
 	}
-	if existing == nil {
-		if _, err := crud.Create(ctx, desired, nil); err != nil {
-			return utils.TrackError(fmt.Errorf("create ReadDesire: %w", err))
-		}
-		return nil
-	}
-	replacement := existing.DeepCopy()
-	replacement.Spec = *desired.Spec.DeepCopy()
-	if _, err := crud.Replace(ctx, replacement, nil); err != nil {
-		return utils.TrackError(fmt.Errorf("replace ReadDesire: %w", err))
-	}
-	return nil
+
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementCluster.String()),
+		},
+		Spec: kubeapplierapi.ReadDesireSpec{
+			ManagementCluster: managementCluster,
+			TargetItem:        target,
+		},
+		Tags: map[string]string{kubeapplierapi.TagControllerName: CreateNodePoolScopedReadDesiresControllerName},
+	}, nil
 }
 
 // readDesireNameReadonlyNodePool is the well-known ReadDesire name the

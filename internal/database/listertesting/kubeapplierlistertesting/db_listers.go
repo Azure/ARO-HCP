@@ -16,6 +16,7 @@ package kubeapplierlistertesting
 
 import (
 	"context"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -127,6 +128,21 @@ func (l *DBApplyDesireLister) GetForManagementCluster(
 		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire], error) {
 			return c.ApplyDesiresForManagementCluster(stampIdentifier)
 		})
+}
+
+func (l *DBApplyDesireLister) GetByResourceID(
+	ctx context.Context, resourceID string,
+) (*kubeapplierapi.ApplyDesire, error) {
+	all, err := l.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range all {
+		if id := listertestingutils.ResourceIDOf(d); id != nil && strings.EqualFold(id.String(), resourceID) {
+			return d, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *DBApplyDesireLister) ListForManagementCluster(
@@ -282,6 +298,21 @@ func (l *DBReadDesireLister) GetForManagementCluster(
 		func(c kubeappliercosmosstorage.KubeApplierDBClient) (cosmosstorageutils.ResourceCRUD[kubeapplierapi.ReadDesire, *kubeapplierapi.ReadDesire], error) {
 			return c.ReadDesiresForManagementCluster(stampIdentifier)
 		})
+}
+
+func (l *DBReadDesireLister) GetByResourceID(
+	ctx context.Context, resourceID string,
+) (*kubeapplierapi.ReadDesire, error) {
+	all, err := l.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range all {
+		if id := listertestingutils.ResourceIDOf(d); id != nil && strings.EqualFold(id.String(), resourceID) {
+			return d, nil
+		}
+	}
+	return nil, cosmosstorageutils.NewNotFoundError()
 }
 
 func (l *DBReadDesireLister) ListForManagementCluster(

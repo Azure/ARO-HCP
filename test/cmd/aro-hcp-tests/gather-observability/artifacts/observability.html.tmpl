@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Observability</title>
+    <style>
+        html, body { margin: 0; padding: 0; background-color: #000; color: #fff; font-family: 'Roboto', sans-serif; }
+        .tabbar {
+            display: flex; flex-wrap: wrap; gap: 4px;
+            padding: 8px 12px 0 12px; background: #0d0d0d;
+            border-bottom: 1px solid #222; position: sticky; top: 0; z-index: 10;
+        }
+        .tab {
+            background: #1a1a1a; color: #ccc; border: 1px solid #333; border-bottom: none;
+            padding: 8px 16px; font-size: 14px; cursor: pointer; border-radius: 4px 4px 0 0;
+        }
+        .tab:hover { background: #242424; color: #fff; }
+        .tab.active { background: #000; color: #4E9AF1; border-color: #4E9AF1; font-weight: bold; }
+        .tabhost { position: relative; }
+        .tabframe { display: none; border: 0; width: 100%; }
+        .empty { padding: 40px; text-align: center; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="tabbar" id="tabbar"></div>
+    <div class="tabhost" id="tabhost"></div>
+    <!-- workaround for spyglass cutting off page bottoms -->
+    <div style="height: 30px;"></div>
+    <script>
+    // TABS is [{title, html}], where html is a full, self-contained page for one
+    // section. Each tab is rendered into its own same-origin srcdoc iframe so the
+    // sections' styles and scripts stay isolated from each other. Iframes are
+    // created lazily on first activation (while visible) so charts that read
+    // their container size initialize correctly instead of at zero height.
+    const TABS = {{.TabsJSON}};
+    (function() {
+        const bar = document.getElementById('tabbar');
+        const host = document.getElementById('tabhost');
+        if (!TABS || TABS.length === 0) {
+            host.innerHTML = '<div class="empty">No observability sections were produced.</div>';
+            return;
+        }
+        const frames = {};
+        let active = -1;
+
+        function resize(i) {
+            const f = frames[i];
+            if (!f || !f.contentDocument) return;
+            try {
+                const h = f.contentDocument.documentElement.scrollHeight;
+                f.style.height = (h + 24) + 'px';
+            } catch (e) { /* cross-origin: leave default height */ }
+        }
+
+        function activate(i) {
+            if (i === active) return;
+            if (active >= 0 && frames[active]) frames[active].style.display = 'none';
+            const btns = bar.children;
+            for (let k = 0; k < btns.length; k++) btns[k].classList.toggle('active', k === i);
+            if (!frames[i]) {
+                const f = document.createElement('iframe');
+                f.className = 'tabframe';
+                f.addEventListener('load', function() {
+                    resize(i);
+                    // Sections resize their own charts after load (e.g. the
+                    // peak-threshold slider); keep the iframe tall enough to show them.
+                    try { new ResizeObserver(function() { resize(i); }).observe(f.contentDocument.body); } catch (e) {}
+                });
+                f.srcdoc = TABS[i].html;
+                host.appendChild(f);
+                frames[i] = f;
+            }
+            frames[i].style.display = 'block';
+            active = i;
+            resize(i);
+        }
+
+        TABS.forEach(function(t, i) {
+            const b = document.createElement('button');
+            b.className = 'tab';
+            b.textContent = t.title;
+            b.addEventListener('click', function() { activate(i); });
+            bar.appendChild(b);
+        });
+        activate(0);
+    })();
+    </script>
+</body>
+</html>
