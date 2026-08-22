@@ -26,7 +26,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### Frontend (ARM RP) SLO Dashboard\n\nUser-journey view of Frontend sync ARM SLIs. Prefer recording rules from [ARO-28705](https://redhat.atlassian.net/browse/ARO-28705) / PR [#6554](https://github.com/Azure/ARO-HCP/pull/6554).\n\n| SLI | Recording rule / source | Proposed SLO |\n|-----|-------------------------|--------------|\n| **Availability** | `sli:frontend_http:availability:rate5m` (+ `rate_avg_30d`) | ≥ 99.95% / 30d |\n| **Errors** | `errors:frontend_http:error_rate:rate5m` | &lt; 0.05% 5xx |\n| **Latency** | `sli:frontend_http:latency:rate5m` (share ≤1s) + raw p50/p95/p99 | p99 &lt; 1s |\n| **Traffic** | `traffic:frontend_http:request_rate:rate5m` | Baseline + anomaly (alerts: ARO-28707) |\n| **Saturation** | `sli:frontend:saturation_cpu:ratio5m` / `_memory:` | CPU &lt; 85% of request; memory vs limit |\n\nExcludes ARM async poll routes `hcpoperationresults` / `hcpoperationstatuses`. Cosmos RU / Istio pool saturation deferred until owned series exist.\n\n**Jira:** [ARO-28706](https://redhat.atlassian.net/browse/ARO-28706) · Epic [ARO-28703](https://redhat.atlassian.net/browse/ARO-28703)  \n**Runbook / TSG:** companion Frontend UJ runbook + [frontend-tsg](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html) · component panels remain on Grafana folder **Frontend** / `frontend.json`",
+        "content": "### Frontend (ARM RP) SLO Dashboard\n\nUser-journey view of Frontend sync ARM SLIs. Prefer recording rules from [ARO-28705](https://redhat.atlassian.net/browse/ARO-28705) / PR [#6554](https://github.com/Azure/ARO-HCP/pull/6554).\n\n| SLI | Recording rule / source | Proposed SLO |\n|-----|-------------------------|--------------|\n| **Availability** | `sli:frontend_http:availability:rate5m` (+ `rate_avg_30d`) | ≥ 99.95% / 30d |\n| **Errors** | `errors:frontend_http:error_rate:rate5m` | &lt; 0.05% 5xx |\n| **Latency** | `sli:frontend_http:latency_p99:rate5m` (+ `_p95:`) | p99 &lt; 1s |\n| **Traffic** | `traffic:frontend_http:request_rate:rate5m` | Baseline + anomaly (alerts: ARO-28707) |\\n| **Ready** | `sli:frontend:ready:ratio5m` | kube /healthz available/spec |\n| **Saturation** | `sli:frontend:saturation_cpu:ratio5m` / `_memory:` | CPU &lt; 85% of request; memory vs limit |\n\nExcludes ARM async poll routes `hcpoperationresults` / `hcpoperationstatuses`. Cosmos RU / Istio pool saturation deferred until owned series exist.\n\n**Jira:** [ARO-28706](https://redhat.atlassian.net/browse/ARO-28706) · Epic [ARO-28703](https://redhat.atlassian.net/browse/ARO-28703)  \n**Runbook / TSG:** companion Frontend UJ runbook + [frontend-tsg](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html) · component panels remain on Grafana folder **Frontend** / `frontend.json`",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -315,22 +315,22 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Share of requests completing within 1s (sli:frontend_http:latency:rate5m). Complements p99 < 1s SLO.",
+      "description": "Frontend HTTP p99 latency in seconds (sli:frontend_http:latency_p99:rate5m). SLO: p99 < 1s.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
           "decimals": 2,
-          "max": 100,
+          "max": 10,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red" },
-              { "color": "yellow", "value": 94 },
-              { "color": "green", "value": 99 }
+              { "color": "green" },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
             ]
           },
-          "unit": "percent"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -347,13 +347,13 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "avg(sli:frontend_http:latency:rate5m{cluster=~\"$cluster\"}) * 100",
+          "expr": "avg(sli:frontend_http:latency_p99:rate5m{cluster=~\"$cluster\"})",
           "instant": true,
-          "legendFormat": "Share ≤1s %",
+          "legendFormat": "p99",
           "refId": "A"
         }
       ],
-      "title": "Latency SLI (share ≤ 1s)",
+      "title": "Latency p99 (SLI)",
       "type": "stat"
     },
     {
@@ -436,7 +436,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Share of requests ≤ 1s over time (latency SLI recording rule).",
+      "description": "Frontend HTTP p99 latency over time (histogram_quantile recording rule).",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -448,17 +448,18 @@
             "showPoints": "never",
             "thresholdsStyle": { "mode": "line" }
           },
-          "decimals": 2,
-          "max": 100,
-          "min": 90,
+          "decimals": 3,
+          "max": 10,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red" },
-              { "color": "green", "value": 99 }
+              { "color": "green" },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
             ]
           },
-          "unit": "percent"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -473,12 +474,12 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sli:frontend_http:latency:rate5m{cluster=~\"$cluster\"} * 100",
+          "expr": "sli:frontend_http:latency_p99:rate5m{cluster=~\"$cluster\"}",
           "legendFormat": "{{ cluster }}",
           "refId": "A"
         }
       ],
-      "title": "Latency SLI Over Time (share ≤ 1s)",
+      "title": "Latency p99 Over Time",
       "type": "timeseries"
     },
     {
