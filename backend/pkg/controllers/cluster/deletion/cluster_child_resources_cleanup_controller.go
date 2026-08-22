@@ -271,6 +271,13 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		return false, nil
 	}
 
+	// Check if the managed resource group still exists.
+	if spc.Status.AzureResources.ManagedResourceGroup.AzureResource != nil || spc.Status.AzureResources.ManagedResourceGroup.PendingAzureResource != nil {
+		logger.Info("waiting for managed resource group to be deleted before removing ServiceProviderCluster document",
+			"serviceProviderClusterResourceID", spc.ResourceID.String(), "managedResourceGroupResourceID", spc.Status.AzureResources.ManagedResourceGroup.AzureResource, "pendingManagedResourceGroupResourceID", spc.Status.AzureResources.ManagedResourceGroup.PendingAzureResource)
+		return false, nil
+	}
+
 	// Check if there are any cluster-scoped kube-applier *Desire documents remaining.
 	if spc.Status.ManagementClusterResourceID != nil {
 		kaClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)

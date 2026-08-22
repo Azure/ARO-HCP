@@ -34,3 +34,9 @@ func IsResourceNotFoundErr(err error) bool {
 	var azErr *azcore.ResponseError
 	return errors.As(err, &azErr) && azErr.ErrorCode == "ResourceNotFound"
 }
+
+// IsInvalidResourceGroupErr is used to determine if the error is an Azure ResponseError with the error code "InvalidResourceGroup".
+func IsInvalidResourceGroupErr(err error) bool {
+	var azErr *azcore.ResponseError
+	return errors.As(err, &azErr) && azErr.ErrorCode == "InvalidResourceGroup"
+}
