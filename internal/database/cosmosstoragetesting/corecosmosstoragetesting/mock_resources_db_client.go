@@ -98,6 +98,16 @@ func (m *MockResourcesDBClient) Subscriptions() cosmosstorageutils.ResourceCRUD[
 	return newMockSubscriptionCRUD(m)
 }
 
+// DNSReservations returns a CRUD interface for DNS reservation resources.
+// Reservations are subscription-scoped; the mock derives the same
+// /subscriptions/<sub>/providers/Microsoft.RedHatOpenShift/dnsReservations/<name>
+// resource ID that production does, so Create-conflict semantics match.
+func (m *MockResourcesDBClient) DNSReservations(subscriptionID string) cosmosstorageutils.ResourceCRUD[coreapi.DNSReservation, *coreapi.DNSReservation] {
+	subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(subscriptionID))
+	return NewMockResourceCRUD[coreapi.DNSReservation, *coreapi.DNSReservation, cosmosstorageutils.GenericDocument[coreapi.DNSReservation]](
+		m, subscriptionResourceID, coreapi.DNSReservationResourceType)
+}
+
 // ListMissingResourceID returns documents that lack a resourceID field.
 func (m *MockResourcesDBClient) ListMissingResourceID(ctx context.Context, options *cosmosstorageutils.DBClientListResourceDocsOptions) (cosmosstorageutils.DBClientIterator[cosmosstorageutils.TypedDocument], error) {
 	m.mu.RLock()

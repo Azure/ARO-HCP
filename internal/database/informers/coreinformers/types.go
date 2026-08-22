@@ -47,6 +47,7 @@ type BackendInformers interface {
 	SystemAdminCredentialRequests() (cache.SharedIndexInformer, corelisters.SystemAdminCredentialRequestLister)
 	SystemAdminCredentialRevocations() (cache.SharedIndexInformer, corelisters.SystemAdminCredentialRevocationLister)
 	BillingDocs() (cache.SharedIndexInformer, corelisters.BillingLister)
+	DNSReservations() (cache.SharedIndexInformer, corelisters.DNSReservationLister)
 
 	RunWithContext(ctx context.Context)
 }
@@ -88,6 +89,9 @@ type backendInformers struct {
 
 	billingInformer cache.SharedIndexInformer
 	billingLister   corelisters.BillingLister
+
+	dnsReservationInformer cache.SharedIndexInformer
+	dnsReservationLister   corelisters.DNSReservationLister
 }
 
 func (b *backendInformers) Subscriptions() (cache.SharedIndexInformer, corelisters.SubscriptionLister) {
@@ -142,6 +146,10 @@ func (b *backendInformers) BillingDocs() (cache.SharedIndexInformer, corelisters
 	return b.billingInformer, b.billingLister
 }
 
+func (b *backendInformers) DNSReservations() (cache.SharedIndexInformer, corelisters.DNSReservationLister) {
+	return b.dnsReservationInformer, b.dnsReservationLister
+}
+
 func NewBackendInformers(ctx context.Context, resourcesGlobalListers corecosmosstorage.ResourcesGlobalListers, resourcesDBClient corecosmosstorage.ResourcesDBClient, billingGlobalListers billingcosmosstorage.BillingGlobalListers) BackendInformers {
 	return NewBackendInformersWithRelistDuration(ctx, resourcesGlobalListers, resourcesDBClient, billingGlobalListers, nil)
 }
@@ -160,6 +168,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	allOperationsRelistDuration := AllOperationsRelistDuration
 	activeOperationsRelistDuration := ActiveOperationsRelistDuration
 	billingRelistDuration := BillingRelistDuration
+	dnsReservationRelistDuration := DNSReservationRelistDuration
 	if relistDuration != nil {
 		subscriptionRelistDuration = *relistDuration
 		clusterRelistDuration = *relistDuration
@@ -174,6 +183,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 		allOperationsRelistDuration = *relistDuration
 		activeOperationsRelistDuration = *relistDuration
 		billingRelistDuration = *relistDuration
+		dnsReservationRelistDuration = *relistDuration
 	}
 
 	ret := &backendInformers{}
@@ -190,6 +200,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	ret.systemAdminCredentialRequestInformer = NewSystemAdminCredentialRequestInformerWithRelistDuration(resourcesGlobalListers.SystemAdminCredentialRequests(), resourcesDBClient, systemAdminCredentialRequestRelistDuration)
 	ret.systemAdminCredentialRevocationInformer = NewSystemAdminCredentialRevocationInformerWithRelistDuration(resourcesGlobalListers.SystemAdminCredentialRevocations(), resourcesDBClient, systemAdminCredentialRevocationRelistDuration)
 	ret.billingInformer = NewBillingInformerWithRelistDuration(billingGlobalListers.BillingDocs(), billingRelistDuration)
+	ret.dnsReservationInformer = NewDNSReservationInformerWithRelistDuration(resourcesGlobalListers.DNSReservations(), resourcesDBClient, dnsReservationRelistDuration)
 
 	ret.subscriptionLister = corelisters.NewSubscriptionLister(ret.subscriptionInformer.GetIndexer())
 	ret.activeOperationLister = corelisters.NewActiveOperationLister(ret.activeOperationInformer.GetIndexer())
@@ -203,6 +214,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	ret.systemAdminCredentialRequestLister = corelisters.NewSystemAdminCredentialRequestLister(ret.systemAdminCredentialRequestInformer.GetIndexer())
 	ret.systemAdminCredentialRevocationLister = corelisters.NewSystemAdminCredentialRevocationLister(ret.systemAdminCredentialRevocationInformer.GetIndexer())
 	ret.billingLister = corelisters.NewBillingLister(ret.billingInformer.GetIndexer())
+	ret.dnsReservationLister = corelisters.NewDNSReservationLister(ret.dnsReservationInformer.GetIndexer())
 
 	return ret
 }
@@ -328,6 +340,15 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.billingInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer utilruntime.HandleCrash()
+		defer wg.Done()
+		localLogger := logger.WithValues("type", reflect.TypeOf(&coreapi.DNSReservation{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.dnsReservationInformer.RunWithContext(localCtx)
 	}()
 
 	<-ctx.Done()
