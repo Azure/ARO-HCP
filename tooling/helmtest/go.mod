@@ -4,7 +4,7 @@ go 1.25.7
 
 require (
 	github.com/Azure/ARO-Tools/config v0.0.0-20260807054659-4a463f5d83c7
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260807054659-4a463f5d83c7
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260811071503-4afdafbbcad6
 	github.com/Azure/ARO-Tools/testutil v0.0.0-20260807054659-4a463f5d83c7
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
