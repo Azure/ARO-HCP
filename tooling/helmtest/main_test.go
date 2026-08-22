@@ -31,3 +31,7 @@ func TestACRValues(t *testing.T) {
 func TestNodeRolloutConfig(t *testing.T) {
 	testrunner.RunTestNodeRolloutConfig(t, "settings.yaml")
 }
+
+func TestHelmOwnership(t *testing.T) {
+	testrunner.RunTestHelmOwnership(t, "settings.yaml")
+}
