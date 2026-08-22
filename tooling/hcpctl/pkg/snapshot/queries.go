@@ -74,6 +74,11 @@ const (
 	// (e.g. control plane events for a cluster). They are written to
 	// resources/<type>/<name>/events/<component>/<queryName>.md.
 	categoryResourceEvents queryCategory = "resourceEvents"
+
+	// categoryDeployments queries extract Kubernetes resource snapshots (e.g. Deployment
+	// manifests). They run once per unique resource and are written to
+	// resources/<type>/<name>/deployments/<component>/<queryName>.yaml.
+	categoryDeployments queryCategory = "deployments"
 )
 
 // querySpec describes a single KQL query in the dependency chain.
@@ -102,6 +107,11 @@ type querySpec struct {
 	// are ambiguous (e.g. multiple distinct values for a single-valued field),
 	// storeResult should return an error.
 	storeResult func(*queryData, []resultRow) error
+	// outputFormat controls how results are written. Empty (default) produces
+	// a markdown file (.md) with query text and a results table. "yaml"
+	// extracts the first column of the first row, converts it from JSON to
+	// YAML, and writes a .yaml file.
+	outputFormat string
 }
 
 // key returns the "component/queryName" identifier for this query.
@@ -782,6 +792,30 @@ var allQueries = []querySpec{
 		templatePath: "queries/hypershift/clusterAPIProviderLogs/query.kql",
 		database:     "hcp",
 		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
+	},
+	{
+		component:    "hypershift",
+		queryName:    "hypershiftOperatorDeployment",
+		templatePath: "queries/hypershift/hypershiftOperatorDeployment/query.kql",
+		database:     "service",
+		category:     categoryDeployments,
+		outputFormat: "yaml",
+		ready: func(d queryData) bool {
+			return strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "ResourceType is cluster",
+	},
+	{
+		component:    "hypershift",
+		queryName:    "controlPlaneOperatorDeployment",
+		templatePath: "queries/hypershift/controlPlaneOperatorDeployment/query.kql",
+		database:     "service",
+		category:     categoryDeployments,
+		outputFormat: "yaml",
 		ready: func(d queryData) bool {
 			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
