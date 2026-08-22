@@ -290,6 +290,18 @@ data:
         Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route fleet controller logs with snapshotType=cosmos
+        # to the same cosmosResourceSnapshots Kusto table, keeping the original
+        # fleet-controller.logs copy so they still land in fleetLogs too.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router_fleet
+        Match           fleet-controller.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Emitter_Name    re_emitted_cosmos_snapshot_router_fleet
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
   filter-shoebox.conf: |
     # Route control plane logs from OCM namespaces for Shoebox transformation
     [FILTER]
@@ -985,7 +997,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: c993c64f62847e6ec89b89846885fc224b6083230909020a2d04309faad8d57e
+        checksum/configmap: 35482d7d830c2e71804253e8311a4f55d5c59f93b6cb4f46c513f2f030f8d4a5
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
