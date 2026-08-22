@@ -72,3 +72,10 @@ func NewServiceManagedIdentityClientBuilder(fpaMIdataplaneClientBuilder azurecli
 		azureConfig.CloudEnvironment.ARMClientOptions(),
 	)
 }
+
+func NewClusterOperatorIdentityClientBuilder(fpaMIdataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder, azureConfig *azureconfig.AzureConfig) azureclient.ClusterOperatorIdentityClientBuilder {
+	return azureclient.NewClusterOperatorIdentityClientBuilder(
+		fpaMIdataplaneClientBuilder,
+		azureConfig.CloudEnvironment.ARMClientOptions(),
+	)
+}

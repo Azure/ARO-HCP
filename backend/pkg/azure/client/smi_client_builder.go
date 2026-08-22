@@ -18,15 +18,10 @@ package client
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
-	"github.com/Azure/msi-dataplane/pkg/dataplane"
-
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // ServiceManagedIdentityClientBuilderType is a type that represents the type of the
@@ -63,38 +58,17 @@ func (b *serviceManagedIdentityClientBuilder) BuilderType() ServiceManagedIdenti
 	return ServiceManagedIdentityClientBuilderTypeValue
 }
 
-// credentialsForServiceManagedIdentity acquires an azcore.TokenCredential for the cluster's
-// Service Managed Identity by going through the Managed Identities Data Plane.
-func (b *serviceManagedIdentityClientBuilder) credentialsForServiceManagedIdentity(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID) (azcore.TokenCredential, error) {
-	miDataplaneClient, err := b.fpaMIdataplaneClientBuilder.ManagedIdentitiesDataplane(clusterIdentityURL)
-	if err != nil {
-		return nil, err
-	}
-
-	dataplaneRequest := dataplane.UserAssignedIdentitiesRequest{
-		IdentityIDs: []string{smiResourceID.String()},
-	}
-	resp, err := miDataplaneClient.GetUserAssignedIdentitiesCredentials(ctx, dataplaneRequest)
-	if err != nil {
-		return nil, err
-	}
-	if len(resp.ExplicitIdentities) == 0 {
-		return nil, utils.TrackError(fmt.Errorf("managed identities data plane returned no credentials for the cluster's service managed identity '%s'", smiResourceID.String()))
-	}
-
-	return dataplane.GetCredential(b.azCoreARMClientOptions.ClientOptions, resp.ExplicitIdentities[0])
-}
-
 func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error) {
-	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
+	creds, err := credentialForIdentity(ctx, b.fpaMIdataplaneClientBuilder, b.azCoreARMClientOptions.ClientOptions, clusterIdentityURL, smiResourceID)
 	if err != nil {
 		return nil, err
 	}
+
 	return armmsi.NewUserAssignedIdentitiesClient(subscriptionID, creds, b.azCoreARMClientOptions)
 }
 
 func (b *serviceManagedIdentityClientBuilder) SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error) {
-	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
+	creds, err := credentialForIdentity(ctx, b.fpaMIdataplaneClientBuilder, b.azCoreARMClientOptions.ClientOptions, clusterIdentityURL, smiResourceID)
 	if err != nil {
 		return nil, err
 	}

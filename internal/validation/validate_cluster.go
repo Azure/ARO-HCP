@@ -33,6 +33,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 )
 
 const (
@@ -96,6 +97,9 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 
 	// there are pieces of clusterProperties that are dependent upon values in .identity
 	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
+
+	// KMS encryption requires the KMS operator identity to be configured
+	errs = append(errs, validateKmsIdentityRequirement(ctx, op, newCluster)...)
 
 	RewriteValidationFieldPaths(errs, validationPathMapper)
 
@@ -184,6 +188,32 @@ func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op ope
 	}
 
 	return errs
+}
+
+// validateKmsIdentityRequirement validates that when customer-managed KMS encryption
+// is configured, the KMS operator identity must be present in ControlPlaneOperators.
+func validateKmsIdentityRequirement(_ context.Context, _ operation.Operation, newCluster *coreapi.HCPOpenShiftCluster) field.ErrorList {
+	// Check if customer-managed KMS encryption is configured
+	if newCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode != metadataapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
+		return nil
+	}
+
+	cm := newCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged
+	if cm == nil || cm.EncryptionType != metadataapi.CustomerManagedEncryptionTypeKMS {
+		return nil
+	}
+
+	// KMS encryption is configured - verify the KMS operator identity is present
+	kmsOperatorName := string(internalazure.ClusterOperatorIdentifierKMS)
+	kmsIdentity := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[kmsOperatorName]
+	if kmsIdentity == nil {
+		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(kmsOperatorName)
+		return field.ErrorList{
+			field.Required(fldPath, "KMS operator identity is required when customer-managed KMS encryption is configured"),
+		}
+	}
+
+	return nil
 }
 
 func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Operation, newCluster, _ *coreapi.HCPOpenShiftCluster) field.ErrorList {

@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview/generated"
 )
 
@@ -42,6 +43,7 @@ const (
 	TestSubscriptionID                          = "11111111-1111-1111-1111-111111111111"
 	TestAltSubscriptionID                       = "22222222-2222-2222-2222-222222222222"
 	TestResourceGroupName                       = "testResourceGroup"
+	TestIdentityResourceGroupName               = "testIdentityResourceGroup"
 	TestClusterName                             = "testCluster"
 	TestNodePoolName                            = "testNodePool"
 	TestExternalAuthName                        = "testExtAuth"
@@ -61,6 +63,7 @@ const (
 var (
 	TestSubscriptionResourceID                = path.Join("/subscriptions", TestSubscriptionID)
 	TestResourceGroupResourceID               = path.Join(TestSubscriptionResourceID, "resourceGroups", TestResourceGroupName)
+	TestIdentityResourceGroupResourceID       = path.Join(TestSubscriptionResourceID, "resourceGroups", TestIdentityResourceGroupName)
 	TestClusterResourceID                     = path.Join(TestResourceGroupResourceID, "providers", coreapi.ProviderNamespace, coreapi.ClusterResourceTypeName, TestClusterName)
 	TestNodePoolResourceID                    = path.Join(TestClusterResourceID, coreapi.NodePoolResourceTypeName, TestNodePoolName)
 	TestExternalAuthResourceID                = path.Join(TestClusterResourceID, coreapi.ExternalAuthResourceTypeName, TestExternalAuthName)
@@ -77,7 +80,7 @@ func NewTestLogger() *slog.Logger {
 }
 
 func NewTestUserAssignedIdentity(name string) *azcorearm.ResourceID {
-	return metadataapi.Must(azcorearm.ParseResourceID(path.Join(TestResourceGroupResourceID, "providers", "Microsoft.ManagedIdentity", "userAssignedIdentities", name)))
+	return metadataapi.Must(azcorearm.ParseResourceID(path.Join(TestIdentityResourceGroupResourceID, "providers", "Microsoft.ManagedIdentity", "userAssignedIdentities", name)))
 }
 
 func MinimumValidClusterTestCase() *coreapi.HCPOpenShiftCluster {
@@ -112,6 +115,18 @@ func MinimumValidClusterTestCase() *coreapi.HCPOpenShiftCluster {
 				VaultName: "test-vault",
 				Version:   "test-version",
 			},
+		},
+	}
+	// Add KMS operator identity (required when using KMS encryption)
+	kmsIdentity := NewTestUserAssignedIdentity("KmsOperatorIdentity")
+	resource.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+		string(internalazure.ClusterOperatorIdentifierKMS): kmsIdentity,
+	}
+	// Add the identity to the resource's UserAssignedIdentities (required for validation)
+	resource.Identity = &coreapi.ManagedServiceIdentity{
+		Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
+		UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
+			kmsIdentity.String(): {},
 		},
 	}
 	// Add required systemData fields
