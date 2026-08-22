@@ -157,3 +157,32 @@ tests:
     exp_samples:
     - labels: '{__name__="sli:frontend:ready:ratio5m", cluster="svc-down"}'
       value: 0
+- interval: 1m
+  # Idle but healthy: ready=1, no ARM HTTP series → HTTP SLIs/traffic/latency
+  # emit no sample (not 0/NaN). Protects long-window aggregates.
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{cluster="svc-idle", namespace="aro-hcp", deployment="aro-hcp-frontend", prometheus_replica="a"}'
+    values: "2+0x15"
+  - series: 'kube_deployment_spec_replicas{cluster="svc-idle", namespace="aro-hcp", deployment="aro-hcp-frontend", prometheus_replica="a"}'
+    values: "2+0x15"
+  promql_expr_test:
+  - expr: sli:frontend_http:availability:rate5m{cluster="svc-idle"}
+    eval_time: 5m
+    exp_samples: []
+  - expr: errors:frontend_http:error_rate:rate5m{cluster="svc-idle"}
+    eval_time: 5m
+    exp_samples: []
+  - expr: sli:frontend_http:latency_p99:rate5m{cluster="svc-idle"}
+    eval_time: 5m
+    exp_samples: []
+  - expr: sli:frontend_http:latency_p95:rate5m{cluster="svc-idle"}
+    eval_time: 5m
+    exp_samples: []
+  - expr: traffic:frontend_http:request_rate:rate5m{cluster="svc-idle"}
+    eval_time: 5m
+    exp_samples: []
+  - expr: sli:frontend:ready:ratio5m{cluster="svc-idle"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend:ready:ratio5m", cluster="svc-idle"}'
+      value: 1

@@ -13,8 +13,11 @@ spec:
   # ========================================
   # Frontend (ARM RP) User Journey SLO Recording Rules
   # ========================================
-  # Baseline SLIs per ARO HCP Alerting Recommendation ADR (good / total ratios)
-  # and ARO-28705. Proposed SLOs (formal burn-rate alerts: ARO-28707):
+  # Baseline SLIs per ARO HCP Alerting Recommendation ADR.
+  # Availability and errors are good/total (or 5xx/total) ratios.
+  # Latency is histogram_quantile p99/p95 in seconds (not a ≤1s share).
+  # Traffic is absolute RPS. Ready is kube available/spec.
+  # ARO-28705. Proposed SLOs (formal burn-rate alerts: ARO-28707):
   #   Availability: >= 99.95% over 30d (non-5xx / total)
   #   Errors:       < 0.05% 5xx share (same budget as availability)
   #   Latency:      p99 < 1s ARM sync — histogram_quantile (p99 / p95 seconds)
