@@ -106,7 +106,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 
 		syncer := newSyncer(mockClients)
 		_, err := syncer.deleteStaleApplyDesires(context.Background(), testKey, applyDesireCRUD,
-			[]*kubeapplierapi.ApplyDesire{makeDesiredApplyDesire(backup.BackupScheduleDesireNamePrefix + "current")})
+			map[string]bool{backup.BackupScheduleDesireNamePrefix + "current": true})
 		require.NoError(t, err)
 
 		applyDesire, err := applyDesireCRUD.Get(context.Background(), backup.BackupScheduleDesireNamePrefix+"old")
@@ -207,7 +207,7 @@ func TestDeleteStaleApplyDesires(t *testing.T) {
 
 		syncer := newSyncer(mockClients)
 		requeue, err := syncer.deleteStaleApplyDesires(context.Background(), testKey, applyDesireCRUD,
-			[]*kubeapplierapi.ApplyDesire{scheduleDesire})
+			map[string]bool{backup.BackupScheduleDesireNamePrefix + "hourly": true})
 		require.NoError(t, err)
 		assert.False(t, requeue)
 
