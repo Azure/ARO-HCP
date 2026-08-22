@@ -44,11 +44,11 @@ tests:
     # Saturation: 0.5 CPU cores used / 1.0 requested; 512Mi / 1024Mi memory
 
     values: "0+30x15"
-  - series: 'kube_pod_container_resource_requests{cluster="svc-1", namespace="aro-hcp", container="aro-hcp-frontend", pod="aro-hcp-frontend-0", resource="cpu", unit="core", prometheus_replica="a"}'
+  - series: 'kube_pod_container_resource_requests{cluster="svc-1", namespace="aro-hcp", container="aro-hcp-frontend", pod="aro-hcp-frontend-0", resource="cpu", unit="core", job="kube-state-metrics", prometheus_replica="a"}'
     values: "1+0x15"
   - series: 'container_memory_working_set_bytes{cluster="svc-1", namespace="aro-hcp", container="aro-hcp-frontend", pod="aro-hcp-frontend-0", prometheus_replica="a"}'
     values: "536870912+0x15"
-  - series: 'kube_pod_container_resource_limits{cluster="svc-1", namespace="aro-hcp", container="aro-hcp-frontend", pod="aro-hcp-frontend-0", resource="memory", unit="byte", prometheus_replica="a"}'
+  - series: 'kube_pod_container_resource_limits{cluster="svc-1", namespace="aro-hcp", container="aro-hcp-frontend", pod="aro-hcp-frontend-0", resource="memory", unit="byte", job="kube-state-metrics", prometheus_replica="a"}'
     values: "1073741824+0x15"
   promql_expr_test:
   - expr: sli:frontend_http:availability:rate5m{cluster="svc-1"}

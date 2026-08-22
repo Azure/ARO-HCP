@@ -233,6 +233,9 @@ spec:
         )
     - record: sli:frontend:saturation_cpu:ratio5m
       # Saturation — CPU: usage cores / requested cores (ratio). SLO target < 0.85.
+      # kube-state-metrics requests/limits: max by (cluster, namespace, pod, container)
+      # so multi-target scrapes are not double-counted (same pattern as
+      # serviceMemoryResources).
 
       expr: |
         (
@@ -246,11 +249,12 @@ spec:
           )
           /
           sum by (cluster) (
-            max without (prometheus_replica) (
+            max by (cluster, namespace, pod, container) (
               kube_pod_container_resource_requests{
                 namespace="aro-hcp",
                 container="aro-hcp-frontend",
-                resource="cpu"
+                resource="cpu",
+                job="kube-state-metrics"
               }
             )
           )
@@ -258,11 +262,12 @@ spec:
         and on (cluster)
         (
           sum by (cluster) (
-            max without (prometheus_replica) (
+            max by (cluster, namespace, pod, container) (
               kube_pod_container_resource_requests{
                 namespace="aro-hcp",
                 container="aro-hcp-frontend",
-                resource="cpu"
+                resource="cpu",
+                job="kube-state-metrics"
               }
             )
           )
@@ -283,11 +288,12 @@ spec:
           )
           /
           sum by (cluster) (
-            max without (prometheus_replica) (
+            max by (cluster, namespace, pod, container) (
               kube_pod_container_resource_limits{
                 namespace="aro-hcp",
                 container="aro-hcp-frontend",
-                resource="memory"
+                resource="memory",
+                job="kube-state-metrics"
               }
             )
           )
@@ -295,11 +301,12 @@ spec:
         and on (cluster)
         (
           sum by (cluster) (
-            max without (prometheus_replica) (
+            max by (cluster, namespace, pod, container) (
               kube_pod_container_resource_limits{
                 namespace="aro-hcp",
                 container="aro-hcp-frontend",
-                resource="memory"
+                resource="memory",
+                job="kube-state-metrics"
               }
             )
           )

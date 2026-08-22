@@ -128,11 +128,11 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
       }
       {
         record: 'sli:frontend:saturation_cpu:ratio5m'
-        expression: '(sum by (cluster) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{container="aro-hcp-frontend",namespace="aro-hcp"}[5m]))) / sum by (cluster) (max without (prometheus_replica) (kube_pod_container_resource_requests{container="aro-hcp-frontend",namespace="aro-hcp",resource="cpu"}))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (kube_pod_container_resource_requests{container="aro-hcp-frontend",namespace="aro-hcp",resource="cpu"})) > 0)'
+        expression: '(sum by (cluster) (max without (prometheus_replica) (rate(container_cpu_usage_seconds_total{container="aro-hcp-frontend",namespace="aro-hcp"}[5m]))) / sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_requests{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="cpu"}))) and on (cluster) (sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_requests{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="cpu"})) > 0)'
       }
       {
         record: 'sli:frontend:saturation_memory:ratio5m'
-        expression: '(sum by (cluster) (max without (prometheus_replica) (container_memory_working_set_bytes{container="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster) (max without (prometheus_replica) (kube_pod_container_resource_limits{container="aro-hcp-frontend",namespace="aro-hcp",resource="memory"}))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (kube_pod_container_resource_limits{container="aro-hcp-frontend",namespace="aro-hcp",resource="memory"})) > 0)'
+        expression: '(sum by (cluster) (max without (prometheus_replica) (container_memory_working_set_bytes{container="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"}))) and on (cluster) (sum by (cluster) (max by (cluster, namespace, pod, container) (kube_pod_container_resource_limits{container="aro-hcp-frontend",job="kube-state-metrics",namespace="aro-hcp",resource="memory"})) > 0)'
       }
     ]
   }
