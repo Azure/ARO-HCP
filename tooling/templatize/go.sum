@@ -69,8 +69,8 @@ github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68
 github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d/go.mod h1:rVUpgSjxc+ODZ9g745QpuCtC/UqNk1Q2bYBHqtwH43A=
 github.com/Azure/ARO-Tools/config v0.0.0-20260807054659-4a463f5d83c7 h1:JSbNn6SBhfe9frgGmiFzOeWlpnhjD+bt84kp+pOqfSo=
 github.com/Azure/ARO-Tools/config v0.0.0-20260807054659-4a463f5d83c7/go.mod h1:+WBWFSRmpAP9hjhjE+zhqzzcRa90hZNtfF0QdfCIjMc=
-github.com/Azure/ARO-Tools/pipelines v0.0.0-20260807054659-4a463f5d83c7 h1:ZJP3G3q/MpFBDBpQu41XdehWL2cMAzZ8NL6wUDdH5Tk=
-github.com/Azure/ARO-Tools/pipelines v0.0.0-20260807054659-4a463f5d83c7/go.mod h1:Cc2nAch8xQzLC0qD6vQPV4FfUEY+YE3drkXLuFIStc8=
+github.com/Azure/ARO-Tools/pipelines v0.0.0-20260817182351-8edbd7b1e3cf h1:6TFPeq2+b1Kfa4InX4uFRK8bKZkG07FFDNIrUBK+Aug=
+github.com/Azure/ARO-Tools/pipelines v0.0.0-20260817182351-8edbd7b1e3cf/go.mod h1:Cc2nAch8xQzLC0qD6vQPV4FfUEY+YE3drkXLuFIStc8=
 github.com/Azure/ARO-Tools/testutil v0.0.0-20260807054659-4a463f5d83c7 h1:kE00oGakT8wJ5LMSVphWCJT7nxdF5ab2eDn7a326xn8=
 github.com/Azure/ARO-Tools/testutil v0.0.0-20260807054659-4a463f5d83c7/go.mod h1:vKa6bvu+tFVip4oWO9PNI2NbtmN1KUezvdX7rZCQtQU=
 github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260807054659-4a463f5d83c7 h1:clcrDVg+wk/7YbeoeMvAvFcNf0pxoG+UkRvDVbMPQ1c=
@@ -81,6 +81,8 @@ github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260807054659-4a463f5d83c7 h1:+KO6
 github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260807054659-4a463f5d83c7/go.mod h1:VuBG3k3KZmuryie88Ym3PYR0/83Tf1Ooei3KMDw0Fzk=
 github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260807054659-4a463f5d83c7 h1:TZmb3k8isLip5dEH8r8gOtPn8CW0jPbyron2AIp7oZs=
 github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260807054659-4a463f5d83c7/go.mod h1:QdIHsprS+toKHQdIG87Pz8pB22ro+igOO3xtl4isOsk=
+github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260817182351-8edbd7b1e3cf h1:XsUgviKP8zKr0MWue5pyiMP8r0myQG0bS/Buua3xsfw=
+github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260817182351-8edbd7b1e3cf/go.mod h1:2nHMLFajXz1NOUBViPUNsWZ3PMAhq6mRw6pdyieoCCk=
 github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260807054659-4a463f5d83c7 h1:lvyut6Z7rCLAnsB3kGfvmPDcR9AoQHaDjF3BuWLpOxI=
 github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260807054659-4a463f5d83c7/go.mod h1:RvEBh8gN0NxaZH+Lb+k3v4sWdJwBcbEgVSMmvX2Yzhs=
 github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260807054659-4a463f5d83c7 h1:oO4rgGV5iLtIXplTCmlT8nYc0i7ouw0CGfE9PGgxajE=
@@ -89,6 +91,8 @@ github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260807054659-4a463f5d83c7 
 github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260807054659-4a463f5d83c7/go.mod h1:kDlrhNzGuT5kCoASmooN6zmpg+goCiM+Fanv0fVAsRQ=
 github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260807054659-4a463f5d83c7 h1:pSC+svaXYZbS5ezuZ/7tJHTGvUjvee5yGQKFKns015I=
 github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260807054659-4a463f5d83c7/go.mod h1:vBqaNrQUd9dAmedrRoqI2jVlVbNrFnIFXUu2hFqdct0=
+github.com/Azure/azure-kusto-go/azkustodata v1.2.1 h1:De25JIENJVLYUMB4Z9LfAFzbgjGz1ozYJiL2zprs1KA=
+github.com/Azure/azure-kusto-go/azkustodata v1.2.1/go.mod h1:pYbM6A7z4XDU+3S0+OgoyUOuCOWPUe/hyEfnOCT6Gok=
 github.com/Azure/azure-sdk-for-go v68.0.0+incompatible h1:fcYLmCpyNYRnvJbPerq7U0hS+6+I79yEDJBqVNcqUzU=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 h1:jHb/wfvRikGdxMXYV3QG/SzUOPYN9KEUUuC0Yd0/vC0=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1/go.mod h1:pzBXCYn05zvYIrwLgtK8Ap8QcjRg+0i76tMQdWN6wOk=
@@ -776,6 +780,8 @@ github.com/rubenv/sql-migrate v1.8.1/go.mod h1:BTIKBORjzyxZDS6dzoiw6eAFYJ1iNlGAt
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd/go.mod h1:hPqNNc0+uJM6H+SuU8sEs5K5IQeKccPqeSjfgcKGgPk=
+github.com/samber/lo v1.53.0 h1:t975lj2py4kJPQ6haz1QMgtId2gtmfktACxIXArw3HM=
+github.com/samber/lo v1.53.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 h1:KRzFb2m7YtdldCEkzs6KqmJw4nqEVZGK7IN2kJkjTuQ=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
 github.com/segmentio/asm v1.1.3 h1:WM03sfUOENvvKexOLp+pCqgb/WDjsi7EK8gIsICtzhc=
@@ -834,6 +840,8 @@ github.com/tetratelabs/wabin v0.0.0-20230304001439-f6f874872834 h1:ZF+QBjOI+tILZ
 github.com/tetratelabs/wabin v0.0.0-20230304001439-f6f874872834/go.mod h1:m9ymHTgNSEjuxvw8E7WWe4Pl4hZQHXONY8wE6dMLaRk=
 github.com/tetratelabs/wazero v1.11.0 h1:+gKemEuKCTevU4d7ZTzlsvgd1uaToIDtlQlmNbwqYhA=
 github.com/tetratelabs/wazero v1.11.0/go.mod h1:eV28rsN8Q+xwjogd7f4/Pp4xFxO7uOGbLcD/LzB1wiU=
+github.com/tj/assert v0.0.3 h1:Df/BlaZ20mq6kuai7f5z2TvPFiwC3xaWJSDQNiIS3Rk=
+github.com/tj/assert v0.0.3/go.mod h1:Ne6X72Q+TB1AteidzQncjw9PabbMp4PBMZ1k+vd1Pvk=
 github.com/trivago/tgo v1.0.7 h1:uaWH/XIy9aWYWpjm2CU3RpcqZXmX2ysQ9/Go+d9gyrM=
 github.com/trivago/tgo v1.0.7/go.mod h1:w4dpD+3tzNIIiIfkWWa85w5/B77tlvdZckQ+6PkFnhc=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=

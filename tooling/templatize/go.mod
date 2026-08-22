@@ -5,12 +5,13 @@ go 1.25.7
 require (
 	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d
 	github.com/Azure/ARO-Tools/config v0.0.0-20260807054659-4a463f5d83c7
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260807054659-4a463f5d83c7
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260817182351-8edbd7b1e3cf
 	github.com/Azure/ARO-Tools/testutil v0.0.0-20260807054659-4a463f5d83c7
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260807054659-4a463f5d83c7
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260807054659-4a463f5d83c7
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260807054659-4a463f5d83c7
 	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260807054659-4a463f5d83c7
+	github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260817182351-8edbd7b1e3cf
 	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260807054659-4a463f5d83c7
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260807054659-4a463f5d83c7
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260807054659-4a463f5d83c7
@@ -52,6 +53,7 @@ require (
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260807054659-4a463f5d83c7 // indirect
+	github.com/Azure/azure-kusto-go/azkustodata v1.2.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2 v2.0.0 // indirect
@@ -228,6 +230,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rubenv/sql-migrate v1.8.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/samber/lo v1.53.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
