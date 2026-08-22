@@ -1,0 +1,34 @@
+serviceAccount:
+  name: "{{ .certExporter.k8s.serviceAccountName }}"
+targetNamespaces:
+  prefix: ocm-
+  exact: open-cluster-management-policies
+rbacController:
+  serviceAccount:
+    name: "{{ .certExporter.rbacController.k8s.serviceAccountName }}"
+  image:
+    registry: '{{ .acr.svc.name }}.{{ .acrDNSSuffix }}'
+    repository: '{{ .certExporter.rbacController.image.repository }}'
+    digest: '{{ .certExporter.rbacController.image.digest }}'
+  resources:
+    requests:
+      cpu: "{{ .certExporter.rbacController.k8s.resources.requests.cpu }}"
+      memory: "{{ .certExporter.rbacController.k8s.resources.requests.memory }}"
+    limits:
+      memory: "{{ .certExporter.rbacController.k8s.resources.limits.memory }}"
+pullBinding:
+  registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+  scope: "repository:{{ .certExporter.image.repository }}:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__imagePullerMsiTenantId__"
+image:
+  registry: '{{ .acr.svc.name }}.{{ .acrDNSSuffix }}'
+  repository: '{{ .certExporter.image.repository }}'
+  digest: '{{ .certExporter.image.digest }}'
+deployment:
+  resources:
+    requests:
+      cpu: "{{ .certExporter.k8s.resources.requests.cpu }}"
+      memory: "{{ .certExporter.k8s.resources.requests.memory }}"
+    limits:
+      memory: "{{ .certExporter.k8s.resources.limits.memory }}"

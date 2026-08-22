@@ -1,0 +1,40 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: cert-exporter-rbac-controller
+  labels:
+    app.kubernetes.io/name: cert-exporter-rbac-controller
+spec:
+  failurePolicy: Fail
+  matchConditions:
+  - name: user-is-cert-exporter-rbac-controller
+    expression: "request.userInfo.username == 'system:serviceaccount:{{ .Release.Namespace }}:{{ .Values.rbacController.serviceAccount.name }}'"
+  matchConstraints:
+    matchPolicy: Equivalent
+    resourceRules:
+    - apiGroups: ["rbac.authorization.k8s.io"]
+      apiVersions: ["v1"]
+      operations: ["CREATE", "UPDATE", "DELETE"]
+      resources: ["rolebindings"]
+      scope: Namespaced
+  variables:
+  - name: isTargetNamespace
+    expression: "request.namespace.startsWith('{{ .Values.targetNamespaces.prefix }}') || request.namespace == '{{ .Values.targetNamespaces.exact }}'"
+  - name: isManagedDelete
+    expression: "request.operation == 'DELETE' && oldObject.metadata.name == 'cert-exporter' && 'app.kubernetes.io/managed-by' in oldObject.metadata.?labels.orValue({}) && oldObject.metadata.labels['app.kubernetes.io/managed-by'] == 'cert-exporter-rbac-controller'"
+  - name: isValidMutation
+    expression: "request.operation != 'DELETE' && variables.isTargetNamespace && object.metadata.name == 'cert-exporter' && 'app.kubernetes.io/managed-by' in object.metadata.?labels.orValue({}) && object.metadata.labels['app.kubernetes.io/managed-by'] == 'cert-exporter-rbac-controller' && object.roleRef.apiGroup == 'rbac.authorization.k8s.io' && object.roleRef.kind == 'ClusterRole' && object.roleRef.name == 'cert-exporter' && size(object.subjects) == 1 && object.subjects[0].kind == 'ServiceAccount' && object.subjects[0].name == '{{ .Values.serviceAccount.name }}' && object.subjects[0].namespace == '{{ .Release.Namespace }}'"
+  validations:
+  - expression: "variables.isManagedDelete || variables.isValidMutation"
+    message: The cert-exporter RBAC controller may only manage its exact RoleBinding in approved namespaces.
+    reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: cert-exporter-rbac-controller
+  labels:
+    app.kubernetes.io/name: cert-exporter-rbac-controller
+spec:
+  policyName: cert-exporter-rbac-controller
+  validationActions: [Deny]

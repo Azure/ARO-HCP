@@ -68718,7 +68718,15 @@ spec:
     # while the hostedcontrolplane rule catches per-HCP KSM metrics for namespaced
     # resources where namespace has been promoted to the actual resource namespace
     # (e.g. openshift-ingress-operator) and no longer matches ocm-*.
+    #
+    # cert-exporter metrics (x509_cert_*) are routed based on secret_namespace
+    # instead of namespace, since the exporter runs in cert-exporter namespace
+    # but monitors certificates from ocm-* and open-cluster-management-policies.
     writeRelabelConfigs:
+      - sourceLabels: [__name__, secret_namespace]
+        separator: ;
+        regex: 'x509_cert_.+;(ocm-arohcpdev.*|open-cluster-management-policies)'
+        action: drop
       - sourceLabels: [namespace]
         regex: '^ocm-arohcpdev.*'
         action: drop
@@ -68743,10 +68751,16 @@ spec:
     # (a metric must match all rules to survive), but we need OR — keep if
     # either namespace or hostedcontrolplane matches ocm-*.
     # See https://github.com/prometheus/prometheus/issues/3996
+    #
+    # cert-exporter metrics (x509_cert_*) are routed based on secret_namespace,
+    # matching HCP namespaces (ocm-*) and the policy namespace.
+    # The regex handles both cases:
+    # 1. Regular HCP metrics: namespace OR hostedcontrolplane matches ocm-*
+    # 2. cert-exporter metrics: __name__=x509_cert_* AND secret_namespace matches ocm-*/policy
     writeRelabelConfigs:
-      - sourceLabels: [namespace, hostedcontrolplane]
+      - sourceLabels: [__name__, secret_namespace, namespace, hostedcontrolplane]
         separator: ;
-        regex: '(ocm-arohcpdev[^;]*;.*|.*;ocm-arohcpdev.*)'
+        regex: '(x509_cert_.+;(ocm-arohcpdev.*|open-cluster-management-policies);.*;.*|.*;.*;ocm-arohcpdev[^;]*;.*|.*;.*;.*;ocm-arohcpdev.*)'
         action: keep
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus/rules-1.14/alertmanager.rules.yaml

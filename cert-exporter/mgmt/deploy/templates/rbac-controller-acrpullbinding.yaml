@@ -1,0 +1,16 @@
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: cert-exporter-rbac-controller-pull-binding
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  acr:
+    environment: PublicCloud
+    server: '{{ .Values.pullBinding.registry }}'
+    scope: 'repository:{{ .Values.rbacController.image.repository }}:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: '{{ .Values.rbacController.serviceAccount.name }}'
+      clientID: '{{ .Values.pullBinding.workloadIdentityClientId }}'
+      tenantID: '{{ .Values.pullBinding.workloadIdentityTenantId }}'
+  serviceAccountName: '{{ .Values.rbacController.serviceAccount.name }}'

@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cert-exporter-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: cert-exporter
+data:
+  config.yaml: |
+    server:
+      listen: ":9793"
+    log:
+      level: info
+      format: text
+    metrics:
+      exposeNotBefore: true
+    sources:
+      - kind: kubernetes
+        name: apiserver-tls-certs
+        namespaces:
+          include: ["{{ .Values.targetNamespaces.prefix }}*"]
+          exclude: []
+        secrets:
+          include: ["kube-apiserver-tls-cert"]
+          exclude: []
+          types:
+            - type: "kubernetes.io/tls"
+              keyPatterns: ["^tls\\.crt$"]
+              format: pem
+      - kind: kubernetes
+        name: ingress-tls-certs
+        namespaces:
+          include: ["{{ .Values.targetNamespaces.exact }}"]
+          exclude: []
+        secrets:
+          include: ["default-ingress-tls-cert-*"]
+          exclude: []
+          types:
+            - type: "kubernetes.io/tls"
+              keyPatterns: ["^tls\\.crt$"]
+              format: pem

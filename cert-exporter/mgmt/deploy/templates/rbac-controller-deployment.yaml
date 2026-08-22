@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-exporter-rbac-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: cert-exporter-rbac-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cert-exporter-rbac-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cert-exporter-rbac-controller
+    spec:
+      serviceAccountName: {{ .Values.rbacController.serviceAccount.name }}
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: rbac-controller
+        image: '{{ .Values.rbacController.image.registry }}/{{ .Values.rbacController.image.repository }}@{{ .Values.rbacController.image.digest }}'
+        args:
+        - --exporter-namespace={{ .Release.Namespace }}
+        - --exporter-service-account={{ .Values.serviceAccount.name }}
+        - --target-namespace-prefix={{ .Values.targetNamespaces.prefix }}
+        - --target-namespace={{ .Values.targetNamespaces.exact }}
+        ports:
+        - name: healthz
+          containerPort: 8081
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: healthz
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: {{ .Values.rbacController.resources.requests.cpu }}
+            memory: {{ .Values.rbacController.resources.requests.memory }}
+          limits:
+            memory: {{ .Values.rbacController.resources.limits.memory }}

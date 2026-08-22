@@ -4,6 +4,7 @@ use (
 	./admin/client
 	./admin/server
 	./backend
+	./cert-exporter
 	./dev-infrastructure/scripts/acr-replication
 	./dev-infrastructure/scripts/grafana-group-roles
 	./dev-infrastructure/scripts/postgres-access

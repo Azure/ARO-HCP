@@ -162,6 +162,34 @@ billing:
     endpoint: ""
   rg: placeholder
   useGlobalMeterIds: false
+certExporter:
+  image:
+    digest: sha256:afef14dc38622a42ef95aca848f12786ced9c26eac7324d0e1598fa8c1f6b68c
+    registry: quay.io
+    repository: enix/x509-certificate-exporter
+  k8s:
+    namespace: cert-exporter
+    resources:
+      limits:
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    serviceAccountName: cert-exporter
+  rbacController:
+    image:
+      digest: sha256:e0e25d8288ec7222eb2d504031863078feba3059a10d2f8e2a98b49c129ee200
+      registry: arohcpsvcdev.azurecr.io
+      repository: cert-exporter-rbac-controller
+    k8s:
+      namespace: cert-exporter
+      resources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 10m
+          memory: 32Mi
+      serviceAccountName: cert-exporter-rbac-controller
 cloud: Public
 cloudEnvironmentName: AzurePublicCloud
 clustersService:

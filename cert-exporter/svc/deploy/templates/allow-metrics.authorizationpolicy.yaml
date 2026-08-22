@@ -1,0 +1,16 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics-cert-exporter
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+  - to:
+    - operation:
+        paths: ["/metrics"]
+        methods: ["GET"]
+        ports: ["9793"]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "cert-exporter"
