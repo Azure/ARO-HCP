@@ -1,3 +1,4 @@
+
 param azureMonitoring string
 
 param location string = resourceGroup().location
@@ -83,6 +84,74 @@ resource arohcpUserJourneyClusterUpgradeRecordingRules 'Microsoft.AlertsManageme
       {
         record: 'hosted_control_plane_upgrade:duration_in_progress:seconds'
         expression: '((time() - min without (state) (hosted_control_plane_upgrade:version_state_first_seen:timestamp{state=~"desired|partial"})) and on (cluster, resource_id) (hosted_control_plane_upgrade:upgrade_eligible:info == 1) unless on (cluster, resource_id, subscription_id, cluster_uuid, version) (max by (cluster, resource_id, subscription_id, cluster_uuid, version) (backend_cluster_version_info{state="completed"} == 1))) * on (cluster, resource_id, subscription_id, cluster_uuid, version) group_left (state) (max by (cluster, resource_id, subscription_id, cluster_uuid, version, state) (backend_cluster_version_info{state="partial"} == 1 or (backend_cluster_version_info{state="desired"} == 1 unless on (cluster, resource_id, subscription_id, cluster_uuid, version) max by (cluster, resource_id, subscription_id, cluster_uuid, version) (backend_cluster_version_info{state="partial"} == 1))))'
+      }
+    ]
+  }
+}
+
+resource arohcpSwiftCnsLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_latency_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'cns:ip_assignment_latency:p99'
+        expression: 'histogram_quantile(0.99, sum by (le) (rate(ip_assignment_latency_seconds_bucket[5m])))'
+      }
+      {
+        record: 'cns:ip_assignment_latency:p99_avg_5m'
+        expression: 'avg_over_time(cns:ip_assignment_latency:p99[5m])'
+      }
+      {
+        record: 'cns:ip_assignment_latency:p99_avg_30m'
+        expression: 'avg_over_time(cns:ip_assignment_latency:p99[30m])'
+      }
+      {
+        record: 'cns:ip_assignment_latency:p99_avg_1h'
+        expression: 'avg_over_time(cns:ip_assignment_latency:p99[1h])'
+      }
+      {
+        record: 'cns:ip_assignment_latency:p99_avg_6h'
+        expression: 'avg_over_time(cns:ip_assignment_latency:p99[6h])'
+      }
+    ]
+  }
+}
+
+resource arohcpSwiftCnsAvailabilityRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_availability_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'cns:daemonset_availability:ratio'
+        expression: 'kube_daemonset_status_number_ready{daemonset="azure-cns",job="kube-state-metrics",namespace="kube-system"} / kube_daemonset_status_desired_number_scheduled{daemonset="azure-cns",job="kube-state-metrics",namespace="kube-system"}'
+      }
+      {
+        record: 'cns:daemonset_availability:ratio_avg_5m'
+        expression: 'avg_over_time(cns:daemonset_availability:ratio[5m])'
+      }
+      {
+        record: 'cns:daemonset_availability:ratio_avg_30m'
+        expression: 'avg_over_time(cns:daemonset_availability:ratio[30m])'
+      }
+      {
+        record: 'cns:daemonset_availability:ratio_avg_1h'
+        expression: 'avg_over_time(cns:daemonset_availability:ratio[1h])'
+      }
+      {
+        record: 'cns:daemonset_availability:ratio_avg_6h'
+        expression: 'avg_over_time(cns:daemonset_availability:ratio[6h])'
       }
     ]
   }

@@ -1,0 +1,69 @@
+rule_files:
+- swift-networking-cns-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: No CNS latency data — recording rules produce no series.
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: "cns:ip_assignment_latency:p99"
+    eval_time: 5m
+    exp_samples: []
+  - expr: "cns:ip_assignment_latency:p99_avg_5m"
+    eval_time: 10m
+    exp_samples: []
+
+# Test 2: CNS IP assignment latency p99 > 10s.
+# Simulates ip_assignment_latency_seconds histogram with all observations in the 16s+ bucket.
+- interval: 1m
+  input_series:
+  - series: 'ip_assignment_latency_seconds_bucket{le="0.001"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="0.01"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="0.1"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="1"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="4"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="8"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="16"}'
+    values: "0+0x120"
+  - series: 'ip_assignment_latency_seconds_bucket{le="+Inf"}'
+    values: "0+10x120"
+  promql_expr_test:
+  - expr: "cns:ip_assignment_latency:p99"
+    eval_time: 72m
+    exp_samples:
+    - labels: 'cns:ip_assignment_latency:p99{}'
+      value: 16
+
+# Test 3: CNS daemonset availability — all nodes ready.
+- interval: 1m
+  input_series:
+  - series: 'kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system"}'
+    values: "3+0x10"
+  - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system"}'
+    values: "3+0x10"
+  promql_expr_test:
+  - expr: "cns:daemonset_availability:ratio"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'cns:daemonset_availability:ratio{daemonset="azure-cns", job="kube-state-metrics", namespace="kube-system"}'
+      value: 1
+
+# Test 4: CNS daemonset availability — 1 of 3 nodes not ready.
+- interval: 1m
+  input_series:
+  - series: 'kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system"}'
+    values: "2+0x10"
+  - series: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system"}'
+    values: "3+0x10"
+  promql_expr_test:
+  - expr: "cns:daemonset_availability:ratio"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'cns:daemonset_availability:ratio{daemonset="azure-cns", job="kube-state-metrics", namespace="kube-system"}'
+      value: 0.6666666666666666

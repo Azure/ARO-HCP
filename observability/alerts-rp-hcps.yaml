@@ -1,6 +1,7 @@
 prometheusRules:
   rulesFolders:
   - alerts/UserJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
+  - alerts/swift-networking-prometheusRule.yaml
   untestedRules: []
   testDependencies:
   - recording-rules-hcps.yaml

@@ -1,0 +1,75 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: swift-networking-cns-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # CNS IP Assignment Latency Recording Rules
+  # ========================================
+  # SLI: p99 latency of CNS IP assignment (ip_assignment_latency_seconds histogram).
+  # SLO: <= 10s p99 over 28 days.
+  # Source: CNS PodMonitor on management cluster (azure-cns, kube-system namespace).
+  #
+  # Lane: RP services (alerts-rp-services.yaml / recording-rules-services.yaml), not
+  # the HCP lane. CNS is a per-node, per-management-cluster DaemonSet: its metrics are
+  # scraped from kube-system, so they are remote-written to the services Azure Monitor
+  # Workspace, not the HCP workspace (routing is namespace-based; see
+  # observability/prometheus/deploy/templates/prometheus.yaml writeRelabelConfigs).
+  # ip_assignment_latency_seconds is also an unlabeled histogram (see
+  # cns/restserver/metrics.go in Azure/azure-container-networking) with no per-HCP
+  # identity, so this SLI is inherently fleet/node-scoped, not per hosted control plane.
+  - name: arohcp_swift_cns_latency_recording_rules
+    interval: 1m
+    rules:
+    - record: cns:ip_assignment_latency:p99
+      expr: histogram_quantile(0.99, sum(rate(ip_assignment_latency_seconds_bucket[5m])) by (le))
+
+    - record: cns:ip_assignment_latency:p99_avg_5m
+      expr: avg_over_time(cns:ip_assignment_latency:p99[5m])
+
+    - record: cns:ip_assignment_latency:p99_avg_30m
+      expr: avg_over_time(cns:ip_assignment_latency:p99[30m])
+
+    - record: cns:ip_assignment_latency:p99_avg_1h
+      expr: avg_over_time(cns:ip_assignment_latency:p99[1h])
+
+    - record: cns:ip_assignment_latency:p99_avg_6h
+      expr: avg_over_time(cns:ip_assignment_latency:p99[6h])
+
+  # ========================================
+  # CNS DaemonSet Availability Recording Rules
+  # ========================================
+  # SLI: ratio of ready to desired azure-cns DaemonSet pods per management cluster.
+  # SLO: >= 99.9% over 28 days.
+  # Source: kube-state-metrics (job="kube-state-metrics") on management cluster.
+  #
+  # Lane: RP services (alerts-rp-services.yaml / recording-rules-services.yaml), same
+  # reasoning as the CNS latency rules above — CNS is a fleet/node-scoped DaemonSet in
+  # kube-system, not per-HCP.
+  - name: arohcp_swift_cns_availability_recording_rules
+    interval: 1m
+    rules:
+    - record: cns:daemonset_availability:ratio
+      expr: |
+        kube_daemonset_status_number_ready{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system"}
+        /
+        kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics", daemonset="azure-cns", namespace="kube-system"}
+
+    - record: cns:daemonset_availability:ratio_avg_5m
+      expr: avg_over_time(cns:daemonset_availability:ratio[5m])
+
+    - record: cns:daemonset_availability:ratio_avg_30m
+      expr: avg_over_time(cns:daemonset_availability:ratio[30m])
+
+    - record: cns:daemonset_availability:ratio_avg_1h
+      expr: avg_over_time(cns:daemonset_availability:ratio[1h])
+
+    - record: cns:daemonset_availability:ratio_avg_6h
+      expr: avg_over_time(cns:daemonset_availability:ratio[6h])

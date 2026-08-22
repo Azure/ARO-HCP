@@ -1,0 +1,101 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: swift-networking-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  # ========================================
+  # SWIFT Networking SLO Recording Rules
+  # ========================================
+  # These rules implement the journey-level SLI for the SWIFT Networking
+  # user journey: router pod startup latency p99.
+  #
+  # SLI: p99 duration a router pod spends in ContainerCreating/Pending state.
+  # A router pod stuck > 300s indicates a SWIFT secondary NIC assignment failure.
+  #
+  # Source: kube-state-metrics on management cluster.
+  # Router pods are identified by their ReplicaSet owner (always "router-*"),
+  # created by the HyperShift CPO router Deployment.
+  #
+  # Design: absence of series = healthy (no router pods stuck = no latency to measure).
+  # The alert correctly does not fire when the recording rule produces no series.
+  - name: arohcp_swift_networking_slo_recording_rules
+    interval: 1m
+    rules:
+    # Per-pod ContainerCreating duration for all pending router pods.
+    # No series when healthy (no pods stuck).
+    - record: router:startup_latency:seconds
+      expr: |
+        (time() - kube_pod_created{namespace=~"ocm-.*"})
+        * on(namespace, pod) kube_pod_owner{owner_kind="ReplicaSet", owner_name=~"router-.*"}
+        * on(namespace, pod) (kube_pod_status_phase{phase="Pending"} == 1)
+
+    # p99 across all stuck router pods.
+    # No series when no router pods are stuck — alert does not fire.
+    - record: router:startup_latency:p99
+      expr: quantile(0.99, router:startup_latency:seconds) by (namespace)
+
+    # Window averages for multi-window multi-burn-rate alert expressions.
+    # Thresholds live only in the alert expressions, not here.
+    - record: router:startup_latency:p99_avg_5m
+      expr: avg_over_time(router:startup_latency:p99[5m])
+
+    - record: router:startup_latency:p99_avg_30m
+      expr: avg_over_time(router:startup_latency:p99[30m])
+
+    - record: router:startup_latency:p99_avg_1h
+      expr: avg_over_time(router:startup_latency:p99[1h])
+
+    - record: router:startup_latency:p99_avg_6h
+      expr: avg_over_time(router:startup_latency:p99[6h])
+
+  # ========================================
+  # Konnectivity Tunnel Health Recording Rules
+  # ========================================
+  # SLI: konnectivity tunnel stream error rate (server-side).
+  # Source: konnectivity-server sidecar in KAS pod (PodMonitor on port 8093).
+  - name: arohcp_swift_konnectivity_recording_rules
+    interval: 1m
+    rules:
+    - record: konnectivity:stream_error_rate:5m
+      expr: |
+        sum(rate(konnectivity_network_proxy_server_stream_errors_total[5m])) by (namespace)
+        /
+        clamp_min(sum(rate(konnectivity_network_proxy_server_stream_packets_total[5m])) by (namespace), 1)
+
+    - record: konnectivity:stream_error_rate:avg_5m
+      expr: avg_over_time(konnectivity:stream_error_rate:5m[5m])
+
+    - record: konnectivity:stream_error_rate:avg_30m
+      expr: avg_over_time(konnectivity:stream_error_rate:5m[30m])
+
+    - record: konnectivity:stream_error_rate:avg_1h
+      expr: avg_over_time(konnectivity:stream_error_rate:5m[1h])
+
+    - record: konnectivity:stream_error_rate:avg_6h
+      expr: avg_over_time(konnectivity:stream_error_rate:5m[6h])
+
+    # Dial failure rate: failures / (failures + successful dials).
+    # Successful dials = DIAL_RSP packets from agents.
+    - record: konnectivity:dial_failure_rate:5m
+      expr: |
+        sum(rate(konnectivity_network_proxy_server_dial_failure_count[5m])) by (namespace)
+        /
+        clamp_min(
+          sum(rate(konnectivity_network_proxy_server_dial_failure_count[5m])) by (namespace)
+          +
+          sum(rate(konnectivity_network_proxy_server_stream_packets_total{segment="from_agent", packet_type="DIAL_RSP"}[5m])) by (namespace)
+        , 1)
+
+    - record: konnectivity:dial_failure_rate:avg_5m
+      expr: avg_over_time(konnectivity:dial_failure_rate:5m[5m])
+
+    - record: konnectivity:dial_failure_rate:avg_30m
+      expr: avg_over_time(konnectivity:dial_failure_rate:5m[30m])
+
+    - record: konnectivity:dial_failure_rate:avg_1h
+      expr: avg_over_time(konnectivity:dial_failure_rate:5m[1h])
+
+    - record: konnectivity:dial_failure_rate:avg_6h
+      expr: avg_over_time(konnectivity:dial_failure_rate:5m[6h])

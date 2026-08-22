@@ -1,0 +1,68 @@
+rule_files:
+- swift-networking-recordingRule-KSM.yaml
+- swift-networking-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: No router pods stuck — no alerts should fire.
+- interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: userJourneySwiftLatencyP991h5m
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneySwiftLatencyP996h30m
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: userJourneySwiftLatencyP993d
+    exp_alerts: []
+
+# Test 2: Router pod stuck for > 300s — fast-burn alert should fire after 2m for window.
+# Simulates a router pod that has been in Pending state for a long time.
+# At eval_time=70m, pod has been pending 70*60=4200 seconds >> 300s.
+# Both 5m and 1h averages of p99 will be >> 300.
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_created{namespace="ocm-prod-abc123", pod="router-abc-1"}'
+    values: "0+0x120"
+  - series: 'kube_pod_owner{namespace="ocm-prod-abc123", pod="router-abc-1", owner_kind="ReplicaSet", owner_name="router-abc"}'
+    values: "1+0x120"
+  - series: 'kube_pod_status_phase{namespace="ocm-prod-abc123", pod="router-abc-1", phase="Pending"}'
+    values: "1+0x120"
+  alert_rule_test:
+  # After 70m with pod stuck, both the 5m and 1h windows are far above 300s.
+  # The alert requires for: 2m, so eval at 72m.
+  - eval_time: 72m
+    alertname: userJourneySwiftLatencyP991h5m
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        burn_rate_tier: fast
+        component: slo
+        long_window: 1h
+        namespace: ocm-prod-abc123
+        short_window: 5m
+      exp_annotations:
+        summary: "SWIFT router pod startup latency p99 critically elevated (fast burn)"
+        description: "Router pod startup latency p99 has exceeded 300s over the last hour and is still elevated. SWIFT secondary NIC assignment is stalled."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+# Test 3: Pod recovers (leaves Pending) — alert should clear.
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_created{namespace="ocm-prod-abc123", pod="router-abc-1"}'
+    values: "0+0x80"
+  - series: 'kube_pod_owner{namespace="ocm-prod-abc123", pod="router-abc-1", owner_kind="ReplicaSet", owner_name="router-abc"}'
+    values: "1+0x80"
+  # Pod is Pending from t=0 to t=70m, then transitions to Running (phase no longer Pending)
+  - series: 'kube_pod_status_phase{namespace="ocm-prod-abc123", pod="router-abc-1", phase="Pending"}'
+    values: "1+0x70 0+0x10"
+  alert_rule_test:
+  # Alert should not fire after pod recovers (series absence = no alert)
+  - eval_time: 80m
+    alertname: userJourneySwiftLatencyP991h5m
+    exp_alerts: []
+
+# ========================================
+# Konnectivity Tunnel Error Alert Tests
+# ========================================
