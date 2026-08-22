@@ -686,7 +686,7 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           correlationId: 'userJourneyFrontendErrors1h5m/{{ $labels.cluster }}'
           description: 'Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.72% on both the 1h and 5m windows (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~2d (~50h).'
           info: 'Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.72% on both the 1h and 5m windows (14.4x burn of the 99.95% availability / 0.05% error budget). Would exhaust the 30d budget in ~2d (~50h).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate critically high (>0.72%)'
           title: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate critically high (>0.72%)'
         }
@@ -717,7 +717,7 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           correlationId: 'userJourneyFrontendErrors6h30m/{{ $labels.cluster }}'
           description: 'Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.30% on both the 6h and 30m windows (6x burn of the 0.05% error budget).'
           info: 'Frontend 5xx share on cluster {{ $labels.cluster }} is above 0.30% on both the 6h and 30m windows (6x burn of the 0.05% error budget).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate elevated (>0.30%)'
           title: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate elevated (>0.30%)'
         }
@@ -748,7 +748,7 @@ resource arohcpFrontendSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           correlationId: 'userJourneyFrontendErrors3d6h/{{ $labels.cluster }}'
           description: 'Frontend 5xx share on cluster {{ $labels.cluster }} is above the 0.05% SLO boundary on both the 3d and 6h windows (1x burn).'
           info: 'Frontend 5xx share on cluster {{ $labels.cluster }} is above the 0.05% SLO boundary on both the 3d and 6h windows (1x burn).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate exceeds SLO (>0.05%)'
           title: '{{ $labels.cluster }}: Frontend HTTP 5xx error rate exceeds SLO (>0.05%)'
         }
@@ -792,7 +792,7 @@ resource arohcpFrontendSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometh
           correlationId: 'userJourneyFrontendAvailability1h5m/{{ $labels.cluster }}'
           description: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn.'
           info: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.28% on both the 1h and 5m windows (14.4x burn of the 99.95% SLO / 0.05% error budget). Sev4 ticket - Errors family pages on the complementary 5xx burn.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend HTTP availability critically low (<99.28%)'
           title: '{{ $labels.cluster }}: Frontend HTTP availability critically low (<99.28%)'
         }
@@ -823,7 +823,7 @@ resource arohcpFrontendSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometh
           correlationId: 'userJourneyFrontendAvailability6h30m/{{ $labels.cluster }}'
           description: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn.'
           info: 'Frontend availability on cluster {{ $labels.cluster }} is below 99.70% on both the 6h and 30m windows (6x burn). Sev4 ticket - Errors family pages on the complementary 5xx burn.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%)'
           title: '{{ $labels.cluster }}: Frontend HTTP availability degraded (<99.70%)'
         }
@@ -854,7 +854,7 @@ resource arohcpFrontendSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometh
           correlationId: 'userJourneyFrontendAvailability3d6h/{{ $labels.cluster }}'
           description: 'Frontend availability on cluster {{ $labels.cluster }} is below the 99.95% SLO on both the 3d and 6h windows (1x burn).'
           info: 'Frontend availability on cluster {{ $labels.cluster }} is below the 99.95% SLO on both the 3d and 6h windows (1x burn).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend HTTP availability below SLO (<99.95%)'
           title: '{{ $labels.cluster }}: Frontend HTTP availability below SLO (<99.95%)'
         }
@@ -898,7 +898,7 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
           correlationId: 'userJourneyFrontendLatencyP991h5m/{{ $labels.cluster }}'
           description: 'Frontend p99 latency on cluster {{ $labels.cluster }} is above 5s on both the 1h and 5m windows (severe miss of the p99 < 1s ARM sync SLO).'
           info: 'Frontend p99 latency on cluster {{ $labels.cluster }} is above 5s on both the 1h and 5m windows (severe miss of the p99 < 1s ARM sync SLO).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend HTTP p99 latency critically high (>5s)'
           title: '{{ $labels.cluster }}: Frontend HTTP p99 latency critically high (>5s)'
         }
@@ -929,7 +929,7 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
           correlationId: 'userJourneyFrontendLatencyP996h30m/{{ $labels.cluster }}'
           description: 'Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 6h and 30m windows (p99 < 1s ARM sync SLO miss).'
           info: 'Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 6h and 30m windows (p99 < 1s ARM sync SLO miss).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)'
           title: '{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)'
         }
@@ -960,7 +960,7 @@ resource arohcpFrontendSloLatencyAlerts 'Microsoft.AlertsManagement/prometheusRu
           correlationId: 'userJourneyFrontendLatencyP993d6h/{{ $labels.cluster }}'
           description: 'Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 3d and 6h windows (1x burn of the p99 < 1s SLO).'
           info: 'Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 3d and 6h windows (1x burn of the p99 < 1s SLO).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)'
           title: '{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)'
         }
@@ -1002,7 +1002,7 @@ resource arohcpFrontendSloReadyAlerts 'Microsoft.AlertsManagement/prometheusRule
           correlationId: 'userJourneyFrontendReady/{{ $labels.cluster }}'
           description: 'aro-hcp-frontend on cluster {{ $labels.cluster }} has 0 available replicas (kube readiness probes hit /healthz). This is a process outage, not an ARM traffic drought.'
           info: 'aro-hcp-frontend on cluster {{ $labels.cluster }} has 0 available replicas (kube readiness probes hit /healthz). This is a process outage, not an ARM traffic drought.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend has no Ready replicas (kube /healthz)'
           title: '{{ $labels.cluster }}: Frontend has no Ready replicas (kube /healthz)'
         }
@@ -1044,7 +1044,7 @@ resource arohcpFrontendSloTrafficAlerts 'Microsoft.AlertsManagement/prometheusRu
           correlationId: 'userJourneyFrontendTrafficDrop/{{ $labels.cluster }}'
           description: 'Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the baseline exceeded 0.5 RPS and pods are still Ready (traffic drought, not a replica outage).'
           info: 'Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the baseline exceeded 0.5 RPS and pods are still Ready (traffic drought, not a replica outage).'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend HTTP traffic collapsed below 10% of 1d baseline'
           title: '{{ $labels.cluster }}: Frontend HTTP traffic collapsed below 10% of 1d baseline'
         }
@@ -1086,7 +1086,7 @@ resource arohcpFrontendSloSaturationAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyFrontendSaturationCPU/{{ $labels.cluster }}'
           description: 'Frontend container CPU (usage/request) on cluster {{ $labels.cluster }} is above 85% for 15m.'
           info: 'Frontend container CPU (usage/request) on cluster {{ $labels.cluster }} is above 85% for 15m.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend pod CPU above 85% of request for 15+ minutes'
           title: '{{ $labels.cluster }}: Frontend pod CPU above 85% of request for 15+ minutes'
         }
@@ -1115,7 +1115,7 @@ resource arohcpFrontendSloSaturationAlerts 'Microsoft.AlertsManagement/prometheu
           correlationId: 'userJourneyFrontendSaturationMemory/{{ $labels.cluster }}'
           description: 'Frontend container memory (working set/limit) on cluster {{ $labels.cluster }} is above 85% for 15m.'
           info: 'Frontend container memory (working set/limit) on cluster {{ $labels.cluster }} is above 85% for 15m.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-frontend'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/user-journey/frontend'
           summary: '{{ $labels.cluster }}: Frontend pod memory above 85% of limit for 15+ minutes'
           title: '{{ $labels.cluster }}: Frontend pod memory above 85% of limit for 15+ minutes'
         }
