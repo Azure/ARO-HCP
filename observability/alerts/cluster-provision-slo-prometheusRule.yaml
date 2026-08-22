@@ -40,7 +40,7 @@ spec:
     # ----------------------------------------
     # 14.4x burn rate → >72% failure rate sustained for 5 minutes
     # Would exhaust 7-day error budget in ~12 hours
-    - alert: UJClusterProvisionErrors1h5m
+    - alert: userJourneyClusterProvisionErrors1h5m
       expr: |
         errors:backend_cluster_provision:error_rate > 0.72
       for: 5m
@@ -50,7 +50,7 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster provisioning error rate critically high (>72%)"
+        summary: "Cluster provisioning error rate critically high (>72%)"
         description: "More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
     # ----------------------------------------
@@ -58,7 +58,7 @@ spec:
     # ----------------------------------------
     # 6x burn rate → >30% failure rate sustained for 30 minutes
     # Would exhaust 7-day error budget in ~28 hours
-    - alert: UJClusterProvisionErrors6h30m
+    - alert: userJourneyClusterProvisionErrors6h30m
       expr: |
         errors:backend_cluster_provision:error_rate > 0.30
       for: 30m
@@ -68,7 +68,7 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster provisioning error rate elevated (>30%) for 30+ minutes"
+        summary: "Cluster provisioning error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
     # ----------------------------------------
@@ -77,7 +77,7 @@ spec:
     # Per ADR: slow burn alerts generate a ticket, not a page.
     # 1x burn rate → >5% failure rate sustained for 6 hours
     # Would exhaust 7-day error budget in ~7 days
-    - alert: UJClusterProvisionErrors3d
+    - alert: userJourneyClusterProvisionErrors3d
       expr: |
         errors:backend_cluster_provision:error_rate > 0.05
       for: 6h
@@ -86,7 +86,7 @@ spec:
         slo: cluster-provision-errors
         long_window: 3d
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours"
+        summary: "Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours"
         description: "More than 5% of cluster create (install) operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
     # ----------------------------------------
@@ -95,7 +95,7 @@ spec:
     # With a 95% SLO, the fast-burn threshold only fires at ~72% failure rate.
     # This provides early warning at 15% failure rate before burn-rate alerts fire.
     # Precursor signal → Sev 4 per ADR.
-    - alert: UJClusterProvisionErrorsDegradation
+    - alert: userJourneyClusterProvisionErrorsDegradation
       expr: |
         errors:backend_cluster_provision:error_rate > 0.15
       for: 30m
@@ -103,6 +103,6 @@ spec:
         severity: "4"
         slo: cluster-provision-errors
       annotations:
-        summary: "{{ $labels.cluster }}: Cluster provisioning failure rate exceeds 15% for 30 minutes"
+        summary: "Cluster provisioning failure rate exceeds 15% for 30 minutes"
         description: "The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
