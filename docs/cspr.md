@@ -38,3 +38,30 @@ To access the service and management cluster of CS PR, make sure you have an act
   DEPLOY_ENV=cspr make infra.mgmt.aks.kubeconfig
   export KUBECONFIG=$(DEPLOY_ENV=cspr make infra.mgmt.aks.kubeconfigfile)
   ```
+
+## Running pipelines locally
+
+> [!CAUTION]
+> Infrastructure and service changes to the CS PR environment should be deployed through the [CI/CD pipeline](#cicd) by merging PRs. Running pipelines locally should only be done in emergency situations, e.g. to unblock a broken environment or to debug deployment failures that cannot be reproduced through CI/CD.
+
+If you need to run a deployment locally, make sure you have an active Azure session with your Red Hat account and run:
+
+  ```sh
+  DEPLOY_ENV=cspr make entrypoint/Region
+  ```
+
+This runs the full region deployment including all dependent service groups in the correct order. To perform a dry-run (no actual changes) first, add `DRY_RUN=true`:
+
+  ```sh
+  DEPLOY_ENV=cspr DRY_RUN=true make entrypoint/Region
+  ```
+
+If the environment is broken beyond repair and needs to be rebuilt from scratch, you can delete all resources in the management cluster resource group first, then redeploy:
+
+  ```sh
+  # delete all resources in the management cluster resource group (destructive!)
+  DEPLOY_ENV=cspr make pipeline/Management.Delete
+
+  # then redeploy
+  DEPLOY_ENV=cspr make entrypoint/Region
+  ```
