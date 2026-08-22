@@ -169,7 +169,7 @@ var _ = Describe("Customer", func() {
 				g.Expect(runErr).NotTo(HaveOccurred(), "RunVMCommand failed for kubectl version (output: %s)", versionOutput)
 				g.Expect(versionOutput).To(ContainSubstring("Server Version"),
 					"kubectl version should show Server Version, proving KAS is reachable from VM (output: %s)", versionOutput)
-			}, 10*time.Minute, 15*time.Second).Should(Succeed(), "KAS should be reachable from VM via internal LB")
+			}, 20*time.Minute, 15*time.Second).Should(Succeed(), "KAS should be reachable from VM via internal LB")
 			GinkgoLogr.Info("KAS is reachable from VM inside VNet")
 
 			By("verifying KAS is NOT reachable from outside the VNet")

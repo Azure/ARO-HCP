@@ -234,20 +234,13 @@ var _ = Describe("Customer", func() {
 					Replicas: to.Ptr(initialReplicas),
 				},
 			}
-			scaleDownResp, err := framework.UpdateNodePoolAndWait20251223(ctx,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
-				*resourceGroup.Name,
-				customerClusterName,
-				customerNodePoolName,
-				update,
-				3*framework.NodePoolScalingTimeout,
+			// Scale-down ARM LROs take >60 minutes due to VM deprovisioning in Azure;
+			// fire-and-forget the PATCH and verify convergence via kubectl node count.
+			_, err = tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient().BeginUpdate(
+				ctx, *resourceGroup.Name, customerClusterName, customerNodePoolName, update, nil,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to scale down node pool %q from %d to %d replicas",
+			Expect(err).NotTo(HaveOccurred(), "failed to initiate scale-down for node pool %q from %d to %d replicas",
 				customerNodePoolName, scaledUpReplicas, initialReplicas)
-			Expect(scaleDownResp.Properties).NotTo(BeNil(), "scale down response Properties was nil")
-			Expect(scaleDownResp.Properties.Replicas).NotTo(BeNil(), "scale down response Properties.Replicas was nil")
-			Expect(*scaleDownResp.Properties.Replicas).To(Equal(initialReplicas),
-				"expected scale down response replicas to equal %d", initialReplicas)
 
 			By("verifying scaled-down node count and ready status")
 			Eventually(func(g Gomega) {
