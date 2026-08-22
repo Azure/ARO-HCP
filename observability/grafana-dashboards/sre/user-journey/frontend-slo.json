@@ -358,7 +358,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Raw histogram p99 across selected clusters (excludes operation-results). SLO target line at 1s.",
+      "description": "Raw histogram p99 for the selected cluster (excludes ARM async poll routes). SLO target line at 1s.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -484,7 +484,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "p50 / p95 / p99 from frontend_http_requests_duration_seconds (excludes operation-results). Red threshold line at 1s (ARM sync SLO).",
+      "description": "p50 / p95 / p99 from frontend_http_requests_duration_seconds for the selected cluster (excludes ARM async poll routes). Red threshold line at 1s (ARM sync SLO).",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
