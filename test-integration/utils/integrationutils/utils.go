@@ -80,10 +80,60 @@ func VerifyNoNewGoLeaks(t *testing.T) {
 }
 
 func DefaultLogger(t *testing.T) logr.Logger {
-	return testr.NewWithInterface(t, testr.Options{
+	// The Cosmos change-feed informer watchers log through this logger from
+	// background goroutines. bc04160ce made ChangeFeedWatcher.Stop() block until
+	// those goroutines finish, and the client-go Reflector calls Stop() when it
+	// tears a watch down — which joins the watcher for the common case. However,
+	// the Reflector starts a watcher inside ListWatcher.List() but only Stop()s
+	// the watcher it obtains from Watch(); if the context is cancelled after
+	// List() but before the Reflector enters its watch loop, that watcher is
+	// never handed back to be Stop()d and unwinds asynchronously on ctx.Done().
+	// Its deferred shutdown logging can then land after the test has completed,
+	// which the testing framework reports as a data race ("Log in goroutine after
+	// Test has completed"). Guard the backing *testing.T so any such late log
+	// becomes a no-op instead of racing teardown. All logging works normally
+	// during the test; only post-completion calls are dropped.
+	safe := &afterTestSafeT{t: t}
+	t.Cleanup(safe.markDone)
+	return testr.NewWithInterface(safe, testr.Options{
 		LogTimestamp: true,
 		Verbosity:    4,
 	})
+}
+
+// afterTestSafeT wraps *testing.T so Log/Helper become no-ops once the test has
+// completed. markDone is registered via t.Cleanup, which the testing framework
+// runs before its unsynchronized `t.done = true` write during teardown, so the
+// RWMutex orders every in-flight Log call ahead of teardown and eliminates the
+// data race between a late background log and test completion.
+type afterTestSafeT struct {
+	t    *testing.T
+	mu   sync.RWMutex
+	done bool
+}
+
+func (s *afterTestSafeT) markDone() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.done = true
+}
+
+func (s *afterTestSafeT) Helper() {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.done {
+		return
+	}
+	s.t.Helper()
+}
+
+func (s *afterTestSafeT) Log(args ...any) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.done {
+		return
+	}
+	s.t.Log(args...)
 }
 
 var (
