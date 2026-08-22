@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 )
 
 func TestIsResourceGroupNotFoundError(t *testing.T) {
@@ -143,6 +144,48 @@ func TestIsKeyVaultNotFound(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := isKeyVaultNotFound(tt.err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestKeyVaultPurgeProtected(t *testing.T) {
+	t.Parallel()
+
+	trueVal := true
+	falseVal := false
+
+	tests := []struct {
+		name  string
+		props *armkeyvault.DeletedVaultProperties
+		want  bool
+	}{
+		{
+			name:  "nil properties",
+			props: nil,
+			want:  false,
+		},
+		{
+			name:  "nil PurgeProtectionEnabled",
+			props: &armkeyvault.DeletedVaultProperties{PurgeProtectionEnabled: nil},
+			want:  false,
+		},
+		{
+			name:  "purge protection disabled",
+			props: &armkeyvault.DeletedVaultProperties{PurgeProtectionEnabled: &falseVal},
+			want:  false,
+		},
+		{
+			name:  "purge protection enabled",
+			props: &armkeyvault.DeletedVaultProperties{PurgeProtectionEnabled: &trueVal},
+			want:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := keyVaultPurgeProtected(tt.props)
 			assert.Equal(t, tt.want, got)
 		})
 	}

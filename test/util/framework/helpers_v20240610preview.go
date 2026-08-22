@@ -93,6 +93,7 @@ type NodePoolParams20240610 struct {
 	AutoScaling      *NodePoolAutoScalingParams
 	AvailabilityZone string
 	Tags             map[string]*string
+	EncryptionSetID  string
 }
 
 // ========================================================================
@@ -1259,6 +1260,10 @@ func BuildNodePoolFromParams20240610(
 				AvailabilityZone: to.Ptr(parameters.AvailabilityZone),
 			},
 		},
+	}
+
+	if parameters.EncryptionSetID != "" {
+		nodePool.Properties.Platform.OSDisk.EncryptionSetID = to.Ptr(parameters.EncryptionSetID)
 	}
 
 	if parameters.AutoScaling != nil {
