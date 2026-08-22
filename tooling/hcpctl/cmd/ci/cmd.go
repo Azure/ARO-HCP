@@ -28,8 +28,9 @@ func NewCommand(group string) (*cobra.Command, error) {
 		Long: `ci provides helper operations used by ARO-HCP continuous integration.
 
 This command group includes subcommands invoked by CI pipelines, such as
-checking the published health status of individual ARO-HCP components.`,
-		Example: `  hcpctl ci component-health --component backend`,
+checking the published health status of the ARO-HCP components affected by a
+change, auto-detected from the files changed in <base-ref>..HEAD.`,
+		Example: `  hcpctl ci component-health --base-ref ${PULL_BASE_SHA}`,
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
 		},
