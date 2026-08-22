@@ -485,7 +485,7 @@ func CreateHCPClusterAndWait20251223(
 		case hcpsdk20251223preview.HcpOpenShiftClustersClientCreateOrUpdateResponse:
 			return &m.HcpOpenShiftCluster, nil
 		default:
-			fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
+			ginkgo.GinkgoLogr.Info("unexpected operation result", "type", fmt.Sprintf("%T", m), "content", spew.Sdump(m))
 			return nil, fmt.Errorf("unknown type %T", m)
 		}
 	} else {

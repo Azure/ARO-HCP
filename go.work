@@ -21,6 +21,7 @@ use (
 	./tooling/aro-hcp-exporter
 	./tooling/azutils
 	./tooling/cleanup-sweeper
+	./tooling/customlinters
 	./tooling/entra-app-credentials
 	./tooling/grafanactl
 	./tooling/hcpctl
