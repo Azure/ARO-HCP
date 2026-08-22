@@ -71,8 +71,8 @@ You can also redefine default OpenShift versions the E2E test cases will use
 when deploying ARO HCP hosted cluster, eg.:
 
 ```bash
-$ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.20
-$ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.20.15
+$ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.21
+$ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.21.0
 ```
 
 When `ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION` is set, you can also set
