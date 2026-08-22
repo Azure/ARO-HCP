@@ -51,6 +51,7 @@ prometheusRules:
     - KubePersistentVolumeErrors
   - groupName: msi-credential-refresher
     alerts:
+    - ClusterCredentialMetricMissing
     - ClusterCredentialExpiringSoon
     - ClusterCredentialExpired
     - ClusterCredentialNotRenewable
