@@ -17,19 +17,24 @@ spec:
   # and ARO-28705. Proposed SLOs (formal burn-rate alerts: ARO-28707):
   #   Availability: >= 99.95% over 30d (non-5xx / total)
   #   Errors:       < 0.05% 5xx share (same budget as availability)
-  #   Latency:      p99 < 1s ARM sync — recorded as share of requests <= 1s
+  #   Latency:      p99 < 1s ARM sync — histogram_quantile (p99 / p95 seconds)
   #   Traffic:      request rate (anomaly detection is alert-side)
+  #   Ready:        kube Deployment available/spec (kube /healthz probes)
   #   Saturation:   Frontend pod CPU vs request, memory vs limit (Istio /
   #                 Cosmos RU saturation deferred until owned series are wired)
   #
   # Scope: synchronous Frontend HTTP on svc clusters. Excludes ARM async poll
   # routes hcpoperationresults and hcpoperationstatuses (status polls dilute SLIs).
   #
+  # HTTP availability/errors/latency emit no sample when there is zero ARM
+  # traffic (avoid NaN). That makes a complete Frontend outage look like a
+  # quiet cluster. Distinguish with sli:frontend:ready:ratio5m — kube
+  # readiness probes hit Frontend /healthz (see frontend deployment). There is
+  # no ARM-path blackbox of /healthz (MISE/POP); kube ready is the probe we have.
+  #
   # Metrics: frontend_http_requests_total / _duration_seconds (histogram has a
-  # 1s bucket — see frontend/pkg/frontend/metrics.go). Match le as "1" or "1.0"
-  # (client_golang may emit either; same pattern as frontend latency dashboards).
-  # HA scrapes are deduped with max without (prometheus_replica).
-  # Zero traffic / zero requests / zero resource request → no sample (avoid NaN).
+  # 1s bucket — see frontend/pkg/frontend/metrics.go). HA scrapes are deduped
+  # with max without (prometheus_replica).
   - name: arohcp_frontend_slo_recording_rules
     interval: 1m
     rules:
@@ -124,24 +129,41 @@ spec:
           )
           > 0
         )
-    - record: sli:frontend_http:latency:rate5m
-      # Latency SLI: requests completing within 1s / total.
+    - record: sli:frontend_http:latency_p99:rate5m
+      # Latency p99 in seconds (ADR LatencyP99). SLO: p99 < 1s.
 
-      # Atomic single expression; le matches "1" or "1.0".
+      # histogram_quantile distinguishes 1.01s vs 50s; a 1s-bucket share cannot.
       expr: |
-        (
-          sum by (cluster) (
+        histogram_quantile(
+          0.99,
+          sum by (cluster, le) (
             max without (prometheus_replica) (
               rate(frontend_http_requests_duration_seconds_bucket{
-                le=~"1(\\.0)?",
                 route!~".*hcpoperation(results|statuses).*"
               }[5m])
             )
           )
-          /
+        )
+        and on (cluster)
+        (
           sum by (cluster) (
             max without (prometheus_replica) (
               rate(frontend_http_requests_duration_seconds_count{
+                route!~".*hcpoperation(results|statuses).*"
+              }[5m])
+            )
+          )
+          > 0
+        )
+    - record: sli:frontend_http:latency_p95:rate5m
+      # Latency p95 in seconds (ADR LatencyP95). Same histogram / route filter as p99.
+
+      expr: |
+        histogram_quantile(
+          0.95,
+          sum by (cluster, le) (
+            max without (prometheus_replica) (
+              rate(frontend_http_requests_duration_seconds_bucket{
                 route!~".*hcpoperation(results|statuses).*"
               }[5m])
             )
@@ -168,6 +190,43 @@ spec:
               route!~".*hcpoperation(results|statuses).*"
             }[5m])
           )
+        )
+    - record: sli:frontend:ready:ratio5m
+      # Process health: available / desired replicas. Kube readiness probes
+
+      # GET /healthz on the frontend container. Emits 0 on a full outage
+      # (unlike HTTP SLIs, which go absent with no ARM traffic).
+      expr: |
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_deployment_status_replicas_available{
+                namespace="aro-hcp",
+                deployment="aro-hcp-frontend"
+              }
+            )
+          )
+          /
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_deployment_spec_replicas{
+                namespace="aro-hcp",
+                deployment="aro-hcp-frontend"
+              }
+            )
+          )
+        )
+        and on (cluster)
+        (
+          sum by (cluster) (
+            max without (prometheus_replica) (
+              kube_deployment_spec_replicas{
+                namespace="aro-hcp",
+                deployment="aro-hcp-frontend"
+              }
+            )
+          )
+          > 0
         )
     - record: sli:frontend:saturation_cpu:ratio5m
       # Saturation — CPU: usage cores / requested cores (ratio). SLO target < 0.85.

@@ -1,3 +1,4 @@
+
 param azureMonitoring string
 
 param location string = resourceGroup().location
@@ -111,12 +112,20 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
         expression: '((sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{code=~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
-        record: 'sli:frontend_http:latency:rate5m'
-        expression: '(sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{le=~"1(\\.0)?",route!~".*hcpoperation(results|statuses).*"}[5m]))) / sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
+        record: 'sli:frontend_http:latency_p99:rate5m'
+        expression: 'histogram_quantile(0.99, sum by (cluster, le) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
+      }
+      {
+        record: 'sli:frontend_http:latency_p95:rate5m'
+        expression: 'histogram_quantile(0.95, sum by (cluster, le) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_bucket{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_duration_seconds_count{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
         record: 'traffic:frontend_http:request_rate:rate5m'
         expression: 'sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))'
+      }
+      {
+        record: 'sli:frontend:ready:ratio5m'
+        expression: '(sum by (cluster) (max without (prometheus_replica) (kube_deployment_status_replicas_available{deployment="aro-hcp-frontend",namespace="aro-hcp"})) / sum by (cluster) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="aro-hcp-frontend",namespace="aro-hcp"}))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="aro-hcp-frontend",namespace="aro-hcp"})) > 0)'
       }
       {
         record: 'sli:frontend:saturation_cpu:ratio5m'

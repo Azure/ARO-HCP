@@ -24,16 +24,22 @@ tests:
   - series: 'frontend_http_requests_total{cluster="svc-1", code="200", method="GET", route="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationstatuses/{operationid}", prometheus_replica="a"}'
     values: "0+1000x15"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="0.8", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
-    # Latency histogram: 45/min within 1s (le="1"), 60/min total → 0.75
+    # Latency histogram: 60/min, 50 within 0.8s, all within 1s → p99 < 1s.
 
-    # Production client_golang typically emits le="1" for the 1.0 bucket.
-    values: "0+40x15"
+    # Finite le="15" is required so histogram_quantile can interpolate (not +Inf).
+    values: "0+50x15"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="1", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
-    values: "0+45x15"
+    values: "0+60x15"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="15", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+60x15"
   - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-1", le="+Inf", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
     values: "0+60x15"
   - series: 'frontend_http_requests_duration_seconds_count{cluster="svc-1", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
     values: "0+60x15"
+  - series: 'kube_deployment_status_replicas_available{cluster="svc-1", namespace="aro-hcp", deployment="aro-hcp-frontend", prometheus_replica="a"}'
+    values: "2+0x15"
+  - series: 'kube_deployment_spec_replicas{cluster="svc-1", namespace="aro-hcp", deployment="aro-hcp-frontend", prometheus_replica="a"}'
+    values: "2+0x15"
   - series: 'container_cpu_usage_seconds_total{cluster="svc-1", namespace="aro-hcp", container="aro-hcp-frontend", pod="aro-hcp-frontend-0", prometheus_replica="a"}'
     # Saturation: 0.5 CPU cores used / 1.0 requested; 512Mi / 1024Mi memory
 
@@ -55,11 +61,21 @@ tests:
     exp_samples:
     - labels: '{__name__="errors:frontend_http:error_rate:rate5m", cluster="svc-1"}'
       value: 0.25
-  - expr: sli:frontend_http:latency:rate5m{cluster="svc-1"}
+  - expr: sli:frontend_http:latency_p99:rate5m{cluster="svc-1"}
     eval_time: 5m
     exp_samples:
-    - labels: '{__name__="sli:frontend_http:latency:rate5m", cluster="svc-1"}'
-      value: 0.75
+    - labels: '{__name__="sli:frontend_http:latency_p99:rate5m", cluster="svc-1"}'
+      value: 0.988
+  - expr: sli:frontend_http:latency_p95:rate5m{cluster="svc-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend_http:latency_p95:rate5m", cluster="svc-1"}'
+      value: 0.94
+  - expr: sli:frontend:ready:ratio5m{cluster="svc-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend:ready:ratio5m", cluster="svc-1"}'
+      value: 1
   - expr: traffic:frontend_http:request_rate:rate5m{cluster="svc-1"}
     eval_time: 5m
     exp_samples:
@@ -109,3 +125,35 @@ tests:
     exp_samples:
     - labels: '{__name__="errors:frontend_http:error_rate:rate5m", cluster="svc-3"}'
       value: 1
+- interval: 1m
+  # Slow p99: 45/min in the 1s bucket, 15/min in (1s, 15s] → p99 interpolates near 15s.
+
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-slow", le="1", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+45x15"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-slow", le="15", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+60x15"
+  - series: 'frontend_http_requests_duration_seconds_bucket{cluster="svc-slow", le="+Inf", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+60x15"
+  - series: 'frontend_http_requests_duration_seconds_count{cluster="svc-slow", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+60x15"
+  promql_expr_test:
+  - expr: sli:frontend_http:latency_p99:rate5m{cluster="svc-slow"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend_http:latency_p99:rate5m", cluster="svc-slow"}'
+      value: 14.44
+- interval: 1m
+  # Full replica outage — ready emits 0 (not absent).
+
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{cluster="svc-down", namespace="aro-hcp", deployment="aro-hcp-frontend", prometheus_replica="a"}'
+    values: "0+0x15"
+  - series: 'kube_deployment_spec_replicas{cluster="svc-down", namespace="aro-hcp", deployment="aro-hcp-frontend", prometheus_replica="a"}'
+    values: "2+0x15"
+  promql_expr_test:
+  - expr: sli:frontend:ready:ratio5m{cluster="svc-down"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend:ready:ratio5m", cluster="svc-down"}'
+      value: 0
