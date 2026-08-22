@@ -242,7 +242,7 @@ defaults:
       digest: sha256:bf05fa14daa56bd1275fd28da3c9348fdaa232b7f1f7cfe7e9cfa83072c63894 # f55beeb (2026-05-29 19:42)
     cosmosContainerName: "Manifests-MC-{{ .ctx.stamp }}"
     partitionKey: "/providers/microsoft.redhatopenshift/stamps/{{ .ctx.stamp }}/managementclusters/default"
-    cosmosContainerMaxScale: 8000
+    cosmosContainerMaxScale: 15000
     managedIdentityName: kube-applier
     k8s:
       replicas: 2
@@ -913,7 +913,7 @@ defaults:
       name: "arohcp{{ .ctx.environment }}-rp-{{ .ctx.regionShort }}" # [globally-unique]
       private: true
       zoneRedundantMode: 'Auto'
-      resourceContainerMaxScale: 8000
+      resourceContainerMaxScale: 15000
       billingContainerMaxScale: 4000
       locksContainerMaxScale: 4000
       fleetContainerMaxScale: 4000
@@ -1680,8 +1680,6 @@ clouds:
               deploy: true
       perf:
         defaults:
-          kubeApplier:
-            cosmosContainerMaxScale: 10000
           kusto:
             manageInstance: false
           # Service Key Vault
@@ -1690,9 +1688,6 @@ clouds:
           hypershift:
             metricsSet:
               performanceMetrics: true
-          frontend:
-            cosmosDB:
-              resourceContainerMaxScale: 10000
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
           maestro:
@@ -1720,8 +1715,6 @@ clouds:
                 secondaryNicCount: 7
       ci00:
         defaults:
-          kubeApplier:
-            cosmosContainerMaxScale: 10000
           customExporter:
             clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           kusto:
@@ -1777,7 +1770,6 @@ clouds:
               connectSocket: false
             cosmosDB:
               private: false
-              resourceContainerMaxScale: 10000
               zoneRedundantMode: 'Disabled'
             tracing:
               address: "http://ingest.observability:4318"
@@ -1823,8 +1815,6 @@ clouds:
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
-          kubeApplier:
-            cosmosContainerMaxScale: 10000
           customExporter:
             clusterNameFilter: "{{ .ctx.environment }}-{{ .ctx.regionShort }}"
           auditLogsEventHub:
@@ -1882,7 +1872,6 @@ clouds:
               connectSocket: false
             cosmosDB:
               private: false
-              resourceContainerMaxScale: 10000
               zoneRedundantMode: 'Disabled'
             tracing:
               address: "http://ingest.observability:4318"
