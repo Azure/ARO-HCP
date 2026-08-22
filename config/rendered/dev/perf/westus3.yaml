@@ -827,6 +827,11 @@ mise:
     address: ""
     exporter: ""
 monitoring:
+  adxIntegrationEnabled: false
+  adxIntegrationGeographies: ""
+  adxIntegrationScenario: ""
+  adxIntegrationTargetResourceId: ""
+  adxKustoAccessEnabled: false
   alertRuleOwningTeamTag: ""
   alertSeverityCeiling: 0
   alertsEnabled: true
