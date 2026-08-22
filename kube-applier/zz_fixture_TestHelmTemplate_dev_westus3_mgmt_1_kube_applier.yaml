@@ -275,6 +275,24 @@ spec:
         - name: metrics
           containerPort: 8081
           protocol: TCP
+        # /readyz queries the Cosmos container; the pod stays not-Ready until
+        # that query succeeds, so a broken Cosmos connection stalls the rollout
+        # instead of going live (ITN-2026-00171). Liveness and readiness stay on
+        # /healthz (leader-election watchdog only) so a Cosmos outage cannot
+        # restart-loop every replica or drop them from the metrics endpoints.
+        startupProbe:
+          httpGet:
+            path: /readyz
+            port: healthz
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          periodSeconds: 20
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /healthz
