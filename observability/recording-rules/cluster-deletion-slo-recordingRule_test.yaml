@@ -1,0 +1,207 @@
+rule_files:
+- cluster-deletion-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# ─────────────────────────────────────────────────────────────────────────────
+# errors:backend_cluster_deletion_operation:error_rate
+#
+# Rule: count(failed|canceled) / clamp_min(count(succeeded|failed|canceled), 1)
+# The "or 0 * count(...)" fallback preserves the cluster label when there are
+# no failures, producing 0 rather than an empty result set.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Zero-fallback: all succeeded → error_rate = 0 with cluster label preserved.
+- name: error_rate_zero_when_all_succeeded
+  interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s3",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s4",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s5",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: errors:backend_cluster_deletion_operation:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:error_rate{cluster="svc-1"}'
+      value: 0
+# Arithmetic: 8 failed + 2 succeeded = 8/10 = 0.8
+- name: error_rate_arithmetic
+  interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="f1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="f2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="f3",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="f4",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="f5",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="f6",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="f7",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="failed",resource_id="f8",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: errors:backend_cluster_deletion_operation:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:error_rate{cluster="svc-1"}'
+      value: 0.8
+# Canceled counts as error: 3 canceled + 2 succeeded = 3/5 = 0.6.
+# Confirms the phase=~"failed|canceled" numerator selector includes canceled.
+- name: error_rate_canceled_counts_as_error
+  interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="canceled",resource_id="c1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="canceled",resource_id="c2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="canceled",resource_id="c3",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="s2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  promql_expr_test:
+  - expr: errors:backend_cluster_deletion_operation:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:error_rate{cluster="svc-1"}'
+      value: 0.6
+# Zero-fallback: all fast (600s < 1800s) → latency_error_rate = 0 with
+# cluster label preserved.
+- name: latency_error_rate_zero_when_all_fast
+  # ─────────────────────────────────────────────────────────────────────────────
+  # errors:backend_cluster_deletion_operation:latency_error_rate
+  #
+  # Rule: count(succeeded where duration > 1800s) / clamp_min(count(succeeded), 1)
+  # Duration = last_transition_time_seconds - start_time_seconds.
+  # The "or 0 * count(...)" fallback preserves the cluster label when all
+  # operations are fast, producing 0 rather than an empty result set.
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="f1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="f1",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="f1",subscription_id="sub1",cluster="svc-1"}'
+    values: "600+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="f2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="f2",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="f2",subscription_id="sub1",cluster="svc-1"}'
+    values: "600+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="f3",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="f3",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="f3",subscription_id="sub1",cluster="svc-1"}'
+    values: "600+0x15"
+  promql_expr_test:
+  - expr: errors:backend_cluster_deletion_operation:latency_error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:latency_error_rate{cluster="svc-1"}'
+      value: 0
+# Arithmetic: 1 slow (1900s > 1800s) + 4 fast (600s) = 1/5 = 0.2
+- name: latency_error_rate_arithmetic
+  interval: 1m
+  input_series:
+  # 1 slow operation: duration = 1900 - 0 = 1900s (31.7 min, exceeds 30-min threshold)
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="slow1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="slow1",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="slow1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1900+0x15"
+  # 4 fast operations: duration = 600 - 0 = 600s (10 min, under threshold)
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast1",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast1",subscription_id="sub1",cluster="svc-1"}'
+    values: "600+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast2",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast2",subscription_id="sub1",cluster="svc-1"}'
+    values: "600+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast3",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast3",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast3",subscription_id="sub1",cluster="svc-1"}'
+    values: "600+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast4",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast4",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast4",subscription_id="sub1",cluster="svc-1"}'
+    values: "600+0x15"
+  promql_expr_test:
+  - expr: errors:backend_cluster_deletion_operation:latency_error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:latency_error_rate{cluster="svc-1"}'
+      value: 0.2
+# Boundary: exactly 1800s (30 min) does NOT count as slow because the threshold is > 1800.
+# 1 boundary op (1800s) + 4 fast (600s) = 0/5 = 0.
+# A value of 1801s would be counted as slow.
+- name: latency_error_rate_exactly_30min_counts_as_fast
+  interval: 1m
+  input_series:
+  # 1 operation at exactly the threshold: duration = 1800 - 0 = 1800s (> 1800 → fast, not slow)
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="boundary1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="boundary1",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="boundary1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1800+0x15"
+  # 4 fast operations: duration = 600s (under threshold)
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast1",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast1",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast1",subscription_id="sub1",cluster="svc-1"}'
+    values: "600+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast2",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast2",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast2",subscription_id="sub1",cluster="svc-1"}'
+    values: "600+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast3",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast3",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast3",subscription_id="sub1",cluster="svc-1"}'
+    values: "600+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast4",subscription_id="sub1",cluster="svc-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast4",subscription_id="sub1",cluster="svc-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_last_transition_time_seconds{resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",operation_type="delete",phase="succeeded",resource_id="fast4",subscription_id="sub1",cluster="svc-1"}'
+    values: "600+0x15"
+  promql_expr_test:
+  - expr: errors:backend_cluster_deletion_operation:latency_error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:backend_cluster_deletion_operation:latency_error_rate{cluster="svc-1"}'
+      value: 0

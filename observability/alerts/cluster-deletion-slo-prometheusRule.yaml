@@ -1,0 +1,280 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: cluster-deletion-slo-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Cluster Deletion SLO Alerts — Errors
+  # ========================================
+  # Multi-window burn-rate-style alerting adapted for gauge metrics.
+  #
+  # Burn rate thresholds calculated from 95% SLO (5% error budget):
+  #   Fast (14.4x):  14.4 * 0.05 = 0.72 → 72% error rate
+  #   Medium (6x):   6   * 0.05 = 0.30 → 30% error rate
+  #   Slow (1x):     1   * 0.05 = 0.05 →  5% error rate
+  #
+  # The 'for' duration enforces sustained observation, approximating the
+  # short window of multi-window burn rate alerting.
+  - name: arohcp_cluster_deletion_slo_error_alerts
+    rules:
+    # ----------------------------------------
+    # Fast Burn Alert (Sev 3)
+    # ----------------------------------------
+    # 14.4x burn rate → >72% failure rate sustained for 5 minutes
+    # Would exhaust 7-day error budget in ~12 hours
+    - alert: userJourneyClusterDeletionErrors1h5m
+      expr: |
+        errors:backend_cluster_deletion_operation:error_rate > 0.72
+        and
+        clamp_min(
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="delete",
+            phase=~"succeeded|failed|canceled"
+          }) or vector(0),
+          0
+        ) >= 5
+      for: 5m
+      labels:
+        severity: "3"
+        slo: cluster-deletion-errors
+        component: slo
+      annotations:
+        title: "Cluster deletion operation error rate high (>72%)"
+        summary: "Cluster deletion operation error rate high (>72%)"
+        description: "More than 72% of cluster delete operations are in failed or canceled state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
+        runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
+        correlationId: "userJourneyClusterDeletionErrors/{{ $labels.cluster }}"
+    # ----------------------------------------
+    # Medium Burn Alert (Sev 3)
+    # ----------------------------------------
+    # 6x burn rate → >30% failure rate sustained for 30 minutes
+    # Would exhaust 7-day error budget in ~28 hours
+    - alert: userJourneyClusterDeletionErrors6h30m
+      expr: |
+        errors:backend_cluster_deletion_operation:error_rate > 0.30
+        and
+        clamp_min(
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="delete",
+            phase=~"succeeded|failed|canceled"
+          }) or vector(0),
+          0
+        ) >= 5
+      for: 30m
+      labels:
+        severity: "3"
+        slo: cluster-deletion-errors
+        component: slo
+      annotations:
+        title: "Cluster deletion operation error rate elevated (>30%) for 30+ minutes"
+        summary: "Cluster deletion operation error rate elevated (>30%) for 30+ minutes"
+        description: "More than 30% of cluster delete operations are in failed or canceled state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
+        runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
+        correlationId: "userJourneyClusterDeletionErrors/{{ $labels.cluster }}"
+    # ----------------------------------------
+    # Slow Burn Alert (Sev 4)
+    # ----------------------------------------
+    # 1x burn rate → >5% failure rate sustained for 6 hours
+    # Would exhaust 7-day error budget in ~7 days
+    - alert: userJourneyClusterDeletionErrors3d
+      expr: |
+        errors:backend_cluster_deletion_operation:error_rate > 0.05
+        and
+        clamp_min(
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="delete",
+            phase=~"succeeded|failed|canceled"
+          }) or vector(0),
+          0
+        ) >= 5
+      for: 6h
+      labels:
+        severity: "4"
+        slo: cluster-deletion-errors
+        component: slo
+      annotations:
+        title: "Cluster deletion operation error rate exceeds SLO target (>5%) for 6+ hours"
+        summary: "Cluster deletion operation error rate exceeds SLO target (>5%) for 6+ hours"
+        description: "More than 5% of cluster delete operations are in failed or canceled state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
+        runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
+        correlationId: "userJourneyClusterDeletionErrors3d/{{ $labels.cluster }}"
+    # ----------------------------------------
+    # Degradation Alert (Sev 4)
+    # ----------------------------------------
+    # With a 95% SLO, the fast-burn threshold only fires at ~72% failure rate.
+    # This provides early warning at 15% failure rate before burn-rate alerts fire.
+    - alert: userJourneyClusterDeletionErrorsDegradation
+      expr: |
+        errors:backend_cluster_deletion_operation:error_rate > 0.15
+        and
+        clamp_min(
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="delete",
+            phase=~"succeeded|failed|canceled"
+          }) or vector(0),
+          0
+        ) >= 5
+      for: 30m
+      labels:
+        severity: "4"
+        slo: cluster-deletion-errors
+        component: slo
+      annotations:
+        title: "Cluster deletion operation failure rate exceeds 15% for 30 minutes"
+        summary: "Cluster deletion operation failure rate exceeds 15% for 30 minutes"
+        description: "The cluster deletion operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
+        runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
+        correlationId: "userJourneyClusterDeletionErrorsDegradation/{{ $labels.cluster }}"
+    # ----------------------------------------
+    # Latency SLO — Fast Burn (Sev 3)
+    # ----------------------------------------
+    # 14.4x burn rate → >72% of successful deletes exceeded 30m, sustained 5m
+    - alert: userJourneyClusterDeletionLatency1h5m
+      expr: |
+        errors:backend_cluster_deletion_operation:latency_error_rate > 0.72
+        and
+        clamp_min(
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="delete",
+            phase="succeeded"
+          }) or vector(0),
+          0
+        ) >= 5
+      for: 5m
+      labels:
+        severity: "3"
+        slo: cluster-deletion-latency
+        component: slo
+      annotations:
+        title: "Cluster deletion Latency SLO fast burn (>72% slow for 5m)"
+        summary: "Cluster deletion Latency SLO fast burn (>72% slow for 5m)"
+        description: "More than 72% of successful cluster deletes exceeded 30 minutes, sustained for 5 minutes. Fast burn rate (14.4x) against the 95% Latency SLO — on track to exhaust the budget in ~12 hours."
+        runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
+        correlationId: "userJourneyClusterDeletionLatency/{{ $labels.cluster }}"
+    # ----------------------------------------
+    # Latency SLO — Medium Burn (Sev 3)
+    # ----------------------------------------
+    # 6x burn rate → >30% of successful deletes exceeded 30m, sustained 30m
+    - alert: userJourneyClusterDeletionLatency6h30m
+      expr: |
+        errors:backend_cluster_deletion_operation:latency_error_rate > 0.30
+        and
+        clamp_min(
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="delete",
+            phase="succeeded"
+          }) or vector(0),
+          0
+        ) >= 5
+      for: 30m
+      labels:
+        severity: "3"
+        slo: cluster-deletion-latency
+        component: slo
+      annotations:
+        title: "Cluster deletion Latency SLO medium burn (>30% slow for 30m)"
+        summary: "Cluster deletion Latency SLO medium burn (>30% slow for 30m)"
+        description: "More than 30% of successful cluster deletes exceeded 30 minutes, sustained for 30 minutes. Medium burn rate (6x) against the 95% Latency SLO — on track to exhaust the budget in ~28 hours."
+        runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
+        correlationId: "userJourneyClusterDeletionLatency/{{ $labels.cluster }}"
+    # ----------------------------------------
+    # Latency SLO — Slow Burn (Sev 4)
+    # ----------------------------------------
+    # 1x burn rate → >5% of successful deletes exceeded 30m, sustained 6h
+    - alert: userJourneyClusterDeletionLatency3d
+      expr: |
+        errors:backend_cluster_deletion_operation:latency_error_rate > 0.05
+        and
+        clamp_min(
+          count by (cluster) (backend_resource_operation_phase_info{
+            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+            operation_type="delete",
+            phase="succeeded"
+          }) or vector(0),
+          0
+        ) >= 5
+      for: 6h
+      labels:
+        severity: "4"
+        slo: cluster-deletion-latency
+        component: slo
+      annotations:
+        title: "Cluster deletion Latency SLO slow burn (>5% slow for 6h)"
+        summary: "Cluster deletion Latency SLO slow burn (>5% slow for 6h)"
+        description: "More than 5% of successful cluster deletes exceeded 30 minutes, sustained for 6 hours. Slow burn rate (1x) against the 95% Latency SLO — budget will be exhausted in ~7 days."
+        runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
+        correlationId: "userJourneyClusterDeletionLatency3d/{{ $labels.cluster }}"
+    # ----------------------------------------
+    # Stuck Operations Alert (Sev 4)
+    # ----------------------------------------
+    # This alert fires when time in the CURRENT phase
+    #     (last_transition_time_seconds) > 1h, monitors all 5 active phases.
+    - alert: userJourneyClusterDeletionStuckOperation
+      expr: |
+        (
+          max without(prometheus_replica) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="delete",
+              phase=~"accepted|awaitingsecret|provisioning|updating|deleting"
+            } == 1
+          )
+          and
+          (
+            time() - max without(prometheus_replica) (
+              backend_resource_operation_last_transition_time_seconds{
+                resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+                operation_type="delete",
+                phase=~"accepted|awaitingsecret|provisioning|updating|deleting"
+              }
+            )
+          ) > 3600
+        )
+      for: 15m
+      labels:
+        severity: "4"
+        slo: cluster-deletion-stuck
+        component: slo
+        exclude_internal_subscriptions: "true"
+      annotations:
+        title: "Cluster deletion operation stuck in non-terminal phase for over 1 hour"
+        summary: "Cluster deletion operation {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 1 hour"
+        description: "Cluster delete operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
+        correlationId: "userJourneyClusterDeletionStuckOperation/{{ $labels.cluster }}/{{ $labels.subscription_id }}"
+  # ========================================
+  # Cluster Deletion Alerts — Saturation
+  # ========================================
+  - name: arohcp_cluster_deletion_saturation_alerts
+    rules:
+    # Queue depth: cluster deletion controller workqueue accumulating work
+    - alert: userJourneyClusterDeletionQueueDepth
+      expr: |
+        max by (name, cluster) (
+          max without(prometheus_replica) (
+            workqueue_depth{namespace="aro-hcp", name="OperationClusterDelete"}
+          )
+        ) > 10
+      for: 5m
+      labels:
+        severity: "4"
+        component: slo
+      annotations:
+        title: "Cluster deletion controller workqueue depth is high"
+        summary: "Cluster deletion controller workqueue {{ $labels.name }} depth is high"
+        description: "Cluster deletion controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
+        runbook_url: "aka.ms/arohcp-runbook-cluster-deletion"
+        correlationId: "userJourneyClusterDeletionQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}"
