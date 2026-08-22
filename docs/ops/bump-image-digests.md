@@ -14,7 +14,6 @@ Each service component defines its image digest in the [configuration](../config
 | Maestro                       | `maestro.image.digest`                            |
 | Hypershift Operator           | `hypershift.image.digest`                         |
 | ACR Pull                      | `acrPull.image.digest`                            |
-| Image Sync (oc-mirror)        | `imageSync.ocMirror.image.digest`                 |
 | Prometheus Operator (SVC)     | `svc.prometheus.prometheusOperator.image.digest`  |
 | Prometheus Operator (MGMT)    | `mgmt.prometheus.prometheusOperator.image.digest` |
 | Prometheus Server (SVC)       | `svc.prometheus.prometheusSpec.image.digest`      |
