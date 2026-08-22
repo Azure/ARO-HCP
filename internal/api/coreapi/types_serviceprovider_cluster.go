@@ -114,6 +114,15 @@ type ServiceProviderClusterSpec struct {
 	// BackupScheduleState is the desired backup scheduling state: Enabled or Disabled.
 	// Default is Enabled. Set to Disabled via Admin API to pause scheduled backups.
 	BackupScheduleState BackupScheduleState `json:"backupScheduleState,omitempty"`
+
+	// ManagementClusterResourceID is the resource ID of the management cluster the
+	// scheduler has selected for this HCP. This is the scheduler's intent (desired
+	// placement): nil means placement has not been resolved yet. Once set it is
+	// immutable, and downstream controllers (e.g. cluster creation, which pins the
+	// Cluster Service provision shard) rely on it. This is distinct from
+	// Status.ManagementClusterResourceID, which records the observed placement.
+	// Written by: PlacementController
+	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.
