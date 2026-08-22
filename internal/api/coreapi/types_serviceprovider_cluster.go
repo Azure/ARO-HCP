@@ -114,6 +114,21 @@ type ServiceProviderClusterSpec struct {
 	// BackupScheduleState is the desired backup scheduling state: Enabled or Disabled.
 	// Default is Enabled. Set to Disabled via Admin API to pause scheduled backups.
 	BackupScheduleState BackupScheduleState `json:"backupScheduleState,omitempty"`
+
+	// EarliestRecheckTimesByController records, per controller, the earliest time
+	// at which that controller should next re-query Azure (or another external
+	// system) for the state it maintains. The map key is the controller's
+	// ControllerName constant; a nil or absent entry means recheck immediately.
+	// Centralizing these per-controller recheck times here lets each controller
+	// avoid repeatedly hitting an external API to confirm the desired state is
+	// still true, without every tracked struct carrying its own recheck field.
+	// Controllers should set their entry with substantial jitter: without another
+	// concern, jitter of 50% is considered normal so that any storms are quickly
+	// dissipated. Additionally, long recheck times are recommended for resources
+	// outside of their active phases. Order of at least six hours is, with
+	// durations up to 24 hours considered normal.
+	// Written by: FetchMSIIdentitiesInfo, FetchDataPlaneOperatorsManagedIdentitiesInfo
+	EarliestRecheckTimesByController map[string]*metav1.Time `json:"earliestRecheckTimesByController,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.
@@ -274,21 +289,6 @@ type ServiceProviderClusterStatus struct {
 // based identity metadata resolved by FetchMSIIdentitiesInfo and consumed by ClusterIdentitySync to
 // populate HCPOpenShiftCluster.Identity.UserAssignedIdentities.
 type ServiceProviderClusterMSIManagedIdentities struct {
-	// EarliestRecheckTime is the earliest time at which the controller
-	// should re-query Azure for ClientID/PrincipalID of ControlPlaneOperatorsIdentities
-	// and ServiceManagedIdentity.
-	// Nil means recheck immediately.
-	// The same recheck time applies across all entries in ControlPlaneOperatorsIdentities
-	// and ServiceManagedIdentity.
-	// This allows the controller to avoid repeatedly hitting an Azure API to
-	// recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another
-	// concern, jitter of 50% is considered normal so that any storms are quickly
-	// dissipated. Additionally, long recheck times are recommended for resources
-	// outside of their active phases. Order of at least six hours is, with
-	// durations up to 24 hours considered normal.
-	// Written by: FetchMSIIdentitiesInfo
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 	// ControlPlaneOperatorsIdentities is a map containing resolved ClientID/PrincipalID
 	// for Managed Service Identity (MSI) based Azure User-Assigned Managed Identities
 	// used by the cluster's control plane operators. The key is the fully lowercased
@@ -341,8 +341,7 @@ type ServiceProviderClusterServiceManagedIdentity struct {
 }
 
 // ServiceProviderClusterDataPlaneOperatorsManagedIdentities holds the resolved
-// managed-identity metadata for all data plane operators on a cluster, together
-// with a single EarliestRecheckTime that applies to every entry in Identities.
+// managed-identity metadata for all data plane operators on a cluster.
 type ServiceProviderClusterDataPlaneOperatorsManagedIdentities struct {
 	// Identities is a map containing resolved ClientID/PrincipalID for the Azure
 	// User Assigned Managed Identities associated with the cluster's data plane
@@ -352,18 +351,6 @@ type ServiceProviderClusterDataPlaneOperatorsManagedIdentities struct {
 	// identity entry.
 	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
 	Identities map[string]*ServiceProviderClusterDataPlaneOperatorManagedIdentity `json:"identities,omitempty"`
-	// EarliestRecheckTime is the earliest time at which the controller should
-	// re-query Azure for ClientID/PrincipalID of Identities. Nil means recheck
-	// immediately. The same recheck time applies across all elements of Identities.
-	// This allows the controller to avoid repeatedly hitting an Azure API to
-	// recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another
-	// concern, jitter of 50% is considered normal so that any storms are quickly
-	// dissipated. Additionally, long recheck times are recommended for resources
-	// outside of their active phases. Order of at least six hours is, with
-	// durations up to 24 hours considered normal.
-	// Written by: FetchDataPlaneOperatorsManagedIdentitiesInfoController
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 }
 
 // ServiceProviderClusterDataPlaneOperatorManagedIdentity contains resolved
@@ -413,14 +400,6 @@ type AzureMultiReference struct {
 	PendingAzureResources []*azcorearm.ResourceID `json:"pendingAzureResources,omitempty"`
 	// AzureResources contains resource IDs that have been confirmed to exist in Azure.
 	AzureResources []*azcorearm.ResourceID `json:"azureResources,omitempty"`
-	// EarliestRecheckTime is the earliest time at which the controller should
-	// re-check the pending resources. Nil means recheck immediately.
-	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% is considered normal
-	// so that any storms are quickly dissipated.
-	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
-	// six hours is, with durations up to 24 hours considered normal.
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 }
 
 // AzureReference tracks a single Azure resource through its creation lifecycle.
@@ -432,14 +411,6 @@ type AzureReference struct {
 	PendingAzureResource *azcorearm.ResourceID `json:"pendingAzureResource,omitempty"`
 	// AzureResource is the resource ID that has been confirmed to exist in Azure.
 	AzureResource *azcorearm.ResourceID `json:"azureResource,omitempty"`
-	// EarliestRecheckTime is the earliest time at which the controller should
-	// re-check the pending resources. Nil means recheck immediately.
-	// This allows for controllers to avoid repeatedly hitting an Azure API to recheck that the desired state is true.
-	// Controllers should set this field with substantial jitter: without another concern, jitter of 50% is considered normal
-	// so that any storms are quickly dissipated.
-	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
-	// six hours is, with durations up to 24 hours considered normal.
-	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.

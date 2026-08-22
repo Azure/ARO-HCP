@@ -76,11 +76,13 @@ var _ controllerutils.ClusterSyncer = (*fetchDataPlaneOperatorsManagedIdentities
 //     Cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
 //     and deduplicates by lowercased ResourceID (multiple operators may share one
 //     identity).
-//  2. Via needsWork, skips Azure calls when EarliestRecheckTime is still in the
+//  2. Via needsWork, skips Azure calls when this controller's entry in
+//     Spec.EarliestRecheckTimesByController (keyed by
+//     fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName) is still in the
 //     future AND the unique ResourceIDs stored on the ServiceProviderCluster still
-//     match that desired set. If the desired ResourceIDs have changed,
-//     EarliestRecheckTime is ignored so Azure is queried immediately.
-//     EarliestRecheckTime is shared across every entry in the Identities map.
+//     match that desired set. If the desired ResourceIDs have changed, the recheck
+//     time is ignored so Azure is queried immediately. The recheck time is shared
+//     across every entry in the Identities map.
 //  3. Otherwise uses the cluster's Service Managed Identity to call Azure
 //     UserAssignedIdentitiesClient Get once per unique ResourceID and resolve
 //     ClientID and PrincipalID.
@@ -100,20 +102,20 @@ var _ controllerutils.ClusterSyncer = (*fetchDataPlaneOperatorsManagedIdentities
 //     writing.
 //     - Otherwise ClientID and PrincipalID are written as returned by Azure,
 //     including nil or empty values, and RetrievalError is left nil.
-//  5. After every identity is processed without a failing Get, sets
-//     EarliestRecheckTime on the in-memory replacement to now plus a jittered
-//     interval (including when some identities were ResourceNotFound). When any
-//     Get failures were accumulated, EarliestRecheckTime is left nil (cleared)
-//     and the accumulated error is returned so needsWork keeps returning true and
-//     the workqueue retry re-queries Azure.
-//  6. Writes the ServiceProviderCluster when the desired status differs, then
-//     returns any accumulated Get errors. needsWork observes EarliestRecheckTime
+//  5. After every identity is processed without a failing Get, sets this
+//     controller's entry in Spec.EarliestRecheckTimesByController on the in-memory
+//     replacement to now plus a jittered interval (including when some identities
+//     were ResourceNotFound). When any Get failures were accumulated, the entry is
+//     left cleared (absent) and the accumulated error is returned so needsWork
+//     keeps returning true and the workqueue retry re-queries Azure.
+//  6. Writes the ServiceProviderCluster when the document differs, then
+//     returns any accumulated Get errors. needsWork observes the recheck time
 //     and the desired-vs-stored ResourceID match from the informer cache, so a wait is
 //     introduced only after a successful Replace persists a matching set with a
-//     future EarliestRecheckTime. If Replace fails (or hits a precondition
-//     failure), the new EarliestRecheckTime is not stored; the workqueue requeues
+//     future recheck time. If Replace fails (or hits a precondition
+//     failure), the new recheck time is not stored; the workqueue requeues
 //     and the next needsWork still sees the previously persisted value (typically
-//     nil or already past, or a mismatched identity set), so the controller does
+//     absent or already past, or a mismatched identity set), so the controller does
 //     not wait out the recheck interval after write failures either.
 func NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
 	clock utilsclock.PassiveClock,
@@ -160,7 +162,7 @@ func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) needsWork(servicePr
 	// Only honor EarliestRecheckTime when the desired identity set still matches the
 	// ServiceProviderCluster. Any mismatch should fall through to return true and query Azure.
 	if c.desiredDataPlaneOperatorResourceIDsMatchServiceProviderCluster(desiredDataPlaneOperatorsResourceIDStrs, serviceProviderCluster) {
-		earliestRecheckTime := serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime
+		earliestRecheckTime := serviceProviderCluster.Spec.EarliestRecheckTimesByController[fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName]
 		if earliestRecheckTime != nil && c.clock.Now().Before(earliestRecheckTime.Time) {
 			return false
 		}
@@ -203,15 +205,15 @@ func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) SyncOnce(ctx contex
 	}
 
 	replacement := existingServiceProviderCluster.DeepCopy()
-	// EarliestRecheckTime is intentionally initialized to nil and only set to a future
-	// value in the len(errs) == 0 success branch below. On any accumulated Get error it
-	// stays nil so needsWork keeps returning true and the workqueue retry re-queries Azure
-	// instead of being gated by a stale (possibly future) recheck time persisted alongside
-	// a partial update.
 	replacement.Status.DataPlaneOperatorsManagedIdentities = coreapi.ServiceProviderClusterDataPlaneOperatorsManagedIdentities{
-		Identities:          make(map[string]*coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity, len(identitiesToSync)),
-		EarliestRecheckTime: nil,
+		Identities: make(map[string]*coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity, len(identitiesToSync)),
 	}
+	// This controller's entry in Spec.EarliestRecheckTimesByController is intentionally
+	// cleared up-front and only set to a future value in the len(errs) == 0 success branch
+	// below. On any accumulated Get error it stays absent so needsWork keeps returning true
+	// and the workqueue retry re-queries Azure instead of being gated by a stale (possibly
+	// future) recheck time persisted alongside a partial update. delete on a nil map is a no-op.
+	delete(replacement.Spec.EarliestRecheckTimesByController, fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName)
 
 	smiResourceID := existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 	if smiResourceID == nil {
@@ -286,18 +288,24 @@ func (c *fetchDataPlaneOperatorsManagedIdentitiesInfoSyncer) SyncOnce(ctx contex
 			dataPlaneOperatorsManagedIdentitiesRecheckInterval,
 			dataPlaneOperatorsManagedIdentitiesRecheckJitter,
 		)))
-		replacement.Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime = &recheckAt
+		if replacement.Spec.EarliestRecheckTimesByController == nil {
+			replacement.Spec.EarliestRecheckTimesByController = map[string]*metav1.Time{}
+		}
+		replacement.Spec.EarliestRecheckTimesByController[fetchDataPlaneOperatorsManagedIdentitiesInfoControllerName] = &recheckAt
 	}
 
-	if !equality.Semantic.DeepEqual(replacement.Status.DataPlaneOperatorsManagedIdentities, existingServiceProviderCluster.Status.DataPlaneOperatorsManagedIdentities) {
+	// Compare the whole document because this controller now also mutates
+	// Spec.EarliestRecheckTimesByController (not just Status), so a recheck-time-only
+	// change must still be detected and persisted.
+	if !equality.Semantic.DeepEqual(replacement, existingServiceProviderCluster) {
 		_, err = c.resourcesDBClient.ServiceProviderClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName, existingCluster.ID.Name).Replace(ctx, replacement, nil)
 		if cosmosstorageutils.IsPreconditionFailedError(err) {
-			// Status (including any new Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime) was not written.
+			// Spec (including any new EarliestRecheckTimesByController entry) was not written.
 			// needsWork will still see the previously persisted value.
 			return errors.Join(errs...)
 		}
 		if err != nil {
-			// Same as precondition failure: Status.DataPlaneOperatorsManagedIdentities.EarliestRecheckTime was not
+			// Same as precondition failure: the new EarliestRecheckTimesByController entry was not
 			// persisted, so needsWork will still see the previously persisted value.
 			return errors.Join(append(errs, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err)))...)
 		}
