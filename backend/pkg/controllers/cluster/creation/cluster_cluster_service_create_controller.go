@@ -239,15 +239,18 @@ func (c *clusterClusterServiceCreateSyncer) csClustersMatchingClusterByAzureInfo
 func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
 	logger := utils.LoggerFromContext(ctx)
 
-	requiredProperties, err := c.provisionShardRequiredProperties(ctx, serviceProviderCluster)
+	provisionShardID, err := c.provisionShardID(ctx, serviceProviderCluster)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
-	csClusterBuilder, err := ocm.BuildCSCluster(cluster.ID, tenantID, cluster, requiredProperties, nil, serviceProviderCluster)
+	csClusterBuilder, err := ocm.BuildCSCluster(cluster.ID, tenantID, cluster, nil, nil, serviceProviderCluster)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
 	}
+	// Pin the CS provision shard for the scheduler-selected management cluster via
+	// the SDK builder method rather than a cluster property.
+	csClusterBuilder.ProvisionShardID(provisionShardID)
 	clusterServiceUID := cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()
 
 	logger.Info("Creating cluster in Cluster Service", "version", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String())
@@ -263,36 +266,35 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 	return result, nil
 }
 
-// provisionShardRequiredProperties resolves the Cluster Service provision shard
-// for the management cluster the scheduler pinned on
-// ServiceProviderCluster.Spec.ManagementClusterResourceID, and returns it as the
-// requiredProperties map passed to BuildCSCluster so the new CS cluster is
+// provisionShardID resolves the Cluster Service provision shard ID for the
+// management cluster the scheduler pinned on
+// ServiceProviderCluster.Spec.ManagementClusterResourceID. The caller sets it on
+// the CS cluster via ClusterBuilder.ProvisionShardID so the new CS cluster is
 // created on the correct provision shard.
-func (c *clusterClusterServiceCreateSyncer) provisionShardRequiredProperties(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (map[string]string, error) {
+func (c *clusterClusterServiceCreateSyncer) provisionShardID(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (string, error) {
 	managementClusterResourceID := serviceProviderCluster.Spec.ManagementClusterResourceID
 	if managementClusterResourceID == nil {
-		return nil, fmt.Errorf("ServiceProviderCluster has no Spec.ManagementClusterResourceID; placement is not resolved")
+		return "", fmt.Errorf("ServiceProviderCluster has no Spec.ManagementClusterResourceID; placement is not resolved")
 	}
 	// A management cluster is a singleton within a stamp, so its resource ID is
 	// .../stamps/<stampIdentifier>/managementClusters/default and the lister is
 	// keyed by the stamp identifier (the parent segment's name).
 	if managementClusterResourceID.Parent == nil {
-		return nil, fmt.Errorf("management cluster resource ID %q has no parent stamp", managementClusterResourceID.String())
+		return "", fmt.Errorf("management cluster resource ID %q has no parent stamp", managementClusterResourceID.String())
 	}
 	stampIdentifier := managementClusterResourceID.Parent.Name
 
 	managementCluster, err := c.managementClusterLister.Get(ctx, stampIdentifier)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		return nil, fmt.Errorf("management cluster %q not found", managementClusterResourceID.String())
+		return "", fmt.Errorf("management cluster %q not found", managementClusterResourceID.String())
 	}
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get management cluster %q: %w", managementClusterResourceID.String(), err))
+		return "", utils.TrackError(fmt.Errorf("failed to get management cluster %q: %w", managementClusterResourceID.String(), err))
 	}
 
 	if managementCluster.Status.ClusterServiceProvisionShardID == nil {
-		return nil, fmt.Errorf("management cluster %q has no ClusterServiceProvisionShardID", managementClusterResourceID.String())
+		return "", fmt.Errorf("management cluster %q has no ClusterServiceProvisionShardID", managementClusterResourceID.String())
 	}
-	provisionShardID := managementCluster.Status.ClusterServiceProvisionShardID.ID()
 
-	return map[string]string{ocm.CSPropertyProvisionShardID: provisionShardID}, nil
+	return managementCluster.Status.ClusterServiceProvisionShardID.ID(), nil
 }

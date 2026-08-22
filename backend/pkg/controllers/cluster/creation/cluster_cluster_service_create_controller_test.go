@@ -189,7 +189,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 						built, buildErr := builder.Build()
 						require.NoError(t, buildErr)
 						assert.Equal(t, pendingClusterServiceID.ID(), built.ID(), "PostCluster should use the final segment of PendingClusterServiceID")
-						assert.Equal(t, testProvisionShardID, built.Properties()[ocm.CSPropertyProvisionShardID], "PostCluster should pin the provision shard from the placed management cluster")
+						assert.Equal(t, testProvisionShardID, built.ProvisionShardID(), "PostCluster should pin the provision shard from the placed management cluster")
 						csCluster, err := arohcpv1alpha1.NewCluster().
 							ID(pendingClusterServiceID.ID()).
 							HREF(testClusterServiceIDStr).

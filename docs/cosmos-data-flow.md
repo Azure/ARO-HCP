@@ -486,9 +486,9 @@ which performs a **transactional batch** to atomically update the operation and 
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li><li>All `CustomerProperties.*` (for building CS cluster request)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`ServiceProviderProperties.ExperimentalFeatures.*`</li><li>`ID`</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (precondition: must be non-nil)</li><li>`Spec.DesiredHostedClusterControlPlaneSize`</li><li>`Spec.ManagementClusterResourceID` (resolves the placed management cluster for provision-shard pinning)</li></ul> |
-| Read | `ManagementCluster` | <ul><li>`Status.ClusterServiceProvisionShardID` (via lister `Get` by the stamp identifier from `Spec.ManagementClusterResourceID`; supplies the `provision_shard_id` property)</li></ul> |
+| Read | `ManagementCluster` | <ul><li>`Status.ClusterServiceProvisionShardID` (via lister `Get` by the stamp identifier from `Spec.ManagementClusterResourceID`; its ID is pinned on the CS cluster via the `ClusterBuilder.ProvisionShardID` SDK method)</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
-| Read | Cluster Service | <ul><li>`ListClusters` (search by Azure info), `PostCluster` (with the `provision_shard_id` required property)</li></ul> |
+| Read | Cluster Service | <ul><li>`ListClusters` (search by Azure info), `PostCluster` (provision shard pinned via `ClusterBuilder.ProvisionShardID`)</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = CS internal ID</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>Created if not exists (via `GetOrCreateServiceProviderCluster`)</li></ul> |
 
