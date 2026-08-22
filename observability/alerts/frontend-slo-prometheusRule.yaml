@@ -42,8 +42,9 @@ spec:
   #
   # summary includes {{ $labels.cluster }} (Access / Node Pool convention; prometheus-rules
   # generator requires it). IcM.Title may also prepend cluster - same as other RP alerts.
-  # component is on each rule (not group) for promtool compatibility.
   - name: arohcp_frontend_slo_error_alerts
+    labels:
+      component: slo
     rules:
     - alert: userJourneyFrontendErrors1h5m
       expr: |
@@ -54,7 +55,6 @@ spec:
         )
       for: 2m
       labels:
-        component: slo
         severity: "3"
         slo: frontend-errors
         long_window: 1h
@@ -72,7 +72,6 @@ spec:
         )
       for: 15m
       labels:
-        component: slo
         severity: "3"
         slo: frontend-errors
         long_window: 6h
@@ -90,7 +89,6 @@ spec:
         )
       for: 1h
       labels:
-        component: slo
         severity: "4"
         slo: frontend-errors
         long_window: 3d
@@ -100,6 +98,8 @@ spec:
         description: "Frontend 5xx share on cluster {{ $labels.cluster }} is above the 0.05% SLO boundary on both the 3d and 6h windows (1x burn)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_availability_alerts
+    labels:
+      component: slo
     rules:
     - alert: userJourneyFrontendAvailability1h5m
       expr: |
@@ -110,7 +110,6 @@ spec:
         )
       for: 2m
       labels:
-        component: slo
         severity: "4"
         slo: frontend-availability
         long_window: 1h
@@ -128,7 +127,6 @@ spec:
         )
       for: 15m
       labels:
-        component: slo
         severity: "4"
         slo: frontend-availability
         long_window: 6h
@@ -146,7 +144,6 @@ spec:
         )
       for: 1h
       labels:
-        component: slo
         severity: "4"
         slo: frontend-availability
         long_window: 3d
@@ -156,6 +153,8 @@ spec:
         description: "Frontend availability on cluster {{ $labels.cluster }} is below the 99.95% SLO on both the 3d and 6h windows (1x burn)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_latency_alerts
+    labels:
+      component: slo
     rules:
     - alert: userJourneyFrontendLatencyP991h5m
       expr: |
@@ -166,7 +165,6 @@ spec:
         )
       for: 2m
       labels:
-        component: slo
         severity: "3"
         slo: frontend-latency
         long_window: 1h
@@ -184,7 +182,6 @@ spec:
         )
       for: 15m
       labels:
-        component: slo
         severity: "3"
         slo: frontend-latency
         long_window: 6h
@@ -202,7 +199,6 @@ spec:
         )
       for: 1h
       labels:
-        component: slo
         severity: "4"
         slo: frontend-latency
         long_window: 3d
@@ -212,13 +208,14 @@ spec:
         description: "Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 3d and 6h windows (1x burn of the p99 < 1s SLO)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_ready_alerts
+    labels:
+      component: slo
     rules:
     - alert: userJourneyFrontendReady
       expr: |
         sli:frontend:ready:ratio5m == 0
       for: 5m
       labels:
-        component: slo
         severity: "3"
         slo: frontend-ready
       annotations:
@@ -226,6 +223,8 @@ spec:
         description: "aro-hcp-frontend on cluster {{ $labels.cluster }} has 0 available replicas (kube readiness probes hit /healthz). This is a process outage, not an ARM traffic drought."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_traffic_alerts
+    labels:
+      component: slo
     rules:
     - alert: userJourneyFrontendTrafficDrop
       expr: |
@@ -239,7 +238,6 @@ spec:
         sli:frontend:ready:ratio5m > 0
       for: 15m
       labels:
-        component: slo
         severity: "4"
         slo: frontend-traffic
       annotations:
@@ -247,13 +245,14 @@ spec:
         description: "Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the baseline exceeded 0.5 RPS and pods are still Ready (traffic drought, not a replica outage)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_saturation_alerts
+    labels:
+      component: slo
     rules:
     - alert: userJourneyFrontendSaturationCPU
       expr: |
         sli:frontend:saturation_cpu:ratio5m > 0.85
       for: 15m
       labels:
-        component: slo
         severity: "4"
         slo: frontend-saturation
       annotations:
@@ -265,7 +264,6 @@ spec:
         sli:frontend:saturation_memory:ratio5m > 0.85
       for: 15m
       labels:
-        component: slo
         severity: "4"
         slo: frontend-saturation
       annotations:
