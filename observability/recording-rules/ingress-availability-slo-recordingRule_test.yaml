@@ -1,0 +1,179 @@
+rule_files:
+- ingress-availability-slo-recordingRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Test 1: All pods reachable — availability ratio = 1, error rate = 0
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="aaa", cluster="mgmt-1", host="node1.apps.aro.example.io"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="aaa", cluster="mgmt-1", host="node2.apps.aro.example.io"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'availability:ingress_canary:ratio{_id="aaa", cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:ingress_canary:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate{_id="aaa", cluster="mgmt-1"}'
+      value: 0
+# ========================================
+# Test 2: Half pods unreachable — availability ratio = 0.5, error rate = 0.5
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", host="node1.apps.aro.example.io"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="bbb", cluster="mgmt-1", host="node2.apps.aro.example.io"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'availability:ingress_canary:ratio{_id="bbb", cluster="mgmt-1"}'
+      value: 0.5
+  - expr: errors:ingress_canary:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate{_id="bbb", cluster="mgmt-1"}'
+      value: 0.5
+# ========================================
+# Test 3: All pods unreachable — availability ratio = 0, error rate = 1
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", host="node1.apps.aro.example.io"}'
+    values: "0+0x10"
+  - series: 'ingress_canary_route_reachable{_id="ccc", cluster="mgmt-1", host="node2.apps.aro.example.io"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'availability:ingress_canary:ratio{_id="ccc", cluster="mgmt-1"}'
+      value: 0
+  - expr: errors:ingress_canary:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate{_id="ccc", cluster="mgmt-1"}'
+      value: 1
+# ========================================
+# Test 4: Multiple clusters isolated — each _id gets its own ratio
+# ========================================
+- interval: 1m
+  input_series:
+  # fff: 3/3 reachable
+  - series: 'ingress_canary_route_reachable{_id="fff", cluster="mgmt-1", host="node1.apps.aro.example.io"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="fff", cluster="mgmt-1", host="node2.apps.aro.example.io"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="fff", cluster="mgmt-1", host="node3.apps.aro.example.io"}'
+    values: "1+0x10"
+  # ggg: 1/3 reachable
+  - series: 'ingress_canary_route_reachable{_id="ggg", cluster="mgmt-1", host="node1.apps.aro.example.io"}'
+    values: "1+0x10"
+  - series: 'ingress_canary_route_reachable{_id="ggg", cluster="mgmt-1", host="node2.apps.aro.example.io"}'
+    values: "0+0x10"
+  - series: 'ingress_canary_route_reachable{_id="ggg", cluster="mgmt-1", host="node3.apps.aro.example.io"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'availability:ingress_canary:ratio{_id="fff", cluster="mgmt-1"}'
+      value: 1
+    - labels: 'availability:ingress_canary:ratio{_id="ggg", cluster="mgmt-1"}'
+      value: 0.3333333333333333
+  - expr: errors:ingress_canary:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary:error_rate{_id="fff", cluster="mgmt-1"}'
+      value: 0
+    - labels: 'errors:ingress_canary:error_rate{_id="ggg", cluster="mgmt-1"}'
+      value: 0.6666666666666667
+# ========================================
+# Test 5: No data — all canary series missing, no SLI output
+# ========================================
+# When no ingress_canary_route_reachable series exist for a cluster,
+# the recording rules should produce no output (empty result set),
+# consistent with the kube-apiserver SLI pattern.
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: availability:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples: []
+  - expr: errors:ingress_canary:error_rate
+    eval_time: 5m
+    exp_samples: []
+# ========================================
+# Test 6: All canary checks fast — latency ratio = 1, error rate = 0
+# ========================================
+# Histogram counters increase by 1 each minute (1 check/min).
+# All checks land in le="200" bucket (within 200ms threshold).
+- interval: 1m
+  input_series:
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", host="node1.apps.aro.example.io", le="200"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", host="node1.apps.aro.example.io", le="+Inf"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", host="node2.apps.aro.example.io", le="200"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="aaa", cluster="mgmt-1", host="node2.apps.aro.example.io", le="+Inf"}'
+    values: "0+1x10"
+  promql_expr_test:
+  - expr: latency:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:ingress_canary:ratio{_id="aaa", cluster="mgmt-1"}'
+      value: 1
+  - expr: errors:ingress_canary_latency:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate{_id="aaa", cluster="mgmt-1"}'
+      value: 0
+# ========================================
+# Test 7: Half canary checks slow — latency ratio = 0.5, error rate = 0.5
+# ========================================
+# node1: all checks within 200ms (le="200" increments same as le="+Inf")
+# node2: all checks above 200ms (le="200" stays 0, le="+Inf" increments)
+- interval: 1m
+  input_series:
+  # node1: fast (within 200ms)
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", host="node1.apps.aro.example.io", le="200"}'
+    values: "0+1x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", host="node1.apps.aro.example.io", le="+Inf"}'
+    values: "0+1x10"
+  # node2: slow (above 200ms)
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", host="node2.apps.aro.example.io", le="200"}'
+    values: "0+0x10"
+  - series: 'ingress_canary_check_duration_bucket{_id="bbb", cluster="mgmt-1", host="node2.apps.aro.example.io", le="+Inf"}'
+    values: "0+1x10"
+  promql_expr_test:
+  - expr: latency:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples:
+    - labels: 'latency:ingress_canary:ratio{_id="bbb", cluster="mgmt-1"}'
+      value: 0.5
+  - expr: errors:ingress_canary_latency:error_rate
+    eval_time: 5m
+    exp_samples:
+    - labels: 'errors:ingress_canary_latency:error_rate{_id="bbb", cluster="mgmt-1"}'
+      value: 0.5
+# ========================================
+# Test 8: No histogram data — latency SLI returns empty
+# ========================================
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: latency:ingress_canary:ratio
+    eval_time: 5m
+    exp_samples: []
+  - expr: errors:ingress_canary_latency:error_rate
+    eval_time: 5m
+    exp_samples: []
