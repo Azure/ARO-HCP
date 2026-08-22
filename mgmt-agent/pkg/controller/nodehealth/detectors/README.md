@@ -52,8 +52,8 @@ is adding code in its own file, never editing the engine:
   toolkit (windowed correlation of failure Events to stuck pods, condition-based
   dwell math, node-Ready and success helpers). Families that fit this shape reuse
   all of it.
-- **`swift_vf.go`**: one fault family's specifics only, the `swift-vf-teardown`
-  detector value plus its applicability predicate. No evaluation logic lives here.
+- **`swift_vf.go`** and **`cni_plugin_not_initialized.go`**: each fault family's
+  specifics only. No evaluation logic lives in these files.
 
 `Decide` walks `registry`. For each detector it calls `Applies(node)` (skip if the
 node can't exhibit the fault), then `Evaluate(...)` to gather the evidence
@@ -125,19 +125,27 @@ Pods that the apiserver garbage-collects:
   cache, which is why the terminal-pod shape above is counted rather than relying on
   a pod still being alive at reconcile time.
 
-## The one detector today: `swift-vf-teardown`
+## Detectors
 
-Applies only to SWIFT-v2 delegated-NIC nodes (label
+Both current detectors apply only to SWIFT-v2 delegated-NIC nodes (label
 `kubernetes.azure.com/podnetwork-swiftv2-enabled=true`, exported as
 `SwiftV2LabelKey`/`SwiftV2LabelValue`): a node with no delegated secondary NIC
-cannot suffer a VF teardown, so it is never a candidate. On those nodes it matches
-`FailedCreatePodSandBox` Events in the `route ip+net: no such network interface`
-family (plus the `network is unreachable`, `mtpnc is not ready`, and
-`dhcp discover ... timed out` variants), with `failuresFloor: 3`, `window: 10m`,
-`dwell: 10m`, `requireZeroSuccess: true`.
+is outside the observed failure scope.
+
+- `swift-vf-teardown` matches `FailedCreatePodSandBox` Events in the
+  `route ip+net: no such network interface` family, plus the
+  `network is unreachable`, `mtpnc is not ready`, and
+  `dhcp discover ... timed out` variants.
+- `cni-plugin-not-initialized` matches `NetworkNotReady` Events carrying
+  `NetworkPluginNotReady: cni plugin not initialized`. In this modality the node
+  remains `Ready`, but its CNI never initializes and newly scheduled pods cannot
+  get sandboxes.
+
+Both use `failuresFloor: 3`, `window: 10m`, `dwell: 10m`, and
+`requireZeroSuccess: true`.
 
 `SwiftV2LabelKey`/`Value` are exported because the controller uses them to scope
-its periodic sweep to the nodes a detector can actually fire on, rather than
+its periodic sweep to the nodes these detectors can actually fire on, rather than
 sweeping every node in the cluster. The sweep is the union of that selector and
 the wedged-label selector, so a node that stops being a detection candidate while
 labeled is still swept and has its stale label retired

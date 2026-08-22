@@ -77,6 +77,49 @@ func TestProductionSandboxMessagesMatchSignatures(t *testing.T) {
 	}
 }
 
+// TestCNIPluginNotInitializedEvidence pins the exact kubelet signal for a node
+// that stays Ready while several pods remain without sandboxes.
+func TestCNIPluginNotInitializedEvidence(t *testing.T) {
+	const message = "NetworkPluginNotReady: cni plugin not initialized"
+	now := time.Date(2026, 8, 19, 22, 30, 0, 0, time.UTC)
+
+	var events []*corev1.Event
+	var pods []*corev1.Pod
+	for _, name := range []string{"set-kubelet-parameters-for-scale", "system-pod-1", "system-pod-2"} {
+		uid := types.UID("uid-" + name)
+		pods = append(pods, &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "kube-system", Name: name, UID: uid},
+			Status: corev1.PodStatus{
+				Phase: corev1.PodPending,
+				Conditions: []corev1.PodCondition{{
+					Type:               corev1.PodReadyToStartContainers,
+					Status:             corev1.ConditionFalse,
+					LastTransitionTime: metav1.NewTime(now.Add(-24 * time.Hour)),
+				}},
+			},
+		})
+		events = append(events, &corev1.Event{
+			ObjectMeta:     metav1.ObjectMeta{Namespace: "kube-system", Name: name + ".evt"},
+			Reason:         reasonNetworkNotReady,
+			Message:        message,
+			InvolvedObject: corev1.ObjectReference{Kind: "Pod", Namespace: "kube-system", Name: name, UID: uid},
+			Source:         corev1.EventSource{Host: "swift-node", Component: "kubelet"},
+			LastTimestamp:  metav1.NewTime(now.Add(-1 * time.Minute)),
+		})
+	}
+
+	got, snap := Decide(productionWedgedNode(), events, pods, now)
+	if got != DecisionWedged {
+		t.Fatalf("Decide() = %v, want Wedged", got)
+	}
+	if snap.DetectorName != cniPluginNotInitialized.name {
+		t.Errorf("snapshot detector = %q, want %q", snap.DetectorName, cniPluginNotInitialized.name)
+	}
+	if snap.MatchedSignature != cniPluginNotInitialized.signatures[0].String() {
+		t.Errorf("matched signature = %q, want %q", snap.MatchedSignature, cniPluginNotInitialized.signatures[0])
+	}
+}
+
 // productionNodeLabels are the SWIFT-related labels carried by the captured
 // wedged node. The node was Ready throughout, which is the premise the whole
 // controller rests on: node lifecycle never sees these nodes as broken.
