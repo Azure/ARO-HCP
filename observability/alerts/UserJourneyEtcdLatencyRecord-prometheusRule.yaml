@@ -1,0 +1,56 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-etcd-grpc-latency-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: hcp-etcd-grpc-latency-recording-rules
+    interval: 1m
+    rules:
+    # P99 etcd gRPC latency per operation type, split by read (Range) and
+    # write (Txn) — the two primary KAS-backing operations.
+    - record: etcd:grpc_server_handling:read_latency_p99:rate5m
+      expr: |
+        histogram_quantile(0.99,
+          sum by (namespace, cluster, le) (
+            rate(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Range",
+              namespace=~"ocm-.*"
+            }[5m])
+          )
+        )
+    - record: etcd:grpc_server_handling:read_latency_p95:rate5m
+      expr: |
+        histogram_quantile(0.95,
+          sum by (namespace, cluster, le) (
+            rate(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Range",
+              namespace=~"ocm-.*"
+            }[5m])
+          )
+        )
+    - record: etcd:grpc_server_handling:write_latency_p99:rate5m
+      expr: |
+        histogram_quantile(0.99,
+          sum by (namespace, cluster, le) (
+            rate(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Txn",
+              namespace=~"ocm-.*"
+            }[5m])
+          )
+        )
+    - record: etcd:grpc_server_handling:write_latency_p95:rate5m
+      expr: |
+        histogram_quantile(0.95,
+          sum by (namespace, cluster, le) (
+            rate(grpc_server_handling_seconds_bucket{
+              grpc_service="etcdserverpb.KV",
+              grpc_method="Txn",
+              namespace=~"ocm-.*"
+            }[5m])
+          )
+        )

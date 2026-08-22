@@ -241,3 +241,33 @@ resource userjourneyKubeapiserverAvailabilityRecordingRules 'Microsoft.AlertsMan
     ]
   }
 }
+
+resource hcpEtcdGrpcLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-etcd-grpc-latency-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'etcd:grpc_server_handling:read_latency_p99:rate5m'
+        expression: 'histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Range",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[5m])))'
+      }
+      {
+        record: 'etcd:grpc_server_handling:read_latency_p95:rate5m'
+        expression: 'histogram_quantile(0.95, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Range",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[5m])))'
+      }
+      {
+        record: 'etcd:grpc_server_handling:write_latency_p99:rate5m'
+        expression: 'histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Txn",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[5m])))'
+      }
+      {
+        record: 'etcd:grpc_server_handling:write_latency_p95:rate5m'
+        expression: 'histogram_quantile(0.95, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Txn",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[5m])))'
+      }
+    ]
+  }
+}
