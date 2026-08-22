@@ -13,13 +13,21 @@ spec:
   # ========================================
   # Frontend (ARM RP) SLO Alerts
   # ========================================
-  # Driven by ARO-28705 recording rules (errors / availability / latency rate5m).
+  # Driven by ARO-28705 recording rules (errors / availability / latency p99).
   # Naming: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
   #
   # Availability SLO 99.95% -> error budget 0.05% (0.0005):
   #   Fast (14.4x): 14.4 * 0.0005 = 0.0072 -> 0.72% 5xx share
   #   Medium (6x):  6 * 0.0005 = 0.003 -> 0.30% 5xx share
   #   Slow (1x):    1 * 0.0005 = 0.0005 -> 0.05% 5xx share
+  #
+  # Latency SLO p99 < 1s (histogram_quantile seconds, not a 1s-bucket share):
+  #   Fast 1h/5m:   p99 > 5s (severe miss)
+  #   Medium 6h/30m: p99 > 1s (SLO miss)
+  #   Slow 3d/6h:   p99 > 1s (ticket)
+  #
+  # Ready: kube /healthz via Deployment available/spec. Distinguishes a
+  # Frontend outage (ready=0) from an ARM traffic drought (HTTP SLIs absent).
   #
   # Multi-window multi-burn-rate (ADR 79 / Google MWMBR): fast and medium
   # require BOTH long-window and short-window avg_over_time on the rate5m
@@ -149,12 +157,12 @@ spec:
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_latency_alerts
     rules:
-    - alert: userJourneyFrontendLatency1h5m
+    - alert: userJourneyFrontendLatencyP991h5m
       expr: |
         (
-          avg_over_time(sli:frontend_http:latency:rate5m[1h]) < 0.856
+          avg_over_time(sli:frontend_http:latency_p99:rate5m[1h]) > 5
           and
-          avg_over_time(sli:frontend_http:latency:rate5m[5m]) < 0.856
+          avg_over_time(sli:frontend_http:latency_p99:rate5m[5m]) > 5
         )
       for: 2m
       labels:
@@ -164,15 +172,15 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP latency SLI critically low (share <=1s <85.6%)"
-        description: "Share of Frontend requests completing within 1s on cluster {{ $labels.cluster }} is below 85.6% on both the 1h and 5m windows (14.4x burn of the 1% latency budget for the p99 < 1s SLO)."
+        summary: "{{ $labels.cluster }}: Frontend HTTP p99 latency critically high (>5s)"
+        description: "Frontend p99 latency on cluster {{ $labels.cluster }} is above 5s on both the 1h and 5m windows (severe miss of the p99 < 1s ARM sync SLO)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendLatency6h30m
+    - alert: userJourneyFrontendLatencyP996h30m
       expr: |
         (
-          avg_over_time(sli:frontend_http:latency:rate5m[6h]) < 0.94
+          avg_over_time(sli:frontend_http:latency_p99:rate5m[6h]) > 1
           and
-          avg_over_time(sli:frontend_http:latency:rate5m[30m]) < 0.94
+          avg_over_time(sli:frontend_http:latency_p99:rate5m[30m]) > 1
         )
       for: 15m
       labels:
@@ -182,15 +190,15 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP latency SLI degraded (share <=1s <94%)"
-        description: "Share of Frontend requests within 1s on cluster {{ $labels.cluster }} is below 94% on both the 6h and 30m windows (6x burn)."
+        summary: "{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)"
+        description: "Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 6h and 30m windows (p99 < 1s ARM sync SLO miss)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
-    - alert: userJourneyFrontendLatency3d6h
+    - alert: userJourneyFrontendLatencyP993d6h
       expr: |
         (
-          avg_over_time(sli:frontend_http:latency:rate5m[3d]) < 0.99
+          avg_over_time(sli:frontend_http:latency_p99:rate5m[3d]) > 1
           and
-          avg_over_time(sli:frontend_http:latency:rate5m[6h]) < 0.99
+          avg_over_time(sli:frontend_http:latency_p99:rate5m[6h]) > 1
         )
       for: 1h
       labels:
@@ -200,8 +208,22 @@ spec:
         long_window: 3d
         short_window: 6h
       annotations:
-        summary: "{{ $labels.cluster }}: Frontend HTTP latency SLI below target (share <=1s <99%)"
-        description: "Share of Frontend requests within 1s on cluster {{ $labels.cluster }} is below 99% on both the 3d and 6h windows (1x burn of the p99 < 1s latency budget)."
+        summary: "{{ $labels.cluster }}: Frontend HTTP p99 latency above SLO (>1s)"
+        description: "Frontend p99 latency on cluster {{ $labels.cluster }} is above 1s on both the 3d and 6h windows (1x burn of the p99 < 1s SLO)."
+        runbook_url: "https://aka.ms/arohcp-runbook-frontend"
+  - name: arohcp_frontend_slo_ready_alerts
+    rules:
+    - alert: userJourneyFrontendReady
+      expr: |
+        sli:frontend:ready:ratio5m == 0
+      for: 5m
+      labels:
+        component: slo
+        severity: "3"
+        slo: frontend-ready
+      annotations:
+        summary: "{{ $labels.cluster }}: Frontend has no Ready replicas (kube /healthz)"
+        description: "aro-hcp-frontend on cluster {{ $labels.cluster }} has 0 available replicas (kube readiness probes hit /healthz). This is a process outage, not an ARM traffic drought."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_traffic_alerts
     rules:
@@ -213,6 +235,8 @@ spec:
         )
         and
         avg_over_time(traffic:frontend_http:request_rate:rate5m[1d]) > 0.5
+        and
+        sli:frontend:ready:ratio5m > 0
       for: 15m
       labels:
         component: slo
@@ -220,7 +244,7 @@ spec:
         slo: frontend-traffic
       annotations:
         summary: "{{ $labels.cluster }}: Frontend HTTP traffic collapsed below 10% of 1d baseline"
-        description: "Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the baseline exceeded 0.5 RPS."
+        description: "Frontend request rate on cluster {{ $labels.cluster }} is below 10% of its 1-day average for 15m while the baseline exceeded 0.5 RPS and pods are still Ready (traffic drought, not a replica outage)."
         runbook_url: "https://aka.ms/arohcp-runbook-frontend"
   - name: arohcp_frontend_slo_saturation_alerts
     rules:
