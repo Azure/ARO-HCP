@@ -484,7 +484,7 @@ func BuildHCPClusterFromParams20260630(
 		}
 	}
 
-	return hcpsdk20260630preview.HcpOpenShiftCluster{
+	cluster := hcpsdk20260630preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: identity,
 		Tags:     parameters.Tags,
@@ -538,7 +538,9 @@ func BuildHCPClusterFromParams20260630(
 			},
 			ImageDigestMirrors: imageDigestMirrors,
 		},
-	}, nil
+	}
+
+	return cluster, nil
 }
 
 // CreateHCPClusterAndWait20260630 creates an HCP cluster using the v20260630preview API and waits for completion.

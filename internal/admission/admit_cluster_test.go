@@ -1496,3 +1496,137 @@ func TestAdmitClusterVersionID(t *testing.T) {
 		})
 	}
 }
+
+func TestAdmitClusterContainerRegistryPullManagedIdentity(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	miResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/customer-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-pull-mi"))
+
+	makeCluster := func(version string, mi *azcorearm.ResourceID) *coreapi.HCPOpenShiftCluster {
+		return &coreapi.HCPOpenShiftCluster{
+			CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+				Version: coreapi.VersionProfile{ID: version},
+				Platform: coreapi.CustomerPlatformProfile{
+					ContainerRegistry: coreapi.ContainerRegistryProfile{
+						PullManagedIdentity: mi,
+					},
+				},
+			},
+		}
+	}
+
+	makeSPC := func(version string) *coreapi.ServiceProviderCluster {
+		v := semver.MustParse(version)
+		return &coreapi.ServiceProviderCluster{
+			Status: coreapi.ServiceProviderClusterStatus{
+				ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+					ActiveVersions: []coreapi.HCPClusterActiveVersion{
+						{Version: &v},
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name         string
+		op           operation.Operation
+		cluster      *coreapi.HCPOpenShiftCluster
+		spc          *coreapi.ServiceProviderCluster
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "create without containerRegistry — no error",
+			op:           operation.Operation{Type: operation.Create},
+			cluster:      makeCluster("4.17.5", nil),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "create with containerRegistry on 4.22 — allowed",
+			op:           operation.Operation{Type: operation.Create},
+			cluster:      makeCluster("4.22.0", miResourceID),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:    "create with containerRegistry on 4.17 — rejected",
+			op:      operation.Operation{Type: operation.Create},
+			cluster: makeCluster("4.17.5", miResourceID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:    "create with containerRegistry on 4.21 — rejected",
+			op:      operation.Operation{Type: operation.Create},
+			cluster: makeCluster("4.21.9", miResourceID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:         "update with containerRegistry on 4.22 cluster — allowed",
+			op:           operation.Operation{Type: operation.Update},
+			cluster:      makeCluster("4.22.0", miResourceID),
+			spc:          makeSPC("4.22.1"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:    "update with containerRegistry on 4.17 cluster — rejected",
+			op:      operation.Operation{Type: operation.Update},
+			cluster: makeCluster("4.17.5", miResourceID),
+			spc:     makeSPC("4.17.5"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "containerRegistry requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:         "update without containerRegistry on old cluster — no error",
+			op:           operation.Operation{Type: operation.Update},
+			cluster:      makeCluster("4.17.5", nil),
+			spc:          makeSPC("4.17.5"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:    "update with containerRegistry but nil ServiceProviderCluster — internal error",
+			op:      operation.Operation{Type: operation.Update},
+			cluster: makeCluster("4.22.0", miResourceID),
+			spc:     nil,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "cannot validate containerRegistry version requirement"},
+			},
+		},
+		{
+			name:    "update with containerRegistry but empty ActiveVersions — internal error",
+			op:      operation.Operation{Type: operation.Update},
+			cluster: makeCluster("4.22.0", miResourceID),
+			spc: &coreapi.ServiceProviderCluster{
+				Status: coreapi.ServiceProviderClusterStatus{
+					ControlPlaneVersion: coreapi.ServiceProviderClusterStatusVersion{
+						ActiveVersions: nil,
+					},
+				},
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.containerRegistry.managedIdentity", Message: "cannot determine cluster version for containerRegistry validation"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			admissionContext := &ClusterAdmissionContext{
+				OriginalCluster:        tt.cluster.DeepCopy(),
+				ServiceProviderCluster: tt.spc,
+			}
+
+			fldPath := field.NewPath("properties", "platform", "containerRegistry", "managedIdentity")
+			errs := admitClusterContainerRegistryPullManagedIdentity(ctx, admissionContext, tt.op, fldPath, &tt.cluster.CustomerProperties.Platform.ContainerRegistry)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}

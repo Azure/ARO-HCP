@@ -230,7 +230,7 @@ type CustomerIngressProfile struct {
 }
 
 // CustomerPlatformProfile represents the Azure platform configuration.
-// Visibility for (almost) the entire struct is "read create".
+// Visibility for the entire struct is "read create".
 type CustomerPlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
 	SubnetID                *azcorearm.ResourceID          `json:"subnetId,omitempty"`
@@ -238,6 +238,15 @@ type CustomerPlatformProfile struct {
 	OutboundType            metadataapi.OutboundType       `json:"outboundType,omitempty"`
 	NetworkSecurityGroupID  *azcorearm.ResourceID          `json:"networkSecurityGroupId,omitempty"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
+	ContainerRegistry ContainerRegistryProfile `json:"containerRegistry,omitzero"`
+}
+
+// ContainerRegistryProfile represents Azure Container Registry pull
+// configuration for the cluster.
+type ContainerRegistryProfile struct {
+	// Written by: Frontend PUT Cluster (Create), Frontend PATCH Cluster (Update)
+	PullManagedIdentity *azcorearm.ResourceID `json:"pullManagedIdentity,omitempty"`
 }
 
 type ServiceProviderPlatformProfile struct {

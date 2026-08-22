@@ -179,6 +179,28 @@ func TestWithImmutableAttributes(t *testing.T) {
 			},
 			want: ocmCluster(t, ocmClusterDefaults(coreapitesting.TestLocation).FIPS(false)),
 		},
+		{
+			name: "with ACR pull managed identity",
+			hcpCluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						ContainerRegistry: coreapi.ContainerRegistryProfile{
+							PullManagedIdentity: coreapitesting.NewTestUserAssignedIdentity("acr-pull-mi"),
+						},
+					},
+				},
+			},
+			want: ocmCluster(t,
+				ocmClusterDefaults(coreapitesting.TestLocation),
+				arohcpv1alpha1.NewCluster().
+					Azure(arohcpv1alpha1.NewAzure().
+						ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+							Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+								Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+								ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+									ResourceID(coreapitesting.NewTestUserAssignedIdentity("acr-pull-mi").String()))))),
+			),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1216,6 +1238,62 @@ func TestBuildCSCluster(t *testing.T) {
 				),
 		},
 		{
+			name: "CREATE - sets ACR pull managed identity",
+			hcpCluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						ContainerRegistry: coreapi.ContainerRegistryProfile{
+							PullManagedIdentity: coreapitesting.NewTestUserAssignedIdentity("acr-pull-mi"),
+						},
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Azure(arohcpv1alpha1.NewAzure().
+					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+							KeyManagementMode(csKeyManagementModeCustomerManaged).
+							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+								EncryptionType("kms").
+								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
+									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+										KeyName("test-key").
+										KeyVaultName("test-vault").
+										KeyVersion("test-version"),
+									),
+								),
+							))).
+					ManagedResourceGroupName(coreapitesting.TestManagedResourceGroupName).
+					NetworkSecurityGroupResourceID(coreapitesting.TestNetworkSecurityGroupResourceID).
+					NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
+						OutboundType(csOutboundType)).
+					OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
+						ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
+							ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
+							DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+							ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
+					ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
+					ResourceName(strings.ToLower(coreapitesting.TestClusterName)).
+					SubnetResourceID(coreapitesting.TestSubnetResourceID).
+					VnetIntegrationSubnetResourceID(coreapitesting.TestVnetIntegrationSubnetResourceID).
+					SubscriptionID(strings.ToLower(coreapitesting.TestSubscriptionID)).
+					TenantID(coreapitesting.TestTenantID).
+					ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+						Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+							Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+							ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+								ResourceID(coreapitesting.NewTestUserAssignedIdentity("acr-pull-mi").String())))),
+				),
+		},
+		{
+			name: "CREATE - no ACR pull MI when nil",
+			hcpCluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false),
+		},
+		{
 			name: "UPDATE - sets new KMS key version",
 			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
 				c, err := arohcpv1alpha1.NewCluster().Build()
@@ -1256,6 +1334,59 @@ func TestBuildCSCluster(t *testing.T) {
 								),
 							),
 						))),
+		},
+		{
+			name: "UPDATE - sets ACR pull managed identity",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{
+					Platform: coreapi.CustomerPlatformProfile{
+						ContainerRegistry: coreapi.ContainerRegistryProfile{
+							PullManagedIdentity: coreapitesting.NewTestUserAssignedIdentity("acr-pull-mi"),
+						},
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Azure(defaultTestKMSUpdateAzureBuilder().
+					ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+						Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+							Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+							ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+								ResourceID(coreapitesting.NewTestUserAssignedIdentity("acr-pull-mi").String()))))),
+		},
+		{
+			name: "UPDATE - clears ACR pull MI when nil and old CS cluster had it set",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().
+					Azure(arohcpv1alpha1.NewAzure().
+						ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+							Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+								Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+								ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+									ResourceID(coreapitesting.NewTestUserAssignedIdentity("old-mi").String()))))).
+					Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &coreapi.HCPOpenShiftCluster{
+				CustomerProperties: coreapi.HCPOpenShiftClusterCustomerProperties{},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Azure(defaultTestKMSUpdateAzureBuilder().
+					ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+						Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+							Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+							ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+								ResourceID(""))))),
 		},
 	}
 
@@ -1761,6 +1892,96 @@ func TestCSErrorToCloudError(t *testing.T) {
 			assert.Equal(t, tt.expectedCode, cloudErr.Code)
 			if tt.expectedMessage != "" {
 				assert.Contains(t, cloudErr.Message, tt.expectedMessage)
+			}
+		})
+	}
+}
+
+func TestConvertCSContainerRegistryPullCredentialsToRP(t *testing.T) {
+	testMIResourceID := coreapitesting.NewTestUserAssignedIdentity("acr-pull-mi")
+
+	tests := []struct {
+		name        string
+		csAzure     *arohcpv1alpha1.Azure
+		expected    *azcorearm.ResourceID
+		expectError bool
+	}{
+		{
+			name:     "nil azure returns nil",
+			csAzure:  nil,
+			expected: nil,
+		},
+		{
+			name: "azure without container registry returns nil",
+			csAzure: func() *arohcpv1alpha1.Azure {
+				azure, err := arohcpv1alpha1.NewAzure().
+					TenantID("test-tenant").
+					Build()
+				require.NoError(t, err)
+				return azure
+			}(),
+			expected: nil,
+		},
+		{
+			name: "converts managed identity resource ID",
+			csAzure: func() *arohcpv1alpha1.Azure {
+				azure, err := arohcpv1alpha1.NewAzure().
+					ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+						Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+							Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+							ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+								ResourceID(testMIResourceID.String())))).
+					Build()
+				require.NoError(t, err)
+				return azure
+			}(),
+			expected: testMIResourceID,
+		},
+		{
+			name: "empty resource ID returns nil (clearing signal)",
+			csAzure: func() *arohcpv1alpha1.Azure {
+				azure, err := arohcpv1alpha1.NewAzure().
+					ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+						Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+							Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+							ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+								ResourceID("")))).
+					Build()
+				require.NoError(t, err)
+				return azure
+			}(),
+			expected: nil,
+		},
+		{
+			name: "invalid resource ID returns error",
+			csAzure: func() *arohcpv1alpha1.Azure {
+				azure, err := arohcpv1alpha1.NewAzure().
+					ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+						Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+							Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+							ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+								ResourceID("not-a-valid-resource-id")))).
+					Build()
+				require.NoError(t, err)
+				return azure
+			}(),
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ConvertCSContainerRegistryPullCredentialsToRP(tt.csAzure)
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if tt.expected == nil {
+				assert.Nil(t, result)
+			} else {
+				require.NotNil(t, result)
+				assert.Equal(t, tt.expected.String(), result.String())
 			}
 		})
 	}

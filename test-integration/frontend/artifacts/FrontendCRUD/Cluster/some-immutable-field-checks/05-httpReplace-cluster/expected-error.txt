@@ -36,11 +36,6 @@
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
-        "target": "properties.platform"
-      }
-      {
-        "code": "InvalidRequestContent",
-        "message": "Forbidden: field is immutable",
         "target": "properties.platform.managedResourceGroup"
       }
       {

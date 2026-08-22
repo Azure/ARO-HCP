@@ -20,6 +20,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 )
 
+//go:generate $MOCKGEN -typed -source=user_assigned_identities_client.go -destination=mock_user_assigned_identities_client.go -package client UserAssignedIdentitiesClient
+
 // UserAssignedIdentitiesClient is an interface that defines the
 // methods that we want to use from the UserAssignedIdentitiesClient type in
 // the Azure Go SDK (https://github.com/Azure/azure-sdk-for-go/tree/main/sdk/resourcemanager/msi/armmsi).

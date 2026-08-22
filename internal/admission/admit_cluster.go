@@ -440,7 +440,51 @@ func admitClusterPlatform(ctx context.Context, admissionContext *ClusterAdmissio
 	errs = append(errs, admitClusterManagedResourceGroupName(ctx, admissionContext, op, fldPath, newObj)...)
 	errs = append(errs, admitClusterSubnetResourceID(ctx, admissionContext, op, fldPath, newObj)...)
 	errs = append(errs, admitClusterNetworkSecurityGroupResourceID(ctx, admissionContext, op, fldPath, newObj)...)
+	errs = append(errs, admitClusterContainerRegistryPullManagedIdentity(ctx, admissionContext, op, fldPath.Child("containerRegistry", "managedIdentity"), &newObj.ContainerRegistry)...)
 	return errs
+}
+
+// minContainerRegistryPullMIVersion is the minimum OCP version whose CPO
+// supports the kubelet credential provider for ACR pull via managed identity.
+var minContainerRegistryPullMIVersion = semver.Version{Major: 4, Minor: 22}
+
+// admitClusterContainerRegistryPullManagedIdentity rejects containerRegistry
+// configuration when the cluster version does not support it (< 4.22).
+func admitClusterContainerRegistryPullManagedIdentity(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.ContainerRegistryProfile) field.ErrorList {
+	if newObj.PullManagedIdentity == nil {
+		return nil
+	}
+
+	var clusterVersion semver.Version
+	switch op.Type {
+	case operation.Create:
+		if admissionContext.OriginalCluster == nil {
+			return field.ErrorList{field.InternalError(fldPath, errors.New("cannot validate containerRegistry version requirement"))}
+		}
+		parsed, err := semver.ParseTolerant(admissionContext.OriginalCluster.CustomerProperties.Version.ID)
+		if err != nil {
+			return field.ErrorList{field.InternalError(fldPath, fmt.Errorf("cannot parse cluster version %q: %w", admissionContext.OriginalCluster.CustomerProperties.Version.ID, err))}
+		}
+		clusterVersion = semver.Version{Major: parsed.Major, Minor: parsed.Minor}
+	case operation.Update:
+		if admissionContext.ServiceProviderCluster == nil {
+			return field.ErrorList{field.InternalError(fldPath, errors.New("cannot validate containerRegistry version requirement"))}
+		}
+		lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(admissionContext.ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
+		if lowest == nil {
+			return field.ErrorList{field.InternalError(fldPath, errors.New("cannot determine cluster version for containerRegistry validation"))}
+		}
+		clusterVersion = semver.Version{Major: lowest.Major, Minor: lowest.Minor}
+	default:
+		return nil
+	}
+
+	if clusterVersion.LT(minContainerRegistryPullMIVersion) {
+		return field.ErrorList{field.Invalid(fldPath, newObj.PullManagedIdentity.String(),
+			fmt.Sprintf("containerRegistry requires cluster version %s or above", minContainerRegistryPullMIVersion))}
+	}
+
+	return nil
 }
 
 // admitClusterManagedResourceGroupName ensures the managed resource group name
