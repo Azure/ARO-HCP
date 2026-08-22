@@ -87,7 +87,11 @@ type NodePoolParams20251223 struct {
 	AutoScaling      *NodePoolAutoScalingParams
 	AvailabilityZone string
 	AutoRepair       bool
-	Tags             map[string]*string
+	// Labels are Kubernetes labels propagated to NodePool nodes.
+	Labels []*hcpsdk20251223preview.Label
+	// Taints are Kubernetes taints applied to NodePool nodes.
+	Taints []*hcpsdk20251223preview.Taint
+	Tags   map[string]*string
 }
 
 // ---------------------------------------------------------------------------
@@ -430,6 +434,8 @@ func BuildNodePoolFromParams20251223(
 				AvailabilityZone: to.Ptr(parameters.AvailabilityZone),
 			},
 			AutoRepair: to.Ptr(parameters.AutoRepair),
+			Labels:     parameters.Labels,
+			Taints:     parameters.Taints,
 		},
 	}
 
