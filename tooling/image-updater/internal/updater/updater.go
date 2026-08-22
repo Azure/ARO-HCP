@@ -19,18 +19,26 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/clients"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/config"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/output"
+	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/upgrade"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/yaml"
 )
 
 const (
 	DefaultArchitecture = "amd64"
 )
+
+// meshRevisionsLister returns the ASM revisions available for a subscription in
+// a single location. Injected on the Updater so orchestration is testable
+// without hitting ARM. Defaults to clients.ListAKSMeshRevisions.
+type meshRevisionsLister func(ctx context.Context, subscriptionID, location string) ([]string, error)
 
 // Updater contains all pre-created resources needed for execution
 type Updater struct {
@@ -42,19 +50,23 @@ type Updater struct {
 	Updates         map[string][]yaml.Update
 	OutputFile      string
 	OutputFormat    string
+	// ListMeshRevisions is called once per configured location; results are
+	// intersected before applying max/pin. Overridable in tests.
+	ListMeshRevisions meshRevisionsLister
 }
 
 // New creates a new Updater with all necessary resources pre-initialized
 func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[string]clients.RegistryClient, yamlEditors map[string]yaml.EditorInterface, outputFile, outputFormat string) *Updater {
 	return &Updater{
-		Config:          cfg,
-		DryRun:          dryRun,
-		ForceUpdate:     forceUpdate,
-		RegistryClients: registryClients,
-		YAMLEditors:     yamlEditors,
-		Updates:         make(map[string][]yaml.Update),
-		OutputFile:      outputFile,
-		OutputFormat:    outputFormat,
+		Config:            cfg,
+		DryRun:            dryRun,
+		ForceUpdate:       forceUpdate,
+		RegistryClients:   registryClients,
+		YAMLEditors:       yamlEditors,
+		Updates:           make(map[string][]yaml.Update),
+		OutputFile:        outputFile,
+		OutputFormat:      outputFormat,
+		ListMeshRevisions: clients.ListAKSMeshRevisions,
 	}
 }
 
@@ -149,29 +161,119 @@ func (u *Updater) outputResults(ctx context.Context) error {
 	return nil
 }
 
-// fetchLatestValue retrieves the latest value from the source (registry digest or tag/version, or GitHub latest release).
+// fetchLatestValue dispatches to a per-source-type fetcher.
+//
+// To remove a version-only source: delete its case here, delete the matching
+// fetch<Source> method, drop the field from config.Source, and remove the
+// term from Source.ProducesVersionString().
 func (u *Updater) fetchLatestValue(ctx context.Context, source config.Source) (*clients.Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	if source.GitHubLatestRelease != "" {
-		logger.V(2).Info("fetching latest release from GitHub", "repo", source.GitHubLatestRelease)
-		release, err := clients.GetLatestRelease(ctx, source.GitHubLatestRelease)
-		if err != nil {
-			return nil, fmt.Errorf("github latest release %s: %w", source.GitHubLatestRelease, err)
-		}
-		return &clients.Tag{Name: release.Version, Version: release.Version, LastModified: release.PublishedAt}, nil
+	switch {
+	case source.AzureAKSMeshRevisions != nil:
+		return u.fetchAzureAKSMeshRevisions(ctx, logger, source)
+	case source.GitHubLatestRelease != "":
+		return u.fetchGitHubLatestRelease(ctx, logger, source)
 	}
 
-	// Registry path: parse image reference and use existing client
+	return u.fetchRegistryTag(ctx, source)
+}
+
+// fetchAzureAKSMeshRevisions queries every configured location, intersects the
+// available ASM revisions, applies the max cap, and returns the highest. Any
+// per-location error fails the whole call so a transient outage cannot look
+// like "a new revision is safe to roll".
+func (u *Updater) fetchAzureAKSMeshRevisions(ctx context.Context, logger logr.Logger, source config.Source) (*clients.Tag, error) {
+	if source.PinnedMeshRevision != "" {
+		logger.V(2).Info("mesh revision hard-pinned; skipping upstream check", "pinned", source.PinnedMeshRevision)
+		return &clients.Tag{Name: source.PinnedMeshRevision, Version: source.PinnedMeshRevision, LastModified: time.Now()}, nil
+	}
+
+	subscription := source.AzureAKSMeshRevisions.Subscription
+	if subscription == "" {
+		subscription = os.Getenv("AZURE_SUBSCRIPTION_ID")
+	}
+	if subscription == "" {
+		logger.V(2).Info("no subscription configured; resolving from Azure credentials")
+		resolved, err := clients.ResolveSubscription(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("azure aks mesh revisions: %w", err)
+		}
+		logger.V(2).Info("resolved subscription from credentials", "subscription", resolved)
+		subscription = resolved
+	}
+
+	locations := source.AzureAKSMeshRevisions.Locations
+	perLocation := make([][]string, len(locations))
+	g, gCtx := errgroup.WithContext(ctx)
+	for i, loc := range locations {
+		logger.V(2).Info("fetching aks mesh revisions", "location", loc)
+		g.Go(func() error {
+			revs, err := u.ListMeshRevisions(gCtx, subscription, loc)
+			if err != nil {
+				return fmt.Errorf("azure aks mesh revisions: %w", err)
+			}
+			logger.V(2).Info("aks returned revisions", "location", loc, "count", len(revs))
+			perLocation[i] = revs
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	revisions := upgrade.IntersectAsmRevisions(perLocation...)
+	if len(revisions) == 0 {
+		return nil, fmt.Errorf("azure aks mesh revisions: no revision is available in every location %v", locations)
+	}
+	logger.V(2).Info("intersection across locations", "revisions", revisions)
+
+	if source.MaxMeshRevision != "" {
+		filtered := revisions[:0]
+		for _, r := range revisions {
+			if upgrade.CompareAsmRevisions(r, source.MaxMeshRevision) <= 0 {
+				filtered = append(filtered, r)
+			}
+		}
+		if len(filtered) == 0 {
+			return nil, fmt.Errorf("azure aks mesh revisions: all revisions available across %v are above maxMeshRevision=%s", locations, source.MaxMeshRevision)
+		}
+		logger.V(2).Info("applied maxMeshRevision cap", "cap", source.MaxMeshRevision, "keptCount", len(filtered), "droppedCount", len(revisions)-len(filtered))
+		revisions = filtered
+	}
+
+	highest, err := upgrade.HighestAsmRevision(revisions)
+	if err != nil {
+		return nil, fmt.Errorf("azure aks mesh revisions: %w", err)
+	}
+	return &clients.Tag{Name: highest, Version: highest, LastModified: time.Now()}, nil
+}
+
+// fetchGitHubLatestRelease resolves the latest published GitHub release tag.
+func (u *Updater) fetchGitHubLatestRelease(ctx context.Context, logger logr.Logger, source config.Source) (*clients.Tag, error) {
+	logger.V(2).Info("fetching latest release from GitHub", "repo", source.GitHubLatestRelease)
+	release, err := clients.GetLatestRelease(ctx, source.GitHubLatestRelease)
+	if err != nil {
+		return nil, fmt.Errorf("github latest release %s: %w", source.GitHubLatestRelease, err)
+	}
+	return &clients.Tag{Name: release.Version, Version: release.Version, LastModified: release.PublishedAt}, nil
+}
+
+// fetchRegistryTag resolves the latest tag/digest from a container registry.
+func (u *Updater) fetchRegistryTag(ctx context.Context, source config.Source) (*clients.Tag, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
+
 	registry, repository, err := source.ParseImageReference()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse registry from image reference: %w", err)
 	}
 
-	// Determine useAuth for this specific image - default to false if not specified
 	useAuth := false
 	if source.UseAuth != nil {
 		useAuth = *source.UseAuth
@@ -225,9 +327,9 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 	logger.V(2).Info("Current digest", "name", name, "currentDigest", currentDigest)
 
 	var newDigest string
-	if source.GitHubLatestRelease != "" {
+	if source.ProducesVersionString() {
 		if strings.HasSuffix(target.JsonPath, ".digest") || strings.HasSuffix(target.JsonPath, ".sha") {
-			return fmt.Errorf("githubLatestRelease targets must not use .digest or .sha paths (got %q)", target.JsonPath)
+			return fmt.Errorf("version-only sources (githubLatestRelease/azureAKSMeshRevisions) must not use .digest or .sha paths (got %q)", target.JsonPath)
 		}
 		newDigest = tag.Version
 		if newDigest == "" {

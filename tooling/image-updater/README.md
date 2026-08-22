@@ -601,18 +601,69 @@ Use `-v=2` for debugging auth issues, tag filtering, or network failures.
 
 ### Source Fields
 
+Every image needs exactly one primary source: either a container `image` reference (default), or a version-only source that returns a plain version string. See [Version-Only Sources](#version-only-sources) for the escape hatches (`pinnedMeshRevision`, `maxMeshRevision`).
+
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `image` | string | Yes | - | Full image reference (registry/repository) |
-| `tag` | string | No | - | Exact tag (mutually exclusive with `tagPattern`) |
-| `tagPattern` | string | No | - | Regex pattern (mutually exclusive with `tag`) |
-| `versionLabel` | string | No | `org.opencontainers.image.revision` (with `tag`), empty (with `tagPattern`) | Container label to extract for version info |
-| `architecture` | string | No | `amd64` | Target architecture (mutually exclusive with `multiArch`) |
-| `multiArch` | bool | No | `false` | Fetch multi-arch manifest list (mutually exclusive with `architecture`) |
-| `useAuth` | bool | No | `false` | Require authentication (needed for private registries) |
-| `keyVault.url` | string | No | - | Azure Key Vault URL |
-| `keyVault.secretName` | string | No | - | Pull secret name in Key Vault |
-| `repoVersionUpgrade.repoPrefix` | string | No | - | Repo name prefix before version suffix; enables `--repositories` mode for this component |
+| `image` | string | Conditional | - | Full image reference (registry/repository). Required unless a version-only source is set. |
+| `githubLatestRelease` | string | Conditional | - | `owner/repo`; fetch the latest published release tag from GitHub (e.g. `istio/istio`). Version-only source. |
+| `azureAKSMeshRevisions.locations` | list | Conditional | - | ARM locations to query; the highest ASM revision available in **all** of them wins. Version-only source. |
+| `azureAKSMeshRevisions.subscription` | string | No | `$AZURE_SUBSCRIPTION_ID` | Azure subscription for the ARM read. Any subscription with `Microsoft.ContainerService` read works — the API is subscription-scoped but returns product-wide data. |
+| `pinnedMeshRevision` | string | No | - | Only with `azureAKSMeshRevisions`: hard override, write this exact revision and skip the upstream check. Mutually exclusive with `maxMeshRevision`. |
+| `maxMeshRevision` | string | No | - | Only with `azureAKSMeshRevisions`: ceiling; ignore any revision above this. Mutually exclusive with `pinnedMeshRevision`. |
+| `tag` | string | No | - | Exact tag (mutually exclusive with `tagPattern`). Registry sources only. |
+| `tagPattern` | string | No | - | Regex pattern (mutually exclusive with `tag`). Registry sources only. |
+| `versionLabel` | string | No | `org.opencontainers.image.revision` (with `tag`), empty (with `tagPattern`) | Container label to extract for version info. Registry sources only. |
+| `architecture` | string | No | `amd64` | Target architecture (mutually exclusive with `multiArch`). Registry sources only. |
+| `multiArch` | bool | No | `false` | Fetch multi-arch manifest list (mutually exclusive with `architecture`). Registry sources only. |
+| `useAuth` | bool | No | `false` | Require authentication (needed for private registries). Registry sources only. |
+| `keyVault.url` | string | No | - | Azure Key Vault URL. Registry sources only. |
+| `keyVault.secretName` | string | No | - | Pull secret name in Key Vault. Registry sources only. |
+| `repoVersionUpgrade.repoPrefix` | string | No | - | Repo name prefix before version suffix; enables `--repositories` mode for this component. Registry sources only. |
+
+### Version-Only Sources
+
+Some upstream artifacts are published as plain version strings, not container images — for example a GitHub release tag (`istioctl`) or an AKS Istio add-on revision (`asm-1-29`). For these, set a version-only source instead of `image`; the tool writes the version string directly to the target `jsonPath` and skips registry, digest, and architecture logic entirely.
+
+Two version-only sources are supported today:
+
+- **`githubLatestRelease: <owner/repo>`** — used for istioctl (`istio/istio`). Returns the latest published release tag.
+- **`azureAKSMeshRevisions`** — used for the ASM (Azure Service Mesh) revision that AKS installs by default via its `MeshRevisionProfiles` ARM API (the same data as `az aks mesh get-revisions --location <loc>`). Per location the tool derives the AKS-default revision — the highest catalogue entry whose `Upgrades` list is non-empty, i.e. the newest revision that is **not** the bleeding edge. It then intersects the per-location defaults; a bump only happens once every configured region agrees. Any location that fails to respond aborts the whole run — a transient outage must never look like "a new revision is safe to roll".
+
+> **Scope.** image-updater only edits the checked-out `config/config.yaml` and opens a PR. It never contacts int / stage / prod clusters and holds no runtime credentials for them. The ARM read is a public product-catalogue query against any subscription; the resulting revision only reaches an environment once the PR merges and EV2 rolls it out on its normal cadence.
+
+> **Why not the bleeding-edge?** ARM's profile lists every supported revision but does not flag which one AKS installs by default. Filtering to "has upgrades available" is a deterministic proxy: it matches what a fresh cluster actually gets, and it lags newest by ~1 revision, which is exactly the soak-time buffer you'd otherwise reach for with `maxMeshRevision`.
+
+Authentication reuses the same `DefaultAzureCredential` machinery as the ACR sources (`AZURE_TOKEN_CREDENTIALS`, workload identity, or `az login`). No per-cluster access is needed; the profile API is subscription-scoped and returns product-wide data.
+
+#### ASM Revision Escape Hatches
+
+The `azureAKSMeshRevisions` source supports two operator overrides for cases where the natural "pick the highest common revision" behaviour is not what you want. Both are validated against `asm-<major>-<minor>` at config-load time, so a typo can't silently disable the tool.
+
+| Field | Effect | Use Case |
+|-------|--------|----------|
+| `pinnedMeshRevision: asm-1-28` | Skips the upstream check entirely and writes the pinned value. | Roll back to a known-good revision; temporarily disable the automation while investigating an incident. |
+| `maxMeshRevision: asm-1-29` | Fetches upstream and intersects, then discards any revision above the cap. Highest remaining wins. | Hold a bump while you validate a new revision in staging, without rewriting the config each time a newer revision appears. |
+
+`pinnedMeshRevision` and `maxMeshRevision` are mutually exclusive. Neither is meaningful without `azureAKSMeshRevisions`, and setting them elsewhere is a validation error.
+
+Example — cap ASM to 1.29 across four regions until we're ready to move on:
+
+```yaml
+istio-asm-revision:
+  group: istio
+  source:
+    azureAKSMeshRevisions:
+      locations:
+      - uksouth
+      - westus3
+      - eastus2
+      - australiaeast
+    maxMeshRevision: "asm-1-29"
+  targets:
+  - jsonPath: defaults.svc.istio.versions
+    filePath: ../../config/config.yaml
+```
 
 ### Target Fields
 

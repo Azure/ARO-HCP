@@ -815,3 +815,209 @@ config:
 		}
 	})
 }
+
+// stubMeshLister lets tests drive fetchAzureAKSMeshRevisions without ARM.
+type stubMeshLister struct {
+	byLocation map[string][]string
+	err        error
+	calls      []string
+}
+
+func (s *stubMeshLister) list(_ context.Context, _ string, location string) ([]string, error) {
+	s.calls = append(s.calls, location)
+	if s.err != nil {
+		return nil, s.err
+	}
+	revs, ok := s.byLocation[location]
+	if !ok {
+		return nil, fmt.Errorf("stub: no data for location %q", location)
+	}
+	return revs, nil
+}
+
+func newMeshUpdater(t *testing.T, cfg *config.Config, lister *stubMeshLister) *Updater {
+	t.Helper()
+	u := New(cfg, false, false, nil, nil, "", "table")
+	u.ListMeshRevisions = lister.list
+	return u
+}
+
+func TestUpdater_FetchAzureAKSMeshRevisions_IntersectAndHighest(t *testing.T) {
+	t.Setenv("AZURE_SUBSCRIPTION_ID", "00000000-0000-0000-0000-000000000000")
+
+	source := config.Source{
+		AzureAKSMeshRevisions: &config.AzureAKSMeshRevisionsSource{
+			Locations: []string{"uksouth", "westus3", "eastus2"},
+		},
+	}
+	lister := &stubMeshLister{byLocation: map[string][]string{
+		"uksouth": {"asm-1-28", "asm-1-29", "asm-1-30"},
+		"westus3": {"asm-1-28", "asm-1-29"}, // no 1-30 yet
+		"eastus2": {"asm-1-28", "asm-1-29", "asm-1-30"},
+	}}
+	u := newMeshUpdater(t, &config.Config{}, lister)
+	ctx := logr.NewContext(context.Background(), testLogger())
+
+	tag, err := u.fetchAzureAKSMeshRevisions(ctx, testLogger(), source)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tag.Name != "asm-1-29" {
+		t.Errorf("got %q, want asm-1-29 (highest common across all locations)", tag.Name)
+	}
+	if len(lister.calls) != 3 {
+		t.Errorf("expected 3 location calls, got %d (%v)", len(lister.calls), lister.calls)
+	}
+}
+
+func TestUpdater_FetchAzureAKSMeshRevisions_PinBypassesFetch(t *testing.T) {
+	// Pin must short-circuit before touching ARM even if env is unset.
+	source := config.Source{
+		AzureAKSMeshRevisions: &config.AzureAKSMeshRevisionsSource{
+			Locations: []string{"uksouth"},
+		},
+		PinnedMeshRevision: "asm-1-28",
+	}
+	lister := &stubMeshLister{err: fmt.Errorf("should not be called")}
+	u := newMeshUpdater(t, &config.Config{}, lister)
+	ctx := logr.NewContext(context.Background(), testLogger())
+
+	tag, err := u.fetchAzureAKSMeshRevisions(ctx, testLogger(), source)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tag.Name != "asm-1-28" {
+		t.Errorf("got %q, want asm-1-28", tag.Name)
+	}
+	if len(lister.calls) != 0 {
+		t.Errorf("expected 0 ARM calls under pin, got %d", len(lister.calls))
+	}
+}
+
+func TestUpdater_FetchAzureAKSMeshRevisions_MaxCap(t *testing.T) {
+	t.Setenv("AZURE_SUBSCRIPTION_ID", "00000000-0000-0000-0000-000000000000")
+	source := config.Source{
+		AzureAKSMeshRevisions: &config.AzureAKSMeshRevisionsSource{
+			Locations: []string{"uksouth"},
+		},
+		MaxMeshRevision: "asm-1-29",
+	}
+	lister := &stubMeshLister{byLocation: map[string][]string{
+		"uksouth": {"asm-1-28", "asm-1-29", "asm-1-30"},
+	}}
+	u := newMeshUpdater(t, &config.Config{}, lister)
+	ctx := logr.NewContext(context.Background(), testLogger())
+
+	tag, err := u.fetchAzureAKSMeshRevisions(ctx, testLogger(), source)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tag.Name != "asm-1-29" {
+		t.Errorf("got %q, want asm-1-29 (cap applied)", tag.Name)
+	}
+}
+
+func TestUpdater_FetchAzureAKSMeshRevisions_MissingSubscription(t *testing.T) {
+	t.Setenv("AZURE_SUBSCRIPTION_ID", "")
+	source := config.Source{
+		AzureAKSMeshRevisions: &config.AzureAKSMeshRevisionsSource{
+			Locations: []string{"uksouth"},
+		},
+	}
+	lister := &stubMeshLister{err: fmt.Errorf("should not be called")}
+	u := newMeshUpdater(t, &config.Config{}, lister)
+	ctx := logr.NewContext(context.Background(), testLogger())
+
+	_, err := u.fetchAzureAKSMeshRevisions(ctx, testLogger(), source)
+	if err == nil || !strings.Contains(err.Error(), "resolve subscription") {
+		t.Errorf("expected 'resolve subscription' error, got %v", err)
+	}
+}
+
+func TestUpdater_FetchAzureAKSMeshRevisions_LocationErrorFailsFast(t *testing.T) {
+	t.Setenv("AZURE_SUBSCRIPTION_ID", "00000000-0000-0000-0000-000000000000")
+	source := config.Source{
+		AzureAKSMeshRevisions: &config.AzureAKSMeshRevisionsSource{
+			Locations: []string{"uksouth", "westus3"},
+		},
+	}
+	lister := &stubMeshLister{err: fmt.Errorf("transient outage")}
+	u := newMeshUpdater(t, &config.Config{}, lister)
+	ctx := logr.NewContext(context.Background(), testLogger())
+
+	_, err := u.fetchAzureAKSMeshRevisions(ctx, testLogger(), source)
+	if err == nil || !strings.Contains(err.Error(), "transient outage") {
+		t.Errorf("expected transient outage error, got %v", err)
+	}
+}
+
+func TestUpdater_FetchAzureAKSMeshRevisions_EmptyIntersection(t *testing.T) {
+	t.Setenv("AZURE_SUBSCRIPTION_ID", "00000000-0000-0000-0000-000000000000")
+	source := config.Source{
+		AzureAKSMeshRevisions: &config.AzureAKSMeshRevisionsSource{
+			Locations: []string{"uksouth", "westus3"},
+		},
+	}
+	lister := &stubMeshLister{byLocation: map[string][]string{
+		"uksouth": {"asm-1-30"},
+		"westus3": {"asm-1-28"},
+	}}
+	u := newMeshUpdater(t, &config.Config{}, lister)
+	ctx := logr.NewContext(context.Background(), testLogger())
+
+	_, err := u.fetchAzureAKSMeshRevisions(ctx, testLogger(), source)
+	if err == nil || !strings.Contains(err.Error(), "no revision is available in every location") {
+		t.Errorf("expected empty-intersection error, got %v", err)
+	}
+}
+
+// Mirrors the new default-tracking semantics: each region reports a single
+// "default" revision, and the tool only advances when every region agrees.
+// This is the "wait for the rollout to finish" behaviour we rely on.
+func TestUpdater_FetchAzureAKSMeshRevisions_DefaultTracking_MidRolloutHolds(t *testing.T) {
+	t.Setenv("AZURE_SUBSCRIPTION_ID", "00000000-0000-0000-0000-000000000000")
+	source := config.Source{
+		AzureAKSMeshRevisions: &config.AzureAKSMeshRevisionsSource{
+			Locations: []string{"uksouth", "westus3", "eastus2", "australiaeast"},
+		},
+	}
+	lister := &stubMeshLister{byLocation: map[string][]string{
+		"uksouth":       {"asm-1-30"}, // promoted ahead
+		"westus3":       {"asm-1-29"},
+		"eastus2":       {"asm-1-29"},
+		"australiaeast": {"asm-1-29"},
+	}}
+	u := newMeshUpdater(t, &config.Config{}, lister)
+	ctx := logr.NewContext(context.Background(), testLogger())
+
+	_, err := u.fetchAzureAKSMeshRevisions(ctx, testLogger(), source)
+	if err == nil || !strings.Contains(err.Error(), "no revision is available in every location") {
+		t.Errorf("expected empty-intersection error while promotion is mid-flight, got %v", err)
+	}
+}
+
+// Steady state: every region reports the same default → tool advances.
+func TestUpdater_FetchAzureAKSMeshRevisions_DefaultTracking_SteadyState(t *testing.T) {
+	t.Setenv("AZURE_SUBSCRIPTION_ID", "00000000-0000-0000-0000-000000000000")
+	source := config.Source{
+		AzureAKSMeshRevisions: &config.AzureAKSMeshRevisionsSource{
+			Locations: []string{"uksouth", "westus3", "eastus2", "australiaeast"},
+		},
+	}
+	lister := &stubMeshLister{byLocation: map[string][]string{
+		"uksouth":       {"asm-1-29"},
+		"westus3":       {"asm-1-29"},
+		"eastus2":       {"asm-1-29"},
+		"australiaeast": {"asm-1-29"},
+	}}
+	u := newMeshUpdater(t, &config.Config{}, lister)
+	ctx := logr.NewContext(context.Background(), testLogger())
+
+	got, err := u.fetchAzureAKSMeshRevisions(ctx, testLogger(), source)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Name != "asm-1-29" {
+		t.Errorf("got %q, want asm-1-29", got.Name)
+	}
+}

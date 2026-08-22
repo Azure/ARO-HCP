@@ -265,7 +265,7 @@ func TestValidateConfig(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrMsg: "source image or githubLatestRelease is required",
+			wantErrMsg: "source image or one of [githubLatestRelease, azureAKSMeshRevisions] is required",
 		},
 		{
 			name: "no targets configured",
