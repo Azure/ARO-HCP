@@ -3571,7 +3571,7 @@ spec:
         - name: OPERAND_IMAGE_POSTGRESQL_13
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-13@sha256:1234567890'
         - name: OPERATOR_VERSION
-          value: 2.11.5
+          value: 2.11.6
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
