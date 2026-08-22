@@ -12,6 +12,19 @@
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
         "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "enable": true,
+        "expr": "ALERTS{alertname=~\"UJClusterProvision.*\", alertstate=\"firing\"}",
+        "iconColor": "red",
+        "name": "Cluster Provision SLO Alerts",
+        "titleFormat": "{{alertname}}",
+        "textFormat": "{{alertname}} firing on {{cluster}}",
+        "step": "60s"
       }
     ]
   },
@@ -1877,6 +1890,182 @@
         }
       ],
       "type": "histogram"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 89
+      },
+      "id": 31,
+      "panels": [],
+      "title": "SLO Alert Status",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Current state of cluster provisioning SLO burn-rate alerts. Green = OK, Red = FIRING. Alerts are defined in cluster-provision-slo-prometheusRule.yaml.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "OK"
+                },
+                "1": {
+                  "color": "red",
+                  "index": 1,
+                  "text": "FIRING"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 90
+      },
+      "id": 32,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(ALERTS{alertname=\"UJClusterProvisionErrors1h5m\", alertstate=\"firing\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Fast Burn (1h/5m)",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(ALERTS{alertname=\"UJClusterProvisionErrors6h30m\", alertstate=\"firing\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Medium Burn (6h/30m)",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(ALERTS{alertname=\"UJClusterProvisionErrors3d\", alertstate=\"firing\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Slow Burn (3d/6h)",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "max(ALERTS{alertname=\"UJClusterProvisionErrorsDegradation\", alertstate=\"firing\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Degradation (15%/30m)",
+          "range": false,
+          "refId": "D"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "max"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (max)",
+                "handlerKey": "field.value"
+              }
+            ]
+          }
+        }
+      ],
+      "title": "SLO Alert Status",
+      "type": "stat"
     }
   ],
   "preload": false,
