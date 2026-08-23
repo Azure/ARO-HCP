@@ -234,15 +234,17 @@ var _ = Describe("Customer", func() {
 					Replicas: to.Ptr(initialReplicas),
 				},
 			}
-			// Scale-down ARM LROs take >60 minutes due to VM deprovisioning in Azure;
-			// fire-and-forget the PATCH and verify convergence via kubectl node count.
+			// Scale-down ARM LROs block until Azure VM deprovisioning completes (>60 min).
+			// Fire-and-forget the PATCH, then verify the Kubernetes node count via kubectl
+			// from inside the VM. The node object disappears only after the Azure VM is
+			// fully deleted, so we allow up to 3×NodePoolScalingTimeout for convergence.
 			_, err = tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient().BeginUpdate(
 				ctx, *resourceGroup.Name, customerClusterName, customerNodePoolName, update, nil,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to initiate scale-down for node pool %q from %d to %d replicas",
 				customerNodePoolName, scaledUpReplicas, initialReplicas)
 
-			By("verifying scaled-down node count and ready status")
+			By("verifying scaled-down node count via kubectl from inside the VNet")
 			Eventually(func(g Gomega) {
 				nodesCmd := fmt.Sprintf(
 					"KUBECONFIG=$(mktemp) && "+
@@ -260,11 +262,13 @@ var _ = Describe("Customer", func() {
 						nodeLines = append(nodeLines, l)
 					}
 				}
-				g.Expect(nodeLines).To(HaveLen(int(initialReplicas)), "expected %d nodes after scale down, got output: %s", initialReplicas, output)
+				g.Expect(nodeLines).To(HaveLen(int(initialReplicas)),
+					"expected %d nodes after scale down, got output: %s", initialReplicas, output)
 				for _, line := range nodeLines {
 					g.Expect(line).To(ContainSubstring(" Ready "), "node not in Ready state after scale down: %s", line)
 				}
-			}, framework.NodePoolScalingTimeout, 30*time.Second).Should(Succeed(), "all %d nodes should be Ready after scale down", initialReplicas)
+			}, 60*time.Minute, 30*time.Second).Should(Succeed(),
+				"all %d nodes should be Ready after scale down", initialReplicas)
 			GinkgoLogr.Info("Private cluster nodepool scaling verified successfully",
 				"clusterName", customerClusterName)
 		},
