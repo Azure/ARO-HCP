@@ -271,9 +271,9 @@ func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation,
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
 	}
 
-	// Skip version format validation if version hasn't changed
+	// Skip version ID validation if version hasn't changed
 	if oldObj == nil || newObj.ID != oldObj.ID {
-		errs = append(errs, OpenShiftWithOptionalPrerelease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
+		errs = append(errs, validateNodePoolVersionID(ctx, op, fldPath, newObj, oldObj)...)
 	}
 
 	//ChannelGroup string `json:"channelGroup,omitempty"`
@@ -281,12 +281,22 @@ func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation,
 
 	if !op.HasOption(metadataapi.FeatureExperimentalReleaseFeatures) {
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup), metadataapi.AllowedChannelGroups, nil)...)
-		// without feature flag, only allow version 4.20.8 and above
-		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20.8")...)
 	} else {
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup), metadataapi.AllowedChannelGroupsWithExperimentalFlag, nil)...)
 	}
 
+	return errs
+}
+
+// validateNodePoolVersionID validates the version ID format and checks it against the minimum version requirement.
+func validateNodePoolVersionID(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *coreapi.NodePoolVersionProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, OpenShiftWithOptionalPrerelease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
+	if len(errs) == 0 {
+		// Only validate if version is valid, otherwise we'll get a duplicate invalid version error
+		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20.8")...)
+	}
 	return errs
 }
 
