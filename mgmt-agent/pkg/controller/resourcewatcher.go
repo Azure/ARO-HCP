@@ -40,7 +40,7 @@ var watchedGroupSuffixes = []string{
 	"hypershift.openshift.io",
 	"agent-install.openshift.io",
 	"multicluster.openshift.io",
-	"multitenancy.acn.azure.com",
+	"acn.azure.com",
 	"velero.io",
 }
 

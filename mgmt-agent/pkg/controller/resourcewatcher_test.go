@@ -36,6 +36,7 @@ func TestMatchesGroupSuffix(t *testing.T) {
 		{"agent-install.openshift.io", true},
 		{"capi-provider.agent-install.openshift.io", true},
 		{"multicluster.openshift.io", true},
+		{"acn.azure.com", true},
 		{"multitenancy.acn.azure.com", true},
 		{"velero.io", true},
 		{"", false},
@@ -107,7 +108,7 @@ func TestDiscoverGVRs(t *testing.T) {
 				{
 					GroupVersion: "multitenancy.acn.azure.com/v1alpha1",
 					APIResources: []metav1.APIResource{
-						{Name: "podnetworkconfigs", Verbs: metav1.Verbs{"list", "watch"}},
+						{Name: "multitenantpodnetworkconfigs", Verbs: metav1.Verbs{"list", "watch"}},
 					},
 				},
 			},
@@ -123,7 +124,7 @@ func TestDiscoverGVRs(t *testing.T) {
 		{Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "hostedclusters"},
 		{Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "nodepools"},
 		{Group: "work.open-cluster-management.io", Version: "v1", Resource: "manifestworks"},
-		{Group: "multitenancy.acn.azure.com", Version: "v1alpha1", Resource: "podnetworkconfigs"},
+		{Group: "multitenancy.acn.azure.com", Version: "v1alpha1", Resource: "multitenantpodnetworkconfigs"},
 	}
 
 	if len(gvrs) != len(expected) {
