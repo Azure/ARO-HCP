@@ -233,9 +233,8 @@ data:
         # filter's Namespace_annotations On). This is the namespace-annotation
         # alternative to resolving the ID from the ACM-managed /shoebox-config file
         # mapping. Only mgmt clusters emit ocm.logs to the containerLogs Kusto table.
-        # Fail-soft: records without the annotation are left unchanged. Runs before the
-        # shoebox re-tag; transform-shoebox.lua builds its own record, so shoebox output
-        # is unaffected.
+        # Fail-soft: records without the annotation are left unchanged. This runs before
+        # the shoebox re-tag so transform-shoebox.lua can reuse the normalized cluster_id.
         Name            lua
         Alias           lua.set_cluster_id_from_annotation
         Match           ocm.logs
@@ -346,10 +345,6 @@ data:
     -- Lua script for transforming Kubernetes control plane logs to Shoebox format.
     -- Supports all 11 log categories defined in the Shoebox manifest.
 
-    -- Cache for resourceId lookups (namespace -> resourceId)
-    -- ResourceIds are immutable per cluster, so we cache forever
-    local resourceid_cache = {}
-
     -- Container name to category mapping
     local container_category_map = {
         ["audit-logs"] = "kube-audit",
@@ -360,27 +355,6 @@ data:
         ["snapshot-controller"] = "csi-snapshot-controller",
         ["cluster-autoscaler"] = "cluster-autoscaler"
     }
-
-    -- Get resourceId for a namespace by reading the corresponding file
-    local function get_resource_id(namespace)
-        local cached = resourceid_cache[namespace]
-        if cached then
-            return cached
-        end
-
-        local filepath = "/shoebox-config/" .. namespace
-        local file = io.open(filepath, "r")
-        if file then
-            local resourceId = file:read("*all")
-            file:close()
-            resourceId = resourceId:match("^%s*(.-)%s*$")
-            resourceId = string.upper(resourceId)
-            resourceid_cache[namespace] = resourceId
-            return resourceId
-        end
-
-        return nil
-    end
 
     -- Determine category based on container name and pod name
     local function get_category(container_name, pod_name, log_data)
@@ -420,14 +394,10 @@ data:
 
     -- Transform Kubernetes control plane log to Shoebox format
     function transform_to_shoebox(tag, timestamp, record)
-        local namespace = ""
         local container_name = ""
         local pod_name = ""
 
         if record["kubernetes"] then
-            if record["kubernetes"]["namespace_name"] then
-                namespace = record["kubernetes"]["namespace_name"]
-            end
             if record["kubernetes"]["container_name"] then
                 container_name = record["kubernetes"]["container_name"]
             end
@@ -436,7 +406,9 @@ data:
             end
         end
 
-        local resourceId = get_resource_id(namespace)
+        -- set-cluster-id-from-annotation.lua runs on ocm.logs before the Shoebox
+        -- re-tag and normalizes the namespace annotation into this top-level field.
+        local resourceId = record["cluster_id"]
 
         if not resourceId or resourceId == "" then
             return -1, 0, 0
