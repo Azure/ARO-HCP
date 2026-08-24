@@ -73,6 +73,7 @@ kql: |-
       database('ServiceLogs').table('containerLogs')
       | where timestamp between (_startTime .. _endTime)
       | where namespace_name has "maestro"
+      | where isnotempty(cluster_id)
       | extend logStr = tostring(log)
       | where logStr has cluster_id
       | extend resourceId = extract(@'resourceid[=:"]+([a-f0-9\-]+)', 1, logStr)
@@ -87,6 +88,7 @@ kql: |-
           database('ServiceLogs').table('containerLogs')
           | where timestamp between (_startTime .. _endTime)
           | where namespace_name has "maestro"
+          | where isnotempty(cluster_id)
           | extend logStr = tostring(log)
           | where logStr has cluster_id or logStr has_any (maestro_resource_ids)
           | project timestamp, container_name, msg = logStr, log
@@ -97,6 +99,7 @@ kql: |-
           database('ServiceLogs').table('containerLogs')
           | where timestamp between (_startTime .. _endTime)
           | where namespace_name has "hypershift"
+          | where isnotempty(cluster_id)
           | extend logStr = tostring(log)
           | where logStr has cluster_id
           | project timestamp, container_name, msg = logStr, log
@@ -107,6 +110,7 @@ kql: |-
           database('ServiceLogs').table('containerLogs')
           | where timestamp between (_startTime .. _endTime)
           | where namespace_name has "open-cluster-management-agent"
+          | where isnotempty(cluster_id)
           | extend logStr = tostring(log)
           | where logStr has cluster_id
           | project timestamp, container_name, msg = logStr, log
