@@ -319,3 +319,10 @@ func (g *mockFleetGlobalListers) ManagementClusters() cosmosstorageutils.GlobalL
 		[]azcorearm.ResourceType{fleetapi.ManagementClusterResourceType},
 	)
 }
+
+func (g *mockFleetGlobalListers) ManagementClusterSchedulings() cosmosstorageutils.GlobalLister[fleetapi.ManagementClusterScheduling] {
+	return corecosmosstoragetesting.NewMockGlobalLister[fleetapi.ManagementClusterScheduling, cosmosstorageutils.GenericDocument[fleetapi.ManagementClusterScheduling]](
+		g.client,
+		[]azcorearm.ResourceType{fleetapi.ManagementClusterSchedulingResourceType},
+	)
+}

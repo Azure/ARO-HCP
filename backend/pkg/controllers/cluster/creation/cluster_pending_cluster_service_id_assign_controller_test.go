@@ -36,16 +36,26 @@ import (
 func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 	clusterInternalID := metadataapi.Must(metadataapi.NewInternalID(testClusterServiceIDStr))
 
+	// placedSPC is a ServiceProviderCluster whose Spec.ManagementClusterResourceID
+	// is set (placement resolved by the PlacementController).
+	placedSPC := func() *coreapi.ServiceProviderCluster {
+		return newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+			spc.Spec.ManagementClusterResourceID = testManagementClusterResourceID()
+		})
+	}
+
 	tests := []struct {
 		name        string
 		listCluster *coreapi.HCPOpenShiftCluster
+		listSPC     *coreapi.ServiceProviderCluster // seeded into the SPC lister (nil = not found)
 		dbCluster   *coreapi.HCPOpenShiftCluster
 		expectError bool
 		verifyDB    func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient)
 	}{
 		{
-			name:        "assigns PendingClusterServiceID when both IDs are nil",
+			name:        "assigns PendingClusterServiceID when placement resolved and both IDs nil",
 			listCluster: newTestCluster(),
+			listSPC:     placedSPC(),
 			dbCluster:   newTestCluster(),
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
@@ -57,10 +67,35 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			},
 		},
 		{
+			name:        "skip when placement not resolved (Spec.ManagementClusterResourceID nil)",
+			listCluster: newTestCluster(),
+			listSPC:     newTestSPC(), // Spec.ManagementClusterResourceID nil
+			dbCluster:   newTestCluster(),
+			expectError: false,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Nil(t, cluster.ServiceProviderProperties.PendingClusterServiceID)
+			},
+		},
+		{
+			name:        "skip when ServiceProviderCluster not found",
+			listCluster: newTestCluster(),
+			listSPC:     nil,
+			dbCluster:   newTestCluster(),
+			expectError: false,
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Nil(t, cluster.ServiceProviderProperties.PendingClusterServiceID)
+			},
+		},
+		{
 			name: "skip when PendingClusterServiceID already set",
 			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &clusterInternalID
 			}),
+			listSPC: placedSPC(),
 			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.PendingClusterServiceID = &clusterInternalID
 			}),
@@ -77,6 +112,7 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			listCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
 			}),
+			listSPC: placedSPC(),
 			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.ClusterServiceID = &clusterInternalID
 			}),
@@ -93,6 +129,7 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
 			}),
+			listSPC: placedSPC(),
 			dbCluster: newTestCluster(func(c *coreapi.HCPOpenShiftCluster) {
 				now := metav1.Now()
 				c.ServiceProviderProperties.DeletionTimestamp = &now
@@ -107,6 +144,7 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 		{
 			name:        "skip when cluster not found in lister",
 			listCluster: nil,
+			listSPC:     placedSPC(),
 			dbCluster:   newTestCluster(),
 			expectError: false,
 			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient) {
@@ -129,9 +167,14 @@ func TestClusterPendingClusterServiceIDAssign_SyncOnce(t *testing.T) {
 			if tt.listCluster != nil {
 				listerClusters = []*coreapi.HCPOpenShiftCluster{tt.listCluster}
 			}
+			var listerSPCs []*coreapi.ServiceProviderCluster
+			if tt.listSPC != nil {
+				listerSPCs = []*coreapi.ServiceProviderCluster{tt.listSPC}
+			}
 			syncer := &clusterPendingClusterServiceIDAssignSyncer{
-				resourcesDBClient: mockDB,
-				clusterLister:     &corelistertesting.SliceClusterLister{Clusters: listerClusters},
+				resourcesDBClient:            mockDB,
+				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: listerClusters},
+				serviceProviderClusterLister: &corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: listerSPCs},
 			}
 
 			key := controllerutils.HCPClusterKey{

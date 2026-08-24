@@ -29,15 +29,17 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/informers/coreinformers"
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
+	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type clusterClusterServiceCreateSyncer struct {
-	resourcesDBClient     corecosmosstorage.ResourcesDBClient
-	clusterLister         corelisters.ClusterLister
-	subscriptionLister    corelisters.SubscriptionLister
-	clustersServiceClient ocm.ClusterServiceClientSpec
+	resourcesDBClient       corecosmosstorage.ResourcesDBClient
+	clusterLister           corelisters.ClusterLister
+	subscriptionLister      corelisters.SubscriptionLister
+	managementClusterLister fleetlisters.ManagementClusterLister
+	clustersServiceClient   ocm.ClusterServiceClientSpec
 	// denyAssignmentsEnabled mirrors whether the ClusterDenyAssignment controller runs (i.e. a real
 	// FPA is available). When false, cluster creation must not wait for deny assignments to be
 	// created, because nothing creates them.
@@ -49,17 +51,19 @@ var _ controllerutils.ClusterSyncer = (*clusterClusterServiceCreateSyncer)(nil)
 func NewClusterClusterServiceCreateController(
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
+	managementClusterLister fleetlisters.ManagementClusterLister,
 	backendInformers coreinformers.BackendInformers,
 	denyAssignmentsEnabled bool,
 ) controllerutils.Controller {
 	_, clusterLister := backendInformers.Clusters()
 	_, subscriptionLister := backendInformers.Subscriptions()
 	syncer := &clusterClusterServiceCreateSyncer{
-		resourcesDBClient:      resourcesDBClient,
-		clusterLister:          clusterLister,
-		subscriptionLister:     subscriptionLister,
-		clustersServiceClient:  clustersServiceClient,
-		denyAssignmentsEnabled: denyAssignmentsEnabled,
+		resourcesDBClient:       resourcesDBClient,
+		clusterLister:           clusterLister,
+		subscriptionLister:      subscriptionLister,
+		managementClusterLister: managementClusterLister,
+		clustersServiceClient:   clustersServiceClient,
+		denyAssignmentsEnabled:  denyAssignmentsEnabled,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -137,6 +141,17 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	}
 
 	if csCluster == nil {
+		// Placement gate: the scheduler records its chosen management cluster on
+		// ServiceProviderCluster.Spec.ManagementClusterResourceID, which
+		// createClusterServiceCluster needs to pin the Cluster Service provision
+		// shard. If placement has not been resolved yet, do not create the CS
+		// cluster and do not return an error: erroring would re-enqueue and churn
+		// the workqueue. Return nil instead — the ServiceProviderCluster update the
+		// PlacementController makes once placement lands re-triggers this cluster.
+		if existingServiceProviderCluster.Spec.ManagementClusterResourceID == nil {
+			logger.Info("ServiceProviderCluster has no Spec.ManagementClusterResourceID yet; deferring Cluster Service cluster creation until placement is resolved")
+			return nil
+		}
 		csCluster, err = c.createClusterServiceCluster(ctx, cluster, existingServiceProviderCluster, tenantID)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to create cluster in CS: %w", err))
@@ -241,10 +256,18 @@ func (c *clusterClusterServiceCreateSyncer) csClustersMatchingClusterByAzureInfo
 func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
 	logger := utils.LoggerFromContext(ctx)
 
+	provisionShardID, err := c.provisionShardID(ctx, serviceProviderCluster)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
 	csClusterBuilder, err := ocm.BuildCSCluster(cluster.ID, tenantID, cluster, nil, nil, serviceProviderCluster)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
 	}
+	// Pin the CS provision shard for the scheduler-selected management cluster via
+	// the SDK builder method.
+	csClusterBuilder.ProvisionShardID(provisionShardID)
 	clusterServiceUID := cluster.ServiceProviderProperties.PendingClusterServiceID.ClusterID()
 
 	logger.Info("Creating cluster in Cluster Service", "version", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String())
@@ -258,4 +281,37 @@ func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx cont
 	}
 
 	return result, nil
+}
+
+// provisionShardID resolves the Cluster Service provision shard ID for the
+// management cluster the scheduler pinned on
+// ServiceProviderCluster.Spec.ManagementClusterResourceID. The caller sets it on
+// the CS cluster via ClusterBuilder.ProvisionShardID so the new CS cluster is
+// created on the correct provision shard.
+func (c *clusterClusterServiceCreateSyncer) provisionShardID(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) (string, error) {
+	managementClusterResourceID := serviceProviderCluster.Spec.ManagementClusterResourceID
+	if managementClusterResourceID == nil {
+		return "", fmt.Errorf("ServiceProviderCluster has no Spec.ManagementClusterResourceID; placement is not resolved")
+	}
+	// A management cluster is a singleton within a stamp, so its resource ID is
+	// .../stamps/<stampIdentifier>/managementClusters/default and the lister is
+	// keyed by the stamp identifier (the parent segment's name).
+	if managementClusterResourceID.Parent == nil {
+		return "", fmt.Errorf("management cluster resource ID %q has no parent stamp", managementClusterResourceID.String())
+	}
+	stampIdentifier := managementClusterResourceID.Parent.Name
+
+	managementCluster, err := c.managementClusterLister.Get(ctx, stampIdentifier)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return "", fmt.Errorf("management cluster %q not found", managementClusterResourceID.String())
+	}
+	if err != nil {
+		return "", utils.TrackError(fmt.Errorf("failed to get management cluster %q: %w", managementClusterResourceID.String(), err))
+	}
+
+	if managementCluster.Status.ClusterServiceProvisionShardID == nil {
+		return "", fmt.Errorf("management cluster %q has no ClusterServiceProvisionShardID", managementClusterResourceID.String())
+	}
+
+	return managementCluster.Status.ClusterServiceProvisionShardID.ID(), nil
 }

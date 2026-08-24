@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,6 +35,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
@@ -258,6 +260,70 @@ func TestSyncOnce_MirrorsReadyAndNotReadyResourceIDs(t *testing.T) {
 
 	assert.Equal(t, readyIDs, scheduling.Status.ReadyResourceIDs, "Status.ReadyResourceIDs must mirror the CapacityReport")
 	assert.Equal(t, notReadyIDs, scheduling.Status.NotReadyResourceIDs, "Status.NotReadyResourceIDs must mirror the CapacityReport")
+}
+
+func TestDropObservedPendingAssignments(t *testing.T) {
+	ridA := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/a"))
+	ridB := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/b"))
+	ridC := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c"))
+	pending := []*azcorearm.ResourceID{ridA, ridB, ridC}
+
+	// A observed via Ready, C observed via NotReady, B still pending.
+	kept := dropObservedPendingAssignments(pending, []string{ridA.String()}, []string{ridC.String()})
+	require.Len(t, kept, 1)
+	assert.Equal(t, strings.ToLower(ridB.String()), strings.ToLower(kept[0].String()))
+
+	// None observed -> unchanged.
+	assert.Len(t, dropObservedPendingAssignments(pending, nil, nil), 3)
+
+	// All observed -> nil.
+	assert.Nil(t, dropObservedPendingAssignments(pending, []string{ridA.String(), ridB.String()}, []string{ridC.String()}))
+
+	// Empty pending -> nil (both nil and empty-non-nil inputs).
+	assert.Nil(t, dropObservedPendingAssignments(nil, []string{ridA.String()}, nil))
+	assert.Nil(t, dropObservedPendingAssignments([]*azcorearm.ResourceID{}, []string{ridA.String()}, nil))
+}
+
+func TestSyncOnce_DropsObservedPendingAssignments(t *testing.T) {
+	ctx := context.Background()
+
+	ridObserved := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/observed"))
+	ridStillPending := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/pending"))
+
+	report := &capacityreportv1alpha1.CapacityReport{
+		Status: capacityreportv1alpha1.CapacityReportStatus{
+			HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
+				ReadyResourceIDs: []string{ridObserved.String()},
+			},
+			Conditions: []metav1.Condition{
+				{Type: capacityreportv1alpha1.ConditionTypeReportCurrent, Status: metav1.ConditionTrue},
+			},
+		},
+	}
+	desire := buildTestReadDesire(report)
+	lister := &kubeapplierlistertesting.SliceReadDesireLister{Desires: []*kubeapplierapi.ReadDesire{desire}}
+
+	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+	// Pre-seed the scheduling doc with two pending reservations: one that the
+	// report now observes (Ready) and one that is still pending.
+	_, err := fleetDB.Stamps().ManagementClusters(testStampIdentifier).Scheduling().Create(ctx, &fleetapi.ManagementClusterScheduling{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(fleetapi.ToManagementClusterSchedulingResourceID(testStampIdentifier)),
+			PartitionKey: testStampIdentifier,
+		},
+		Status: fleetapi.ManagementClusterSchedulingStatus{
+			PendingAssignedClusters: []*azcorearm.ResourceID{ridObserved, ridStillPending},
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	syncer := &capacityReportingSyncer{fleetDBClient: fleetDB, readDesireLister: lister}
+	require.NoError(t, syncer.SyncOnce(ctx, testKey()))
+
+	scheduling, err := fleetDB.Stamps().ManagementClusters(testStampIdentifier).Scheduling().Get(ctx, fleetapi.SchedulingResourceName)
+	require.NoError(t, err)
+	require.Len(t, scheduling.Status.PendingAssignedClusters, 1, "observed pending reservation should be dropped")
+	assert.Equal(t, strings.ToLower(ridStillPending.String()), strings.ToLower(scheduling.Status.PendingAssignedClusters[0].String()))
 }
 
 // --- Test doubles for conflict-on-create scenario ---

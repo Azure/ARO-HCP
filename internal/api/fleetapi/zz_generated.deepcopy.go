@@ -20,6 +20,7 @@
 package fleetapi
 
 import (
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -273,6 +274,16 @@ func (in *ManagementClusterSchedulingStatus) DeepCopyInto(out *ManagementCluster
 		copy(*out, *in)
 	}
 	in.ScaleCeiling.DeepCopyInto(&out.ScaleCeiling)
+	if in.PendingAssignedClusters != nil {
+		in, out := &in.PendingAssignedClusters, &out.PendingAssignedClusters
+		*out = make([]*azcorearm.ResourceID, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = coreapi.DeepCopyResourceID(*in)
+			}
+		}
+	}
 	return
 }
 

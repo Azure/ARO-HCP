@@ -24,11 +24,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -143,10 +146,46 @@ func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, 
 	// Mirror the ready/not-ready HCP resource IDs from the CapacityReport CR.
 	updated.Status.ReadyResourceIDs = readyResourceIDs
 	updated.Status.NotReadyResourceIDs = notReadyResourceIDs
+	// Observation-based cleanup: drop pending reservations that are now observed
+	// (present in Ready ∪ NotReady). Their swift-NIC capacity is accounted for by
+	// the observed data, so the transient reservation is no longer needed.
+	updated.Status.PendingAssignedClusters = dropObservedPendingAssignments(updated.Status.PendingAssignedClusters, readyResourceIDs, notReadyResourceIDs)
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(err)
 	}
 	return nil
+}
+
+// dropObservedPendingAssignments returns pending reservations minus any whose
+// cluster resource ID now appears in the observed ready or not-ready sets. Nil
+// entries are dropped. It returns nil when nothing remains; because the field is
+// tagged omitempty, a nil slice is omitted from the serialized document rather
+// than encoded as an empty array.
+func dropObservedPendingAssignments(pending []*azcorearm.ResourceID, readyResourceIDs, notReadyResourceIDs []string) []*azcorearm.ResourceID {
+	if len(pending) == 0 {
+		return nil
+	}
+	observed := make(map[string]struct{}, len(readyResourceIDs)+len(notReadyResourceIDs))
+	for _, id := range readyResourceIDs {
+		observed[strings.ToLower(id)] = struct{}{}
+	}
+	for _, id := range notReadyResourceIDs {
+		observed[strings.ToLower(id)] = struct{}{}
+	}
+	kept := make([]*azcorearm.ResourceID, 0, len(pending))
+	for _, entry := range pending {
+		if entry == nil {
+			continue
+		}
+		if _, ok := observed[strings.ToLower(entry.String())]; ok {
+			continue // now observed → drop the reservation
+		}
+		kept = append(kept, entry)
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	return kept
 }
 
 // GetCapacityReport reads and unmarshals the CapacityReport from the

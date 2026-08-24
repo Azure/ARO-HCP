@@ -18,6 +18,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
@@ -87,6 +89,19 @@ type ManagementClusterSchedulingStatus struct {
 	//
 	// Written by: ScaleCeilingReportingController.
 	ScaleCeiling ScaleCeiling `json:"scaleCeiling"`
+
+	// PendingAssignedClusters holds the ARM resource IDs of HCPs the scheduler
+	// has just placed on this management cluster but whose HostedCluster is not
+	// yet observed in the CapacityReport (i.e. not yet in ReadyResourceIDs or
+	// NotReadyResourceIDs). Each pending entry reserves swift-NIC capacity so
+	// concurrent placement decisions do not overbook a management cluster before
+	// the workload shows up in the observed capacity data. Entries are removed
+	// once observed (by CapacityReportingController) or when the reservation
+	// becomes stale (by PendingCleanupController).
+	//
+	// +optional
+	// Written by: PlacementController, CapacityReportingController, PendingCleanupController.
+	PendingAssignedClusters []*azcorearm.ResourceID `json:"pendingAssignedClusters,omitempty"`
 }
 
 // ObservedResources reports the observed worker resource state of a

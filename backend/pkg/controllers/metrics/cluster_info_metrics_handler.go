@@ -26,20 +26,36 @@ import (
 )
 
 type clusterInfoMetricsHandler struct {
-	clusterInfo *prometheus.GaugeVec
+	clusterInfo   *prometheus.GaugeVec
+	placementTime *prometheus.GaugeVec
 }
 
-// NewClusterInfoMetricsHandler creates a metrics handler that emits a
-// backend_cluster_info gauge for each cluster, labeled with its management
-// cluster placement. Use PromQL joins to combine with other per-cluster metrics.
+// NewClusterInfoMetricsHandler creates a metrics handler that emits, per cluster:
+//
+//   - backend_cluster_info: an info gauge (value always 1) carrying the cluster's
+//     resource ID, subscription ID, and observed management-cluster placement
+//     (management_cluster_resource_id, mirrored from
+//     ServiceProviderCluster.Status.ManagementClusterResourceID). Use PromQL joins
+//     to combine it with other per-cluster metrics.
+//
+//   - backend_cluster_placement_time_seconds: a kube-state-metrics-style gauge
+//     emitted only once the scheduler has recorded placement intent
+//     (ServiceProviderCluster.Spec.ManagementClusterResourceID is set). Its value
+//     is the unix timestamp (seconds) at which placement was recorded
+//     (Spec.ManagementClusterPlacementTime) — a stable timestamp, not a duration.
+//     Compute time-to-placement in PromQL against the cluster's creation timestamp.
 func NewClusterInfoMetricsHandler(registerer prometheus.Registerer) Handler[*coreapi.ServiceProviderCluster] {
 	handler := &clusterInfoMetricsHandler{
 		clusterInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_cluster_info",
 			Help: "Info metric for clusters. Value is always 1.",
 		}, []string{"resource_id", "subscription_id", "management_cluster_resource_id"}),
+		placementTime: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "backend_cluster_placement_time_seconds",
+			Help: "Unix timestamp (seconds) at which the scheduler recorded a management-cluster placement (Spec.ManagementClusterPlacementTime). Emitted per cluster once placement intent is set; kube-state-metrics style — compute time-to-placement in PromQL against the cluster's creation timestamp.",
+		}, []string{"resource_id", "subscription_id"}),
 	}
-	registerer.MustRegister(handler.clusterInfo)
+	registerer.MustRegister(handler.clusterInfo, handler.placementTime)
 	return handler
 }
 
@@ -58,6 +74,19 @@ func (h *clusterInfoMetricsHandler) Sync(_ context.Context, serviceProviderClust
 		"subscription_id":                subscriptionID,
 		"management_cluster_resource_id": managementClusterResourceID,
 	}).Set(1.0)
+
+	// Placement time (kube-state-metrics style): expose the timestamp at which the
+	// scheduler recorded placement intent (Spec.ManagementClusterPlacementTime) as
+	// unix seconds. Clear any prior series first so an unplaced cluster — or one
+	// without a recorded placement timestamp — carries no stale series.
+	h.placementTime.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
+	if serviceProviderCluster.Spec.ManagementClusterResourceID == nil || serviceProviderCluster.Spec.ManagementClusterPlacementTime == nil {
+		return
+	}
+	h.placementTime.With(prometheus.Labels{
+		"resource_id":     resourceID,
+		"subscription_id": subscriptionID,
+	}).Set(float64(serviceProviderCluster.Spec.ManagementClusterPlacementTime.Unix()))
 }
 
 func (h *clusterInfoMetricsHandler) Delete(key string) {
@@ -69,6 +98,7 @@ func (h *clusterInfoMetricsHandler) Delete(key string) {
 		return
 	}
 	h.clusterInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
+	h.placementTime.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
 }
 
 func clusterResourceIDFromServiceProviderCluster(serviceProviderCluster *coreapi.ServiceProviderCluster) *azcorearm.ResourceID {
