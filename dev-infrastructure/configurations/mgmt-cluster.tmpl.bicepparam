@@ -20,8 +20,6 @@ param systemZoneRedundantMode = '{{ .mgmt.aks.systemAgentPool.zoneRedundantMode 
 param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
 param aksNetworkDataplane = '{{ .mgmt.aks.networkDataplane }}'
 param aksNetworkPolicy = '{{ .mgmt.aks.networkPolicy }}'
-param aksUpgradeSettingsMaxSurge = '{{ .mgmt.aks.upgradeSettings.maxSurge }}'
-param aksUpgradeSettingsMaxUnavailable = '{{ .mgmt.aks.upgradeSettings.maxUnavailable }}'
 
 // Maestro
 param maestroConsumerMIName = '{{ .maestro.agent.managedIdentityName }}'

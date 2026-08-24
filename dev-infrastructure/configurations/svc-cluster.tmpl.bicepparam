@@ -29,8 +29,6 @@ param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressI
 // istioctlVersion and targetVersion will be removed in a future cleanup.
 param aksNetworkDataplane = '{{ .svc.aks.networkDataplane }}'
 param aksNetworkPolicy = '{{ .svc.aks.networkPolicy }}'
-param aksUpgradeSettingsMaxSurge = '{{ .svc.aks.upgradeSettings.maxSurge }}'
-param aksUpgradeSettingsMaxUnavailable = '{{ .svc.aks.upgradeSettings.maxUnavailable }}'
 
 param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}'
 param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
