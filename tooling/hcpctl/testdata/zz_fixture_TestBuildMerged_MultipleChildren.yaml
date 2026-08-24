@@ -60,7 +60,7 @@ kql: |-
   let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
   let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
   // Extract cluster ID from CS logs using cid field
-  let cluster_id = toscalar(
+  let _cs_cluster_id = toscalar(
       database('ServiceLogs').table('clustersServiceLogs')
       | where timestamp between (_startTime .. _endTime)
       | where resource_id has 'test-rg'
@@ -74,7 +74,7 @@ kql: |-
       | where timestamp between (_startTime .. _endTime)
       | where namespace_name has "maestro"
       | extend logStr = tostring(log)
-      | where logStr has cluster_id
+      | where logStr has _cs_cluster_id
       | extend resourceId = extract(@'resourceid[=:"]+([a-f0-9\-]+)', 1, logStr)
       | where isnotempty(resourceId)
       | distinct resourceId
@@ -88,7 +88,7 @@ kql: |-
           | where timestamp between (_startTime .. _endTime)
           | where namespace_name has "maestro"
           | extend logStr = tostring(log)
-          | where logStr has cluster_id or logStr has_any (maestro_resource_ids)
+          | where logStr has _cs_cluster_id or logStr has_any (maestro_resource_ids)
           | project timestamp, container_name, msg = logStr, log
       ),
       (
@@ -98,7 +98,7 @@ kql: |-
           | where timestamp between (_startTime .. _endTime)
           | where namespace_name has "hypershift"
           | extend logStr = tostring(log)
-          | where logStr has cluster_id
+          | where logStr has _cs_cluster_id
           | project timestamp, container_name, msg = logStr, log
       ),
       (
@@ -108,7 +108,7 @@ kql: |-
           | where timestamp between (_startTime .. _endTime)
           | where namespace_name has "open-cluster-management-agent"
           | extend logStr = tostring(log)
-          | where logStr has cluster_id
+          | where logStr has _cs_cluster_id
           | project timestamp, container_name, msg = logStr, log
       )
   | order by timestamp asc
