@@ -250,7 +250,10 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 				OutboundType(csOutboundType)).
 			OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
 				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
-					ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
+					ControlPlaneOperatorsManagedIdentities(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder{
+						"kms": arohcpv1alpha1.NewAzureControlPlaneManagedIdentity().
+							ResourceID(coreapitesting.NewTestUserAssignedIdentity("KmsOperatorIdentity").String()),
+					}).
 					DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
 					ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
 			ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
@@ -690,7 +693,10 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 				OutboundType(csOutboundType)).
 			OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
 				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
-					ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
+					ControlPlaneOperatorsManagedIdentities(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder{
+						"kms": arohcpv1alpha1.NewAzureControlPlaneManagedIdentity().
+							ResourceID(coreapitesting.NewTestUserAssignedIdentity("KmsOperatorIdentity").String()),
+					}).
 					DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
 					ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
 			ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
@@ -1134,7 +1140,10 @@ func TestBuildCSCluster(t *testing.T) {
 						OutboundType(csOutboundType)).
 					OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
 						ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
-							ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
+							ControlPlaneOperatorsManagedIdentities(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder{
+								"kms": arohcpv1alpha1.NewAzureControlPlaneManagedIdentity().
+									ResourceID(coreapitesting.NewTestUserAssignedIdentity("KmsOperatorIdentity").String()),
+							}).
 							DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
 							ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
 					ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).
@@ -1204,7 +1213,10 @@ func TestBuildCSCluster(t *testing.T) {
 						OutboundType(csOutboundType)).
 					OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
 						ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
-							ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
+							ControlPlaneOperatorsManagedIdentities(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder{
+								"kms": arohcpv1alpha1.NewAzureControlPlaneManagedIdentity().
+									ResourceID(coreapitesting.NewTestUserAssignedIdentity("KmsOperatorIdentity").String()),
+							}).
 							DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
 							ManagedIdentitiesDataPlaneIdentityUrl(coreapitesting.TestManagedIdentitiesDataPlaneIdentityURL))).
 					ResourceGroupName(strings.ToLower(coreapitesting.TestResourceGroupName)).

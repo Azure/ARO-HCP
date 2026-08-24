@@ -524,6 +524,21 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 		},
 		{
+			name: "missing kms operator identity when kms encryption configured - create",
+			cluster: func() *coreapi.HCPOpenShiftCluster {
+				c := createValidCluster()
+				// Remove the kms identity from ControlPlaneOperators
+				delete(c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators, "kms")
+				// Also remove it from Identity.UserAssignedIdentities to avoid "identity assigned but not used" error
+				kmsIdentityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
+				delete(c.Identity.UserAssignedIdentities, kmsIdentityID)
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
+			},
+		},
+		{
 			name: "invalid cluster image registry state - create",
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -547,7 +562,9 @@ func TestValidateClusterCreate(t *testing.T) {
 				{Message: "Required value", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
-				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity]"},
+				{Message: "KMS operator identity is required when customer-managed KMS encryption is configured", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{
@@ -563,7 +580,9 @@ func TestValidateClusterCreate(t *testing.T) {
 				{Message: "resource ID must reference an instance of type", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity]"},
+				{Message: "KMS operator identity is required when customer-managed KMS encryption is configured", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{
@@ -581,6 +600,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				{Message: "Required value", FieldPath: "identity.type"},
 				{Message: "Unsupported value", FieldPath: "identity.state"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
 			},
 		},
@@ -599,6 +619,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "Unsupported value", FieldPath: "identity.state"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
 			},
 		},
@@ -618,6 +639,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				{Message: "resource ID must reference an instance of type", FieldPath: "identity.userAssignedIdentities"},
 				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{
@@ -654,6 +676,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity]"},
+				{Message: "KMS operator identity is required when customer-managed KMS encryption is configured", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{
@@ -672,6 +695,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "KMS operator identity is required when customer-managed KMS encryption is configured", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{
@@ -696,6 +720,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
 				{Message: "identity is used multiple times", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"},
+				{Message: "KMS operator identity is required when customer-managed KMS encryption is configured", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{
@@ -735,6 +760,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
 				{Message: "identity is used multiple times", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"},
+				{Message: "KMS operator identity is required when customer-managed KMS encryption is configured", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{
@@ -758,6 +784,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "cannot use identity assigned to this resource by .identities.userAssignedIdentities", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
 				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dataplane-identity]"},
+				{Message: "KMS operator identity is required when customer-managed KMS encryption is configured", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{
@@ -765,13 +792,17 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *coreapi.HCPOpenShiftCluster {
 				c := createValidCluster()
 				identityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity"
+				kmsIdentityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
-						identityID: {},
+						identityID:    {},
+						kmsIdentityID: {},
 					},
 				}
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"kms": metadataapi.Must(azcorearm.ParseResourceID(kmsIdentityID)),
+				}
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = metadataapi.Must(azcorearm.ParseResourceID(identityID))
 				return c
 			}(),
@@ -783,15 +814,18 @@ func TestValidateClusterCreate(t *testing.T) {
 				c := createValidCluster()
 				lowerCaseID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourcegroups/some-resource-group/providers/microsoft.managedidentity/userassignedidentities/test-identity"
 				upperCaseID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"
+				kmsIdentityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
 				c.Identity = &coreapi.ManagedServiceIdentity{
 					Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
-						lowerCaseID: {},
+						lowerCaseID:   {},
+						kmsIdentityID: {},
 					},
 				}
 				// Reference with different casing should work
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
 					"test-operator": metadataapi.Must(azcorearm.ParseResourceID(upperCaseID)),
+					"kms":           metadataapi.Must(azcorearm.ParseResourceID(kmsIdentityID)),
 				}
 				return c
 			}(),
@@ -812,6 +846,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.managedResourceGroup"},
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{
@@ -917,7 +952,9 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity]"},
+				{Message: "KMS operator identity is required when customer-managed KMS encryption is configured", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{
@@ -1501,6 +1538,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				{Message: "field is immutable", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator-2]"},
+				{Message: "KMS operator identity is required when customer-managed KMS encryption is configured", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 			},
 		},
 		{
@@ -2146,6 +2184,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "identity.principalId"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
@@ -2176,6 +2215,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "identity.tenantId"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
@@ -2208,6 +2248,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity].clientId"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
@@ -2240,6 +2281,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity].principalId"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[kms]"},
 				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
@@ -2601,17 +2643,21 @@ func createValidCluster() *coreapi.HCPOpenShiftCluster {
 	// Set ClusterUID for valid testing (generated by admission on CREATE; immutable thereafter)
 	cluster.ServiceProviderProperties.ClusterUID = "00000000-0000-0000-0000-000000000000"
 
-	// Set up user assigned identities for valid testing with matching subscription and location
-	identityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"
+	// Set up user assigned identities for valid testing with matching subscription and location.
+	// Include kms identity since the default cluster uses CustomerManaged KMS encryption.
+	testOperatorIdentityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"
+	kmsIdentityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms-identity"
 	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
-		"test-operator": metadataapi.Must(azcorearm.ParseResourceID(identityID)),
+		"test-operator": metadataapi.Must(azcorearm.ParseResourceID(testOperatorIdentityID)),
+		"kms":           metadataapi.Must(azcorearm.ParseResourceID(kmsIdentityID)),
 	}
 
-	// Add the identity to the cluster's identity section so it's properly assigned
+	// Add the identities to the cluster's identity section so they're properly assigned
 	cluster.Identity = &coreapi.ManagedServiceIdentity{
 		Type: coreapi.ManagedServiceIdentityTypeUserAssigned,
 		UserAssignedIdentities: map[string]*coreapi.UserAssignedIdentity{
-			identityID: {},
+			testOperatorIdentityID: {},
+			kmsIdentityID:          {},
 		},
 	}
 
