@@ -1,0 +1,183 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: velero-backup-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: velero-backup-alert-rules
+    labels:
+      component: velero
+    rules:
+    # ============================================================
+    # Velero Backup Alerting Rules
+    # ============================================================
+    # Velero runs on management clusters and backs up Hosted Clusters,
+    # NodePools, and HCP etcd. Schedules are named
+    # "<hostedClusterNamespace>-<cadence>", so the `schedule` label carries
+    # both the HostedCluster identity and the cadence. Rules that need
+    # per-HostedCluster scoping use `label_replace` to extract a
+    # `hosted_cluster` label and aggregate `by (cluster, hosted_cluster)`
+    # (never bare `by (cluster)`, which would let one HostedCluster's healthy
+    # backup mask another's failure on the same management cluster).
+    #
+    # `max without(prometheus_replica)` deduplicates HA Prometheus replicas
+    # before aggregation, matching the Velero Grafana dashboard queries.
+    #
+    # Owner: Service Lifecycle team (hcp-sl)
+
+    # ---- Stuck hourly backups (restore-point signal, pages) ---------------
+    # Hourly cadence is 1h; a recent hourly backup is what determines whether
+    # a valid restore point exists. Warn at >2h, page at >6h.
+    - alert: VeleroHourlyBackupStuckWarning
+      annotations:
+        summary: Velero hourly backup stuck for HostedCluster {{ $labels.hosted_cluster }} on {{ $labels.cluster }}
+        description: No successful Velero hourly backup for HostedCluster {{ $labels.hosted_cluster }} on management cluster {{ $labels.cluster }} in over 2 hours (last success {{ $value | humanizeDuration }} ago). Hourly cadence is 1h; this is the primary restore-point freshness signal.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+      expr: |
+        (
+          time()
+          - max by (cluster, hosted_cluster) (
+              max without (prometheus_replica) (
+                label_replace(
+                  velero_backup_last_successful_timestamp{schedule=~".+-hourly"},
+                  "hosted_cluster", "$1", "schedule", "(.+)-hourly"
+                )
+              )
+            )
+        ) > 2 * 3600
+      for: 15m
+      labels:
+        severity: "3"
+        team: hcp-sl
+    - alert: VeleroHourlyBackupStuckCritical
+      annotations:
+        summary: Velero hourly backup critically stuck for HostedCluster {{ $labels.hosted_cluster }} on {{ $labels.cluster }}
+        description: No successful Velero hourly backup for HostedCluster {{ $labels.hosted_cluster }} on management cluster {{ $labels.cluster }} in over 6 hours (last success {{ $value | humanizeDuration }} ago). HCP has no recent restore point; immediate investigation required.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+      expr: |
+        (
+          time()
+          - max by (cluster, hosted_cluster) (
+              max without (prometheus_replica) (
+                label_replace(
+                  velero_backup_last_successful_timestamp{schedule=~".+-hourly"},
+                  "hosted_cluster", "$1", "schedule", "(.+)-hourly"
+                )
+              )
+            )
+        ) > 6 * 3600
+      for: 15m
+      labels:
+        severity: "3"
+        team: hcp-sl
+    # ---- Stuck daily/weekly backups (retention signal, ticket-only) -------
+    # Daily/weekly cover longer-horizon retention (30d/90d TTLs), not restore
+    # readiness once hourly is healthy, so each cadence gets a single
+    # lower-severity alert (no separate critical tier).
+    #
+    # Note: the Velero Grafana dashboard's "Hours Since Last Backup" panel
+    # queries a 46h threshold (PR #6618) rather than 48h; that's a tracked
+    # dashboard bug, not an intentional difference from this alert's 24h.
+    - alert: VeleroDailyBackupStuck
+      annotations:
+        summary: Velero daily backup stuck for HostedCluster {{ $labels.hosted_cluster }} on {{ $labels.cluster }}
+        description: No successful Velero daily backup for HostedCluster {{ $labels.hosted_cluster }} on management cluster {{ $labels.cluster }} in over 24 hours (last success {{ $value | humanizeDuration }} ago). Daily cadence is 24h. Restore is not necessarily at risk if hourly backups are healthy; this affects 30-day retention/compliance coverage.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+      expr: |
+        (
+          time()
+          - max by (cluster, hosted_cluster) (
+              max without (prometheus_replica) (
+                label_replace(
+                  velero_backup_last_successful_timestamp{schedule=~".+-daily"},
+                  "hosted_cluster", "$1", "schedule", "(.+)-daily"
+                )
+              )
+            )
+        ) > 24 * 3600
+      for: 30m
+      labels:
+        severity: "4"
+        team: hcp-sl
+    - alert: VeleroWeeklyBackupStuck
+      annotations:
+        summary: Velero weekly backup stuck for HostedCluster {{ $labels.hosted_cluster }} on {{ $labels.cluster }}
+        description: No successful Velero weekly backup for HostedCluster {{ $labels.hosted_cluster }} on management cluster {{ $labels.cluster }} in over 168 hours (last success {{ $value | humanizeDuration }} ago). Weekly cadence is 7d. Restore is not necessarily at risk if hourly backups are healthy; this affects 90-day retention/compliance coverage.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+      expr: |
+        (
+          time()
+          - max by (cluster, hosted_cluster) (
+              max without (prometheus_replica) (
+                label_replace(
+                  velero_backup_last_successful_timestamp{schedule=~".+-weekly"},
+                  "hosted_cluster", "$1", "schedule", "(.+)-weekly"
+                )
+              )
+            )
+        ) > 168 * 3600
+      for: 30m
+      labels:
+        severity: "4"
+        team: hcp-sl
+    # ---- Elevated CSI snapshot failure rate -------------------------------
+    # Uses recorded rules (velero-recording-prometheusRule.yaml). Fires when
+    # >10% of CSI snapshot attempts failed over the last hour, gated on a
+    # minimum attempt volume to avoid noise on idle clusters.
+    - alert: VeleroCSISnapshotFailureRateHigh
+      annotations:
+        summary: Elevated Velero CSI snapshot failure rate on {{ $labels.cluster }}
+        description: '{{ $value | humanizePercentage }} of Velero CSI snapshot attempts failed on management cluster {{ $labels.cluster }} over the last hour (threshold 10%). Volume snapshots backing HCP backups may be failing.'
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+      expr: |
+        velero:csi_snapshot:failure_ratio1h > 0.10
+        and
+        velero:csi_snapshot_attempt:increase1h >= 2
+      for: 15m
+      labels:
+        severity: "3"
+        team: hcp-sl
+    # ---- Elevated backup deletion failure rate ----------------------------
+    # Mirrors the CSI snapshot alert above: fires when >10% of deletion
+    # attempts failed over the last hour, gated on a minimum attempt volume.
+    # Sustained failures leak backup storage and TTL enforcement.
+    - alert: VeleroBackupDeletionFailureRateHigh
+      annotations:
+        summary: Elevated Velero backup deletion failure rate on {{ $labels.cluster }}
+        description: '{{ $value | humanizePercentage }} of Velero backup deletion attempts failed on management cluster {{ $labels.cluster }} over the last hour (threshold 10%). Expired backups may not be reclaimed.'
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+      expr: |
+        velero:backup_deletion:failure_ratio1h > 0.10
+        and
+        velero:backup_deletion_attempt:increase1h >= 2
+      for: 15m
+      labels:
+        severity: "3"
+        team: hcp-sl
+    # ---- Canary: Velero metrics absent ------------------------------------
+    # Any management cluster (from `underlay_clusters`, service clusters
+    # excluded) missing a `velero_backup_attempt_total` series for 15m+ means
+    # Velero is down or its PodMonitor scrape is broken, blinding every other
+    # Velero alert on that cluster. Both sides use `group by (cluster)` so
+    # `unless` doesn't leak `underlay_clusters`' extra `source` label.
+    - alert: VeleroMetricsAbsent
+      annotations:
+        summary: Velero metrics absent on {{ $labels.cluster }}
+        description: Velero backup metrics have been absent on management cluster {{ $labels.cluster }} for at least 15 minutes. Velero may be down or its PodMonitor scrape is broken; all other Velero backup alerts are blind on this cluster until this is resolved.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+      expr: |
+        group by (cluster) (underlay_clusters{cluster!~".*-svc-.*"})
+        unless on (cluster)
+        group by (cluster) (velero_backup_attempt_total)
+      for: 15m
+      labels:
+        severity: "3"
+        team: hcp-sl

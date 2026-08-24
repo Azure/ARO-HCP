@@ -1,0 +1,280 @@
+rule_files:
+- velero-recording-prometheusRule.yaml
+- velero-prometheusRule.yaml
+group_eval_order:
+- velero-backup-recording-rules
+- velero-backup-alert-rules
+evaluation_interval: 1m
+tests:
+# ---- Stuck hourly backup: last success 3h ago (warning, not critical) ----
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-1", schedule="ocm-a-hourly", prometheus_replica="a"}'
+    values: "0+0x420"
+  alert_rule_test:
+  - eval_time: 180m
+    alertname: VeleroHourlyBackupStuckWarning
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-1
+        hosted_cluster: ocm-a
+        component: velero
+        severity: "3"
+        team: hcp-sl
+      exp_annotations:
+        summary: Velero hourly backup stuck for HostedCluster ocm-a on mgmt-1
+        description: No successful Velero hourly backup for HostedCluster ocm-a on management cluster mgmt-1 in over 2 hours (last success 3h 0m 0s ago). Hourly cadence is 1h; this is the primary restore-point freshness signal.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+  - eval_time: 180m
+    alertname: VeleroHourlyBackupStuckCritical
+    exp_alerts: []
+    # ---- Stuck hourly backup: last success 7h ago (critical fires) ----
+  - eval_time: 420m
+    alertname: VeleroHourlyBackupStuckCritical
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-1
+        hosted_cluster: ocm-a
+        component: velero
+        severity: "3"
+        team: hcp-sl
+      exp_annotations:
+        summary: Velero hourly backup critically stuck for HostedCluster ocm-a on mgmt-1
+        description: No successful Velero hourly backup for HostedCluster ocm-a on management cluster mgmt-1 in over 6 hours (last success 7h 0m 0s ago). HCP has no recent restore point; immediate investigation required.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+# ---- Healthy hourly backup: timestamp keeps advancing (no alert) ----
+- interval: 10m
+  input_series:
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-2", schedule="ocm-b-hourly", prometheus_replica="a"}'
+    values: "0+600x60"
+  alert_rule_test:
+  - eval_time: 180m
+    alertname: VeleroHourlyBackupStuckWarning
+    exp_alerts: []
+  - eval_time: 180m
+    alertname: VeleroHourlyBackupStuckCritical
+    exp_alerts: []
+# ---- Multi-HostedCluster masking regression: one HC's healthy hourly
+# backup on a shared management cluster must NOT mask a different,
+# fully-stuck HC's hourly backup on that same management cluster. This is
+# the scoping bug flagged in PR #6664 review (schedule encodes HC identity,
+# not just cadence) -- `by (cluster, hosted_cluster)` must keep them
+# distinct. ----
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-shared", schedule="ocm-healthy-hourly", prometheus_replica="a"}'
+    values: "0+60x420"
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-shared", schedule="ocm-stuck-hourly", prometheus_replica="a"}'
+    values: "0+0x420"
+  alert_rule_test:
+  - eval_time: 420m
+    alertname: VeleroHourlyBackupStuckCritical
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-shared
+        hosted_cluster: ocm-stuck
+        component: velero
+        severity: "3"
+        team: hcp-sl
+      exp_annotations:
+        summary: Velero hourly backup critically stuck for HostedCluster ocm-stuck on mgmt-shared
+        description: No successful Velero hourly backup for HostedCluster ocm-stuck on management cluster mgmt-shared in over 6 hours (last success 7h 0m 0s ago). HCP has no recent restore point; immediate investigation required.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+# ---- Stuck daily backup: last success 25h ago (fires; single alert, no
+# separate critical -- daily is now a retention/compliance signal only) ----
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-3", schedule="ocm-c-daily", prometheus_replica="a"}'
+    values: "0+0x3000"
+  alert_rule_test:
+  - eval_time: 1500m
+    alertname: VeleroDailyBackupStuck
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-3
+        hosted_cluster: ocm-c
+        component: velero
+        severity: "4"
+        team: hcp-sl
+      exp_annotations:
+        summary: Velero daily backup stuck for HostedCluster ocm-c on mgmt-3
+        description: No successful Velero daily backup for HostedCluster ocm-c on management cluster mgmt-3 in over 24 hours (last success 1d 1h 0m 0s ago). Daily cadence is 24h. Restore is not necessarily at risk if hourly backups are healthy; this affects 30-day retention/compliance coverage.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+# ---- Healthy daily backup: timestamp keeps advancing (no alert) ----
+- interval: 10m
+  input_series:
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-4", schedule="ocm-d-daily", prometheus_replica="a"}'
+    values: "0+600x310"
+  alert_rule_test:
+  - eval_time: 1620m
+    alertname: VeleroDailyBackupStuck
+    exp_alerts: []
+# ---- Stuck weekly backup: last success 169h ago (fires; single alert, no
+# separate critical -- weekly is now a retention/compliance signal only) ----
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-5", schedule="ocm-e-weekly", prometheus_replica="a"}'
+    values: "0+0x20250"
+  alert_rule_test:
+  - eval_time: 10140m
+    alertname: VeleroWeeklyBackupStuck
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-5
+        hosted_cluster: ocm-e
+        component: velero
+        severity: "4"
+        team: hcp-sl
+      exp_annotations:
+        summary: Velero weekly backup stuck for HostedCluster ocm-e on mgmt-5
+        description: No successful Velero weekly backup for HostedCluster ocm-e on management cluster mgmt-5 in over 168 hours (last success 7d 1h 0m 0s ago). Weekly cadence is 7d. Restore is not necessarily at risk if hourly backups are healthy; this affects 90-day retention/compliance coverage.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+# ---- Healthy weekly backup: timestamp keeps advancing (no alert) ----
+- interval: 30m
+  input_series:
+  - series: 'velero_backup_last_successful_timestamp{cluster="mgmt-6", schedule="ocm-f-weekly", prometheus_replica="a"}'
+    values: "0+1800x338"
+  alert_rule_test:
+  - eval_time: 10140m
+    alertname: VeleroWeeklyBackupStuck
+    exp_alerts: []
+# ---- Elevated CSI snapshot failure rate (30% failing fires; 0% does not) ----
+- interval: 1m
+  input_series:
+  - series: 'velero_csi_snapshot_attempt_total{cluster="mgmt-fail", prometheus_replica="a"}'
+    values: "0+10x90"
+  - series: 'velero_csi_snapshot_failure_total{cluster="mgmt-fail", prometheus_replica="a"}'
+    values: "0+3x90"
+  - series: 'velero_csi_snapshot_attempt_total{cluster="mgmt-ok", prometheus_replica="a"}'
+    values: "0+10x90"
+  - series: 'velero_csi_snapshot_failure_total{cluster="mgmt-ok", prometheus_replica="a"}'
+    values: "0+0x90"
+  alert_rule_test:
+  - eval_time: 90m
+    alertname: VeleroCSISnapshotFailureRateHigh
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-fail
+        component: velero
+        severity: "3"
+        team: hcp-sl
+      exp_annotations:
+        summary: Elevated Velero CSI snapshot failure rate on mgmt-fail
+        description: 30% of Velero CSI snapshot attempts failed on management cluster mgmt-fail over the last hour (threshold 10%). Volume snapshots backing HCP backups may be failing.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+# ---- Elevated backup deletion failure rate (30% failing fires; 0% does not) ----
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_deletion_attempt_total{cluster="mgmt-del", prometheus_replica="a"}'
+    values: "0+10x90"
+  - series: 'velero_backup_deletion_failure_total{cluster="mgmt-del", prometheus_replica="a"}'
+    values: "0+3x90"
+  - series: 'velero_backup_deletion_attempt_total{cluster="mgmt-delok", prometheus_replica="a"}'
+    values: "0+10x90"
+  - series: 'velero_backup_deletion_failure_total{cluster="mgmt-delok", prometheus_replica="a"}'
+    values: "0+0x90"
+  # mgmt-delnever: deletions attempted, but the failure counter has never
+  # incremented, so it has never emitted a series at all (cold-start case).
+  - series: 'velero_backup_deletion_attempt_total{cluster="mgmt-delnever", prometheus_replica="a"}'
+    values: "0+10x90"
+  alert_rule_test:
+  - eval_time: 90m
+    alertname: VeleroBackupDeletionFailureRateHigh
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-del
+        component: velero
+        severity: "3"
+        team: hcp-sl
+      exp_annotations:
+        summary: Elevated Velero backup deletion failure rate on mgmt-del
+        description: 30% of Velero backup deletion attempts failed on management cluster mgmt-del over the last hour (threshold 10%). Expired backups may not be reclaimed.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+# ---- Canary: Velero metrics absent (fires when the counter is missing) ----
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="mgmt-1", source="bicep"}'
+    values: "1+0x30"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: VeleroMetricsAbsent
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-1
+        component: velero
+        severity: "3"
+        team: hcp-sl
+      exp_annotations:
+        summary: Velero metrics absent on mgmt-1
+        description: Velero backup metrics have been absent on management cluster mgmt-1 for at least 15 minutes. Velero may be down or its PodMonitor scrape is broken; all other Velero backup alerts are blind on this cluster until this is resolved.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+# ---- Canary: Velero metrics present (no alert) ----
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="mgmt-1", source="bicep"}'
+    values: "1+0x30"
+  - series: 'velero_backup_attempt_total{cluster="mgmt-1", prometheus_replica="a"}'
+    values: "0+1x30"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: VeleroMetricsAbsent
+    exp_alerts: []
+# ---- Canary: single-cluster failure is not masked by a healthy cluster ----
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="mgmt-broken", source="bicep"}'
+    values: "1+0x30"
+  - series: 'underlay_clusters{cluster="mgmt-healthy", source="bicep"}'
+    values: "1+0x30"
+  - series: 'velero_backup_attempt_total{cluster="mgmt-healthy", prometheus_replica="a"}'
+    values: "0+1x30"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: VeleroMetricsAbsent
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-broken
+        component: velero
+        severity: "3"
+        team: hcp-sl
+      exp_annotations:
+        summary: Velero metrics absent on mgmt-broken
+        description: Velero backup metrics have been absent on management cluster mgmt-broken for at least 15 minutes. Velero may be down or its PodMonitor scrape is broken; all other Velero backup alerts are blind on this cluster until this is resolved.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+# ---- Canary: vanished scrape target (underlay exists, no metrics at all) ----
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="mgmt-vanished", source="bicep"}'
+    values: "1+0x30"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: VeleroMetricsAbsent
+    exp_alerts:
+    - exp_labels:
+        cluster: mgmt-vanished
+        component: velero
+        severity: "3"
+        team: hcp-sl
+      exp_annotations:
+        summary: Velero metrics absent on mgmt-vanished
+        description: Velero backup metrics have been absent on management cluster mgmt-vanished for at least 15 minutes. Velero may be down or its PodMonitor scrape is broken; all other Velero backup alerts are blind on this cluster until this is resolved.
+        runbook_url: https://aka.ms/arohcp-tsg-velerobackup
+        owning_team: hcp-sl
+# ---- Canary: service clusters must never false-fire (Velero doesn't run there) ----
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="uksouth-svc-1", source="bicep"}'
+    values: "1+0x30"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: VeleroMetricsAbsent
+    exp_alerts: []
