@@ -103,8 +103,8 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
         expression: '((sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) / sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))) > 0)'
       }
       {
-        record: 'sli:frontend_http:availability:rate_avg_30d'
-        expression: 'avg_over_time(sli:frontend_http:availability:rate5m[30d:5m])'
+        record: 'sli:frontend_http:good:rate5m'
+        expression: '(sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{code!~"5..",route!~".*hcpoperation(results|statuses).*"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m]))))'
       }
       {
         record: 'errors:frontend_http:error_rate:rate5m'
@@ -121,6 +121,10 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
       {
         record: 'traffic:frontend_http:request_rate:rate5m'
         expression: 'sum by (cluster) (max without (prometheus_replica) (rate(frontend_http_requests_total{route!~".*hcpoperation(results|statuses).*"}[5m])))'
+      }
+      {
+        record: 'sli:frontend_http:availability:rate_avg_30d'
+        expression: '(avg_over_time(sli:frontend_http:good:rate5m[30d:5m]) / avg_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m])) and avg_over_time(traffic:frontend_http:request_rate:rate5m[30d:5m]) > 0'
       }
       {
         record: 'sli:frontend:ready:ratio5m'

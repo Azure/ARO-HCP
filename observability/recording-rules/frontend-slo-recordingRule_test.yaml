@@ -56,6 +56,16 @@ tests:
     exp_samples:
     - labels: '{__name__="sli:frontend_http:availability:rate5m", cluster="svc-1"}'
       value: 0.75
+  - expr: sli:frontend_http:good:rate5m{cluster="svc-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend_http:good:rate5m", cluster="svc-1"}'
+      value: 0.75
+  - expr: sli:frontend_http:availability:rate_avg_30d{cluster="svc-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend_http:availability:rate_avg_30d", cluster="svc-1"}'
+      value: 0.75
   - expr: errors:frontend_http:error_rate:rate5m{cluster="svc-1"}
     eval_time: 5m
     exp_samples:
@@ -120,6 +130,11 @@ tests:
     exp_samples:
     - labels: '{__name__="sli:frontend_http:availability:rate5m", cluster="svc-3"}'
       value: 0
+  - expr: sli:frontend_http:good:rate5m{cluster="svc-3"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend_http:good:rate5m", cluster="svc-3"}'
+      value: 0
   - expr: errors:frontend_http:error_rate:rate5m{cluster="svc-3"}
     eval_time: 5m
     exp_samples:
@@ -169,6 +184,12 @@ tests:
   - expr: sli:frontend_http:availability:rate5m{cluster="svc-idle"}
     eval_time: 5m
     exp_samples: []
+  - expr: sli:frontend_http:good:rate5m{cluster="svc-idle"}
+    eval_time: 5m
+    exp_samples: []
+  - expr: sli:frontend_http:availability:rate_avg_30d{cluster="svc-idle"}
+    eval_time: 5m
+    exp_samples: []
   - expr: errors:frontend_http:error_rate:rate5m{cluster="svc-idle"}
     eval_time: 5m
     exp_samples: []
@@ -186,3 +207,34 @@ tests:
     exp_samples:
     - labels: '{__name__="sli:frontend:ready:ratio5m", cluster="svc-idle"}'
       value: 1
+- interval: 1m
+  # Request-weighted 30d vs avg-of-ratios. Two 5m windows:
+  #   t=0-5m: 10,000 good requests; t=7m: 1 failed request (inside the
+  #   second 5m rate window so rate() observes the increase).
+  # avg_over_time of the 5m *ratio* is 50%. Weighted 30d is 10000/10001.
+  input_series:
+  - series: 'frontend_http_requests_total{cluster="svc-skew", code="200", method="GET", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+2000x5 10000+0x12"
+  - series: 'frontend_http_requests_total{cluster="svc-skew", code="500", method="PUT", route="/subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}", prometheus_replica="a"}'
+    values: "0+0x6 1+0x11"
+  promql_expr_test:
+  - expr: sli:frontend_http:availability:rate5m{cluster="svc-skew"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="sli:frontend_http:availability:rate5m", cluster="svc-skew"}'
+      value: 1
+  - expr: sli:frontend_http:availability:rate5m{cluster="svc-skew"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="sli:frontend_http:availability:rate5m", cluster="svc-skew"}'
+      value: 0
+  - expr: avg_over_time(sli:frontend_http:availability:rate5m{cluster="svc-skew"}[30d:5m])
+    eval_time: 10m
+    exp_samples:
+    - labels: '{cluster="svc-skew"}'
+      value: 0.5
+  - expr: sli:frontend_http:availability:rate_avg_30d{cluster="svc-skew"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="sli:frontend_http:availability:rate_avg_30d", cluster="svc-skew"}'
+      value: 0.9999000099990002
