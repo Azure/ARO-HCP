@@ -211,6 +211,55 @@ func TestSyncOnce_WritesCapacityToScheduling(t *testing.T) {
 	assert.Equal(t, "DataCollected", condition.Reason, "condition reason")
 }
 
+func TestSyncOnce_MirrorsReadyAndNotReadyResourceIDs(t *testing.T) {
+	ctx := context.Background()
+
+	readyIDs := []string{
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ready-a",
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/ready-b",
+	}
+	notReadyIDs := []string{
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/notready-c",
+	}
+
+	report := &capacityreportv1alpha1.CapacityReport{
+		Status: capacityreportv1alpha1.CapacityReportStatus{
+			HostedControlPlanes: capacityreportv1alpha1.HostedControlPlanes{
+				ReadyResourceIDs:    readyIDs,
+				NotReadyResourceIDs: notReadyIDs,
+			},
+			Conditions: []metav1.Condition{
+				{
+					Type:   capacityreportv1alpha1.ConditionTypeReportCurrent,
+					Status: metav1.ConditionTrue,
+				},
+			},
+		},
+	}
+
+	desire := buildTestReadDesire(report)
+	lister := &kubeapplierlistertesting.SliceReadDesireLister{
+		Desires: []*kubeapplierapi.ReadDesire{desire},
+	}
+
+	fleetDB := fleetcosmosstoragetesting.NewMockFleetDBClient()
+
+	syncer := &capacityReportingSyncer{
+		fleetDBClient:    fleetDB,
+		readDesireLister: lister,
+	}
+
+	err := syncer.SyncOnce(ctx, testKey())
+	require.NoError(t, err)
+
+	schedulingCRUD := fleetDB.Stamps().ManagementClusters(testStampIdentifier).Scheduling()
+	scheduling, err := schedulingCRUD.Get(ctx, fleetapi.SchedulingResourceName)
+	require.NoError(t, err)
+
+	assert.Equal(t, readyIDs, scheduling.Status.ReadyResourceIDs, "Status.ReadyResourceIDs must mirror the CapacityReport")
+	assert.Equal(t, notReadyIDs, scheduling.Status.NotReadyResourceIDs, "Status.NotReadyResourceIDs must mirror the CapacityReport")
+}
+
 // --- Test doubles for conflict-on-create scenario ---
 
 // conflictOnCreateDBClients implements KubeApplierDBClients, returning a

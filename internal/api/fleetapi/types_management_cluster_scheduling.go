@@ -64,6 +64,24 @@ type ManagementClusterSchedulingStatus struct {
 	// Written by: CapacityReportingController.
 	ObservedResources ObservedResources `json:"observedResources"`
 
+	// ReadyResourceIDs lists the ARM resource IDs of the HCPs whose
+	// HostedCluster on this management cluster is ready (Available condition
+	// True), mirrored verbatim from the CapacityReport CR's
+	// Status.HostedControlPlanes.ReadyResourceIDs.
+	//
+	// +optional
+	// Written by: CapacityReportingController.
+	ReadyResourceIDs []string `json:"readyResourceIDs,omitempty"`
+
+	// NotReadyResourceIDs lists the ARM resource IDs of the HCPs whose
+	// HostedCluster on this management cluster exists but is not ready
+	// (Available condition not True or missing), mirrored verbatim from the
+	// CapacityReport CR's Status.HostedControlPlanes.NotReadyResourceIDs.
+	//
+	// +optional
+	// Written by: CapacityReportingController.
+	NotReadyResourceIDs []string `json:"notReadyResourceIDs,omitempty"`
+
 	// ScaleCeiling holds projected capacity limits derived from AKS agent
 	// pool configuration and SKU data.
 	//

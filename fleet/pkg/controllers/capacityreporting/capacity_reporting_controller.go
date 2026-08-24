@@ -110,7 +110,7 @@ func (s *capacityReportingSyncer) SyncOnce(ctx context.Context, key fleetcontrol
 	capacity := ComputeObservedResources(report)
 	condition := evaluateCapacityCondition(report)
 
-	return s.persistObservedResources(ctx, key.StampIdentifier, capacity, condition)
+	return s.persistObservedResources(ctx, key.StampIdentifier, capacity, report.Status.HostedControlPlanes.ReadyResourceIDs, report.Status.HostedControlPlanes.NotReadyResourceIDs, condition)
 }
 
 func evaluateCapacityCondition(report *capacityreportv1alpha1.CapacityReport) metav1.Condition {
@@ -129,7 +129,7 @@ func evaluateCapacityCondition(report *capacityreportv1alpha1.CapacityReport) me
 	}
 }
 
-func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, stampIdentifier string, observed fleetapi.ObservedResources, condition metav1.Condition) error {
+func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, stampIdentifier string, observed fleetapi.ObservedResources, readyResourceIDs, notReadyResourceIDs []string, condition metav1.Condition) error {
 	existing, err := fleetcosmosstorage.GetOrCreateManagementClusterScheduling(ctx, s.fleetDBClient, stampIdentifier)
 	if err != nil {
 		return err
@@ -140,6 +140,9 @@ func (s *capacityReportingSyncer) persistObservedResources(ctx context.Context, 
 	updated := existing.DeepCopy()
 	meta.SetStatusCondition(&updated.Status.Conditions, condition)
 	updated.Status.ObservedResources = observed
+	// Mirror the ready/not-ready HCP resource IDs from the CapacityReport CR.
+	updated.Status.ReadyResourceIDs = readyResourceIDs
+	updated.Status.NotReadyResourceIDs = notReadyResourceIDs
 	if _, err := schedulingCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(err)
 	}

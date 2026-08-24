@@ -262,6 +262,16 @@ func (in *ManagementClusterSchedulingStatus) DeepCopyInto(out *ManagementCluster
 		}
 	}
 	in.ObservedResources.DeepCopyInto(&out.ObservedResources)
+	if in.ReadyResourceIDs != nil {
+		in, out := &in.ReadyResourceIDs, &out.ReadyResourceIDs
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.NotReadyResourceIDs != nil {
+		in, out := &in.NotReadyResourceIDs, &out.NotReadyResourceIDs
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	in.ScaleCeiling.DeepCopyInto(&out.ScaleCeiling)
 	return
 }
