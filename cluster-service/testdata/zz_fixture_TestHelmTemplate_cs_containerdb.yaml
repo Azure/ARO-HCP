@@ -8208,6 +8208,7 @@ spec:
         - --log-fields-from-baggage=aro.correlation_id=correlation_id,aro.client.request_id=client_request_id
         
         
+        - --data-plane-ha-proxy-image=arohcpocpdev.azurecr.io/redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main@sha256:1234567890
         livenessProbe:
           httpGet:
             path: /api/clusters_mgmt/v1

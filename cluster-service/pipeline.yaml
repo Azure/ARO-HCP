@@ -38,6 +38,32 @@ resourceGroups:
       - "unauthorized: authentication required"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
+  - name: mirror-data-plane-haproxy-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.ocp.name'
+    sourceRegistry:
+      configRef: clustersService.dataPlaneHAProxyImage.registry
+    repository:
+      configRef: clustersService.dataPlaneHAProxyImage.repository
+    digest:
+      configRef: clustersService.dataPlaneHAProxyImage.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      - "unexpected EOF"
+      - "unauthorized: authentication required"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -135,6 +161,8 @@ resourceGroups:
       step: output
     - resourceGroup: global
       step: mirror-image
+    - resourceGroup: global
+      step: mirror-data-plane-haproxy-image
     automatedRetry:
       errorContainsAny:
       - "500 Internal Server Error"

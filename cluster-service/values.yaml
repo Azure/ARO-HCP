@@ -212,9 +212,9 @@ databasePort: "5432"
 # The name of the managed identities data plane audience resource.
 managedIdentitiesDataPlaneAudienceResource: "{{ .msiRp.dataPlaneAudienceResource }}"
 # The image used to override the HAProxy image of the worker node API server proxy.
-# If set to an empty string, either the environment variable IMAGE_SHARED_INGRESS_HAPROXY or the default shared ingress image will be used.
-# If given a value, it must be a valid image reference.
-dataPlaneHAProxyImage: "{{ .clustersService.dataPlaneHAProxyImage }}"
+# Assembled as an ACR reference so worker nodes pull from the environment-specific ACR, not quay.io.
+# When digest is empty, CS falls back to IMAGE_SHARED_INGRESS_HAPROXY (legacy behavior).
+dataPlaneHAProxyImage: "{{ if .clustersService.dataPlaneHAProxyImage.digest }}{{ .acr.ocp.name }}.azurecr.io/{{ .clustersService.dataPlaneHAProxyImage.repository }}@{{ .clustersService.dataPlaneHAProxyImage.digest }}{{ end }}"
 # The Azure Operator Managed Identities.
 azureOperatorsMI:
   roleSetName: "{{ .clustersService.azureOperatorsManagedIdentities.roleSetName }}"
