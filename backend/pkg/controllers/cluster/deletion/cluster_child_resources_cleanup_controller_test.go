@@ -729,3 +729,180 @@ func TestIsUnderSkippedSubtree(t *testing.T) {
 		})
 	}
 }
+
+func TestClusterChildResourcesCleanupController_clusterResourceApplyDesiresGone(t *testing.T) {
+	managementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
+	unregisteredManagementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/unregistered"))
+
+	newSPC := func(mc *azcorearm.ResourceID) *coreapi.ServiceProviderCluster {
+		spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + testSubscriptionID +
+				"/resourceGroups/" + testResourceGroupName +
+				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+				"/serviceProviderClusters/default"))
+		return &coreapi.ServiceProviderCluster{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   spcResourceID,
+				PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
+			},
+			Status: coreapi.ServiceProviderClusterStatus{
+				ManagementClusterResourceID: mc,
+			},
+		}
+	}
+	newApplyDesire := func(name string, tags map[string]string) *kubeapplierapi.ApplyDesire {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+				testSubscriptionID, testResourceGroupName, testClusterName, name)))
+		return &kubeapplierapi.ApplyDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
+			},
+			Spec: kubeapplierapi.ApplyDesireSpec{
+				ManagementCluster: managementClusterResourceID,
+			},
+			Tags: tags,
+		}
+	}
+	taggedDesire := func(name string) *kubeapplierapi.ApplyDesire {
+		return newApplyDesire(name, map[string]string{kubeapplierapi.TagControllerName: kubeapplierapi.ClusterResourcesControllerName})
+	}
+	untaggedDesire := func(name string) *kubeapplierapi.ApplyDesire {
+		return newApplyDesire(name, nil)
+	}
+
+	testCases := []struct {
+		name               string
+		spc                *coreapi.ServiceProviderCluster
+		kubeApplierDesires []any
+		wantGone           bool
+	}{
+		{
+			name:               "tagged ClusterResourcesController ApplyDesire present -> not gone",
+			spc:                newSPC(managementClusterResourceID),
+			kubeApplierDesires: []any{taggedDesire("cluster-resource-desire")},
+			wantGone:           false,
+		},
+		{
+			name:               "only untagged ApplyDesire present -> gone",
+			spc:                newSPC(managementClusterResourceID),
+			kubeApplierDesires: []any{untaggedDesire("other-controller-desire")},
+			wantGone:           true,
+		},
+		{
+			name:     "no ApplyDesires -> gone",
+			spc:      newSPC(managementClusterResourceID),
+			wantGone: true,
+		},
+		{
+			name:     "nil management cluster resource ID -> gone",
+			spc:      newSPC(nil),
+			wantGone: true,
+		},
+		{
+			name:               "unregistered management cluster (nil client) -> gone",
+			spc:                newSPC(unregisteredManagementClusterResourceID),
+			kubeApplierDesires: []any{taggedDesire("cluster-resource-desire")},
+			wantGone:           true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			mockKubeApplierDBClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+			mockKubeApplierClient, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, tc.kubeApplierDesires)
+			require.NoError(t, err)
+			mockKubeApplierDBClients.Register(managementClusterResourceID, mockKubeApplierClient)
+
+			syncer := &clusterChildResourcesCleanupController{
+				kubeApplierDBClients: mockKubeApplierDBClients,
+			}
+
+			gone, err := syncer.clusterResourceApplyDesiresGone(ctx, tc.spc, testSubscriptionID, testResourceGroupName, testClusterName)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantGone, gone)
+		})
+	}
+}
+
+func TestClusterChildResourcesCleanupController_extraDeleteGate_ClusterResourceApplyDesires(t *testing.T) {
+	managementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
+
+	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/serviceProviderClusters/default"))
+
+	newSPC := func() *coreapi.ServiceProviderCluster {
+		return &coreapi.ServiceProviderCluster{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   spcResourceID,
+				PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
+			},
+			Status: coreapi.ServiceProviderClusterStatus{
+				ManagementClusterResourceID: managementClusterResourceID,
+			},
+		}
+	}
+	taggedDesire := func(name string) *kubeapplierapi.ApplyDesire {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+				testSubscriptionID, testResourceGroupName, testClusterName, name)))
+		return &kubeapplierapi.ApplyDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
+			},
+			Spec: kubeapplierapi.ApplyDesireSpec{
+				ManagementCluster: managementClusterResourceID,
+			},
+			Tags: map[string]string{kubeapplierapi.TagControllerName: kubeapplierapi.ClusterResourcesControllerName},
+		}
+	}
+
+	testCases := []struct {
+		name               string
+		kubeApplierDesires []any
+		wantShouldDelete   bool
+	}{
+		{
+			name:               "tagged ClusterResourcesController ApplyDesire present -> SPC deletion blocked",
+			kubeApplierDesires: []any{taggedDesire("cluster-resource-desire")},
+			wantShouldDelete:   false,
+		},
+		{
+			name:             "no kube-applier desires -> SPC deletion allowed",
+			wantShouldDelete: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, []any{newSPC()})
+			require.NoError(t, err)
+
+			mockKubeApplierDBClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+			mockKubeApplierClient, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, tc.kubeApplierDesires)
+			require.NoError(t, err)
+			mockKubeApplierDBClients.Register(managementClusterResourceID, mockKubeApplierClient)
+
+			syncer := &clusterChildResourcesCleanupController{
+				resourcesDBClient:    mockResourcesDBClient,
+				kubeApplierDBClients: mockKubeApplierDBClients,
+			}
+
+			shouldDelete, err := syncer.extraDeleteGateShouldDeleteServiceProviderCluster(ctx, spcResourceID)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantShouldDelete, shouldDelete)
+		})
+	}
+}

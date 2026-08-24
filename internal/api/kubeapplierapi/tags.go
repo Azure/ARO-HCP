@@ -21,4 +21,13 @@ const (
 	// carry this tag so an operator (or a cleanup path) can attribute each stored
 	// desire to the controller responsible for it.
 	TagControllerName = "ControllerName"
+
+	// ClusterResourcesControllerName is the TagControllerName value stamped on
+	// ApplyDesires authored by the ClusterResourcesController. It mirrors the
+	// constant PR #6070 introduces in its
+	// backend/pkg/controllers/clusterresources package; it is defined here so the
+	// cluster-deletion gates can reference the value on main before that package
+	// exists. When #6070 lands it should consume this constant rather than
+	// redefine its own, so the tag value stays single-sourced.
+	ClusterResourcesControllerName = "ClusterResourcesController"
 )

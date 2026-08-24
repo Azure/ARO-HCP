@@ -179,6 +179,18 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return nil
 	}
 
+	// Hold the delete operation non-terminal until the ClusterResourcesController has
+	// removed all the ApplyDesires it owns. Placed after the deadline check above so
+	// the timeout-failure path still fires if this cleanup stalls.
+	applyDesiresGone, err := c.clusterResourceApplyDesiresGone(ctx, cluster)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to check ClusterResourcesController ApplyDesire precondition: %w", err))
+	}
+	if !applyDesiresGone {
+		logger.Info("waiting for ClusterResourcesController to delete its ApplyDesires before completing delete operation")
+		return nil
+	}
+
 	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
 		return nil
 	}
@@ -194,6 +206,55 @@ func (c *operationClusterDelete) shouldReconcileOperationAndResourceStatus(clust
 	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		cluster.ServiceProviderProperties.ClusterServiceID != nil
+}
+
+// clusterResourceApplyDesiresGone reports whether all ApplyDesires tagged by the
+// ClusterResourcesController have been removed for the given cluster. The
+// ClusterResourcesController deletes its own desires during cluster deletion; this
+// controller holds the delete operation non-terminal until they are gone. A missing
+// ServiceProviderCluster, a nil ManagementClusterResourceID, or an unavailable
+// kube-applier client is treated as gone.
+func (c *operationClusterDelete) clusterResourceApplyDesiresGone(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (bool, error) {
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
+	if cosmosstorageutils.IsNotFoundError(err) {
+		return true, nil
+	}
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	if spc.Status.ManagementClusterResourceID == nil {
+		return true, nil
+	}
+
+	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+	if kubeApplierDBClient == nil {
+		return true, nil
+	}
+
+	applyDesireCRUD, err := kubeApplierDBClient.ApplyDesiresForCluster(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get kube-applier CRUD for ApplyDesire precondition: %w", err))
+	}
+
+	applyDesireIterator, err := applyDesireCRUD.List(ctx, &cosmosstorageutils.DBClientListResourceDocsOptions{})
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to list ApplyDesire documents for precondition check: %w", err))
+	}
+
+	remaining := 0
+	for _, desire := range applyDesireIterator.Items(ctx) {
+		if desire.Tags == nil {
+			continue
+		}
+		if desire.Tags[kubeapplierapi.TagControllerName] == kubeapplierapi.ClusterResourcesControllerName {
+			remaining++
+		}
+	}
+	if err := applyDesireIterator.GetError(); err != nil {
+		return false, utils.TrackError(fmt.Errorf("error iterating ApplyDesires for precondition check: %w", err))
+	}
+
+	return remaining == 0, nil
 }
 
 func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) error {
