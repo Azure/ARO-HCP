@@ -214,7 +214,7 @@ managedIdentitiesDataPlaneAudienceResource: "{{ .msiRp.dataPlaneAudienceResource
 # The image used to override the HAProxy image of the worker node API server proxy.
 # Assembled as an ACR reference so worker nodes pull from the environment-specific ACR, not quay.io.
 # When digest is empty, CS falls back to IMAGE_SHARED_INGRESS_HAPROXY (legacy behavior).
-dataPlaneHAProxyImage: "{{ if .clustersService.dataPlaneHAProxyImage.digest }}{{ .acr.ocp.name }}.azurecr.io/{{ .clustersService.dataPlaneHAProxyImage.repository }}@{{ .clustersService.dataPlaneHAProxyImage.digest }}{{ end }}"
+dataPlaneHAProxyImage: "{{ if .clustersService.dataPlaneHAProxyImage.digest }}{{ .acr.ocp.name }}.{{ .acrDNSSuffix }}/{{ .clustersService.dataPlaneHAProxyImage.repository }}@{{ .clustersService.dataPlaneHAProxyImage.digest }}{{ end }}"
 # The Azure Operator Managed Identities.
 azureOperatorsMI:
   roleSetName: "{{ .clustersService.azureOperatorsManagedIdentities.roleSetName }}"
