@@ -1012,7 +1012,7 @@ svc:
       name: infra
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D4ds_v6
+      vmSize: Standard_D4ads_v7
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: "1.35"
@@ -1027,7 +1027,7 @@ svc:
       name: system
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D4ds_v6
+      vmSize: Standard_D4ads_v7
       zoneRedundantMode: Auto
       zones: ""
     tags: clusterType=svc-cluster,persist=true
@@ -1037,10 +1037,10 @@ svc:
     userAgentPool:
       maxCount: 3
       minCount: 1
-      name: u64d8dsv6
+      name: u64d8adsv7
       osDiskSizeGB: 64
       poolCount: 3
-      vmSize: Standard_D8ds_v6
+      vmSize: Standard_D8ads_v7
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14

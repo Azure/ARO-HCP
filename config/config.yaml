@@ -1811,13 +1811,13 @@ clouds:
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               systemAgentPool:
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D4ads_v7
               userAgentPool:
-                name: 'u64d8dsv6'
-                vmSize: Standard_D8ds_v6
+                name: 'u64d8adsv7'
+                vmSize: Standard_D8ads_v7
                 osDiskSizeGB: 64
               infraAgentPool:
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D4ads_v7
             jaeger:
               deploy: true
       ci01:
@@ -1920,12 +1920,12 @@ clouds:
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               systemAgentPool:
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D4ads_v7
               userAgentPool:
-                name: 'u64d8dsv6'
-                vmSize: Standard_D8ds_v6
+                name: 'u64d8adsv7'
+                vmSize: Standard_D8ads_v7
                 osDiskSizeGB: 64
               infraAgentPool:
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D4ads_v7
             jaeger:
               deploy: true
