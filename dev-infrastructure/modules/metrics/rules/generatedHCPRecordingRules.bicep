@@ -241,3 +241,59 @@ resource userjourneyKubeapiserverAvailabilityRecordingRules 'Microsoft.AlertsMan
     ]
   }
 }
+
+resource veleroBackupRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'velero-backup-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'velero:csi_snapshot_attempt:increase1h'
+        expression: 'sum by (cluster) (max without (prometheus_replica) (increase(velero_csi_snapshot_attempt_total[1h])))'
+        labels: {
+          component: 'velero'
+        }
+      }
+      {
+        record: 'velero:csi_snapshot_failure:increase1h'
+        expression: 'sum by (cluster) (max without (prometheus_replica) (increase(velero_csi_snapshot_failure_total[1h])))'
+        labels: {
+          component: 'velero'
+        }
+      }
+      {
+        record: 'velero:csi_snapshot:failure_ratio1h'
+        expression: '(velero:csi_snapshot_failure:increase1h or 0 * velero:csi_snapshot_attempt:increase1h) / (velero:csi_snapshot_attempt:increase1h > 0)'
+        labels: {
+          component: 'velero'
+        }
+      }
+      {
+        record: 'velero:backup_deletion_attempt:increase1h'
+        expression: 'sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_deletion_attempt_total[1h])))'
+        labels: {
+          component: 'velero'
+        }
+      }
+      {
+        record: 'velero:backup_deletion_failure:increase1h'
+        expression: 'sum by (cluster) (max without (prometheus_replica) (increase(velero_backup_deletion_failure_total[1h])))'
+        labels: {
+          component: 'velero'
+        }
+      }
+      {
+        record: 'velero:backup_deletion:failure_ratio1h'
+        expression: '(velero:backup_deletion_failure:increase1h or 0 * velero:backup_deletion_attempt:increase1h) / (velero:backup_deletion_attempt:increase1h > 0)'
+        labels: {
+          component: 'velero'
+        }
+      }
+    ]
+  }
+}
