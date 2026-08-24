@@ -854,6 +854,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	nodePoolNSGBasedRequiredConnectivityValidationController := nodepoolvalidation.NewNodePoolValidationController(
+		validationutils.NewAzureNodePoolNSGBasedRequiredConnectivityValidation(b.options.SMIClientBuilder),
+		b.options.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
 	nodePoolVersionController := nodepoolversion.NewNodePoolVersionController(
 		b.options.ResourcesDBClient,
 		subscriptionLister,
@@ -1096,6 +1103,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureVMSizeSupportsEphemeralOSDiskValidationController.Run(ctx, 20)
 				go azureNodePoolVMQuotaValidationController.Run(ctx, 20)
 				go controlPlaneIdentitiesPermissionsValidationController.Run(ctx, 20)
+				go nodePoolNSGBasedRequiredConnectivityValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)

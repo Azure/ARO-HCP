@@ -79,6 +79,45 @@ func (c *MockServiceManagedIdentityClientBuilderBuilderTypeCall) DoAndReturn(f f
 	return c
 }
 
+// NetworkSecurityGroupsClient mocks base method.
+func (m *MockServiceManagedIdentityClientBuilder) NetworkSecurityGroupsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *arm.ResourceID, subscriptionID string) (NetworkSecurityGroupsClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NetworkSecurityGroupsClient", ctx, clusterIdentityURL, smiResourceID, subscriptionID)
+	ret0, _ := ret[0].(NetworkSecurityGroupsClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NetworkSecurityGroupsClient indicates an expected call of NetworkSecurityGroupsClient.
+func (mr *MockServiceManagedIdentityClientBuilderMockRecorder) NetworkSecurityGroupsClient(ctx, clusterIdentityURL, smiResourceID, subscriptionID any) *MockServiceManagedIdentityClientBuilderNetworkSecurityGroupsClientCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NetworkSecurityGroupsClient", reflect.TypeOf((*MockServiceManagedIdentityClientBuilder)(nil).NetworkSecurityGroupsClient), ctx, clusterIdentityURL, smiResourceID, subscriptionID)
+	return &MockServiceManagedIdentityClientBuilderNetworkSecurityGroupsClientCall{Call: call}
+}
+
+// MockServiceManagedIdentityClientBuilderNetworkSecurityGroupsClientCall wrap *gomock.Call
+type MockServiceManagedIdentityClientBuilderNetworkSecurityGroupsClientCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockServiceManagedIdentityClientBuilderNetworkSecurityGroupsClientCall) Return(arg0 NetworkSecurityGroupsClient, arg1 error) *MockServiceManagedIdentityClientBuilderNetworkSecurityGroupsClientCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockServiceManagedIdentityClientBuilderNetworkSecurityGroupsClientCall) Do(f func(context.Context, string, *arm.ResourceID, string) (NetworkSecurityGroupsClient, error)) *MockServiceManagedIdentityClientBuilderNetworkSecurityGroupsClientCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockServiceManagedIdentityClientBuilderNetworkSecurityGroupsClientCall) DoAndReturn(f func(context.Context, string, *arm.ResourceID, string) (NetworkSecurityGroupsClient, error)) *MockServiceManagedIdentityClientBuilderNetworkSecurityGroupsClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // SubnetsClient mocks base method.
 func (m *MockServiceManagedIdentityClientBuilder) SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *arm.ResourceID, subscriptionID string) (SubnetsClient, error) {
 	m.ctrl.T.Helper()
