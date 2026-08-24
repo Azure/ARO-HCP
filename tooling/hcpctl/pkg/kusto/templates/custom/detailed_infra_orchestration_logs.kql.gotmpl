@@ -31,7 +31,20 @@ union
         | where namespace_name has "maestro"
         | where isnotempty(cluster_id)
         | extend logStr = tostring(log)
-        | where logStr has cluster_id or logStr has_any (maestro_resource_ids)
+        | where logStr has cluster_id
+        | project timestamp, container_name, msg = logStr, log
+    ),
+    (
+        // Maestro logs: operations on associated resource IDs (joined to avoid has_any limit)
+        database('ServiceLogs').table('containerLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where namespace_name has "maestro"
+        | where isnotempty(cluster_id)
+        | extend logStr = tostring(log)
+        | extend resourceId = extract(@'resourceid[=:"]+([a-f0-9\-]+)', 1, logStr)
+        | where isnotempty(resourceId)
+        | where not(logStr has cluster_id)
+        | join kind=inner (maestro_resource_ids) on resourceId
         | project timestamp, container_name, msg = logStr, log
     ),
     (
