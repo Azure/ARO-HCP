@@ -17,6 +17,7 @@ package operations
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,15 +29,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	operationtesting "github.com/Azure/ARO-HCP/backend/pkg/utils/operationutils/operationtesting"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/billingcosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/billingcosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
+	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -389,6 +395,125 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			if tc.verifyDB != nil {
 				tc.verifyDB(t, ctx, mockResourcesDBClient)
 			}
+		})
+	}
+}
+
+func TestOperationClusterDelete_SynchronizeOperation_ClusterResourcesApplyDesiresGate(t *testing.T) {
+	fixedTime := operationtesting.MustParseTime("2025-01-20T10:30:00Z")
+	fixture := operationtesting.NewClusterTestFixture()
+
+	managementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
+
+	clusterPassingReconcileGate := func() *coreapi.HCPOpenShiftCluster {
+		now := time.Now()
+		cluster := fixture.NewCluster(nil)
+		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
+		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: now}
+		return cluster
+	}
+	newSPC := func(mc *azcorearm.ResourceID) *coreapi.ServiceProviderCluster {
+		spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			fixture.ClusterResourceID.String() + "/serviceProviderClusters/" + coreapi.ServiceProviderClusterResourceName))
+		return &coreapi.ServiceProviderCluster{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   spcResourceID,
+				PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
+			},
+			Status: coreapi.ServiceProviderClusterStatus{
+				ManagementClusterResourceID: mc,
+			},
+		}
+	}
+	taggedDesire := func(name string) *kubeapplierapi.ApplyDesire {
+		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+				operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName, operationtesting.TestClusterName, name)))
+		return &kubeapplierapi.ApplyDesire{
+			CosmosMetadata: coreapi.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
+			},
+			Spec: kubeapplierapi.ApplyDesireSpec{
+				ManagementCluster: managementClusterResourceID,
+			},
+			Tags: map[string]string{kubeapplierapi.TagControllerName: kubeapplierapi.ClusterResourcesControllerName},
+		}
+	}
+
+	testCases := []struct {
+		name               string
+		spc                *coreapi.ServiceProviderCluster
+		kubeApplierDesires []any
+		setupCSMock        func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec
+		wantStatus         coreapi.ProvisioningState
+	}{
+		{
+			name:               "tagged ClusterResourcesController ApplyDesire present -> operation held non-terminal",
+			spc:                newSPC(managementClusterResourceID),
+			kubeApplierDesires: []any{taggedDesire("cluster-resource-desire")},
+			// No CS mock: the gate returns before reconcile, so ClusterService must not be called.
+			wantStatus: coreapi.ProvisioningStateAccepted,
+		},
+		{
+			name:               "no tagged ApplyDesires -> operation proceeds to reconcile",
+			spc:                newSPC(managementClusterResourceID),
+			kubeApplierDesires: nil,
+			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, _ := arohcpv1alpha1.NewClusterStatus().
+					State(arohcpv1alpha1.ClusterStateUninstalling).
+					Build()
+				mockCSClient.EXPECT().
+					GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).
+					Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			wantStatus: coreapi.ProvisioningStateDeleting,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			operation := fixture.NewOperation(cosmosstorageutils.OperationRequestDelete)
+			operation.UsesNewClusterDeletionApproach = true
+
+			resources := []any{operation, clusterPassingReconcileGate()}
+			if tc.spc != nil {
+				resources = append(resources, tc.spc)
+			}
+			mockResourcesDBClient, err := corecosmosstoragetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			require.NoError(t, err)
+
+			mockKubeApplierDBClients := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClients()
+			mockKubeApplierClient, err := kubeappliercosmosstoragetesting.NewMockKubeApplierDBClientWithResources(ctx, tc.kubeApplierDesires)
+			require.NoError(t, err)
+			mockKubeApplierDBClients.Register(managementClusterResourceID, mockKubeApplierClient)
+
+			var mockCSClient ocm.ClusterServiceClientSpec
+			if tc.setupCSMock != nil {
+				mockCSClient = tc.setupCSMock(ctrl, fixture)
+			}
+
+			controller := &operationClusterDelete{
+				clock:                clocktesting.NewFakePassiveClock(fixedTime),
+				resourcesDBClient:    mockResourcesDBClient,
+				billingDBClient:      billingcosmosstoragetesting.NewMockBillingDBClient(),
+				kubeApplierDBClients: mockKubeApplierDBClients,
+				clusterServiceClient: mockCSClient,
+				notificationClient:   nil,
+			}
+
+			require.NoError(t, controller.SynchronizeOperation(ctx, fixture.OperationKey()))
+
+			op, err := mockResourcesDBClient.Operations(operationtesting.TestSubscriptionID).Get(ctx, operationtesting.TestOperationName)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantStatus, op.Status)
 		})
 	}
 }
