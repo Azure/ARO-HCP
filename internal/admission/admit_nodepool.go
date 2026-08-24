@@ -92,6 +92,11 @@ func mutateNodePoolServiceProviderProperties(ctx context.Context, admissionConte
 	errs = append(errs, mutateNodePoolExperimentalTags(ctx, admissionContext, op)...)
 	errs = append(errs, mutateNodePoolCreateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("createOperationCompletionDeadline"), &newObj.CreateOperationCompletionDeadline)...)
 
+	if op.Type == operation.Create {
+		subscription := admissionContext.Subscription
+		newObj.ExperimentalFeaturesEnabled = subscription != nil && subscription.HasRegisteredFeature(metadataapi.FeatureExperimentalReleaseFeatures)
+	}
+
 	return errs
 }
 

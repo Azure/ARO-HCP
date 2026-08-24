@@ -224,12 +224,12 @@ func convertEnableEncryptionAtHostToCSBuilder(in coreapi.NodePoolPlatformProfile
 	return arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().State(state)
 }
 
-func buildCSOsDisk(osDisk coreapi.OSDiskProfile, storageAccountType, persistence string) *arohcpv1alpha1.AzureNodePoolOsDiskBuilder {
+func buildCSOsDisk(osDisk coreapi.OSDiskProfile, storageAccountType, persistence string, experimentalFeaturesEnabled bool) *arohcpv1alpha1.AzureNodePoolOsDiskBuilder {
 	builder := arohcpv1alpha1.NewAzureNodePoolOsDisk().
 		SizeGibibytes(int(*osDisk.SizeGiB)).
 		StorageAccountType(storageAccountType).
 		Persistence(persistence)
-	if osDisk.EncryptionSetID != nil {
+	if experimentalFeaturesEnabled && osDisk.EncryptionSetID != nil {
 		builder.SseEncryptionSetResourceId(osDisk.EncryptionSetID.String())
 	}
 	return builder
@@ -640,7 +640,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *coreapi.HCPOpenShiftClusterN
 				ResourceName(strings.ToLower(nodePool.Name)).
 				VMSize(nodePool.Properties.Platform.VMSize).
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
-				OsDisk(buildCSOsDisk(nodePool.Properties.Platform.OSDisk, csDiskStorageAccountType, csPersistence))).
+				OsDisk(buildCSOsDisk(nodePool.Properties.Platform.OSDisk, csDiskStorageAccountType, csPersistence, nodePool.ServiceProviderProperties.ExperimentalFeaturesEnabled))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
