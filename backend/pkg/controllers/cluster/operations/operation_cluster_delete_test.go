@@ -405,6 +405,8 @@ func TestOperationClusterDelete_SynchronizeOperation_ClusterResourcesApplyDesire
 
 	managementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
+	unregisteredManagementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/unregistered"))
 
 	clusterPassingReconcileGate := func() *coreapi.HCPOpenShiftCluster {
 		now := time.Now()
@@ -441,6 +443,16 @@ func TestOperationClusterDelete_SynchronizeOperation_ClusterResourcesApplyDesire
 			Tags: map[string]string{kubeapplierapi.TagControllerName: kubeapplierapi.ClusterResourcesControllerName},
 		}
 	}
+	csUninstallingMock := func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
+		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+		clusterStatus, _ := arohcpv1alpha1.NewClusterStatus().
+			State(arohcpv1alpha1.ClusterStateUninstalling).
+			Build()
+		mockCSClient.EXPECT().
+			GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).
+			Return(clusterStatus, nil)
+		return mockCSClient
+	}
 
 	testCases := []struct {
 		name               string
@@ -460,17 +472,26 @@ func TestOperationClusterDelete_SynchronizeOperation_ClusterResourcesApplyDesire
 			name:               "no tagged ApplyDesires -> operation proceeds to reconcile",
 			spc:                newSPC(managementClusterResourceID),
 			kubeApplierDesires: nil,
-			setupCSMock: func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
-				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-				clusterStatus, _ := arohcpv1alpha1.NewClusterStatus().
-					State(arohcpv1alpha1.ClusterStateUninstalling).
-					Build()
-				mockCSClient.EXPECT().
-					GetClusterStatus(gomock.Any(), fixture.ClusterInternalID).
-					Return(clusterStatus, nil)
-				return mockCSClient
-			},
-			wantStatus: coreapi.ProvisioningStateDeleting,
+			setupCSMock:        csUninstallingMock,
+			wantStatus:         coreapi.ProvisioningStateDeleting,
+		},
+		{
+			name:        "missing ServiceProviderCluster (NotFound) -> gone, operation proceeds to reconcile",
+			spc:         nil,
+			setupCSMock: csUninstallingMock,
+			wantStatus:  coreapi.ProvisioningStateDeleting,
+		},
+		{
+			name:        "ServiceProviderCluster with nil ManagementClusterResourceID -> gone, operation proceeds to reconcile",
+			spc:         newSPC(nil),
+			setupCSMock: csUninstallingMock,
+			wantStatus:  coreapi.ProvisioningStateDeleting,
+		},
+		{
+			name:        "unregistered management cluster (nil kube-applier client) -> gone, operation proceeds to reconcile",
+			spc:         newSPC(unregisteredManagementClusterResourceID),
+			setupCSMock: csUninstallingMock,
+			wantStatus:  coreapi.ProvisioningStateDeleting,
 		},
 	}
 

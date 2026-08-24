@@ -377,20 +377,24 @@ func (c *clusterChildResourcesCleanupController) clusterResourceApplyDesiresGone
 		return false, utils.TrackError(fmt.Errorf("failed to list ApplyDesire documents for precondition check: %w", err))
 	}
 
-	remaining := 0
 	for _, desire := range applyDesireIterator.Items(ctx) {
 		if desire.Tags == nil {
 			continue
 		}
 		if desire.Tags[kubeapplierapi.TagControllerName] == kubeapplierapi.ClusterResourcesControllerName {
-			remaining++
+			// A tagged ApplyDesire still exists; the gate is not satisfied. Surface
+			// any iteration error observed so far before short-circuiting.
+			if err := applyDesireIterator.GetError(); err != nil {
+				return false, utils.TrackError(fmt.Errorf("error iterating ApplyDesires for precondition check: %w", err))
+			}
+			return false, nil
 		}
 	}
 	if err := applyDesireIterator.GetError(); err != nil {
 		return false, utils.TrackError(fmt.Errorf("error iterating ApplyDesires for precondition check: %w", err))
 	}
 
-	return remaining == 0, nil
+	return true, nil
 }
 
 // ensureClusterScopedKubeApplierResourcesDeleted ensures that the cluster-scoped *Desire documents are deleted
