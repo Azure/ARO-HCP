@@ -22,7 +22,7 @@ Mirrored from `CapacityReport.Status.HostedControlPlanes.ReadyResourceIDs` and `
 
 - No PlacementController (phase 1)
 - No scheduling logic changes (phase 1)
-- No `PendingAssignedClusters` (phase 2)
+- No `PendingAssignedClusters` (phase 1)
 
 ## Testing
 
