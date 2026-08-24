@@ -649,7 +649,7 @@ mgmt:
       name: infra
       osDiskSizeGB: 64
       poolCount: 2
-      vmSize: Standard_D8ds_v6
+      vmSize: Standard_D8ads_v7
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: "1.35"
@@ -664,7 +664,7 @@ mgmt:
       name: system
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D8ds_v6
+      vmSize: Standard_D8ads_v7
       zoneRedundantMode: Auto
       zones: ""
     tags: clusterType=mgmt-cluster,persist=true
@@ -678,7 +678,7 @@ mgmt:
       osDiskSizeGB: 100
       poolCount: 3
       secondaryNicCount: 7
-      vmSize: Standard_E16ds_v6
+      vmSize: Standard_E16ads_v7
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14

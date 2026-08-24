@@ -1792,15 +1792,15 @@ clouds:
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D8ds_v6
+                vmSize: Standard_D8ads_v7
               userAgentPool:
                 maxCount: 14
                 minCount: 4
                 osDiskSizeGB: 100
-                vmSize: Standard_E16ds_v6
+                vmSize: Standard_E16ads_v7
                 secondaryNicCount: 7
               infraAgentPool:
-                vmSize: Standard_D8ds_v6
+                vmSize: Standard_D8ads_v7
                 osDiskSizeGB: 64
             jaeger:
               deploy: false
@@ -1899,15 +1899,15 @@ clouds:
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D8ds_v6
+                vmSize: Standard_D8ads_v7
               userAgentPool:
                 maxCount: 14
                 minCount: 4
                 osDiskSizeGB: 100
-                vmSize: Standard_E16ds_v6
+                vmSize: Standard_E16ads_v7
                 secondaryNicCount: 7
               infraAgentPool:
-                vmSize: Standard_D8ds_v6
+                vmSize: Standard_D8ads_v7
                 osDiskSizeGB: 64
             jaeger:
               deploy: false
