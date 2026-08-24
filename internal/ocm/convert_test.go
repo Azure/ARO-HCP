@@ -440,6 +440,35 @@ func TestBuildCSNodePool(t *testing.T) {
 					),
 				),
 		},
+		{
+			name: "passes disk encryption set ID to CS",
+			hcpNodePool: getHCPNodePoolResource(
+				func(hsc *coreapi.HCPOpenShiftClusterNodePool) {
+					hsc.Properties.Platform.OSDisk.EncryptionSetID = metadataapi.Must(azcorearm.ParseResourceID(
+						"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
+				},
+			),
+			expectedCSNodePool: getBaseCSNodePoolBuilder().
+				AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
+					ResourceName("").
+					VMSize("").
+					EncryptionAtHost(
+						arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
+							State(csEncryptionAtHostStateDisabled),
+					).
+					OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
+						SizeGibibytes(64).
+						StorageAccountType(string(metadataapi.DiskStorageAccountTypePremium_LRS)).
+						Persistence("persistent").
+						SseEncryptionSetResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"),
+					),
+				),
+		},
+		{
+			name:               "nil disk encryption set ID does not set SSE field",
+			hcpNodePool:        getHCPNodePoolResource(),
+			expectedCSNodePool: getBaseCSNodePoolBuilder(),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
