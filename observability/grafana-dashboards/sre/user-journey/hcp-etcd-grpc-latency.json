@@ -105,7 +105,9 @@
           },
           "expr": "max(etcd:grpc_server_handling:read_latency_p99:rate5m{cluster=~\"$cluster\",namespace=~\"$namespace\"})",
           "legendFormat": "Worst P99 Read",
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "title": "Worst Cluster P99 Read Latency (5m)",
@@ -194,7 +196,9 @@
           },
           "expr": "max(etcd:grpc_server_handling:write_latency_p99:rate5m{cluster=~\"$cluster\",namespace=~\"$namespace\"})",
           "legendFormat": "Worst P99 Write",
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "title": "Worst Cluster P99 Write Latency (5m)",
@@ -283,7 +287,9 @@
           },
           "expr": "max(etcd:grpc_server_handling:read_latency_p95:rate5m{cluster=~\"$cluster\",namespace=~\"$namespace\"})",
           "legendFormat": "Worst P95 Read",
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "title": "Worst Cluster P95 Read Latency (5m)",
@@ -372,7 +378,9 @@
           },
           "expr": "max(etcd:grpc_server_handling:write_latency_p95:rate5m{cluster=~\"$cluster\",namespace=~\"$namespace\"})",
           "legendFormat": "Worst P95 Write",
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "title": "Worst Cluster P95 Write Latency (5m)",
@@ -697,7 +705,8 @@
           "format": "table",
           "instant": true,
           "legendFormat": "",
-          "refId": "A"
+          "refId": "A",
+          "range": false
         }
       ],
       "title": "Read Latency SLO Violations (P99 > 500ms)",
@@ -1024,7 +1033,8 @@
           "format": "table",
           "instant": true,
           "legendFormat": "",
-          "refId": "A"
+          "refId": "A",
+          "range": false
         }
       ],
       "title": "Write Latency SLO Violations (P99 > 500ms)",
