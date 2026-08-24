@@ -1794,7 +1794,12 @@
               "le": true,
               "__name__": true
             },
-            "indexByName": {},
+            "indexByName": {
+              "grpc_service": 0,
+              "grpc_method": 1,
+              "Value #P50": 2,
+              "Value #P99": 3
+            },
             "renameByName": {
               "grpc_service": "Service",
               "grpc_method": "Method",
