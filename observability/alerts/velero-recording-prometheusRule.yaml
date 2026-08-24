@@ -1,0 +1,85 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: velero-backup-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ============================================================
+  # Velero Backup Recording Rules
+  # ============================================================
+  # Pre-aggregates Velero backup signals used by the Velero backup
+  # alerting rules (alerts/velero-prometheusRule.yaml). Velero runs on the
+  # management clusters and is scraped via the `velero` PodMonitor.
+  #
+  # `max without(prometheus_replica)` deduplicates the HA Prometheus replicas
+  # before aggregation, matching the Velero Grafana dashboard queries.
+  #
+  # Owner: Service Lifecycle team (hcp-sl)
+  - name: velero-backup-recording-rules
+    interval: 1m
+    labels:
+      component: velero
+    rules:
+    # CSI snapshot attempts observed per management cluster over the last hour.
+    - record: velero:csi_snapshot_attempt:increase1h
+      expr: |
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            increase(velero_csi_snapshot_attempt_total[1h])
+          )
+        )
+    # CSI snapshot failures observed per management cluster over the last hour.
+    - record: velero:csi_snapshot_failure:increase1h
+      expr: |
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            increase(velero_csi_snapshot_failure_total[1h])
+          )
+        )
+    # Fraction of CSI snapshot attempts that failed per management cluster.
+    # `(attempts > 0)` gates the denominator so a cluster with zero attempts
+    # yields no series ("no data") instead of clamp_min's misleading 0%.
+    - record: velero:csi_snapshot:failure_ratio1h
+      expr: |
+        (
+          velero:csi_snapshot_failure:increase1h
+          or
+          0 * velero:csi_snapshot_attempt:increase1h
+        )
+        /
+        (velero:csi_snapshot_attempt:increase1h > 0)
+    # Backup deletion attempts observed per management cluster over the last
+    # hour. Mirrors the CSI snapshot rules above.
+    - record: velero:backup_deletion_attempt:increase1h
+      expr: |
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            increase(velero_backup_deletion_attempt_total[1h])
+          )
+        )
+    # Backup deletion failures observed per management cluster over the last
+    # hour.
+    - record: velero:backup_deletion_failure:increase1h
+      expr: |
+        sum by (cluster) (
+          max without (prometheus_replica) (
+            increase(velero_backup_deletion_failure_total[1h])
+          )
+        )
+    # Fraction of Velero backup deletion attempts that failed per management
+    # cluster. Same `(attempts > 0)` gating as the CSI snapshot ratio.
+    - record: velero:backup_deletion:failure_ratio1h
+      expr: |
+        (
+          velero:backup_deletion_failure:increase1h
+          or
+          0 * velero:backup_deletion_attempt:increase1h
+        )
+        /
+        (velero:backup_deletion_attempt:increase1h > 0)

@@ -1,0 +1,99 @@
+rule_files:
+- velero-recording-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# CSI snapshot failure ratio: extrapolation factors in numerator and
+# denominator are identical, so the recorded ratio is exact.
+- interval: 1m
+  input_series:
+  # mgmt-fail: 3 of every 10 CSI snapshot attempts fail -> ratio 0.3
+  - series: 'velero_csi_snapshot_attempt_total{cluster="mgmt-fail", prometheus_replica="a"}'
+    values: "0+10x90"
+  - series: 'velero_csi_snapshot_failure_total{cluster="mgmt-fail", prometheus_replica="a"}'
+    values: "0+3x90"
+  # mgmt-ok: attempts but no failures -> ratio 0
+  - series: 'velero_csi_snapshot_attempt_total{cluster="mgmt-ok", prometheus_replica="a"}'
+    values: "0+10x90"
+  - series: 'velero_csi_snapshot_failure_total{cluster="mgmt-ok", prometheus_replica="a"}'
+    values: "0+0x90"
+  promql_expr_test:
+  - expr: "velero:csi_snapshot:failure_ratio1h"
+    eval_time: 75m
+    exp_samples:
+    - labels: 'velero:csi_snapshot:failure_ratio1h{cluster="mgmt-fail", component="velero"}'
+      value: 0.3
+    - labels: 'velero:csi_snapshot:failure_ratio1h{cluster="mgmt-ok", component="velero"}'
+      value: 0
+# mgmt-quiet: zero CSI snapshot attempts -> `(attempts > 0)` gate produces no
+# series ("no data"), instead of a misleading 0% or NaN.
+- interval: 1m
+  input_series:
+  - series: 'velero_csi_snapshot_attempt_total{cluster="mgmt-quiet", prometheus_replica="a"}'
+    values: "0+0x90"
+  promql_expr_test:
+  - expr: "velero:csi_snapshot:failure_ratio1h"
+    eval_time: 75m
+    exp_samples: []
+# HA Prometheus replica dedup: two replicas scrape the same cluster and both
+# report the same counter values (mirrored, as real HA replicas would). If
+# `max without(prometheus_replica)` were ever changed to `sum without(...)`,
+# this would double the effective attempt/failure counts and the recorded
+# ratio would silently change even though nothing about Velero did.
+- interval: 1m
+  input_series:
+  - series: 'velero_csi_snapshot_attempt_total{cluster="mgmt-ha", prometheus_replica="a"}'
+    values: "0+10x90"
+  - series: 'velero_csi_snapshot_attempt_total{cluster="mgmt-ha", prometheus_replica="b"}'
+    values: "0+10x90"
+  - series: 'velero_csi_snapshot_failure_total{cluster="mgmt-ha", prometheus_replica="a"}'
+    values: "0+3x90"
+  - series: 'velero_csi_snapshot_failure_total{cluster="mgmt-ha", prometheus_replica="b"}'
+    values: "0+3x90"
+  promql_expr_test:
+  - expr: "velero:csi_snapshot_attempt:increase1h"
+    eval_time: 75m
+    exp_samples:
+    - labels: 'velero:csi_snapshot_attempt:increase1h{cluster="mgmt-ha", component="velero"}'
+      value: 600
+  - expr: "velero:csi_snapshot:failure_ratio1h"
+    eval_time: 75m
+    exp_samples:
+    - labels: 'velero:csi_snapshot:failure_ratio1h{cluster="mgmt-ha", component="velero"}'
+      value: 0.3
+# Backup deletion failure ratio: same shape and gating as the CSI snapshot
+# ratio above.
+- interval: 1m
+  input_series:
+  # mgmt-delfail: 3 of every 10 deletion attempts fail -> ratio 0.3
+  - series: 'velero_backup_deletion_attempt_total{cluster="mgmt-delfail", prometheus_replica="a"}'
+    values: "0+10x90"
+  - series: 'velero_backup_deletion_failure_total{cluster="mgmt-delfail", prometheus_replica="a"}'
+    values: "0+3x90"
+  # mgmt-delok: attempts but no failures -> ratio 0
+  - series: 'velero_backup_deletion_attempt_total{cluster="mgmt-delok", prometheus_replica="a"}'
+    values: "0+10x90"
+  - series: 'velero_backup_deletion_failure_total{cluster="mgmt-delok", prometheus_replica="a"}'
+    values: "0+0x90"
+  # mgmt-delnever: deletions attempted, but the failure counter has never
+  # incremented, so it has never emitted a series at all (cold-start case).
+  - series: 'velero_backup_deletion_attempt_total{cluster="mgmt-delnever", prometheus_replica="a"}'
+    values: "0+10x90"
+  promql_expr_test:
+  - expr: "velero:backup_deletion:failure_ratio1h"
+    eval_time: 75m
+    exp_samples:
+    - labels: 'velero:backup_deletion:failure_ratio1h{cluster="mgmt-delfail", component="velero"}'
+      value: 0.3
+    - labels: 'velero:backup_deletion:failure_ratio1h{cluster="mgmt-delok", component="velero"}'
+      value: 0
+    - labels: 'velero:backup_deletion:failure_ratio1h{cluster="mgmt-delnever", component="velero"}'
+      value: 0
+# mgmt-delquiet: zero deletion attempts -> no series ("no data").
+- interval: 1m
+  input_series:
+  - series: 'velero_backup_deletion_attempt_total{cluster="mgmt-delquiet", prometheus_replica="a"}'
+    values: "0+0x90"
+  promql_expr_test:
+  - expr: "velero:backup_deletion:failure_ratio1h"
+    eval_time: 75m
+    exp_samples: []
