@@ -30,12 +30,14 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/fleetlistertesting"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -117,6 +119,21 @@ func newTestSPC(mcResourceID *azcorearm.ResourceID, opts ...func(*coreapi.Servic
 		opt(spc)
 	}
 	return spc
+}
+
+// newTestReadDesire builds a ReadDesire document for seeding the mock
+// kube-applier container in tests.
+func newTestReadDesire(resourceIDString string, mc *azcorearm.ResourceID, target kubeapplierapi.ResourceReference) *kubeapplierapi.ReadDesire {
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   metadataapi.Must(azcorearm.ParseResourceID(resourceIDString)),
+			PartitionKey: strings.ToLower(mc.String()),
+		},
+		Spec: kubeapplierapi.ReadDesireSpec{
+			ManagementCluster: mc,
+			TargetItem:        target,
+		},
+	}
 }
 
 func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
@@ -257,7 +274,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			},
 			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID),
 			kubeApplierDesires: []any{
-				controllerutil.BuildReadDesire(
+				newTestReadDesire(
 					kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 						readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler),
 					readDesireTestManagementClusterResourceID,
@@ -293,10 +310,15 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 				serviceProviderClusterListerStub.ServiceProviderClusters = []*coreapi.ServiceProviderCluster{tt.cachedServiceProviderCluster}
 			}
 
+			mcLister := &fleetlistertesting.SliceManagementClusterLister{
+				ManagementClusters: []*fleetapi.ManagementCluster{{ResourceID: readDesireTestManagementClusterResourceID}},
+			}
+
 			syncer := &createClusterScopedReadDesiresSyncer{
 				resourcesDBClient:                   mockResourcesDBClient,
 				kubeApplierDBClients:                mockKubeApplierDBClients,
 				serviceProviderClusterLister:        serviceProviderClusterListerStub,
+				readDesireLister:                    &kubeapplierlistertesting.DBReadDesireLister{Clients: mockKubeApplierDBClients, Lister: mcLister},
 				hostedClusterNamespaceEnvIdentifier: readDesireTestEnvIdentifier,
 			}
 

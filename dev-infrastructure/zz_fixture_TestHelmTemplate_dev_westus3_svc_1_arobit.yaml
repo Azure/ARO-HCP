@@ -260,6 +260,18 @@ data:
         Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route fleet controller logs with snapshotType=cosmos
+        # to the same cosmosResourceSnapshots Kusto table, keeping the original
+        # fleet-controller.logs copy so they still land in fleetLogs too.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router_fleet
+        Match           fleet-controller.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Emitter_Name    re_emitted_cosmos_snapshot_router_fleet
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
   output.conf: |
     [OUTPUT]
         Name  prometheus_exporter
@@ -622,7 +634,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 08ccb06bd8ab41ed5fc926fdc35511013316ffd39063d09addc8d5ae9cc120b5
+        checksum/configmap: 7fefe43779be7bca010b892f93b1ac5d8f0505b1d92f4961c2f276b742d5a186
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

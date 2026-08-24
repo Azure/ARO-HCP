@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/clock"
 
+	configtypes "github.com/Azure/ARO-Tools/config/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -77,11 +79,16 @@ type ValidatedOptions struct {
 type completedOptions struct {
 	OutputDir         string
 	Workspaces        map[string]azcorearm.ResourceID
+	MetricResources   map[string]azcorearm.ResourceID
 	TimeWindow        timing.TimeWindow
 	Queries           *QueriesConfig
 	SeverityThreshold int // -1 means no filter; 0=Sev0 .. 4=Sev4
 	cred              azcore.TokenCredential
 	knownIssues       []knownIssue
+	// cosmosAutoscaleMax resolves a Cosmos container's configured autoscale
+	// ceiling (RU/s) by CollectionName, used to normalize AutoscaledRU into a
+	// percentage. Nil-safe callers tolerate an unset lookup.
+	cosmosAutoscaleMax autoscaleMaxLookup
 }
 
 type Options struct {
@@ -141,6 +148,26 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to get monitoring.hcpWorkspaceName from config: %w", err)
 	}
 
+	// The RP Cosmos DB account is deployed into the region resource group with
+	// the name from frontend.cosmosDB.name (see region.bicep / output-region.bicep).
+	// Its platform metrics (NormalizedRUConsumption, AutoscaledRU, ...) are queried
+	// via the Azure Monitor metrics API rather than Prometheus.
+	cosmosDBName, err := testutil.ConfigGetString(cfg, "frontend.cosmosDB.name")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get frontend.cosmosDB.name from config: %w", err)
+	}
+
+	// The autoscale ceiling (max RU/s) is configured per Cosmos container. We
+	// read the values from the same rendered config used to deploy them so the
+	// absolute AutoscaledRU metric can be normalized into a percentage of each
+	// container's ceiling (see queries.yaml / metricToResults). The Manifests
+	// containers (one per management cluster, named "Manifests-MC-<n>") share
+	// the kube-applier max-scale value.
+	cosmosAutoscaleMax, err := buildCosmosAutoscaleMaxLookup(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	testTimingInfo, err := timing.LoadTestTimingInfo(ctx, o.TimingInputDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load test timing info: %w", err)
@@ -173,6 +200,10 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		workspaceHcp: *metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Monitor/accounts/%s", o.SubscriptionID, regionRG, hcpWorkspace))),
 	}
 
+	metricResources := map[string]azcorearm.ResourceID{
+		resourceCosmosDB: *metadataapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.DocumentDB/databaseAccounts/%s", o.SubscriptionID, regionRG, cosmosDBName))),
+	}
+
 	queries, err := loadQueriesConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load queries config: %w", err)
@@ -190,14 +221,53 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	logger.Info("loaded known issues config", "patterns", len(knownIssues))
 
 	return &Options{completedOptions: &completedOptions{
-		OutputDir:         o.OutputDir,
-		Workspaces:        workspaces,
-		TimeWindow:        tw,
-		Queries:           queries,
-		SeverityThreshold: o.severityThreshold,
-		cred:              cred,
-		knownIssues:       knownIssues,
+		OutputDir:          o.OutputDir,
+		Workspaces:         workspaces,
+		MetricResources:    metricResources,
+		TimeWindow:         tw,
+		Queries:            queries,
+		SeverityThreshold:  o.severityThreshold,
+		cred:               cred,
+		knownIssues:        knownIssues,
+		cosmosAutoscaleMax: cosmosAutoscaleMax,
 	}}, nil
+}
+
+// buildCosmosAutoscaleMaxLookup reads the per-container autoscale maximum
+// throughput (RU/s) from the rendered configuration and returns a lookup keyed
+// by Azure Monitor's CollectionName dimension. The fixed RP containers map to
+// dedicated config values; the per-management-cluster "Manifests-MC-<n>"
+// containers share the kube-applier max-scale value. Unknown containers resolve
+// to 0 so callers leave them unscaled rather than dividing by zero.
+func buildCosmosAutoscaleMaxLookup(cfg configtypes.Configuration) (autoscaleMaxLookup, error) {
+	fixed := map[string]string{
+		"Resources": "frontend.cosmosDB.resourceContainerMaxScale",
+		"Billing":   "frontend.cosmosDB.billingContainerMaxScale",
+		"Fleet":     "frontend.cosmosDB.fleetContainerMaxScale",
+		"Locks":     "frontend.cosmosDB.locksContainerMaxScale",
+	}
+	byContainer := make(map[string]float64, len(fixed))
+	for container, path := range fixed {
+		v, err := testutil.ConfigGetInt(cfg, path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get %s from config: %w", path, err)
+		}
+		byContainer[container] = float64(v)
+	}
+	manifestsMax, err := testutil.ConfigGetInt(cfg, "kubeApplier.cosmosContainerMaxScale")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kubeApplier.cosmosContainerMaxScale from config: %w", err)
+	}
+
+	return func(container string) float64 {
+		if v, ok := byContainer[container]; ok {
+			return v
+		}
+		if strings.HasPrefix(container, "Manifests-MC-") {
+			return float64(manifestsMax)
+		}
+		return 0
+	}, nil
 }
 
 func (o Options) Run(ctx context.Context) error {
@@ -292,12 +362,13 @@ func (o Options) Run(ctx context.Context) error {
 	}
 	logger.Info("wrote alert JSON artifact", "path", jsonPath, "alerts", len(alerts))
 
-	// Render HTML artifact
-	htmlPath := filepath.Join(o.OutputDir, "alerts-summary.html")
-	if err := renderTemplate(htmlPath, output); err != nil {
+	// Build the tabbed observability page. The alerts view is the first tab;
+	// each metrics panel becomes an additional tab below.
+	alertsHTML, err := renderAlertsHTML(output)
+	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to render alerts HTML: %w", err))
 	}
-	logger.Info("wrote alert HTML artifact", "path", htmlPath)
+	tabs := []observabilityTab{{Title: "Azure Monitor Alerts", HTML: string(alertsHTML)}}
 
 	// Write JUnit
 	junitPath := filepath.Join(o.OutputDir, "junit_alerts.xml")
@@ -307,12 +378,22 @@ func (o Options) Run(ctx context.Context) error {
 	}
 	logger.Info("wrote alert JUnit artifact", "path", junitPath)
 
-	// Execute PromQL queries and render timeseries charts
+	// Execute panel queries (Prometheus and Azure Monitor) and render timeseries charts
 	if o.Queries != nil {
-		if err := o.runQueries(ctx, workspaces); err != nil {
-			return utils.TrackError(fmt.Errorf("PromQL query execution failed: %w", err))
+		panelTabs, err := o.runQueries(ctx, workspaces)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("panel query execution failed: %w", err))
 		}
+		tabs = append(tabs, panelTabs...)
 	}
+
+	// Emit a single tabbed HTML page. The filename must match the Spyglass HTML
+	// lens regex .*-summary.*\.html so Prow renders it inline as one iframe.
+	htmlPath := filepath.Join(o.OutputDir, "observability-summary.html")
+	if err := renderObservabilityPage(htmlPath, tabs); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to render observability HTML: %w", err))
+	}
+	logger.Info("wrote observability HTML artifact", "path", htmlPath, "tabs", len(tabs))
 
 	// Fail the process when JUnit contains failures
 	var totalFailed uint
@@ -326,53 +407,75 @@ func (o Options) Run(ctx context.Context) error {
 	return nil
 }
 
-func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspaceData) error {
+func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspaceData) ([]observabilityTab, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return fmt.Errorf("logger not found in context: %w", err)
+		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 
+	var tabs []observabilityTab
 	for _, panel := range o.Queries.Panels {
 		logger.Info("executing panel queries", "panel", panel.Title, "queries", len(panel.Queries))
 
 		var panelCharts []chartData
 		for _, q := range panel.Queries {
-			ws, ok := workspaces[q.Workspace]
-			if !ok {
-				return fmt.Errorf("unknown workspace %q for query %q", q.Workspace, q.Title)
-			}
-			endpoint := ws.PromEndpoint
-
-			logger.Info("executing PromQL query", "panel", panel.Title, "title", q.Title, "workspace", q.Workspace)
-
 			var results []PrometheusResult
 			var queryErr string
-			resp, err := queryRange(ctx, httpClient, o.cred, endpoint, q.Query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
-			if err != nil {
-				logger.Error(err, "PromQL query failed", "title", q.Title)
-				queryErr = err.Error()
-			} else {
-				results = resp.Data.Result
+			var warning string
+			var metricResourceID string
+
+			switch q.Source {
+			case sourceAzureMonitor:
+				logger.Info("executing Azure Monitor metrics query", "panel", panel.Title, "title", q.Title, "resource", q.Resource)
+				resourceID, ok := o.MetricResources[q.Resource]
+				if !ok {
+					return nil, fmt.Errorf("unknown metric resource %q for query %q", q.Resource, q.Title)
+				}
+				metricResourceID = resourceID.String()
+				res, warn, err := queryAzureMonitorMetrics(ctx, o.cred, resourceID, q, o.TimeWindow.Start, o.TimeWindow.End, o.cosmosAutoscaleMax)
+				if err != nil {
+					logger.Error(err, "Azure Monitor metrics query failed", "title", q.Title)
+					queryErr = err.Error()
+				} else {
+					results = res
+					if warn != "" {
+						logger.Info("Azure Monitor metrics query partially failed", "title", q.Title, "warning", warn)
+						warning = warn
+					}
+				}
+			default:
+				ws, ok := workspaces[q.Workspace]
+				if !ok {
+					return nil, fmt.Errorf("unknown workspace %q for query %q", q.Workspace, q.Title)
+				}
+				endpoint := ws.PromEndpoint
+
+				logger.Info("executing PromQL query", "panel", panel.Title, "title", q.Title, "workspace", q.Workspace)
+
+				resp, err := queryRange(ctx, httpClient, o.cred, endpoint, q.Query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
+				if err != nil {
+					logger.Error(err, "PromQL query failed", "title", q.Title)
+					queryErr = err.Error()
+				} else {
+					results = resp.Data.Result
+				}
 			}
 
-			panelCharts = append(panelCharts, buildChartData(q, queryErr, results, o.TimeWindow))
+			panelCharts = append(panelCharts, buildChartData(q, metricResourceID, queryErr, warning, results, o.TimeWindow))
 		}
-
-		// filename must match the Spyglass HTML lens regex .*-summary.*\.html
-		// so that Prow renders it inline in the job UI.
-		fileName := fmt.Sprintf("panel-%s-summary.html", sanitizeTitle(panel.Title))
-		panelPath := filepath.Join(o.OutputDir, fileName)
 
 		pageData := panelPageData{Title: panel.Title, Charts: panelCharts}
 		pageData.TimeWindow.Start = o.TimeWindow.Start.UTC().Format(time.RFC3339)
 		pageData.TimeWindow.End = o.TimeWindow.End.UTC().Format(time.RFC3339)
 
-		if err := renderPanel(panelPath, pageData); err != nil {
+		html, err := renderPanelHTML(pageData)
+		if err != nil {
 			logger.Error(err, "failed to render panel", "panel", panel.Title)
 			continue
 		}
-		logger.Info("wrote panel", "path", panelPath, "charts", len(panelCharts))
+		tabs = append(tabs, observabilityTab{Title: panel.Title, HTML: string(html)})
+		logger.Info("rendered panel tab", "panel", panel.Title, "charts", len(panelCharts))
 	}
-	return nil
+	return tabs, nil
 }

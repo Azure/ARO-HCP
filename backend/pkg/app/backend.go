@@ -763,13 +763,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	createClusterScopedReadDesiresController := clusterreaddesires.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
-		serviceProviderClusterLister,
+		serviceProviderClusterLister, unionReadDesireLister,
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
 	createNodePoolScopedReadDesiresController := nodepoolreaddesires.NewCreateNodePoolScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
-		serviceProviderClusterLister,
+		serviceProviderClusterLister, unionReadDesireLister,
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
@@ -854,6 +854,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	nodePoolNSGBasedRequiredConnectivityValidationController := nodepoolvalidation.NewNodePoolValidationController(
+		validationutils.NewAzureNodePoolNSGBasedRequiredConnectivityValidation(b.options.SMIClientBuilder),
+		b.options.ResourcesDBClient,
+		serviceProviderNodePoolLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
 	nodePoolVersionController := nodepoolversion.NewNodePoolVersionController(
 		b.options.ResourcesDBClient,
 		subscriptionLister,
@@ -1012,6 +1019,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.FPAMIDataplaneClientBuilder,
 	)
 
+	fetchDataPlaneOperatorsManagedIdentitiesInfoController := clusteridentity.NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.SMIClientBuilder,
+	)
+
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
@@ -1089,6 +1103,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureVMSizeSupportsEphemeralOSDiskValidationController.Run(ctx, 20)
 				go azureNodePoolVMQuotaValidationController.Run(ctx, 20)
 				go controlPlaneIdentitiesPermissionsValidationController.Run(ctx, 20)
+				go nodePoolNSGBasedRequiredConnectivityValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
@@ -1124,6 +1139,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
 				go backupScheduleController.Run(ctx, 20)
 				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
+				go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

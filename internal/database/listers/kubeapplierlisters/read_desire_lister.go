@@ -34,6 +34,11 @@ type ReadDesireLister interface {
 	GetForSystemAdminCredentialRequest(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string) (*kubeapplierapi.ReadDesire, error)
 	GetForSystemAdminCredentialRevocation(ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string) (*kubeapplierapi.ReadDesire, error)
 	GetForManagementCluster(ctx context.Context, stampIdentifier, name string) (*kubeapplierapi.ReadDesire, error)
+	// GetByResourceID fetches a single ReadDesire by its full resource ID
+	// string — the same lower-cased key the informer stores under. Callers that
+	// derive the key generically (e.g. from a scope/parent resource ID) use this
+	// parent-kind-agnostic accessor instead of the GetFor* helpers.
+	GetByResourceID(ctx context.Context, resourceID string) (*kubeapplierapi.ReadDesire, error)
 	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*kubeapplierapi.ReadDesire, error)
 	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplierapi.ReadDesire, error)
 	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*kubeapplierapi.ReadDesire, error)
@@ -91,6 +96,12 @@ func (l *readDesireLister) GetForManagementCluster(
 ) (*kubeapplierapi.ReadDesire, error) {
 	key := kubeapplierapi.ToManagementClusterScopedReadDesireResourceIDString(stampIdentifier, name)
 	return listerutils.GetByKey[kubeapplierapi.ReadDesire](l.indexer, key)
+}
+
+func (l *readDesireLister) GetByResourceID(
+	ctx context.Context, resourceID string,
+) (*kubeapplierapi.ReadDesire, error) {
+	return listerutils.GetByKey[kubeapplierapi.ReadDesire](l.indexer, strings.ToLower(resourceID))
 }
 
 func (l *readDesireLister) ListForManagementCluster(

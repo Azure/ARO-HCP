@@ -27,6 +27,10 @@
             max-width: 1200px; margin: 0 auto; padding: 4px 0 0 0;
             font-size: 13px; color: #888;
         }
+        .chart-warning {
+            max-width: 1200px; margin: 0 auto; padding: 6px 0 0 0;
+            font-size: 13px; color: #FFB300;
+        }
     </style>
 </head>
 <body>
@@ -45,10 +49,11 @@
             {{end}}
         </div>
     {{end}}
+        {{if .Warning}}<div class="chart-warning">&#9888; {{.Warning}}</div>{{end}}
         {{if .Description}}<div class="chart-description">{{.Description}}</div>{{end}}
         <div class="query-footer">
             <details>
-                <summary>PromQL: {{.Title}}
+                <summary>{{if .QueryLang}}{{.QueryLang}}{{else}}PromQL{{end}}: {{.Title}}
                     <button class="copy-btn" onclick="var t=this.closest('.query-footer').querySelector('pre').textContent;navigator.clipboard.writeText(t).then(function(){event.target.textContent='Copied!';setTimeout(function(){event.target.textContent='Copy'},1500)})">Copy</button>
                 </summary>
                 <pre>{{.Query}}</pre>

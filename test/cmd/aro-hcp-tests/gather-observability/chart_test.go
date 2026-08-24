@@ -610,6 +610,172 @@ func TestLoadQueriesConfig(t *testing.T) {
 `,
 			wantErr: "facetBy is only valid with chartType",
 		},
+		{
+			name: "azureMonitor source is valid",
+			yaml: `panels:
+  - title: "CosmosDB Metrics"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+      metrics:
+      - name: NormalizedRUConsumption
+        label: "Normalized RU"
+      - name: AutoscaledRU
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				q := cfg.Panels[0].Queries[0]
+				if q.Source != "azureMonitor" {
+					t.Errorf("Source = %q, want %q", q.Source, "azureMonitor")
+				}
+				if q.ChartType != "line" {
+					t.Errorf("ChartType = %q, want %q", q.ChartType, "line")
+				}
+				if q.Step != "60s" {
+					t.Errorf("Step = %q, want default %q", q.Step, "60s")
+				}
+				if len(q.Metrics) != 2 || q.Metrics[1].Name != "AutoscaledRU" {
+					t.Errorf("Metrics = %+v, want two metrics ending in AutoscaledRU", q.Metrics)
+				}
+			},
+		},
+		{
+			name: "source defaults to prometheus",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].Source != "prometheus" {
+					t.Errorf("Source = %q, want default %q", cfg.Panels[0].Queries[0].Source, "prometheus")
+				}
+			},
+		},
+		{
+			name: "unknown source returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      source: kusto
+      query: "foo"
+      workspace: svc
+`,
+			wantErr: `source must be "prometheus" or "azureMonitor"`,
+		},
+		{
+			name: "azureMonitor with query returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+      query: "rate(foo[5m])"
+      metrics:
+      - name: NormalizedRUConsumption
+`,
+			wantErr: "query/workspace are only valid with source",
+		},
+		{
+			name: "azureMonitor with unknown resource returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: postgres
+      aggregation: Maximum
+      metrics:
+      - name: NormalizedRUConsumption
+`,
+			wantErr: "resource must be one of",
+		},
+		{
+			name: "azureMonitor without aggregation returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      metrics:
+      - name: NormalizedRUConsumption
+`,
+			wantErr: "aggregation is required",
+		},
+		{
+			name: "azureMonitor with unsupported aggregation returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Median
+      metrics:
+      - name: NormalizedRUConsumption
+`,
+			wantErr: "unsupported aggregation",
+		},
+		{
+			name: "azureMonitor without metrics returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+`,
+			wantErr: "at least one metric is required",
+		},
+		{
+			name: "azureMonitor metric without name returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+      metrics:
+      - label: "no name"
+`,
+			wantErr: "name is required",
+		},
+		{
+			name: "prometheus with metrics field returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU"
+      query: "rate(foo[5m])"
+      workspace: svc
+      aggregation: Maximum
+`,
+			wantErr: "resource/aggregation/metrics are only valid with source",
+		},
+		{
+			name: "normalizeByAutoscaleMax without CollectionName split returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "RU"
+      source: azureMonitor
+      resource: cosmosdb
+      aggregation: Maximum
+      metrics:
+      - name: AutoscaledRU
+        normalizeByAutoscaleMax: true
+`,
+			wantErr: "normalizeByAutoscaleMax requires splitBy",
+		},
 	}
 
 	for _, tt := range tests {
@@ -644,9 +810,67 @@ func TestLoadQueriesConfigEmbedded(t *testing.T) {
 	if len(cfg.Panels) == 0 {
 		t.Fatal("embedded queries.yaml should contain at least one panel")
 	}
+
+	// Index panels by title and guard against duplicate/lost panels. A
+	// duplicate "queries:" key in a panel (or a dropped panel title) causes
+	// go-yaml to silently merge mappings — last key wins — which is invalid
+	// YAML that still parses. Unique, non-empty titles catch that class of bug.
+	byTitle := map[string]PanelSpec{}
 	for _, p := range cfg.Panels {
+		if p.Title == "" {
+			t.Errorf("panel with %d queries has an empty title", len(p.Queries))
+		}
+		if _, dup := byTitle[p.Title]; dup {
+			t.Errorf("duplicate panel title %q", p.Title)
+		}
+		byTitle[p.Title] = p
 		if len(p.Queries) == 0 {
 			t.Errorf("panel %q should contain at least one query", p.Title)
+		}
+	}
+
+	// Assert the panels that are easy to clobber when editing adjacent blocks
+	// still carry their own queries (regression guard for a duplicate-key merge
+	// that attached Maestro's queries to the CosmosDB panel and dropped the
+	// Maestro Metrics panel entirely).
+	wantQuery := map[string]string{
+		"CosmosDB Metrics": "RU Consumption vs Provisioned",
+		"Maestro Metrics":  "REST API Request Rate by Status",
+	}
+	for panelTitle, queryTitle := range wantQuery {
+		p, ok := byTitle[panelTitle]
+		if !ok {
+			t.Errorf("expected panel %q not found", panelTitle)
+			continue
+		}
+		found := false
+		for _, q := range p.Queries {
+			if q.Title == queryTitle {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("panel %q missing expected query %q; has %d queries", panelTitle, queryTitle, len(p.Queries))
+		}
+	}
+
+	// All CosmosDB charts must live under a single panel so the Prow job
+	// renders one iframe. Guard against a regression that splits them back out
+	// into separate panels (extra iframes).
+	if _, ok := byTitle["CosmosDB Throttled Requests"]; ok {
+		t.Error("CosmosDB charts must be a single panel; found a separate \"CosmosDB Throttled Requests\" panel")
+	}
+	if p, ok := byTitle["CosmosDB Metrics"]; ok {
+		wantCharts := []string{"RU Consumption vs Provisioned", "Autoscale Provisioned RU vs Ceiling", "Throttled Requests (429)"}
+		have := map[string]bool{}
+		for _, q := range p.Queries {
+			have[q.Title] = true
+		}
+		for _, want := range wantCharts {
+			if !have[want] {
+				t.Errorf("CosmosDB Metrics panel missing chart %q; has %d charts", want, len(p.Queries))
+			}
 		}
 	}
 }

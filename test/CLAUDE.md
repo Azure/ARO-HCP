@@ -15,19 +15,20 @@ The CI step `aro-hcp-gather-observability` runs `aro-hcp-tests gather-observabil
 
 | Spyglass file | What it is | Produced by |
 |---|---|---|
-| `panel-<slug>-summary.html` | one page per metrics **panel** (charts) | `queries.yaml` panels, rendered by `runQueries` → `renderPanel` (`options.go`, `render.go`, `chart.go`); filename is `panel-%s-summary.html` with `sanitizeTitle(panel.Title)` (`render.go`) |
-| `alerts-summary.html` + `alerts.json` | Azure Monitor alerts that fired | `options.go` (`Run`) + `alerts.go` + `render.go` template |
+| `observability-summary.html` | **single tabbed page** with one tab for the Azure Monitor alerts view and one tab per metrics **panel** (charts) | `options.go` (`Run`) assembles `[]observabilityTab` from `renderAlertsHTML` + `runQueries`→`renderPanelHTML`, then `renderObservabilityPage` (`render.go`) writes one page using `artifacts/observability.html.tmpl` |
+| `alerts.json` | Azure Monitor alerts that fired (raw data) | `options.go` (`Run`) + `alerts.go` |
 | `junit_alerts.xml` | alerts as JUnit (fails the step) | `junit.go` (`alertsToJUnit`) |
 
-The `-summary.html` suffix is **required**: Prow's Spyglass HTML lens only renders
-files matching `.*-summary.*\.html` inline (see the comment in `options.go` near
-`fmt.Sprintf("panel-%s-summary.html", ...)`).
+Each tab's HTML is a full, self-contained page (the existing alerts and metrics
+panel templates, unchanged) embedded into its own same-origin `<iframe srcdoc>`
+so per-section CSS/JS stay isolated. Iframes are created lazily on first
+activation (while visible) so charts size correctly; the wrapper auto-sizes each
+iframe to its content height.
 
-Panel-title → filename examples (slug = lowercase, non-alphanumerics → `-`):
-- "Frontend Metrics" → `panel-frontend-metrics-summary.html`
-- "Backend Metrics" → `panel-backend-metrics-summary.html`
-- "Fleet Controller Metrics" → `panel-fleet-controller-metrics-summary.html`
-- "Maestro Metrics" → `panel-maestro-metrics-summary.html`
+The `-summary.html` suffix is **required**: Prow's Spyglass HTML lens only renders
+files matching `.*-summary.*\.html` inline. Emitting **one** such file (rather
+than one per panel) means Spyglass shows a single inline iframe with tabs instead
+of a separate collapsible section per panel.
 
 ### Adding or changing a chart
 

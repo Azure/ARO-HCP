@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/listers/fleetlisters"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -67,7 +68,9 @@ func (s *stampDataDumpSyncer) SyncOnce(ctx context.Context, key fleetcontrollers
 	}
 
 	logger.Info("dumping stamp",
+		"snapshotType", "cosmos",
 		"resourceID", stamp.CosmosMetadata.ResourceID,
+		"objectMetadata", metadataapi.ObjectMetadataForResourceID("fleet", stamp.CosmosMetadata.ResourceID),
 		"content", stamp,
 	)
 
@@ -78,7 +81,9 @@ func (s *stampDataDumpSyncer) SyncOnce(ctx context.Context, key fleetcontrollers
 	}
 
 	logger.Info("dumping management cluster",
+		"snapshotType", "cosmos",
 		"resourceID", managementCluster.CosmosMetadata.ResourceID,
+		"objectMetadata", metadataapi.ObjectMetadataForResourceID("fleet", managementCluster.CosmosMetadata.ResourceID),
 		"content", managementCluster,
 	)
 

@@ -69,6 +69,11 @@ type ChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer coreapi.C
 	globalLister         cosmosstorageutils.GlobalLister[InternalAPIType]
 	changeFeedClient     cosmosstorageutils.ChangeFeedClient
 	shouldDeliverItemFn  ShouldDeliverFunc[InternalAPITypePointer]
+	// jitterFn spreads each watch's expiry (see defaultJitter); defaulted to
+	// defaultJitter in NewChangeFeedListWatcher. It is intentionally not
+	// externally configurable — same-package tests may set it directly for
+	// deterministic timing.
+	jitterFn JitterFunc
 	// cosmosContainerName is the Cosmos container label emitted as the objectMetadata.cosmosContainer
 	// of every delivered/skipped change-feed item so the item is ingested into
 	// cosmosResourceSnapshots with full resource metadata. It is required at construction; an empty
@@ -91,6 +96,7 @@ func NewChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer coreap
 		changeFeedClient:     changeFeedClient,
 		relistDuration:       relistDuration,
 		cosmosContainerName:  cosmosContainerName,
+		jitterFn:             defaultJitter,
 	}
 }
 
@@ -138,7 +144,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 		}
 	}
 
-	c.currentWatcher = newChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType](c.desiredResourceTypes, c.clock, c.changeFeedClient, c.clock.Now(), c.relistDuration, c.shouldDeliverItemFn, c.cosmosContainerName)
+	c.currentWatcher = newChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType](c.desiredResourceTypes, c.clock, c.changeFeedClient, c.clock.Now(), c.relistDuration, c.shouldDeliverItemFn, c.cosmosContainerName, c.jitterFn)
 	go c.currentWatcher.Run(ctx)
 
 	resourceIDToInstanceVersion := &sync.Map{}
@@ -232,10 +238,13 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 type ChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any] struct {
 	desiredResourceTypes []azcorearm.ResourceType
 	maxWatchDuration     time.Duration
-	clock                utilsclock.Clock
-	changeFeedClient     cosmosstorageutils.ChangeFeedClient
-	startFrom            time.Time
-	shouldDeliverItemFn  ShouldDeliverFunc[InternalAPITypePointer]
+	// jitterFn spreads maxWatchDuration per watch (see defaultJitter) so
+	// informers sharing a relist duration do not relist in lockstep.
+	jitterFn            JitterFunc
+	clock               utilsclock.Clock
+	changeFeedClient    cosmosstorageutils.ChangeFeedClient
+	startFrom           time.Time
+	shouldDeliverItemFn ShouldDeliverFunc[InternalAPITypePointer]
 	// cosmosContainerName, when set, is emitted as objectMetadata.cosmosContainer on every
 	// change-feed item log so the item is ingested into cosmosResourceSnapshots with full
 	// resource metadata. Empty means "do not emit objectMetadata".
@@ -266,10 +275,14 @@ type ChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer coreapi.Cosmo
 }
 
 func newChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer coreapi.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
-	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, changeFeedClient cosmosstorageutils.ChangeFeedClient, startFrom time.Time, maxWatchDuration time.Duration, shouldDeliverFn ShouldDeliverFunc[InternalAPITypePointer], cosmosContainerName string) *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
+	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, changeFeedClient cosmosstorageutils.ChangeFeedClient, startFrom time.Time, maxWatchDuration time.Duration, shouldDeliverFn ShouldDeliverFunc[InternalAPITypePointer], cosmosContainerName string, jitterFn JitterFunc) *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
+	if jitterFn == nil {
+		jitterFn = defaultJitter
+	}
 	return &ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]{
 		desiredResourceTypes:        desiredResourceTypes,
 		maxWatchDuration:            maxWatchDuration,
+		jitterFn:                    jitterFn,
 		clock:                       clock,
 		changeFeedClient:            changeFeedClient,
 		startFrom:                   startFrom.Add(-2 * time.Second), // go back in time just a little bit so we collect everything
@@ -317,7 +330,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	if err != nil {
 		retErr := utils.TrackError(err)
 		utilruntime.HandleError(retErr)
-		c.Stop()
+		c.signalStop()
 		cancel(retErr)
 		return
 	}
@@ -342,7 +355,10 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		select {
 		case <-ctx.Done():
 			return
-		case <-c.clock.After(c.maxWatchDuration):
+		// Jitter the max watch duration (see defaultJitter) so watchers sharing a
+		// relist duration expire at slightly different times, preventing a
+		// thundering-herd of simultaneous relists against Cosmos DB.
+		case <-c.clock.After(c.jitterFn(c.maxWatchDuration)):
 			// Signal to the consuming Reflector that the watch has
 			// expired so it will relist. Without this the Reflector
 			// just sees the result channel block and never reissues
@@ -360,7 +376,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 			case <-c.done:
 			case <-ctx.Done():
 			}
-			c.Stop()
+			c.signalStop()
 			return
 		}
 	}(ctx)
@@ -511,7 +527,25 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	return nil
 }
 
+// Stop signals the watcher to shut down and blocks until Run and every child
+// goroutine it spawned have fully exited (see Finished), including their
+// deferred logging. The client-go Reflector calls Stop when it tears a watch
+// down, so this join is what ties the watcher's lifetime to the informer's:
+// when a watcher shares a logger with a *testing.T, its deferred shutdown
+// logging must finish before the test returns, otherwise the test logger
+// races/panics on a log emitted after the test has completed. Callers running
+// on the Run goroutine (or on a goroutine that Run waits for) must use
+// signalStop instead — blocking here would deadlock waiting on their own
+// Finished channel.
 func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Stop() {
+	c.signalStop()
+	<-c.finished
+}
+
+// signalStop triggers shutdown without waiting for it to complete. It is the
+// non-blocking counterpart to Stop, safe to call from the Run goroutine and
+// from the child goroutines that Run joins on.
+func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) signalStop() {
 	c.stopOnce.Do(func() {
 		close(c.done)
 	})
@@ -523,7 +557,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 // Finished returns a channel that is closed once Run and all of its child
 // goroutines have fully exited. It is safe to call before, during, or after
-// Run, and Stop must be invoked separately to actually trigger shutdown.
+// Run. Stop triggers shutdown and waits for this channel to close.
 func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Finished() <-chan struct{} {
 	return c.finished
 }

@@ -10,23 +10,53 @@
 panels:
 - title: "Frontend Metrics"
   queries:
-  - title: "Frontend Request Latency"
-    description: "P99 frontend request latency by method/route/cluster (matches FrontendPathLatency). No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alert)."
+  - title: "Frontend Slow-Request Fraction (>1s)"
+    description: "Fraction of frontend requests slower than 1 second, by method/route/cluster, over a trailing 30-minute window (matches the FrontendPathLatency alert's core signal). The alert fires at >0.05 (5%) but only for series that also clear its volume gate (>=50 requests/30m) and an absolute slow-call floor (>=3), so a single outlier on a low-traffic route cannot trip it. Uses count minus the le=1 bucket over count as the slow fraction; HA Prometheus replicas cancel in the ratio. Excludes hcpoperationresults (same as the alert)."
     query: |
-      histogram_quantile(0.99,
+      (
+        sum by (route, method, cluster) (
+          rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+        )
+        -
+        sum by (route, method, cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{le="1", route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+        )
+      )
+      /
+      sum by (route, method, cluster) (
+        rate(frontend_http_requests_duration_seconds_count{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+      )
+    unit: ratio
+    workspace: svc
+    step: "60s"
+  - title: "Frontend Median (p50) Request Latency"
+    description: "Median (p50) frontend request latency by method/route/cluster over a trailing 30-minute window (matches the FrontendPathMedianLatency alert, which fires at >250ms for series with >=10 requests/30m). The median is robust at low sample counts, so this catches regressions in normal-request handling that the p99 signal misses. No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alert)."
+    query: |
+      histogram_quantile(0.5,
         sum by (le, route, method, cluster) (
-          rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[5m])
+          rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
         )
       )
     unit: seconds
     workspace: svc
     step: "60s"
-  - title: "Frontend Request Count (5m sliding)"
-    description: "Frontend HTTP requests served in the trailing five-minute window, broken down by method and route per svc cluster (same breakdown as Frontend Request Latency, but counting every route including hcpoperationresults). Uses increase() over frontend_http_requests_total, deduplicating HA Prometheus replicas with max without(prometheus_replica) before summing. At each point the value is the request count for the preceding five minutes (a sliding block)."
+  - title: "Frontend Request Latency (p99, triage)"
+    description: "P99 frontend request latency by method/route/cluster over a trailing 30-minute window. Triage-only: the CI gate is no longer a raw p99 threshold (a p99 over a few samples is an outlier check) — it is the FrontendPathLatency slow-fraction and FrontendPathMedianLatency p50 alerts. This panel remains to spot tail behaviour. No minPeakThreshold — sub-second routes must stay visible for CI triage. Excludes hcpoperationresults (same as the alerts)."
+    query: |
+      histogram_quantile(0.99,
+        sum by (le, route, method, cluster) (
+          rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
+        )
+      )
+    unit: seconds
+    workspace: svc
+    step: "60s"
+  - title: "Frontend Request Count (30m sliding)"
+    description: "Frontend HTTP requests served in the trailing thirty-minute window (matching the alert evaluation window), broken down by method and route per svc cluster (same breakdown as the latency panels, but counting every route including hcpoperationresults). Uses increase() over frontend_http_requests_total, deduplicating HA Prometheus replicas with max without(prometheus_replica) before summing. At each point the value is the request count for the preceding thirty minutes (a sliding block); use it to see which series clear the alert volume gates (>=50/30m for FrontendPathLatency, >=10/30m for FrontendPathMedianLatency)."
     query: |
       sum by (route, method, cluster) (
         max without (prometheus_replica) (
-          increase(frontend_http_requests_total[5m])
+          increase(frontend_http_requests_total[30m])
         )
       )
     unit: requests
@@ -156,6 +186,45 @@ panels:
       )
     unit: /s
     workspace: svc
+    step: "60s"
+- title: "CosmosDB Metrics"
+  queries:
+  # One panel (one iframe) with three per-container charts. Each is a single
+  # Azure Monitor platform metric (Microsoft.DocumentDB/databaseAccounts) split
+  # by CollectionName, so every legend entry is just the container name; the
+  # aggregation is stated here in the blurb rather than repeated per series.
+  - title: "RU Consumption vs Provisioned"
+    description: "Per-container peak utilization of currently-provisioned throughput (max NormalizedRUConsumption). Sustained values near 100% mean the container is saturating its provisioned RU/s and will start throttling (429). Same signal as the 'Normalized RU Consumption High' alert."
+    source: azureMonitor
+    resource: cosmosdb
+    aggregation: Maximum
+    metrics:
+    - name: NormalizedRUConsumption
+      splitBy: CollectionName
+    unit: "%"
+    step: "60s"
+  - title: "Autoscale Provisioned RU vs Ceiling"
+    description: "Per-container autoscale-provisioned throughput (max AutoscaledRU) as a percentage of that container's configured autoscale maximum (from the rendered config). At 100% the autoscaler is at its ceiling and further load turns into throttling. Normalized client-side; the copyable query returns the raw RU/s."
+    source: azureMonitor
+    resource: cosmosdb
+    aggregation: Maximum
+    metrics:
+    - name: AutoscaledRU
+      splitBy: CollectionName
+      normalizeByAutoscaleMax: true
+    unit: "%"
+    step: "60s"
+  - title: "Throttled Requests (429)"
+    description: "Per-container count of throttled requests (TotalRequests filtered to StatusCode=429). Any sustained non-zero series means the container is exceeding its provisioned RU/s and clients are being rate-limited once SDK retries are exhausted."
+    source: azureMonitor
+    resource: cosmosdb
+    aggregation: Count
+    metrics:
+    - name: TotalRequests
+      splitBy: CollectionName
+      filter:
+        StatusCode: "429"
+    unit: requests
     step: "60s"
 - title: "Maestro Metrics"
   queries:

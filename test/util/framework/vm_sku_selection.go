@@ -69,7 +69,8 @@ const (
 // VMSizeSelector describes the requirements a VM size must satisfy. SelectVMSize
 // tries Preferred entries in order first, then falls back to a deterministic
 // (sorted) pick among the remaining SKUs that match NamePattern and the
-// capability constraints.
+// capability constraints. A nil NamePattern disables the fallback, limiting
+// selection to the Preferred entries (preferred-only selection).
 type VMSizeSelector struct {
 	// Name identifies the selector in logs and errors, e.g. "default-worker".
 	Name string
@@ -77,6 +78,9 @@ type VMSizeSelector struct {
 	Preferred []string
 	// NamePattern, when set, restricts fallback discovery candidates to SKU
 	// names matching the pattern. It does not constrain Preferred entries.
+	// When nil, no fallback discovery is performed: selection is limited to the
+	// Preferred entries, and SelectVMSize returns ErrNoUsableVMSize if none of
+	// them are usable.
 	NamePattern *regexp.Regexp
 	// MinVCPUs, when > 0, requires the SKU to advertise at least this many vCPUs.
 	MinVCPUs int
@@ -267,20 +271,24 @@ func selectVMSize(skus []*armcompute.ResourceSKU, location string, selector VMSi
 		}
 	}
 
-	// Deterministic fallback: sorted pick among matching usable SKUs.
-	fallback := make([]string, 0, len(usable))
-	for name := range usable {
-		if selector.NamePattern != nil && !selector.NamePattern.MatchString(name) {
-			continue
+	// Deterministic fallback: sorted pick among usable SKUs matching NamePattern.
+	// A nil NamePattern disables fallback discovery entirely, limiting selection
+	// to the Preferred entries.
+	if selector.NamePattern != nil {
+		fallback := make([]string, 0, len(usable))
+		for name := range usable {
+			if !selector.NamePattern.MatchString(name) {
+				continue
+			}
+			fallback = append(fallback, name)
 		}
-		fallback = append(fallback, name)
-	}
-	sort.Strings(fallback)
-	trace.fallbackCandidates = fallback
-	if len(fallback) > 0 {
-		trace.selected = fallback[0]
-		trace.viaFallback = true
-		return fallback[0], trace, nil
+		sort.Strings(fallback)
+		trace.fallbackCandidates = fallback
+		if len(fallback) > 0 {
+			trace.selected = fallback[0]
+			trace.viaFallback = true
+			return fallback[0], trace, nil
+		}
 	}
 
 	return "", trace, fmt.Errorf("selector %q matched no usable VM size in %s: %w", selector.Name, location, ErrNoUsableVMSize)
@@ -555,10 +563,12 @@ func ARM64NodePoolVMSizeSelector() VMSizeSelector {
 	}
 }
 
-// GPUNodePoolVMSizeSelector selects a GPU-capable worker SKU. The historical
-// GPU sizes are preferred; the fallback accepts any N-series SKU that advertises
-// a GPU. Callers should treat ErrNoUsableVMSize as a reason to Skip, since GPU
-// capacity is scarce and frequently restricted per subscription/region.
+// GPUNodePoolVMSizeSelector selects a GPU-capable worker SKU from a curated
+// Preferred list only. There is intentionally no name-pattern fallback: a broad
+// N-series pattern matches extremely expensive GPU HW (e.g. A100/A10 N-series),
+// so selection is restricted to the vetted Preferred SKUs. Callers should treat
+// ErrNoUsableVMSize as a reason to Skip, since GPU capacity is scarce and
+// frequently restricted per subscription/region.
 func GPUNodePoolVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name: "gpu-worker",
@@ -567,8 +577,8 @@ func GPUNodePoolVMSizeSelector() VMSizeSelector {
 			"Standard_NC8as_T4_v3",
 			"Standard_NC16as_T4_v3",
 			"Standard_NC64as_T4_v3",
+			"Standard_NC6s_v3",
 		},
-		NamePattern: regexp.MustCompile(`^Standard_N`),
-		RequireGPU:  true,
+		RequireGPU: true,
 	}
 }
