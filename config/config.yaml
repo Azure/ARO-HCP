@@ -184,7 +184,7 @@ defaults:
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:937e9dfbffb8ae616983b63a1f4c53fc35470637574984ddc3ee0b0a11e85f8c # 20260816.1 (2026-08-16 03:26)
+      digest: sha256:0e49bd261f9d989767d0b9007a6fceb8d197ef223b8fae7c23567c2cb31399c0 # 20260823.1 (2026-08-23 03:25)
     k8s:
       namespace: monitoring
       serviceAccountName: ke-serviceaccount
@@ -380,7 +380,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:0718b519d5136af89ef6491e5a22eef0c21feeb7103a9e16b61ba96801b85c18 # 371975345ed9cf7c19b17d423ccde02210c6129f (2026-08-21 19:10)
+      digest: sha256:aa9e32afa9078756b0fed73a153419cacdab36e7d90c75a44f631ce005022dbc # 3ee9615567acffaf3e3ee25c2ca2942d650565cf (2026-08-22 14:23)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides --disable-capi-migration'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -1071,12 +1071,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:0bbb1489d67732e57be701da9662a0f10a5e0658a75b62e43f8339c44cbc44b2 # v2.16.4-576 (2026-08-21 18:09)
+        digest: sha256:df292353f2a25baeb3f6b282a9a8cf3edcadc3d38d724915a5ffa9fa5b793ac3 # v2.16.4-579 (2026-08-23 13:16)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:cc67aa0750a8cb21504d173de7cc7fb15953e12035b60e0dd682b7245600d040 # v2.11.6-622 (2026-08-21 18:11)
+        digest: sha256:a57aad313814faa15968e2bb7da948dabe93e7aa98233d04950812050b748f11 # v2.11.6-624 (2026-08-23 13:16)
   # Cluster Service
   clustersService:
     image:
@@ -1144,7 +1144,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:9349f8a897731ca540187f563e6445514ff83074a04d09abc70fa5ada44df70d # 272e275 (2026-08-21 22:17)
+        digest: sha256:8a13a27d1af2cc76ba1903e4d919b488973793cf7ae95f9f716aa7a4f39244e3 # c3f02f9 (2026-08-22 13:09)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.20,4.21,4.22"
   # Automation Account
