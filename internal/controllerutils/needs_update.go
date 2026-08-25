@@ -17,6 +17,7 @@ package controllerutils
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/conversion"
@@ -116,11 +117,17 @@ var needsUpdateEqualities = func() conversion.Equalities {
 // canonical string form. Both may be nil; non-nil values are compared by
 // String(), so independently-parsed instances with different parent pointer
 // chains still compare equal when they represent the same ARM ID.
+//
+// The comparison is case-insensitive: ARM resource IDs are case-insensitive for
+// their provider namespaces and resource types (for example Azure may return
+// "Microsoft.RedHatOpenshift" where our internal types use
+// "Microsoft.RedHatOpenShift"), so two IDs that differ only by casing represent
+// the same resource and must compare equal.
 func ResourceIDsEqual(a, b *azcorearm.ResourceID) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	return a.String() == b.String()
+	return strings.EqualFold(a.String(), b.String())
 }
 
 // NeedsUpdate reports whether `desired` differs from `existing` in any way that should cause us to

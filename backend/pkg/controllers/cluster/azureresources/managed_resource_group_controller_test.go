@@ -185,6 +185,12 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 	differentOwnerID := "/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/other-cluster"
+	// sameOwnerDifferentCasingID is this cluster's own ID as Azure returns it:
+	// identical to ownerClusterID except for the provider-namespace casing
+	// ("Microsoft.RedHatOpenshift" vs "Microsoft.RedHatOpenShift"). ARM IDs are
+	// case-insensitive, so this must be treated as owned by THIS cluster (regression
+	// guard for the observe-controller hot loop).
+	sameOwnerDifferentCasingID := strings.Replace(ownerClusterID, "Microsoft.RedHatOpenShift", "Microsoft.RedHatOpenshift", 1)
 
 	testCases := []struct {
 		name              string
@@ -240,6 +246,21 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			expectErrContains: "owned by another cluster",
 			expectAzure:       nil,
 			expectPending:     mrgID,
+		},
+		{
+			// Owned-by-this-cluster despite provider-namespace casing differences:
+			// Azure returns ManagedBy with "Microsoft.RedHatOpenshift" while this
+			// cluster's ID uses "Microsoft.RedHatOpenShift". ARM IDs are
+			// case-insensitive, so this is NOT owned by another cluster: actual is
+			// set and pending cleared, with no error. Regression guard against the
+			// observe-controller hot loop.
+			name:             "not deleting and resource group owned by this cluster with different provider casing sets actual and clears pending",
+			deleting:         false,
+			initialReference: coreapi.AzureReference{},
+			getResponse:      resourceGroupPresentResponse(sameOwnerDifferentCasingID),
+			getErr:           nil,
+			expectAzure:      mrgID,
+			expectPending:    nil,
 		},
 		{
 			name:             "deleting and resource group gone clears both",
