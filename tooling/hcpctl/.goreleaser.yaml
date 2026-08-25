@@ -32,7 +32,7 @@ changelog:
   disable: true
 release:
   target_commitish: main
-  name_template: "hcpctl (nightly)"
+  name_template: "hcpctl (latest)"
   header: |
     Automatically-built `hcpctl` binaries from the current `main` branch. Not a versioned release.
   prerelease: true

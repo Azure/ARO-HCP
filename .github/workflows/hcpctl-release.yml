@@ -1,4 +1,4 @@
-name: "hcpctl Nightly Build"
+name: "hcpctl Latest Build"
 on:
   schedule:
   # Check hourly; the "skip if unchanged" step below keeps this a no-op
@@ -21,12 +21,12 @@ jobs:
       with:
         ref: main
         fetch-depth: 0
-    - name: Check for changes since last nightly build
+    - name: Check for changes since last build
       id: check
       run: |
-        git fetch origin refs/markers/hcpctl-nightly-built:refs/markers/hcpctl-nightly-built 2>/dev/null || true
-        if git rev-parse -q --verify refs/markers/hcpctl-nightly-built >/dev/null && \
-           git diff --quiet refs/markers/hcpctl-nightly-built HEAD -- tooling/hcpctl; then
+        git fetch origin refs/markers/hcpctl-latest-built:refs/markers/hcpctl-latest-built 2>/dev/null || true
+        if git rev-parse -q --verify refs/markers/hcpctl-latest-built >/dev/null && \
+           git diff --quiet refs/markers/hcpctl-latest-built HEAD -- tooling/hcpctl; then
           echo "changed=false" >> "$GITHUB_OUTPUT"
         else
           echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -46,7 +46,7 @@ jobs:
         args: release --clean --skip=validate --config tooling/hcpctl/.goreleaser.yaml
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GORELEASER_CURRENT_TAG: hcpctl-nightly
+        GORELEASER_CURRENT_TAG: hcpctl-latest
     # Record the last successfully published commit using a non-tag marker ref under
     # refs/markers/ instead of force-moving a tag. Prow's clonerefs runs
     # `git fetch --tags --prune` against repos it caches between runs, and since git 2.20
@@ -55,10 +55,10 @@ jobs:
     # this repo. A ref outside refs/tags/ is invisible to `git fetch --tags`, so moving it
     # hourly is safe. Doing this after a successful GoReleaser run means a failed run leaves
     # the marker (and thus the next change-detection check) pointing at the last commit that
-    # actually published. The hcpctl-nightly tag stays where GoReleaser placed it so the
-    # GitHub Release page still resolves.
+    # actually published. The hcpctl-latest tag is never moved; GoReleaser publishes the
+    # release against the existing frozen tag, so the GitHub Release page still resolves.
     - name: Update build marker
       if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
       run: |
-        git update-ref refs/markers/hcpctl-nightly-built HEAD
-        git push origin refs/markers/hcpctl-nightly-built --force
+        git update-ref refs/markers/hcpctl-latest-built HEAD
+        git push origin refs/markers/hcpctl-latest-built --force
