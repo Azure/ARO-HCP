@@ -35,6 +35,10 @@ release:
   name_template: "hcpctl (latest)"
   header: |
     Automatically-built `hcpctl` binaries from the current `main` branch. Not a versioned release.
+
+    > [!NOTE]
+    > - The `hcpctl-latest` git tag stays pinned to an older commit; the **binaries below are always built from the latest `main`**.
+    > - GitHub's auto-generated **"Source code" archives match that old tag, not the binaries**. Ignore them and use the binary assets below.
   prerelease: true
   mode: replace
   replace_existing_artifacts: true
