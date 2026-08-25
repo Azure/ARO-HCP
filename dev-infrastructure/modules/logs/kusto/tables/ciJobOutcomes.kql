@@ -1,0 +1,57 @@
+// Outcomes of CI jobs, one row per Prow run.
+//
+// Unlike the other tables in this database, this one is not fed from Event Hub.
+// The tenant-quota collector on the opstool cluster writes it directly - see
+// tooling/tenant-quota/pkg/cijoboutcomes - so it needs no raw staging table and
+// no update policy.
+//
+// It exists to make the rest of the telemetry joinable to CI. Container logs,
+// Kubernetes events and alerts all record the cluster a run used, but nothing
+// records whether the run passed, which job it was, or which pull request it
+// tested - so questions like "which alerts fire on runs whose e2e tests passed"
+// cannot be asked. clusterToken bridges the two: it is the "j<7 chars>" segment
+// that appears in every CI cluster name, so
+//
+//     database('MonitoringEvents').alertEvents
+//     | extend cluster = tostring(alertContext.labels.cluster)
+//     | extend clusterToken = extract(@'(j[0-9a-z]{7})', 1, cluster)
+//     | where isnotempty(clusterToken)
+//     | join kind=inner ciJobOutcomes on clusterToken
+//
+// attributes a firing to a run. The token is stored rather than the cluster
+// names because one run creates several clusters (-svc, -mgmt-1, -mgmt-2) and
+// their number varies per run, so reconstructing names would drop rows.
+.create-merge table ciJobOutcomes (
+    buildId: string,
+    clusterToken: string,
+    jobName: string,
+    prowUrl: string,
+    sippyRelease: string,
+    family: string,
+    overallResult: string,
+    failed: bool,
+    testFailures: int,
+    failedTests: dynamic,
+    startedAt: datetime
+)
+with (
+    docstring = "Outcome of a single CI job run, written by the opstool tenant-quota collector",
+    folder = "CI"
+)
+
+.create-or-alter table ciJobOutcomes ingestion json mapping "ciJobOutcomesMapping"
+```
+[
+  {"column":"buildId","path":"$['buildId']","datatype":"string"},
+  {"column":"clusterToken","path":"$['clusterToken']","datatype":"string"},
+  {"column":"jobName","path":"$['jobName']","datatype":"string"},
+  {"column":"prowUrl","path":"$['prowUrl']","datatype":"string"},
+  {"column":"sippyRelease","path":"$['sippyRelease']","datatype":"string"},
+  {"column":"family","path":"$['family']","datatype":"string"},
+  {"column":"overallResult","path":"$['overallResult']","datatype":"string"},
+  {"column":"failed","path":"$['failed']","datatype":"bool"},
+  {"column":"testFailures","path":"$['testFailures']","datatype":"int"},
+  {"column":"failedTests","path":"$['failedTests']","datatype":"dynamic"},
+  {"column":"startedAt","path":"$['startedAt']","datatype":"datetime"}
+]
+```
