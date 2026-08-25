@@ -26,6 +26,9 @@ import (
 )
 
 const (
+	kustoCluster = "hcp-dev-us-2"
+	kustoRegion  = "eastus2"
+
 	serviceDir            = "service"
 	hostedControlPlaneDir = "hosted-control-plane"
 	clusterDir            = "cluster"
@@ -41,8 +44,6 @@ type mustGatherCLITestCase struct {
 type mustGatherCLIVerifier struct {
 	subscriptionID string
 	resourceGroup  string
-	kustoCluster   string
-	kustoRegion    string
 }
 
 func (v mustGatherCLIVerifier) Name() string {
@@ -126,7 +127,7 @@ func (v mustGatherCLIVerifier) Verify(ctx context.Context) error {
 	var errors []string
 	for _, tc := range testCases {
 		logger.Info("Running must-gather CLI test case", "name", tc.name)
-		if err := runTestCase(ctx, binary, tc, v.kustoCluster, v.kustoRegion); err != nil {
+		if err := runTestCase(ctx, binary, tc); err != nil {
 			errors = append(errors, fmt.Sprintf("%s: %v", tc.name, err))
 			logger.Error(err, "Test case failed", "name", tc.name)
 		} else {
@@ -140,7 +141,7 @@ func (v mustGatherCLIVerifier) Verify(ctx context.Context) error {
 	return nil
 }
 
-func runTestCase(ctx context.Context, binary string, tc mustGatherCLITestCase, kustoCluster, kustoRegion string) error {
+func runTestCase(ctx context.Context, binary string, tc mustGatherCLITestCase) error {
 	outputDir, err := os.MkdirTemp("", "must-gather-cli-e2e-"+tc.name+"-")
 	if err != nil {
 		return fmt.Errorf("failed to create temp dir: %w", err)
@@ -212,12 +213,10 @@ func infraClusterNames() (svcCluster, mgmtCluster string) {
 	return svcCluster, mgmtCluster
 }
 
-// VerifyMustGatherCLI creates a verifier that tests the hcpctl must-gather CLI.
-func VerifyMustGatherCLI(subscriptionID, resourceGroup, kustoCluster, kustoRegion string) mustGatherCLIVerifier {
+// VerifyMustGatherCLI creates a verifier that tests the hcpctl must-gather CLI
+func VerifyMustGatherCLI(subscriptionID, resourceGroup string) mustGatherCLIVerifier {
 	return mustGatherCLIVerifier{
 		subscriptionID: subscriptionID,
 		resourceGroup:  resourceGroup,
-		kustoCluster:   kustoCluster,
-		kustoRegion:    kustoRegion,
 	}
 }

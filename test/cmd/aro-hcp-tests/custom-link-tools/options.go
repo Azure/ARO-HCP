@@ -33,7 +33,7 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/test/util/testconfig"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/internal/testutil"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
@@ -133,32 +133,32 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
-	cfg, err := testconfig.LoadRenderedConfig(o.RenderedConfig)
+	cfg, err := testutil.LoadRenderedConfig(o.RenderedConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	svcClusterName, err := testconfig.ConfigGetString(cfg, "svc.aks.name")
+	svcClusterName, err := testutil.ConfigGetString(cfg, "svc.aks.name")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get svc cluster name from config: %w", err)
 	}
-	mgmtClusterName, err := testconfig.ConfigGetString(cfg, "mgmt.aks.name")
+	mgmtClusterName, err := testutil.ConfigGetString(cfg, "mgmt.aks.name")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get mgmt cluster name from config: %w", err)
 	}
-	kustoName, err := testconfig.ConfigGetString(cfg, "kusto.kustoName")
+	kustoName, err := testutil.ConfigGetString(cfg, "kusto.kustoName")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kusto name from config: %w", err)
 	}
-	kustoRegion, err := testconfig.ConfigGetString(cfg, "kusto.location")
+	kustoRegion, err := testutil.ConfigGetString(cfg, "kusto.location")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kusto location from config: %w", err)
 	}
-	serviceLogsDB, err := testconfig.ConfigGetString(cfg, "kusto.serviceLogsDatabase")
+	serviceLogsDB, err := testutil.ConfigGetString(cfg, "kusto.serviceLogsDatabase")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service logs database from config: %w", err)
 	}
-	hcpLogsDB, err := testconfig.ConfigGetString(cfg, "kusto.hostedControlPlaneLogsDatabase")
+	hcpLogsDB, err := testutil.ConfigGetString(cfg, "kusto.hostedControlPlaneLogsDatabase")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hosted control plane logs database from config: %w", err)
 	}

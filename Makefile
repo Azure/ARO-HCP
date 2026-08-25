@@ -197,7 +197,6 @@ e2e-local/setup:
 
 e2e-local/run: $(ARO_HCP_TESTS)
 	export LOCATION="$${LOCATION:-westus3}"; \
-	export RENDERED_CONFIG="$${RENDERED_CONFIG:-$(CURDIR)/config/rendered/dev/$(DEPLOY_ENV)/$$LOCATION.yaml}"; \
 	export AROHCP_ENV="development"; \
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
 	export ARTIFACT_DIR=$${ARTIFACT_DIR:-_artifacts}; \

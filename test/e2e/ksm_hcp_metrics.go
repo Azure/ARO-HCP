@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
-	"github.com/Azure/ARO-HCP/test/util/testconfig"
 )
 
 var _ = Describe("KSM HCP Metrics", func() {
@@ -39,15 +39,11 @@ var _ = Describe("KSM HCP Metrics", func() {
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
-			By("Loading rendered config")
-			cfg, err := tc.RenderedConfig()
-			Expect(err).NotTo(HaveOccurred(), "failed to load rendered config — is RENDERED_CONFIG set?")
+			regionRG := os.Getenv("REGION_RG")
+			Expect(regionRG).NotTo(BeEmpty(), "REGION_RG environment variable must be set")
 
-			regionRG, err := testconfig.ConfigGetString(cfg, "regionRG")
-			Expect(err).NotTo(HaveOccurred(), "failed to get regionRG from rendered config")
-
-			hcpWorkspaceName, err := testconfig.ConfigGetString(cfg, "monitoring.hcpWorkspaceName")
-			Expect(err).NotTo(HaveOccurred(), "failed to get monitoring.hcpWorkspaceName from rendered config")
+			hcpWorkspaceName := os.Getenv("HCP_WORKSPACE_NAME")
+			Expect(hcpWorkspaceName).NotTo(BeEmpty(), "HCP_WORKSPACE_NAME environment variable must be set")
 
 			subscriptionID, err := tc.SubscriptionID(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
