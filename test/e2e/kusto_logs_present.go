@@ -23,7 +23,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
-	"github.com/Azure/ARO-HCP/test/util/testconfig"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
@@ -89,23 +88,15 @@ var _ = Describe("Engineering", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for kusto logs test")
 			subscriptionID, err := tc.SubscriptionID(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
-
-			By("loading kusto config from rendered config")
-			cfg, err := tc.RenderedConfig()
-			Expect(err).NotTo(HaveOccurred(), "failed to load rendered config — is RENDERED_CONFIG set?")
-			kustoName, err := testconfig.ConfigGetString(cfg, "kusto.kustoName")
-			Expect(err).NotTo(HaveOccurred(), "failed to get kusto.kustoName from rendered config")
-			kustoRegion, err := testconfig.ConfigGetString(cfg, "kusto.location")
-			Expect(err).NotTo(HaveOccurred(), "failed to get kusto.location from rendered config")
-
 			By("verifying kusto logs are present")
+
 			Eventually(func() error {
-				return verifiers.VerifyMustGatherLogs(subscriptionID, *resourceGroup.Name, kustoName, kustoRegion).Verify(ctx)
+				return verifiers.VerifyMustGatherLogs(subscriptionID, *resourceGroup.Name).Verify(ctx)
 			}, 10*time.Minute, 60*time.Second).Should(Succeed())
 
 			By("verifying must-gather CLI works")
 			Eventually(func() error {
-				return verifiers.VerifyMustGatherCLI(subscriptionID, *resourceGroup.Name, kustoName, kustoRegion).Verify(ctx)
+				return verifiers.VerifyMustGatherCLI(subscriptionID, *resourceGroup.Name).Verify(ctx)
 			}, 10*time.Minute, 60*time.Second).Should(Succeed())
 
 		})

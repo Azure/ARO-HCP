@@ -25,8 +25,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 )
 
 const (
@@ -48,7 +46,7 @@ func fetchWorkspaceData(ctx context.Context, cred azcore.TokenCredential, wsType
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	promEndpoint, err := promutil.LookupPrometheusEndpoint(ctx, cred, workspaceResourceID.SubscriptionID, workspaceResourceID.ResourceGroupName, workspaceResourceID.Name)
+	promEndpoint, err := lookupPrometheusEndpoint(ctx, cred, workspaceResourceID.SubscriptionID, workspaceResourceID.ResourceGroupName, workspaceResourceID.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to look up Prometheus endpoint: %w", err)
 	}
