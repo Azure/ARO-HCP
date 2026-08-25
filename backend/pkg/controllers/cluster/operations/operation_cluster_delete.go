@@ -188,7 +188,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(fmt.Errorf("failed to check remaining ApplyDesires: %w", err))
 	}
 	if remainingApplyDesires > 0 {
-		logger.Info("waiting for ApplyDesires to be deleted before completing delete operation", "remaining", applyDesireBreakdown)
+		logger.Info("waiting for ApplyDesires to be deleted before completing delete operation", "remaining", remainingApplyDesires, "breakdown", applyDesireBreakdown)
 		return nil
 	}
 
