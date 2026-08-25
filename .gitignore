@@ -38,6 +38,7 @@ must-gather-*
 timing-metadata-*
 /.claude/
 .tmp
+/hack/.local-grafana/
 
 # Allow Secret resource fixtures in the kube-applier read-desire testdata.
 # The `secrets` rule above otherwise excludes the manifestclient directory
