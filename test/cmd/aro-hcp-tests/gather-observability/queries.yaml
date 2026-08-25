@@ -320,3 +320,126 @@ panels:
     unit: /s
     workspace: svc
     step: "60s"
+- title: "MC AKS Metrics"
+  queries:
+  - title: "MC User Node Count by Phase"
+    description: "User node count per management cluster, stacked by phase: Ready (healthy, age >10m), NotReady (unhealthy, age >10m), Joining (any status, age ≤10m). Excludes system and infra pool nodes. Each sub-chart shows one management cluster."
+    query: |
+      label_replace(
+        count by (cluster) (
+          (max by (node, cluster, condition, status) (
+            kube_node_status_condition{cluster=~".*-mgmt-.*", node!~"aks-system-.*|aks-infra.*-.*", condition="Ready", status="true"}
+          ) == 1)
+          and on (node, cluster)
+          (time() - max by (node, cluster) (kube_node_created{cluster=~".*-mgmt-.*"}) > 600)
+        ),
+        "phase", "Ready", "", ""
+      )
+      or
+      label_replace(
+        count by (cluster) (
+          (max by (node, cluster, condition, status) (
+            kube_node_status_condition{cluster=~".*-mgmt-.*", node!~"aks-system-.*|aks-infra.*-.*", condition="Ready", status!="true"}
+          ) == 1)
+          and on (node, cluster)
+          (time() - max by (node, cluster) (kube_node_created{cluster=~".*-mgmt-.*"}) > 600)
+        ),
+        "phase", "NotReady", "", ""
+      )
+      or
+      label_replace(
+        count by (cluster) (
+          max by (node, cluster) (
+            kube_node_status_condition{cluster=~".*-mgmt-.*", node!~"aks-system-.*|aks-infra.*-.*", condition="Ready"}
+          )
+          and on (node, cluster)
+          (time() - max by (node, cluster) (kube_node_created{cluster=~".*-mgmt-.*"}) <= 600)
+        ),
+        "phase", "Joining", "", ""
+      )
+    unit: nodes
+    workspace: svc
+    step: "60s"
+    chartType: faceted-stacked-area
+    facetBy: cluster
+    stackBy: phase
+    colors:
+      Ready: "#4CAF50"
+      NotReady: "#F44336"
+      Joining: "#2196F3"
+  - title: "MC User Node Unhealthy Conditions"
+    description: "Count of user nodes with unhealthy conditions per management cluster. Only non-zero conditions are shown. Excludes Ready (shown separately) and VMEventScheduled (informational). Each sub-chart shows one management cluster."
+    query: |
+      count by (cluster, condition) (
+        max by (node, cluster, condition, status) (
+          kube_node_status_condition{
+            cluster=~".*-mgmt-.*",
+            node!~"aks-system-.*|aks-infra.*-.*",
+            condition!~"Ready|VMEventScheduled",
+            status="true"
+          }
+        ) == 1
+      )
+    unit: nodes
+    workspace: svc
+    step: "60s"
+    chartType: faceted-stacked-area
+    facetBy: cluster
+    stackBy: condition
+  - title: "MC User Node CPU Usage"
+    description: "Maximum CPU usage percentage across user nodes per management cluster. Shows the busiest node at each point. Sustained values above 80% indicate CPU pressure that may affect pod scheduling and kubelet health."
+    query: |
+      max by (cluster) (
+        (1 - avg by (instance, cluster) (
+          max without (prometheus_replica) (
+            rate(node_cpu_seconds_total{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*", mode="idle"}[5m])
+          )
+        ))
+      ) * 100
+    unit: percent
+    workspace: svc
+    step: "60s"
+  - title: "MC User Node Memory Usage"
+    description: "Maximum memory usage percentage across user nodes per management cluster. Computed as (total - available) / total. Sustained high values indicate memory pressure that may trigger OOM kills or kubelet evictions."
+    query: |
+      max by (cluster) (
+        (1 - (
+          max by (instance, cluster) (node_memory_MemAvailable_bytes{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*"})
+          /
+          max by (instance, cluster) (node_memory_MemTotal_bytes{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*"})
+        ))
+      ) * 100
+    unit: percent
+    workspace: svc
+    step: "60s"
+  - title: "MC User Node Disk Usage"
+    description: "Maximum root filesystem usage percentage across user nodes per management cluster. Computed as (size - available) / size for the root mount. High values trigger DiskPressure node condition and pod evictions."
+    query: |
+      max by (cluster) (
+        (1 - (
+          max by (instance, cluster) (node_filesystem_avail_bytes{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*", mountpoint="/", fstype!="tmpfs"})
+          /
+          max by (instance, cluster) (node_filesystem_size_bytes{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*", mountpoint="/", fstype!="tmpfs"})
+        ))
+      ) * 100
+    unit: percent
+    workspace: svc
+    step: "60s"
+  - title: "MC User Node Pod Capacity"
+    description: "Overall pod utilization across user nodes per management cluster. Computed as total running pods / total pod capacity. Values approaching 100% mean the cluster is running out of pod capacity."
+    query: |
+      sum by (cluster) (
+        max by (instance, cluster) (kubelet_running_pods{cluster=~".*-mgmt-.*", instance!~"aks-system-.*|aks-infra.*-.*"})
+      )
+      /
+      sum by (cluster) (
+        max by (instance, cluster) (
+          label_replace(
+            kube_node_status_capacity{cluster=~".*-mgmt-.*", node!~"aks-system-.*|aks-infra.*-.*", resource="pods"},
+            "instance", "$1", "node", "(.*)"
+          )
+        )
+      ) * 100
+    unit: percent
+    workspace: svc
+    step: "60s"

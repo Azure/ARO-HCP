@@ -59,12 +59,14 @@ type parsedSeries struct {
 	data   []opts.LineData
 }
 
-func (s parsedSeries) peakValue() float64 {
+func seriesPeakValue(series []parsedSeries) float64 {
 	var peak float64
-	for _, d := range s.data {
-		if arr, ok := d.Value.([]any); ok && len(arr) == 2 {
-			if v, ok := arr[1].(float64); ok && v > peak {
-				peak = v
+	for _, s := range series {
+		for _, d := range s.data {
+			if arr, ok := d.Value.([]any); ok && len(arr) == 2 {
+				if v, ok := arr[1].(float64); ok && v > peak {
+					peak = v
+				}
 			}
 		}
 	}
@@ -216,9 +218,9 @@ func buildLineChartData(q QuerySpec, resourceID string, series []parsedSeries, t
 	for i := range series {
 		series[i].data = insertGapMarkers(series[i].data)
 	}
-	// Sort by peak value descending for consistent legend ordering
+	// Sort by label for consistent color assignment across charts
 	slices.SortFunc(series, func(a, b parsedSeries) int {
-		return cmp.Compare(b.peakValue(), a.peakValue())
+		return cmp.Compare(a.label, b.label)
 	})
 	subtitle := fmt.Sprintf("Window: %s — %s", tw.Start.UTC().Format(time.RFC3339), tw.End.UTC().Format(time.RFC3339))
 
@@ -265,12 +267,22 @@ func buildLineChartData(q QuerySpec, resourceID string, series []parsedSeries, t
 			Min:  tw.Start.UnixMilli(),
 			Max:  tw.End.UnixMilli(),
 		}),
-		charts.WithYAxisOpts(opts.YAxis{
-			Type:         "value",
-			Name:         q.Unit,
-			NameLocation: "middle",
-			NameGap:      50,
-		}),
+		charts.WithYAxisOpts(func() opts.YAxis {
+			axis := opts.YAxis{
+				Type:         "value",
+				Name:         q.Unit,
+				NameLocation: "middle",
+				NameGap:      50,
+			}
+			if q.Unit == "percent" {
+				axis.Min = 0
+				maxVal := seriesPeakValue(series)
+				if maxVal <= 100 {
+					axis.Max = 100
+				}
+			}
+			return axis
+		}()),
 		charts.WithGridOpts(opts.Grid{
 			Left:   "80",
 			Right:  "40",
