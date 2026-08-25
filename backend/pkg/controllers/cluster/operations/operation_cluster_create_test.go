@@ -311,6 +311,14 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
 								ServingCABundle: "fake-ca-data",
+								AzureResources: coreapi.AzureResources{
+									RoleAssignments: coreapi.AzureMultiReference{
+										AzureResources: []*azcorearm.ResourceID{
+											metadataapi.Must(azcorearm.ParseResourceID(
+												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
+										},
+									},
+								},
 							},
 						},
 					},
@@ -753,6 +761,14 @@ func TestDetermineOperationState(t *testing.T) {
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
 								ServingCABundle: "fake-ca-data",
+								AzureResources: coreapi.AzureResources{
+									RoleAssignments: coreapi.AzureMultiReference{
+										AzureResources: []*azcorearm.ResourceID{
+											metadataapi.Must(azcorearm.ParseResourceID(
+												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
+										},
+									},
+								},
 							},
 						},
 					},
@@ -830,6 +846,83 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 			}
 
 			result, err := controller.servingCABundleOperationStatus(ctx, operation)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.expectedState, result.ProvisioningState)
+			if tt.wantMsgSubstr != "" {
+				assert.Contains(t, result.Message, tt.wantMsgSubstr)
+			}
+		})
+	}
+}
+
+func TestRoleAssignmentsOperationStatus(t *testing.T) {
+	fixture := operationtesting.NewClusterTestFixture()
+	operation := fixture.NewOperation(cosmosstorageutils.OperationRequestCreate)
+
+	roleAssignmentID := func(name string) *azcorearm.ResourceID {
+		return metadataapi.Must(azcorearm.ParseResourceID(
+			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/" + name))
+	}
+
+	spcLister := func(ra coreapi.AzureMultiReference) corelisters.ServiceProviderClusterLister {
+		return &corelistertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
+				{
+					CosmosMetadata: coreapi.CosmosMetadata{
+						ResourceID: metadataapi.Must(azcorearm.ParseResourceID(
+							fixture.ClusterResourceID.String() + "/" +
+								coreapi.ServiceProviderClusterResourceTypeName + "/" +
+								coreapi.ServiceProviderClusterResourceName)),
+					},
+					Status: coreapi.ServiceProviderClusterStatus{
+						AzureResources: coreapi.AzureResources{
+							RoleAssignments: ra,
+						},
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name            string
+		roleAssignments coreapi.AzureMultiReference
+		expectedState   coreapi.ProvisioningState
+		wantMsgSubstr   string
+	}{
+		{
+			name: "all confirmed and none pending → Succeeded",
+			roleAssignments: coreapi.AzureMultiReference{
+				AzureResources: []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
+			},
+			expectedState: coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name:            "none confirmed → Provisioning",
+			roleAssignments: coreapi.AzureMultiReference{},
+			expectedState:   coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr:   "role assignments not yet confirmed",
+		},
+		{
+			name: "some still pending → Provisioning",
+			roleAssignments: coreapi.AzureMultiReference{
+				AzureResources:        []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
+				PendingAzureResources: []*azcorearm.ResourceID{roleAssignmentID("22222222-2222-2222-2222-222222222222")},
+			},
+			expectedState: coreapi.ProvisioningStateProvisioning,
+			wantMsgSubstr: "role assignments not yet confirmed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			controller := &operationClusterCreate{
+				serviceProviderClusterLister: spcLister(tt.roleAssignments),
+			}
+
+			result, err := controller.roleAssignmentsOperationStatus(ctx, operation)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
