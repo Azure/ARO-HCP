@@ -1,0 +1,199 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package config
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
+
+	"github.com/Azure/ARO-Tools/config"
+	"github.com/Azure/ARO-Tools/config/ev2config"
+	"github.com/Azure/ARO-Tools/config/types"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/settings"
+)
+
+var ServiceConfig types.Configuration
+
+var (
+	configOnce sync.Once
+	configErr  error
+)
+
+// GetServiceConfig returns the service configuration, loading it from
+// environment variables on first call. Subsequent calls return the
+// cached result. Required env vars: ARO_HCP_CONFIG_FILE, ARO_HCP_CLOUD,
+// DEPLOY_ENV, REGION. Missing vars cause an error.
+func GetServiceConfig() (types.Configuration, error) {
+	configOnce.Do(func() {
+		required := map[string]string{
+			"ARO_HCP_CONFIG_FILE": os.Getenv("ARO_HCP_CONFIG_FILE"),
+			"ARO_HCP_CLOUD":       os.Getenv("ARO_HCP_CLOUD"),
+			"DEPLOY_ENV":          os.Getenv("DEPLOY_ENV"),
+			"REGION":              os.Getenv("REGION"),
+		}
+		var missing []string
+		for k, v := range required {
+			if v == "" {
+				missing = append(missing, k)
+			}
+		}
+		if len(missing) > 0 {
+			configErr = fmt.Errorf("required environment variables not set: %v", missing)
+			return
+		}
+		opts := ConfigOptions{
+			ConfigFile:         required["ARO_HCP_CONFIG_FILE"],
+			ConfigFileOverride: os.Getenv("ARO_HCP_CONFIG_FILE_OVERRIDE"),
+			Cloud:              required["ARO_HCP_CLOUD"],
+			DeployEnv:          required["DEPLOY_ENV"],
+			Region:             required["REGION"],
+		}
+		configErr = LoadConfig(opts)
+	})
+	return ServiceConfig, configErr
+}
+
+// GetStringByPath resolves path in cfg and returns it as a non-empty string.
+// It replaces the common GetByPath + type-assert + empty-check boilerplate
+// with a single call that returns one error describing whatever went wrong.
+func GetStringByPath(cfg types.Configuration, path string) (string, error) {
+	value, err := cfg.GetByPath(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to get %s from config: %w", path, err)
+	}
+	str, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("%s is not a string", path)
+	}
+	if str == "" {
+		return "", fmt.Errorf("%s is empty", path)
+	}
+	return str, nil
+}
+
+type ConfigOptions struct {
+	ConfigFile         string
+	ConfigFileOverride string
+	Cloud              string
+	DeployEnv          string
+	Region             string
+}
+
+// LoadConfig creates a provider, resolves values, and populates ServiceConfig
+func LoadConfig(opts ConfigOptions) error {
+	var provider config.ConfigProvider
+	var err error
+
+	if opts.ConfigFileOverride != "" {
+		schemaBaseDir := filepath.Dir(opts.ConfigFile)
+		mergedConfigData, err := types.MergeRawConfigurationFiles(schemaBaseDir, []string{opts.ConfigFile, opts.ConfigFileOverride})
+		if err != nil {
+			return fmt.Errorf("failed to merge config files: %w", err)
+		}
+		provider, err = config.NewConfigProviderFromData(mergedConfigData, schemaBaseDir)
+		if err != nil {
+			return fmt.Errorf("failed to create config provider: %w", err)
+		}
+	} else {
+		provider, err = config.NewConfigProvider(opts.ConfigFile)
+		if err != nil {
+			return fmt.Errorf("failed to create config provider: %w", err)
+		}
+	}
+
+	ev2Cloud := opts.Cloud
+	if ev2Cloud == "dev" {
+		ev2Cloud = "public"
+	}
+	ev2Cfg, err := ev2config.ResolveConfig(ev2Cloud, opts.Region)
+	if err != nil {
+		return fmt.Errorf("failed to resolve ev2 config for cloud=%q region=%q: %w", ev2Cloud, opts.Region, err)
+	}
+
+	regionShort := ""
+	if rs, ok := ev2Cfg["regionShortName"]; ok {
+		if rsStr, ok := rs.(string); ok {
+			regionShort = rsStr
+		}
+	}
+	regionShort = applyDevEnvironmentRegionShort(opts, regionShort)
+
+	// 3. Supply replacements for templated values (e.g. {{ .ctx.region }}, {{ .ev2.geoShortId }})
+	replacements := config.ConfigReplacements{
+		CloudReplacement:       opts.Cloud,
+		EnvironmentReplacement: opts.DeployEnv,
+		RegionReplacement:      opts.Region,
+		RegionShortReplacement: regionShort,
+		StampReplacement:       "1",
+		Ev2Config:              ev2Cfg,
+	}
+
+	// 4. Resolve
+	resolver, err := provider.GetResolver(&replacements)
+	if err != nil {
+		return fmt.Errorf("failed to get config resolver: %w", err)
+	}
+
+	if resolver == nil {
+		return fmt.Errorf("resolver is nil")
+	}
+
+	// 5. Evaluate region specific overrides/values and expose globally
+	ServiceConfig, err = resolver.GetRegionConfiguration(opts.Region)
+	if err != nil {
+		return fmt.Errorf("failed to get region configuration for region %q: %w", opts.Region, err)
+	}
+	return nil
+}
+
+// applyDevEnvironmentRegionShort mirrors the regionShort resolution performed
+// by tooling/templatize's rollout/configuration commands (see
+// ValidatedRolloutOptions.Complete in tooling/templatize/cmd/rolloutoptions.go):
+// ephemeral dev environments (e.g. ci00, ci01, pers, perf) declare a
+// regionShortOverride/regionShortSuffix in tooling/templatize/settings.yaml
+// that replaces or extends the static ev2 regionShortName. Without this,
+// resource names computed here (e.g. hcp-underlay-<env>-<regionShort>) would
+// never match what was actually deployed for those environments.
+//
+// Every environment in settings.yaml is declared under cloud "dev" (matching
+// the hardcoded CloudReplacement above, which is the config.yaml cloud
+// namespace these dev/CI environments render under) regardless of the actual
+// ARO_HCP_CLOUD value (e.g. "public" for real Azure API calls), so "dev" is
+// used here rather than opts.Cloud.
+//
+// This is best-effort: environments not present in settings.yaml (e.g.
+// production environments int/stg/prod) keep using the static ev2 regionShort
+// unchanged.
+func applyDevEnvironmentRegionShort(opts ConfigOptions, regionShort string) string {
+	settingsFile := filepath.Join(filepath.Dir(filepath.Dir(opts.ConfigFile)), "tooling", "templatize", "settings.yaml")
+	devSettings, err := settings.Load(settingsFile)
+	if err != nil {
+		return regionShort
+	}
+
+	env, err := devSettings.Resolve(context.Background(), "dev", opts.DeployEnv)
+	if err != nil {
+		return regionShort
+	}
+
+	if env.RegionShortOverride != "" {
+		regionShort = env.RegionShortOverride
+	}
+	return regionShort + env.RegionShortSuffix
+}
