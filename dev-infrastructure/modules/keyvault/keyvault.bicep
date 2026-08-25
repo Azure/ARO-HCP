@@ -87,3 +87,8 @@ output kvId string = keyVault.id
 output kvName string = keyVault.name
 
 output kvUrl string = keyVault.properties.vaultUri
+
+// Aliases for templates that reference keyVaultName/keyVaultUrl (e.g. svc-infra).
+output keyVaultName string = keyVault.name
+
+output keyVaultUrl string = keyVault.properties.vaultUri

@@ -106,5 +106,5 @@ module serviceKeyVaultDevopsSecretsOfficer '../modules/keyvault/keyvault-secret-
   ]
 }
 
-output svcKeyVaultName string = serviceKeyVault.outputs.kvName
-output svcKeyVaultUrl string = serviceKeyVault.outputs.kvUrl
+output svcKeyVaultName string = serviceKeyVault.outputs.keyVaultName
+output svcKeyVaultUrl string = serviceKeyVault.outputs.keyVaultUrl
