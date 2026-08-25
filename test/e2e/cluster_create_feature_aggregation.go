@@ -61,6 +61,7 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
+		labels.AllowRetry, // owner: @mmazur, tracking: OCPBUGS-95614. KASLoadBalancerNotReachable is a known transient ingress-convergence failure; remove this label when the issue is fixed.
 		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
