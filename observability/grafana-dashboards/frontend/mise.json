@@ -37,7 +37,7 @@
           "qryType": 1
         },
         "refresh": 1,
-        "regex": "^.*-svc-\\d+$",
+        "regex": "^.*-svc(?:-\\d+)?$",
         "hide": 0
       }
     ]
