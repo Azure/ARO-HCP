@@ -612,3 +612,66 @@ func TestTenantConfigIsDirectoryQuotaEnabled(t *testing.T) {
 		})
 	}
 }
+
+// A missing scheme is accepted by url.Parse, so without an explicit check it
+// only surfaces as a connection error once the collector is already running.
+func TestCIJobOutcomesConfigValidatesEndpoints(t *testing.T) {
+	valid := func() CIJobOutcomesConfig {
+		return CIJobOutcomesConfig{
+			Enabled:          true,
+			ClusterURI:       "https://hcp-dev-us-2.eastus2.kusto.windows.net",
+			IngestionURI:     "https://ingest-hcp-dev-us-2.eastus2.kusto.windows.net",
+			Database:         "ServiceLogs",
+			Table:            "ciJobOutcomes",
+			IngestionMapping: "ciJobOutcomesMapping",
+			SippyURI:         "https://sippy.dptools.openshift.org",
+			JobFilter:        "e2e-parallel",
+			Releases:         []string{"Presubmits"},
+		}
+	}
+
+	fullySpecified := valid()
+	if err := fullySpecified.validate(); err != nil {
+		t.Fatalf("a fully specified config must validate, got %v", err)
+	}
+
+	for _, testCase := range []struct {
+		name   string
+		mutate func(*CIJobOutcomesConfig)
+	}{
+		{
+			name:   "cluster URI without a scheme",
+			mutate: func(c *CIJobOutcomesConfig) { c.ClusterURI = "hcp-dev-us-2.eastus2.kusto.windows.net" },
+		},
+		{
+			name:   "ingestion URI without a scheme",
+			mutate: func(c *CIJobOutcomesConfig) { c.IngestionURI = "ingest-hcp-dev-us-2.eastus2.kusto.windows.net" },
+		},
+		{
+			name:   "sippy URI without a scheme",
+			mutate: func(c *CIJobOutcomesConfig) { c.SippyURI = "sippy.dptools.openshift.org" },
+		},
+		{
+			name:   "empty cluster URI",
+			mutate: func(c *CIJobOutcomesConfig) { c.ClusterURI = "" },
+		},
+		{
+			name:   "no releases",
+			mutate: func(c *CIJobOutcomesConfig) { c.Releases = nil },
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := valid()
+			testCase.mutate(&cfg)
+			if err := cfg.validate(); err == nil {
+				t.Error("expected validation to fail, got nil")
+			}
+		})
+	}
+
+	// Nothing is reachable while disabled, so an unset config must not block startup.
+	disabled := &CIJobOutcomesConfig{Enabled: false}
+	if err := disabled.validate(); err != nil {
+		t.Errorf("a disabled config must validate, got %v", err)
+	}
+}

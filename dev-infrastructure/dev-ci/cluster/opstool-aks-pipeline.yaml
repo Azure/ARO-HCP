@@ -69,6 +69,17 @@ resourceGroups:
     dependsOn:
     - resourceGroup: opstool
       step: cluster-output
+  # The dev Kusto lives in its own resource group, so the grant that lets the
+  # opstool collector record CI job outcomes is made here rather than alongside
+  # the collector itself.
+  - name: kusto-grant
+    action: ARM
+    template: ./opstool-kusto-grant.bicep
+    parameters: ../../configurations/opstool-kusto-grant.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: opstool
+      step: cluster-output
   - name: alerting
     action: ARM
     template: ../../templates/opstool-alerting.bicep

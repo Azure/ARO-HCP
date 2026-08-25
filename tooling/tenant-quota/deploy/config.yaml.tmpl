@@ -31,6 +31,21 @@ prow:
 {{- else }}
   excludeJobs: []
 {{- end }}
+ciJobOutcomes:
+  enabled: {{ .opstool.tenantQuota.ciJobOutcomes.enabled }}
+  clusterURI: "{{ .opstool.tenantQuota.ciJobOutcomes.clusterURI }}"
+  ingestionURI: "{{ .opstool.tenantQuota.ciJobOutcomes.ingestionURI }}"
+  database: "{{ .opstool.tenantQuota.ciJobOutcomes.database }}"
+  table: "{{ .opstool.tenantQuota.ciJobOutcomes.table }}"
+  ingestionMapping: "{{ .opstool.tenantQuota.ciJobOutcomes.ingestionMapping }}"
+  sippyURI: "{{ .opstool.tenantQuota.ciJobOutcomes.sippyURI }}"
+  jobFilter: "{{ .opstool.tenantQuota.ciJobOutcomes.jobFilter }}"
+  interval: "{{ .opstool.tenantQuota.ciJobOutcomes.interval }}"
+  window: "{{ .opstool.tenantQuota.ciJobOutcomes.window }}"
+  releases:
+{{- range .opstool.tenantQuota.ciJobOutcomes.releases }}
+  - "{{ . }}"
+{{- end }}
 tenants:
 {{- range .opstool.tenantQuota.tenants }}
 - tenantId: "{{ .tenantId }}"

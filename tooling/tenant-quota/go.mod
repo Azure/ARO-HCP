@@ -18,6 +18,18 @@ require (
 )
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.4.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.1 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/gofrs/uuid v4.4.0+incompatible // indirect
+	github.com/samber/lo v1.53.0 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
+)
+
+require (
+	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
+	github.com/Azure/azure-kusto-go/azkustoingest v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.1.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.2.0 // indirect

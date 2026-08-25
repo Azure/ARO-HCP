@@ -274,6 +274,7 @@
               "properties": {
                 "image": { "$ref": "#/$defs/Image" },
                 "prow": { "$ref": "#/$defs/ProwMetricsConfig" },
+                "ciJobOutcomes": { "$ref": "#/$defs/CIJobOutcomesConfig" },
                 "tenants": {
                   "type": "array",
                   "description": "List of Azure AD tenants to monitor for directory and subscription quota",
@@ -558,6 +559,31 @@
         }
       },
       "required": ["tenantId", "tenantName", "servicePrincipalClientId", "keyVaultSecretName"]
+    },
+    "CIJobOutcomesConfig": {
+      "type": "object",
+      "description": "Configuration for recording CI job outcomes in Kusto, so that the alerts and logs already held there can be attributed to the run that produced them",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "kustoName": { "type": "string", "description": "Name of the Kusto cluster holding the table" },
+        "kustoResourceGroup": { "type": "string", "description": "Resource group of the Kusto cluster" },
+        "clusterURI": { "type": "string", "format": "uri", "description": "Kusto cluster URI, used to read the watermark" },
+        "ingestionURI": { "type": "string", "format": "uri", "description": "Kusto ingestion URI, used to write rows" },
+        "database": { "type": "string" },
+        "table": { "type": "string" },
+        "ingestionMapping": { "type": "string", "description": "Ingestion mapping declared on the table" },
+        "sippyURI": { "type": "string", "format": "uri", "description": "Sippy endpoint that runs are read from" },
+        "jobFilter": { "type": "string", "description": "Substring a job name must contain to be recorded" },
+        "interval": { "type": "string", "description": "How often outcomes are recorded, as a Go duration" },
+        "window": { "type": "string", "description": "How much recent history each pass reads, as a Go duration; runs already stored are subtracted" },
+        "releases": {
+          "type": "array",
+          "description": "Sippy releases whose runs are recorded",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["enabled"]
     },
     "ProwMetricsConfig": {
       "type": "object",

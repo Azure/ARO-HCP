@@ -33,6 +33,14 @@ const (
 	DefaultScope         = "https://graph.microsoft.com/.default"
 	DefaultProwInterval  = 5 * time.Minute
 	DefaultProwRetention = 24 * time.Hour
+
+	DefaultCIJobOutcomesInterval = 5 * time.Minute
+	// DefaultCIJobOutcomesWindow is how much recent history each pass reads.
+	// Runs already stored are subtracted, so this only has to be long enough to
+	// cover the slowest run completing after faster ones started later, and
+	// short enough that a pass does not fetch months of runs in one unpaginated
+	// response. A gap longer than this is not backfilled.
+	DefaultCIJobOutcomesWindow = 24 * time.Hour
 )
 
 type Config struct {
@@ -42,9 +50,82 @@ type Config struct {
 	Tenants  []TenantConfig `yaml:"tenants"`
 	Prow     ProwConfig     `yaml:"prow,omitempty"`
 
+	CIJobOutcomes CIJobOutcomesConfig `yaml:"ciJobOutcomes,omitempty"`
+
 	intervalDuration time.Duration
 	timeoutDuration  time.Duration
 	cacheTTLDuration time.Duration
+}
+
+// CIJobOutcomesConfig configures recording CI job outcomes in Kusto.
+type CIJobOutcomesConfig struct {
+	Enabled          bool     `yaml:"enabled"`
+	ClusterURI       string   `yaml:"clusterURI"`
+	IngestionURI     string   `yaml:"ingestionURI"`
+	Database         string   `yaml:"database"`
+	Table            string   `yaml:"table"`
+	IngestionMapping string   `yaml:"ingestionMapping"`
+	SippyURI         string   `yaml:"sippyURI"`
+	Releases         []string `yaml:"releases"`
+	JobFilter        string   `yaml:"jobFilter"`
+	Interval         string   `yaml:"interval,omitempty"`
+	Window           string   `yaml:"window,omitempty"`
+
+	intervalDuration time.Duration
+	windowDuration   time.Duration
+}
+
+func (c *CIJobOutcomesConfig) GetInterval() time.Duration {
+	return c.intervalDuration
+}
+
+func (c *CIJobOutcomesConfig) GetWindow() time.Duration {
+	return c.windowDuration
+}
+
+func (c *CIJobOutcomesConfig) validate() error {
+	if err := parseDuration(c.Interval, DefaultCIJobOutcomesInterval, &c.intervalDuration, "ciJobOutcomes.interval"); err != nil {
+		return err
+	}
+	if err := parseDuration(c.Window, DefaultCIJobOutcomesWindow, &c.windowDuration, "ciJobOutcomes.window"); err != nil {
+		return err
+	}
+	if !c.Enabled {
+		return nil
+	}
+
+	for name, value := range map[string]string{
+		"ciJobOutcomes.database":         c.Database,
+		"ciJobOutcomes.table":            c.Table,
+		"ciJobOutcomes.ingestionMapping": c.IngestionMapping,
+		"ciJobOutcomes.jobFilter":        c.JobFilter,
+	} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%s is required", name)
+		}
+	}
+
+	// Every endpoint is checked here rather than left to fail on first use: a
+	// missing scheme is accepted by url.Parse and only surfaces as a connection
+	// error once the collector is already running.
+	for name, value := range map[string]string{
+		"ciJobOutcomes.clusterURI":   c.ClusterURI,
+		"ciJobOutcomes.ingestionURI": c.IngestionURI,
+		"ciJobOutcomes.sippyURI":     c.SippyURI,
+	} {
+		if err := validateHTTPURL(value); err != nil {
+			return fmt.Errorf("%s %w", name, err)
+		}
+	}
+	if len(c.Releases) == 0 {
+		return fmt.Errorf("ciJobOutcomes.releases requires at least one release")
+	}
+	for i, release := range c.Releases {
+		if strings.TrimSpace(release) == "" {
+			return fmt.Errorf("ciJobOutcomes.releases[%d] must not be empty", i)
+		}
+	}
+	return nil
 }
 
 type ProwConfig struct {
@@ -114,6 +195,9 @@ func (c *Config) Validate() error {
 	if err := c.Prow.validate(); err != nil {
 		return err
 	}
+	if err := c.CIJobOutcomes.validate(); err != nil {
+		return err
+	}
 
 	if len(c.Tenants) == 0 {
 		return fmt.Errorf("at least one tenant must be configured")
@@ -145,6 +229,19 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	return nil
+}
+
+// validateHTTPURL reports whether value is a usable HTTP or HTTPS endpoint.
+func validateHTTPURL(value string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("is required")
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return fmt.Errorf("must be a valid HTTP or HTTPS URL, got %q", trimmed)
+	}
 	return nil
 }
 
