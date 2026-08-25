@@ -290,6 +290,22 @@ infra.cosmos.access:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make cosmos.access
 .PHONY: infra.cosmos.access
 
+local-grafana-start: $(TEMPLATIZE) $(YQ_LINK)
+	DEPLOY_ENV=$(DEPLOY_ENV) ./hack/local-grafana.sh start
+.PHONY: local-grafana-start
+
+local-grafana-stop:
+	./hack/local-grafana.sh stop
+.PHONY: local-grafana-stop
+
+local-grafana-status:
+	./hack/local-grafana.sh status
+.PHONY: local-grafana-status
+
+local-grafana-help:
+	./hack/local-grafana.sh help
+.PHONY: local-grafana-help
+
 #
 # Services
 #
