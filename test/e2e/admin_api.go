@@ -35,424 +35,312 @@ var _ = Describe("SRE", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should be able to log into a cluster via a breakglass session",
+	Context("admin API", Ordered,
 		labels.RequireNothing,
-		labels.High,
-		labels.Positive,
 		labels.CoreInfraService,
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
 		labels.MIContainers(1),
-		func(ctx context.Context) {
+		func() {
 			const (
-				engineeringNetworkSecurityGroupName = "sre-nsg-name"
-				engineeringVnetName                 = "sre-vnet-name"
-				engineeringVnetSubnetName           = "sre-vnet-subnet1"
-				engineeringClusterName              = "sre-hcp-cluster"
+				networkSecurityGroupName = "sre-nsg-name"
+				vnetName                 = "sre-vnet-name"
+				vnetSubnetName           = "sre-vnet-subnet1"
+				clusterName              = "sre-hcp-cluster"
+				nodePoolName             = "worker"
 			)
-			tc := framework.NewTestContext()
 
-			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
-				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
-			}
-
-			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api-breakglass", tc.Location())
-			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for admin-api-breakglass")
-
-			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20240610()
-			clusterParams.ClusterName = engineeringClusterName
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-
-			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]interface{}{
-					"customerNsgName":        engineeringNetworkSecurityGroupName,
-					"customerVnetName":       engineeringVnetName,
-					"customerVnetSubnetName": engineeringVnetSubnetName,
-				},
-				TestArtifactsFS,
-				framework.RBACScopeResourceGroup,
+			var (
+				hcpResourceID            string
+				currentIdentity          *framework.AzureIdentityDetails
+				managedResourceGroupName string
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for breakglass cluster")
 
-			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20240610(
-				ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				clusterParams,
-				framework.ClusterCreationTimeout,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", engineeringClusterName)
+			tc := framework.NewSharedTestContext()
 
-			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
+			BeforeAll(func(ctx context.Context) {
 
-			// commonVerifiers are run for both aro-sre-pso and aro-sre-csa access levels.
-			// They cover actual data access smoke tests and SSAR-based read permission
-			// for both aro-sre-pso and aro-sre-csa access levels.
-			commonVerifiers := []verifiers.HostedClusterVerifier{
-				// Actual data access smoke tests
-				verifiers.VerifyListNamespaced("kube-system", "pods", "configmaps"),
-				verifiers.VerifyList("nodes", "namespaces"),
-				//verifiers.VerifyGetDeploymentLogs("openshift-monitoring", "prometheus-operator", ""),
-				// Read access across API groups
-				verifiers.VerifyRBACAllowed(
-					// core API resources
-					verifiers.CanList("", "services"),
-					verifiers.CanList("", "endpoints"),
-					verifiers.CanList("", "events"),
-					verifiers.CanList("", "persistentvolumeclaims"),
-					verifiers.CanGet("", "persistentvolumes"),
-					verifiers.CanList("", "serviceaccounts"),
-					verifiers.CanList("", "resourcequotas"),
-					verifiers.CanList("", "limitranges"),
-					verifiers.CanList("", "replicationcontrollers"),
-					verifiers.CanGet("", "componentstatuses"),
-					// core subresource
-					verifiers.CanGetSubresource("", "pods", "log"),
-					// apps
-					verifiers.CanList("apps", "deployments"),
-					verifiers.CanList("apps", "daemonsets"),
-					verifiers.CanList("apps", "statefulsets"),
-					verifiers.CanList("apps", "replicasets"),
-					// batch
-					verifiers.CanList("batch", "jobs"),
-					verifiers.CanList("batch", "cronjobs"),
-					// networking
-					verifiers.CanList("networking.k8s.io", "networkpolicies"),
-					verifiers.CanList("networking.k8s.io", "ingresses"),
-					// rbac
-					verifiers.CanList("rbac.authorization.k8s.io", "clusterroles"),
-					verifiers.CanList("rbac.authorization.k8s.io", "clusterrolebindings"),
-					verifiers.CanList("rbac.authorization.k8s.io", "roles"),
-					verifiers.CanList("rbac.authorization.k8s.io", "rolebindings"),
-					// storage
-					verifiers.CanList("storage.k8s.io", "storageclasses"),
-					verifiers.CanList("storage.k8s.io", "volumeattachments"),
-					// apiextensions
-					verifiers.CanList("apiextensions.k8s.io", "customresourcedefinitions"),
-					// policy
-					verifiers.CanList("policy", "poddisruptionbudgets"),
-					// autoscaling
-					verifiers.CanList("autoscaling", "horizontalpodautoscalers"),
-					// coordination
-					verifiers.CanList("coordination.k8s.io", "leases"),
-					// discovery
-					verifiers.CanList("discovery.k8s.io", "endpointslices"),
-					// certificates
-					verifiers.CanList("certificates.k8s.io", "certificatesigningrequests"),
-					// scheduling
-					verifiers.CanList("scheduling.k8s.io", "priorityclasses"),
-					// node
-					verifiers.CanList("node.k8s.io", "runtimeclasses"),
-					// admissionregistration
-					verifiers.CanList("admissionregistration.k8s.io", "mutatingwebhookconfigurations"),
-					verifiers.CanList("admissionregistration.k8s.io", "validatingwebhookconfigurations"),
-					// apiregistration
-					verifiers.CanList("apiregistration.k8s.io", "apiservices"),
-					// OpenShift: config
-					verifiers.CanList("config.openshift.io", "clusterversions"),
-					verifiers.CanList("config.openshift.io", "clusteroperators"),
-					verifiers.CanList("config.openshift.io", "infrastructures"),
-					// OpenShift: security
-					verifiers.CanList("security.openshift.io", "securitycontextconstraints"),
-					// OpenShift: route
-					verifiers.CanList("route.openshift.io", "routes"),
-					// OpenShift: image
-					verifiers.CanList("image.openshift.io", "imagestreams"),
-					// auth: create permissions
-					verifiers.CanCreate("authentication.k8s.io", "tokenreviews"),
-					verifiers.CanCreate("authorization.k8s.io", "selfsubjectaccessreviews"),
-					verifiers.CanCreate("authorization.k8s.io", "subjectaccessreviews"),
-				),
-			}
+				if tc.UsePooledIdentities() {
+					err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+					Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
+				}
 
-			By("resolving current Azure identity")
-			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve current Azure identity")
+				By("creating a resource group")
+				resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api", tc.Location())
+				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for admin API tests")
 
-			// aro-sre-pso access — bound to system:aro-sre ClusterRole (read-only)
+				By("creating cluster parameters")
+				clusterParams := framework.NewDefaultClusterParams20240610()
+				clusterParams.ClusterName = clusterName
+				managedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
-			By("creating SRE breakglass credentials with aro-sre-pso permissions")
-			aroSrePsoRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre-pso", currentIdentity)
-			Expect(err).NotTo(HaveOccurred(), "failed to create SRE breakglass credentials with aro-sre-pso permissions")
-			err = runCreateSREBreakglassCredentialsVerifier(ctx, "system:cluster-readers", aroSrePsoRestConfig, append(commonVerifiers,
-				// Negative: secrets read is forbidden (actual access test)
-				verifiers.ExpectForbidden(verifiers.VerifyListNamespaced("kube-system", "secrets")),
-				// Negative: write operations are forbidden
-				verifiers.VerifyRBACDenied(
-					verifiers.CanCreate("", "pods"),
-					verifiers.CanDelete("", "pods"),
-					verifiers.CanUpdate("", "pods"),
-					verifiers.CanCreate("", "configmaps"),
-					verifiers.CanDelete("", "configmaps"),
-					verifiers.CanCreate("", "namespaces"),
-					verifiers.CanDelete("", "namespaces"),
-					verifiers.CanDelete("", "nodes"),
-					verifiers.CanUpdate("apps", "deployments"),
-					verifiers.CanDelete("apps", "deployments"),
-					verifiers.CanCreate("apps", "deployments"),
-					verifiers.CanGet("", "secrets"),
-				),
-			))
-			Expect(err).NotTo(HaveOccurred(), "failed to verify aro-sre-pso breakglass session permissions")
-			By("waiting for the session to expire")
-			waitForSessionExpiration(expiresAt)
-			By("verifying the session is expired")
-			Eventually(func() error {
-				return verifiers.VerifyList("namespaces").Verify(ctx, aroSrePsoRestConfig)
-			}, 30*time.Second, 2*time.Second).Should(HaveOccurred())
+				By("creating customer resources")
+				clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+					resourceGroup,
+					clusterParams,
+					map[string]interface{}{
+						"customerNsgName":        networkSecurityGroupName,
+						"customerVnetName":       vnetName,
+						"customerVnetSubnetName": vnetSubnetName,
+					},
+					TestArtifactsFS,
+					framework.RBACScopeResourceGroup,
+				)
+				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for admin API cluster")
 
-			// aro-sre-csa access — bound to cluster-admin ClusterRole (full access)
+				By("creating the HCP cluster")
+				err = tc.CreateHCPClusterFromParam20240610(
+					ctx,
+					GinkgoLogr,
+					*resourceGroup.Name,
+					clusterParams,
+					framework.ClusterCreationTimeout,
+				)
+				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", clusterName)
 
-			By("creating SRE breakglass credentials with aro-sre-csa permissions")
-			aroSreCsaRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre-csa", currentIdentity)
-			Expect(err).NotTo(HaveOccurred(), "failed to create SRE breakglass credentials with aro-sre-csa permissions")
-			err = runCreateSREBreakglassCredentialsVerifier(ctx, "system:masters", aroSreCsaRestConfig, append(commonVerifiers,
-				// Positive: can read secrets (cluster-admin)
-				verifiers.VerifyListNamespaced("kube-system", "secrets"),
-				// Positive: has full write access (cluster-admin)
-				verifiers.VerifyRBACAllowed(
-					verifiers.CanGet("", "secrets"),
-					verifiers.CanCreate("", "pods"),
-					verifiers.CanDelete("", "pods"),
-					verifiers.CanCreate("", "namespaces"),
-					verifiers.CanCreate("apps", "deployments"),
-					verifiers.CanDelete("apps", "deployments"),
-					verifiers.CanUpdate("apps", "deployments"),
-					verifiers.CanList("monitoring.coreos.com", "prometheusrules"),
-					verifiers.CanList("monitoring.coreos.com", "servicemonitors"),
-					verifiers.CanList("operator.openshift.io", "ingresscontrollers"),
-				),
-			))
-			Expect(err).NotTo(HaveOccurred(), "failed to verify aro-sre-csa breakglass session permissions")
-			By("waiting for the session to expire")
-			waitForSessionExpiration(expiresAt)
-			By("verifying the session is expired")
-			Eventually(func() error {
-				return verifiers.VerifyList("namespaces").Verify(ctx, aroSreCsaRestConfig)
-			}, 30*time.Second, 2*time.Second).Should(HaveOccurred())
+				By("creating a nodepool to provision worker VMs")
+				nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+				nodePoolParams.ClusterName = clusterName
+				nodePoolParams.NodePoolName = nodePoolName
+				nodePoolParams.Replicas = int32(1)
 
-			// owner access restriction
+				err = tc.CreateNodePoolFromParam20240610(ctx,
+					GinkgoLogr,
+					*resourceGroup.Name,
+					managedResourceGroupName,
+					clusterName,
+					nodePoolParams,
+					framework.NodePoolCreationTimeout,
+				)
+				Expect(err).NotTo(HaveOccurred(), "failed to create worker nodepool for admin API tests")
 
-			By("trying to access a breakglass session of another user")
-			otherUserRestConfig, _, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre-pso", &framework.AzureIdentityDetails{
-				PrincipalName: "other-app-oid",
-				PrincipalType: framework.PrincipalTypeAADServicePrincipal,
+				hcpResourceID = fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, clusterName)
+
+				By("resolving current Azure identity")
+				currentIdentity, err = tc.GetCurrentAzureIdentityDetails(ctx)
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve current Azure identity")
 			})
-			Expect(err).NotTo(HaveOccurred(), "failed to create breakglass credentials for another user")
-			By("and expecting cluster access to be denied")
-			Expect(verifiers.VerifyWhoAmI("aro-sre").Verify(ctx, otherUserRestConfig)).To(HaveOccurred(), "expected cluster access to be denied for a different user's breakglass session")
-		})
 
-	It("should be able to retrieve serial console logs for a VM",
-		labels.RequireNothing,
-		labels.Medium,
-		labels.Positive,
-		labels.CoreInfraService,
-		labels.DevelopmentOnly,
-		labels.AroRpApiCompatible,
-		labels.MIContainers(1),
-		func(ctx context.Context) {
-			const (
-				engineeringNetworkSecurityGroupName = "sre-nsg-name"
-				engineeringVnetName                 = "sre-vnet-name"
-				engineeringVnetSubnetName           = "sre-vnet-subnet1"
-				engineeringClusterName              = "sre-hcp-cluster-sc"
-			)
-			tc := framework.NewTestContext()
+			AfterAll(func(ctx context.Context) {
+				tc.DeleteCreatedResources(ctx)
+			})
 
-			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
-				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
-			}
+			It("should be able to log into a cluster via a breakglass session",
+				labels.High,
+				labels.Positive,
+				labels.MIContainers(0), // container is leased in BeforeAll during cluster creation
+				func(ctx context.Context) {
+					// commonVerifiers are run for both aro-sre-pso and aro-sre-csa access levels.
+					// They cover actual data access smoke tests and SSAR-based read permission
+					// for both aro-sre-pso and aro-sre-csa access levels.
+					commonVerifiers := []verifiers.HostedClusterVerifier{
+						// Actual data access smoke tests
+						verifiers.VerifyListNamespaced("kube-system", "pods", "configmaps"),
+						verifiers.VerifyList("nodes", "namespaces"),
+						//verifiers.VerifyGetDeploymentLogs("openshift-monitoring", "prometheus-operator", ""),
+						// Read access across API groups
+						verifiers.VerifyRBACAllowed(
+							// core API resources
+							verifiers.CanList("", "services"),
+							verifiers.CanList("", "endpoints"),
+							verifiers.CanList("", "events"),
+							verifiers.CanList("", "persistentvolumeclaims"),
+							verifiers.CanGet("", "persistentvolumes"),
+							verifiers.CanList("", "serviceaccounts"),
+							verifiers.CanList("", "resourcequotas"),
+							verifiers.CanList("", "limitranges"),
+							verifiers.CanList("", "replicationcontrollers"),
+							verifiers.CanGet("", "componentstatuses"),
+							// core subresource
+							verifiers.CanGetSubresource("", "pods", "log"),
+							// apps
+							verifiers.CanList("apps", "deployments"),
+							verifiers.CanList("apps", "daemonsets"),
+							verifiers.CanList("apps", "statefulsets"),
+							verifiers.CanList("apps", "replicasets"),
+							// batch
+							verifiers.CanList("batch", "jobs"),
+							verifiers.CanList("batch", "cronjobs"),
+							// networking
+							verifiers.CanList("networking.k8s.io", "networkpolicies"),
+							verifiers.CanList("networking.k8s.io", "ingresses"),
+							// rbac
+							verifiers.CanList("rbac.authorization.k8s.io", "clusterroles"),
+							verifiers.CanList("rbac.authorization.k8s.io", "clusterrolebindings"),
+							verifiers.CanList("rbac.authorization.k8s.io", "roles"),
+							verifiers.CanList("rbac.authorization.k8s.io", "rolebindings"),
+							// storage
+							verifiers.CanList("storage.k8s.io", "storageclasses"),
+							verifiers.CanList("storage.k8s.io", "volumeattachments"),
+							// apiextensions
+							verifiers.CanList("apiextensions.k8s.io", "customresourcedefinitions"),
+							// policy
+							verifiers.CanList("policy", "poddisruptionbudgets"),
+							// autoscaling
+							verifiers.CanList("autoscaling", "horizontalpodautoscalers"),
+							// coordination
+							verifiers.CanList("coordination.k8s.io", "leases"),
+							// discovery
+							verifiers.CanList("discovery.k8s.io", "endpointslices"),
+							// certificates
+							verifiers.CanList("certificates.k8s.io", "certificatesigningrequests"),
+							// scheduling
+							verifiers.CanList("scheduling.k8s.io", "priorityclasses"),
+							// node
+							verifiers.CanList("node.k8s.io", "runtimeclasses"),
+							// admissionregistration
+							verifiers.CanList("admissionregistration.k8s.io", "mutatingwebhookconfigurations"),
+							verifiers.CanList("admissionregistration.k8s.io", "validatingwebhookconfigurations"),
+							// apiregistration
+							verifiers.CanList("apiregistration.k8s.io", "apiservices"),
+							// OpenShift: config
+							verifiers.CanList("config.openshift.io", "clusterversions"),
+							verifiers.CanList("config.openshift.io", "clusteroperators"),
+							verifiers.CanList("config.openshift.io", "infrastructures"),
+							// OpenShift: security
+							verifiers.CanList("security.openshift.io", "securitycontextconstraints"),
+							// OpenShift: route
+							verifiers.CanList("route.openshift.io", "routes"),
+							// OpenShift: image
+							verifiers.CanList("image.openshift.io", "imagestreams"),
+							// auth: create permissions
+							verifiers.CanCreate("authentication.k8s.io", "tokenreviews"),
+							verifiers.CanCreate("authorization.k8s.io", "selfsubjectaccessreviews"),
+							verifiers.CanCreate("authorization.k8s.io", "subjectaccessreviews"),
+						),
+					}
 
-			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api-serialconsole", tc.Location())
-			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for serial console test")
+					// aro-sre-pso access — bound to system:aro-sre ClusterRole (read-only)
 
-			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20240610()
-			clusterParams.ClusterName = engineeringClusterName
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+					By("creating SRE breakglass credentials with aro-sre-pso permissions")
+					aroSrePsoRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre-pso", currentIdentity)
+					Expect(err).NotTo(HaveOccurred(), "failed to create SRE breakglass credentials with aro-sre-pso permissions")
+					err = runCreateSREBreakglassCredentialsVerifier(ctx, "system:cluster-readers", aroSrePsoRestConfig, append(commonVerifiers,
+						// Negative: secrets read is forbidden (actual access test)
+						verifiers.ExpectForbidden(verifiers.VerifyListNamespaced("kube-system", "secrets")),
+						// Negative: write operations are forbidden
+						verifiers.VerifyRBACDenied(
+							verifiers.CanCreate("", "pods"),
+							verifiers.CanDelete("", "pods"),
+							verifiers.CanUpdate("", "pods"),
+							verifiers.CanCreate("", "configmaps"),
+							verifiers.CanDelete("", "configmaps"),
+							verifiers.CanCreate("", "namespaces"),
+							verifiers.CanDelete("", "namespaces"),
+							verifiers.CanDelete("", "nodes"),
+							verifiers.CanUpdate("apps", "deployments"),
+							verifiers.CanDelete("apps", "deployments"),
+							verifiers.CanCreate("apps", "deployments"),
+							verifiers.CanGet("", "secrets"),
+						),
+					))
+					Expect(err).NotTo(HaveOccurred(), "failed to verify aro-sre-pso breakglass session permissions")
+					By("waiting for the session to expire")
+					waitForSessionExpiration(expiresAt)
+					By("verifying the session is expired")
+					Eventually(func() error {
+						return verifiers.VerifyList("namespaces").Verify(ctx, aroSrePsoRestConfig)
+					}, 30*time.Second, 2*time.Second).Should(HaveOccurred())
 
-			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]interface{}{
-					"customerNsgName":        engineeringNetworkSecurityGroupName,
-					"customerVnetName":       engineeringVnetName,
-					"customerVnetSubnetName": engineeringVnetSubnetName,
-				},
-				TestArtifactsFS,
-				framework.RBACScopeResourceGroup,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for serial console cluster")
+					// aro-sre-csa access — bound to cluster-admin ClusterRole (full access)
 
-			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20240610(
-				ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				clusterParams,
-				framework.ClusterCreationTimeout,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q for serial console test", engineeringClusterName)
+					By("creating SRE breakglass credentials with aro-sre-csa permissions")
+					aroSreCsaRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre-csa", currentIdentity)
+					Expect(err).NotTo(HaveOccurred(), "failed to create SRE breakglass credentials with aro-sre-csa permissions")
+					err = runCreateSREBreakglassCredentialsVerifier(ctx, "system:masters", aroSreCsaRestConfig, append(commonVerifiers,
+						// Positive: can read secrets (cluster-admin)
+						verifiers.VerifyListNamespaced("kube-system", "secrets"),
+						// Positive: has full write access (cluster-admin)
+						verifiers.VerifyRBACAllowed(
+							verifiers.CanGet("", "secrets"),
+							verifiers.CanCreate("", "pods"),
+							verifiers.CanDelete("", "pods"),
+							verifiers.CanCreate("", "namespaces"),
+							verifiers.CanCreate("apps", "deployments"),
+							verifiers.CanDelete("apps", "deployments"),
+							verifiers.CanUpdate("apps", "deployments"),
+							verifiers.CanList("monitoring.coreos.com", "prometheusrules"),
+							verifiers.CanList("monitoring.coreos.com", "servicemonitors"),
+							verifiers.CanList("operator.openshift.io", "ingresscontrollers"),
+						),
+					))
+					Expect(err).NotTo(HaveOccurred(), "failed to verify aro-sre-csa breakglass session permissions")
+					By("waiting for the session to expire")
+					waitForSessionExpiration(expiresAt)
+					By("verifying the session is expired")
+					Eventually(func() error {
+						return verifiers.VerifyList("namespaces").Verify(ctx, aroSreCsaRestConfig)
+					}, 30*time.Second, 2*time.Second).Should(HaveOccurred())
 
-			By("creating a nodepool to provision worker VMs")
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
-			nodePoolParams.ClusterName = engineeringClusterName
-			nodePoolParams.NodePoolName = "worker"
-			nodePoolParams.Replicas = int32(1)
+					// owner access restriction
 
-			err = tc.CreateNodePoolFromParam20240610(ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				managedResourceGroupName,
-				engineeringClusterName,
-				nodePoolParams,
-				framework.NodePoolCreationTimeout,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create worker nodepool for serial console test")
+					By("trying to access a breakglass session of another user")
+					otherUserRestConfig, _, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre-pso", &framework.AzureIdentityDetails{
+						PrincipalName: "other-app-oid",
+						PrincipalType: framework.PrincipalTypeAADServicePrincipal,
+					})
+					Expect(err).NotTo(HaveOccurred(), "failed to create breakglass credentials for another user")
+					By("and expecting cluster access to be denied")
+					Expect(verifiers.VerifyWhoAmI("aro-sre").Verify(ctx, otherUserRestConfig)).To(HaveOccurred(), "expected cluster access to be denied for a different user's breakglass session")
+				})
 
-			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
+			It("should be able to retrieve serial console logs for a VM",
+				labels.Medium,
+				labels.Positive,
+				labels.MIContainers(0),
+				func(ctx context.Context) {
+					By("getting VM name from managed resource group")
+					vmName, err := tc.GetFirstVMFromManagedResourceGroup(ctx, managedResourceGroupName)
+					Expect(err).NotTo(HaveOccurred(), "failed to get VM name from managed resource group %q", managedResourceGroupName)
+					Expect(vmName).NotTo(BeEmpty(), "VM name from managed resource group %q should not be empty", managedResourceGroupName)
 
-			By("resolving current Azure identity")
-			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve current Azure identity for serial console test")
+					By(fmt.Sprintf("retrieving serial console logs for VM %s", vmName))
+					logs, err := tc.GetSerialConsoleLogs(ctx, hcpResourceID, vmName, currentIdentity)
+					Expect(err).NotTo(HaveOccurred(), "failed to retrieve serial console logs for VM %q", vmName)
 
-			By("getting VM name from managed resource group")
-			vmName, err := tc.GetFirstVMFromManagedResourceGroup(ctx, managedResourceGroupName)
-			Expect(err).NotTo(HaveOccurred(), "failed to get VM name from managed resource group %q", managedResourceGroupName)
-			Expect(vmName).NotTo(BeEmpty(), "VM name from managed resource group %q should not be empty", managedResourceGroupName)
+					By("verifying serial console logs contain boot information")
+					Expect(len(logs)).To(BeNumerically(">", 0), "serial console logs for VM %q should have length greater than 0", vmName)
 
-			By(fmt.Sprintf("retrieving serial console logs for VM %s", vmName))
-			logs, err := tc.GetSerialConsoleLogs(ctx, hcpResourceID, vmName, currentIdentity)
-			Expect(err).NotTo(HaveOccurred(), "failed to retrieve serial console logs for VM %q", vmName)
+					By("testing error case: non-existent VM name")
+					_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "non-existent-vm-12345", currentIdentity)
+					Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs for non-existent VM")
+					Expect(err.Error()).To(ContainSubstring("404"), "error for non-existent VM should contain 404 status code")
 
-			By("verifying serial console logs contain boot information")
-			// Serial console logs typically contain boot messages, kernel output, or systemd logs
-			// We just verify that we got some content back
-			Expect(len(logs)).To(BeNumerically(">", 0), "serial console logs for VM %q should have length greater than 0", vmName)
+					By("testing error case: invalid VM name format")
+					_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "-invalid-vm-name", currentIdentity)
+					Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs with invalid VM name format")
+					Expect(err.Error()).To(ContainSubstring("400"), "error for invalid VM name format should contain 400 status code")
 
-			By("testing error case: non-existent VM name")
-			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "non-existent-vm-12345", currentIdentity)
-			Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs for non-existent VM")
-			Expect(err.Error()).To(ContainSubstring("404"), "error for non-existent VM should contain 404 status code")
+					By("testing error case: empty VM name")
+					_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "", currentIdentity)
+					Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs with empty VM name")
+					Expect(err.Error()).To(ContainSubstring("400"), "error for empty VM name should contain 400 status code")
+				})
 
-			By("testing error case: invalid VM name format")
-			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "-invalid-vm-name", currentIdentity)
-			Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs with invalid VM name format")
-			Expect(err.Error()).To(ContainSubstring("400"), "error for invalid VM name format should contain 400 status code")
+			It("should return 409 when boot diagnostics is disabled on a VM",
+				labels.Medium,
+				labels.Negative,
+				labels.IntegrationOnly,
+				labels.MIContainers(0),
+				func(ctx context.Context) {
+					By("getting VM name from managed resource group")
+					vmName, err := tc.GetFirstVMFromManagedResourceGroup(ctx, managedResourceGroupName)
+					Expect(err).NotTo(HaveOccurred(), "failed to get VM name from managed resource group %q", managedResourceGroupName)
+					Expect(vmName).NotTo(BeEmpty(), "VM name from managed resource group %q should not be empty", managedResourceGroupName)
 
-			By("testing error case: empty VM name")
-			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "", currentIdentity)
-			Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs with empty VM name")
-			Expect(err.Error()).To(ContainSubstring("400"), "error for empty VM name should contain 400 status code")
-		})
+					By("disabling boot diagnostics on the VM")
+					err = tc.DisableVMBootDiagnostics(ctx, managedResourceGroupName, vmName)
+					Expect(err).NotTo(HaveOccurred(), "failed to disable boot diagnostics on VM %q", vmName)
 
-	It("should return 409 when boot diagnostics is disabled on a VM",
-		labels.RequireNothing,
-		labels.Medium,
-		labels.Negative,
-		labels.CoreInfraService,
-		labels.DevelopmentOnly,
-		labels.IntegrationOnly,
-		labels.AroRpApiCompatible,
-		labels.MIContainers(1),
-		func(ctx context.Context) {
-			const (
-				engineeringNetworkSecurityGroupName = "sre-nsg-name"
-				engineeringVnetName                 = "sre-vnet-name"
-				engineeringVnetSubnetName           = "sre-vnet-subnet1"
-				engineeringClusterName              = "sre-hcp-cluster-bootdiag"
-			)
-			tc := framework.NewTestContext()
-
-			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
-				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
-			}
-
-			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api-serialconsole-bootdiag", tc.Location())
-			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for boot diagnostics test")
-
-			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams20240610()
-			clusterParams.ClusterName = engineeringClusterName
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-
-			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]interface{}{
-					"customerNsgName":        engineeringNetworkSecurityGroupName,
-					"customerVnetName":       engineeringVnetName,
-					"customerVnetSubnetName": engineeringVnetSubnetName,
-				},
-				TestArtifactsFS,
-				framework.RBACScopeResourceGroup,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for boot diagnostics cluster")
-
-			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam20240610(
-				ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				clusterParams,
-				framework.ClusterCreationTimeout,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q for boot diagnostics test", engineeringClusterName)
-
-			By("creating a nodepool to provision worker VMs")
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
-			nodePoolParams.ClusterName = engineeringClusterName
-			nodePoolParams.NodePoolName = "worker"
-			nodePoolParams.Replicas = int32(1)
-
-			err = tc.CreateNodePoolFromParam20240610(ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				managedResourceGroupName,
-				engineeringClusterName,
-				nodePoolParams,
-				framework.NodePoolCreationTimeout,
-			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create worker nodepool for boot diagnostics test")
-
-			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", metadataapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
-
-			By("resolving current Azure identity")
-			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve current Azure identity for boot diagnostics test")
-
-			By("getting VM name from managed resource group")
-			vmName, err := tc.GetFirstVMFromManagedResourceGroup(ctx, managedResourceGroupName)
-			Expect(err).NotTo(HaveOccurred(), "failed to get VM name from managed resource group %q", managedResourceGroupName)
-			Expect(vmName).NotTo(BeEmpty(), "VM name from managed resource group %q should not be empty", managedResourceGroupName)
-
-			By("testing error case: boot diagnostics disabled")
-			err = tc.DisableVMBootDiagnostics(ctx, managedResourceGroupName, vmName)
-			Expect(err).NotTo(HaveOccurred(), "failed to disable boot diagnostics on VM %q", vmName)
-
-			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, vmName, currentIdentity)
-			Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs with boot diagnostics disabled on VM %q", vmName)
-			Expect(err.Error()).To(ContainSubstring("409"), "error for disabled boot diagnostics should contain 409 status code")
-			Expect(err.Error()).To(ContainSubstring("Conflict"), "error for disabled boot diagnostics should contain Conflict")
-			Expect(err.Error()).To(ContainSubstring("Boot diagnostics are unexpectedly not enabled"), "error should mention boot diagnostics not enabled")
-			Expect(err.Error()).To(ContainSubstring(vmName), "error should reference VM name %q", vmName)
+					By("verifying serial console returns 409 when boot diagnostics is disabled")
+					_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, vmName, currentIdentity)
+					Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs with boot diagnostics disabled on VM %q", vmName)
+					Expect(err.Error()).To(ContainSubstring("409"), "error for disabled boot diagnostics should contain 409 status code")
+					Expect(err.Error()).To(ContainSubstring("Conflict"), "error for disabled boot diagnostics should contain Conflict")
+					Expect(err.Error()).To(ContainSubstring("Boot diagnostics are unexpectedly not enabled"), "error should mention boot diagnostics not enabled")
+					Expect(err.Error()).To(ContainSubstring(vmName), "error should reference VM name %q", vmName)
+				})
 		})
 })
 

@@ -133,11 +133,11 @@ func setupAzureLogging(logDirPath string) *os.File {
 	return azureLogFile
 }
 
-func NewTestContext() *perItOrDescribeTestContext {
+func newTestContext() *perItOrDescribeTestContext {
 	logDirPath := setupTestLogDir(artifactDir())
 	azureLogFile := setupAzureLogging(logDirPath)
 
-	tc := &perItOrDescribeTestContext{
+	return &perItOrDescribeTestContext{
 		perBinaryInvocationTestContext: invocationContext(),
 		LogDirPath:                     logDirPath,
 		azureLogFile:                   azureLogFile,
@@ -160,6 +160,10 @@ func NewTestContext() *perItOrDescribeTestContext {
 			Deployments: make(map[string]map[string][]timing.Operation),
 		},
 	}
+}
+
+func NewTestContext() *perItOrDescribeTestContext {
+	tc := newTestContext()
 
 	// this construct allows us to be called before or after the test has started and still properly register cleanup.
 	if !ginkgo.GetSuite().InRunPhase() {
@@ -169,6 +173,20 @@ func NewTestContext() *perItOrDescribeTestContext {
 	}
 
 	return tc
+}
+
+// NewSharedTestContext creates a test context for use across multiple specs
+// in an Ordered container. Unlike NewTestContext, it does not register
+// per-spec BeforeEach/DeferCleanup hooks. The caller must register cleanup
+// explicitly in an AfterAll block by calling DeleteCreatedResources.
+func NewSharedTestContext() *perItOrDescribeTestContext {
+	return newTestContext()
+}
+
+// DeleteCreatedResources exposes the cleanup logic for use in AfterAll blocks
+// when a shared test context manages resources across multiple specs.
+func (tc *perItOrDescribeTestContext) DeleteCreatedResources(ctx context.Context) {
+	tc.deleteCreatedResources(ctx)
 }
 
 // sanitizeTestName creates a filesystem-safe directory name from a test's hierarchy of texts.
