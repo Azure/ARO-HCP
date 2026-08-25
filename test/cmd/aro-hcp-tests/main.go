@@ -716,7 +716,8 @@ func setupCli() *cobra.Command {
 	// 	specs = specs.AddLabel("SLOW")
 
 	// Specs can be globally filtered...
-	// specs = specs.MustFilter([]string{`name.contains("filter")`})
+	// DEMO ONLY: restricts CI to a single new test for demo purposes. Revert before merge.
+	specs = specs.MustFilter([]string{`name.contains("should be able to scale a remaining nodepool after a sibling nodepool is deleted")`})
 
 	// Or walked...
 	// specs = specs.Walk(func(spec *extensiontests.ExtensionTestSpec) {

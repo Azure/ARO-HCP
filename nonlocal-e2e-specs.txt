@@ -12,6 +12,7 @@
   "should be able to create an HCP cluster then delete it by deleting the customer resource group",
   "should be able to delete an HCP cluster whose managed identities were deleted first",
   "should be able to forward control plane logs to a storage account and Event Hub via shoebox diagnostic settings",
+  "should be able to scale a remaining nodepool after a sibling nodepool is deleted",
   "should confirm the HCP cluster is deleted (not found)",
   "should create an HCP cluster and validate TLS certificates",
   "should deny pods with images from disallowed registries",
