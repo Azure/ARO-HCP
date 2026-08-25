@@ -3,7 +3,7 @@ on:
   schedule:
   # Check hourly; the "skip if unchanged" step below keeps this a no-op
   # unless tooling/hcpctl actually changed since the last successful build.
-  # The nightly tag is only moved after a successful GoReleaser publish, so
+  # The build marker is only moved after a successful GoReleaser publish, so
   # a failed run doesn't mask itself as "up to date" for the next check.
   - cron: '0 * * * *'
   workflow_dispatch:
@@ -24,9 +24,9 @@ jobs:
     - name: Check for changes since last nightly build
       id: check
       run: |
-        git fetch origin refs/tags/hcpctl-nightly:refs/tags/hcpctl-nightly || true
-        if git rev-parse -q --verify refs/tags/hcpctl-nightly >/dev/null && \
-           git diff --quiet refs/tags/hcpctl-nightly HEAD -- tooling/hcpctl; then
+        git fetch origin refs/markers/hcpctl-nightly-built:refs/markers/hcpctl-nightly-built 2>/dev/null || true
+        if git rev-parse -q --verify refs/markers/hcpctl-nightly-built >/dev/null && \
+           git diff --quiet refs/markers/hcpctl-nightly-built HEAD -- tooling/hcpctl; then
           echo "changed=false" >> "$GITHUB_OUTPUT"
         else
           echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -47,12 +47,18 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GORELEASER_CURRENT_TAG: hcpctl-nightly
-    # GitHub's release API only moves target_commitish for a tag that doesn't exist yet,
-    # so once hcpctl-nightly exists we have to force-move it ourselves. Doing this after
-    # a successful GoReleaser run means a failed run leaves the tag (and thus the next
-    # change-detection check) pointing at the last commit that actually published.
-    - name: Move rolling nightly tag
+    # Record the last successfully published commit using a non-tag marker ref under
+    # refs/markers/ instead of force-moving a tag. Prow's clonerefs runs
+    # `git fetch --tags --prune` against repos it caches between runs, and since git 2.20
+    # `--tags` refuses to overwrite an existing local tag that now points at a different
+    # commit ("would clobber existing tag"), which would break every Prow job that clones
+    # this repo. A ref outside refs/tags/ is invisible to `git fetch --tags`, so moving it
+    # hourly is safe. Doing this after a successful GoReleaser run means a failed run leaves
+    # the marker (and thus the next change-detection check) pointing at the last commit that
+    # actually published. The hcpctl-nightly tag stays where GoReleaser placed it so the
+    # GitHub Release page still resolves.
+    - name: Update build marker
       if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
       run: |
-        git tag -f hcpctl-nightly
-        git push origin hcpctl-nightly --force
+        git update-ref refs/markers/hcpctl-nightly-built HEAD
+        git push origin refs/markers/hcpctl-nightly-built --force
