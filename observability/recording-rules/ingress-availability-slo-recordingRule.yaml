@@ -15,19 +15,30 @@ spec:
   # ========================================
   # Metrics source: Managed_Prometheus_hcps-* (HCP AMW, hcps layer)
   #
-  # SLO: 99.5% ingress canary availability
+  # SLO: 99.5% ingress canary route availability
   # Error Budget: 0.5% (1 - 0.995)
+  #
+  # SLI scope: ingress_canary_route_reachable is an END-TO-END synthetic route
+  # check performed by ingress-operator against the cluster's canary route. A
+  # value of 0 means the canary route observation failed somewhere along the
+  # path (DNS, load balancer, ingress routing, or router pods) -- it is NOT a
+  # direct router-pod-availability signal. Downstream TSGs must treat a breach
+  # as "the ingress data path is not reachable end to end", then triage which
+  # hop failed. Series are differentiated by `host` (the canary route hostname);
+  # they have NOT been validated to map 1:1 to router or canary pods, so the
+  # ratio is expressed as "fraction of synthetic canary route observations that
+  # succeed", not "fraction of healthy pods".
   #
   # Validated on 2026-07-29 against INT AMW (Managed_Prometheus_hcps-uksouth):
   # - ingress_canary_route_reachable: _id label confirmed, 26 HCP clusters visible,
   #   emitted by ingress-operator (control plane, authoritative source)
-  # - ingress_controller_conditions: _id label confirmed, condition=Available/Degraded
   #
   # Production label set for ingress_canary_route_reachable (confirmed 2026-08-14):
   #   _id, cluster, container, endpoint, environment, host, instance, job,
   #   namespace, pod, prometheus, prometheus_replica, region
   # Note: subscription_id and resource_id are NOT present on this metric.
-  # by(_id, cluster) preserves per-HCP identity and regional management cluster context.
+  # by(_id, cluster, region) preserves per-HCP identity, the management cluster,
+  # and the region dimension used by downstream alerts and dashboards.
   #
   # No-data behavior: when all canary series disappear, sum/count returns empty
   # (no series), consistent with kube-apiserver SLI pattern. A separate absent()
@@ -35,16 +46,16 @@ spec:
   - name: arohcp_ingress_availability_slo_recording_rules
     interval: 1m
     rules:
-    # Availability SLI: fraction of canary pods reporting ingress as reachable,
-    # aggregated per HCP cluster.
+    # Availability SLI: fraction of synthetic canary route observations reporting
+    # the ingress route as reachable, aggregated per HCP cluster.
     # Ratio format per ADR: good events / total events
-    # Uses sum/count (not min) so that a single pod failure in a redundant setup
-    # does not report the entire cluster as unavailable.
+    # Uses sum/count (not min) so that a single failed observation in a redundant
+    # setup does not report the entire cluster as unavailable.
     - record: availability:ingress_canary:ratio
       expr: |
-        sum by (_id, cluster) (ingress_canary_route_reachable)
+        sum by (_id, cluster, region) (ingress_canary_route_reachable)
         /
-        count by (_id, cluster) (ingress_canary_route_reachable)
+        count by (_id, cluster, region) (ingress_canary_route_reachable)
     # Error rate derived from the availability SLI.
     # Used by burn-rate alert expressions (ARO-25969).
     - record: errors:ingress_canary:error_rate
@@ -53,8 +64,13 @@ spec:
   # ========================================
   # Ingress Latency SLO Recording Rules
   # ========================================
-  # SLO: 99.5% of canary checks complete within 200ms
+  # SLO: 99.5% of synthetic canary route checks complete within 200ms
   # Error Budget: 0.5% (1 - 0.995)
+  #
+  # SLI scope: ingress_canary_check_duration measures the END-TO-END duration of
+  # the same synthetic canary route check as availability above. Elevated latency
+  # reflects a slow ingress data path (DNS, load balancer, routing, or router
+  # pods), not a single component.
   #
   # Production label set for ingress_canary_check_duration_bucket (confirmed 2026-08-17):
   #   _id, cluster, container, endpoint, environment, host, instance, job,
@@ -63,15 +79,15 @@ spec:
   - name: arohcp_ingress_latency_slo_recording_rules
     interval: 1m
     rules:
-    # Latency SLI: fraction of canary checks completing within 200ms,
-    # aggregated per HCP cluster.
+    # Latency SLI: fraction of synthetic canary route checks completing within
+    # 200ms, aggregated per HCP cluster.
     # Ratio format per ADR: good events / total events
     # Uses rate() over 5m to smooth out per-scrape noise.
     - record: latency:ingress_canary:ratio
       expr: |
-        sum by (_id, cluster) (rate(ingress_canary_check_duration_bucket{le="200"}[5m]))
+        sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="200"}[5m]))
         /
-        sum by (_id, cluster) (rate(ingress_canary_check_duration_bucket{le="+Inf"}[5m]))
+        sum by (_id, cluster, region) (rate(ingress_canary_check_duration_bucket{le="+Inf"}[5m]))
     # Error rate derived from the latency SLI.
     # Used by burn-rate alert expressions (ARO-25969).
     - record: errors:ingress_canary_latency:error_rate
