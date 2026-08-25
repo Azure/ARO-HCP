@@ -48,6 +48,7 @@ const (
 	CloudErrorCodeInvalidResourceGroupName = "InvalidResourceGroupName"
 	CloudErrorCodeLockContention           = "LockContention"
 	CloudErrorCodeCapacityHeavyUse         = "AROHCPCapacityHeavyUse"
+	CloudErrorCodeDeadlineExceeded         = "DeadlineExceeded"
 )
 
 // CloudError represents a complete resource provider error.

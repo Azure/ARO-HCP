@@ -305,12 +305,14 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "node pool creation did not complete before the deadline")
+				assert.Contains(t, op.Error.Message, "cluster service node pool is installing")
 			},
 		},
 		{
-			// Cluster Service reports no message; the Hypershift NodePool mirror's AllMachinesReady
-			// message is what ends up in the operation error once the deadline is exceeded.
+			// Cluster Service reports no message. Once the deadline is exceeded, the error keeps
+			// the deadline sentence and appends the Hypershift NodePool AllMachinesReady message.
 			name:  "deadline exceeded surfaces hypershift AllMachinesReady message",
 			clock: clocktesting.NewFakePassiveClock(operationtesting.MustParseTime("2025-01-15T12:00:00Z")),
 			nodePool: func(fixture *operationtesting.NodePoolTestFixture) *coreapi.HCPOpenShiftClusterNodePool {
@@ -329,7 +331,8 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, coreapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, coreapi.CloudErrorCodeInternalServerError, op.Error.Code)
+				assert.Equal(t, coreapi.CloudErrorCodeDeadlineExceeded, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "node pool creation did not complete before the deadline")
 				assert.Contains(t, op.Error.Message, "AllMachinesReady")
 				assert.Contains(t, op.Error.Message, "RequestDisallowedByPolicy")
 			},
