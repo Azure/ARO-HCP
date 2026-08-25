@@ -23,6 +23,7 @@ SNAPSHOT_RENDERED_CONFIG := $(shell mktemp)
 e2e-local/run-test: $(ARO_HCP_TESTS)
 	$(MAKE) -C $(DIR) -f $(THIS) .e2e-local/setup
 	export LOCATION="$${LOCATION:-${REGION}}"; \
+	export RENDERED_CONFIG="$${RENDERED_CONFIG:-$(DIR)/../config/rendered/dev/$(DEPLOY_ENV)/$$LOCATION.yaml}"; \
 	export AROHCP_ENV="development"; \
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
 	export AZURE_TENANT_ID="$$(az account show --output tsv --query 'tenantId')"; \
