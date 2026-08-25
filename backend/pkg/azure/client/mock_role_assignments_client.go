@@ -41,6 +41,45 @@ func (m *MockRoleAssignmentsClient) EXPECT() *MockRoleAssignmentsClientMockRecor
 	return m.recorder
 }
 
+// Create mocks base method.
+func (m *MockRoleAssignmentsClient) Create(ctx context.Context, scope, roleAssignmentName string, parameters armauthorization.RoleAssignmentCreateParameters, options *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", ctx, scope, roleAssignmentName, parameters, options)
+	ret0, _ := ret[0].(armauthorization.RoleAssignmentsClientCreateResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Create indicates an expected call of Create.
+func (mr *MockRoleAssignmentsClientMockRecorder) Create(ctx, scope, roleAssignmentName, parameters, options any) *MockRoleAssignmentsClientCreateCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRoleAssignmentsClient)(nil).Create), ctx, scope, roleAssignmentName, parameters, options)
+	return &MockRoleAssignmentsClientCreateCall{Call: call}
+}
+
+// MockRoleAssignmentsClientCreateCall wrap *gomock.Call
+type MockRoleAssignmentsClientCreateCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRoleAssignmentsClientCreateCall) Return(arg0 armauthorization.RoleAssignmentsClientCreateResponse, arg1 error) *MockRoleAssignmentsClientCreateCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRoleAssignmentsClientCreateCall) Do(f func(context.Context, string, string, armauthorization.RoleAssignmentCreateParameters, *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error)) *MockRoleAssignmentsClientCreateCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRoleAssignmentsClientCreateCall) DoAndReturn(f func(context.Context, string, string, armauthorization.RoleAssignmentCreateParameters, *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error)) *MockRoleAssignmentsClientCreateCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetByID mocks base method.
 func (m *MockRoleAssignmentsClient) GetByID(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error) {
 	m.ctrl.T.Helper()
