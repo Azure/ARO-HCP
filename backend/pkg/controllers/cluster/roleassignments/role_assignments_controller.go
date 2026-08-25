@@ -120,12 +120,20 @@ func (c *roleAssignmentsSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, 
 		return false
 	}
 
+	// Gate: only do work once the principal IDs for every expected control-plane AND
+	// data-plane operator identity are resolved. Until then we could only compute a
+	// partial expected set, so skip entirely rather than persist partial pending state;
+	// the identity-resolution controllers re-enqueue us once the principal IDs are
+	// populated.
+	if !c.principalIDsResolvable(cluster, serviceProviderCluster) {
+		return false
+	}
+
 	expected, err := c.expectedRoleAssignmentIDs(cluster, serviceProviderCluster)
 	if err != nil {
-		// We cannot yet compute the desired set (for example a principal ID has not
-		// been resolved onto the ServiceProviderCluster yet). Treat that as "work to
-		// do" so SyncOnce runs and surfaces the error for a retry rather than silently
-		// skipping a required input.
+		// Principal IDs are resolvable (checked above), so any error here is a genuine
+		// configuration problem (for example an operator with no role definitions).
+		// Treat that as "work to do" so SyncOnce runs and surfaces the error for a retry.
 		return true
 	}
 
@@ -134,11 +142,31 @@ func (c *roleAssignmentsSyncer) NeedsWork(cluster *coreapi.HCPOpenShiftCluster, 
 		return true
 	}
 	for _, expectedID := range expected {
-		if !containsResourceIDFold(roleAssignments.AzureResources, expectedID) {
+		if !containsResourceID(roleAssignments.AzureResources, expectedID) {
 			return true
 		}
 	}
 	return false
+}
+
+// principalIDsResolvable reports whether every control-plane and data-plane operator
+// identity configured on the cluster has a resolved (present, non-empty) principal ID
+// on the ServiceProviderCluster status. It is the NeedsWork gate that ensures the
+// controller only ever computes and persists the full expected role assignment set,
+// never a partial one.
+func (c *roleAssignmentsSyncer) principalIDsResolvable(cluster *coreapi.HCPOpenShiftCluster, serviceProviderCluster *coreapi.ServiceProviderCluster) bool {
+	userAssignedIdentities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
+	for _, identityResourceID := range userAssignedIdentities.ControlPlaneOperators {
+		if _, ok := controlPlaneOperatorPrincipalID(serviceProviderCluster, identityResourceID); !ok {
+			return false
+		}
+	}
+	for _, identityResourceID := range userAssignedIdentities.DataPlaneOperators {
+		if _, ok := dataPlaneOperatorPrincipalID(serviceProviderCluster, identityResourceID); !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // SyncOnce reads the cluster and ServiceProviderCluster from the informer caches,
@@ -208,10 +236,10 @@ func (c *roleAssignmentsSyncer) reconcileRoleAssignments(ctx context.Context, cl
 	existingRoleAssignments := existingServiceProviderCluster.Status.AzureResources.RoleAssignments
 	var toAdd []*azcorearm.ResourceID
 	for _, expectedID := range expected {
-		if containsResourceIDFold(existingRoleAssignments.AzureResources, expectedID) {
+		if containsResourceID(existingRoleAssignments.AzureResources, expectedID) {
 			continue
 		}
-		if containsResourceIDFold(existingRoleAssignments.PendingAzureResources, expectedID) {
+		if containsResourceID(existingRoleAssignments.PendingAzureResources, expectedID) {
 			continue
 		}
 		toAdd = append(toAdd, expectedID)
@@ -303,9 +331,9 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignmentIDs(cluster *coreapi.HCPOp
 
 	// Control-plane operators.
 	for operatorName, identityResourceID := range userAssignedIdentities.ControlPlaneOperators {
-		principalID, err := controlPlaneOperatorPrincipalID(serviceProviderCluster, identityResourceID)
-		if err != nil {
-			return nil, err
+		principalID, ok := controlPlaneOperatorPrincipalID(serviceProviderCluster, identityResourceID)
+		if !ok {
+			return nil, fmt.Errorf("principal ID not yet resolved for control plane operator %q (identity %q)", operatorName, identityResourceID.String())
 		}
 		roleDefinitionIDs, err := c.controlPlaneOperatorRoleDefinitionIDs(operatorName)
 		if err != nil {
@@ -319,9 +347,9 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignmentIDs(cluster *coreapi.HCPOp
 
 	// Data-plane operators.
 	for operatorName, identityResourceID := range userAssignedIdentities.DataPlaneOperators {
-		principalID, err := dataPlaneOperatorPrincipalID(serviceProviderCluster, identityResourceID)
-		if err != nil {
-			return nil, err
+		principalID, ok := dataPlaneOperatorPrincipalID(serviceProviderCluster, identityResourceID)
+		if !ok {
+			return nil, fmt.Errorf("principal ID not yet resolved for data plane operator %q (identity %q)", operatorName, identityResourceID.String())
 		}
 		roleDefinitionIDs, err := c.dataPlaneOperatorRoleDefinitionIDs(operatorName)
 		if err != nil {
@@ -338,34 +366,30 @@ func (c *roleAssignmentsSyncer) expectedRoleAssignmentIDs(cluster *coreapi.HCPOp
 
 // controlPlaneOperatorPrincipalID returns the resolved Azure principal ID for a
 // control-plane operator identity, looked up on the ServiceProviderCluster status by
-// the lowercased identity resource ID. It returns an error when the identity or its
-// principal ID has not been resolved yet.
-func controlPlaneOperatorPrincipalID(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID) (string, error) {
-	if identityResourceID == nil {
-		return "", fmt.Errorf("control plane operator identity resource ID is nil")
-	}
+// the lowercased identity resource ID. The bool is false when the principal ID has not
+// been resolved yet. The identity resource ID is always set on a cluster's operators,
+// so it is not nil-guarded.
+func controlPlaneOperatorPrincipalID(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID) (string, bool) {
 	key := strings.ToLower(identityResourceID.String())
 	identity, ok := serviceProviderCluster.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[key]
 	if !ok || identity == nil || identity.PrincipalID == nil || len(*identity.PrincipalID) == 0 {
-		return "", fmt.Errorf("principal ID not yet resolved for control plane operator identity %q", identityResourceID.String())
+		return "", false
 	}
-	return *identity.PrincipalID, nil
+	return *identity.PrincipalID, true
 }
 
 // dataPlaneOperatorPrincipalID returns the resolved Azure principal ID for a
 // data-plane operator identity, looked up on the ServiceProviderCluster status by
-// the lowercased identity resource ID. It returns an error when the identity or its
-// principal ID has not been resolved yet.
-func dataPlaneOperatorPrincipalID(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID) (string, error) {
-	if identityResourceID == nil {
-		return "", fmt.Errorf("data plane operator identity resource ID is nil")
-	}
+// the lowercased identity resource ID. The bool is false when the principal ID has not
+// been resolved yet. The identity resource ID is always set on a cluster's operators,
+// so it is not nil-guarded.
+func dataPlaneOperatorPrincipalID(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID) (string, bool) {
 	key := strings.ToLower(identityResourceID.String())
 	identity, ok := serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities[key]
 	if !ok || identity == nil || identity.PrincipalID == nil || len(*identity.PrincipalID) == 0 {
-		return "", fmt.Errorf("principal ID not yet resolved for data plane operator identity %q", identityResourceID.String())
+		return "", false
 	}
-	return *identity.PrincipalID, nil
+	return *identity.PrincipalID, true
 }
 
 // controlPlaneOperatorRoleDefinitionIDs returns the role definition resource IDs
@@ -412,7 +436,7 @@ func appendRoleAssignmentIDs(expected []*azcorearm.ResourceID, scope, principalI
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse role assignment resource ID %q: %w", fullID, err)
 		}
-		if containsResourceIDFold(expected, parsed) {
+		if containsResourceID(expected, parsed) {
 			continue
 		}
 		expected = append(expected, parsed)
@@ -465,40 +489,23 @@ func (c *roleAssignmentsSyncer) roleAssignmentsClient(ctx context.Context, subsc
 	return client, nil
 }
 
-// containsResourceIDFold reports whether target is present in list, comparing
-// resource IDs case-insensitively (see resourceIDsEqualFold).
-func containsResourceIDFold(list []*azcorearm.ResourceID, target *azcorearm.ResourceID) bool {
+// containsResourceID reports whether target is present in list, comparing resource IDs
+// with controllerutils.ResourceIDsEqual. That comparison is case-insensitive (the fix
+// lands with #6648, which this change depends on): Azure may return role assignment IDs
+// whose provider-namespace / segment casing differs from what we generate.
+func containsResourceID(list []*azcorearm.ResourceID, target *azcorearm.ResourceID) bool {
 	for _, id := range list {
-		if resourceIDsEqualFold(id, target) {
+		if controllerutil.ResourceIDsEqual(id, target) {
 			return true
 		}
 	}
 	return false
 }
 
-// resourceIDsEqualFold compares two ARM resource IDs case-insensitively by their
-// canonical string form. Both may be nil; non-nil values are compared with
-// strings.EqualFold, because ARM resource IDs are case-insensitive and Azure may
-// return role assignment IDs whose provider-namespace / segment casing differs from
-// what we generate.
-//
-// This is deliberately a small local comparison rather than a dependency on
-// internal/controllerutils.ResourceIDsEqual, whose case-insensitive behavior is not
-// guaranteed on every branch this change targets.
-func resourceIDsEqualFold(a, b *azcorearm.ResourceID) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return strings.EqualFold(a.String(), b.String())
-}
-
-// resourceIDStrings renders resource IDs for structured logging, skipping nils.
+// resourceIDStrings renders resource IDs for structured logging.
 func resourceIDStrings(ids []*azcorearm.ResourceID) []string {
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
-		if id == nil {
-			continue
-		}
 		out = append(out, id.String())
 	}
 	return out

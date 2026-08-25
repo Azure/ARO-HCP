@@ -311,14 +311,6 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
 								ServingCABundle: "fake-ca-data",
-								AzureResources: coreapi.AzureResources{
-									RoleAssignments: coreapi.AzureMultiReference{
-										AzureResources: []*azcorearm.ResourceID{
-											metadataapi.Must(azcorearm.ParseResourceID(
-												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
-										},
-									},
-								},
 							},
 						},
 					},
@@ -761,14 +753,6 @@ func TestDetermineOperationState(t *testing.T) {
 							},
 							Status: coreapi.ServiceProviderClusterStatus{
 								ServingCABundle: "fake-ca-data",
-								AzureResources: coreapi.AzureResources{
-									RoleAssignments: coreapi.AzureMultiReference{
-										AzureResources: []*azcorearm.ResourceID{
-											metadataapi.Must(azcorearm.ParseResourceID(
-												"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/11111111-1111-1111-1111-111111111111")),
-										},
-									},
-								},
 							},
 						},
 					},
@@ -865,6 +849,18 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 			"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managed-rg/providers/Microsoft.Authorization/roleAssignments/" + name))
 	}
 
+	// clusterWithOperators has at least one operator identity, so the gate is enforced.
+	clusterWithOperators := func() *coreapi.HCPOpenShiftCluster {
+		cluster := &coreapi.HCPOpenShiftCluster{}
+		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+			"control-plane": metadataapi.Must(azcorearm.ParseResourceID(
+				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cp")),
+		}
+		return cluster
+	}
+	// clusterWithoutOperators has no operator identities, so the gate short-circuits.
+	clusterWithoutOperators := &coreapi.HCPOpenShiftCluster{}
+
 	spcLister := func(ra coreapi.AzureMultiReference) corelisters.ServiceProviderClusterLister {
 		return &corelistertesting.SliceServiceProviderClusterLister{
 			ServiceProviderClusters: []*coreapi.ServiceProviderCluster{
@@ -887,25 +883,37 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 
 	tests := []struct {
 		name            string
+		cluster         *coreapi.HCPOpenShiftCluster
 		roleAssignments coreapi.AzureMultiReference
 		expectedState   coreapi.ProvisioningState
 		wantMsgSubstr   string
 	}{
 		{
-			name: "all confirmed and none pending → Succeeded",
+			// No operator identities means no MRG-scoped role assignments are expected, so
+			// the source short-circuits to Succeeded regardless of the (empty) status.
+			name:            "no operator identities short-circuits to Succeeded",
+			cluster:         clusterWithoutOperators,
+			roleAssignments: coreapi.AzureMultiReference{},
+			expectedState:   coreapi.ProvisioningStateSucceeded,
+		},
+		{
+			name:    "operators present, all confirmed and none pending → Succeeded",
+			cluster: clusterWithOperators(),
 			roleAssignments: coreapi.AzureMultiReference{
 				AzureResources: []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
 			},
 			expectedState: coreapi.ProvisioningStateSucceeded,
 		},
 		{
-			name:            "none confirmed → Provisioning",
+			name:            "operators present, none confirmed → Provisioning",
+			cluster:         clusterWithOperators(),
 			roleAssignments: coreapi.AzureMultiReference{},
 			expectedState:   coreapi.ProvisioningStateProvisioning,
 			wantMsgSubstr:   "role assignments not yet confirmed",
 		},
 		{
-			name: "some still pending → Provisioning",
+			name:    "operators present, some still pending → Provisioning",
+			cluster: clusterWithOperators(),
 			roleAssignments: coreapi.AzureMultiReference{
 				AzureResources:        []*azcorearm.ResourceID{roleAssignmentID("11111111-1111-1111-1111-111111111111")},
 				PendingAzureResources: []*azcorearm.ResourceID{roleAssignmentID("22222222-2222-2222-2222-222222222222")},
@@ -922,7 +930,7 @@ func TestRoleAssignmentsOperationStatus(t *testing.T) {
 				serviceProviderClusterLister: spcLister(tt.roleAssignments),
 			}
 
-			result, err := controller.roleAssignmentsOperationStatus(ctx, operation)
+			result, err := controller.roleAssignmentsOperationStatus(ctx, operation, tt.cluster)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
