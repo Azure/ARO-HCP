@@ -34,6 +34,7 @@ import (
 	"github.com/onsi/ginkgo/v2/types"
 	"golang.org/x/net/http2"
 
+	configtypes "github.com/Azure/ARO-Tools/config/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
@@ -43,6 +44,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
+	"github.com/Azure/ARO-HCP/test/util/testconfig"
 )
 
 type perBinaryInvocationTestContext struct {
@@ -62,6 +64,8 @@ type perBinaryInvocationTestContext struct {
 	pooledIdentities         bool
 	compressTimingMetadata   bool
 
+	renderedConfigPath string
+
 	contextLock       sync.RWMutex
 	subscriptionID    string
 	azureCredentials  azcore.TokenCredential
@@ -72,6 +76,10 @@ type perBinaryInvocationTestContext struct {
 	// target the same location, so a suite-wide cache avoids repeatedly burning
 	// per-test timeout budget on the same ARM call.
 	virtualMachineResourceSKUsByLocation map[string][]*armcompute.ResourceSKU
+
+	renderedConfigOnce sync.Once
+	renderedConfig     configtypes.Configuration
+	renderedConfigErr  error
 }
 
 type CleanupFunc func(ctx context.Context) error
@@ -122,6 +130,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 			skipCleanup:                          skipCleanup(),
 			pooledIdentities:                     pooledIdentities(),
 			compressTimingMetadata:               compressTimingMetadata(),
+			renderedConfigPath:                   renderedConfigPath(),
 			defaultTransport:                     defaultHTTPTransport(),
 			virtualMachineResourceSKUsByLocation: make(map[string][]*armcompute.ResourceSKU),
 		}
@@ -465,6 +474,22 @@ func skipCertVerification() bool {
 // when set to development.
 func IsDevelopmentEnvironment() bool {
 	return strings.ToLower(os.Getenv("AROHCP_ENV")) == "development"
+}
+
+// renderedConfigPath returns the value of RENDERED_CONFIG environment variable
+func renderedConfigPath() string {
+	return os.Getenv("RENDERED_CONFIG")
+}
+
+func (tc *perBinaryInvocationTestContext) getRenderedConfig() (configtypes.Configuration, error) {
+	tc.renderedConfigOnce.Do(func() {
+		if tc.renderedConfigPath == "" {
+			tc.renderedConfigErr = fmt.Errorf("RENDERED_CONFIG environment variable is not set")
+			return
+		}
+		tc.renderedConfig, tc.renderedConfigErr = testconfig.LoadRenderedConfig(tc.renderedConfigPath)
+	})
+	return tc.renderedConfig, tc.renderedConfigErr
 }
 
 // Must is a generic function that takes a value of type T and an error.

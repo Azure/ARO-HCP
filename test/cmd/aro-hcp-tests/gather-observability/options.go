@@ -39,8 +39,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/internal/testutil"
 	"github.com/Azure/ARO-HCP/test/util/junit"
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
+	"github.com/Azure/ARO-HCP/test/util/testconfig"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
@@ -130,20 +131,20 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to create output directory %s: %w", o.OutputDir, err)
 	}
 
-	cfg, err := testutil.LoadRenderedConfig(o.RenderedConfig)
+	cfg, err := testconfig.LoadRenderedConfig(o.RenderedConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	regionRG, err := testutil.ConfigGetString(cfg, "regionRG")
+	regionRG, err := testconfig.ConfigGetString(cfg, "regionRG")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get regionRG from config: %w", err)
 	}
-	svcWorkspace, err := testutil.ConfigGetString(cfg, "monitoring.svcWorkspaceName")
+	svcWorkspace, err := testconfig.ConfigGetString(cfg, "monitoring.svcWorkspaceName")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get monitoring.svcWorkspaceName from config: %w", err)
 	}
-	hcpWorkspace, err := testutil.ConfigGetString(cfg, "monitoring.hcpWorkspaceName")
+	hcpWorkspace, err := testconfig.ConfigGetString(cfg, "monitoring.hcpWorkspaceName")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get monitoring.hcpWorkspaceName from config: %w", err)
 	}
@@ -152,7 +153,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	// the name from frontend.cosmosDB.name (see region.bicep / output-region.bicep).
 	// Its platform metrics (NormalizedRUConsumption, AutoscaledRU, ...) are queried
 	// via the Azure Monitor metrics API rather than Prometheus.
-	cosmosDBName, err := testutil.ConfigGetString(cfg, "frontend.cosmosDB.name")
+	cosmosDBName, err := testconfig.ConfigGetString(cfg, "frontend.cosmosDB.name")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get frontend.cosmosDB.name from config: %w", err)
 	}
@@ -248,13 +249,13 @@ func buildCosmosAutoscaleMaxLookup(cfg configtypes.Configuration) (autoscaleMaxL
 	}
 	byContainer := make(map[string]float64, len(fixed))
 	for container, path := range fixed {
-		v, err := testutil.ConfigGetInt(cfg, path)
+		v, err := testconfig.ConfigGetInt(cfg, path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get %s from config: %w", path, err)
 		}
 		byContainer[container] = float64(v)
 	}
-	manifestsMax, err := testutil.ConfigGetInt(cfg, "kubeApplier.cosmosContainerMaxScale")
+	manifestsMax, err := testconfig.ConfigGetInt(cfg, "kubeApplier.cosmosContainerMaxScale")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kubeApplier.cosmosContainerMaxScale from config: %w", err)
 	}
@@ -453,7 +454,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 
 				logger.Info("executing PromQL query", "panel", panel.Title, "title", q.Title, "workspace", q.Workspace)
 
-				resp, err := queryRange(ctx, httpClient, o.cred, endpoint, q.Query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
+				resp, err := promutil.QueryRange(ctx, httpClient, o.cred, endpoint, q.Query, o.TimeWindow.Start, o.TimeWindow.End, q.Step)
 				if err != nil {
 					logger.Error(err, "PromQL query failed", "title", q.Title)
 					queryErr = err.Error()

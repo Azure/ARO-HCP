@@ -15,25 +15,15 @@
 package gatherobservability
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"slices"
-	"strconv"
 	"strings"
-	"time"
 
 	_ "embed"
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 )
 
 // QueriesConfig holds panels of grouped PromQL queries to run against Azure
@@ -141,24 +131,13 @@ type QuerySpec struct {
 }
 
 // PrometheusResponse is the top-level Prometheus HTTP API response.
-type PrometheusResponse struct {
-	Status    string         `json:"status"`
-	Data      PrometheusData `json:"data"`
-	ErrorType string         `json:"errorType,omitempty"`
-	Error     string         `json:"error,omitempty"`
-}
+type PrometheusResponse = promutil.Response
 
 // PrometheusData holds the result set from a query_range call.
-type PrometheusData struct {
-	ResultType string             `json:"resultType"`
-	Result     []PrometheusResult `json:"result"`
-}
+type PrometheusData = promutil.Data
 
 // PrometheusResult is a single timeseries returned by query_range.
-type PrometheusResult struct {
-	Metric map[string]string `json:"metric"`
-	Values [][]any           `json:"values"` // each element is [unix_timestamp_float, "string_value"]
-}
+type PrometheusResult = promutil.Result
 
 //go:embed queries.yaml
 var defaultQueriesYAML []byte
@@ -275,78 +254,4 @@ func sortedMetricResources() []string {
 	}
 	slices.Sort(out)
 	return out
-}
-
-// lookupPrometheusEndpoint retrieves the Prometheus query endpoint for an
-// Azure Monitor workspace using the ARM SDK.
-func lookupPrometheusEndpoint(ctx context.Context, cred azcore.TokenCredential, subscriptionID, resourceGroup, workspaceName string) (string, error) {
-	client, err := armmonitor.NewAzureMonitorWorkspacesClient(subscriptionID, cred, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create monitor workspaces client: %w", err)
-	}
-	resp, err := client.Get(ctx, resourceGroup, workspaceName, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to get workspace %s: %w", workspaceName, err)
-	}
-	if resp.Properties == nil || resp.Properties.Metrics == nil || resp.Properties.Metrics.PrometheusQueryEndpoint == nil {
-		return "", fmt.Errorf("workspace %s has no Prometheus query endpoint", workspaceName)
-	}
-	return *resp.Properties.Metrics.PrometheusQueryEndpoint, nil
-}
-
-// queryRange executes a Prometheus query_range request against an Azure Monitor
-// Prometheus endpoint using bearer token authentication. The caller should pass
-// a shared *http.Client to amortize connection setup across multiple queries.
-func queryRange(ctx context.Context, httpClient *http.Client, cred azcore.TokenCredential, endpoint, query string, start, end time.Time, step string) (*PrometheusResponse, error) {
-	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://prometheus.monitor.azure.com/.default"},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Prometheus token: %w", err)
-	}
-
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse endpoint URL %q: %w", endpoint, err)
-	}
-	u.Path = strings.TrimRight(u.Path, "/") + "/api/v1/query_range"
-
-	params := url.Values{}
-	params.Set("query", query)
-	params.Set("start", strconv.FormatInt(start.Unix(), 10))
-	params.Set("end", strconv.FormatInt(end.Unix(), 10))
-	params.Set("step", step)
-	u.RawQuery = params.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token.Token)
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("prometheus query_range request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("prometheus query_range returned %d: %s", resp.StatusCode, string(body))
-	}
-
-	var promResp PrometheusResponse
-	dec := json.NewDecoder(bytes.NewReader(body))
-	dec.UseNumber()
-	if err := dec.Decode(&promResp); err != nil {
-		return nil, fmt.Errorf("failed to parse Prometheus response: %w", err)
-	}
-	if promResp.Status != "success" {
-		return nil, fmt.Errorf("prometheus query error (%s): %s", promResp.ErrorType, promResp.Error)
-	}
-	return &promResp, nil
 }
