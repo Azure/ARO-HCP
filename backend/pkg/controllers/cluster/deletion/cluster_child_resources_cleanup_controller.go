@@ -17,7 +17,6 @@ package deletion
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -374,48 +373,11 @@ func (c *clusterChildResourcesCleanupController) remainingApplyDesires(ctx conte
 		return 0, "", utils.TrackError(fmt.Errorf("failed to get kube-applier CRUD for ApplyDesire precondition: %w", err))
 	}
 
-	total, breakdown, err := applyDesireControllerCounts(ctx, applyDesireCRUD)
+	total, breakdown, err := kubeappliercosmosstorage.SummarizeApplyDesiresByController(ctx, applyDesireCRUD)
 	if err != nil {
 		return 0, "", utils.TrackError(err)
 	}
 	return total, breakdown, nil
-}
-
-// unknownApplyDesireController is the bucket used for ApplyDesires that carry no
-// kubeapplierapi.TagControllerName tag.
-const unknownApplyDesireController = "unknown"
-
-// applyDesireControllerCounts iterates every ApplyDesire reachable through the given
-// CRUD and returns the total count plus a stable, human-readable breakdown grouped
-// by the authoring controller recorded in Tags[kubeapplierapi.TagControllerName].
-// ApplyDesires with no controller tag are bucketed under "unknown", e.g.
-// "2 for controller SomeController, 1 for controller unknown".
-func applyDesireControllerCounts(ctx context.Context, applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire]) (int, string, error) {
-	applyDesireIterator, err := applyDesireCRUD.List(ctx, &cosmosstorageutils.DBClientListResourceDocsOptions{})
-	if err != nil {
-		return 0, "", fmt.Errorf("failed to list ApplyDesire documents: %w", err)
-	}
-
-	countsByController := map[string]int{}
-	total := 0
-	for _, desire := range applyDesireIterator.Items(ctx) {
-		controllerName := desire.Tags[kubeapplierapi.TagControllerName]
-		if controllerName == "" {
-			controllerName = unknownApplyDesireController
-		}
-		countsByController[controllerName]++
-		total++
-	}
-	if err := applyDesireIterator.GetError(); err != nil {
-		return 0, "", fmt.Errorf("error iterating ApplyDesire documents: %w", err)
-	}
-
-	parts := make([]string, 0, len(countsByController))
-	for controllerName, count := range countsByController {
-		parts = append(parts, fmt.Sprintf("%d for controller %s", count, controllerName))
-	}
-	slices.Sort(parts)
-	return total, strings.Join(parts, ", "), nil
 }
 
 // ensureClusterScopedKubeApplierResourcesDeleted ensures that the cluster-scoped *Desire documents are deleted

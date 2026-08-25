@@ -796,14 +796,19 @@ func TestClusterChildResourcesCleanupController_remainingApplyDesires(t *testing
 			wantBreakdown:      "1 for controller unknown",
 		},
 		{
-			name: "tagged and untagged ApplyDesires -> per-controller breakdown",
+			// Breakdown is sorted by controller NAME, not by count: "aaa-controller"
+			// has more desires than the "unknown" bucket yet still sorts first. This
+			// would fail if the formatted "%d for controller %s" strings were sorted
+			// (that orders by leading count).
+			name: "multiple controllers -> breakdown sorted by controller name, not count",
 			spc:  newSPC(managementClusterResourceID),
 			kubeApplierDesires: []any{
-				taggedDesire("desire-a", "test-controller"),
-				untaggedDesire("desire-b"),
+				taggedDesire("desire-a", "aaa-controller"),
+				taggedDesire("desire-b", "aaa-controller"),
+				untaggedDesire("desire-c"),
 			},
-			wantTotal:     2,
-			wantBreakdown: "1 for controller test-controller, 1 for controller unknown",
+			wantTotal:     3,
+			wantBreakdown: "2 for controller aaa-controller, 1 for controller unknown",
 		},
 		{
 			name:          "no ApplyDesires -> none remaining",
