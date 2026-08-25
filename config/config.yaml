@@ -1804,7 +1804,6 @@ clouds:
                 osDiskSizeGB: 64
             jaeger:
               deploy: false
-            applyKubeletFixes: false
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
@@ -1911,7 +1910,6 @@ clouds:
                 osDiskSizeGB: 64
             jaeger:
               deploy: false
-            applyKubeletFixes: false
           # SVC
           svc:
             subscription:

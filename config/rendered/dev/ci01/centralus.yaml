@@ -682,7 +682,7 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
-  applyKubeletFixes: false
+  applyKubeletFixes: true
   defaultStorageClassSkuName: PremiumV2_LRS
   hcpBackups:
     storageAccount:
