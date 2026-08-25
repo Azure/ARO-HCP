@@ -43,6 +43,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
+	configtypes "github.com/Azure/ARO-Tools/config/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -1273,6 +1274,12 @@ func (tc *perItOrDescribeTestContext) SubscriptionID(ctx context.Context) (strin
 
 func (tc *perItOrDescribeTestContext) AzureCredential() (azcore.TokenCredential, error) {
 	return tc.perBinaryInvocationTestContext.getAzureCredentials()
+}
+
+// RenderedConfig returns the parsed rendered configuration.
+// Requires the RENDERED_CONFIG environment variable to be set to a valid config YAML path.
+func (tc *perItOrDescribeTestContext) RenderedConfig() (configtypes.Configuration, error) {
+	return tc.perBinaryInvocationTestContext.getRenderedConfig()
 }
 
 func (tc *perItOrDescribeTestContext) TenantID() string {
