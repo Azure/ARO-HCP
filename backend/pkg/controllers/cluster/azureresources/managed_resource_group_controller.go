@@ -217,8 +217,12 @@ func (c *managedResourceGroupSyncer) reconcileManagedResourceGroup(ctx context.C
 //   - not found: clear both references so the deletion gate opens.
 //   - other error: return the error so the gate stays closed until we can positively
 //     determine the resource group state.
-//   - exists: do nothing and leave the reference in place so the gate stays closed.
-//     Cluster Service owns the resource group's deletion. TODO: begin deletion.
+//   - exists but owned by another cluster: a foreign / pre-existing resource group that
+//     Cluster Service will not delete on our behalf, so clear both references to open the
+//     deletion gate rather than blocking cluster deletion forever.
+//   - exists and owned by this cluster: do nothing and leave the reference in place so the
+//     gate stays closed. Cluster Service owns the resource group's deletion. TODO: begin
+//     deletion.
 func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
 	// A reference is guaranteed set here (see NeedsWork). Prefer the confirmed
 	// AzureResource, falling back to the PendingAzureResource marker.
@@ -233,25 +237,40 @@ func (c *managedResourceGroupSyncer) deleteManagedResourceGroup(ctx context.Cont
 		return utils.TrackError(err)
 	}
 
-	_, getErr := rgClient.Get(ctx, managedResourceGroupID.Name, nil)
+	getResponse, getErr := rgClient.Get(ctx, managedResourceGroupID.Name, nil)
 	switch {
 	case isNotFound(getErr):
 		// The managed resource group is gone: clear both references so the deletion
 		// gate opens and the ServiceProviderCluster document can be removed.
-		replacement := existingServiceProviderCluster.DeepCopy()
-		reference := &replacement.Status.AzureResources.ManagedResourceGroup
-		reference.PendingAzureResource = nil
-		reference.AzureResource = nil
-		_, err = c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
-		return utils.TrackError(err)
+		return utils.TrackError(c.clearManagedResourceGroupReferences(ctx, cluster, existingServiceProviderCluster))
 	case getErr != nil:
 		return utils.TrackError(getErr)
+	case ownedByAnotherCluster(getResponse.ManagedBy, cluster.ID):
+		// The managed resource group exists but is owned by another cluster: a
+		// foreign / pre-existing resource group that Cluster Service will not delete
+		// on our behalf. It is not ours to wait on, so clear both references to open
+		// the deletion gate rather than blocking cluster deletion forever.
+		return utils.TrackError(c.clearManagedResourceGroupReferences(ctx, cluster, existingServiceProviderCluster))
 	default:
-		// The managed resource group still exists. Cluster Service owns its
-		// deletion; leave the reference in place so the deletion gate stays closed.
+		// The managed resource group still exists and is owned by this cluster.
+		// Cluster Service owns its deletion; leave the reference in place so the
+		// deletion gate stays closed.
 		// TODO: begin deletion of the managed resource group.
 		return nil
 	}
+}
+
+// clearManagedResourceGroupReferences clears both the pending and confirmed managed
+// resource group references on the ServiceProviderCluster and persists the change,
+// opening the cluster deletion gate. persistIfChanged makes this a no-op write when the
+// references are already clear.
+func (c *managedResourceGroupSyncer) clearManagedResourceGroupReferences(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster, existingServiceProviderCluster *coreapi.ServiceProviderCluster) error {
+	replacement := existingServiceProviderCluster.DeepCopy()
+	reference := &replacement.Status.AzureResources.ManagedResourceGroup
+	reference.PendingAzureResource = nil
+	reference.AzureResource = nil
+	_, err := c.persistIfChanged(ctx, cluster, existingServiceProviderCluster, replacement)
+	return err
 }
 
 // persistIfChanged replaces the ServiceProviderCluster when replacement differs

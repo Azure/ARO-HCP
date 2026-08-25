@@ -272,14 +272,28 @@ func TestManagedResourceGroupSyncerSyncOnce(t *testing.T) {
 			expectPending:    nil,
 		},
 		{
-			// Deletion never inspects ownership: while the resource group still exists
-			// the reference is left untouched so the deletion gate stays closed.
-			name:             "deleting and resource group still present leaves reference in place",
+			// The resource group exists and is owned by THIS cluster: Cluster Service
+			// owns its deletion, so the reference is left in place and the deletion gate
+			// stays closed until the resource group is actually gone.
+			name:             "deleting and resource group present and owned by this cluster leaves reference in place",
 			deleting:         true,
 			initialReference: coreapi.AzureReference{AzureResource: mrgID},
 			getResponse:      resourceGroupPresentResponse(ownerClusterID),
 			getErr:           nil,
 			expectAzure:      mrgID,
+			expectPending:    nil,
+		},
+		{
+			// The resource group exists but is owned by ANOTHER cluster (a foreign /
+			// pre-existing resource group Cluster Service will not delete on our behalf).
+			// It is not ours to wait on, so both references are cleared to open the
+			// deletion gate rather than blocking cluster deletion forever.
+			name:             "deleting and resource group owned by another cluster clears both to unblock deletion",
+			deleting:         true,
+			initialReference: coreapi.AzureReference{AzureResource: mrgID},
+			getResponse:      resourceGroupPresentResponse(differentOwnerID),
+			getErr:           nil,
+			expectAzure:      nil,
 			expectPending:    nil,
 		},
 	}
