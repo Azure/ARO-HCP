@@ -12,7 +12,8 @@ else
 endif
 
 image:
-	$(CONTAINER_ENGINE) build --platform="linux/amd64" -f "./Dockerfile" -t ${OC_MIRROR_IMAGE_TAGGED} .
+	cd ../.. && \
+	$(CONTAINER_ENGINE) build --platform="linux/amd64" -f "image-sync/oc-mirror/Dockerfile" -t ${OC_MIRROR_IMAGE_TAGGED} .
 .PHONY: image
 
 build-and-push: image

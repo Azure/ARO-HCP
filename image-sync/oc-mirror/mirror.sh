@@ -2,11 +2,13 @@
 
 set -euxo pipefail
 
-echo "Azure login"
-az login --identity --client-id "${AZURE_CLIENT_ID}"
-
 echo "ACR login"
-DOCKER_COMMAND=/usr/local/bin/docker-login.sh az acr login -n "${REGISTRY}"
+# AZURE_CLIENT_ID is set to the job's managed identity in Azure; when empty (local
+# dry-run) the ambient az credential is used instead.
+/usr/local/bin/acrauth login \
+    --registry "${REGISTRY_URL}" \
+    --auth-file "${XDG_RUNTIME_DIR}/containers/auth.json" \
+    --client-id "${AZURE_CLIENT_ID:-}"
 
 # Prepare configuration
 IMAGE_SET_CONFIG_FILE="/config/imageset-config.yaml"
