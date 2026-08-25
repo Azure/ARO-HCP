@@ -30,9 +30,6 @@ type RoleAssignmentsClient interface {
 	// GetByID gets a role assignment by its fully qualified role assignment resource ID
 	// (for example "{scope}/providers/Microsoft.Authorization/roleAssignments/{name}").
 	GetByID(ctx context.Context, roleAssignmentID string, options *armauthorization.RoleAssignmentsClientGetByIDOptions) (armauthorization.RoleAssignmentsClientGetByIDResponse, error)
-	// Create creates (or updates) a role assignment named roleAssignmentName at the given scope.
-	// It is exposed for the upcoming role-assignment create flow; the observe-only controller in
-	// this package does not call it.
 	Create(ctx context.Context, scope string, roleAssignmentName string, parameters armauthorization.RoleAssignmentCreateParameters, options *armauthorization.RoleAssignmentsClientCreateOptions) (armauthorization.RoleAssignmentsClientCreateResponse, error)
 }
 

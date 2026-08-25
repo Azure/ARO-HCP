@@ -12,35 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package roleassignment replicates Cluster Service's deterministic role
-// assignment name generation so the backend can compute the exact names Cluster
-// Service (CS) uses when it creates the managed-resource-group-scoped role
-// assignments for a cluster's control-plane and data-plane managed identities.
-//
-// The algorithm and the fixed namespace UUID are copied verbatim from Cluster
-// Service (openshift-online/aro-hcp-clusters-service,
-// pkg/azure/roleassignment/roleassignment.go):
-//
-//	const roleAssignmentsNamespaceUuid = "c14decbc-0526-4a6c-be15-9fc305cefe6b"
-//	func GenerateManagedResourceGroupScopedRoleAssignmentName(
-//	    managedResourceGroupResourceId, principalId, roleDefinitionResourceId string) string {
-//	    input := fmt.Sprintf("%s$%s$%s", managedResourceGroupResourceId, principalId, roleDefinitionResourceId)
-//	    return uuid.NewSHA1(uuid.MustParse(roleAssignmentsNamespaceUuid), []byte(input)).String()
-//	}
-//
-// The names are UUIDv5 (SHA-1) values, so they MUST be generated identically on
-// both sides: any divergence in the namespace UUID, the "$" input format, or the
-// exact string form of any input yields a different name, and the backend would
-// then wait forever for a role assignment Cluster Service never created (the
-// cluster-create gate would hang). Do NOT "improve" or reformat this logic.
-//
-// TODO(role-assignments): confirm with the Cluster Service team that the
-// roleDefinitionResourceId string passed here byte-for-byte matches what CS
-// passes. Both sides source the operator role definitions from the same
-// cluster-scoped identities config, where the role definition resource IDs are
-// tenant-level ("/providers/Microsoft.Authorization/roleDefinitions/{guid}"),
-// so they are expected to match; this replication should be kept in lockstep
-// with CS (ideally promoted to a shared module) rather than diverging.
 package roleassignment
 
 import (

@@ -228,7 +228,7 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, currState.WithSource("servingCABundle"))
 	}
-	if currState, err := c.roleAssignmentsOperationStatus(ctx, operation, cluster); err != nil {
+	if currState, err := c.roleAssignmentsOperationStatus(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
 		operationStates = append(operationStates, currState.WithSource("roleAssignments"))
@@ -411,17 +411,7 @@ func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Cont
 // ServiceProviderCluster.Status.AzureResources.RoleAssignments; creation is
 // considered complete for this source once at least one role assignment is confirmed
 // and none remain pending.
-func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
-	// If the cluster has no control-plane and no data-plane operator identities, Cluster
-	// Service creates no managed-resource-group-scoped role assignments, so this source
-	// cannot block creation. In practice a cluster always has operator identities (they
-	// are required for cluster creation); this guards the empty-map edge case so the gate
-	// can never hang.
-	userAssignedIdentities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
-	if len(userAssignedIdentities.ControlPlaneOperators) == 0 && len(userAssignedIdentities.DataPlaneOperators) == 0 {
-		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
-	}
-
+func (c *operationClusterCreate) roleAssignmentsOperationStatus(ctx context.Context, operation *coreapi.Operation) (*operationbase.OperationState, error) {
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return operationbase.NewOperationState(coreapi.ProvisioningStateProvisioning, "ServiceProviderCluster not cached yet"), nil

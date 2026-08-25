@@ -490,9 +490,7 @@ func (c *roleAssignmentsSyncer) roleAssignmentsClient(ctx context.Context, subsc
 }
 
 // containsResourceID reports whether target is present in list, comparing resource IDs
-// with controllerutils.ResourceIDsEqual. That comparison is case-insensitive (the fix
-// lands with #6648, which this change depends on): Azure may return role assignment IDs
-// whose provider-namespace / segment casing differs from what we generate.
+// with controllerutils.ResourceIDsEqual.
 func containsResourceID(list []*azcorearm.ResourceID, target *azcorearm.ResourceID) bool {
 	for _, id := range list {
 		if controllerutil.ResourceIDsEqual(id, target) {
