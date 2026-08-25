@@ -215,7 +215,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 
 	// Ensure all existing deny assignments have correct content.
 	// Succeeded stay in AzureResources; failed move to pending for retry.
-	ensureExistingSucceeded, ensureExistingFailed, ensureExistingErr := c.ensureDenyAssignmentReferences(ctx, cluster, denyAssignmentsClient, genericResourcesClient,
+	ensureExistingSucceeded, ensureExistingFailed, ensureExistingErr := c.ensureDenyAssignmentReferences(ctx, cluster, replacement, denyAssignmentsClient, genericResourcesClient,
 		managedResourceGroupID, denyAssignmentDefinitionsByType, replacement.Status.AzureResources.DenyAssignments.AzureResources)
 	replacement.Status.AzureResources.DenyAssignments.AzureResources = ensureExistingSucceeded
 	replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = appendDenyAssignmentReference(replacement.Status.AzureResources.DenyAssignments.PendingAzureResources, ensureExistingFailed...)
@@ -244,7 +244,7 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentUpsert(ctx context.Conte
 
 	// Ensure all pending deny assignments exist in Azure with correct content.
 	// Succeeded move to AzureResources; failed stay in pending.
-	ensurePendingSucceeded, ensurePendingFailed, ensurePendingErr := c.ensureDenyAssignmentReferences(ctx, cluster, denyAssignmentsClient, genericResourcesClient,
+	ensurePendingSucceeded, ensurePendingFailed, ensurePendingErr := c.ensureDenyAssignmentReferences(ctx, cluster, replacement, denyAssignmentsClient, genericResourcesClient,
 		managedResourceGroupID, denyAssignmentDefinitionsByType, replacement.Status.AzureResources.DenyAssignments.PendingAzureResources)
 	replacement.Status.AzureResources.DenyAssignments.AzureResources = appendDenyAssignmentReference(replacement.Status.AzureResources.DenyAssignments.AzureResources, ensurePendingSucceeded...)
 	replacement.Status.AzureResources.DenyAssignments.PendingAzureResources = ensurePendingFailed
@@ -293,6 +293,7 @@ func replaceServiceProviderClusterIfChanged(
 func (c *clusterDenyAssignmentSyncer) ensureDenyAssignmentReferences(
 	ctx context.Context,
 	cluster *coreapi.HCPOpenShiftCluster,
+	serviceProviderCluster *coreapi.ServiceProviderCluster,
 	denyAssignmentsClient azureclient.DenyAssignmentsClient,
 	genericResourcesClient azureclient.GenericResourcesClient,
 	scope *azcorearm.ResourceID,
@@ -320,7 +321,7 @@ func (c *clusterDenyAssignmentSyncer) ensureDenyAssignmentReferences(
 			continue
 		}
 
-		err = c.ensureDenyAssignment(ctx, cluster, denyAssignmentsClient, genericResourcesClient,
+		err = c.ensureDenyAssignment(ctx, serviceProviderCluster, denyAssignmentsClient, genericResourcesClient,
 			ref.DenyAssignmentResourceID, scope, excludedIdentityResourceIDs,
 			definition.actions, definition.notActions, definition.dataActions)
 		if err != nil {
@@ -338,7 +339,7 @@ func (c *clusterDenyAssignmentSyncer) ensureDenyAssignmentReferences(
 
 func (c *clusterDenyAssignmentSyncer) ensureDenyAssignment(
 	ctx context.Context,
-	cluster *coreapi.HCPOpenShiftCluster,
+	serviceProviderCluster *coreapi.ServiceProviderCluster,
 	denyAssignmentsClient azureclient.DenyAssignmentsClient,
 	genericResourcesClient azureclient.GenericResourcesClient,
 	resourceID *azcorearm.ResourceID,
@@ -355,7 +356,7 @@ func (c *clusterDenyAssignmentSyncer) ensureDenyAssignment(
 		dataActions = []string{}
 	}
 
-	excludedPrincipalIDs, err := resolvePrincipalIDs(cluster, excludedIdentityResourceIDs)
+	excludedPrincipalIDs, err := resolvePrincipalIDs(serviceProviderCluster, excludedIdentityResourceIDs)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to resolve principal IDs: %w", err))
 	}
@@ -573,27 +574,41 @@ func collectExcludedPrincipalIDs(cluster *coreapi.HCPOpenShiftCluster, definitio
 	return identityResourceIDs, nil
 }
 
-func resolvePrincipalIDs(cluster *coreapi.HCPOpenShiftCluster, identityResourceIDs []*azcorearm.ResourceID) ([]string, error) {
-	if cluster.Identity == nil {
-		return nil, fmt.Errorf("cluster has no identity configuration")
-	}
-
-	lookup := make(map[string]string, len(cluster.Identity.UserAssignedIdentities))
-	for resourceID, identity := range cluster.Identity.UserAssignedIdentities {
-		if identity != nil && identity.PrincipalID != nil {
-			lookup[strings.ToLower(resourceID)] = *identity.PrincipalID
-		}
-	}
-
+func resolvePrincipalIDs(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceIDs []*azcorearm.ResourceID) ([]string, error) {
 	principalIDs := make([]string, 0, len(identityResourceIDs))
 	for _, identityResourceID := range identityResourceIDs {
-		principalID, ok := lookup[strings.ToLower(identityResourceID.String())]
-		if !ok {
-			return nil, fmt.Errorf("principal ID not found for identity %s", identityResourceID.String())
+		principalID, err := resolvePrincipalID(serviceProviderCluster, identityResourceID)
+		if err != nil {
+			return nil, utils.TrackError(err)
 		}
 		principalIDs = append(principalIDs, principalID)
 	}
 	return principalIDs, nil
+}
+
+// resolvePrincipalID returns the resolved Azure principal ID for a single managed-identity resource
+// ID, looked up among the identities the backend has mirrored onto the ServiceProviderCluster:
+// the control plane operators and the service managed identity (MSIManagedIdentities), and the data
+// plane operators (DataPlaneOperatorsManagedIdentities). The maps are keyed by the fully lowercased
+// resource ID. It returns an error when the identity is not tracked yet or its principal ID has not
+// been resolved (nil/empty), so the caller waits and retries rather than writing a deny assignment
+// with a missing exclusion.
+func resolvePrincipalID(serviceProviderCluster *coreapi.ServiceProviderCluster, identityResourceID *azcorearm.ResourceID) (string, error) {
+	key := strings.ToLower(identityResourceID.String())
+
+	msi := serviceProviderCluster.Status.MSIManagedIdentities
+	if identity := msi.ControlPlaneOperatorsIdentities[key]; identity != nil && identity.PrincipalID != nil && len(*identity.PrincipalID) > 0 {
+		return *identity.PrincipalID, nil
+	}
+	if smi := msi.ServiceManagedIdentity; smi != nil && smi.ResourceID != nil &&
+		strings.ToLower(smi.ResourceID.String()) == key && smi.PrincipalID != nil && len(*smi.PrincipalID) > 0 {
+		return *smi.PrincipalID, nil
+	}
+	if identity := serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities[key]; identity != nil && identity.PrincipalID != nil && len(*identity.PrincipalID) > 0 {
+		return *identity.PrincipalID, nil
+	}
+
+	return "", fmt.Errorf("no resolved principal ID for identity %s on the ServiceProviderCluster", identityResourceID.String())
 }
 
 func appendDenyAssignmentReference(slice []coreapi.DenyAssignmentReference, refs ...coreapi.DenyAssignmentReference) []coreapi.DenyAssignmentReference {

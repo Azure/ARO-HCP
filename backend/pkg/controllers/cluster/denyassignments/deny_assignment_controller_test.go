@@ -110,7 +110,23 @@ func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpen
 	cluster.ServiceProviderProperties.PendingClusterServiceID = &csID
 	cluster.CustomerProperties.Platform.ManagedResourceGroup = testManagedRG
 
-	cpOps := map[string]*azcorearm.ResourceID{
+	cpOps, dpOps, serviceManagedID := testClusterIdentities()
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = cpOps
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = dpOps
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = serviceManagedID
+
+	for _, opt := range opts {
+		opt(cluster)
+	}
+	return cluster
+}
+
+// testClusterIdentities returns the control plane operator, data plane operator, and service
+// managed identity resource IDs used across the deny-assignment tests. newTestCluster wires these
+// into the cluster's operator configuration; newTestSPC mirrors them (with resolved principal IDs)
+// onto the ServiceProviderCluster the way the identity-resolution controllers do in production.
+func testClusterIdentities() (cpOps, dpOps map[string]*azcorearm.ResourceID, serviceManagedID *azcorearm.ResourceID) {
+	cpOps = map[string]*azcorearm.ResourceID{
 		"cluster-api-azure":        testIdentityResourceID("capi-azure"),
 		"cloud-controller-manager": testIdentityResourceID("ccm"),
 		"disk-csi-driver":          testIdentityResourceID("disk-csi"),
@@ -121,33 +137,49 @@ func newTestCluster(opts ...func(*coreapi.HCPOpenShiftCluster)) *coreapi.HCPOpen
 		"ingress":                  testIdentityResourceID("ingress"),
 		"cloud-network-config":     testIdentityResourceID("cloud-network-config"),
 	}
-	dpOps := map[string]*azcorearm.ResourceID{
+	dpOps = map[string]*azcorearm.ResourceID{
 		"image-registry":  testIdentityResourceID("dp-image-registry"),
 		"disk-csi-driver": testIdentityResourceID("dp-disk-csi"),
 		"file-csi-driver": testIdentityResourceID("dp-file-csi"),
 	}
-	serviceManagedID := testIdentityResourceID("service-managed")
+	serviceManagedID = testIdentityResourceID("service-managed")
+	return cpOps, dpOps, serviceManagedID
+}
 
-	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = cpOps
-	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = dpOps
-	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = serviceManagedID
+// testPrincipalID returns the deterministic principal ID the tests expect for a given managed
+// identity resource ID. It is the value newTestSPC records on the ServiceProviderCluster and the
+// value resolvePrincipalID must return for that identity.
+func testPrincipalID(id *azcorearm.ResourceID) string {
+	return "principal-" + id.Name
+}
 
-	allIdentities := make(map[string]*coreapi.UserAssignedIdentity)
+// seedResolvedIdentities mirrors the cluster's managed identities onto the ServiceProviderCluster
+// status the same way the MSI and data-plane identity-resolution controllers do in production, so
+// resolvePrincipalID can find a resolved principal ID for every excluded identity.
+func seedResolvedIdentities(spc *coreapi.ServiceProviderCluster) {
+	cpOps, dpOps, serviceManagedID := testClusterIdentities()
+
+	cpIdentities := make(map[string]*coreapi.ServiceProviderClusterControlPlaneOperatorIdentity, len(cpOps))
 	for _, id := range cpOps {
-		allIdentities[strings.ToLower(id.String())] = &coreapi.UserAssignedIdentity{PrincipalID: ptr.To("principal-" + id.Name)}
+		cpIdentities[strings.ToLower(id.String())] = &coreapi.ServiceProviderClusterControlPlaneOperatorIdentity{
+			ResourceID:  id,
+			PrincipalID: ptr.To(testPrincipalID(id)),
+		}
 	}
-	for _, id := range dpOps {
-		allIdentities[strings.ToLower(id.String())] = &coreapi.UserAssignedIdentity{PrincipalID: ptr.To("principal-" + id.Name)}
-	}
-	allIdentities[strings.ToLower(serviceManagedID.String())] = &coreapi.UserAssignedIdentity{PrincipalID: ptr.To("principal-service-managed")}
-	cluster.Identity = &coreapi.ManagedServiceIdentity{
-		UserAssignedIdentities: allIdentities,
+	spc.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities = cpIdentities
+	spc.Status.MSIManagedIdentities.ServiceManagedIdentity = &coreapi.ServiceProviderClusterServiceManagedIdentity{
+		ResourceID:  serviceManagedID,
+		PrincipalID: ptr.To(testPrincipalID(serviceManagedID)),
 	}
 
-	for _, opt := range opts {
-		opt(cluster)
+	dpIdentities := make(map[string]*coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity, len(dpOps))
+	for _, id := range dpOps {
+		dpIdentities[strings.ToLower(id.String())] = &coreapi.ServiceProviderClusterDataPlaneOperatorManagedIdentity{
+			ResourceID:  id,
+			PrincipalID: ptr.To(testPrincipalID(id)),
+		}
 	}
-	return cluster
+	spc.Status.DataPlaneOperatorsManagedIdentities.Identities = dpIdentities
 }
 
 func newTestSPC(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceProviderCluster {
@@ -162,6 +194,7 @@ func newTestSPC(opts ...func(*coreapi.ServiceProviderCluster)) *coreapi.ServiceP
 	}
 	spc.SetPartitionKey(testSubscriptionID)
 	spc.Status.AzureResources.ManagedResourceGroup.AzureResource = testManagedResourceGroupID()
+	seedResolvedIdentities(spc)
 	for _, opt := range opts {
 		opt(spc)
 	}
@@ -176,7 +209,7 @@ func resourceNotFoundError() error {
 	return &azcore.ResponseError{StatusCode: 404}
 }
 
-func matchingGetResponseForAllTypes(cluster *coreapi.HCPOpenShiftCluster) func(ctx context.Context, scope string, denyAssignmentID string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
+func matchingGetResponseForAllTypes(cluster *coreapi.HCPOpenShiftCluster, spc *coreapi.ServiceProviderCluster) func(ctx context.Context, scope string, denyAssignmentID string, opts *armauthorization.DenyAssignmentsClientGetOptions) (armauthorization.DenyAssignmentsClientGetResponse, error) {
 	refs, _ := allDenyAssignmentReferences(cluster)
 	nameToType := make(map[string]string, len(refs))
 	for _, ref := range refs {
@@ -204,7 +237,7 @@ func matchingGetResponseForAllTypes(cluster *coreapi.HCPOpenShiftCluster) func(c
 			dataActions = []string{}
 		}
 		excludedIDs, _ := collectExcludedPrincipalIDs(cluster, def)
-		principalIDs, _ := resolvePrincipalIDs(cluster, excludedIDs)
+		principalIDs, _ := resolvePrincipalIDs(spc, excludedIDs)
 		excludedPrincipals := make([]*armauthorization.Principal, 0, len(principalIDs))
 		for _, pid := range principalIDs {
 			excludedPrincipals = append(excludedPrincipals, &armauthorization.Principal{ID: ptr.To(pid)})
@@ -254,6 +287,96 @@ func TestGenerateDenyAssignmentUUIDMatchesClusterService(t *testing.T) {
 		"c4ff85a1-5daa-5ed4-b4e2-fdf60a7d24ad",
 		generateDenyAssignmentUUID("2abcdef1234567890abcdef123456789", "compute-deny-assignment"),
 		"deny assignment UUID derivation must not change (would desync from Cluster Service)")
+}
+
+func TestResolvePrincipalID(t *testing.T) {
+	cpOps, dpOps, serviceManagedID := testClusterIdentities()
+	controlPlaneID := cpOps["cluster-api-azure"]
+	dataPlaneID := dpOps["image-registry"]
+	untrackedID := testIdentityResourceID("not-mirrored")
+
+	tests := []struct {
+		name          string
+		spc           *coreapi.ServiceProviderCluster
+		identity      *azcorearm.ResourceID
+		expected      string
+		expectErr     bool
+		errorContains string
+	}{
+		{
+			name:     "control plane operator identity resolves",
+			spc:      newTestSPC(),
+			identity: controlPlaneID,
+			expected: testPrincipalID(controlPlaneID),
+		},
+		{
+			name:     "service managed identity resolves",
+			spc:      newTestSPC(),
+			identity: serviceManagedID,
+			expected: testPrincipalID(serviceManagedID),
+		},
+		{
+			name:     "data plane operator identity resolves",
+			spc:      newTestSPC(),
+			identity: dataPlaneID,
+			expected: testPrincipalID(dataPlaneID),
+		},
+		{
+			name: "lookup is case-insensitive on the resource ID",
+			spc:  newTestSPC(),
+			identity: metadataapi.Must(azcorearm.ParseResourceID(strings.ToUpper(
+				"/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName +
+					"/providers/Microsoft.ManagedIdentity/userAssignedIdentities/capi-azure"))),
+			expected: testPrincipalID(controlPlaneID),
+		},
+		{
+			name:          "identity not mirrored onto the SPC returns an error",
+			spc:           newTestSPC(),
+			identity:      untrackedID,
+			expectErr:     true,
+			errorContains: "no resolved principal ID",
+		},
+		{
+			name: "control plane identity with unresolved principal ID returns an error",
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities[strings.ToLower(controlPlaneID.String())].PrincipalID = nil
+			}),
+			identity:      controlPlaneID,
+			expectErr:     true,
+			errorContains: "no resolved principal ID",
+		},
+		{
+			name: "data plane identity with empty principal ID returns an error",
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.DataPlaneOperatorsManagedIdentities.Identities[strings.ToLower(dataPlaneID.String())].PrincipalID = ptr.To("")
+			}),
+			identity:      dataPlaneID,
+			expectErr:     true,
+			errorContains: "no resolved principal ID",
+		},
+		{
+			name: "service managed identity with mismatched resource ID returns an error",
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.MSIManagedIdentities.ServiceManagedIdentity.ResourceID = testIdentityResourceID("some-other-identity")
+			}),
+			identity:      serviceManagedID,
+			expectErr:     true,
+			errorContains: "no resolved principal ID",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			principalID, err := resolvePrincipalID(tt.spc, tt.identity)
+			if tt.expectErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorContains, "unexpected error message")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, principalID, "unexpected principal ID")
+		})
+	}
 }
 
 func TestSyncOnce(t *testing.T) {
@@ -489,7 +612,7 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 				})
 			}(),
 			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
-				GetFunc: matchingGetResponseForAllTypes(newTestCluster()),
+				GetFunc: matchingGetResponseForAllTypes(newTestCluster(), newTestSPC()),
 			},
 			mockGenericResources: &azuremockclient.GenericResourcesClientFunc{},
 			expectError:          false,
@@ -603,6 +726,7 @@ func TestSyncDenyAssignmentUpsert(t *testing.T) {
 
 func TestEnsureDenyAssignmentReferences(t *testing.T) {
 	cluster := newTestCluster()
+	spc := newTestSPC()
 	defs := denyAssignmentDefinitions(cluster)
 	defsByType := make(map[string]denyAssignmentDefinition, len(defs))
 	for _, d := range defs {
@@ -635,7 +759,7 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 			refs:       []coreapi.DenyAssignmentReference{resourcesRef},
 			defsByType: defsByType,
 			mockDenyAssignments: &azuremockclient.DenyAssignmentsClientFunc{
-				GetFunc: matchingGetResponseForAllTypes(cluster),
+				GetFunc: matchingGetResponseForAllTypes(cluster, spc),
 			},
 			mockGenericResources: &azuremockclient.GenericResourcesClientFunc{},
 			expectSucceeded:      1,
@@ -700,7 +824,7 @@ func TestEnsureDenyAssignmentReferences(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			syncer := &clusterDenyAssignmentSyncer{clock: clocktesting.NewFakeClock(time.Now())}
 
-			succeeded, failed, err := syncer.ensureDenyAssignmentReferences(ctx, cluster, tt.mockDenyAssignments, tt.mockGenericResources,
+			succeeded, failed, err := syncer.ensureDenyAssignmentReferences(ctx, cluster, spc, tt.mockDenyAssignments, tt.mockGenericResources,
 				testManagedResourceGroupID(), tt.defsByType, tt.refs)
 
 			if tt.expectError {
