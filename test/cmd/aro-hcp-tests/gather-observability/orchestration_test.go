@@ -34,6 +34,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/test/util/junit"
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
@@ -107,10 +108,10 @@ func TestGatherIndependentFailures(t *testing.T) {
 				lookupEndpoint: func(_ context.Context, _ azcore.TokenCredential, _, _, name string) (string, error) {
 					return name, call("endpoint:" + name)
 				},
-				queryRange: func(_ context.Context, _ *http.Client, _ azcore.TokenCredential, endpoint, _ string, _, _ time.Time, _ string) (*PrometheusResponse, error) {
-					return &PrometheusResponse{}, call("query:" + endpoint)
+				queryRange: func(_ context.Context, _ *http.Client, _ azcore.TokenCredential, endpoint, _ string, _, _ time.Time, _ string) (*promutil.Response, error) {
+					return &promutil.Response{}, call("query:" + endpoint)
 				},
-				queryMetrics: func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]PrometheusResult, string, error) {
+				queryMetrics: func(context.Context, azcore.TokenCredential, azcorearm.ResourceID, QuerySpec, time.Time, time.Time, autoscaleMaxLookup) ([]promutil.Result, string, error) {
 					return nil, "", call("metrics")
 				},
 				renderAlerts: func(data any) ([]byte, error) {
@@ -323,12 +324,12 @@ func TestQueriesKeepFailedChartsAndTabs(t *testing.T) {
 	workspaces := map[string]*workspaceData{workspaceSvc: {PromEndpoint: "svc"}, workspaceHcp: {}}
 	var calls int
 	deps := gatherDependencies{
-		queryRange: func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*PrometheusResponse, error) {
+		queryRange: func(context.Context, *http.Client, azcore.TokenCredential, string, string, time.Time, time.Time, string) (*promutil.Response, error) {
 			calls++
 			if calls == 1 {
 				return nil, errors.New("ordinary query failure")
 			}
-			return &PrometheusResponse{}, nil
+			return &promutil.Response{}, nil
 		},
 		renderPanel: func(data panelPageData) ([]byte, error) {
 			if data.Title == "selectors" {

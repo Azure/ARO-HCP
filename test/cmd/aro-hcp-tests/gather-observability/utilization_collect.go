@@ -26,18 +26,20 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 )
 
 const utilizationTimeout = 10 * time.Minute
 
 func (o Options) collectUtilization(ctx context.Context, workspaces map[string]*workspaceData) utilizationReport {
 	client := &http.Client{Timeout: 30 * time.Second}
-	return collectUtilization(ctx, o.TimeWindow.Start, o.TimeWindow.End, time.Now(), func(ctx context.Context, workspace, expression string, start, end time.Time) ([]PrometheusResult, error) {
+	return collectUtilization(ctx, o.TimeWindow.Start, o.TimeWindow.End, time.Now(), func(ctx context.Context, workspace, expression string, start, end time.Time) ([]promutil.Result, error) {
 		ws := workspaces[workspace]
 		if ws == nil || ws.PromEndpoint == "" {
 			return nil, fmt.Errorf("workspace endpoint unavailable")
 		}
-		response, err := queryRange(ctx, client, o.cred, ws.PromEndpoint, expression, start, end, "60s")
+		response, err := promutil.QueryRange(ctx, client, o.cred, ws.PromEndpoint, expression, start, end, "60s")
 		if err != nil {
 			return nil, err
 		}

@@ -32,17 +32,18 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
+	promutil "github.com/Azure/ARO-HCP/test/util/prometheus"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 var utilizationTestTime = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 
-func utilizationTestSeries(at time.Time, value float64, labels ...string) PrometheusResult {
+func utilizationTestSeries(at time.Time, value float64, labels ...string) promutil.Result {
 	metric := map[string]string{}
 	for i := 0; i < len(labels); i += 2 {
 		metric[labels[i]] = labels[i+1]
 	}
-	return PrometheusResult{Metric: metric, Values: [][]any{{float64(at.Unix()), strconv.FormatFloat(value, 'g', -1, 64)}}}
+	return promutil.Result{Metric: metric, Values: [][]any{{float64(at.Unix()), strconv.FormatFloat(value, 'g', -1, 64)}}}
 }
 
 func utilizationTestHistory(clusters []string, minutes int) []utilizationQueryResult {
@@ -78,7 +79,7 @@ func utilizationTestHistory(clusters []string, minutes int) []utilizationQueryRe
 }
 
 func utilizationTestQuery(history []utilizationQueryResult) utilizationQueryFunc {
-	return func(_ context.Context, ws, expression string, _, _ time.Time) ([]PrometheusResult, error) {
+	return func(_ context.Context, ws, expression string, _, _ time.Time) ([]promutil.Result, error) {
 		for _, result := range history {
 			if result.query.workspace == ws && result.query.expression == expression {
 				return result.series, result.err
@@ -143,11 +144,11 @@ func TestUtilizationHistoryAutoscalingAndPeakTies(t *testing.T) {
 func TestUtilizationMissingClusterAndIncompleteNodes(t *testing.T) {
 	results := utilizationTestHistory([]string{"svc", "mgmt", "missing"}, 2)
 	for i := 1; i < len(results); i++ {
-		results[i].series = slices.DeleteFunc(results[i].series, func(s PrometheusResult) bool { return s.Metric["cluster"] == "missing" })
+		results[i].series = slices.DeleteFunc(results[i].series, func(s promutil.Result) bool { return s.Metric["cluster"] == "missing" })
 	}
 	// A known mgmt node without CPU cannot enter the CPU argmax, but it must
 	// still appear in a snapshot selected for another cluster/resource.
-	results[3].series = slices.DeleteFunc(results[3].series, func(s PrometheusResult) bool { return s.Metric["cluster"] == "mgmt" })
+	results[3].series = slices.DeleteFunc(results[3].series, func(s promutil.Result) bool { return s.Metric["cluster"] == "mgmt" })
 	end := utilizationTestTime.Add(time.Minute)
 	report := collectUtilization(context.Background(), utilizationTestTime, end, end, utilizationTestQuery(results))
 	if len(report.Snapshots) != 1 {
@@ -362,7 +363,7 @@ func TestUtilizationMissingCoverageAndQueryFailures(t *testing.T) {
 func TestUtilizationReplicaWithoutContainerInventory(t *testing.T) {
 	results := utilizationTestWorkloads()
 	for i := range results {
-		results[i].series = slices.DeleteFunc(results[i].series, func(s PrometheusResult) bool {
+		results[i].series = slices.DeleteFunc(results[i].series, func(s promutil.Result) bool {
 			return s.Metric["pod"] == "api-rs-2" && s.Metric["container"] != "" && s.Metric["container"] != "kube-state-metrics"
 		})
 	}
@@ -404,7 +405,7 @@ func TestUtilizationNodeAdditionRemovalAndUnknownLabels(t *testing.T) {
 	// Replace the node at minute one, then add a second at minute two. No
 	// interpolation may retain the old node or move the new capacity earlier.
 	for i := 1; i < len(results); i++ {
-		var extra []PrometheusResult
+		var extra []promutil.Result
 		for j := range results[i].series {
 			s := &results[i].series[j]
 			ts, _, _ := utilizationValue(s.Values[0])
@@ -469,7 +470,7 @@ func TestUtilizationFailedAndCancelledHistory(t *testing.T) {
 			if cancelled {
 				cancel()
 			}
-			query := func(context.Context, string, string, time.Time, time.Time) ([]PrometheusResult, error) {
+			query := func(context.Context, string, string, time.Time, time.Time) ([]promutil.Result, error) {
 				if cancelled {
 					t.Error("must not call query after cancellation")
 				}
@@ -491,7 +492,7 @@ func TestUtilizationCancellationPreservesSelectionAndBoundsConcurrency(t *testin
 	base := utilizationTestQuery(history)
 	var active, maximum atomic.Int32
 	var once sync.Once
-	query := func(ctx context.Context, ws, expression string, start, end time.Time) ([]PrometheusResult, error) {
+	query := func(ctx context.Context, ws, expression string, start, end time.Time) ([]promutil.Result, error) {
 		current := active.Add(1)
 		defer active.Add(-1)
 		for old := maximum.Load(); current > old && !maximum.CompareAndSwap(old, current); old = maximum.Load() {
@@ -532,7 +533,7 @@ func TestUtilizationFixedWindowAndInvalidSamples(t *testing.T) {
 	now := utilizationTestTime.Add(95 * time.Second)
 	var mu sync.Mutex
 	var calls int
-	query := func(_ context.Context, _, _ string, start, end time.Time) ([]PrometheusResult, error) {
+	query := func(_ context.Context, _, _ string, start, end time.Time) ([]promutil.Result, error) {
 		mu.Lock()
 		calls++
 		mu.Unlock()
@@ -572,7 +573,7 @@ func TestUtilizationHTTPIntegrationAndUnavailableWorkspace(t *testing.T) {
 		if r.URL.Path != "/api/v1/query_range" || r.Header.Get("Authorization") != "Bearer test" || r.URL.Query().Get("step") != "60s" {
 			t.Errorf("invalid query_range request: %s", r.URL)
 		}
-		var series []PrometheusResult
+		var series []promutil.Result
 		for _, result := range history {
 			if result.query.expression == r.URL.Query().Get("query") {
 				series = result.series
@@ -582,7 +583,7 @@ func TestUtilizationHTTPIntegrationAndUnavailableWorkspace(t *testing.T) {
 			http.Error(w, "denied", http.StatusForbidden)
 			return
 		}
-		if err := json.NewEncoder(w).Encode(PrometheusResponse{Status: "success", Data: PrometheusData{ResultType: "matrix", Result: series}}); err != nil {
+		if err := json.NewEncoder(w).Encode(promutil.Response{Status: "success", Data: promutil.Data{ResultType: "matrix", Result: series}}); err != nil {
 			t.Error(err)
 		}
 	}))
