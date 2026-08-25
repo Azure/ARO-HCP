@@ -19,6 +19,7 @@ use (
 	./test
 	./test-integration
 	./tooling/aro-hcp-exporter
+	./tooling/acrauth
 	./tooling/azutils
 	./tooling/cleanup-sweeper
 	./tooling/entra-app-credentials
