@@ -17,6 +17,7 @@ package deletion
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -288,11 +289,12 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		return false, nil
 	}
 
-	// Check that the ClusterResourcesController has removed all the ApplyDesires it
-	// owns. That controller is responsible for deleting its own desires during
-	// cluster deletion; we only remove the ServiceProviderCluster document (which
-	// carries the ManagementClusterResourceID needed to reach them) once they are gone.
-	applyDesiresGone, err := c.clusterResourceApplyDesiresGone(
+	// Wait until every ApplyDesire for this cluster has been removed. Each authoring
+	// controller is responsible for deleting the ApplyDesires it owns during cluster
+	// deletion; we only remove the ServiceProviderCluster document (which carries the
+	// ManagementClusterResourceID needed to reach them) once they are all gone. Report
+	// the per-controller breakdown so it is clear which controller is lagging.
+	remaining, applyDesireBreakdown, err := c.remainingApplyDesires(
 		ctx,
 		spc,
 		serviceProviderClusterResourceID.SubscriptionID,
@@ -300,10 +302,10 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		clusterName,
 	)
 	if err != nil {
-		return false, utils.TrackError(fmt.Errorf("failed to check ClusterResourcesController ApplyDesire precondition: %w", err))
+		return false, utils.TrackError(fmt.Errorf("failed to check remaining ApplyDesires: %w", err))
 	}
-	if !applyDesiresGone {
-		logger.Info("waiting for ClusterResourcesController to delete its ApplyDesires before removing ServiceProviderCluster",
+	if remaining > 0 {
+		logger.Info(fmt.Sprintf("waiting for %d ApplyDesire(s) to be deleted before removing ServiceProviderCluster: %s", remaining, applyDesireBreakdown),
 			"serviceProviderClusterResourceID", spc.ResourceID.String())
 		return false, nil
 	}
@@ -344,57 +346,76 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 	return true, nil
 }
 
-// clusterResourceApplyDesiresGone reports whether all ApplyDesires tagged by the
-// ClusterResourcesController have been removed for the cluster owning the given
-// ServiceProviderCluster. The ClusterResourcesController is responsible for
-// deleting its own desires during cluster deletion; this controller only verifies
-// they are gone before removing the ServiceProviderCluster document (which carries
-// the ManagementClusterResourceID needed to reach them). A nil management cluster
-// reference or unavailable kube-applier client is treated as gone, consistent with
-// the best-effort behavior elsewhere in this file.
-func (c *clusterChildResourcesCleanupController) clusterResourceApplyDesiresGone(ctx context.Context, spc *coreapi.ServiceProviderCluster, subscriptionID, resourceGroupName, clusterName string) (bool, error) {
+// remainingApplyDesires reports how many ApplyDesires still exist for the cluster
+// owning the given ServiceProviderCluster, along with a human-readable breakdown
+// grouped by the authoring controller. Each authoring controller is responsible for
+// deleting the ApplyDesires it owns during cluster deletion; this controller only
+// verifies they are gone before removing the ServiceProviderCluster document (which
+// carries the ManagementClusterResourceID needed to reach them). A nil management
+// cluster reference or unavailable kube-applier client is treated as "no remaining
+// ApplyDesires", consistent with the best-effort behavior elsewhere in this file.
+func (c *clusterChildResourcesCleanupController) remainingApplyDesires(ctx context.Context, spc *coreapi.ServiceProviderCluster, subscriptionID, resourceGroupName, clusterName string) (int, string, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	if spc == nil || spc.Status.ManagementClusterResourceID == nil {
-		return true, nil
+		return 0, "", nil
 	}
 
 	managementClusterID := spc.Status.ManagementClusterResourceID
 	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementClusterID)
 	if kubeApplierDBClient == nil {
-		logger.Info("no kube-applier client for management cluster; treating ClusterResourcesController ApplyDesires as gone",
+		logger.Info("no kube-applier client for management cluster; treating ApplyDesires as gone",
 			"managementClusterResourceID", managementClusterID.String())
-		return true, nil
+		return 0, "", nil
 	}
 
 	applyDesireCRUD, err := kubeApplierDBClient.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
 	if err != nil {
-		return false, utils.TrackError(fmt.Errorf("failed to get kube-applier CRUD for ApplyDesire precondition: %w", err))
+		return 0, "", utils.TrackError(fmt.Errorf("failed to get kube-applier CRUD for ApplyDesire precondition: %w", err))
 	}
 
+	total, breakdown, err := applyDesireControllerCounts(ctx, applyDesireCRUD)
+	if err != nil {
+		return 0, "", utils.TrackError(err)
+	}
+	return total, breakdown, nil
+}
+
+// unknownApplyDesireController is the bucket used for ApplyDesires that carry no
+// kubeapplierapi.TagControllerName tag.
+const unknownApplyDesireController = "unknown"
+
+// applyDesireControllerCounts iterates every ApplyDesire reachable through the given
+// CRUD and returns the total count plus a stable, human-readable breakdown grouped
+// by the authoring controller recorded in Tags[kubeapplierapi.TagControllerName].
+// ApplyDesires with no controller tag are bucketed under "unknown", e.g.
+// "2 for controller SomeController, 1 for controller unknown".
+func applyDesireControllerCounts(ctx context.Context, applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire]) (int, string, error) {
 	applyDesireIterator, err := applyDesireCRUD.List(ctx, &cosmosstorageutils.DBClientListResourceDocsOptions{})
 	if err != nil {
-		return false, utils.TrackError(fmt.Errorf("failed to list ApplyDesire documents for precondition check: %w", err))
+		return 0, "", fmt.Errorf("failed to list ApplyDesire documents: %w", err)
 	}
 
+	countsByController := map[string]int{}
+	total := 0
 	for _, desire := range applyDesireIterator.Items(ctx) {
-		if desire.Tags == nil {
-			continue
+		controllerName := desire.Tags[kubeapplierapi.TagControllerName]
+		if controllerName == "" {
+			controllerName = unknownApplyDesireController
 		}
-		if desire.Tags[kubeapplierapi.TagControllerName] == kubeapplierapi.ClusterResourcesControllerName {
-			// A tagged ApplyDesire still exists; the gate is not satisfied. Surface
-			// any iteration error observed so far before short-circuiting.
-			if err := applyDesireIterator.GetError(); err != nil {
-				return false, utils.TrackError(fmt.Errorf("error iterating ApplyDesires for precondition check: %w", err))
-			}
-			return false, nil
-		}
+		countsByController[controllerName]++
+		total++
 	}
 	if err := applyDesireIterator.GetError(); err != nil {
-		return false, utils.TrackError(fmt.Errorf("error iterating ApplyDesires for precondition check: %w", err))
+		return 0, "", fmt.Errorf("error iterating ApplyDesire documents: %w", err)
 	}
 
-	return true, nil
+	parts := make([]string, 0, len(countsByController))
+	for controllerName, count := range countsByController {
+		parts = append(parts, fmt.Sprintf("%d for controller %s", count, controllerName))
+	}
+	slices.Sort(parts)
+	return total, strings.Join(parts, ", "), nil
 }
 
 // ensureClusterScopedKubeApplierResourcesDeleted ensures that the cluster-scoped *Desire documents are deleted

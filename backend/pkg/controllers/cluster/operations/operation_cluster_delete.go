@@ -179,15 +179,16 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return nil
 	}
 
-	// Hold the delete operation non-terminal until the ClusterResourcesController has
-	// removed all the ApplyDesires it owns. Placed after the deadline check above so
-	// the timeout-failure path still fires if this cleanup stalls.
-	applyDesiresGone, err := c.clusterResourceApplyDesiresGone(ctx, cluster)
+	// Hold the delete operation non-terminal until every ApplyDesire for the cluster
+	// has been removed, surfacing a per-controller breakdown on the operation status.
+	// Placed after the deadline check above so the timeout-failure path still fires if
+	// this cleanup stalls.
+	applyDesiresState, err := c.applyDesiresDeletionStatus(ctx, cluster)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check ClusterResourcesController ApplyDesire precondition: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to check remaining ApplyDesires: %w", err))
 	}
-	if !applyDesiresGone {
-		logger.Info("waiting for ClusterResourcesController to delete its ApplyDesires before completing delete operation")
+	if applyDesiresState.ProvisioningState != coreapi.ProvisioningStateSucceeded {
+		logger.Info("waiting for ApplyDesires to be deleted before completing delete operation", "remaining", applyDesiresState.Message)
 		return nil
 	}
 
@@ -208,57 +209,80 @@ func (c *operationClusterDelete) shouldReconcileOperationAndResourceStatus(clust
 		cluster.ServiceProviderProperties.ClusterServiceID != nil
 }
 
-// clusterResourceApplyDesiresGone reports whether all ApplyDesires tagged by the
-// ClusterResourcesController have been removed for the given cluster. The
-// ClusterResourcesController deletes its own desires during cluster deletion; this
-// controller holds the delete operation non-terminal until they are gone. A missing
-// ServiceProviderCluster, a nil ManagementClusterResourceID, or an unavailable
-// kube-applier client is treated as gone.
-func (c *operationClusterDelete) clusterResourceApplyDesiresGone(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (bool, error) {
+// applyDesiresDeletionStatus reports the delete-operation status contributed by the
+// ApplyDesires still present for the cluster, mirroring hostedClusterDeletionStatus.
+// It returns a Succeeded state when no ApplyDesires remain — or when they are
+// unreachable (missing ServiceProviderCluster, nil ManagementClusterResourceID, or no
+// kube-applier client), which are treated as "gone" — and a Deleting state carrying a
+// per-controller breakdown while any remain.
+func (c *operationClusterDelete) applyDesiresDeletionStatus(ctx context.Context, cluster *coreapi.HCPOpenShiftCluster) (*operationbase.OperationState, error) {
 	spc, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 	if cosmosstorageutils.IsNotFoundError(err) {
-		return true, nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 	if err != nil {
-		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+		return nil, fmt.Errorf("failed to get ServiceProviderCluster: %w", err)
 	}
 	if spc.Status.ManagementClusterResourceID == nil {
-		return true, nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 
 	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
 	if kubeApplierDBClient == nil {
-		return true, nil
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
 	}
 
 	applyDesireCRUD, err := kubeApplierDBClient.ApplyDesiresForCluster(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
 	if err != nil {
-		return false, utils.TrackError(fmt.Errorf("failed to get kube-applier CRUD for ApplyDesire precondition: %w", err))
+		return nil, fmt.Errorf("failed to get kube-applier CRUD for ApplyDesires: %w", err)
 	}
 
+	total, breakdown, err := applyDesireControllerCounts(ctx, applyDesireCRUD)
+	if err != nil {
+		return nil, err
+	}
+	if total == 0 {
+		return operationbase.NewOperationState(coreapi.ProvisioningStateSucceeded, ""), nil
+	}
+	return operationbase.NewOperationState(coreapi.ProvisioningStateDeleting,
+		fmt.Sprintf("%d ApplyDesire(s) still exist: %s", total, breakdown)), nil
+}
+
+// unknownApplyDesireController is the bucket used for ApplyDesires that carry no
+// kubeapplierapi.TagControllerName tag.
+const unknownApplyDesireController = "unknown"
+
+// applyDesireControllerCounts iterates every ApplyDesire reachable through the given
+// CRUD and returns the total count plus a stable, human-readable breakdown grouped by
+// the authoring controller recorded in Tags[kubeapplierapi.TagControllerName].
+// ApplyDesires with no controller tag are bucketed under "unknown", e.g.
+// "2 for controller SomeController, 1 for controller unknown".
+func applyDesireControllerCounts(ctx context.Context, applyDesireCRUD cosmosstorageutils.ResourceCRUD[kubeapplierapi.ApplyDesire, *kubeapplierapi.ApplyDesire]) (int, string, error) {
 	applyDesireIterator, err := applyDesireCRUD.List(ctx, &cosmosstorageutils.DBClientListResourceDocsOptions{})
 	if err != nil {
-		return false, utils.TrackError(fmt.Errorf("failed to list ApplyDesire documents for precondition check: %w", err))
+		return 0, "", fmt.Errorf("failed to list ApplyDesire documents: %w", err)
 	}
 
+	countsByController := map[string]int{}
+	total := 0
 	for _, desire := range applyDesireIterator.Items(ctx) {
-		if desire.Tags == nil {
-			continue
+		controllerName := desire.Tags[kubeapplierapi.TagControllerName]
+		if controllerName == "" {
+			controllerName = unknownApplyDesireController
 		}
-		if desire.Tags[kubeapplierapi.TagControllerName] == kubeapplierapi.ClusterResourcesControllerName {
-			// A tagged ApplyDesire still exists; the gate is not satisfied. Surface
-			// any iteration error observed so far before short-circuiting.
-			if err := applyDesireIterator.GetError(); err != nil {
-				return false, utils.TrackError(fmt.Errorf("error iterating ApplyDesires for precondition check: %w", err))
-			}
-			return false, nil
-		}
+		countsByController[controllerName]++
+		total++
 	}
 	if err := applyDesireIterator.GetError(); err != nil {
-		return false, utils.TrackError(fmt.Errorf("error iterating ApplyDesires for precondition check: %w", err))
+		return 0, "", fmt.Errorf("error iterating ApplyDesire documents: %w", err)
 	}
 
-	return true, nil
+	parts := make([]string, 0, len(countsByController))
+	for controllerName, count := range countsByController {
+		parts = append(parts, fmt.Sprintf("%d for controller %s", count, controllerName))
+	}
+	slices.Sort(parts)
+	return total, strings.Join(parts, ", "), nil
 }
 
 func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *coreapi.Operation, cluster *coreapi.HCPOpenShiftCluster) error {
@@ -325,6 +349,12 @@ func (c *operationClusterDelete) buildDeletionTimeoutMessage(ctx context.Context
 		errs = append(errs, err)
 	} else {
 		states = append(states, currState.WithSource("hostedCluster"))
+	}
+
+	if currState, err := c.applyDesiresDeletionStatus(ctx, cluster); err != nil {
+		errs = append(errs, err)
+	} else {
+		states = append(states, currState.WithSource("applyDesires"))
 	}
 
 	if err := errors.Join(errs...); err != nil {

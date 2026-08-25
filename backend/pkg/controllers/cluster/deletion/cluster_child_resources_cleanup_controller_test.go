@@ -730,7 +730,7 @@ func TestIsUnderSkippedSubtree(t *testing.T) {
 	}
 }
 
-func TestClusterChildResourcesCleanupController_clusterResourceApplyDesiresGone(t *testing.T) {
+func TestClusterChildResourcesCleanupController_remainingApplyDesires(t *testing.T) {
 	managementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
 	unregisteredManagementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
@@ -767,8 +767,8 @@ func TestClusterChildResourcesCleanupController_clusterResourceApplyDesiresGone(
 			Tags: tags,
 		}
 	}
-	taggedDesire := func(name string) *kubeapplierapi.ApplyDesire {
-		return newApplyDesire(name, map[string]string{kubeapplierapi.TagControllerName: kubeapplierapi.ClusterResourcesControllerName})
+	taggedDesire := func(name, controllerName string) *kubeapplierapi.ApplyDesire {
+		return newApplyDesire(name, map[string]string{kubeapplierapi.TagControllerName: controllerName})
 	}
 	untaggedDesire := func(name string) *kubeapplierapi.ApplyDesire {
 		return newApplyDesire(name, nil)
@@ -778,35 +778,51 @@ func TestClusterChildResourcesCleanupController_clusterResourceApplyDesiresGone(
 		name               string
 		spc                *coreapi.ServiceProviderCluster
 		kubeApplierDesires []any
-		wantGone           bool
+		wantTotal          int
+		wantBreakdown      string
 	}{
 		{
-			name:               "tagged ClusterResourcesController ApplyDesire present -> not gone",
+			name:               "tagged ApplyDesire present -> counted by controller",
 			spc:                newSPC(managementClusterResourceID),
-			kubeApplierDesires: []any{taggedDesire("cluster-resource-desire")},
-			wantGone:           false,
+			kubeApplierDesires: []any{taggedDesire("desire-a", "test-controller")},
+			wantTotal:          1,
+			wantBreakdown:      "1 for controller test-controller",
 		},
 		{
-			name:               "only untagged ApplyDesire present -> gone",
+			name:               "untagged ApplyDesire present -> counted as unknown",
 			spc:                newSPC(managementClusterResourceID),
-			kubeApplierDesires: []any{untaggedDesire("other-controller-desire")},
-			wantGone:           true,
+			kubeApplierDesires: []any{untaggedDesire("desire-a")},
+			wantTotal:          1,
+			wantBreakdown:      "1 for controller unknown",
 		},
 		{
-			name:     "no ApplyDesires -> gone",
-			spc:      newSPC(managementClusterResourceID),
-			wantGone: true,
+			name: "tagged and untagged ApplyDesires -> per-controller breakdown",
+			spc:  newSPC(managementClusterResourceID),
+			kubeApplierDesires: []any{
+				taggedDesire("desire-a", "test-controller"),
+				untaggedDesire("desire-b"),
+			},
+			wantTotal:     2,
+			wantBreakdown: "1 for controller test-controller, 1 for controller unknown",
 		},
 		{
-			name:     "nil management cluster resource ID -> gone",
-			spc:      newSPC(nil),
-			wantGone: true,
+			name:          "no ApplyDesires -> none remaining",
+			spc:           newSPC(managementClusterResourceID),
+			wantTotal:     0,
+			wantBreakdown: "",
 		},
 		{
-			name:               "unregistered management cluster (nil client) -> gone",
+			name:          "nil management cluster resource ID -> none remaining",
+			spc:           newSPC(nil),
+			wantTotal:     0,
+			wantBreakdown: "",
+		},
+		{
+			name:               "unregistered management cluster (nil client) -> none remaining",
 			spc:                newSPC(unregisteredManagementClusterResourceID),
-			kubeApplierDesires: []any{taggedDesire("cluster-resource-desire")},
-			wantGone:           true,
+			kubeApplierDesires: []any{taggedDesire("desire-a", "test-controller")},
+			wantTotal:          0,
+			wantBreakdown:      "",
 		},
 	}
 
@@ -823,14 +839,15 @@ func TestClusterChildResourcesCleanupController_clusterResourceApplyDesiresGone(
 				kubeApplierDBClients: mockKubeApplierDBClients,
 			}
 
-			gone, err := syncer.clusterResourceApplyDesiresGone(ctx, tc.spc, testSubscriptionID, testResourceGroupName, testClusterName)
+			total, breakdown, err := syncer.remainingApplyDesires(ctx, tc.spc, testSubscriptionID, testResourceGroupName, testClusterName)
 			require.NoError(t, err)
-			assert.Equal(t, tc.wantGone, gone)
+			assert.Equal(t, tc.wantTotal, total)
+			assert.Equal(t, tc.wantBreakdown, breakdown)
 		})
 	}
 }
 
-func TestClusterChildResourcesCleanupController_extraDeleteGate_ClusterResourceApplyDesires(t *testing.T) {
+func TestClusterChildResourcesCleanupController_extraDeleteGate_ApplyDesires(t *testing.T) {
 	managementClusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
 
@@ -851,7 +868,7 @@ func TestClusterChildResourcesCleanupController_extraDeleteGate_ClusterResourceA
 			},
 		}
 	}
-	taggedDesire := func(name string) *kubeapplierapi.ApplyDesire {
+	newApplyDesire := func(name string, tags map[string]string) *kubeapplierapi.ApplyDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, name)))
@@ -863,7 +880,7 @@ func TestClusterChildResourcesCleanupController_extraDeleteGate_ClusterResourceA
 			Spec: kubeapplierapi.ApplyDesireSpec{
 				ManagementCluster: managementClusterResourceID,
 			},
-			Tags: map[string]string{kubeapplierapi.TagControllerName: kubeapplierapi.ClusterResourcesControllerName},
+			Tags: tags,
 		}
 	}
 
@@ -873,8 +890,13 @@ func TestClusterChildResourcesCleanupController_extraDeleteGate_ClusterResourceA
 		wantShouldDelete   bool
 	}{
 		{
-			name:               "tagged ClusterResourcesController ApplyDesire present -> SPC deletion blocked",
-			kubeApplierDesires: []any{taggedDesire("cluster-resource-desire")},
+			name:               "tagged ApplyDesire present -> SPC deletion blocked",
+			kubeApplierDesires: []any{newApplyDesire("desire-a", map[string]string{kubeapplierapi.TagControllerName: "test-controller"})},
+			wantShouldDelete:   false,
+		},
+		{
+			name:               "untagged ApplyDesire present -> SPC deletion blocked",
+			kubeApplierDesires: []any{newApplyDesire("desire-a", nil)},
 			wantShouldDelete:   false,
 		},
 		{

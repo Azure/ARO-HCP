@@ -399,7 +399,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 	}
 }
 
-func TestOperationClusterDelete_SynchronizeOperation_ClusterResourcesApplyDesiresGate(t *testing.T) {
+func TestOperationClusterDelete_SynchronizeOperation_ApplyDesiresGate(t *testing.T) {
 	fixedTime := operationtesting.MustParseTime("2025-01-20T10:30:00Z")
 	fixture := operationtesting.NewClusterTestFixture()
 
@@ -428,7 +428,7 @@ func TestOperationClusterDelete_SynchronizeOperation_ClusterResourcesApplyDesire
 			},
 		}
 	}
-	taggedDesire := func(name string) *kubeapplierapi.ApplyDesire {
+	newApplyDesire := func(name string, tags map[string]string) *kubeapplierapi.ApplyDesire {
 		resourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 				operationtesting.TestSubscriptionID, operationtesting.TestResourceGroupName, operationtesting.TestClusterName, name)))
@@ -440,8 +440,14 @@ func TestOperationClusterDelete_SynchronizeOperation_ClusterResourcesApplyDesire
 			Spec: kubeapplierapi.ApplyDesireSpec{
 				ManagementCluster: managementClusterResourceID,
 			},
-			Tags: map[string]string{kubeapplierapi.TagControllerName: kubeapplierapi.ClusterResourcesControllerName},
+			Tags: tags,
 		}
+	}
+	taggedDesire := func(name, controllerName string) *kubeapplierapi.ApplyDesire {
+		return newApplyDesire(name, map[string]string{kubeapplierapi.TagControllerName: controllerName})
+	}
+	untaggedDesire := func(name string) *kubeapplierapi.ApplyDesire {
+		return newApplyDesire(name, nil)
 	}
 	csUninstallingMock := func(ctrl *gomock.Controller, fixture *operationtesting.ClusterTestFixture) ocm.ClusterServiceClientSpec {
 		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -462,14 +468,21 @@ func TestOperationClusterDelete_SynchronizeOperation_ClusterResourcesApplyDesire
 		wantStatus         coreapi.ProvisioningState
 	}{
 		{
-			name:               "tagged ClusterResourcesController ApplyDesire present -> operation held non-terminal",
+			name:               "tagged ApplyDesire present -> operation held non-terminal",
 			spc:                newSPC(managementClusterResourceID),
-			kubeApplierDesires: []any{taggedDesire("cluster-resource-desire")},
+			kubeApplierDesires: []any{taggedDesire("desire-a", "test-controller")},
 			// No CS mock: the gate returns before reconcile, so ClusterService must not be called.
 			wantStatus: coreapi.ProvisioningStateAccepted,
 		},
 		{
-			name:               "no tagged ApplyDesires -> operation proceeds to reconcile",
+			name:               "untagged ApplyDesire present -> operation held non-terminal",
+			spc:                newSPC(managementClusterResourceID),
+			kubeApplierDesires: []any{untaggedDesire("desire-a")},
+			// No CS mock: the gate returns before reconcile, so ClusterService must not be called.
+			wantStatus: coreapi.ProvisioningStateAccepted,
+		},
+		{
+			name:               "no ApplyDesires -> operation proceeds to reconcile",
 			spc:                newSPC(managementClusterResourceID),
 			kubeApplierDesires: nil,
 			setupCSMock:        csUninstallingMock,

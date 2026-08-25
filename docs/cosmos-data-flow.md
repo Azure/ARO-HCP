@@ -278,10 +278,16 @@ which performs a **transactional batch** to atomically update the operation and 
 - `Cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp` != nil
 - `Cluster.ServiceProviderProperties.ClusterServiceID` != nil
 
+**Gate (remaining ApplyDesires, evaluated after the delete-deadline check):**
+- Holds the operation non-terminal while **any** `ApplyDesire` remains for the cluster (regardless of authoring controller). To reach them it reads the cluster's `ServiceProviderCluster` for `Status.ManagementClusterResourceID`, then lists ApplyDesires from that management cluster's kube-applier container. A missing `ServiceProviderCluster`, a nil `Status.ManagementClusterResourceID`, or an unavailable kube-applier client is treated as "no remaining ApplyDesires" (the operation proceeds).
+- The remaining count, grouped by `Tags[ControllerName]` (ApplyDesires with no such tag are bucketed as `unknown`), is surfaced as an `applyDesires` source in the delete-timeout message (mirrors `hostedClusterDeletionStatus`).
+
 | | Object | Fields |
 |---|--------|--------|
 | Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Delete`)</li><li>`UsesNewClusterDeletionApproach`</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (to reach the per-management-cluster kube-applier container for the ApplyDesire gate; missing SPC or nil ID treated as "no remaining ApplyDesires")</li></ul> |
+| Read | `ApplyDesire` (kube-applier DB) | <ul><li>Lists all cluster-scoped ApplyDesires via `ApplyDesiresForCluster(...).List(...)`, counting them grouped by `Tags[ControllerName]` to hold the operation until none remain</li></ul> |
 | Read | Cluster Service | <ul><li>cluster status (or 404)</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (when cluster doc deleted via `SetDeleteOperationAsCompleted`)</li><li>**`Error`**, **`LastTransitionTime`**</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status (while doc exists)</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
@@ -559,10 +565,11 @@ No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 | | Object | Fields |
 |---|--------|--------|
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li><li>`Status.MaestroReadonlyBundles`</li><li>`Status.AzureResources.ManagedResourceGroup` (gate: ServiceProviderCluster is not deleted while `AzureResource` or `PendingAzureResource` is set)</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID` (used both to reach the kube-applier container and to gate ServiceProviderCluster deletion)</li><li>`Status.MaestroReadonlyBundles`</li><li>`Status.AzureResources.ManagedResourceGroup` (gate: ServiceProviderCluster is not deleted while `AzureResource` or `PendingAzureResource` is set)</li></ul> |
+| Read | `ApplyDesire` (kube-applier DB) | <ul><li>Before deleting the `ServiceProviderCluster`, lists all cluster-scoped ApplyDesires via `ApplyDesiresForCluster(...).List(...)` and counts them grouped by `Tags[ControllerName]` (untagged bucketed as `unknown`); SPC deletion is blocked while **any** remain. A nil `Status.ManagementClusterResourceID` or unavailable kube-applier client is treated as "no remaining ApplyDesires".</li></ul> |
 | Read | Child NodePools | <ul><li>list (must be empty)</li></ul> |
 | Read | Child ExternalAuths | <ul><li>list (must be empty)</li></ul> |
-| **Write** | Child Cosmos docs | <ul><li>**DELETES** ServiceProviderCluster (when the managed resource group is reflected as gone, MaestroReadonlyBundles empty, and kube-applier desires gone)</li><li>**DELETES** ManagementClusterContent docs</li><li>**DELETES** kube-applier desire documents</li></ul> |
+| **Write** | Child Cosmos docs | <ul><li>**DELETES** ServiceProviderCluster (only when the managed resource group is reflected as gone (`AzureResource` and `PendingAzureResource` both nil), MaestroReadonlyBundles empty, no ApplyDesires remain for the cluster, and cluster-scoped kube-applier desires gone)</li><li>**DELETES** ManagementClusterContent docs</li><li>**DELETES** kube-applier desire documents</li></ul> |
 
 #### ClusterDeletionController
 
