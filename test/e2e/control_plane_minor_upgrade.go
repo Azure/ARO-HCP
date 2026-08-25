@@ -46,12 +46,6 @@ var _ = Describe("Customer", func() {
 	DescribeTable("should be able to successfully upgrade control plane minor version",
 		labels.MIContainers(1),
 		func(ctx context.Context, targetMinor string) {
-			// The 4.22 -> 5.0 minor upgrade is not yet supported by Cluster Service, so skip it
-			// until CS gains support. This entry is the only one whose target minor is "5.0".
-			if targetMinor == "5.0" {
-				Skip(`cluster service doesn't support this yet: VerifyHostedControlPlaneYStreamUpgrade(previousMinor=4.22, targetMinor=5.0) failed: clusterversion status.history has no version in target minor "5.0"`)
-			}
-
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 			upgradeVersion := metadataapi.Must(semver.ParseTolerant(targetMinor))
 
