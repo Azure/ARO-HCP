@@ -181,7 +181,7 @@ kubectl get <kind> -n <namespace> -o json | \
   jq -r '.items[] | "\(.metadata.name)\tdel=\(.metadata.deletionTimestamp)"'
 
 # Check whether CAPI/CAPZ can still reconcile machine deletion
-kubectl get deployment capi-provider cluster-api -n <control-plane-namespace>
+kubectl get deployment capi-provider cluster-api -n <cp-namespace>
 
 # Check Hypershift operator logs
 kubectl logs -n hypershift deployment/operator --tail=50 | grep <cluster-name-or-id>
@@ -248,17 +248,17 @@ kubectl exec -n clusters-service deployment/clusters-service -- \
 #
 kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
   "curl -s 'http://localhost:8000/api/maestro/v1/resource-bundles?size=2900'" | \
-  jq --arg cid "${CLUSTER_ID}" '[.items[] | select(tostring | test($cid)) |
+  jq --arg cid "${CLUSTER_ID}" '[.items[] | select(tostring | index($cid)) |
   {id, name, created_at, consumer_name, deleted_at,
    labels: .metadata.labels}]'
 ```
 
-ResourceBundle names are UUIDs. Match the cluster ID against the whole object because it may appear in `manifests` or `metadata.labels`, then confirm the label inventory when needed:
+ResourceBundle names are UUIDs. Match the cluster ID against the whole object because it may appear in `manifests` or `metadata.labels`; a bundle missed here is one that Maestro can later use to recreate everything you just deleted. `index` is a literal substring match, so the ID is never interpreted as a regex. Confirm the label inventory when a match looks unexpected:
 
 ```bash
 kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
   "curl -s 'http://localhost:8000/api/maestro/v1/resource-bundles?size=2900'" | \
-  jq -r '[.items[].metadata.labels["api.openshift.com/id"]] | unique'
+  jq -r '[.items[].metadata.labels["api.openshift.com/id"] // empty] | unique'
 ```
 
 ### Phase 3: Resolution
@@ -411,7 +411,11 @@ for kind in machines.cluster.x-k8s.io machinesets.cluster.x-k8s.io machinedeploy
 done
 
 # Deployments with hypershift.openshift.io/component-finalizer
-for name in $(kubectl get deployment -n <cp-namespace> -o jsonpath='{.items[*].metadata.name}'); do
+# Only the Deployments actually holding that finalizer -- a CP namespace has dozens of
+# Deployments and stripping finalizers from all of them is far broader than intended.
+for name in $(kubectl get deployment -n <cp-namespace> -o json | \
+  jq -r '.items[] | select((.metadata.finalizers // []) |
+    index("hypershift.openshift.io/component-finalizer")) | .metadata.name'); do
   kubectl patch deployment $name -n <cp-namespace> \
     --type=merge -p='{"metadata":{"finalizers":null}}'
 done
@@ -461,7 +465,7 @@ kubectl exec -n clusters-service deployment/clusters-service -- \
 # On the Service Cluster - verify no orphaned Maestro bundles
 kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
   "curl -s 'http://localhost:8000/api/maestro/v1/resource-bundles?size=2900'" | \
-  jq --arg cid "${CLUSTER_ID}" '[.items[] | select(tostring | test($cid)) | {id, name, deleted_at}]'
+  jq --arg cid "${CLUSTER_ID}" '[.items[] | select(tostring | index($cid)) | {id, name, deleted_at}]'
 ```
 
 > **Note**: If CS still has the cluster record in `uninstalling` state after management cluster cleanup, re-issue the ARO-HCP `DELETE` (Strategy 1). With Maestro and the management cluster cleared, the CS controller can now complete the deletion and subsequent `GET`s will return `404`.
@@ -505,7 +509,7 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 
 ### Scenario 5: CAPI Machine Deletion Cannot Finish
 
-**Symptoms**: The CP namespace remains `Terminating`; Machine conditions remain at `WaitingForInfrastructureDeletion`; and `kubectl get deployment capi-provider cluster-api -n <cp-ns>` shows one or both controllers at `0/N` replicas. Namespace conditions may reference infrastructure or machine kinds, or may only show the parent `Cluster`, `HostedControlPlane`, and Deployments that are waiting on them.
+**Symptoms**: The CP namespace remains `Terminating`; Machine conditions remain at `WaitingForInfrastructureDeletion`; and `kubectl get deployment capi-provider cluster-api -n <cp-namespace>` shows one or both controllers at `0/N` replicas. Namespace conditions may reference infrastructure or machine kinds, or may only show the parent `Cluster`, `HostedControlPlane`, and Deployments that are waiting on them.
 
 **Cause**: CAPI machine resources hold their own finalizers, but CAPI/CAPZ is no longer running to process them. The stale `WaitingForInfrastructureDeletion` condition cannot self-resolve. Common blockers in the CP namespace:
 
@@ -558,7 +562,7 @@ curl -s 'http://localhost:8002/api/maestro/v1/resource-bundles?size=2900' | \
 
 # Search for a specific cluster's bundles
 curl -s 'http://localhost:8002/api/maestro/v1/resource-bundles?size=2900' | \
-  jq --arg cid "${CLUSTER_ID}" '[.items[] | select(tostring | test($cid)) |
+  jq --arg cid "${CLUSTER_ID}" '[.items[] | select(tostring | index($cid)) |
   {id, name, deleted_at, labels: .metadata.labels}]'
 ```
 
