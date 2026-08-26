@@ -37,7 +37,9 @@ param ocpAcrLogAnalyticsWorkspaceName string = ''
 @description('SKU for the OCP ACR diagnostics Log Analytics workspace')
 param ocpAcrLogAnalyticsWorkspaceSku string = 'PerGB2018'
 
-@description('Retention in days for the OCP ACR diagnostics Log Analytics workspace')
+@description('Retention in days for the OCP ACR diagnostics Log Analytics workspace. Azure requires 30-730 days.')
+@minValue(30)
+@maxValue(730)
 param ocpAcrLogAnalyticsWorkspaceRetentionInDays int = 90
 
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {

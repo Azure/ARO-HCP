@@ -416,9 +416,9 @@
                 },
                 "retentionInDays": {
                   "type": "integer",
-                  "minimum": 0,
+                  "minimum": 30,
                   "maximum": 730,
-                  "description": "Data retention in days for the Log Analytics workspace"
+                  "description": "Data retention in days for the Log Analytics workspace. Azure requires 30-730 days."
                 }
               },
               "required": [
