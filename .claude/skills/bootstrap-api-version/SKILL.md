@@ -144,6 +144,8 @@ Find the previous version's helpers in the test framework directory. Four areas 
 
 Import the new SDK package with the alias `hcpsdk<YYYYMMDD>preview` (e.g. `hcpsdk20270315preview` — note: no `v` prefix, matching the `importas` lint rules in `.golangci.yml`).
 
+Also, in the `checkOperationResult` function in `hcp_helper.go`, add a `cmpopts.IgnoreFields` call for each resource type in the new API version. Use the existing list of ignored fields as a reference.
+
 #### 12. E2E test file
 
 Create a new E2E test file following the pattern of the previous version's cluster create test. Key elements:
