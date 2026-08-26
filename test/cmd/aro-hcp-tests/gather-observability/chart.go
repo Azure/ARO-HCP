@@ -218,10 +218,6 @@ func buildLineChartData(q QuerySpec, resourceID string, series []parsedSeries, t
 	for i := range series {
 		series[i].data = insertGapMarkers(series[i].data)
 	}
-	// Sort by label for consistent color assignment across charts
-	slices.SortFunc(series, func(a, b parsedSeries) int {
-		return cmp.Compare(a.label, b.label)
-	})
 	subtitle := fmt.Sprintf("Window: %s — %s", tw.Start.UTC().Format(time.RFC3339), tw.End.UTC().Format(time.RFC3339))
 
 	// Build labels: strip label keys that are the same across all series
@@ -229,6 +225,10 @@ func buildLineChartData(q QuerySpec, resourceID string, series []parsedSeries, t
 	for i := range series {
 		series[i].label = compactMetricLabel(series[i].metric, commonLabels)
 	}
+	// Sort by label for consistent color assignment across charts
+	slices.SortFunc(series, func(a, b parsedSeries) int {
+		return cmp.Compare(a.label, b.label)
+	})
 
 	// Adjust chart height for legend when many series
 	seriesLabels := make([]string, len(series))
