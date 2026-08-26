@@ -428,6 +428,7 @@ func admitClusterCustomerProperties(ctx context.Context, admissionContext *Clust
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitClusterVersionProfile(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToClusterCustomerPropertiesVersion))...)
+	errs = append(errs, admitClusterPrivateKASVersion(ctx, admissionContext, op, fldPath.Child("version", "id"), newObj)...)
 	errs = append(errs, admitClusterEtcdKmsKeyVersionChange(ctx, admissionContext, op, fldPath.Child("etcd", "dataEncryption", "customerManaged", "kms", "activeKey", "version"), newObj, oldObj)...)
 	errs = append(errs, admitClusterPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform)...)
 
@@ -723,9 +724,47 @@ func admitClusterVersionID(_ context.Context, admissionContext *ClusterAdmission
 	)}
 }
 
+// minPrivateKASVersion is the minimum OCP version that supports private
+// KAS (API server) visibility. HyperShift only gained the ability to run
+// a private API server in 4.22.
+var minPrivateKASVersion = semver.Version{Major: 4, Minor: 22}
+
 // minKmsKeyVersionRotationVersion is the minimum OCP version whose CPO
 // supports etcd KMS key version rotation.
 var minKmsKeyVersionRotationVersion = semver.Version{Major: 4, Minor: 22}
+
+// admitClusterPrivateKASVersion rejects cluster creation with private KAS
+// (API server) visibility when the requested OpenShift version predates
+// HyperShift support for private API servers (< 4.22). This is a CREATE-only
+// check: the version is read from the cluster spec submitted by the user.
+// Ingress visibility is unaffected and does not require a version gate.
+func admitClusterPrivateKASVersion(_ context.Context, _ *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *coreapi.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	if newObj.API.Visibility != metadataapi.VisibilityPrivate {
+		return nil
+	}
+
+	if len(newObj.Version.ID) == 0 {
+		return nil
+	}
+
+	requestedVersion, err := semver.ParseTolerant(newObj.Version.ID)
+	if err != nil {
+		// Static validation will report the parse failure; skip here to
+		// avoid duplicate errors.
+		return nil
+	}
+
+	clusterVersion := semver.Version{Major: requestedVersion.Major, Minor: requestedVersion.Minor}
+	if clusterVersion.LT(minPrivateKASVersion) {
+		return field.ErrorList{field.Invalid(fldPath, newObj.Version.ID, fmt.Sprintf("private KAS (API server) visibility requires OpenShift version %s or above", minPrivateKASVersion))}
+	}
+
+	return nil
+}
 
 // admitClusterEtcdKmsKeyVersionChange rejects KMS key version changes when the
 // cluster's active control plane version predates the CPO support (< 4.22).
