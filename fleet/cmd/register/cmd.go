@@ -158,7 +158,7 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 	}
 
 	updated := existing.DeepCopy()
-	o.applyToManagementCluster(updated)
+	o.applyStatusToManagementCluster(updated)
 
 	logger.Info("Updating existing management cluster")
 	if _, err := managementClusterCRUD.Replace(ctx, updated, existing, nil); err != nil {
@@ -170,6 +170,10 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 
 func (o *RegisterOptions) applyToManagementCluster(managementCluster *fleetapi.ManagementCluster) {
 	managementCluster.Spec.SchedulingPolicy = o.schedulingPolicy
+	o.applyStatusToManagementCluster(managementCluster)
+}
+
+func (o *RegisterOptions) applyStatusToManagementCluster(managementCluster *fleetapi.ManagementCluster) {
 	managementCluster.Status.AKSResourceID = o.aksResourceID
 	managementCluster.Status.PublicDNSZoneResourceID = o.publicDNSZoneResourceID
 	managementCluster.Status.HostedClustersSecretsKeyVaultURL = o.hostedClustersSecretsKeyVaultURL
