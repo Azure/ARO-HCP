@@ -271,6 +271,11 @@ module ocpAcrDiagnosticSettings '../modules/acr/diagnostic-settings.bicep' = if 
   params: {
     acrName: ocpAcrName
     logAnalyticsWorkspaceId: ocpAcrLogAnalyticsWorkspace!.outputs.workspaceId
+    // The OCP ACR is shared across dev-cloud environments (they all point
+    // ocpAcrName at the same registry), so the diagnosticSettings resource
+    // name must be derived per-environment or each environment's deployment
+    // would overwrite the others' diagnostic settings on the shared ACR.
+    diagnosticSettingsName: '${ocpAcrLogAnalyticsWorkspaceName}-diagnostic-settings'
   }
   dependsOn: [
     ocpAcr
