@@ -34,6 +34,8 @@ import (
 type RawFromResourceOptions struct {
 	Kusto                    string
 	Region                   string
+	ViaKusto                 string
+	ViaRegion                string
 	ServiceDatabase          string
 	HCPDatabase              string
 	MonitoringEventsDatabase string
@@ -58,6 +60,8 @@ func defaultFromResourceOptions() *RawFromResourceOptions {
 func bindFromResourceOptions(opts *RawFromResourceOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Kusto, "kusto", opts.Kusto, "Azure Data Explorer cluster name (required)")
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Azure Data Explorer cluster region (required)")
+	cmd.Flags().StringVar(&opts.ViaKusto, "via-kusto", opts.ViaKusto, "Route queries through this reachable ADX cluster instead of connecting to --kusto directly; queries still target --kusto via cross-cluster cluster(). The connecting identity needs viewer rights on --kusto, and the standard databases must exist on this cluster.")
+	cmd.Flags().StringVar(&opts.ViaRegion, "via-region", opts.ViaRegion, "Region of --via-kusto (defaults to --region)")
 	cmd.Flags().StringVar(&opts.ServiceDatabase, "service-database", opts.ServiceDatabase, "Kusto database for service logs")
 	cmd.Flags().StringVar(&opts.HCPDatabase, "hcp-database", opts.HCPDatabase, "Kusto database for hosted control plane logs")
 	cmd.Flags().StringVar(&opts.MonitoringEventsDatabase, "monitoring-events-database", opts.MonitoringEventsDatabase, "Kusto database for monitoring events (alerts)")
@@ -78,6 +82,7 @@ func bindFromResourceOptions(opts *RawFromResourceOptions, cmd *cobra.Command) e
 
 type validatedFromResourceOptions struct {
 	kustoEndpoint            *url.URL
+	connectEndpoint          *url.URL
 	serviceDatabase          string
 	hcpDatabase              string
 	monitoringEventsDatabase string
@@ -95,6 +100,24 @@ func (o *RawFromResourceOptions) validate() (*validatedFromResourceOptions, erro
 		return nil, err
 	}
 
+	// connectEndpoint is where the Kusto client actually connects. By default it
+	// is the query target (--kusto), but --via-kusto lets callers route through a
+	// reachable cluster while queries still target --kusto via cross-cluster
+	// cluster() references in the query templates.
+	connectEndpoint := kustoEndpoint
+	if o.ViaKusto != "" {
+		viaRegion := o.ViaRegion
+		if viaRegion == "" {
+			viaRegion = o.Region
+		}
+		connectEndpoint, err = kusto.KustoEndpoint(o.ViaKusto, viaRegion)
+		if err != nil {
+			return nil, err
+		}
+	} else if o.ViaRegion != "" {
+		return nil, fmt.Errorf("--via-region requires --via-kusto")
+	}
+
 	startTime, err := time.Parse(time.RFC3339, o.StartTime)
 	if err != nil {
 		return nil, fmt.Errorf("invalid --start-time %q: must be RFC3339 format: %w", o.StartTime, err)
@@ -109,6 +132,7 @@ func (o *RawFromResourceOptions) validate() (*validatedFromResourceOptions, erro
 
 	return &validatedFromResourceOptions{
 		kustoEndpoint:            kustoEndpoint,
+		connectEndpoint:          connectEndpoint,
 		serviceDatabase:          o.ServiceDatabase,
 		hcpDatabase:              o.HCPDatabase,
 		monitoringEventsDatabase: o.MonitoringEventsDatabase,
@@ -134,7 +158,7 @@ func (o *validatedFromResourceOptions) complete() (*completedFromResourceOptions
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 	}
-	kcsb := azkustodata.NewConnectionStringBuilder(o.kustoEndpoint.String())
+	kcsb := azkustodata.NewConnectionStringBuilder(o.connectEndpoint.String())
 	kcsb = kcsb.WithTokenCredential(cred)
 	client, err := azkustodata.New(kcsb)
 	if err != nil {

@@ -139,8 +139,12 @@ type ADXKustoClient struct {
 	database string
 }
 
-// NewADXKustoClient creates a KustoClient that queries a specific ADX cluster and database.
-// The client is created using the provided credential and cluster URI.
+// NewADXKustoClient creates a KustoClient that connects to clusterURI and runs
+// queries against the given database. clusterURI is normally the cluster whose
+// data you want, but it may be a different reachable cluster when the queries
+// use cross-cluster cluster() references to reach the real target; the database
+// must exist on whichever cluster is connected to.
+// The client is created using the provided credential.
 // The caller is responsible for calling Close when done.
 func NewADXKustoClient(credential azcore.TokenCredential, clusterURI, database string) (*ADXKustoClient, error) {
 	kcsb := azkustodata.NewConnectionStringBuilder(clusterURI).

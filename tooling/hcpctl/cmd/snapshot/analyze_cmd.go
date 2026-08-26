@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/agent"
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	snapshotpkg "github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
 )
 
@@ -49,6 +51,13 @@ type RawAnalyzeOptions struct {
 	MaxRounds           int
 	Output              string
 	Model               string
+
+	// ViaKusto/ViaRegion optionally route the kusto_query tool through a
+	// reachable ADX cluster instead of connecting to the manifest's cluster
+	// directly. Queries still target the manifest's cluster via cross-cluster
+	// cluster() references (which the agent is instructed to always use).
+	ViaKusto  string
+	ViaRegion string
 
 	// Provider selects the LLM backend: "copilot" (default) or "claude".
 	Provider string
@@ -88,6 +97,9 @@ func bindAnalyzeOptions(opts *RawAnalyzeOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "Output directory for analysis results (defaults to data-dir)")
 	cmd.Flags().StringVar(&opts.Model, "model", opts.Model, "Override the model (applies to all providers)")
 
+	cmd.Flags().StringVar(&opts.ViaKusto, "via-kusto", opts.ViaKusto, "Route the kusto_query tool through this reachable ADX cluster instead of connecting to the manifest's cluster directly; queries still target the manifest's cluster via cross-cluster cluster(). The connecting identity needs viewer rights on the manifest's cluster, and the standard databases must exist on this cluster.")
+	cmd.Flags().StringVar(&opts.ViaRegion, "via-region", opts.ViaRegion, "Region of --via-kusto (required when --via-kusto is set)")
+
 	// Provider selection.
 	cmd.Flags().StringVar(&opts.Provider, "provider", opts.Provider, "LLM provider: copilot (default) or claude")
 
@@ -119,6 +131,10 @@ type validatedAnalyzeOptions struct {
 	maxRounds     int
 	outputDir     string
 	model         string
+
+	// viaKustoEndpoint, when non-nil, is the reachable ADX cluster to connect
+	// the kusto_query tool through instead of the manifest's cluster.
+	viaKustoEndpoint *url.URL
 
 	// Provider selection — exactly one of these is non-nil.
 	copilotConfig *agent.AgentConfig
@@ -158,13 +174,29 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 		outputDir = o.DataDir
 	}
 
+	// Resolve an optional via-cluster to route Kusto queries through.
+	var viaKustoEndpoint *url.URL
+	if o.ViaKusto != "" {
+		if o.ViaRegion == "" {
+			return nil, fmt.Errorf("--via-region is required when --via-kusto is set")
+		}
+		endpoint, err := kusto.KustoEndpoint(o.ViaKusto, o.ViaRegion)
+		if err != nil {
+			return nil, err
+		}
+		viaKustoEndpoint = endpoint
+	} else if o.ViaRegion != "" {
+		return nil, fmt.Errorf("--via-region requires --via-kusto")
+	}
+
 	validated := &validatedAnalyzeOptions{
-		dataDir:       o.DataDir,
-		worktreePaths: worktreePaths,
-		reviewRounds:  o.ReviewRounds,
-		maxRounds:     o.MaxRounds,
-		outputDir:     outputDir,
-		model:         o.Model,
+		dataDir:          o.DataDir,
+		worktreePaths:    worktreePaths,
+		reviewRounds:     o.ReviewRounds,
+		maxRounds:        o.MaxRounds,
+		outputDir:        outputDir,
+		model:            o.Model,
+		viaKustoEndpoint: viaKustoEndpoint,
 	}
 
 	// Validate provider-specific options.
@@ -309,8 +341,20 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 		return fmt.Errorf("failed to create Azure credential: %w", err)
 	}
 
-	// Create Kusto client from manifest info.
-	kustoClient, err := agent.NewADXKustoClient(cred, manifest.KustoCluster, manifest.KustoDatabase)
+	// Create Kusto client from manifest info. The client connects to
+	// manifest.KustoCluster by default, but when --via-kusto is set it connects
+	// to that reachable cluster instead; the agent's queries still target
+	// manifest.KustoCluster via cross-cluster cluster() references, and
+	// hydration share links continue to point at manifest.KustoCluster.
+	kustoConnectURI := manifest.KustoCluster
+	if o.viaKustoEndpoint != nil {
+		kustoConnectURI = o.viaKustoEndpoint.String()
+		logger.Info("Routing Kusto queries through via-cluster",
+			"viaCluster", kustoConnectURI,
+			"targetCluster", manifest.KustoCluster,
+		)
+	}
+	kustoClient, err := agent.NewADXKustoClient(cred, kustoConnectURI, manifest.KustoDatabase)
 	if err != nil {
 		return fmt.Errorf("failed to create Kusto client: %w", err)
 	}
