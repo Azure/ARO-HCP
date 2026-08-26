@@ -17,9 +17,6 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "scripts": {
-    "format-check": "prettier --check --plugin @typespec/compiler/internals/prettier-formatter \"redhatopenshift/**/*.tsp\""
-  },
   "devDependencies": {
     "@microsoft.azure/openapi-validator": "2.2.4",
     "@microsoft.azure/openapi-validator-rulesets": "2.2.6",
