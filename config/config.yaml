@@ -112,6 +112,16 @@ defaults:
       # keeps eastus2euap's regional endpoint disabled so the manual mitigation
       # persists across rollouts; every other region defaults to enabled.
       replicationState: true
+      # ACR diagnostic settings (repository/login events + metrics) sent to a
+      # dedicated Log Analytics workspace. Disabled by default; enabled per-cloud
+      # below (see clouds.dev.defaults.acr.ocp). Added to help diagnose ACR
+      # throttling (429s) affecting E2E image pulls (AROSLSRE-1883).
+      diagnosticSettings:
+        enabled: false
+        logAnalyticsWorkspace:
+          name: 'arohcpocp{{ .ctx.environment }}-diag'
+          sku: PerGB2018
+          retentionInDays: 90
   # TRANSIENT — STG-global "V2" migration scaffolding. Every pipeline (including
   # the stg-only V2 copies) is preprocessed by helmtest against the dev render
   # and by EV2 manifest generation for all public envs, and the renderer uses
@@ -1420,6 +1430,16 @@ clouds:
         ocp:
           name: 'arohcpocpdev' # [globally-unique]
           zoneRedundantMode: Disabled
+          # All dev-cloud environments (ci00, ci01, cspr, dev, perf, pers) share
+          # this single arohcpocpdev registry. Azure caps diagnosticSettings at
+          # 5 per resource, so this MUST resolve to one static, shared
+          # workspace/diagnostic-settings name across every environment
+          # (not templated per-environment) so each environment's redeploy is
+          # an idempotent update of the same resource, not a new one.
+          diagnosticSettings:
+            enabled: true
+            logAnalyticsWorkspace:
+              name: 'arohcpocpdev-diag'
       # Metrics
       monitoring:
         alertsEnabled: true

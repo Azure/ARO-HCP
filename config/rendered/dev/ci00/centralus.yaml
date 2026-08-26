@@ -11,6 +11,12 @@ acm:
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
   ocp:
+    diagnosticSettings:
+      enabled: true
+      logAnalyticsWorkspace:
+        name: arohcpocpdev-diag
+        retentionInDays: 90
+        sku: PerGB2018
     name: arohcpocpdev
     replicationState: true
     untaggedImagesRetention:
