@@ -1,20 +1,21 @@
 include ../.bingo/Variables.mk
 SHELL = /bin/bash
 
+SPEC_BASE_DIR = redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters
+API_SPEC_PATHS = $(shell find $(SPEC_BASE_DIR) -type f -name "openapi.json" 2>/dev/null | sort)
+SORTED_API_VERSIONS = $(shell echo '$(API_SPEC_PATHS)' | tr ' ' '\n' | sed 's|/openapi.json||' | xargs -n1 basename | sort -u)
+LATEST_API_VERSION = $(shell echo '$(SORTED_API_VERSIONS)' | tr ' ' '\n' | tail -n1)
+
 # VERSION determines which API version to generate.
 # The default value for VERSION should be the latest API version.
 # Note: typespec-go can only generate for the latest API version defined in
 # the TypeSpec source. Older versions' generated code is stable and stays
 # committed as-is. To regenerate older versions, use a git checkout of the
 # code from when that version was the latest.
-VERSION ?= v20260901preview
+VERSION ?= v$(subst -,,$(LATEST_API_VERSION))
 
 TYPESPEC_GO_OUTPUT_DIR = ../internal/azureapi/${VERSION}/generated
 TESTSDK_OUTPUT_DIR = ../test/sdk/${VERSION}/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
-
-SPEC_BASE_DIR = redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters
-API_SPEC_PATHS = $(shell find $(SPEC_BASE_DIR) -type f -name "openapi.json" 2>/dev/null | sort)
-API_VERSIONS = $(shell echo '$(API_SPEC_PATHS)' | tr ' ' '\n' | sed 's|/openapi.json||' | xargs -n1 basename | sort -u)
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -27,6 +28,10 @@ endif
 
 .PHONY: generate
 generate: swagger models
+
+.PHONY: version
+version:
+	@echo $(VERSION)
 
 .PHONY: fmt
 fmt:
