@@ -239,7 +239,8 @@ kubectl exec -n clusters-service deployment/clusters-service -- \
 #### Step 6: Check Maestro Resource Bundles
 
 ```bash
-# Search for resource bundles by cluster ID (search in manifest content)
+# Search for resource bundles by cluster ID (matches anywhere in the bundle,
+# including manifest content and metadata.labels)
 #
 # TIP: Use port-forward instead of kubectl exec for more reliable Maestro API
 # inspection -- kubectl exec can truncate responses or drop fields:
