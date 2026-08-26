@@ -6,7 +6,7 @@ replace github.com/Azure/ARO-HCP/internal => ../internal
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
 	github.com/go-logr/logr v1.4.3
 	github.com/openshift/library-go v0.0.0-20260504190829-2dd4388d7b89
 	github.com/prometheus/client_golang v1.23.2
