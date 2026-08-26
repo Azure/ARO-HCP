@@ -393,7 +393,7 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 			logger.Error(err, "Failed to close Kusto client.")
 		}
 	}()
-	cachedKustoClient := agent.NewCachingKustoClient(kustoClient)
+	cachedKustoClient := agent.NewCachingKustoClient(agent.NewLoggingKustoClient(kustoClient, logger))
 
 	// Build provider-neutral tool definitions and domain-only prompt.
 	// Each provider adds its own identity/tone framing, so we pass only
@@ -456,6 +456,25 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 		finalizeAnalysisSession(ctx, logger, session, o.outputDir, usageStartedAt, time.Now().UTC(), &runErr)
 	}()
 
+	// Ensure the output directory exists up front so progress checkpoints can be
+	// written as the analysis proceeds.
+	if err := os.MkdirAll(o.outputDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+	writeOutputs := func(chain *agent.HydratedChain, markdown string) {
+		analysisJSON, err := json.MarshalIndent(chain, "", "  ")
+		if err != nil {
+			logger.Error(err, "Failed to marshal analysis output.")
+			return
+		}
+		if err := os.WriteFile(filepath.Join(o.outputDir, "analysis.json"), analysisJSON, 0o644); err != nil {
+			logger.Error(err, "Failed to write analysis.json.")
+		}
+		if err := os.WriteFile(filepath.Join(o.outputDir, "analysis.md"), []byte(markdown), 0o644); err != nil {
+			logger.Error(err, "Failed to write analysis.md.")
+		}
+	}
+
 	result, err := agent.Analyze(ctx, logger, session, cachedKustoClient, agent.AnalyzeOptions{
 		Manifest:            manifestData,
 		TestName:            manifest.TestName,
@@ -471,35 +490,28 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) (runErr error) {
 		ReviewRounds:        o.reviewRounds,
 		NodeConsoleLogs:     nodeConsoleLogs,
 		NodeConsoleLogURLs:  nodeConsoleLogURLs,
+		// Checkpoint the latest good analysis to disk after each phase so an
+		// interrupted or context-exhausted run still leaves usable output.
+		OnProgress: func(u agent.ProgressUpdate) {
+			logger.Info("Checkpointing analysis output.", "phase", u.Phase)
+			writeOutputs(u.HydratedChain, u.Markdown)
+		},
 	})
 	if err != nil {
 		return err
 	}
 	hydratedChain := result.HydratedChain
 
-	// Write output.
+	// Write the final output (identical to the last checkpoint).
 	logger.Info("Writing analysis output.")
-	if err := os.MkdirAll(o.outputDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	analysisJSON, err := json.MarshalIndent(hydratedChain, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal analysis: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(o.outputDir, "analysis.json"), analysisJSON, 0o644); err != nil {
-		return fmt.Errorf("failed to write analysis.json: %w", err)
-	}
-
-	// Prefer the model-authored title (intent mode); fall back to the test name.
+	// Prefer the model-authored title in intent mode; in test mode keep the
+	// test name as the heading so output stays backwards compatible even if the
+	// model emits a title opportunistically.
 	renderTitle := manifest.TestName
-	if hydratedChain.Title != "" {
+	if hydratedChain.Intent != "" && hydratedChain.Title != "" {
 		renderTitle = hydratedChain.Title
 	}
-	rendered := agent.RenderMarkdown(hydratedChain, renderTitle)
-	if err := os.WriteFile(filepath.Join(o.outputDir, "analysis.md"), []byte(rendered), 0o644); err != nil {
-		return fmt.Errorf("failed to write analysis.md: %w", err)
-	}
+	writeOutputs(hydratedChain, agent.RenderMarkdown(hydratedChain, renderTitle))
 
 	return nil
 }

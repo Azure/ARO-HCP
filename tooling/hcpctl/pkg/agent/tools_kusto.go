@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	kustoerrors "github.com/Azure/azure-kusto-go/azkustodata/errors"
@@ -162,6 +163,51 @@ func NewADXKustoClient(credential azcore.TokenCredential, clusterURI, database s
 // Close releases the underlying Kusto client resources.
 func (c *ADXKustoClient) Close() error {
 	return c.client.Close()
+}
+
+// LoggingKustoClient wraps a KustoClient so every query is logged: the query
+// text and row count at V(2), and — importantly — any failure at Info level
+// (V(0)) with the summarized Kusto error. This surfaces failing agent tool
+// calls (e.g. cross-cluster permission errors when using --via-kusto) without
+// needing V(5) trace-event logging.
+type LoggingKustoClient struct {
+	delegate KustoClient
+	logger   logr.Logger
+}
+
+// NewLoggingKustoClient wraps the given client with query logging.
+func NewLoggingKustoClient(delegate KustoClient, logger logr.Logger) *LoggingKustoClient {
+	return &LoggingKustoClient{delegate: delegate, logger: logger}
+}
+
+// Query logs the query and its outcome, then delegates.
+func (c *LoggingKustoClient) Query(ctx context.Context, kqlQuery string) (*tabular.Table, error) {
+	c.logger.V(2).Info("kusto_query tool: executing query", "kql", kqlPreview(kqlQuery))
+	table, err := c.delegate.Query(ctx, kqlQuery)
+	if err != nil {
+		c.logger.Info("kusto_query tool: query FAILED",
+			"error", summarizeKustoError(err),
+			"kql", kqlPreview(kqlQuery),
+		)
+		return nil, err
+	}
+	rows := 0
+	if table != nil {
+		rows = len(table.Rows)
+	}
+	c.logger.V(2).Info("kusto_query tool: query succeeded", "rows", rows)
+	return table, nil
+}
+
+// kqlPreview returns a single-line, length-limited version of a KQL query
+// suitable for logging.
+func kqlPreview(kql string) string {
+	const max = 300
+	s := strings.Join(strings.Fields(kql), " ")
+	if len(s) > max {
+		return s[:max] + "…"
+	}
+	return s
 }
 
 // CachingKustoClient wraps a KustoClient and caches successful query results

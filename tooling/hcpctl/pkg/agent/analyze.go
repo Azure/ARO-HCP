@@ -71,6 +71,26 @@ type AnalyzeOptions struct {
 	// NodeConsoleLogURLs maps console log filenames to artifact download URLs.
 	// Used for populating ArtifactURL on hydrated node_console_log proof items.
 	NodeConsoleLogURLs map[string]string
+
+	// OnProgress, when set, is called with the latest fully hydrated analysis
+	// after the initial hydration and after each completed review round. It lets
+	// callers persist or display the best result so far, so that a later failure
+	// (e.g. a review round exhausting the model's context window) degrades to
+	// the most recent good analysis instead of losing everything.
+	OnProgress func(ProgressUpdate)
+}
+
+// ProgressUpdate carries an intermediate, fully hydrated analysis emitted during
+// a run. Markdown is the rendered document for the same chain, provided so
+// consumers can surface incremental output without re-rendering.
+type ProgressUpdate struct {
+	// Phase identifies the checkpoint: "initial" for the pre-review analysis,
+	// or "review-N" after the Nth review round.
+	Phase string
+	// HydratedChain is the latest fully validated and hydrated causal chain.
+	HydratedChain *HydratedChain
+	// Markdown is HydratedChain rendered to a document.
+	Markdown string
 }
 
 // AnalyzeResult contains the output of a successful analysis.
@@ -158,7 +178,24 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 		return nil, fmt.Errorf("hydrated chain validation failed: %w", err)
 	}
 
-	// Phase 4: Review rounds.
+	// emitProgress renders the chain and hands the caller the latest good result
+	// so partial output survives a later failure.
+	emitProgress := func(phase string, chain *HydratedChain) {
+		if opts.OnProgress == nil {
+			return
+		}
+		opts.OnProgress(ProgressUpdate{
+			Phase:         phase,
+			HydratedChain: chain,
+			Markdown:      RenderMarkdown(chain, renderTitle(chain, opts.TestName)),
+		})
+	}
+	emitProgress("initial", hydratedChain)
+
+	// Phase 4: Review rounds. A failure in any review round is non-fatal: review
+	// passes only refine an already-complete analysis, so we keep the last good
+	// result rather than discarding the whole run. This is what lets a run that
+	// exhausts the context window mid-review still return a usable analysis.
 	for review := 0; review < reviewRounds; review++ {
 		logger.Info("Review pass.", "round", review+1)
 
@@ -183,23 +220,31 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 			reviewPrompt = "Context from prior analysis rounds:\n\n" + summary + "\n\n---\n\n" + reviewPrompt
 		}
 
-		output, err = session.SendAndWait(ctx, reviewPrompt)
-		if err != nil {
-			return nil, fmt.Errorf("agent review failed at round %d: %w", review+1, err)
+		reviewOutput, reviewErr := session.SendAndWait(ctx, reviewPrompt)
+		if reviewErr != nil {
+			logger.Info("Review round did not complete; keeping last good analysis.", "round", review+1, "error", reviewErr)
+			break
 		}
 
-		draftChain, _, err = ValidateDraftLoop(ctx, logger, session, kustoClient, vc, output, maxValidationRounds)
-		if err != nil {
-			return nil, err
+		newDraft, _, reviewErr := ValidateDraftLoop(ctx, logger, session, kustoClient, vc, reviewOutput, maxValidationRounds)
+		if reviewErr != nil {
+			logger.Info("Review round validation did not complete; keeping last good analysis.", "round", review+1, "error", reviewErr)
+			break
 		}
 
-		hydratedChain, err = hydrator.Hydrate(ctx, draftChain)
-		if err != nil {
-			return nil, fmt.Errorf("hydration failed after review round %d: %w", review+1, err)
+		newHydrated, reviewErr := hydrator.Hydrate(ctx, newDraft)
+		if reviewErr != nil {
+			logger.Info("Review round hydration failed; keeping last good analysis.", "round", review+1, "error", reviewErr)
+			break
 		}
-		if err := Validate(hydratedChain); err != nil {
-			return nil, fmt.Errorf("hydrated chain validation failed after review round %d: %w", review+1, err)
+		if reviewErr := Validate(newHydrated); reviewErr != nil {
+			logger.Info("Review round produced an invalid analysis; keeping last good analysis.", "round", review+1, "error", reviewErr)
+			break
 		}
+
+		// The round succeeded — adopt its refined result and checkpoint it.
+		draftChain, hydratedChain = newDraft, newHydrated
+		emitProgress(fmt.Sprintf("review-%d", review+1), hydratedChain)
 	}
 
 	return &AnalyzeResult{
@@ -210,9 +255,11 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 }
 
 // renderTitle picks the document heading for a hydrated chain: the
-// model-authored Title when present (intent mode), otherwise the test name.
+// model-authored Title in intent mode, otherwise the test name. In test mode
+// (Intent empty) the test name is always used so headings stay backwards
+// compatible even if the model emits a title opportunistically.
 func renderTitle(chain *HydratedChain, testName string) string {
-	if chain != nil && chain.Title != "" {
+	if chain != nil && chain.Intent != "" && chain.Title != "" {
 		return chain.Title
 	}
 	return testName
