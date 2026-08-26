@@ -44,6 +44,7 @@ import (
 	customlinktools "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/custom-link-tools"
 	gatherobservability "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-observability"
 	gathersnapshot "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-snapshot"
+	mergegate "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/merge-gate"
 	slotmanager "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -779,6 +780,7 @@ func setupCli() *cobra.Command {
 	}
 	root.AddCommand(extensionCmds...)
 	root.AddCommand(cleanup.NewCommand())
+	root.AddCommand(metadataapi.Must(mergegate.NewCommand()))
 	root.AddCommand(metadataapi.Must(visualize.NewCommand()))
 	root.AddCommand(metadataapi.Must(customlinktools.NewCommand()))
 	root.AddCommand(metadataapi.Must(gatherobservability.NewCommand()))
