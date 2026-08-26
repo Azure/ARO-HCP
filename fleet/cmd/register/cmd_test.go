@@ -217,7 +217,7 @@ func TestRun(t *testing.T) {
 			expectErr: "replace validation failed",
 		},
 		{
-			name: "update existing management cluster allows scheduling policy change",
+			name: "update existing management cluster preserves scheduling policy",
 			seed: func(t *testing.T) []any {
 				stamp := &fleetapi.Stamp{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
@@ -227,7 +227,7 @@ func TestRun(t *testing.T) {
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					ResourceID:     metadataapi.Must(fleetapi.ToManagementClusterResourceID(testStampIdentifier)),
 					Spec: fleetapi.ManagementClusterSpec{
-						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
+						SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicyUnschedulable,
 					},
 					Status: fleetapi.ManagementClusterStatus{
 						AKSResourceID:                                        metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1")),
@@ -245,7 +245,7 @@ func TestRun(t *testing.T) {
 				return []any{stamp, managementCluster}
 			},
 			modify: func(t *testing.T, opts *RegisterOptions) {
-				opts.schedulingPolicy = fleetapi.ManagementClusterSchedulingPolicyUnschedulable
+				opts.schedulingPolicy = fleetapi.ManagementClusterSchedulingPolicySchedulable
 			},
 			verify: func(t *testing.T, client *fleetcosmosstoragetesting.MockFleetDBClient) {
 				ctx := testContext(t)
