@@ -6,7 +6,7 @@ require (
 	github.com/Azure/ARO-HCP/admin/server v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/backend v0.0.0-20260513195720-7c0637c01c58
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260826142022-9cc2e1dd2186
 	github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260730193700-1078d78685af
 	github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260730193700-1078d78685af
@@ -357,7 +357,7 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 )
 
@@ -386,7 +386,7 @@ replace github.com/Azure/ARO-HCP/tooling/hcpctl => ../tooling/hcpctl
 
 replace github.com/Azure/ARO-HCP/tooling/utilitytypes => ../tooling/utilitytypes
 
-replace github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+replace github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 
 replace github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 

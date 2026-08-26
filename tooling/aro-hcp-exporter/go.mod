@@ -5,7 +5,7 @@ go 1.25.7
 require (
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260323141821-e06bce560a90
 	github.com/Azure/ARO-HCP/tooling/metricscache v0.0.0-00010101000000-000000000000
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0
 	github.com/go-logr/logr v1.4.3

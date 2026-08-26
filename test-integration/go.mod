@@ -10,7 +10,7 @@ require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/kube-applier v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/sessiongate v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260802080030-141a4c58b5ae
+	github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260826142022-9cc2e1dd2186
 	github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260730193700-1078d78685af
 	github.com/Azure/ARO-HCP/test/sdk/v20260901preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-20260730193700-1078d78685af
 	github.com/google/go-cmp v0.7.0
@@ -143,7 +143,7 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
