@@ -1430,8 +1430,16 @@ clouds:
         ocp:
           name: 'arohcpocpdev' # [globally-unique]
           zoneRedundantMode: Disabled
+          # All dev-cloud environments (ci00, ci01, cspr, dev, perf, pers) share
+          # this single arohcpocpdev registry. Azure caps diagnosticSettings at
+          # 5 per resource, so this MUST resolve to one static, shared
+          # workspace/diagnostic-settings name across every environment
+          # (not templated per-environment) so each environment's redeploy is
+          # an idempotent update of the same resource, not a new one.
           diagnosticSettings:
             enabled: true
+            logAnalyticsWorkspace:
+              name: 'arohcpocpdev-diag'
       # Metrics
       monitoring:
         alertsEnabled: true

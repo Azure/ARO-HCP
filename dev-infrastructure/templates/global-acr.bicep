@@ -257,10 +257,14 @@ module globalMSIOcpAcrAccess '../modules/acr/acr-permissions.bicep' = {
 }
 
 module ocpAcrLogAnalyticsWorkspace '../modules/monitor/log-analytics-workspace.bicep' = if (ocpAcrDiagnosticSettingsEnabled) {
-  // Named per-environment (not per-ACR) since ocpAcrName is shared across all
-  // dev-cloud environments; a shared deployment name risks ARM deployment
-  // name collisions when multiple environments deploy this template.
-  name: '${ocpAcrLogAnalyticsWorkspaceName}-diagnostics-workspace'
+  // The OCP ACR (ocpAcrName) is shared by every dev-cloud environment that
+  // enables this flag; ocpAcrLogAnalyticsWorkspaceName is configured to
+  // resolve to the same static value in every one of them (see config.yaml),
+  // so this module name resolves identically too and each environment's
+  // redeploy idempotently updates the same workspace instead of creating a
+  // new one (Azure caps diagnosticSettings at 5 per resource - a per-env
+  // workspace/name would blow past that with 6 dev-cloud environments).
+  name: '${ocpAcrName}-diagnostics-workspace'
   params: {
     workspaceName: ocpAcrLogAnalyticsWorkspaceName
     location: location
@@ -270,16 +274,14 @@ module ocpAcrLogAnalyticsWorkspace '../modules/monitor/log-analytics-workspace.b
 }
 
 module ocpAcrDiagnosticSettings '../modules/acr/diagnostic-settings.bicep' = if (ocpAcrDiagnosticSettingsEnabled) {
-  // Same rationale as ocpAcrLogAnalyticsWorkspace above.
-  name: '${ocpAcrLogAnalyticsWorkspaceName}-diagnostic-settings-deployment'
+  // Same rationale as ocpAcrLogAnalyticsWorkspace above: this resolves to one
+  // shared diagnosticSettings resource on the shared ACR, not one per
+  // environment.
+  name: '${ocpAcrName}-diagnostic-settings'
   params: {
     acrName: ocpAcrName
     logAnalyticsWorkspaceId: ocpAcrLogAnalyticsWorkspace!.outputs.workspaceId
-    // The OCP ACR is shared across dev-cloud environments (they all point
-    // ocpAcrName at the same registry), so the diagnosticSettings resource
-    // name must be derived per-environment or each environment's deployment
-    // would overwrite the others' diagnostic settings on the shared ACR.
-    diagnosticSettingsName: '${ocpAcrLogAnalyticsWorkspaceName}-diagnostic-settings'
+    diagnosticSettingsName: '${ocpAcrName}-diagnostic-logs'
   }
   dependsOn: [
     ocpAcr

@@ -14,7 +14,7 @@ acr:
     diagnosticSettings:
       enabled: true
       logAnalyticsWorkspace:
-        name: arohcpocpci01-diag
+        name: arohcpocpdev-diag
         retentionInDays: 90
         sku: PerGB2018
     name: arohcpocpdev
