@@ -53,7 +53,7 @@ var _ = Describe("Customer", func() {
 		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
-				customerClusterName    = "pullsecret-hcp-cluster"
+				customerClusterName    = "pullsecret-hcp-cluster-without-np"
 				testPullSecretHost     = "host.example.com"
 				testPullSecretPassword = "my_password"
 				testPullSecretEmail    = "noreply@example.com"
@@ -67,7 +67,7 @@ var _ = Describe("Customer", func() {
 				imagePullTimeout       = 3 * time.Minute
 
 				// Image pull test constants
-				pullTestNamespace = "pullsecret-image-test"
+				pullTestNamespace = "pullsecret-image-test-without-np"
 				pullTestImage     = "registry.redhat.io/ubi9/ubi-minimal:latest"
 			)
 			tc := framework.NewTestContext()
@@ -84,7 +84,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "pullsecret-test", tc.Location())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-pullsecret-test-without-np", tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for pull secret test")
 
 			By("creating cluster parameters")
