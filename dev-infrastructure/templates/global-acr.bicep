@@ -257,7 +257,10 @@ module globalMSIOcpAcrAccess '../modules/acr/acr-permissions.bicep' = {
 }
 
 module ocpAcrLogAnalyticsWorkspace '../modules/monitor/log-analytics-workspace.bicep' = if (ocpAcrDiagnosticSettingsEnabled) {
-  name: '${ocpAcrName}-diagnostics-workspace'
+  // Named per-environment (not per-ACR) since ocpAcrName is shared across all
+  // dev-cloud environments; a shared deployment name risks ARM deployment
+  // name collisions when multiple environments deploy this template.
+  name: '${ocpAcrLogAnalyticsWorkspaceName}-diagnostics-workspace'
   params: {
     workspaceName: ocpAcrLogAnalyticsWorkspaceName
     location: location
@@ -267,7 +270,8 @@ module ocpAcrLogAnalyticsWorkspace '../modules/monitor/log-analytics-workspace.b
 }
 
 module ocpAcrDiagnosticSettings '../modules/acr/diagnostic-settings.bicep' = if (ocpAcrDiagnosticSettingsEnabled) {
-  name: '${ocpAcrName}-diagnostic-settings'
+  // Same rationale as ocpAcrLogAnalyticsWorkspace above.
+  name: '${ocpAcrLogAnalyticsWorkspaceName}-diagnostic-settings-deployment'
   params: {
     acrName: ocpAcrName
     logAnalyticsWorkspaceId: ocpAcrLogAnalyticsWorkspace!.outputs.workspaceId
