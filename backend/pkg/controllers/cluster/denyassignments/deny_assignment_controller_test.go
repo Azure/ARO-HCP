@@ -482,6 +482,22 @@ func TestSyncDenyAssignmentNeedsWork(t *testing.T) {
 			expected: false,
 		},
 		{
+			name:    "control plane operator identities not yet mirrored onto the SPC",
+			cluster: newTestCluster(),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities = nil
+			}),
+			expected: false,
+		},
+		{
+			name:    "data plane operator identities not yet mirrored onto the SPC",
+			cluster: newTestCluster(),
+			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {
+				spc.Status.DataPlaneOperatorsManagedIdentities.Identities = nil
+			}),
+			expected: false,
+		},
+		{
 			name:    "has pending deny assignments",
 			cluster: newTestCluster(),
 			spc: newTestSPC(func(spc *coreapi.ServiceProviderCluster) {

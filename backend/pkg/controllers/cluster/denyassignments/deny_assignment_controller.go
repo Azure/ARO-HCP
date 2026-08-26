@@ -129,6 +129,16 @@ func (c *clusterDenyAssignmentSyncer) syncDenyAssignmentNeedsWork(cluster *corea
 		}
 	}
 
+	// Excluded principal IDs are resolved from the identities the MSI and data-plane identity
+	// controllers mirror onto the ServiceProviderCluster. If those maps are empty, resolution can
+	// only fail, so there is nothing to do yet; wait for the resolution controllers to populate them.
+	if len(serviceProviderCluster.Status.MSIManagedIdentities.ControlPlaneOperatorsIdentities) == 0 {
+		return false
+	}
+	if len(serviceProviderCluster.Status.DataPlaneOperatorsManagedIdentities.Identities) == 0 {
+		return false
+	}
+
 	if len(serviceProviderCluster.Status.AzureResources.DenyAssignments.PendingAzureResources) > 0 {
 		return true
 	}
