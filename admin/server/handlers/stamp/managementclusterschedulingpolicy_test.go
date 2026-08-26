@@ -124,7 +124,7 @@ func TestManagementClusterSchedulingPolicyPutHandler(t *testing.T) {
 
 			handler := NewManagementClusterSchedulingPolicyPutHandler(mockFleetDB)
 
-			req := httptest.NewRequest(http.MethodPut, "/admin/v1/stamps/"+tt.stampIdentifier+"/managementclusters/"+tt.managementClusterName+"/schedulingPolicy", strings.NewReader(tt.requestBody))
+			req := httptest.NewRequest(http.MethodPut, "/admin/v1/stamps/"+tt.stampIdentifier+"/managementclusters/"+tt.managementClusterName+"/schedulingpolicy", strings.NewReader(tt.requestBody))
 			req.SetPathValue("stampIdentifier", tt.stampIdentifier)
 			req.SetPathValue("managementClusterName", tt.managementClusterName)
 			req = req.WithContext(ctx)

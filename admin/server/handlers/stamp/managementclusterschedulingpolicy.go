@@ -30,7 +30,7 @@ type schedulingPolicyRequest struct {
 	SchedulingPolicy fleetapi.ManagementClusterSchedulingPolicy `json:"schedulingPolicy"`
 }
 
-// ManagementClusterSchedulingPolicyPutHandler handles PUT /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}/schedulingPolicy.
+// ManagementClusterSchedulingPolicyPutHandler handles PUT /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}/schedulingpolicy.
 type ManagementClusterSchedulingPolicyPutHandler struct {
 	fleetDBClient fleetcosmosstorage.FleetDBClient
 }
@@ -75,6 +75,9 @@ func (h *ManagementClusterSchedulingPolicyPutHandler) ServeHTTP(w http.ResponseW
 	updated.Spec.SchedulingPolicy = body.SchedulingPolicy
 
 	if _, err := managementClustersCRUD.Replace(ctx, updated, existing, nil); err != nil {
+		if cosmosstorageutils.IsPreconditionFailedError(err) {
+			return coreapi.NewCloudError(http.StatusConflict, coreapi.CloudErrorCodeConflict, "", "ETag conflict, retry the operation")
+		}
 		return utils.TrackError(fmt.Errorf("failed to update management cluster scheduling policy: %w", err))
 	}
 
