@@ -30,6 +30,12 @@ type AnalyzeOptions struct {
 	// TestName is the name of the failed test (used for rendering).
 	TestName string
 
+	// Intent is the human-written investigation objective. When non-empty the
+	// analysis runs in intent mode: intent-framed prompts, relaxed first-link
+	// validation, and an objective-driven rendered document. When empty the
+	// analysis runs in the original failed-test mode.
+	Intent string
+
 	// TestError is the content of test_logs/error.log, or empty.
 	TestError string
 
@@ -101,7 +107,12 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 
 	// Phase 1: Send initial prompt.
 	logger.Info("Sending initial analysis prompt.")
-	prompt := BuildInitialPrompt(string(opts.Manifest), opts.TestError, opts.TestOutput, opts.SiblingTests, opts.DataDir, opts.WorktreePaths)
+	var prompt string
+	if opts.Intent != "" {
+		prompt = BuildIntentInitialPrompt(opts.Intent, string(opts.Manifest), opts.TestError, opts.TestOutput, opts.SiblingTests, opts.DataDir, opts.WorktreePaths)
+	} else {
+		prompt = BuildInitialPrompt(string(opts.Manifest), opts.TestError, opts.TestOutput, opts.SiblingTests, opts.DataDir, opts.WorktreePaths)
+	}
 	output, err := session.SendAndWait(ctx, prompt)
 	if err != nil {
 		return nil, fmt.Errorf("agent analysis failed: %w", err)
@@ -119,6 +130,7 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 		TestError:       opts.TestError,
 		TestOutput:      opts.TestOutput,
 		NodeConsoleLogs: opts.NodeConsoleLogs,
+		Intent:          opts.Intent,
 	}
 
 	// Phase 2: Validate draft loop.
@@ -137,7 +149,7 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 
 	// Phase 3: Hydration.
 	logger.Info("Hydrating analysis.")
-	hydrator := NewHydrator(kustoClient, opts.KustoCluster, opts.KustoDatabase, opts.WorktreePaths, opts.TestError, opts.TestOutput, opts.NodeConsoleLogs, opts.NodeConsoleLogURLs, opts.DataDir)
+	hydrator := NewHydrator(kustoClient, opts.KustoCluster, opts.KustoDatabase, opts.WorktreePaths, opts.TestError, opts.TestOutput, opts.NodeConsoleLogs, opts.NodeConsoleLogURLs, opts.DataDir, opts.Intent)
 	hydratedChain, err := hydrator.Hydrate(ctx, draftChain)
 	if err != nil {
 		return nil, fmt.Errorf("hydration failed: %w", err)
@@ -165,7 +177,7 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 		}
 		session.ResetHistory()
 
-		rendered := RenderMarkdown(hydratedChain, opts.TestName)
+		rendered := RenderMarkdown(hydratedChain, renderTitle(hydratedChain, opts.TestName))
 		reviewPrompt := BuildReviewPrompt(rendered)
 		if summary != "" {
 			reviewPrompt = "Context from prior analysis rounds:\n\n" + summary + "\n\n---\n\n" + reviewPrompt
@@ -195,6 +207,15 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 		DraftChain:    draftChain,
 		Usage:         session.Usage(),
 	}, nil
+}
+
+// renderTitle picks the document heading for a hydrated chain: the
+// model-authored Title when present (intent mode), otherwise the test name.
+func renderTitle(chain *HydratedChain, testName string) string {
+	if chain != nil && chain.Title != "" {
+		return chain.Title
+	}
+	return testName
 }
 
 // ValidateDraftLoop parses and validates the agent's output, sending correction

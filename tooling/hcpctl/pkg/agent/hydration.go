@@ -43,13 +43,16 @@ type Hydrator struct {
 	nodeConsoleLogs    map[string]string // filename → contents of node console log
 	nodeConsoleLogURLs map[string]string // filename → artifact download URL
 	dataDir            string            // root of the gathered data directory
+	intent             string            // human-written investigation objective; empty in test mode
 }
 
 // NewHydrator creates a Hydrator with the given Kusto client, cluster details,
 // worktree paths for resolving code proof excerpts, test log contents for
 // resolving log proof excerpts, node console log contents and URLs for resolving
 // node_console_log proof excerpts, and data directory for resolving discovery paths.
-func NewHydrator(kustoClient KustoClient, kustoEndpoint, kustoDatabase string, worktreePaths map[string]string, testError, testOutput string, nodeConsoleLogs, nodeConsoleLogURLs map[string]string, dataDir string) *Hydrator {
+// intent is the human-written investigation objective, echoed into the hydrated
+// chain; it is empty for test-mode analyses.
+func NewHydrator(kustoClient KustoClient, kustoEndpoint, kustoDatabase string, worktreePaths map[string]string, testError, testOutput string, nodeConsoleLogs, nodeConsoleLogURLs map[string]string, dataDir, intent string) *Hydrator {
 	return &Hydrator{
 		kustoClient:        kustoClient,
 		kustoEndpoint:      kustoEndpoint,
@@ -60,6 +63,7 @@ func NewHydrator(kustoClient KustoClient, kustoEndpoint, kustoDatabase string, w
 		nodeConsoleLogs:    nodeConsoleLogs,
 		nodeConsoleLogURLs: nodeConsoleLogURLs,
 		dataDir:            dataDir,
+		intent:             intent,
 	}
 }
 
@@ -107,6 +111,8 @@ func queryToDeepLink(kustoEndpoint, kustoDatabase, query string) (string, error)
 // KQL queries and generating share URIs.
 func (h *Hydrator) Hydrate(ctx context.Context, draft *DraftChain) (*HydratedChain, error) {
 	result := &HydratedChain{
+		Title:          draft.Title,
+		Intent:         h.intent,
 		RootCause:      draft.RootCause,
 		Summary:        draft.Summary,
 		Notes:          draft.Notes,

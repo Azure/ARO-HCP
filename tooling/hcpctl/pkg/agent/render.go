@@ -23,10 +23,22 @@ import (
 // analysis chain. This is used to show the agent the full rendered output —
 // including query result tables — so it can review narrative coherence,
 // evidence quality, and depth before finalizing.
-func RenderMarkdown(chain *HydratedChain, testName string) string {
+//
+// title is the document heading. In test mode it is the test name and the
+// header reads "Test Failure Analysis: <title>". In intent mode (chain.Intent
+// is non-empty) the header reads "Analysis: <title>" and an Objective section
+// echoing the investigation intent is rendered before the root cause.
+func RenderMarkdown(chain *HydratedChain, title string) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("# Test Failure Analysis: %s\n\n", testName))
+	if chain.Intent != "" {
+		sb.WriteString(fmt.Sprintf("# Analysis: %s\n\n", title))
+		sb.WriteString("## Objective\n\n")
+		sb.WriteString(chain.Intent)
+		sb.WriteString("\n\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("# Test Failure Analysis: %s\n\n", title))
+	}
 
 	// Root cause.
 	sb.WriteString("## Root Cause\n\n")
