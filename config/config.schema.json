@@ -395,6 +395,45 @@
         "replicationState": {
           "type": "boolean",
           "description": "Whether this region's replica should have its regional data endpoint enabled. False for a canary/EUAP replica (e.g. eastus2euap) that must be kept disabled, see config.msft.clouds-overlay.yaml. Defaults to true (enabled)."
+        },
+        "diagnosticSettings": {
+          "type": "object",
+          "description": "ACR diagnostic settings (repository/login events + metrics) sent to a dedicated Log Analytics workspace.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "logAnalyticsWorkspace": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name of the Log Analytics workspace to create for ACR diagnostic logs"
+                },
+                "sku": {
+                  "type": "string",
+                  "description": "SKU for the Log Analytics workspace"
+                },
+                "retentionInDays": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 730,
+                  "description": "Data retention in days for the Log Analytics workspace"
+                }
+              },
+              "required": [
+                "name",
+                "sku",
+                "retentionInDays"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "enabled",
+            "logAnalyticsWorkspace"
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,

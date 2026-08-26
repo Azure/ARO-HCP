@@ -28,6 +28,18 @@ param svcAcrZoneRedundantMode string
 @description('Deploy mise artifact sync, only valid in Microsoft Production and AME Tenants')
 param deployMiseArtifactSync bool = false
 
+@description('Enable diagnostic settings (repository/login events + metrics) for the OCP ACR')
+param ocpAcrDiagnosticSettingsEnabled bool = false
+
+@description('Name of the Log Analytics workspace to create for OCP ACR diagnostic logs')
+param ocpAcrLogAnalyticsWorkspaceName string = ''
+
+@description('SKU for the OCP ACR diagnostics Log Analytics workspace')
+param ocpAcrLogAnalyticsWorkspaceSku string = 'PerGB2018'
+
+@description('Retention in days for the OCP ACR diagnostics Log Analytics workspace')
+param ocpAcrLogAnalyticsWorkspaceRetentionInDays int = 90
+
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: globalMSIName
 }
@@ -236,6 +248,27 @@ module globalMSIOcpAcrAccess '../modules/acr/acr-permissions.bicep' = {
     grantPushAccess: true
     grantPullAccess: true
     acrName: ocpAcrName
+  }
+  dependsOn: [
+    ocpAcr
+  ]
+}
+
+module ocpAcrLogAnalyticsWorkspace '../modules/monitor/log-analytics-workspace.bicep' = if (ocpAcrDiagnosticSettingsEnabled) {
+  name: '${ocpAcrName}-diagnostics-workspace'
+  params: {
+    workspaceName: ocpAcrLogAnalyticsWorkspaceName
+    location: location
+    sku: ocpAcrLogAnalyticsWorkspaceSku
+    retentionInDays: ocpAcrLogAnalyticsWorkspaceRetentionInDays
+  }
+}
+
+module ocpAcrDiagnosticSettings '../modules/acr/diagnostic-settings.bicep' = if (ocpAcrDiagnosticSettingsEnabled) {
+  name: '${ocpAcrName}-diagnostic-settings'
+  params: {
+    acrName: ocpAcrName
+    logAnalyticsWorkspaceId: ocpAcrLogAnalyticsWorkspace!.outputs.workspaceId
   }
   dependsOn: [
     ocpAcr
