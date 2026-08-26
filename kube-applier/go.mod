@@ -82,7 +82,7 @@ require (
 	github.com/openshift-online/ocm-api-model/model v0.0.464 // indirect
 	github.com/openshift-online/ocm-sdk-go v0.1.509 // indirect
 	github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9 // indirect
-	github.com/openshift/hypershift/api v0.0.0-20260602200802-c135e0c47b37 // indirect
+	github.com/openshift/hypershift/api v0.0.0-20260708113917-8b5103a5875b // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
@@ -149,6 +149,6 @@ require (
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.33.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
