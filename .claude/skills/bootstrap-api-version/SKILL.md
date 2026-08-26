@@ -144,6 +144,9 @@ Find the previous version's helpers in the test framework directory. Four areas 
 
 Import the new SDK package with the alias `hcpsdk<YYYYMMDD>preview` (e.g. `hcpsdk20270315preview` — note: no `v` prefix, matching the `importas` lint rules in `.golangci.yml`).
 
+- **Operation-result parity check**: In `checkOperationResult` (`test/util/framework/hcp_helper.go`), add `cmpopts.IgnoreFields` entries excluding `"SystemData"` for the new version's `HcpOpenShiftCluster`, `NodePool`, and `ExternalAuth` types, grouped together like the existing per-version blocks.
+- **Why**: `SystemData` is populated *synchronously* by the frontend (parsed from the ARM system-data header via `ensureSystemData`), not computed asynchronously by the backend, so it normally matches without the exclusion. Excluding it for every version is defensive parity that also guards against timestamp-based flakes from `ensureSystemData`'s `time.Now()` fallbacks when the header is absent.
+
 #### 12. E2E test file
 
 Create a new E2E test file following the pattern of the previous version's cluster create test. Key elements:
