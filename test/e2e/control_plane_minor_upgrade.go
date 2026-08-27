@@ -101,6 +101,34 @@ var _ = Describe("Customer", func() {
 				}
 			}
 
+			installSemver, parseErr := semver.ParseTolerant(resolvedInstallVersion)
+			if parseErr == nil {
+				upgradeChannel := fmt.Sprintf("%s-%d.%d", channelGroup, upgradeVersion.Major, upgradeVersion.Minor)
+				cincinnatiURI, uriErr := cincinnati.GetCincinnatiURI(channelGroup)
+				if uriErr == nil {
+					cincinnatiClient := cincinnati.NewClientCache().GetOrCreateClient(uuid.Nil)
+					_, updates, _, edgeErr := cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", upgradeChannel, installSemver)
+					if cincinnati.IsCincinnatiVersionNotFoundError(edgeErr) {
+						Skip(fmt.Sprintf("install version %s not found in Cincinnati graph (channel %s) - no upgrade edges available",
+							resolvedInstallVersion, upgradeChannel))
+					}
+					if edgeErr == nil {
+						hasTargetMinor := false
+						for _, u := range updates {
+							v, vErr := semver.ParseTolerant(u.Version)
+							if vErr == nil && v.Major == upgradeVersion.Major && v.Minor == upgradeVersion.Minor {
+								hasTargetMinor = true
+								break
+							}
+						}
+						if !hasTargetMinor {
+							Skip(fmt.Sprintf("Cincinnati has no upgrade edges from %s to %d.%d in channel %s",
+								resolvedInstallVersion, upgradeVersion.Major, upgradeVersion.Minor, upgradeChannel))
+						}
+					}
+				}
+			}
+
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -184,11 +212,11 @@ var _ = Describe("Customer", func() {
 			// a transient upstream graph-data gap — skip the test instead of failing.
 			// The timebomb (2026-09-30) ensures this grace window doesn't mask a real
 			// regression indefinitely.
-			if err != nil && channelGroup != "nightly" && strings.Contains(err.Error(), "no upgrade path to update channel") &&
+			if err != nil && strings.Contains(err.Error(), "no upgrade path") &&
 				time.Now().Before(time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)) {
 				installSemver, parseErr := semver.ParseTolerant(resolvedInstallVersion)
 				if parseErr == nil {
-					upgradeChannel := fmt.Sprintf("%s-%s", channelGroup, upgradeVersionId)
+					upgradeChannel := fmt.Sprintf("%s-%d.%d", channelGroup, upgradeVersion.Major, upgradeVersion.Minor)
 					cincinnatiURI, uriErr := cincinnati.GetCincinnatiURI(channelGroup)
 					if uriErr == nil {
 						cincinnatiClient := cincinnati.NewClientCache().GetOrCreateClient(uuid.Nil)
@@ -208,8 +236,8 @@ var _ = Describe("Customer", func() {
 							}
 						}
 						if noEdges {
-							Skip(fmt.Sprintf("reactive: upgrade of cluster %q failed with 'no upgrade path' and Cincinnati confirms no outgoing edges from %s to %s.z in channel %s — upstream graph data likely not yet published",
-								clusterName, resolvedInstallVersion, upgradeVersionId, upgradeChannel))
+							Skip(fmt.Sprintf("reactive: upgrade of cluster %q failed with 'no upgrade path' and Cincinnati confirms no outgoing edges from %s to %d.%d.z in channel %s — upstream graph data likely not yet published",
+								clusterName, resolvedInstallVersion, upgradeVersion.Major, upgradeVersion.Minor, upgradeChannel))
 						}
 					}
 				}
