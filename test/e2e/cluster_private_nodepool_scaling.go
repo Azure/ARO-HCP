@@ -234,15 +234,20 @@ var _ = Describe("Customer", func() {
 					Replicas: to.Ptr(initialReplicas),
 				},
 			}
-			// Scale-down ARM LROs block until Azure VM deprovisioning completes (>60 min).
-			// Fire-and-forget the PATCH, then verify the Kubernetes node count via kubectl
-			// from inside the VM. The node object disappears only after the Azure VM is
-			// fully deleted, so we allow up to 3×NodePoolScalingTimeout for convergence.
-			_, err = tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient().BeginUpdate(
-				ctx, *resourceGroup.Name, customerClusterName, customerNodePoolName, update, nil,
+			scaleDownResp, err := framework.UpdateNodePoolAndWait20251223(ctx,
+				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				customerNodePoolName,
+				update,
+				framework.NodePoolScalingTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to initiate scale-down for node pool %q from %d to %d replicas",
+			Expect(err).NotTo(HaveOccurred(), "failed to scale down node pool %q from %d to %d replicas",
 				customerNodePoolName, scaledUpReplicas, initialReplicas)
+			Expect(scaleDownResp.Properties).NotTo(BeNil(), "scale down response Properties was nil")
+			Expect(scaleDownResp.Properties.Replicas).NotTo(BeNil(), "scale down response Properties.Replicas was nil")
+			Expect(*scaleDownResp.Properties.Replicas).To(Equal(initialReplicas),
+				"expected scale down response replicas to equal %d", initialReplicas)
 
 			By("verifying scaled-down node count via kubectl from inside the VNet")
 			Eventually(func(g Gomega) {
@@ -267,7 +272,7 @@ var _ = Describe("Customer", func() {
 				for _, line := range nodeLines {
 					g.Expect(line).To(ContainSubstring(" Ready "), "node not in Ready state after scale down: %s", line)
 				}
-			}, 60*time.Minute, 30*time.Second).Should(Succeed(),
+			}, framework.NodePoolScalingTimeout, 30*time.Second).Should(Succeed(),
 				"all %d nodes should be Ready after scale down", initialReplicas)
 			GinkgoLogr.Info("Private cluster nodepool scaling verified successfully",
 				"clusterName", customerClusterName)
