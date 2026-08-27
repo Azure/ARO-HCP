@@ -236,7 +236,7 @@ func (csc *clusterServiceClient) GetCluster(ctx context.Context, internalID Inte
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
-	return resolveClusterLinks(ctx, csc.conn, cluster)
+	return cluster, nil
 }
 
 func (csc *clusterServiceClient) GetClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error) {
