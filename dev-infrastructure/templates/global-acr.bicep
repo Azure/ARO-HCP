@@ -46,7 +46,8 @@ param ocpAcrLogAnalyticsWorkspaceRetentionInDays int = 90
 param ocpAcrOverviewDashboardEnabled bool = false
 
 @description('Name of the Azure portal dashboard resource for OCP ACR overview/throttling visibility')
-param ocpAcrOverviewDashboardName string = ''
+@minLength(1)
+param ocpAcrOverviewDashboardName string = 'placeholder-dashboard-name'
 
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: globalMSIName
@@ -294,9 +295,12 @@ module ocpAcrDiagnosticSettings '../modules/acr/diagnostic-settings.bicep' = if 
   ]
 }
 
-module ocpAcrOverviewDashboard '../modules/monitor/acr-dashboard.bicep' = if (ocpAcrOverviewDashboardEnabled) {
+module ocpAcrOverviewDashboard '../modules/monitor/acr-dashboard.bicep' = if (ocpAcrOverviewDashboardEnabled && ocpAcrDiagnosticSettingsEnabled) {
   // Same rationale as ocpAcrLogAnalyticsWorkspace/ocpAcrDiagnosticSettings
   // above: one shared dashboard for the shared ACR, not one per environment.
+  // Also requires ocpAcrDiagnosticSettingsEnabled: the dashboard queries the
+  // diagnostics Log Analytics workspace (ocpAcrLogAnalyticsWorkspace), which
+  // only exists when diagnostic settings are enabled.
   name: '${ocpAcrName}-overview-dashboard'
   params: {
     dashboardName: ocpAcrOverviewDashboardName
