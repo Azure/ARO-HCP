@@ -35,7 +35,8 @@
 								"name": "encryptionKeyName",
 								"vaultName": "keyVaultName",
 								"version": "2024-12-01-preview"
-							}
+							},
+							"visibility": "Public"
 						}
 					},
 					"keyManagementMode": "CustomerManaged"
@@ -55,7 +56,8 @@
 					"userAssignedIdentities": {}
 				},
 				"outboundType": "LoadBalancer",
-				"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+				"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+				"vnetIntegrationSubnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
 			},
 			"version": {
 				"channelGroup": "stable"

@@ -19,7 +19,8 @@
 			"enableEncryptionAtHost": false,
 			"osDisk": {
 				"diskStorageAccountType": "Premium_LRS",
-				"sizeGiB": 64
+				"sizeGiB": 64,
+				"diskType": "Managed"
 			},
 			"vmSize": "Standard_D8s_v3"
 		},
@@ -33,7 +34,8 @@
 		],
 		"version": {
 			"channelGroup": "stable"
-		}
+		},
+		"replicas": 0
 	},
 	"systemData": {
 		"createdBy": "Unknown-ARO-HCP-frontend",
