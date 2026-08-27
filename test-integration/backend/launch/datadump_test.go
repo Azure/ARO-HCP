@@ -96,7 +96,7 @@ func TestDataDumpControllerWithClusterAndCredentialRequest(t *testing.T) {
 		}()
 
 		clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic"))
-		frontendClientAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, "2024-06-10-preview")
+		frontendClientAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, "2026-06-30-preview")
 
 		subscriptionResourceID := metadataapi.Must(coreapi.ToSubscriptionResourceID(clusterResourceID.SubscriptionID))
 		subscriptionJSONBytes := metadataapi.Must(artifacts.ReadFile("artifacts/subscription-32350638-2403-4bc9-a36e-4922c8c99b52.json"))

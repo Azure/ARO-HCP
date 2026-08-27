@@ -493,7 +493,7 @@ func readRawBytesInDir(dir fs.FS) ([][]byte, error) {
 // DefaultTestAPIVersion is the API version used by existing integration tests.
 // When a new API version becomes the default, update this constant and fix
 // any test fixture response differences.
-const DefaultTestAPIVersion = "2024-06-10-preview"
+const DefaultTestAPIVersion = "2026-06-30-preview"
 
 type StepInput struct {
 	CosmosContainer        *azcosmos.ContainerClient
@@ -514,7 +514,7 @@ type ResourceKey struct {
 	ResourceID string `json:"resourceId"`
 
 	// APIVersion specifies the ARM api-version query parameter for HTTP operations.
-	// Valid values are ARM API version strings (e.g., "2024-06-10-preview", "2025-12-23-preview").
+	// Valid values are ARM API version strings (e.g., "2026-06-30-preview", "2025-12-23-preview").
 	// If empty, falls back to StepInput.APIVersion, then DefaultTestAPIVersion.
 	// Only used by HTTP step types; non-HTTP steps (e.g., completeOperation) ignore this field.
 	APIVersion string `json:"apiVersion,omitempty"`
