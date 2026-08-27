@@ -271,3 +271,55 @@ resource hcpEtcdGrpcLatencyRecordingRules 'Microsoft.AlertsManagement/prometheus
     ]
   }
 }
+
+resource arohcpSwiftNetworkingSloRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_networking_slo_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'swift_router_replicas:available'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (kube_deployment_status_replicas_available{deployment="router",namespace=~"ocm-.*"}))'
+      }
+      {
+        record: 'swift_router_replicas:configured'
+        expression: 'sum by (cluster, region) (max without (prometheus_replica) (kube_deployment_spec_replicas{deployment="router",namespace=~"ocm-.*"}))'
+      }
+      {
+        record: 'router:startup_latency:seconds'
+        expression: '(time() - max without (prometheus_replica) (kube_pod_created{namespace=~"ocm-.*"})) * on (cluster, namespace, pod) max without (prometheus_replica) (kube_pod_owner{owner_kind="ReplicaSet",owner_name=~"router-.*"}) * on (cluster, namespace, pod) (max without (prometheus_replica) (kube_pod_status_phase{phase="Pending"}) == 1)'
+      }
+      {
+        record: 'router:startup_latency:p99'
+        expression: 'quantile by (cluster, namespace, region) (0.99, router:startup_latency:seconds)'
+      }
+    ]
+  }
+}
+
+resource arohcpSwiftKonnectivityRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_konnectivity_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'konnectivity:stream_error_rate:5m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_stream_errors_total[5m]))) / sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_stream_packets_total[5m])))'
+      }
+      {
+        record: 'konnectivity:dial_failure_rate:5m'
+        expression: 'sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_dial_failure_count[5m]))) / (sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_dial_failure_count[5m]))) + sum by (cluster, namespace, region) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_stream_packets_total{packet_type="DIAL_RSP",segment="from_agent"}[5m]))))'
+      }
+    ]
+  }
+}

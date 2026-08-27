@@ -1,0 +1,94 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: swift-networking-alert-rules
+  namespace: prometheus
+spec:
+  groups:
+  # ========================================
+  # SWIFT Networking User Journey Alerts
+  # ========================================
+  # These alerts implement multi-window multi-burn-rate alerting for the SWIFT
+  # Networking user journey per ADR-001 (ARO HCP Alerting Recommendation for SRE).
+  #
+  # SLO: all configured router replicas are available in 99.95% of eligible
+  # observation intervals over 28 days. The fast alert has a 300-second delay.
+  # Lane: RP HCP metrics workspace (alerts-rp-hcps.yaml).
+  # Runbook: https://aka.ms/arohcp-runbook-swift
+  # TSG: https://aka.ms/arohcp-tsg-swift
+  #
+  # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier}
+  # - Scope: userJourney (customer-facing, Sev 3)
+  # - Subject: Swift
+  # - Metric: RouterAvailability
+  # - BurnRateTier: 1h5m (fast), 6h30m (medium), 3d6h (slow/Sev 4)
+  - name: arohcp_swift_networking_alerts
+    labels:
+      component: slo
+    rules:
+    # Each window's availability is available replica-minutes divided by
+    # configured replica-minutes. The outer inequality evaluates fractional
+    # unavailable capacity without a derived-ratio recording rule.
+    # 14.4x burn: availability below 99.28% on 1h and 5m windows. The
+    # five-minute for-duration is the router-capacity notification allowance.
+    - alert: userJourneySwiftRouterAvailability1h5m
+      expr: |
+        1 - (sum_over_time(swift_router_replicas:available[5m]) / sum_over_time(swift_router_replicas:configured[5m])) > (14.4 * (1 - 0.9995))
+        and
+        1 - (sum_over_time(swift_router_replicas:available[1h]) / sum_over_time(swift_router_replicas:configured[1h])) > (14.4 * (1 - 0.9995))
+        and on (cluster)
+        swift_router_replicas:configured > 0
+      for: 5m
+      labels:
+        severity: "3"
+        burn_rate_tier: fast
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "SWIFT router replicas are unavailable (fast burn)"
+        description: "SWIFT router-capacity availability is consuming its error budget at the fast burn rate."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftRouterAvailability/{{ $labels.cluster }}"
+    # 6x burn: availability below 99.70% on 6h and 30m windows.
+    - alert: userJourneySwiftRouterAvailability6h30m
+      expr: |
+        1 - (sum_over_time(swift_router_replicas:available[30m]) / sum_over_time(swift_router_replicas:configured[30m])) > (6 * (1 - 0.9995))
+        and
+        1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (6 * (1 - 0.9995))
+        and on (cluster)
+        swift_router_replicas:configured > 0
+      for: 30m
+      labels:
+        severity: "3"
+        burn_rate_tier: medium
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "SWIFT router replicas are unavailable (medium burn)"
+        description: "SWIFT router-capacity availability is consuming its error budget at the medium burn rate."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftRouterAvailability/{{ $labels.cluster }}"
+    # 1x burn: availability below 99.95% on 3d and 6h windows.
+    - alert: userJourneySwiftRouterAvailability3d6h
+      expr: |
+        1 - (sum_over_time(swift_router_replicas:available[3d]) / sum_over_time(swift_router_replicas:configured[3d])) > (1 - 0.9995)
+        and
+        1 - (sum_over_time(swift_router_replicas:available[6h]) / sum_over_time(swift_router_replicas:configured[6h])) > (1 - 0.9995)
+        and on (cluster)
+        swift_router_replicas:configured > 0
+      for: 1h
+      labels:
+        severity: "4"
+        burn_rate_tier: slow
+        long_window: 3d
+        short_window: 6h
+      annotations:
+        summary: "SWIFT router availability is below the SLO (slow burn)"
+        description: "SWIFT router-capacity availability is consuming its error budget at the slow burn rate."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+        correlationId: "userJourneySwiftRouterAvailability/{{ $labels.cluster }}"

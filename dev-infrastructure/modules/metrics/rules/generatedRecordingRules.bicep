@@ -209,3 +209,39 @@ resource arohcpFrontendSloRecordingRules 'Microsoft.AlertsManagement/prometheusR
     ]
   }
 }
+
+resource arohcpSwiftCnsLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_latency_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'cns:ip_assignment_latency:p99'
+        expression: 'histogram_quantile(0.99, sum by (cluster, le, region) (max without (prometheus_replica) (rate(ip_assignment_latency_seconds_bucket[5m]))))'
+      }
+    ]
+  }
+}
+
+resource arohcpSwiftCnsAvailabilityRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_cns_availability_recording_rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'cns:daemonset_availability:ratio'
+        expression: 'max without (prometheus_replica) (kube_daemonset_status_number_ready{daemonset="azure-cns",job="kube-state-metrics",namespace="kube-system"}) / clamp_min(max without (prometheus_replica) (kube_daemonset_status_desired_number_scheduled{daemonset="azure-cns",job="kube-state-metrics",namespace="kube-system"}), 1)'
+      }
+    ]
+  }
+}
