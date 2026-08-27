@@ -119,9 +119,11 @@ The new metric will appear in the `hcps-REGION` Azure Monitor Workspace after th
    | datasource | `^Managed_Prometheus_hcps-.*$` | HCP data sources |
    | datasource | `^Managed_Prometheus_services-.*$` | Service data sources |
    | cluster | `^.*-mgmt-\\d+$` | Management clusters |
-   | cluster | `^.*-svc-\\d+$` | Service clusters |
+   | cluster | `^.*-svc(?:-\\d+)?$` | Service clusters |
 
-4. Deploy:
+4. Preview and validate the dashboard locally with `make local-grafana-start` before you register and merge it. See [local development](../grafana-dashboards.md#local-development).
+
+5. Deploy:
    ```bash
    make infra.monitoring DEPLOY_ENV=pers
    ```
