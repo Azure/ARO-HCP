@@ -60,7 +60,6 @@ func TestValidateStampCreate(t *testing.T) {
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("ab"))
 				s.ResourceID = resourceID
-				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
 		},
@@ -68,7 +67,6 @@ func TestValidateStampCreate(t *testing.T) {
 			name: "valid three chars mixed",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("1a2"))
-				s.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -78,7 +76,6 @@ func TestValidateStampCreate(t *testing.T) {
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("123"))
 				s.ResourceID = resourceID
-				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
 		},
@@ -87,7 +84,6 @@ func TestValidateStampCreate(t *testing.T) {
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("abc"))
 				s.ResourceID = resourceID
-				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
 		},
@@ -95,7 +91,6 @@ func TestValidateStampCreate(t *testing.T) {
 		{
 			name: "empty stamp identifier rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
-				s.ResourceID = nil
 				s.ResourceID = nil
 			},
 			expectErrors: []expectedError{
@@ -107,7 +102,6 @@ func TestValidateStampCreate(t *testing.T) {
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/abcd"))
 				s.ResourceID = resourceID
-				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "cosmosMetadata.resourceID", message: "stamp identifier must match"},
@@ -117,7 +111,6 @@ func TestValidateStampCreate(t *testing.T) {
 			name: "uppercase rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/ABC"))
-				s.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
@@ -129,7 +122,6 @@ func TestValidateStampCreate(t *testing.T) {
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/a-b"))
 				s.ResourceID = resourceID
-				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "cosmosMetadata.resourceID", message: "stamp identifier must match"},
@@ -139,7 +131,6 @@ func TestValidateStampCreate(t *testing.T) {
 			name: "spaces rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/a b"))
-				s.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
@@ -201,7 +192,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("ab"))
 				s.ResourceID = resourceID
-				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
 		},
@@ -209,7 +199,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			name: "valid three chars mixed",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("1a2"))
-				s.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
@@ -219,7 +208,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("123"))
 				s.ResourceID = resourceID
-				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
 		},
@@ -228,7 +216,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(fleetapi.ToStampResourceID("abc"))
 				s.ResourceID = resourceID
-				s.ResourceID = resourceID
 			},
 			expectErrors: nil,
 		},
@@ -236,7 +223,6 @@ func TestValidateStampUpdate(t *testing.T) {
 		{
 			name: "empty stamp identifier rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
-				s.ResourceID = nil
 				s.ResourceID = nil
 			},
 			expectErrors: []expectedError{
@@ -248,7 +234,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/abcd"))
 				s.ResourceID = resourceID
-				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "cosmosMetadata.resourceID", message: "stamp identifier must match"},
@@ -258,7 +243,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			name: "uppercase rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/ABC"))
-				s.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
@@ -270,7 +254,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/a-b"))
 				s.ResourceID = resourceID
-				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "cosmosMetadata.resourceID", message: "stamp identifier must match"},
@@ -280,7 +263,6 @@ func TestValidateStampUpdate(t *testing.T) {
 			name: "spaces rejected",
 			modify: func(t *testing.T, s *fleetapi.Stamp) {
 				resourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.RedHatOpenShift/stamps/a b"))
-				s.ResourceID = resourceID
 				s.ResourceID = resourceID
 			},
 			expectErrors: []expectedError{
