@@ -163,7 +163,7 @@ controller** — the plan reuses the existing path. Input
 ### 5.2 Forced Cluster Desired Version Assignment (per-cluster)
 - **Inputs**: `ControlPlaneVersionRollout.Spec.BestExactVersion` (for the cluster's channel), `SPC.Spec.PinnedVersion.{ExactVersion,UntilExactVersion}`.
 - **Output**: `SPC.Spec.ControlPlaneVersion.DesiredVersion`.
-- **Sync** (pure fn `computeForcedDesiredVersion`):
+- **Sync** (pure fn `SyncOnce`):
   1. If `bestExactVersion >= pinnedVersion.untilExactVersion`: set desired = best, clear both pinned fields, return.
   2. Else if `desiredVersion != pinnedVersion.exactVersion`: set desired = pinned.exactVersion (the design says "best" here; see Open Questions §8), return.
   3. Else: no-op.
@@ -216,7 +216,7 @@ controller** — the plan reuses the existing path. Input
 
 ## 7. Testing strategy
 
-- **Pure decision functions** (`computeForcedDesiredVersion`,
+- **Pure decision functions** (`SyncOnce`,
   `computeRolloutStatusCounts`, `selectBestExactVersion`, `eligibleClusters`,
   `rolloutDecision`) get exhaustive table-driven unit tests — no fakes needed.
 - **`SyncOnce`** tests use the in-memory mock DB
