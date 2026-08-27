@@ -45,7 +45,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/apihelpers/kubeapplierapihelpers"
 	"github.com/Azure/ARO-HCP/internal/azure"
-	"github.com/Azure/ARO-HCP/internal/azureapi/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/azureapi/v20260901preview"
@@ -324,7 +323,6 @@ func (t *FakeOTELClient) Send(ctx context.Context, msg msgs.Msg) error {
 // also add a RegisterVersion call here.
 func AllAPIVersions() []string {
 	registry := coreapi.NewAPIRegistry()
-	metadataapi.Must[any](nil, v20240610preview.RegisterVersion(registry))
 	metadataapi.Must[any](nil, v20251223preview.RegisterVersion(registry))
 	metadataapi.Must[any](nil, v20260630preview.RegisterVersion(registry))
 	metadataapi.Must[any](nil, v20260901preview.RegisterVersion(registry))
