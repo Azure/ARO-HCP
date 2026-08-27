@@ -20,14 +20,10 @@ import (
 	"github.com/blang/semver/v4"
 )
 
-// RolloutConfig holds the SRE-tunable rollout policy from the design's
-// Code.ControlPlaneUpgradeController.* fields. It is threaded into the
-// controllers as a value (later phases add config.yaml/flag plumbing).
+// RolloutConfig holds the rollout policy. Production values are hardcoded (see
+// NewDefaultRolloutConfig); it stays a struct only so tests can exercise the
+// pure decision logic with different values.
 type RolloutConfig struct {
-	// ZStreamOffset selects the version this many z-streams behind the latest
-	// available (e.g. 2 means pick 4.21.6 when 4.21.8 is latest).
-	ZStreamOffset int
-
 	// CanaryPercentage is the percent of clusters to upgrade first as canaries.
 	CanaryPercentage int
 
@@ -49,21 +45,28 @@ type RolloutConfig struct {
 	MaxUpgradeDuration map[string]time.Duration
 }
 
-// Default rollout tuning suggested by the design document.
+// Hardcoded rollout tuning.
 const (
-	DefaultZStreamOffset     = 2
-	DefaultCanaryPercentage  = 5
-	DefaultRollingPercentage = 5
+	// DefaultCanaryPercentage upgrades 6% of clusters as canaries first.
+	DefaultCanaryPercentage = 6
+	// DefaultRollingPercentage upgrades 12% of clusters at a time, chosen to fit
+	// ~2h upgrading plus ~1h readiness (3h/cluster) into a single day.
+	DefaultRollingPercentage = 12
+	// DefaultMinVersionReadyDuration is how long a control plane must hold the
+	// achieved version before it counts as successful.
+	DefaultMinVersionReadyDuration = 1 * time.Hour
 )
 
-// NewDefaultRolloutConfig returns a RolloutConfig with the design's suggested
-// defaults and empty per-channel/per-minor maps.
+// NewDefaultRolloutConfig returns the hardcoded production rollout config. The
+// per-channel-group z-stream offset is not configured here; it comes from the
+// per-cluster desired-version controller's GetZStreamOffset (stable holds one
+// z-stream back, other groups take the latest), reused by the best-version selector.
 func NewDefaultRolloutConfig() RolloutConfig {
 	return RolloutConfig{
-		ZStreamOffset:      DefaultZStreamOffset,
-		CanaryPercentage:   DefaultCanaryPercentage,
-		RollingPercentage:  DefaultRollingPercentage,
-		MinimumVersions:    map[string]semver.Version{},
-		MaxUpgradeDuration: map[string]time.Duration{},
+		CanaryPercentage:        DefaultCanaryPercentage,
+		RollingPercentage:       DefaultRollingPercentage,
+		MinVersionReadyDuration: DefaultMinVersionReadyDuration,
+		MinimumVersions:         map[string]semver.Version{},
+		MaxUpgradeDuration:      map[string]time.Duration{},
 	}
 }

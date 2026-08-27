@@ -20,6 +20,8 @@ import (
 
 	"github.com/blang/semver/v4"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
@@ -45,25 +47,28 @@ func parseYStreamChannel(channel string) (channelGroup, minor string, ok bool) {
 	return parts[0], parts[1], true
 }
 
-// earliestActiveVersion returns the earliest (oldest) version present in a
-// ServiceProviderCluster's active versions. The active-version list is ordered
-// newest-first and truncated at the first completed update, so the last element
-// is the completed base the control plane is currently running. A cluster has
-// "achieved" version v when its earliest active version equals v (i.e. the list
-// has collapsed to just the completed target). Returns nil when there are no
-// active versions.
-func earliestActiveVersion(activeVersions []coreapi.HCPClusterActiveVersion) *semver.Version {
+// earliestActiveVersionEntry returns the earliest (oldest) active-version entry.
+// The active-version list is ordered newest-first and truncated at the first
+// completed update, so the last element is the completed base the control plane
+// is currently running. A cluster has "achieved" version v when its earliest
+// active version equals v (i.e. the list has collapsed to just the completed
+// target). Returns nil when there are no active versions.
+func earliestActiveVersionEntry(activeVersions []coreapi.HCPClusterActiveVersion) *coreapi.HCPClusterActiveVersion {
 	for i := len(activeVersions) - 1; i >= 0; i-- {
 		if activeVersions[i].Version != nil {
-			return activeVersions[i].Version
+			return &activeVersions[i]
 		}
 	}
 	return nil
 }
 
-// desiredVersion returns the cluster's resolved desired version, or nil.
-func desiredVersion(spc *coreapi.ServiceProviderCluster) *semver.Version {
-	return spc.Spec.ControlPlaneVersion.DesiredVersion
+// earliestActiveVersion returns the earliest (oldest) version present in a
+// cluster's active versions, or nil when there are none.
+func earliestActiveVersion(activeVersions []coreapi.HCPClusterActiveVersion) *semver.Version {
+	if entry := earliestActiveVersionEntry(activeVersions); entry != nil {
+		return entry.Version
+	}
+	return nil
 }
 
 // maxVersion returns the greater of two versions. nil is treated as "no bound",
@@ -79,6 +84,26 @@ func maxVersion(a, b *semver.Version) *semver.Version {
 	default:
 		return b
 	}
+}
+
+// setDesiredVersion sets the cluster's desired control-plane version and, when
+// the version actually changes, records the transition time. This transition
+// time feeds the rollout's mismatch/failure accounting.
+func setDesiredVersion(serviceProviderCluster *coreapi.ServiceProviderCluster, newDesired *semver.Version, now metav1.Time) {
+	current := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
+	if current != nil && newDesired != nil && current.EQ(*newDesired) {
+		return
+	}
+	serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = newDesired
+	serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime = &now
+}
+
+// versionString renders a possibly-nil version for logging.
+func versionString(v *semver.Version) string {
+	if v == nil {
+		return "<none>"
+	}
+	return v.String()
 }
 
 // percentOfCeil returns ceil(pct/100 * total), so a small non-zero percentage of

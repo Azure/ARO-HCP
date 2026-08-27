@@ -34,8 +34,8 @@ func (mc *ManagementCluster) GetStampIdentifier() string {
 // GetStampIdentifier returns the top-level resource name of the rollout, which
 // is the y-stream channel (e.g. "stable-4.21") and doubles as the partition key.
 func (r *ControlPlaneVersionRollout) GetStampIdentifier() string {
-	if r.CosmosMetadata.ResourceID == nil {
+	if r.ResourceID == nil {
 		return ""
 	}
-	return r.CosmosMetadata.ResourceID.Name
+	return r.ResourceID.Name
 }

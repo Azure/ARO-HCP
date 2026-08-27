@@ -89,7 +89,7 @@ func (c *bestVersionSelectionSyncer) SyncOnce(ctx context.Context, key controlle
 		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))
 	}
 
-	graphBest, err := c.selector.BestExactVersionForChannel(ctx, key.YStreamChannel, c.config.ZStreamOffset)
+	graphBest, err := c.selector.BestExactVersionForChannel(ctx, key.YStreamChannel)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to select best version for %q: %w", key.YStreamChannel, err))
 	}
