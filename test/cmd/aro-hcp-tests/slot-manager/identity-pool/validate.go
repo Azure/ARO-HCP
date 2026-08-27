@@ -252,17 +252,15 @@ func compareIdentityPoolInventory(pools []identityPool, actual subscriptionInven
 		normalizedResourceGroup := normalizeName(resourceGroup)
 		actualIdentitiesByResourceGroup[normalizedResourceGroup] = append(actualIdentitiesByResourceGroup[normalizedResourceGroup], identityNames...)
 	}
-	for normalizedResourceGroup, resourceGroup := range expectedResourceGroups {
+	for _, resourceGroup := range expectedResourceGroups {
 		for _, identityName := range expectedIdentityNames {
 			reference := identityReference{ResourceGroup: resourceGroup, Name: identityName}
 			expectedIdentities[normalizeIdentityReference(reference)] = reference
 		}
-		actualResourceGroup, found := actualResourceGroups[normalizedResourceGroup]
-		if !found {
-			continue
-		}
+	}
+	for normalizedResourceGroup, resourceGroup := range actualResourceGroups {
 		for _, identityName := range actualIdentitiesByResourceGroup[normalizedResourceGroup] {
-			reference := identityReference{ResourceGroup: actualResourceGroup, Name: identityName}
+			reference := identityReference{ResourceGroup: resourceGroup, Name: identityName}
 			actualIdentities[normalizeIdentityReference(reference)] = reference
 		}
 	}

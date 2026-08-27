@@ -222,8 +222,8 @@ unmanaged pool, so only do that when the subscription owner intends to manage
 that pool with this command.
 
 The command applies one subscription-scoped deployment stack per slot. Each
-stack creates or updates the slot's resource groups and the 13 well-known user
-assigned identities in every group:
+stack creates or updates the slot's resource groups and the 13 well-known
+user-assigned managed identities in every group:
 
 ```text
 cluster-api-azure

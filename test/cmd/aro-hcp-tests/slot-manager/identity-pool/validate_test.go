@@ -47,6 +47,9 @@ func TestCompareIdentityPoolInventory(t *testing.T) {
 		},
 		Identities: map[string][]string{
 			"aro-hcp-msi-container-dev-00-00": actualIdentities,
+			"aro-hcp-msi-container-dev-01-00": {
+				framework.ClusterApiAzureMiName,
+			},
 		},
 	}
 
@@ -57,6 +60,9 @@ func TestCompareIdentityPoolInventory(t *testing.T) {
 	if result.ExpectedResourceGroups != 2 || result.ActualResourceGroups != 2 {
 		t.Fatalf("unexpected resource group counts: %+v", result)
 	}
+	if result.ExpectedIdentities != 26 || result.ActualIdentities != 14 {
+		t.Fatalf("unexpected identity counts: %+v", result)
+	}
 	if len(result.MissingResourceGroups) != 1 || result.MissingResourceGroups[0] != "aro-hcp-msi-container-dev-00-01" {
 		t.Fatalf("unexpected missing resource groups: %v", result.MissingResourceGroups)
 	}
@@ -66,7 +72,15 @@ func TestCompareIdentityPoolInventory(t *testing.T) {
 	if len(result.MissingIdentities) != 1 || result.MissingIdentities[0].Name != framework.ServiceManagedIdentityName {
 		t.Fatalf("unexpected missing identities: %v", result.MissingIdentities)
 	}
-	if len(result.UnexpectedIdentities) != 1 || result.UnexpectedIdentities[0].Name != "unexpected" {
+	if len(result.UnexpectedIdentities) != 2 ||
+		result.UnexpectedIdentities[0] != (identityReference{
+			ResourceGroup: "aro-hcp-msi-container-dev-00-00",
+			Name:          "unexpected",
+		}) ||
+		result.UnexpectedIdentities[1] != (identityReference{
+			ResourceGroup: "aro-hcp-msi-container-dev-01-00",
+			Name:          framework.ClusterApiAzureMiName,
+		}) {
 		t.Fatalf("unexpected identities: %v", result.UnexpectedIdentities)
 	}
 }
