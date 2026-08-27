@@ -1,0 +1,2201 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "description": "",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "### SWIFT Networking\n\nRouter capacity SLI and the supporting SWIFT NIC-assignment, CNS, and Konnectivity telemetry for a management cluster.\n\n**Sections:**\n- **Alert SLI** — the series and threshold lines that the `userJourneySwiftRouterAvailability*` alerts evaluate.\n- **Router Replicas and Pods** — router replica counts, Pending age, and pod readiness per HCP namespace.\n- **Node and NIC Capacity** — node readiness, SWIFT NIC capacity, pending IP programming, and node-health detector labels.\n- **CNS** — CNS DaemonSet pods, IP-assignment latency, and IP-assignment outcomes.\n- **Konnectivity Tunnel** — per-HCP backend, error, dial-failure, and packet telemetry.\n\n**Alert SLI definition:** a minute is bad (`swift_router_capacity:degraded` = 1) when some HCP on the management cluster has had a router replica missing for 10 minutes or longer. The SLI is good minutes divided by eligible minutes, against a 99.95% objective over 28 days. Each burn-rate panel plots the trailing bad-minute count for its alert windows with threshold lines at the alert limits; the plotted series continue past the lines.\n\n**Filters:**\n- Select a management cluster to scope every panel.\n- Optionally select one or more HCP namespaces to narrow the per-HCP router and Konnectivity panels. CNS and node panels are scoped to the management cluster or node because their telemetry carries no HCP identity.\n\n**Datasources:**\n- Router and Konnectivity panels use the **HCP AMW** (`Managed_Prometheus_hcps-*`).\n- CNS and node panels use the **services AMW** (`Managed_Prometheus_services-*`); the requested-NIC series on the SWIFT NIC panel uses the HCP AMW.\n\n**Usage:** start with [SWIFT TSG: Establish Blast Radius](https://aka.ms/arohcp-tsg-swift#step-1-establish-blast-radius) when an alert fires, then read the panels below for the management cluster and HCP namespaces involved.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.6.9",
+      "title": "Dashboard Info",
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 2,
+      "panels": [],
+      "title": "Alert SLI",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Per-minute flag recorded by `swift_router_capacity:degraded`: 1 while some HCP on the management cluster has had a router replica missing for 10 minutes or longer, 0 otherwise. One series per management cluster.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "id": 30,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "sum"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "swift_router_capacity:degraded{cluster=~\"$cluster\"}",
+          "legendFormat": "{{cluster}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Router Capacity Bad Minutes (swift_router_capacity:degraded)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Good minutes divided by eligible minutes over the trailing 28 days (or the available history), computed as 1 minus the average of `swift_router_capacity:degraded`. The line marks the 99.95% objective.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 99.95
+              }
+            ]
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "id": 31,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "min"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "(1 - avg_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[28d])) * 100",
+          "legendFormat": "{{cluster}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Router Capacity SLI (rolling 28d)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Remaining share of the 28-day error budget for the 99.95% objective: ((SLI − 0.9995) / 0.0005) × 100, computed from `swift_router_capacity:degraded`. The value continues below 0 when the budget is overspent. The line marks 0.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 19
+      },
+      "id": 32,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "min"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "(((1 - avg_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[28d])) - 0.9995) / (1 - 0.9995)) * 100",
+          "legendFormat": "{{cluster}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Error Budget Remaining (rolling 28d)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Management-cluster router replica totals: `swift_router_replicas:configured`, `swift_router_replicas:available`, and `swift_router_replicas:unavailable_sustained` (replicas missing from HCPs whose router Deployment has been short for 11 consecutive 1-minute samples).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 19
+      },
+      "id": 33,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "swift_router_replicas:configured{cluster=~\"$cluster\"}",
+          "legendFormat": "{{cluster}} configured",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "swift_router_replicas:available{cluster=~\"$cluster\"}",
+          "legendFormat": "{{cluster}} available",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "swift_router_replicas:unavailable_sustained{cluster=~\"$cluster\"}",
+          "legendFormat": "{{cluster}} unavailable (sustained)",
+          "refId": "C"
+        }
+      ],
+      "title": "Router Replica Totals",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Bad minutes (`swift_router_capacity:degraded` = 1) in the trailing window, one series per management cluster and window. The `userJourneySwiftRouterAvailability1h5m` alert condition holds when both windows exceed their dashed alert threshold series. Each threshold equals 14.4 × 0.05% × the eligible minutes in that window (0.432 for a full 1h window, 0.036 for a full 5m window).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [10, 10],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "D"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [10, 10],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 27
+      },
+      "id": 34,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "sum_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[1h])",
+          "legendFormat": "{{cluster}} last 1h",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "sum_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[5m])",
+          "legendFormat": "{{cluster}} last 5m",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "0.0072 * count_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[1h])",
+          "legendFormat": "{{cluster}} alert threshold (1h)",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "0.0072 * count_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[5m])",
+          "legendFormat": "{{cluster}} alert threshold (5m)",
+          "refId": "D"
+        }
+      ],
+      "title": "Fast Burn (1h/5m): Bad Minutes in Window",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Bad minutes (`swift_router_capacity:degraded` = 1) in the trailing window, one series per management cluster and window. The `userJourneySwiftRouterAvailability6h30m` alert condition holds when both windows exceed their dashed alert threshold series. Each threshold equals 6 × 0.05% × the eligible minutes in that window (1.08 for a full 6h window, 0.09 for a full 30m window).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [10, 10],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "D"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [10, 10],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 27
+      },
+      "id": 35,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "sum_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[6h])",
+          "legendFormat": "{{cluster}} last 6h",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "sum_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[30m])",
+          "legendFormat": "{{cluster}} last 30m",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "0.003 * count_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[6h])",
+          "legendFormat": "{{cluster}} alert threshold (6h)",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "0.003 * count_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[30m])",
+          "legendFormat": "{{cluster}} alert threshold (30m)",
+          "refId": "D"
+        }
+      ],
+      "title": "Medium Burn (6h/30m): Bad Minutes in Window",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Bad minutes (`swift_router_capacity:degraded` = 1) in the trailing window, one series per management cluster and window. The `userJourneySwiftRouterAvailability3d6h` alert condition holds when both windows exceed their dashed alert threshold series. Each threshold equals 1 × 0.05% × the eligible minutes in that window (2.16 for a full 3d window, 0.18 for a full 6h window).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [10, 10],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "D"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [10, 10],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 27
+      },
+      "id": 36,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "sum_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[3d])",
+          "legendFormat": "{{cluster}} last 3d",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "sum_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[6h])",
+          "legendFormat": "{{cluster}} last 6h",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "0.0005 * count_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[3d])",
+          "legendFormat": "{{cluster}} alert threshold (3d)",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "0.0005 * count_over_time(swift_router_capacity:degraded{cluster=~\"$cluster\"}[6h])",
+          "legendFormat": "{{cluster}} alert threshold (6h)",
+          "refId": "D"
+        }
+      ],
+      "title": "Slow Burn (3d/6h): Bad Minutes in Window",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "id": 3,
+      "panels": [],
+      "title": "Router Replicas and Pods",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Router replicas missing per HCP namespace: `kube_deployment_spec_replicas` minus `kube_deployment_status_replicas_available` for the `router` Deployment, shown while the value is above zero.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "id": 37,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "(max by (cluster, namespace) (kube_deployment_spec_replicas{job=\"kube-state-metrics\", cluster=~\"$cluster\", namespace=~\"$hcp_namespace\", deployment=\"router\"}) - max by (cluster, namespace) (kube_deployment_status_replicas_available{job=\"kube-state-metrics\", cluster=~\"$cluster\", namespace=~\"$hcp_namespace\", deployment=\"router\"})) > 0",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Router Replicas Missing (by HCP namespace)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Number of 1-minute samples in the trailing 30 minutes in which the HCP's router Deployment had a replica missing. The alert counts an HCP once 11 consecutive samples show a missing replica; the line marks 11.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 11
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "id": 38,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "count_over_time(((max by (cluster, namespace) (kube_deployment_spec_replicas{job=\"kube-state-metrics\", cluster=~\"$cluster\", namespace=~\"$hcp_namespace\", deployment=\"router\"}) - max by (cluster, namespace) (kube_deployment_status_replicas_available{job=\"kube-state-metrics\", cluster=~\"$cluster\", namespace=~\"$hcp_namespace\", deployment=\"router\"})) > 0)[30m:1m])",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Minutes With Router Replicas Missing, Last 30m (by HCP namespace)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Age of each router pod while it is `Pending`, from `router:startup_latency:seconds`. A series exists while its pod is Pending.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "id": 39,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "router:startup_latency:seconds{cluster=~\"$cluster\", namespace=~\"$hcp_namespace\"}",
+          "legendFormat": "{{namespace}} / {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Router Pod Pending Age (by pod)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Router pods whose `Ready` condition is false, with the node they run on, from `kube_pod_status_ready{condition=\"false\"}` joined with `kube_pod_info`.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
+      "id": 40,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, namespace, pod) (kube_pod_status_ready{job=\"kube-state-metrics\", cluster=~\"$cluster\", namespace=~\"$hcp_namespace\", pod=~\"router-.*\", condition=\"false\"} == 1) * on (cluster, namespace, pod) group_left (node) max by (cluster, namespace, pod, node) (kube_pod_info{job=\"kube-state-metrics\", cluster=~\"$cluster\", namespace=~\"$hcp_namespace\", pod=~\"router-.*\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "renameByName": {
+              "Value": "ready=false"
+            }
+          }
+        }
+      ],
+      "title": "Router Pods With Ready Condition False",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "id": 12,
+      "panels": [],
+      "title": "Node and NIC Capacity",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "SWIFT NIC resources per management-cluster worker node with `resource=\"aro_openshift_io_swift_nic\"`: `kube_node_status_capacity` and `kube_node_status_allocatable` from the services AMW, and the sum of `kube_pod_container_resource_requests` for pods on the node from the HCP AMW, with one series per container (deduplicated across scrape replicas).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 53
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "min"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, node) (kube_node_status_capacity{job=\"kube-state-metrics\", cluster=~\"$cluster\", node=~\"aks-user.*\", resource=\"aro_openshift_io_swift_nic\"})",
+          "legendFormat": "{{node}} capacity",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, node) (kube_node_status_allocatable{job=\"kube-state-metrics\", cluster=~\"$cluster\", node=~\"aks-user.*\", resource=\"aro_openshift_io_swift_nic\"})",
+          "legendFormat": "{{node}} allocatable",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster, node) (max by (cluster, namespace, pod, container, node) (kube_pod_container_resource_requests{job=\"kube-state-metrics\", cluster=~\"$cluster\", resource=\"aro_openshift_io_swift_nic\"}))",
+          "legendFormat": "{{node}} requested",
+          "refId": "C"
+        }
+      ],
+      "title": "SWIFT NIC Capacity, Allocatable, and Requested (by node)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Node `Ready` condition per management-cluster worker node in the `aks-user*` pools, from `kube_node_status_condition{condition=\"Ready\", status=\"true\"}` (1 = Ready).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 53
+      },
+      "id": 42,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "min"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, node) (kube_node_status_condition{job=\"kube-state-metrics\", cluster=~\"$cluster\", node=~\"aks-user.*\", condition=\"Ready\", status=\"true\"})",
+          "legendFormat": "{{node}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Node Ready Condition (by node)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Reserved IPs awaiting secondary-NIC attachment, from `cx_pending_programming_ips_v2`. One series per CNS pod (management-cluster worker node).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "max without (prometheus_replica) (cx_pending_programming_ips_v2{cluster=~\"$cluster\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Pending IP Programming (by CNS pod)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Nodes currently labeled by the mgmt-agent `swift-vf-teardown` detector, from `nodehealth_node_wedged{detector=\"swift-vf-teardown\"}`, with the label signature.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 61
+      },
+      "id": 23,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "max without (prometheus_replica) (nodehealth_node_wedged{cluster=~\"$cluster\", detector=\"swift-vf-teardown\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "title": "Node-Health Detector Labels (swift-vf-teardown)",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 69
+      },
+      "id": 6,
+      "panels": [],
+      "title": "CNS",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Ratio of ready to desired `azure-cns` DaemonSet pods on the management cluster, from `cns:daemonset_availability:ratio`.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 70
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "min"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "cns:daemonset_availability:ratio{cluster=~\"$cluster\"}",
+          "legendFormat": "Availability",
+          "refId": "A"
+        }
+      ],
+      "title": "CNS DaemonSet Ready / Desired Pods Ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "p99 latency of successful CNS secondary IP assignments on the management cluster, from `cns:ip_assignment_latency:p99`. The histogram records successful assignments.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 70
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "cns:ip_assignment_latency:p99{cluster=~\"$cluster\"}",
+          "legendFormat": "{{cluster}}",
+          "refId": "A"
+        }
+      ],
+      "title": "CNS IP Assignment Latency p99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Management-cluster-wide CNS RequestIPConfig and RequestIPConfigs rates by CNS application return code (`cns_return_code`), from `http_request_latency_seconds_count`.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "ops",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 78
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster) (max without (prometheus_replica) (rate(http_request_latency_seconds_count{cluster=~\"$cluster\", verb=\"POST\", url=~\".*/network/requestipconfigs?.*\"}[5m])))",
+          "legendFormat": "Requests received",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster, cns_return_code) (max without (prometheus_replica) (rate(http_request_latency_seconds_count{cluster=~\"$cluster\", verb=\"POST\", url=~\".*/network/requestipconfigs?.*\", cns_return_code!=\"Success\"}[5m])))",
+          "legendFormat": "Failure: {{cns_return_code}}",
+          "refId": "B"
+        }
+      ],
+      "title": "CNS IP Assignment Request Outcome Rates",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_svc}"
+      },
+      "description": "Share of CNS RequestIPConfig and RequestIPConfigs calls with `cns_return_code=\"Success\"`. CNS returns HTTP 200 for application outcomes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 78
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "min"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_svc}"
+          },
+          "editorMode": "code",
+          "expr": "((sum by (cluster) (max without (prometheus_replica) (rate(http_request_latency_seconds_count{cluster=~\"$cluster\", verb=\"POST\", url=~\".*/network/requestipconfigs?.*\", cns_return_code=\"Success\"}[5m]))) or 0 * sum by (cluster) (max without (prometheus_replica) (rate(http_request_latency_seconds_count{cluster=~\"$cluster\", verb=\"POST\", url=~\".*/network/requestipconfigs?.*\"}[5m])))) / sum by (cluster) (max without (prometheus_replica) (rate(http_request_latency_seconds_count{cluster=~\"$cluster\", verb=\"POST\", url=~\".*/network/requestipconfigs?.*\"}[5m])))) and on (cluster) (sum by (cluster) (max without (prometheus_replica) (rate(http_request_latency_seconds_count{cluster=~\"$cluster\", verb=\"POST\", url=~\".*/network/requestipconfigs?.*\"}[5m]))) > 0)",
+          "legendFormat": "Successful assignments",
+          "refId": "A"
+        }
+      ],
+      "title": "CNS IP Assignment Success Ratio",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 86
+      },
+      "id": 9,
+      "panels": [],
+      "title": "Konnectivity Tunnel",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Distinct connected Konnectivity backend identities per HCP namespace, from `konnectivity_network_proxy_server_ready_backends`. ARO-HCP worker agents share the `default-route=true` identity, so the value is 1 or more while any worker agent is connected and 0 when none is.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 87
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "max by (cluster, namespace) (konnectivity_network_proxy_server_ready_backends{cluster=~\"$cluster\", namespace=~\"$hcp_namespace\"})",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Konnectivity Connected Backend Identities (by HCP namespace)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Count of selected HCP namespaces whose connected Konnectivity backend identities total zero, from `konnectivity_network_proxy_server_ready_backends`.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 87
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "sum(max by (cluster, namespace) (konnectivity_network_proxy_server_ready_backends{cluster=~\"$cluster\", namespace=~\"$hcp_namespace\"}) == bool 0)",
+          "legendFormat": "HCPs without a backend",
+          "refId": "A"
+        }
+      ],
+      "title": "HCP Namespaces With Zero Connected Konnectivity Backends",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Konnectivity server-side gRPC control-stream errors per processed packet, from `konnectivity:stream_error_rate:5m`.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 95
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "konnectivity:stream_error_rate:5m{cluster=~\"$cluster\", namespace=~\"$hcp_namespace\"}",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Konnectivity Control-Stream Error Frequency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Absolute rate of Konnectivity server-side control-stream receive errors, from `konnectivity:stream_errors:rate5m`.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "ops",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 95
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "konnectivity:stream_errors:rate5m{cluster=~\"$cluster\", namespace=~\"$hcp_namespace\"}",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Konnectivity Control-Stream Errors per Second",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Konnectivity server-observed dial-failure frequency, from `konnectivity:dial_failure_rate:5m`. The server can increment `dial_failure_count` more than once for one dial, and a `DIAL_RSP` packet can carry an error.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 95
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "konnectivity:dial_failure_rate:5m{cluster=~\"$cluster\", namespace=~\"$hcp_namespace\"}",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Konnectivity Dial-Failure Frequency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Konnectivity protocol packet volume per HCP namespace, from `konnectivity_network_proxy_server_stream_packets_total`.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "pps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 95
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster, namespace) (max without (prometheus_replica) (rate(konnectivity_network_proxy_server_stream_packets_total{cluster=~\"$cluster\", namespace=~\"$hcp_namespace\"}[5m])))",
+          "legendFormat": "{{namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Konnectivity Packet Volume (by HCP namespace)",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 41,
+  "tags": ["aro-hcp", "swift", "slo", "user-journey"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "includeAll": false,
+        "label": "HCP Datasource",
+        "name": "datasource_hcp",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_hcps-.*$",
+        "type": "datasource"
+      },
+      {
+        "current": {},
+        "includeAll": false,
+        "label": "Services Datasource",
+        "name": "datasource_svc",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_services-.*$",
+        "type": "datasource"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource_svc}"
+        },
+        "includeAll": false,
+        "label": "Management Cluster (all panels)",
+        "multi": false,
+        "name": "cluster",
+        "options": [],
+        "query": "label_values(up, cluster)",
+        "refresh": 2,
+        "regex": "^.*-mgmt-\\d+$",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource_hcp}"
+        },
+        "includeAll": true,
+        "label": "HCP Namespace",
+        "multi": true,
+        "name": "hcp_namespace",
+        "options": [],
+        "query": "label_values(kube_pod_info{cluster=\"$cluster\", namespace=~\"ocm-.*\"}, namespace)",
+        "refresh": 2,
+        "regex": "",
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "SWIFT Networking",
+  "uid": "swift-networking",
+  "version": 1,
+  "weekStart": ""
+}

@@ -5635,6 +5635,111 @@
             value: 0
         unsupported: ""
 - source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability1h5m
+  occurrence: 1
+  input: (sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])) > (14.4 * (1 - 0.9995)) and (sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])) > (14.4 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+  plan:
+    expression: (sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])) > (14.4 * (1 - 0.9995)) and (sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])) > (14.4 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: (sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])) > (14.4 * (1 - 0.9995))
+        path: root/and:left/and:left
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.007199999999999207
+        unsupported: ""
+      - expression: (sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])) > (14.4 * (1 - 0.9995))
+        path: root/and:left/and:right
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.007199999999999207
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability3d6h
+  occurrence: 1
+  input: (sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])) > (1 - 0.9995) and (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (1 - 0.9995) and on (cluster) swift_router_replicas:configured > 0
+  plan:
+    expression: (sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])) > (1 - 0.9995) and (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (1 - 0.9995) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: (sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])) > (1 - 0.9995)
+        path: root/and:left/and:left
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0004999999999999449
+        unsupported: ""
+      - expression: (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (1 - 0.9995)
+        path: root/and:left/and:right
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0004999999999999449
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability6h30m
+  occurrence: 1
+  input: (sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])) > (6 * (1 - 0.9995)) and (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (6 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+  plan:
+    expression: (sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])) > (6 * (1 - 0.9995)) and (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (6 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: (sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])) > (6 * (1 - 0.9995))
+        path: root/and:left/and:left
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0029999999999996696
+        unsupported: ""
+      - expression: (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (6 * (1 - 0.9995))
+        path: root/and:left/and:right
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0029999999999996696
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   group: hypershift-cpo-monitor-rules
   alert: hypershiftCPODown
   occurrence: 1
@@ -12561,6 +12666,126 @@
         thresholds:
           - operator: '>'
             value: 2
+        unsupported: ""
+- source: observability/alerts/swift-networking-prometheusRule.yaml
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability1h5m
+  occurrence: 1
+  input: |
+    (sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])) > (14.4 * (1 - 0.9995))
+    and
+    (sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])) > (14.4 * (1 - 0.9995))
+    and on (cluster)
+    swift_router_replicas:configured > 0
+  plan:
+    expression: (sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])) > (14.4 * (1 - 0.9995)) and (sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])) > (14.4 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: (sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])) > (14.4 * (1 - 0.9995))
+        path: root/and:left/and:left
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[5m]) / count_over_time(swift_router_capacity:degraded[5m])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.007199999999999207
+        unsupported: ""
+      - expression: (sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])) > (14.4 * (1 - 0.9995))
+        path: root/and:left/and:right
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[1h]) / count_over_time(swift_router_capacity:degraded[1h])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.007199999999999207
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/swift-networking-prometheusRule.yaml
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability3d6h
+  occurrence: 1
+  input: |
+    (sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])) > (1 - 0.9995)
+    and
+    (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (1 - 0.9995)
+    and on (cluster)
+    swift_router_replicas:configured > 0
+  plan:
+    expression: (sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])) > (1 - 0.9995) and (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (1 - 0.9995) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: (sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])) > (1 - 0.9995)
+        path: root/and:left/and:left
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[3d]) / count_over_time(swift_router_capacity:degraded[3d])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0004999999999999449
+        unsupported: ""
+      - expression: (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (1 - 0.9995)
+        path: root/and:left/and:right
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0004999999999999449
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
+        unsupported: ""
+- source: observability/alerts/swift-networking-prometheusRule.yaml
+  group: arohcp_swift_networking_alerts
+  alert: userJourneySwiftRouterAvailability6h30m
+  occurrence: 1
+  input: |
+    (sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])) > (6 * (1 - 0.9995))
+    and
+    (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (6 * (1 - 0.9995))
+    and on (cluster)
+    swift_router_replicas:configured > 0
+  plan:
+    expression: (sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])) > (6 * (1 - 0.9995)) and (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (6 * (1 - 0.9995)) and on (cluster) swift_router_replicas:configured > 0
+    conditions:
+      - expression: (sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])) > (6 * (1 - 0.9995))
+        path: root/and:left/and:left
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[30m]) / count_over_time(swift_router_capacity:degraded[30m])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0029999999999996696
+        unsupported: ""
+      - expression: (sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])) > (6 * (1 - 0.9995))
+        path: root/and:left/and:right
+        queries:
+          - expression: sum_over_time(swift_router_capacity:degraded[6h]) / count_over_time(swift_router_capacity:degraded[6h])
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0.0029999999999996696
+        unsupported: ""
+      - expression: swift_router_replicas:configured > 0
+        path: root/and:right
+        queries:
+          - expression: swift_router_replicas:configured
+            role: signal
+        thresholds:
+          - operator: '>'
+            value: 0
         unsupported: ""
 - source: observability/alerts/userJourneyClusterUpgradeMonitor-prometheusRule.yaml
   group: rp-user-journey-cluster-upgrade-monitor-rules
