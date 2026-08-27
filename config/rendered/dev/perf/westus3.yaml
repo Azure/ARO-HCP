@@ -669,7 +669,6 @@ mgmt:
       minCount: 1
       name: system
       osDiskSizeGB: 128
-      poolCount: 1
       vmSize: Standard_E8s_v3
       zoneRedundantMode: Auto
       zones: ""
@@ -1030,7 +1029,6 @@ svc:
       minCount: 1
       name: system
       osDiskSizeGB: 32
-      poolCount: 1
       vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
       zones: ""

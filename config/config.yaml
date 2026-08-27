@@ -593,7 +593,6 @@ defaults:
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
-        poolCount: 3
         zones: ""
         zoneRedundantMode: "Auto"
       userAgentPool:
@@ -732,7 +731,6 @@ defaults:
         vmSize: 'Standard_E8ds_v6'
         osDiskSizeGB: 128
         minCount: 1
-        poolCount: 3
         zones: ""
         zoneRedundantMode: "Auto"
       userAgentPool:
@@ -1385,8 +1383,6 @@ clouds:
           infraAgentPool:
             poolCount: 1
             vmSize: 'Standard_D2s_v3'
-          systemAgentPool:
-            poolCount: 1
         prometheus:
           prometheusSpec:
             shards: 1
@@ -1402,7 +1398,6 @@ clouds:
           systemAgentPool:
             vmSize: 'Standard_E8s_v3'
             maxCount: 4
-            poolCount: 1
           userAgentPool:
             maxCount: 14
             vmSize: 'Standard_D4s_v3'
