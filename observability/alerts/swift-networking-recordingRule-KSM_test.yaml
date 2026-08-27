@@ -1,0 +1,467 @@
+rule_files:
+- swift-networking-recordingRule-KSM.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: No router deployments means no router-replica series.
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 5m
+    exp_samples: []
+  - expr: "swift_router_replicas:configured"
+    eval_time: 5m
+    exp_samples: []
+  - expr: "router:startup_latency:p99"
+    eval_time: 10m
+    exp_samples: []
+# Test 2: All expected router replicas are recorded as concrete counts.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-1"}'
+      value: 3
+  - expr: "swift_router_replicas:configured"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:configured", cluster="mgmt-1"}'
+      value: 3
+# Test 3: A router Deployment scaled to zero is recorded as zero configured capacity.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-zero", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "0+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-zero", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available{cluster=\"mgmt-zero\"}"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-zero"}'
+      value: 0
+  - expr: "swift_router_replicas:configured{cluster=\"mgmt-zero\"}"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:configured", cluster="mgmt-zero"}'
+      value: 0
+# Test 4: Capacity aggregates all HCP namespaces in one management cluster.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-aggregate", namespace="ocm-prod-hcp-a", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-aggregate", namespace="ocm-prod-hcp-a", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-aggregate", namespace="ocm-prod-hcp-b", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-aggregate", namespace="ocm-prod-hcp-b", deployment="router"}'
+    values: "2+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-aggregate"}'
+      value: 5
+  - expr: "swift_router_replicas:configured"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:configured", cluster="mgmt-aggregate"}'
+      value: 6
+# Test 5: Rolling-update surplus in one HCP must not mask a shortfall in another.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-surge", namespace="ocm-prod-hcp-a", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-surge", namespace="ocm-prod-hcp-a", deployment="router"}'
+    values: "4+0x10"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-surge", namespace="ocm-prod-hcp-b", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-surge", namespace="ocm-prod-hcp-b", deployment="router"}'
+    values: "2+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available{cluster=\"mgmt-surge\"}"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-surge"}'
+      value: 5
+  - expr: "swift_router_replicas:configured{cluster=\"mgmt-surge\"}"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:configured", cluster="mgmt-surge"}'
+      value: 6
+# Test 6: Capacity remains isolated between management clusters.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-healthy", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-healthy", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-degraded", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-degraded", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "2+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-degraded"}'
+      value: 2
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-healthy"}'
+      value: 3
+# Test 7: HA replica duplicates do not double router capacity.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-ha", namespace="ocm-prod-abc123", deployment="router", prometheus_replica="a"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-ha", namespace="ocm-prod-abc123", deployment="router", prometheus_replica="b"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-ha", namespace="ocm-prod-abc123", deployment="router", prometheus_replica="a"}'
+    values: "2+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-ha", namespace="ocm-prod-abc123", deployment="router", prometheus_replica="b"}'
+    values: "2+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-ha"}'
+      value: 2
+# Test 8: Pending age remains available as per-HCP diagnostic evidence.
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_created{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", region="westus3"}'
+    values: "0+0x11"
+  - series: 'kube_pod_owner{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", owner_kind="ReplicaSet", owner_name="router-abc", region="westus3"}'
+    values: "1+0x11"
+  - series: 'kube_pod_status_phase{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", phase="Pending", region="westus3"}'
+    values: "1+0x11"
+  promql_expr_test:
+  - expr: "router:startup_latency:p99"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="router:startup_latency:p99", cluster="mgmt-1", namespace="ocm-prod-abc123", region="westus3"}'
+      value: 600
+# Test 9: A missing router replica remains visible in the available count.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "2+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-1"}'
+      value: 2
+# Test 10: Complete router-capacity loss is visible as zero available replicas.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", deployment="router"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-1"}'
+      value: 0
+# ========================================
+# Konnectivity Recording Rule Tests
+# ========================================
+# Test 11: No konnectivity data — recording rules produce no series.
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: "konnectivity:stream_error_rate:5m"
+    eval_time: 5m
+    exp_samples: []
+  - expr: "konnectivity:dial_failure_rate:5m"
+    eval_time: 5m
+    exp_samples: []
+# Test 12: Stream errors present, low packet volume — error rate > 1%.
+# rate(errors[5m]) = 1/60 ≈ 0.0167; rate(packets[5m]) = 10/60 ≈ 0.167.
+# stream_error_rate:5m = 0.0167 / 0.167 = 0.1 (10%).
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "konnectivity:stream_error_rate:5m > 0.01"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'konnectivity:stream_error_rate:5m{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+      value: 0.1
+# Test 13: An absent stream-error counter with healthy packet flow yields zero.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "konnectivity:stream_error_rate:5m"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'konnectivity:stream_error_rate:5m{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+      value: 0
+# Test 14: HA Prometheus replicas must not double the Konnectivity diagnostic
+# frequencies.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-ha", namespace="ocm-prod-abc123", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-ha", namespace="ocm-prod-abc123", prometheus_replica="b"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-ha", namespace="ocm-prod-abc123", prometheus_replica="a"}'
+    values: "0+10x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-ha", namespace="ocm-prod-abc123", prometheus_replica="b"}'
+    values: "0+10x10"
+  - series: 'konnectivity_network_proxy_server_dial_failure_count{cluster="mgmt-ha", namespace="ocm-prod-abc123", prometheus_replica="a"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_dial_failure_count{cluster="mgmt-ha", namespace="ocm-prod-abc123", prometheus_replica="b"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-ha", namespace="ocm-prod-abc123", segment="from_agent", packet_type="DIAL_RSP", prometheus_replica="a"}'
+    values: "0+10x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-ha", namespace="ocm-prod-abc123", segment="from_agent", packet_type="DIAL_RSP", prometheus_replica="b"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "konnectivity:stream_error_rate:5m"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'konnectivity:stream_error_rate:5m{cluster="mgmt-ha", namespace="ocm-prod-abc123"}'
+      value: 0.05
+  - expr: "konnectivity:dial_failure_rate:5m"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'konnectivity:dial_failure_rate:5m{cluster="mgmt-ha", namespace="ocm-prod-abc123"}'
+      value: 0.09090909090909091
+# Test 15: Dial failures present, some successful dials — dial failure rate > 1%.
+# rate(failures[5m]) = 1/60 ≈ 0.0167; rate(DIAL_RSP[5m]) = 10/60 ≈ 0.167.
+# dial_failure_rate:5m = 0.0167 / (0.0167 + 0.167) ≈ 0.0909 (9%).
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_dial_failure_count{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123", segment="from_agent", packet_type="DIAL_RSP"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "konnectivity:dial_failure_rate:5m > 0.01"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'konnectivity:dial_failure_rate:5m{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+      value: 0.09090909090909091
+# Test 16: An absent dial-failure counter with healthy responses yields zero.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-1", namespace="ocm-prod-abc123", segment="from_agent", packet_type="DIAL_RSP"}'
+    values: "0+10x10"
+  promql_expr_test:
+  - expr: "konnectivity:dial_failure_rate:5m"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'konnectivity:dial_failure_rate:5m{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+      value: 0
+# Test 17: Dial failures without DIAL_RSP responses remain visible at 100%.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_dial_failure_count{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+    values: "0+1x10"
+  promql_expr_test:
+  - expr: "konnectivity:dial_failure_rate:5m"
+    eval_time: 5m
+    exp_samples:
+    - labels: 'konnectivity:dial_failure_rate:5m{cluster="mgmt-1", namespace="ocm-prod-abc123"}'
+      value: 1
+# Test 18: Duplicate old/new KSM targets do not break pod joins or dashboard node joins.
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_created{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", region="westus3", instance="old-ksm"}'
+    values: "0+0x10"
+  - series: 'kube_pod_created{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", region="westus3", instance="new-ksm"}'
+    values: "0+0x10"
+  - series: 'kube_pod_owner{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", owner_kind="ReplicaSet", owner_name="router-abc", region="westus3", instance="old-ksm"}'
+    values: "1+0x10"
+  - series: 'kube_pod_owner{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", owner_kind="ReplicaSet", owner_name="router-abc", region="westus3", instance="new-ksm"}'
+    values: "1+0x10"
+  - series: 'kube_pod_status_phase{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", phase="Pending", region="westus3", instance="old-ksm"}'
+    values: "1+0x10"
+  - series: 'kube_pod_status_phase{job="kube-state-metrics", cluster="mgmt-1", namespace="ocm-prod-abc123", pod="router-abc-1", phase="Pending", region="westus3", instance="new-ksm"}'
+    values: "1+0x10"
+  - series: 'kube_node_status_capacity{cluster="mgmt-1", node="aks-user-0", resource="aro_openshift_io_swift_nic", instance="old-ksm"}'
+    values: "3+0x10"
+  - series: 'kube_node_status_capacity{cluster="mgmt-1", node="aks-user-0", resource="aro_openshift_io_swift_nic", instance="new-ksm"}'
+    values: "3+0x10"
+  - series: 'kube_node_status_allocatable{cluster="mgmt-1", node="aks-user-0", resource="aro_openshift_io_swift_nic", instance="old-ksm"}'
+    values: "2+0x10"
+  - series: 'kube_node_status_allocatable{cluster="mgmt-1", node="aks-user-0", resource="aro_openshift_io_swift_nic", instance="new-ksm"}'
+    values: "2+0x10"
+  promql_expr_test:
+  - expr: "router:startup_latency:p99"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="router:startup_latency:p99", cluster="mgmt-1", namespace="ocm-prod-abc123", region="westus3"}'
+      value: 600
+  - expr: 'max by (cluster, node) (kube_node_status_capacity{cluster="mgmt-1", node=~"aks-user.*", resource="aro_openshift_io_swift_nic"}) - on (cluster, node) max by (cluster, node) (kube_node_status_allocatable{cluster="mgmt-1", node=~"aks-user.*", resource="aro_openshift_io_swift_nic"})'
+    eval_time: 10m
+    exp_samples:
+    - labels: '{cluster="mgmt-1", node="aks-user-0"}'
+      value: 1
+# Test 19: Overlapping KSM targets do not multiply router replicas.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-overlap", namespace="ocm-prod-abc123", deployment="router", instance="old-ksm", pod="ksm-old"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-overlap", namespace="ocm-prod-abc123", deployment="router", instance="new-ksm", pod="ksm-new"}'
+    values: "3+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-overlap", namespace="ocm-prod-abc123", deployment="router", instance="old-ksm", pod="ksm-old"}'
+    values: "2+0x10"
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", cluster="mgmt-overlap", namespace="ocm-prod-abc123", deployment="router", instance="new-ksm", pod="ksm-new"}'
+    values: "2+0x10"
+  promql_expr_test:
+  - expr: "swift_router_replicas:available"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:available", cluster="mgmt-overlap"}'
+      value: 2
+  - expr: "swift_router_replicas:configured"
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="swift_router_replicas:configured", cluster="mgmt-overlap"}'
+      value: 3
+# Test 20: The dashboard's zero-capacity indicator returns 1 only for affected nodes.
+- interval: 1m
+  input_series:
+  - series: 'kube_node_info{job="kube-state-metrics", cluster="mgmt-capacity", node="aks-user-zero", instance="old-ksm"}'
+    values: "1+0x10"
+  - series: 'kube_node_info{job="kube-state-metrics", cluster="mgmt-capacity", node="aks-user-zero", instance="new-ksm"}'
+    values: "1+0x10"
+  - series: 'kube_node_info{job="kube-state-metrics", cluster="mgmt-capacity", node="aks-user-missing", instance="ksm-a"}'
+    values: "1+0x10"
+  - series: 'kube_node_info{job="kube-state-metrics", cluster="mgmt-capacity", node="aks-user-healthy", instance="ksm-a"}'
+    values: "1+0x10"
+  - series: 'kube_node_status_capacity{job="kube-state-metrics", cluster="mgmt-capacity", node="aks-user-zero", resource="aro_openshift_io_swift_nic", instance="ksm-a"}'
+    values: "0+0x10"
+  - series: 'kube_node_status_capacity{job="kube-state-metrics", cluster="mgmt-capacity", node="aks-user-healthy", resource="aro_openshift_io_swift_nic", instance="ksm-a"}'
+    values: "4+0x10"
+  promql_expr_test:
+  - expr: 'max by (cluster, node) (kube_node_info{job="kube-state-metrics", cluster="mgmt-capacity", node=~"aks-user.*"}) unless on (cluster, node) (max by (cluster, node) (kube_node_status_capacity{job="kube-state-metrics", cluster="mgmt-capacity", node=~"aks-user.*", resource="aro_openshift_io_swift_nic"}) > 0)'
+    eval_time: 10m
+    exp_samples:
+    - labels: '{cluster="mgmt-capacity", node="aks-user-zero"}'
+      value: 1
+    - labels: '{cluster="mgmt-capacity", node="aks-user-missing"}'
+      value: 1
+# Test 21: Observed Konnectivity telemetry reports zero for healthy HCPs and counts empty HCPs.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_ready_backends{cluster="mgmt-konnectivity", namespace="ocm-prod-healthy"}'
+    values: "2+0x10"
+  - series: 'konnectivity_network_proxy_server_ready_backends{cluster="mgmt-konnectivity", namespace="ocm-prod-no-backends"}'
+    values: "0+0x10"
+  promql_expr_test:
+  - expr: 'sum(max by (cluster, namespace) (konnectivity_network_proxy_server_ready_backends{cluster="mgmt-konnectivity", namespace=~"ocm-prod-.*"}) == bool 0)'
+    eval_time: 10m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+# Test 22: Missing Konnectivity backend telemetry stays missing, not green zero.
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: 'sum(max by (cluster, namespace) (konnectivity_network_proxy_server_ready_backends{cluster="mgmt-konnectivity", namespace=~"ocm-prod-.*"}) == bool 0)'
+    eval_time: 10m
+    exp_samples: []
+# Test 23: Count an HCP when any router Pending age exceeds 300s, even if its p99 does not.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-pending-age", namespace="ocm-prod-mixed", deployment="router"}'
+    values: "3+0x10"
+  - series: 'kube_pod_created{job="kube-state-metrics", cluster="mgmt-pending-age", namespace="ocm-prod-mixed", pod="router-mixed-1", region="westus3"}'
+    values: "600+0x10"
+  - series: 'kube_pod_created{job="kube-state-metrics", cluster="mgmt-pending-age", namespace="ocm-prod-mixed", pod="router-mixed-2", region="westus3"}'
+    values: "600+0x10"
+  - series: 'kube_pod_created{job="kube-state-metrics", cluster="mgmt-pending-age", namespace="ocm-prod-mixed", pod="router-mixed-3", region="westus3"}'
+    values: "295+0x10"
+  - series: 'kube_pod_owner{job="kube-state-metrics", cluster="mgmt-pending-age", namespace="ocm-prod-mixed", pod="router-mixed-1", owner_kind="ReplicaSet", owner_name="router-mixed", region="westus3"}'
+    values: "1+0x10"
+  - series: 'kube_pod_owner{job="kube-state-metrics", cluster="mgmt-pending-age", namespace="ocm-prod-mixed", pod="router-mixed-2", owner_kind="ReplicaSet", owner_name="router-mixed", region="westus3"}'
+    values: "1+0x10"
+  - series: 'kube_pod_owner{job="kube-state-metrics", cluster="mgmt-pending-age", namespace="ocm-prod-mixed", pod="router-mixed-3", owner_kind="ReplicaSet", owner_name="router-mixed", region="westus3"}'
+    values: "1+0x10"
+  - series: 'kube_pod_status_phase{job="kube-state-metrics", cluster="mgmt-pending-age", namespace="ocm-prod-mixed", pod="router-mixed-1", phase="Pending", region="westus3"}'
+    values: "1+0x10"
+  - series: 'kube_pod_status_phase{job="kube-state-metrics", cluster="mgmt-pending-age", namespace="ocm-prod-mixed", pod="router-mixed-2", phase="Pending", region="westus3"}'
+    values: "1+0x10"
+  - series: 'kube_pod_status_phase{job="kube-state-metrics", cluster="mgmt-pending-age", namespace="ocm-prod-mixed", pod="router-mixed-3", phase="Pending", region="westus3"}'
+    values: "1+0x10"
+  promql_expr_test:
+  - expr: 'count(max by (cluster, namespace, region) (router:startup_latency:seconds{cluster="mgmt-pending-age", namespace=~"ocm-prod-.*"}) > 300) or (0 * count(swift_router_replicas:configured{cluster="mgmt-pending-age"}))'
+    eval_time: 10m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+# Test 24: Healthy router inventory supplies zero when there are no Pending pods.
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", cluster="mgmt-pending-healthy", namespace="ocm-prod-healthy", deployment="router"}'
+    values: "3+0x10"
+  promql_expr_test:
+  - expr: 'count(max by (cluster, namespace, region) (router:startup_latency:seconds{cluster="mgmt-pending-healthy", namespace=~"ocm-prod-.*"}) > 300) or (0 * count(swift_router_replicas:configured{cluster="mgmt-pending-healthy"}))'
+    eval_time: 10m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+# Test 25: No router inventory means no dashboard result, not a healthy zero.
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: 'count(max by (cluster, namespace, region) (router:startup_latency:seconds{cluster="mgmt-pending-missing", namespace=~"ocm-prod-.*"}) > 300) or (0 * count(swift_router_replicas:configured{cluster="mgmt-pending-missing"}))'
+    eval_time: 10m
+    exp_samples: []
+# Test 26: Absolute Konnectivity errors remain visible when packet telemetry is absent.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-errors-no-packets", namespace="ocm-prod-abc123", region="westus3"}'
+    values: "0+1x10"
+  promql_expr_test:
+  - expr: 'konnectivity:stream_error_rate:5m{cluster="mgmt-errors-no-packets", namespace="ocm-prod-abc123"}'
+    eval_time: 5m
+    exp_samples: []
+  - expr: 'konnectivity:stream_errors:rate5m{cluster="mgmt-errors-no-packets", namespace="ocm-prod-abc123"} > bool 0'
+    eval_time: 5m
+    exp_samples:
+    - labels: '{cluster="mgmt-errors-no-packets", namespace="ocm-prod-abc123", region="westus3"}'
+      value: 1
+# Test 27: The normalized stream-error ratio may exceed 1 when errors outnumber packets.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-error-ratio", namespace="ocm-prod-abc123"}'
+    values: "0+10x10"
+  - series: 'konnectivity_network_proxy_server_stream_packets_total{cluster="mgmt-error-ratio", namespace="ocm-prod-abc123"}'
+    values: "0+5x10"
+  promql_expr_test:
+  - expr: 'count(konnectivity:stream_error_rate:5m{cluster="mgmt-error-ratio", namespace="ocm-prod-abc123"} > 1)'
+    eval_time: 5m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+# Test 28: Absolute error rate sums distinct error categories from the same pod.
+- interval: 1m
+  input_series:
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-error-categories", namespace="ocm-prod-abc123", region="westus3", pod="konnectivity-0", segment="from_agent", code="error-a", packet_type="DIAL_REQ"}'
+    values: "0+1x10"
+  - series: 'konnectivity_network_proxy_server_stream_errors_total{cluster="mgmt-error-categories", namespace="ocm-prod-abc123", region="westus3", pod="konnectivity-0", segment="to_agent", code="error-b", packet_type="DIAL_RSP"}'
+    values: "0+2x10"
+  promql_expr_test:
+  - expr: 'konnectivity:stream_errors:rate5m{cluster="mgmt-error-categories", namespace="ocm-prod-abc123", region="westus3"} > bool 0.04'
+    eval_time: 5m
+    exp_samples:
+    - labels: '{cluster="mgmt-error-categories", namespace="ocm-prod-abc123", region="westus3"}'
+      value: 1
