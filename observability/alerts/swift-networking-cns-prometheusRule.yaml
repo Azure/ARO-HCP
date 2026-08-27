@@ -1,0 +1,119 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: swift-networking-cns-alert-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # CNS IP Assignment Latency Alerts
+  # ========================================
+  # SLO: CNS IP assignment latency p99 <= 10s over 28 days.
+  # Source: ip_assignment_latency_seconds histogram via CNS PodMonitor.
+  #
+  # Lane: RP services (alerts-rp-services.yaml), not the HCP lane. CNS is a per-node,
+  # per-management-cluster DaemonSet in kube-system, so its metrics are remote-written
+  # to the services Azure Monitor Workspace, not the HCP one. This SLI is fleet/node-scoped
+  # rather than per hosted control plane; see the SWIFT runbook for triage details.
+  - name: arohcp_swift_cns_latency_alerts
+    labels:
+      component: slo
+    rules:
+    - alert: userJourneySwiftCNSLatencyP991h5m
+      expr: |
+        cns:ip_assignment_latency:p99_avg_5m > 10
+        and
+        cns:ip_assignment_latency:p99_avg_1h > 10
+      for: 2m
+      labels:
+        severity: "3"
+        burn_rate_tier: fast
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "CNS IP assignment latency p99 critically elevated (fast burn)"
+        description: "CNS IP assignment latency p99 has exceeded 10s over the last hour and is still elevated. SWIFT secondary NIC assignment is slow. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook's blast-radius triage to narrow scope."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+    - alert: userJourneySwiftCNSLatencyP996h30m
+      expr: |
+        cns:ip_assignment_latency:p99_avg_30m > 10
+        and
+        cns:ip_assignment_latency:p99_avg_6h > 10
+      for: 15m
+      labels:
+        severity: "3"
+        burn_rate_tier: medium
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "CNS IP assignment latency p99 elevated (medium burn)"
+        description: "CNS IP assignment latency p99 has exceeded 10s over the last 6 hours and is still elevated."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+  # ========================================
+  # CNS DaemonSet Availability Alert
+  # ========================================
+  # SLO: CNS daemonset availability >= 99.9% over 28 days.
+  # Source: kube_daemonset_status_number_ready / kube_daemonset_status_desired_number_scheduled
+  # via kube-state-metrics (job="kube-state-metrics") on the management cluster.
+  #
+  # Lane: RP services (alerts-rp-services.yaml) — same reasoning as the CNS latency
+  # alerts above: CNS is a fleet/node-scoped DaemonSet in kube-system, not per-HCP.
+  #
+  # Single slow/3d tier only (no fast/medium tiers): CNS pod restarts are noisy and
+  # self-healing on short timescales, so a fast-burn tier here would mostly just
+  # detect routine daemonset rollout/restart churn rather than a genuine incident.
+  # This mirrors userJourneySwiftLatencyP993d's slow tier (Sev 4, 6h window/6h for).
+  - name: arohcp_swift_cns_availability_alerts
+    labels:
+      component: slo
+    rules:
+    - alert: SwiftCNSAvailability3d
+      expr: cns:daemonset_availability:ratio_avg_6h < 0.999
+      for: 6h
+      labels:
+        severity: "4"
+        burn_rate_tier: slow
+      annotations:
+        summary: "CNS daemonset availability degraded (slow burn — SLO budget on track to exhaust by month end)"
+        description: "CNS daemonset availability has been below 99.9% for an extended period. At current rate the monthly SLO budget will be exhausted before end of month. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook's blast-radius triage to narrow scope."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"
+
+  # ========================================
+  # CNS Pending Programming Alert
+  # ========================================
+  # SLO: 0 sustained IPs in PendingProgramming state.
+  # Source: cx_pending_programming_ips_v2 gauge (see cns/restserver/metrics.go in
+  # Azure/azure-container-networking), scraped unfiltered via the azure-cns PodMonitor.
+  #
+  # Lane: RP services (alerts-rp-services.yaml) — same reasoning as the other CNS
+  # alerts: fleet/node-scoped, not per-HCP.
+  #
+  # This is a raw gauge, not a rate/ratio, so it does not fit the multi-window
+  # burn-rate pattern used elsewhere in this file. Instead it uses a simple
+  # for-duration threshold: sustained > 0 for 5m. The metric carries no app-level
+  # labels, but the PodMonitor scrape attaches pod/instance identity, so this alert
+  # fires per CNS pod (effectively per node), not fleet-summed - responders get the
+  # affected node directly from the alert's `pod` label. This is a genuinely silent
+  # failure mode not covered by any other alert (per the SWIFT runbook), so it is
+  # Sev 3 rather than Sev 4 despite being single-tier, to ensure it's picked up
+  # promptly rather than sitting in a FIFO ticket queue.
+  - name: arohcp_swift_cns_pending_programming_alerts
+    labels:
+      component: slo
+    rules:
+    - alert: SwiftPendingProgramming
+      expr: cx_pending_programming_ips_v2 > 0
+      for: 5m
+      labels:
+        severity: "3"
+      annotations:
+        summary: "CNS IPs stuck in PendingProgramming"
+        description: "IPs have been sustained in PendingProgramming state (reserved from DNC, secondary NIC not yet attached) for at least 5 minutes. This SLI is fleet/node-scoped (not per hosted control plane) - use the runbook's blast-radius triage to narrow scope."
+        runbook_url: "https://aka.ms/arohcp-runbook-swift"

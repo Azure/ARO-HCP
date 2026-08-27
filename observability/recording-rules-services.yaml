@@ -4,5 +4,6 @@ prometheusRules:
   - recording-rules/cluster-provision-slo-recordingRule.yaml
   - recording-rules/userJourneyClusterUpgrade-recordingRule.yaml
   - recording-rules/frontend-slo-recordingRule.yaml
+  - recording-rules/swift-networking-cns-recordingRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRecordingRules.bicep

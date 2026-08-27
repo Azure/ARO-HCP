@@ -17,15 +17,13 @@ resource rpUserjourneyKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/pr
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyKubeApiserverAvailability1h5m'
         enabled: true
         labels: {
@@ -54,15 +52,13 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyKubeApiserverAvailability6h30m'
         enabled: true
         labels: {
@@ -91,15 +87,13 @@ Namespace: {{ $labels.namespace }}
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
+        }]
         alert: 'userJourneyKubeApiserverAvailability3d6h'
         enabled: true
         labels: {
@@ -134,233 +128,225 @@ Namespace: {{ $labels.namespace }}
   }
 }
 
-resource hcpEtcdGrpcLatencyAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'hcp-etcd-grpc-latency-alerts'
+resource arohcpSwiftNetworkingAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_networking_alerts'
   location: location
   properties: {
     interval: 'PT1M'
     rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
-        alert: 'userJourneyEtcdReadLatencyP991h5m'
+        }]
+        alert: 'userJourneySwiftLatencyP991h5m'
         enabled: true
         labels: {
-          component: 'etcd'
+          burn_rate_tier: 'fast'
+          component: 'slo'
           long_window: '1h'
           severity: '3'
           short_window: '5m'
-          slo: 'etcd-grpc-read-latency'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdReadLatencyP99/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''etcd gRPC Range (read) P99 latency has exceeded 500ms in both the 1h and 5m windows.
-Management Cluster: {{ $labels.cluster }}
-Namespace: {{ $labels.namespace }}
-'''
-          info: '''etcd gRPC Range (read) P99 latency has exceeded 500ms in both the 1h and 5m windows.
-Management Cluster: {{ $labels.cluster }}
-Namespace: {{ $labels.namespace }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
-          summary: '[userJourneyEtcdReadLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (1h/5m)'
-          title: '[userJourneyEtcdReadLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (1h/5m)'
+          correlationId: 'userJourneySwiftLatencyP991h5m/{{ $labels.cluster }}'
+          description: 'Router pod startup latency p99 has exceeded 300s over the last hour and is still elevated. SWIFT secondary NIC assignment is stalled.'
+          info: 'Router pod startup latency p99 has exceeded 300s over the last hour and is still elevated. SWIFT secondary NIC assignment is stalled.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'SWIFT router pod startup latency p99 critically elevated (fast burn)'
+          title: 'SWIFT router pod startup latency p99 critically elevated (fast burn)'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Range",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[1h]))) > 0.5) and (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Range",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[5m]))) > 0.5)'
+        expression: 'router:startup_latency:p99_avg_5m > 300 and router:startup_latency:p99_avg_1h > 300'
         for: 'PT2M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
-        alert: 'userJourneyEtcdReadLatencyP996h30m'
+        }]
+        alert: 'userJourneySwiftLatencyP996h30m'
         enabled: true
         labels: {
-          component: 'etcd'
+          burn_rate_tier: 'medium'
+          component: 'slo'
           long_window: '6h'
           severity: '3'
           short_window: '30m'
-          slo: 'etcd-grpc-read-latency'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdReadLatencyP99/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''etcd gRPC Range (read) P99 latency has exceeded 500ms in both the 6h and 30m windows.
-Management Cluster: {{ $labels.cluster }}
-Namespace: {{ $labels.namespace }}
-'''
-          info: '''etcd gRPC Range (read) P99 latency has exceeded 500ms in both the 6h and 30m windows.
-Management Cluster: {{ $labels.cluster }}
-Namespace: {{ $labels.namespace }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
-          summary: '[userJourneyEtcdReadLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (6h/30m)'
-          title: '[userJourneyEtcdReadLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (6h/30m)'
+          correlationId: 'userJourneySwiftLatencyP996h30m/{{ $labels.cluster }}'
+          description: 'Router pod startup latency p99 has exceeded 300s over the last 6 hours and is still elevated.'
+          info: 'Router pod startup latency p99 has exceeded 300s over the last 6 hours and is still elevated.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'SWIFT router pod startup latency p99 elevated (medium burn)'
+          title: 'SWIFT router pod startup latency p99 elevated (medium burn)'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Range",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[6h]))) > 0.5) and (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Range",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[30m]))) > 0.5)'
-        for: 'PT5M'
+        expression: 'router:startup_latency:p99_avg_30m > 300 and router:startup_latency:p99_avg_6h > 300'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
-        alert: 'userJourneyEtcdReadLatencyP993d6h'
+        }]
+        alert: 'userJourneySwiftLatencyP993d'
         enabled: true
         labels: {
-          component: 'etcd'
-          long_window: '3d'
+          burn_rate_tier: 'slow'
+          component: 'slo'
           severity: '4'
-          short_window: '6h'
-          slo: 'etcd-grpc-read-latency'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdReadLatencyP99/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''etcd gRPC Range (read) P99 latency has exceeded 500ms over 3d/6h windows.
-Management Cluster: {{ $labels.cluster }}
-Namespace: {{ $labels.namespace }}
-'''
-          info: '''etcd gRPC Range (read) P99 latency has exceeded 500ms over 3d/6h windows.
-Management Cluster: {{ $labels.cluster }}
-Namespace: {{ $labels.namespace }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
-          summary: '[userJourneyEtcdReadLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (3d/6h)'
-          title: '[userJourneyEtcdReadLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (3d/6h)'
+          correlationId: 'userJourneySwiftLatencyP993d/{{ $labels.cluster }}'
+          description: 'Router pod startup latency p99 has been elevated for an extended period. At current rate the monthly SLO budget will be exhausted before end of month.'
+          info: 'Router pod startup latency p99 has been elevated for an extended period. At current rate the monthly SLO budget will be exhausted before end of month.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'SWIFT router pod startup latency p99 elevated (slow burn — SLO budget on track to exhaust by month end)'
+          title: 'SWIFT router pod startup latency p99 elevated (slow burn — SLO budget on track to exhaust by month end)'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Range",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[3d]))) > 0.5) and (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Range",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[6h]))) > 0.5)'
-        for: 'PT3H'
+        expression: 'router:startup_latency:p99_avg_6h > 300'
+        for: 'PT6H'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpSwiftKonnectivityAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_swift_konnectivity_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
-        alert: 'userJourneyEtcdWriteLatencyP991h5m'
+        }]
+        alert: 'userJourneySwiftKonnectivityErrors1h5m'
         enabled: true
         labels: {
-          component: 'etcd'
+          burn_rate_tier: 'fast'
+          component: 'slo'
           long_window: '1h'
           severity: '3'
           short_window: '5m'
-          slo: 'etcd-grpc-write-latency'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdWriteLatencyP99/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''etcd gRPC Txn (write) P99 latency has exceeded 500ms in both the 1h and 5m windows.
-Management Cluster: {{ $labels.cluster }}
-Namespace: {{ $labels.namespace }}
-'''
-          info: '''etcd gRPC Txn (write) P99 latency has exceeded 500ms in both the 1h and 5m windows.
-Management Cluster: {{ $labels.cluster }}
-Namespace: {{ $labels.namespace }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
-          summary: '[userJourneyEtcdWriteLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (1h/5m)'
-          title: '[userJourneyEtcdWriteLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (1h/5m)'
+          correlationId: 'userJourneySwiftKonnectivityErrors1h5m/{{ $labels.cluster }}'
+          description: 'Konnectivity tunnel stream error rate has exceeded 1% over the last hour and is still elevated. KAS-to-node communication may be degraded.'
+          info: 'Konnectivity tunnel stream error rate has exceeded 1% over the last hour and is still elevated. KAS-to-node communication may be degraded.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'Konnectivity tunnel error rate elevated (fast burn)'
+          title: 'Konnectivity tunnel error rate elevated (fast burn)'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Txn",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[1h]))) > 0.5) and (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Txn",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[5m]))) > 0.5)'
+        expression: 'konnectivity:stream_error_rate:avg_5m > 0.01 and konnectivity:stream_error_rate:avg_1h > 0.01'
         for: 'PT2M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
-        alert: 'userJourneyEtcdWriteLatencyP996h30m'
+        }]
+        alert: 'userJourneySwiftKonnectivityErrors6h30m'
         enabled: true
         labels: {
-          component: 'etcd'
+          burn_rate_tier: 'medium'
+          component: 'slo'
           long_window: '6h'
           severity: '3'
           short_window: '30m'
-          slo: 'etcd-grpc-write-latency'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdWriteLatencyP99/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''etcd gRPC Txn (write) P99 latency has exceeded 500ms in both the 6h and 30m windows.
-Management Cluster: {{ $labels.cluster }}
-Namespace: {{ $labels.namespace }}
-'''
-          info: '''etcd gRPC Txn (write) P99 latency has exceeded 500ms in both the 6h and 30m windows.
-Management Cluster: {{ $labels.cluster }}
-Namespace: {{ $labels.namespace }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
-          summary: '[userJourneyEtcdWriteLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (6h/30m)'
-          title: '[userJourneyEtcdWriteLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (6h/30m)'
+          correlationId: 'userJourneySwiftKonnectivityErrors6h30m/{{ $labels.cluster }}'
+          description: 'Konnectivity tunnel stream error rate has exceeded 1% over the last 6 hours and is still elevated.'
+          info: 'Konnectivity tunnel stream error rate has exceeded 1% over the last 6 hours and is still elevated.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'Konnectivity tunnel error rate elevated (medium burn)'
+          title: 'Konnectivity tunnel error rate elevated (medium burn)'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Txn",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[6h]))) > 0.5) and (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Txn",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[30m]))) > 0.5)'
-        for: 'PT5M'
+        expression: 'konnectivity:stream_error_rate:avg_30m > 0.01 and konnectivity:stream_error_rate:avg_6h > 0.01'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
-        ]
-        alert: 'userJourneyEtcdWriteLatencyP993d6h'
+        }]
+        alert: 'userJourneySwiftKonnectivityDialFailures1h5m'
         enabled: true
         labels: {
-          component: 'etcd'
-          long_window: '3d'
-          severity: '4'
-          short_window: '6h'
-          slo: 'etcd-grpc-write-latency'
+          burn_rate_tier: 'fast'
+          component: 'slo'
+          long_window: '1h'
+          severity: '3'
+          short_window: '5m'
         }
         annotations: {
-          correlationId: 'userJourneyEtcdWriteLatencyP99/{{ $labels.cluster }}/{{ $labels.namespace }}'
-          description: '''etcd gRPC Txn (write) P99 latency has exceeded 500ms over 3d/6h windows.
-Management Cluster: {{ $labels.cluster }}
-Namespace: {{ $labels.namespace }}
-'''
-          info: '''etcd gRPC Txn (write) P99 latency has exceeded 500ms over 3d/6h windows.
-Management Cluster: {{ $labels.cluster }}
-Namespace: {{ $labels.namespace }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-etcd'
-          summary: '[userJourneyEtcdWriteLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (3d/6h)'
-          title: '[userJourneyEtcdWriteLatencyP99] {{ $labels.cluster }} / {{ $labels.namespace }} P99 > 500ms (3d/6h)'
+          correlationId: 'userJourneySwiftKonnectivityDialFailures1h5m/{{ $labels.cluster }}'
+          description: 'Konnectivity server dial failure rate has exceeded 1%. KAS cannot establish connections to worker nodes.'
+          info: 'Konnectivity server dial failure rate has exceeded 1%. KAS cannot establish connections to worker nodes.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'Konnectivity dial failure rate elevated (fast burn)'
+          title: 'Konnectivity dial failure rate elevated (fast burn)'
         }
-        expression: '(histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Txn",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[3d]))) > 0.5) and (histogram_quantile(0.99, sum by (namespace, cluster, le) (rate(grpc_server_handling_seconds_bucket{grpc_method="Txn",grpc_service="etcdserverpb.KV",namespace=~"ocm-.*"}[6h]))) > 0.5)'
-        for: 'PT3H'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+        expression: 'konnectivity:dial_failure_rate:avg_5m > 0.01 and konnectivity:dial_failure_rate:avg_1h > 0.01'
+        for: 'PT2M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
+        alert: 'userJourneySwiftKonnectivityDialFailures6h30m'
+        enabled: true
+        labels: {
+          burn_rate_tier: 'medium'
+          component: 'slo'
+          long_window: '6h'
+          severity: '3'
+          short_window: '30m'
+        }
+        annotations: {
+          correlationId: 'userJourneySwiftKonnectivityDialFailures6h30m/{{ $labels.cluster }}'
+          description: 'Konnectivity server dial failure rate has exceeded 1% over the last 6 hours.'
+          info: 'Konnectivity server dial failure rate has exceeded 1% over the last 6 hours.'
+          runbook_url: 'https://aka.ms/arohcp-runbook-swift'
+          summary: 'Konnectivity dial failure rate elevated (medium burn)'
+          title: 'Konnectivity dial failure rate elevated (medium burn)'
+        }
+        expression: 'konnectivity:dial_failure_rate:avg_30m > 0.01 and konnectivity:dial_failure_rate:avg_6h > 0.01'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
