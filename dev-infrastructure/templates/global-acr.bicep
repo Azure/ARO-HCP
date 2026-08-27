@@ -42,6 +42,12 @@ param ocpAcrLogAnalyticsWorkspaceSku string = 'PerGB2018'
 @maxValue(730)
 param ocpAcrLogAnalyticsWorkspaceRetentionInDays int = 90
 
+@description('Enable the ACR overview dashboard (request volume, result codes, top repositories, latency, and 429 throttling) for the OCP ACR. Requires ocpAcrDiagnosticSettingsEnabled.')
+param ocpAcrOverviewDashboardEnabled bool = false
+
+@description('Name of the Azure portal dashboard resource for OCP ACR overview/throttling visibility')
+param ocpAcrOverviewDashboardName string = ''
+
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: globalMSIName
 }
@@ -287,3 +293,16 @@ module ocpAcrDiagnosticSettings '../modules/acr/diagnostic-settings.bicep' = if 
     ocpAcr
   ]
 }
+
+module ocpAcrOverviewDashboard '../modules/monitor/acr-dashboard.bicep' = if (ocpAcrOverviewDashboardEnabled) {
+  // Same rationale as ocpAcrLogAnalyticsWorkspace/ocpAcrDiagnosticSettings
+  // above: one shared dashboard for the shared ACR, not one per environment.
+  name: '${ocpAcrName}-overview-dashboard'
+  params: {
+    dashboardName: ocpAcrOverviewDashboardName
+    location: location
+    dashboardTitle: 'ACR ${ocpAcrName} Overview'
+    logAnalyticsWorkspaceId: ocpAcrLogAnalyticsWorkspace!.outputs.workspaceId
+  }
+}
+
