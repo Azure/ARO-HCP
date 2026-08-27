@@ -16,6 +16,7 @@ package versionrollout
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,6 +35,10 @@ func TestEligibleClusters(t *testing.T) {
 	t.Parallel()
 	best := *v("4.21.6")
 
+	// has-exact would be eligible (below best, unpinned) but its backing cluster
+	// carries an experimental exact version, so the forced controller owns it.
+	hasExact := newTestSPC("has-exact", v("4.21.4"), nil, nil)
+
 	spcs := []*coreapi.ServiceProviderCluster{
 		newTestSPC("below", v("4.21.4"), nil, nil),                           // eligible: below, unpinned
 		newTestSPC("at-best", v("4.21.6"), nil, nil),                         // not eligible: already at best
@@ -42,9 +47,14 @@ func TestEligibleClusters(t *testing.T) {
 		newTestSPC("pin-release", v("4.21.4"), nil, pin("4.21.2", "4.21.6")), // eligible: pin releases at best
 		newTestSPC("pin-hold", v("4.21.4"), nil, pin("4.21.2", "4.21.9")),    // not eligible: pin still holds
 		newTestSPC("pin-forever", v("4.21.4"), nil, pin("4.21.2", "")),       // not eligible: no release version
+		hasExact, // not eligible: experimental exact version
 	}
 
-	eligible := eligibleClusters(spcs, best)
+	clustersWithExactVersion := map[string]bool{
+		strings.ToLower(hasExact.ResourceID.Parent.String()): true,
+	}
+
+	eligible := eligibleClusters(spcs, best, clustersWithExactVersion)
 
 	names := map[string]bool{}
 	for _, serviceProviderCluster := range eligible {
@@ -57,6 +67,7 @@ func TestEligibleClusters(t *testing.T) {
 	assert.False(t, names["above"])
 	assert.False(t, names["pin-hold"])
 	assert.False(t, names["pin-forever"])
+	assert.False(t, names["has-exact"], "cluster with experimental exact version is excluded")
 	assert.Len(t, eligible, 3)
 }
 
