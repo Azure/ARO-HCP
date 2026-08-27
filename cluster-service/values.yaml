@@ -165,6 +165,10 @@ oidcIssuerBaseUrl: "__oidcIssuerBaseUrl__"
 tlsCertificatesIssuer: "{{ .clustersService.azureRuntimeConfig.tlsCertificatesIssuer }}"
 # tls certificates enabled  indicates whether TLS certificates are enabled or disabled for Ingress and Kube API Server.
 tlsCertificatesEnabled: true
+# The document endpoint (URL) of the RP Cosmos DB account shared with Cluster Service, e.g. https://<account>.documents.azure.com:443/
+cosmosDatabaseUrl: "__cosmosDBDocumentEndpoint__"
+# The name of the Cosmos DB database accessed by Cluster Service.
+cosmosDatabaseName: "{{ .frontend.cosmosDB.name }}"
 # Temporary deny assignment feature flag
 denyAssignments: "{{ .clustersService.denyAssignments }}"
 # The client id of the service principal that represents the Clusters Service ARM Helper Identity.
