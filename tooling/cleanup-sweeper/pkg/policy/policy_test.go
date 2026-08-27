@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/yaml"
 )
 
@@ -65,6 +66,67 @@ rgOrdered:
 	}
 	if got := rule.Conditions.TagsEq["persist"]; got != "TRUE" {
 		t.Fatalf("expected normalized persist tag value TRUE, got %q", got)
+	}
+}
+
+func TestRepositoryPolicyProtectsIdentityContainerPools(t *testing.T) {
+	t.Parallel()
+
+	pol, err := Load("../../resourcegroups.policy.yaml")
+	if err != nil {
+		t.Fatalf("failed to load repository policy: %v", err)
+	}
+	if err := pol.Validate(); err != nil {
+		t.Fatalf("failed to validate repository policy: %v", err)
+	}
+
+	now := time.Date(2026, time.September, 12, 12, 0, 0, 0, time.UTC)
+	excluded := sets.New(pol.RGOrdered.ExcludedResourceGroups...)
+
+	testCases := []struct {
+		name           string
+		resourceGroup  string
+		expectSelected bool
+		expectRule     string
+	}{
+		{
+			name:           "identity container older than 15 days is skipped case insensitively",
+			resourceGroup:  "ARO-HCP-MSI-Container-dev-shard0-00-00",
+			expectSelected: false,
+			expectRule:     "skip-identity-container-pools",
+		},
+		{
+			name:           "unrelated persistent group older than 15 days is selected",
+			resourceGroup:  "example-persistent-resource-group",
+			expectSelected: true,
+			expectRule:     "persist-true-delete-after-15d",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			resourceGroup := newResourceGroup(
+				tc.resourceGroup,
+				timePtr(now.Add(-16*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			)
+			selected, reason := pol.RGOrdered.Discovery.SelectsResourceGroup(
+				resourceGroup,
+				excluded,
+				sets.New[string](),
+				now,
+			)
+
+			if selected != tc.expectSelected {
+				t.Fatalf("expected selected=%t, got selected=%t", tc.expectSelected, selected)
+			}
+			if reason.Rule == nil || reason.Rule.Name != tc.expectRule {
+				t.Fatalf("expected rule %q, got %#v", tc.expectRule, reason.Rule)
+			}
+		})
 	}
 }
 
