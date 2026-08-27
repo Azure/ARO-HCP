@@ -156,13 +156,10 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 		func(d *kubeapplierapi.ReadDesire) []metav1.Condition { return d.Status.Conditions },
 	)...)
 
-	aggregated := statusutils.UnionCondition(
-		statusutils.DegradedConditionType,
-		metav1.ConditionFalse,
-		c.inertia,
-		c.clock.Now(),
-		sources...,
-	)
+	// observed is true when the cluster has controllers, so an all-healthy
+	// cluster reports Degraded=False/AsExpected instead of Unknown/NoData (the
+	// latter is reserved for a cluster with no controllers at all).
+	aggregated := statusutils.DegradedFromSources(c.inertia, c.clock.Now(), len(controllers) > 0, sources...)
 
 	replacement := existing.DeepCopy()
 	apimeta.SetStatusCondition(&replacement.Status.Conditions, aggregated)

@@ -107,14 +107,15 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 			expectMessage: "",
 		},
 		{
-			name: "all-good aggregate",
+			name: "all-good aggregate: healthy controller omitted from message",
 			controllers: []*coreapi.Controller{
 				statusutils.ControllerUnder(parentResourceID, "AController", metav1.ConditionFalse, "NoErrors", "fine", 1*time.Minute),
 			},
-			inertia:       thirtySecondInertia,
-			expectStatus:  metav1.ConditionFalse,
-			expectReason:  "AsExpected",
-			expectMessage: "AController: fine",
+			inertia:      thirtySecondInertia,
+			expectStatus: metav1.ConditionFalse,
+			expectReason: "AsExpected",
+			// Healthy controllers are no longer emitted as sources -> empty-but-observed.
+			expectMessage: "All is well",
 		},
 		{
 			name: "bad controller within 30s inertia stays hidden",
@@ -177,12 +178,12 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 					Type:    statusutils.DegradedConditionType,
 					Status:  metav1.ConditionFalse,
 					Reason:  "AsExpected",
-					Message: "AController: fine",
+					Message: "All is well",
 				},
 			},
 			expectStatus:  metav1.ConditionFalse,
 			expectReason:  "AsExpected",
-			expectMessage: "AController: fine",
+			expectMessage: "All is well",
 		},
 	}
 

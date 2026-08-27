@@ -15,6 +15,8 @@
 package statusutils
 
 import (
+	"time"
+
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -39,12 +41,21 @@ const DegradedConditionType = "Degraded"
 // to controllerutils.WriteController, so it is a stable identifier of the
 // producing subsystem.
 //
-// Two shapes are produced:
-//   - Controller reports any Degraded condition (True, False, or Unknown):
-//     passed through untouched. The condition's own LastTransitionTime
-//     drives inertia, and Unknown ends up counted as bad by UnionCondition
-//     because it is not the default ConditionFalse. The aggregator forgets
-//     any prior missing-observation entry for this controller.
+// Only degraded controllers are emitted as sources — successful controllers
+// are omitted so they do not clutter the aggregated Degraded message. This
+// changes reporting only, not detection: Unknown still counts as bad and a
+// missing condition is still synthesized as degraded.
+//
+// Three shapes are produced:
+//   - Controller reports Degraded=True or Unknown: passed through untouched.
+//     The condition's own LastTransitionTime drives inertia, and Unknown ends
+//     up counted as bad by UnionCondition because it is not the default
+//     ConditionFalse. The aggregator forgets any prior missing-observation
+//     entry for this controller.
+//   - Controller reports Degraded=False (healthy/successful): NOT emitted as a
+//     source, so it never appears in the aggregated message. Its prior
+//     missing-observation entry is still forgotten so a later flap starts its
+//     inertia fresh.
 //   - Controller has no Degraded condition at all: synthesized as
 //     Degraded=True with reason MissingDegradedCondition. The synthesized
 //     LastTransitionTime is the first-observed-bad time from the in-memory
@@ -68,6 +79,11 @@ func CollectDegradedConditions(controllers []*coreapi.Controller, firstObservedB
 			// prior missing-observation entry so a future "condition disappeared"
 			// case starts its inertia fresh.
 			firstObservedBad.forget(ridString)
+			if cond.Status == metav1.ConditionFalse {
+				// Healthy/successful controller: no longer emitted as a source so
+				// it does not appear in the aggregated Degraded message.
+				continue
+			}
 			out = append(out, SourcedCondition{
 				ControllerName: controllerName,
 				Condition:      *cond,
@@ -146,4 +162,34 @@ func CollectDegradedDesireConditions[T coreapi.CosmosMetadataAccessor](
 		})
 	}
 	return out
+}
+
+// DegradedFromSources aggregates Degraded SourcedConditions exactly like
+// UnionCondition (conditionType=DegradedConditionType, defaultStatus=
+// ConditionFalse), with one refinement for the empty case.
+//
+// Now that CollectDegradedConditions no longer emits healthy (ConditionFalse)
+// controllers as sources, a parent whose controllers are all healthy produces
+// zero Degraded sources — which UnionCondition reports as Unknown/NoData
+// ("no data"). That is correct when nothing was observed, but wrong for a
+// parent we HAVE observed and found entirely healthy. The observed flag
+// distinguishes the two: when it is true and there are no degraded sources,
+// the result is an explicit not-degraded condition (ConditionFalse /
+// AsExpected / "All is well") instead of Unknown/NoData.
+//
+// observed should reflect whether any Degraded-reporting objects (controllers)
+// existed for the parent, so a parent with genuinely no controllers still
+// reports Unknown/NoData. This wraps UnionCondition rather than modifying it,
+// so every other UnionCondition caller is unaffected.
+func DegradedFromSources(inertia Inertia, now time.Time, observed bool, sources ...SourcedCondition) metav1.Condition {
+	aggregated := UnionCondition(DegradedConditionType, metav1.ConditionFalse, inertia, now, sources...)
+	if observed && aggregated.Status == metav1.ConditionUnknown && aggregated.Reason == "NoData" {
+		return metav1.Condition{
+			Type:    DegradedConditionType,
+			Status:  metav1.ConditionFalse,
+			Reason:  "AsExpected",
+			Message: "All is well",
+		}
+	}
+	return aggregated
 }

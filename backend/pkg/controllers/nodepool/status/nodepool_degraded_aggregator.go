@@ -21,7 +21,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
@@ -106,11 +105,13 @@ func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controlle
 		return utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
 	}
 
-	aggregated := statusutils.UnionCondition(
-		statusutils.DegradedConditionType,
-		metav1.ConditionFalse,
+	// observed is true when the node pool has controllers, so an all-healthy
+	// node pool reports Degraded=False/AsExpected instead of Unknown/NoData
+	// (the latter is reserved for a node pool with no controllers at all).
+	aggregated := statusutils.DegradedFromSources(
 		c.inertia,
 		c.clock.Now(),
+		len(controllers) > 0,
 		statusutils.CollectDegradedConditions(controllers, c.firstObservedBad)...,
 	)
 

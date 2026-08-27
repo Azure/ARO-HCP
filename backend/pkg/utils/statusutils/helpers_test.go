@@ -93,11 +93,11 @@ func TestCollectDegradedConditions(t *testing.T) {
 			expected: []expectation{{controllerName: "A", status: metav1.ConditionTrue, reason: "Failed"}},
 		},
 		{
-			name: "Degraded=False passes through",
+			name: "Degraded=False (healthy) is omitted",
 			controllers: []*coreapi.Controller{
 				buildController(t, "A", degradedFalse),
 			},
-			expected: []expectation{{controllerName: "A", status: metav1.ConditionFalse, reason: "NoErrors"}},
+			expected: nil,
 		},
 		{
 			name: "Degraded=Unknown passes through unchanged (real LastTransitionTime, original reason)",
@@ -121,16 +121,15 @@ func TestCollectDegradedConditions(t *testing.T) {
 			expected: []expectation{{controllerName: "A", status: metav1.ConditionTrue, reason: reasonMissingDegraded, useFirstObservedTime: true}},
 		},
 		{
-			name: "mix: real conditions and missing controllers each get their own entry",
+			name: "mix: healthy controller omitted; degraded (True) and missing-condition still reported",
 			controllers: []*coreapi.Controller{
 				buildController(t, "A", degradedTrue),
-				buildController(t, "B", availableTrue),
-				buildController(t, "C", degradedFalse),
+				buildController(t, "B", availableTrue), // no Degraded condition -> synthesized as degraded
+				buildController(t, "C", degradedFalse), // healthy -> omitted from sources
 			},
 			expected: []expectation{
 				{controllerName: "A", status: metav1.ConditionTrue, reason: "Failed"},
 				{controllerName: "B", status: metav1.ConditionTrue, reason: reasonMissingDegraded, useFirstObservedTime: true},
-				{controllerName: "C", status: metav1.ConditionFalse, reason: "NoErrors"},
 			},
 		},
 		{
@@ -280,5 +279,37 @@ func TestCollectDegradedDesireConditions(t *testing.T) {
 
 	t.Run("empty input -> empty output", func(t *testing.T) {
 		assert.Empty(t, CollectDegradedDesireConditions(ApplyDesireSourcePrefix, nil, applyConds))
+	})
+}
+
+func TestDegradedFromSources(t *testing.T) {
+	inertia := MustNewInertia(30 * time.Second).Inertia
+
+	t.Run("observed but no degraded sources -> explicit not-degraded (All is well)", func(t *testing.T) {
+		// This is the all-healthy case: healthy controllers are no longer emitted
+		// as sources, so DegradedFromSources sees none. It must still report
+		// not-degraded rather than UnionCondition's Unknown/NoData.
+		got := DegradedFromSources(inertia, FixedNow, true)
+		assert.Equal(t, DegradedConditionType, got.Type)
+		assert.Equal(t, metav1.ConditionFalse, got.Status)
+		assert.Equal(t, "AsExpected", got.Reason)
+		assert.Equal(t, "All is well", got.Message)
+	})
+
+	t.Run("not observed and no sources -> Unknown/NoData (delegates to UnionCondition)", func(t *testing.T) {
+		got := DegradedFromSources(inertia, FixedNow, false)
+		assert.Equal(t, metav1.ConditionUnknown, got.Status)
+		assert.Equal(t, "NoData", got.Reason)
+	})
+
+	t.Run("degraded source past inertia -> True (delegates to UnionCondition)", func(t *testing.T) {
+		src := SourcedCondition{
+			ControllerName: "AController",
+			Condition:      DegradedConditionAged(metav1.ConditionTrue, "Failed", "boom", time.Minute),
+		}
+		got := DegradedFromSources(inertia, FixedNow, true, src)
+		assert.Equal(t, metav1.ConditionTrue, got.Status)
+		assert.Equal(t, "AController_Failed", got.Reason)
+		assert.Equal(t, "AController: boom", got.Message)
 	})
 }
