@@ -43,7 +43,7 @@ func ValidateManagementClusterUpdate(ctx context.Context, newObj, oldObj *fleeta
 
 var (
 	toManagementClusterResourceID = func(oldObj *fleetapi.ManagementCluster) *azcorearm.ResourceID {
-		return oldObj.CosmosMetadata.ResourceID
+		return oldObj.ResourceID
 	}
 	toManagementClusterSpec   = func(oldObj *fleetapi.ManagementCluster) *fleetapi.ManagementClusterSpec { return &oldObj.Spec }
 	toManagementClusterStatus = func(oldObj *fleetapi.ManagementCluster) *fleetapi.ManagementClusterStatus { return &oldObj.Status }
@@ -56,10 +56,10 @@ func validateManagementCluster(ctx context.Context, op operation.Operation, newO
 
 	// ResourceID is sourced from the embedded CosmosMetadata.ResourceID. It is
 	// still surfaced under the "resourceId" field path in validation errors.
-	errs = append(errs, validate.RequiredPointer(ctx, op, field.NewPath("resourceId"), newObj.CosmosMetadata.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
-	errs = append(errs, immutableByReflect(ctx, op, field.NewPath("resourceId"), newObj.CosmosMetadata.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
-	if newObj.CosmosMetadata.ResourceID != nil && newObj.CosmosMetadata.ResourceID.Parent != nil {
-		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("resourceId", "parent", "name"), &newObj.CosmosMetadata.ResourceID.Parent.Name, nil, stampIdentifierRegex, "must be 1-3 lowercase alphanumeric characters")...)
+	errs = append(errs, validate.RequiredPointer(ctx, op, field.NewPath("resourceId"), newObj.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
+	errs = append(errs, immutableByReflect(ctx, op, field.NewPath("resourceId"), newObj.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
+	if newObj.ResourceID != nil && newObj.ResourceID.Parent != nil {
+		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("resourceId", "parent", "name"), &newObj.ResourceID.Parent.Name, nil, stampIdentifierRegex, "must be 1-3 lowercase alphanumeric characters")...)
 	}
 
 	// Spec

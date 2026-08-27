@@ -40,7 +40,7 @@ func (l *SliceStampLister) List(ctx context.Context) ([]*fleetapi.Stamp, error) 
 func (l *SliceStampLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.Stamp, error) {
 	key := fleetapi.ToStampResourceIDString(stampIdentifier)
 	for _, s := range l.Stamps {
-		if s.CosmosMetadata.ResourceID != nil && strings.EqualFold(s.CosmosMetadata.ResourceID.String(), key) {
+		if s.ResourceID != nil && strings.EqualFold(s.ResourceID.String(), key) {
 			return s, nil
 		}
 	}

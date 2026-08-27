@@ -583,11 +583,10 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return coreapi.NewInvalidRequestContentError(err)
 	}
-	requestSubscription.CosmosMetadata.ResourceID, err = coreapi.ToSubscriptionResourceID(subscriptionID)
+	requestSubscription.ResourceID, err = coreapi.ToSubscriptionResourceID(subscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	requestSubscription.ResourceID = requestSubscription.CosmosMetadata.ResourceID
 	requestSubscription.SetPartitionKey(subscriptionID)
 
 	validationErrs := validation.ValidateSubscriptionCreate(ctx, &requestSubscription)
