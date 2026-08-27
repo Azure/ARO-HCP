@@ -23,6 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
@@ -63,5 +64,40 @@ func ControllerUnder(parentResourceID *azcorearm.ResourceID, controllerName stri
 				},
 			},
 		},
+	}
+}
+
+// DegradedConditionAged returns a Degraded metav1.Condition of the given
+// status/reason/message whose LastTransitionTime is `age` before FixedNow, so
+// the inertia arithmetic in the aggregator and helper tests is reproducible.
+func DegradedConditionAged(status metav1.ConditionStatus, reason, message string, age time.Duration) metav1.Condition {
+	return metav1.Condition{
+		Type:               DegradedConditionType,
+		Status:             status,
+		Reason:             reason,
+		Message:            message,
+		LastTransitionTime: metav1.NewTime(FixedNow.Add(-age)),
+	}
+}
+
+// ApplyDesireUnder builds a kubeapplierapi.ApplyDesire nested directly under
+// the given cluster resource ID, carrying the supplied conditions. Pass no
+// conditions to model a desire that has not reported a Degraded condition yet.
+func ApplyDesireUnder(parentResourceID *azcorearm.ResourceID, name string, conditions ...metav1.Condition) *kubeapplierapi.ApplyDesire {
+	rid := metadataapi.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + kubeapplierapi.ApplyDesireResourceTypeName + "/" + name))
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
+		Status:         kubeapplierapi.ApplyDesireStatus{Conditions: conditions},
+	}
+}
+
+// ReadDesireUnder builds a kubeapplierapi.ReadDesire nested directly under the
+// given cluster resource ID, carrying the supplied conditions. Pass no
+// conditions to model a desire that has not reported a Degraded condition yet.
+func ReadDesireUnder(parentResourceID *azcorearm.ResourceID, name string, conditions ...metav1.Condition) *kubeapplierapi.ReadDesire {
+	rid := metadataapi.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + kubeapplierapi.ReadDesireResourceTypeName + "/" + name))
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
+		Status:         kubeapplierapi.ReadDesireStatus{Conditions: conditions},
 	}
 }

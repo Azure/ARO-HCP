@@ -90,3 +90,60 @@ func CollectDegradedConditions(controllers []*coreapi.Controller, firstObservedB
 	}
 	return out
 }
+
+// Source-name prefixes for kube-applier desire-sourced Degraded conditions.
+// They namespace a desire's SourcedCondition.ControllerName as
+// "<prefix>/<desireName>" so it stays attributable in the aggregated Degraded
+// reason/message and can never collide with a controller name (a controller
+// name is a bare resource-name segment, which contains no "/").
+const (
+	ApplyDesireSourcePrefix = "applydesire"
+	ReadDesireSourcePrefix  = "readdesire"
+)
+
+// CollectDegradedDesireConditions flattens kube-applier *Desires (ApplyDesire
+// or ReadDesire) into the SourcedCondition form UnionCondition consumes,
+// including ONLY desires that are actually degraded.
+//
+// This differs from CollectDegradedConditions in two deliberate ways:
+//   - A desire is included ONLY when it carries a Degraded condition whose
+//     Status is ConditionTrue. Healthy desires (Degraded=False), desires whose
+//     Degraded condition is Unknown, and desires that have never reported a
+//     Degraded condition all contribute nothing — a successful or
+//     not-yet-reported desire must not surface in the cluster's aggregated
+//     Degraded message.
+//   - Consequently there is no missing-as-degraded synthesis and no
+//     first-observed-bad cache: every included condition brings its own
+//     LastTransitionTime, so it participates in the inertia window naturally.
+//
+// The source name is "<sourcePrefix>/<name>", where name is the trailing
+// segment of the desire's resource ID. conditionsOf extracts the desire's
+// Status.Conditions; it is passed in so this package need not import
+// kubeapplierapi and so one generic body serves both desire types.
+//
+// Desires with a nil ResourceID are skipped — there is no name to attribute
+// them to.
+func CollectDegradedDesireConditions[T coreapi.CosmosMetadataAccessor](
+	sourcePrefix string,
+	desires []T,
+	conditionsOf func(T) []metav1.Condition,
+) []SourcedCondition {
+	out := make([]SourcedCondition, 0, len(desires))
+	for _, desire := range desires {
+		resourceID := desire.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		cond := apimeta.FindStatusCondition(conditionsOf(desire), DegradedConditionType)
+		if cond == nil || cond.Status != metav1.ConditionTrue {
+			// Only actually-degraded desires are reported; skip healthy
+			// (False/Unknown) and never-reported desires.
+			continue
+		}
+		out = append(out, SourcedCondition{
+			ControllerName: sourcePrefix + "/" + resourceID.Name,
+			Condition:      *cond,
+		})
+	}
+	return out
+}

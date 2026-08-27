@@ -26,6 +26,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 // buildController is a tiny helper for table cases. It produces a Controller
@@ -218,4 +220,65 @@ func TestCollectDegradedConditions_RealConditionForgetsCache(t *testing.T) {
 	assert.Len(t, third, 1)
 	assert.True(t, third[0].Condition.LastTransitionTime.Time.Equal(FixedNow.Add(10*time.Minute)),
 		"expected the cache to start fresh after a real condition appeared and then disappeared")
+}
+
+func TestCollectDegradedDesireConditions(t *testing.T) {
+	clusterID := metadataapi.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + TestSubscriptionID +
+			"/resourceGroups/" + TestResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + TestClusterName,
+	))
+
+	applyConds := func(d *kubeapplierapi.ApplyDesire) []metav1.Condition { return d.Status.Conditions }
+	readConds := func(d *kubeapplierapi.ReadDesire) []metav1.Condition { return d.Status.Conditions }
+
+	degraded := DegradedConditionAged(metav1.ConditionTrue, "Failed", "boom", time.Minute)
+	healthy := DegradedConditionAged(metav1.ConditionFalse, "NoErrors", "ok", time.Minute)
+	unknown := DegradedConditionAged(metav1.ConditionUnknown, "Investigating", "hmm", time.Minute)
+	// A non-Degraded condition must not qualify a desire as degraded.
+	otherType := metav1.Condition{Type: kubeapplierapi.ConditionTypeSuccessful, Status: metav1.ConditionFalse, Reason: "PreCheckFailed"}
+
+	t.Run("only Degraded=True ApplyDesires are included, named <prefix>/<name>", func(t *testing.T) {
+		desires := []*kubeapplierapi.ApplyDesire{
+			ApplyDesireUnder(clusterID, "deg", degraded),
+			ApplyDesireUnder(clusterID, "healthy", healthy), // Degraded=False -> skipped
+			ApplyDesireUnder(clusterID, "unknown", unknown), // Degraded=Unknown -> skipped
+			ApplyDesireUnder(clusterID, "other", otherType), // no Degraded condition -> skipped
+			ApplyDesireUnder(clusterID, "no-conditions"),    // never reported -> skipped
+		}
+		got := CollectDegradedDesireConditions(ApplyDesireSourcePrefix, desires, applyConds)
+		if assert.Len(t, got, 1, "only the degraded desire should be included") {
+			assert.Equal(t, "applydesire/deg", got[0].ControllerName)
+			assert.Equal(t, DegradedConditionType, got[0].Condition.Type)
+			assert.Equal(t, metav1.ConditionTrue, got[0].Condition.Status)
+			assert.Equal(t, "Failed", got[0].Condition.Reason)
+			assert.Equal(t, "boom", got[0].Condition.Message)
+			assert.True(t, got[0].Condition.LastTransitionTime.Time.Equal(FixedNow.Add(-time.Minute)),
+				"the desire's own LastTransitionTime must be preserved so inertia applies naturally")
+		}
+	})
+
+	t.Run("desire with a nil ResourceID is skipped", func(t *testing.T) {
+		desires := []*kubeapplierapi.ApplyDesire{
+			{CosmosMetadata: coreapi.CosmosMetadata{}, Status: kubeapplierapi.ApplyDesireStatus{Conditions: []metav1.Condition{degraded}}},
+		}
+		got := CollectDegradedDesireConditions(ApplyDesireSourcePrefix, desires, applyConds)
+		assert.Empty(t, got, "a desire with no ResourceID has no name to attribute and must be skipped")
+	})
+
+	t.Run("Degraded=True ReadDesires are included with the readdesire prefix", func(t *testing.T) {
+		desires := []*kubeapplierapi.ReadDesire{
+			ReadDesireUnder(clusterID, "rd", degraded),
+			ReadDesireUnder(clusterID, "rd-ok", healthy),
+		}
+		got := CollectDegradedDesireConditions(ReadDesireSourcePrefix, desires, readConds)
+		if assert.Len(t, got, 1) {
+			assert.Equal(t, "readdesire/rd", got[0].ControllerName)
+			assert.Equal(t, metav1.ConditionTrue, got[0].Condition.Status)
+		}
+	})
+
+	t.Run("empty input -> empty output", func(t *testing.T) {
+		assert.Empty(t, CollectDegradedDesireConditions(ApplyDesireSourcePrefix, nil, applyConds))
+	})
 }
