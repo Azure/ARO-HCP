@@ -144,8 +144,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 						ResourceID:   subscriptionResourceID,
 						PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 					},
-					ResourceID: subscriptionResourceID,
-					State:      coreapi.SubscriptionStateRegistered,
+					State: coreapi.SubscriptionStateRegistered,
 					Properties: &coreapi.SubscriptionProperties{
 						TenantId: &tenantID,
 					},

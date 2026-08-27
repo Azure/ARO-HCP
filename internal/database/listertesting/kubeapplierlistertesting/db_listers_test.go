@@ -99,7 +99,7 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 	clients.Register(testMgmtID, mock)
 	lister := &fleetlistertesting.SliceManagementClusterLister{
 		ManagementClusters: []*fleetapi.ManagementCluster{
-			{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testMgmtID}, ResourceID: testMgmtID},
+			{CosmosMetadata: coreapi.CosmosMetadata{ResourceID: testMgmtID}},
 		},
 	}
 	l := &kubeapplierlistertesting.DBApplyDesireLister{Clients: clients, Lister: lister}

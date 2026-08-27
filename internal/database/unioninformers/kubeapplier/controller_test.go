@@ -208,7 +208,6 @@ func ctlNewApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *
 func ctlMC(rid *azcorearm.ResourceID) *fleetapi.ManagementCluster {
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.Name)},
-		ResourceID:     rid,
 	}
 }
 

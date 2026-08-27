@@ -56,7 +56,6 @@ func newFakeMC(t *testing.T, stampIdentifier, containerName, consumerName string
 	rid := metadataapi.Must(fleetapi.ToManagementClusterResourceID(stampIdentifier))
 	return &fleetapi.ManagementCluster{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid},
-		ResourceID:     rid,
 		Status: fleetapi.ManagementClusterStatus{
 			KubeApplierCosmosContainerName: containerName,
 			MaestroConsumerName:            consumerName,

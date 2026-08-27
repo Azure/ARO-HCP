@@ -83,7 +83,6 @@ func seedSubscription(t *testing.T, ctx context.Context, mockDB *corecosmosstora
 			ResourceID:   subscriptionRID,
 			PartitionKey: strings.ToLower(subscriptionRID.SubscriptionID),
 		},
-		ResourceID: subscriptionRID,
 		State:      coreapi.SubscriptionStateRegistered,
 		Properties: &coreapi.SubscriptionProperties{TenantId: ptr.To("test-tenant-id")},
 	}, nil)

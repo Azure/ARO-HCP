@@ -419,7 +419,6 @@ func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 			ResourceID:   subscriptionResourceID,
 			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
-		ResourceID:       subscriptionResourceID,
 		State:            coreapi.SubscriptionStateRegistered,
 		RegistrationDate: &registrationDate,
 	}
@@ -917,8 +916,7 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 			ResourceID:   subscriptionResourceID,
 			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
-		ResourceID: subscriptionResourceID,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 	}
 
 	err = mock.addResource(ctx, subscription)
@@ -1007,8 +1005,7 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 			ResourceID:   subscriptionResourceID,
 			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
-		ResourceID: subscriptionResourceID,
-		State:      coreapi.SubscriptionStateRegistered,
+		State: coreapi.SubscriptionStateRegistered,
 	}
 
 	// Create mockResourcesDBClient with all resources

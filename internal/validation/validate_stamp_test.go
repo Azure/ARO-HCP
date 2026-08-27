@@ -33,7 +33,6 @@ func validStamp(t *testing.T) *fleetapi.Stamp {
 		CosmosMetadata: coreapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: resourceID,
 	}
 }
 

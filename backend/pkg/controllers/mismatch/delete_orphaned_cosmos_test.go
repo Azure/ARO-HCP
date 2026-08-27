@@ -190,7 +190,6 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 				mockByMC[strings.ToLower(m.mc.String())] = mock
 				mcFleet = append(mcFleet, &fleetapi.ManagementCluster{
 					CosmosMetadata: coreapi.CosmosMetadata{ResourceID: m.mc, PartitionKey: strings.ToLower(m.mc.SubscriptionID)},
-					ResourceID:     m.mc,
 				})
 			}
 
@@ -228,7 +227,6 @@ func subscription(t *testing.T) *coreapi.Subscription {
 	rid := metadataapi.Must(coreapi.ToSubscriptionResourceID(testSubscriptionID))
 	return &coreapi.Subscription{
 		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
-		ResourceID:     rid,
 		State:          coreapi.SubscriptionStateRegistered,
 	}
 }

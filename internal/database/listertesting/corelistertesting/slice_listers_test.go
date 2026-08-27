@@ -523,7 +523,6 @@ func newTestSubscription(subscriptionID string) *coreapi.Subscription {
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		ResourceID: resourceID,
 	}
 }
 

@@ -122,13 +122,6 @@ type ManagementCluster struct {
 	// every fleet document for one stamp shares this partition key.
 	coreapi.CosmosMetadata `json:"cosmosMetadata"`
 
-	// ResourceID exists to match cosmosMetadata.resourceID until we're able to transition all types to use cosmosMetadata,
-	// at which point we will stop using properties.resourceId in our queries.
-	// Example: "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"
-	//
-	// +required, immutable once set.
-	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
-
 	// Spec contains the desired state of the management cluster
 	Spec ManagementClusterSpec `json:"spec"`
 

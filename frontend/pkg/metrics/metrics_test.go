@@ -43,7 +43,6 @@ func TestSubscriptionCollector(t *testing.T) {
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(subID),
 		},
-		ResourceID:       resourceID,
 		State:            coreapi.SubscriptionStateRegistered,
 		RegistrationDate: metadataapi.Ptr(time.Now().String()),
 	}
