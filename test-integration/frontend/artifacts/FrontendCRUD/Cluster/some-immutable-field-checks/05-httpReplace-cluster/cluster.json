@@ -23,9 +23,10 @@
 					"kms": {
 						"activeKey": {
 							"name": "illegal-change",
-							"vaultName": "illegal-change",
-							"version": "illegal-change"
-						}
+							"version": "2024-12-01-preview"
+						},
+						"vaultName": "illegal-change",
+						"visibility": "Public"
 					}
 				},
 				"keyManagementMode": "CustomerManaged"
@@ -42,7 +43,8 @@
 			"managedResourceGroup": "illegal-change",
 			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/illegal-change",
 			"outboundType": "LoadBalancer",
-			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/illegal-change"
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/illegal-change",
+			"vnetIntegrationSubnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
 		},
 		"version": {
 			"channelGroup": "stable",
