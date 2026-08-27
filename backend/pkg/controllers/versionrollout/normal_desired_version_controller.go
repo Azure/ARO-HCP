@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -102,10 +103,19 @@ func (c *normalClusterDesiredVersionSyncer) CooldownChecker() controllerutil.Coo
 
 // eligibleClusters returns the clusters that may be advanced to best now: those
 // below best (or with no desired version yet) that are either unpinned or pinned
-// with a release threshold at/under best. It is a pure function.
-func eligibleClusters(serviceProviderClusters []*coreapi.ServiceProviderCluster, best semver.Version) []*coreapi.ServiceProviderCluster {
+// with a release threshold at/under best. Clusters whose backing
+// HCPOpenShiftCluster carries an experimental ControlPlaneExactVersion (their
+// lowercased cluster resource ID is in clustersWithExactVersion) are owned by the
+// forced assignment controller and are never advanced here. It is a pure function.
+func eligibleClusters(serviceProviderClusters []*coreapi.ServiceProviderCluster, best semver.Version, clustersWithExactVersion map[string]bool) []*coreapi.ServiceProviderCluster {
 	var eligible []*coreapi.ServiceProviderCluster
 	for _, serviceProviderCluster := range serviceProviderClusters {
+		// The experimental exact-version override is authoritative and managed by
+		// the forced assignment controller; normal rollout must not advance it.
+		if serviceProviderCluster.ResourceID != nil && serviceProviderCluster.ResourceID.Parent != nil &&
+			clustersWithExactVersion[strings.ToLower(serviceProviderCluster.ResourceID.Parent.String())] {
+			continue
+		}
 		desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
 		below := desired == nil || desired.LT(best)
 		if !below {
@@ -122,6 +132,24 @@ func eligibleClusters(serviceProviderClusters []*coreapi.ServiceProviderCluster,
 		}
 	}
 	return eligible
+}
+
+// clustersWithExperimentalExactVersion returns the set of cluster resource IDs
+// (lowercased) whose ExperimentalFeatures.ControlPlaneExactVersion is set. Those
+// clusters are held at that exact version by the forced assignment controller, so
+// normal rollout excludes them from eligibility.
+func (c *normalClusterDesiredVersionSyncer) clustersWithExperimentalExactVersion(ctx context.Context) (map[string]bool, error) {
+	clusters, err := c.clusterLister.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list Clusters: %w", err)
+	}
+	out := map[string]bool{}
+	for _, cluster := range clusters {
+		if cluster.ID != nil && cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion != nil {
+			out[strings.ToLower(cluster.ID.String())] = true
+		}
+	}
+	return out, nil
 }
 
 // rolloutOutcome enumerates the decisions of the normal rollout logic.
@@ -217,9 +245,14 @@ func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 		return utils.TrackError(err)
 	}
 
+	clustersWithExactVersion, err := c.clustersWithExperimentalExactVersion(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	var eligible []*coreapi.ServiceProviderCluster
 	if rollout.Spec.BestExactVersion != nil {
-		eligible = eligibleClusters(serviceProviderClusters, *rollout.Spec.BestExactVersion)
+		eligible = eligibleClusters(serviceProviderClusters, *rollout.Spec.BestExactVersion, clustersWithExactVersion)
 	}
 
 	decision := rolloutDecision(rollout, len(serviceProviderClusters), len(eligible), c.config)

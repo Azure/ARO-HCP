@@ -40,10 +40,14 @@ import (
 const ForcedClusterDesiredVersionControllerName = "ForcedClusterDesiredVersion"
 
 // forcedClusterDesiredVersionSyncer implements the Forced Cluster Desired
-// Version Assignment controller (design §5.2). It only acts on clusters that
-// carry an SRE-set PinnedVersion: it holds the cluster at the pinned exact
-// version until the fleet's bestExactVersion for the cluster's channel reaches
-// the pin's UntilExactVersion, at which point it adopts best and clears the pin.
+// Version Assignment controller (design §5.2). It acts on clusters held at an
+// authoritative version: for an SRE-set PinnedVersion it holds the cluster at the
+// pinned exact version until the fleet's bestExactVersion for the cluster's
+// channel reaches the pin's UntilExactVersion, then adopts best and clears the
+// pin. For an unpinned cluster whose ServiceProviderProperties.ExperimentalFeatures
+// .ControlPlaneExactVersion is set, that exact version is authoritative and the
+// cluster is held at it indefinitely. All other clusters are left to normal
+// rollout assignment.
 type forcedClusterDesiredVersionSyncer struct {
 	clock                        utilsclock.PassiveClock
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
@@ -92,33 +96,51 @@ type forcedDecision struct {
 	ClearPin bool
 }
 
-// computeForcedDesiredVersion decides how a pinned cluster's desired version
-// should change given the fleet best version for its channel (best may be nil if
-// no rollout/best has been computed yet). It is a pure function.
+// computeForcedDesiredVersion decides how a cluster's desired version should
+// change given the fleet best version for its channel (best may be nil if no
+// rollout/best has been computed yet) and the experimental exact-version override
+// evaluated from the cluster (nil when unset). It is a pure function.
+//
+// Precedence: an SRE PinnedVersion takes priority over the experimental
+// ControlPlaneExactVersion. When a cluster is not pinned, the experimental exact
+// version — if set — is authoritative and the cluster is held at it indefinitely
+// (there is no release threshold, unlike a pin). When neither is set this
+// controller does nothing; normal rollout assignment owns the cluster.
 //
 // Deviation from the design doc: in the "still pinned" branch the doc says to set
 // desired to bestExactVersion, but that would defeat the pin; we set it to the
 // pin's ExactVersion instead (tracked as an open question in the plan).
-func computeForcedDesiredVersion(current *coreapi.ServiceProviderCluster, best *semver.Version) forcedDecision {
+func computeForcedDesiredVersion(current *coreapi.ServiceProviderCluster, best *semver.Version, experimentalExactVersion *semver.Version) forcedDecision {
 	pin := current.Spec.PinnedVersion
-	if pin.ExactVersion == nil {
-		// Not pinned: this controller does nothing; normal assignment owns it.
-		return forcedDecision{Changed: false}
-	}
 	desired := current.Spec.ControlPlaneVersion.DesiredVersion
 
-	// Release branch: once the fleet best reaches the pin's release threshold,
-	// adopt best and drop the pin so normal rollout selection resumes.
-	if best != nil && pin.UntilExactVersion != nil && best.GTE(*pin.UntilExactVersion) {
-		return forcedDecision{Changed: true, NewDesired: best, ClearPin: true}
+	if pin.ExactVersion != nil {
+		// Release branch: once the fleet best reaches the pin's release threshold,
+		// adopt best and drop the pin so normal rollout selection resumes.
+		if best != nil && pin.UntilExactVersion != nil && best.GTE(*pin.UntilExactVersion) {
+			return forcedDecision{Changed: true, NewDesired: best, ClearPin: true}
+		}
+
+		// Hold branch: keep the cluster at the pinned exact version.
+		if desired == nil || !desired.EQ(*pin.ExactVersion) {
+			pinned := *pin.ExactVersion
+			return forcedDecision{Changed: true, NewDesired: &pinned}
+		}
+
+		return forcedDecision{Changed: false}
 	}
 
-	// Hold branch: keep the cluster at the pinned exact version.
-	if desired == nil || !desired.EQ(*pin.ExactVersion) {
-		pinned := *pin.ExactVersion
-		return forcedDecision{Changed: true, NewDesired: &pinned}
+	// Not pinned: the experimental exact-version override, when set, is
+	// authoritative and holds the cluster at that version indefinitely.
+	if experimentalExactVersion != nil {
+		if desired == nil || !desired.EQ(*experimentalExactVersion) {
+			exact := *experimentalExactVersion
+			return forcedDecision{Changed: true, NewDesired: &exact}
+		}
+		return forcedDecision{Changed: false}
 	}
 
+	// Neither pinned nor experimentally pinned: normal assignment owns it.
 	return forcedDecision{Changed: false}
 }
 
@@ -131,12 +153,7 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
-	if serviceProviderCluster.Spec.PinnedVersion.ExactVersion == nil {
-		return nil // not pinned; nothing for this controller to do
-	}
 
-	// Resolve the ControlPlaneVersionRollout that governs this pinned cluster
-	// (its y-stream channel = <channelGroup>-<pinned minor>) to read bestExactVersion.
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if cosmosstorageutils.IsNotFoundError(err) {
 		return nil // the cluster is gone; the ServiceProviderCluster will be cleaned up
@@ -144,22 +161,39 @@ func (c *forcedClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
-	channelGroup := cluster.CustomerProperties.Version.ChannelGroup
-	if channelGroup == "" {
-		return utils.TrackError(fmt.Errorf("cluster %s has no channel group", key.HCPClusterName))
-	}
-	yStreamChannel := yStreamChannel(channelGroup, minorString(*serviceProviderCluster.Spec.PinnedVersion.ExactVersion))
 
+	pin := serviceProviderCluster.Spec.PinnedVersion
+	experimentalExactVersion := cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneExactVersion
+
+	// This controller only acts on clusters held at an authoritative version: an
+	// SRE PinnedVersion or the experimental ControlPlaneExactVersion. Otherwise
+	// normal rollout assignment owns the cluster.
+	if pin.ExactVersion == nil && experimentalExactVersion == nil {
+		return nil
+	}
+
+	// The fleet best version is only needed to decide when an SRE pin releases;
+	// the experimental exact-version override holds indefinitely and never reads it.
 	var best *semver.Version
-	rollout, err := c.rolloutLister.Get(ctx, yStreamChannel)
-	if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", yStreamChannel, err))
-	}
-	if err == nil {
-		best = rollout.Spec.BestExactVersion
+	if pin.ExactVersion != nil {
+		// Resolve the ControlPlaneVersionRollout that governs this pinned cluster
+		// (its y-stream channel = <channelGroup>-<pinned minor>) to read bestExactVersion.
+		channelGroup := cluster.CustomerProperties.Version.ChannelGroup
+		if channelGroup == "" {
+			return utils.TrackError(fmt.Errorf("cluster %s has no channel group", key.HCPClusterName))
+		}
+		yStreamChannel := yStreamChannel(channelGroup, minorString(*pin.ExactVersion))
+
+		rollout, err := c.rolloutLister.Get(ctx, yStreamChannel)
+		if err != nil && !cosmosstorageutils.IsNotFoundError(err) {
+			return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", yStreamChannel, err))
+		}
+		if err == nil {
+			best = rollout.Spec.BestExactVersion
+		}
 	}
 
-	decision := computeForcedDesiredVersion(serviceProviderCluster, best)
+	decision := computeForcedDesiredVersion(serviceProviderCluster, best, experimentalExactVersion)
 	if !decision.Changed {
 		return nil
 	}
