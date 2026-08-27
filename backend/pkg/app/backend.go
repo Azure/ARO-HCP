@@ -853,6 +853,17 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		serviceProviderClusterLister,
 		backendInformers,
 	)
+	dataPlaneIdentitiesPermissionsValidationController := clustervalidation.NewClusterValidationController(
+		validationutils.NewDataPlaneIdentitiesPermissionsValidation(
+			b.options.SMIClientBuilder,
+			b.options.ClusterScopedIdentitiesConfig,
+			b.options.BackendIdentityAzureCachedReaders,
+			b.options.CheckAccessV2ClientBuilder,
+		),
+		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
+		backendInformers,
+	)
 
 	nodePoolNSGBasedRequiredConnectivityValidationController := nodepoolvalidation.NewNodePoolValidationController(
 		validationutils.NewAzureNodePoolNSGBasedRequiredConnectivityValidation(b.options.SMIClientBuilder),
@@ -1104,6 +1115,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureNodePoolVMQuotaValidationController.Run(ctx, 20)
 				go controlPlaneIdentitiesPermissionsValidationController.Run(ctx, 20)
 				go nodePoolNSGBasedRequiredConnectivityValidationController.Run(ctx, 20)
+				go dataPlaneIdentitiesPermissionsValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
