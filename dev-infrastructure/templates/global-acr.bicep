@@ -309,4 +309,3 @@ module ocpAcrOverviewDashboard '../modules/monitor/acr-dashboard.bicep' = if (oc
     logAnalyticsWorkspaceId: ocpAcrLogAnalyticsWorkspace!.outputs.workspaceId
   }
 }
-

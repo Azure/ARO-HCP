@@ -192,18 +192,53 @@ resource dashboard 'Microsoft.Portal/dashboards@2022-12-01-preview' = {
             buildMarkdownPart({ x: 0, y: 2, colSpan: 16, rowSpan: 1 }, 'Overview', '### Overview')
           ],
           [
-            buildChartPart({ x: 0, y: 3, colSpan: 8, rowSpan: 4 }, overviewCharts[0], logAnalyticsWorkspaceId, workspaceDisplayName)
-            buildChartPart({ x: 8, y: 3, colSpan: 8, rowSpan: 4 }, overviewCharts[1], logAnalyticsWorkspaceId, workspaceDisplayName)
-            buildChartPart({ x: 0, y: 7, colSpan: 8, rowSpan: 4 }, overviewCharts[2], logAnalyticsWorkspaceId, workspaceDisplayName)
-            buildChartPart({ x: 8, y: 7, colSpan: 8, rowSpan: 4 }, topRepositoriesChart, logAnalyticsWorkspaceId, workspaceDisplayName)
-            buildChartPart({ x: 0, y: 11, colSpan: 16, rowSpan: 4 }, overviewCharts[3], logAnalyticsWorkspaceId, workspaceDisplayName)
+            buildChartPart(
+              { x: 0, y: 3, colSpan: 8, rowSpan: 4 },
+              overviewCharts[0],
+              logAnalyticsWorkspaceId,
+              workspaceDisplayName
+            )
+            buildChartPart(
+              { x: 8, y: 3, colSpan: 8, rowSpan: 4 },
+              overviewCharts[1],
+              logAnalyticsWorkspaceId,
+              workspaceDisplayName
+            )
+            buildChartPart(
+              { x: 0, y: 7, colSpan: 8, rowSpan: 4 },
+              overviewCharts[2],
+              logAnalyticsWorkspaceId,
+              workspaceDisplayName
+            )
+            buildChartPart(
+              { x: 8, y: 7, colSpan: 8, rowSpan: 4 },
+              topRepositoriesChart,
+              logAnalyticsWorkspaceId,
+              workspaceDisplayName
+            )
+            buildChartPart(
+              { x: 0, y: 11, colSpan: 16, rowSpan: 4 },
+              overviewCharts[3],
+              logAnalyticsWorkspaceId,
+              workspaceDisplayName
+            )
           ],
           [
             buildMarkdownPart({ x: 0, y: 15, colSpan: 16, rowSpan: 1 }, 'Throttling', '### Throttling')
           ],
           [
-            buildChartPart({ x: 0, y: 16, colSpan: 8, rowSpan: 4 }, throttlingCharts[0], logAnalyticsWorkspaceId, workspaceDisplayName)
-            buildChartPart({ x: 8, y: 16, colSpan: 8, rowSpan: 4 }, throttlingCharts[1], logAnalyticsWorkspaceId, workspaceDisplayName)
+            buildChartPart(
+              { x: 0, y: 16, colSpan: 8, rowSpan: 4 },
+              throttlingCharts[0],
+              logAnalyticsWorkspaceId,
+              workspaceDisplayName
+            )
+            buildChartPart(
+              { x: 8, y: 16, colSpan: 8, rowSpan: 4 },
+              throttlingCharts[1],
+              logAnalyticsWorkspaceId,
+              workspaceDisplayName
+            )
           ]
         )
       }
