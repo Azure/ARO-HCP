@@ -26,7 +26,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
-      "description": "CPU usage rate (cores) per container. Colored by control plane component.",
+      "description": "CPU usage rate (cores) per container. Colored by control plane component. Shows top 20 consumers; series may shift as workloads change.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -168,7 +168,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod, container) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "expr": "topk(20, sum by (pod, container) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval])))",
           "legendFormat": "{{pod}}/{{container}}",
           "refId": "A"
         }
@@ -181,7 +181,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
-      "description": "How much memory each container is actively using (doesn't include reclaimable cache).",
+      "description": "How much memory each container is actively using (doesn't include reclaimable cache). Shows top 20 consumers; series may shift as workloads change.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -262,7 +262,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod, container) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"})",
+          "expr": "topk(20, sum by (pod, container) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}))",
           "legendFormat": "{{pod}}/{{container}}",
           "refId": "A"
         }
@@ -570,6 +570,21 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Unknown"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
           }
         ]
       },
@@ -603,7 +618,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"running\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Running\"})",
           "instant": true,
           "range": false,
           "legendFormat": "Running",
@@ -614,7 +629,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"pending\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Pending\"})",
           "instant": true,
           "range": false,
           "legendFormat": "Pending",
@@ -625,7 +640,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"failed\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Failed\"})",
           "instant": true,
           "range": false,
           "legendFormat": "Failed",
@@ -636,11 +651,22 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"succeeded\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Succeeded\"})",
           "instant": true,
           "range": false,
           "legendFormat": "Succeeded",
           "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_hcp}"
+          },
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Unknown\"})",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Unknown",
+          "refId": "E"
         }
       ],
       "title": "Current Pod Phase",
@@ -734,7 +760,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum by (pod) (increase(kube_pod_container_status_restarts_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
+          "expr": "topk(20, sum by (pod) (increase(kube_pod_container_status_restarts_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h])))",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -908,7 +934,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "kube_pod_container_status_last_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\"}",
+          "expr": "kube_pod_container_status_last_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\"} == 1",
           "format": "table",
           "instant": true,
           "refId": "A"
@@ -933,24 +959,6 @@
               "pod": "Pod",
               "reason": "Termination Reason"
             }
-          }
-        },
-        {
-          "id": "filterByValue",
-          "options": {
-            "filters": [
-              {
-                "config": {
-                  "id": "greater",
-                  "options": {
-                    "value": 0
-                  }
-                },
-                "fieldName": "Active"
-              }
-            ],
-            "match": "any",
-            "type": "include"
           }
         }
       ],
@@ -1055,7 +1063,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod) (rate(container_network_receive_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum by (pod) (rate(container_network_receive_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", interface=~\"eth.*\"}[$__rate_interval]))",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -1149,7 +1157,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod) (rate(container_network_transmit_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum by (pod) (rate(container_network_transmit_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", interface=~\"eth.*\"}[$__rate_interval]))",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -1246,7 +1254,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod) (rate(container_network_receive_errors_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum by (pod) (rate(container_network_receive_errors_total{cluster=\"$cluster\", namespace=\"$namespace\", interface=~\"eth.*\"}[$__rate_interval]))",
           "legendFormat": "{{pod}} - RX Errors",
           "refId": "A"
         },
@@ -1255,7 +1263,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod) (rate(container_network_transmit_errors_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum by (pod) (rate(container_network_transmit_errors_total{cluster=\"$cluster\", namespace=\"$namespace\", interface=~\"eth.*\"}[$__rate_interval]))",
           "legendFormat": "{{pod}} - TX Errors",
           "refId": "B"
         }
@@ -1369,7 +1377,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}",
+          "expr": "max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\"})",
           "legendFormat": "{{persistentvolumeclaim}}",
           "refId": "A"
         }
@@ -1463,7 +1471,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod, container) (rate(container_fs_reads_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "expr": "topk(20, sum by (pod, container) (rate(container_fs_reads_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\", device=~\"/dev/.*\"}[$__rate_interval])))",
           "legendFormat": "{{pod}}/{{container}}",
           "refId": "A"
         }
@@ -1557,7 +1565,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod, container) (rate(container_fs_writes_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "expr": "topk(20, sum by (pod, container) (rate(container_fs_writes_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\", device=~\"/dev/.*\"}[$__rate_interval])))",
           "legendFormat": "{{pod}}/{{container}}",
           "refId": "A"
         }
@@ -1685,7 +1693,7 @@
         "type": "prometheus",
         "uid": "${datasource_hcp}"
       },
-      "description": "Size of the etcd database (warning at 2GB, critical at 8GB near quota limit).",
+      "description": "Size of the etcd database (warning at 2 GiB, critical at 8 GiB near quota limit).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1702,15 +1710,15 @@
               },
               {
                 "color": "yellow",
-                "value": 2
+                "value": 2147483648
               },
               {
                 "color": "red",
-                "value": 8
+                "value": 8589934592
               }
             ]
           },
-          "unit": "decgbytes"
+          "unit": "bytes"
         },
         "overrides": []
       },
@@ -1744,14 +1752,14 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=\"$namespace\"} / 1024 / 1024 / 1024",
+          "expr": "etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}",
           "instant": true,
           "legendFormat": "{{pod}}",
           "range": false,
           "refId": "A"
         }
       ],
-      "title": "etcd DB Size (GB)",
+      "title": "etcd DB Size",
       "type": "stat"
     },
     {
@@ -1866,7 +1874,7 @@
           "type": "prometheus",
           "uid": "${datasource_hcp}"
         },
-        "definition": "label_values(apiserver_request_total, cluster)",
+        "definition": "label_values(kube_node_info, cluster)",
         "hide": 0,
         "includeAll": false,
         "label": "Cluster (MGMT)",
@@ -1874,7 +1882,7 @@
         "name": "cluster",
         "options": [],
         "query": {
-          "query": "label_values(apiserver_request_total, cluster)",
+          "query": "label_values(kube_node_info, cluster)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
@@ -1889,7 +1897,7 @@
           "type": "prometheus",
           "uid": "${datasource_hcp}"
         },
-        "definition": "label_values(apiserver_request_total{cluster=\"$cluster\"}, namespace)",
+        "definition": "label_values(kube_namespace_labels{cluster=\"$cluster\"}, namespace)",
         "hide": 0,
         "includeAll": false,
         "label": "Namespace (HCP)",
@@ -1897,7 +1905,7 @@
         "name": "namespace",
         "options": [],
         "query": {
-          "query": "label_values(apiserver_request_total{cluster=\"$cluster\"}, namespace)",
+          "query": "label_values(kube_namespace_labels{cluster=\"$cluster\"}, namespace)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
@@ -1912,9 +1920,11 @@
     "from": "now-1h",
     "to": "now"
   },
-  "timepicker": {},
+  "timepicker": {
+    "refresh_intervals": ["5m", "10m", "30m", "1h"]
+  },
   "timezone": "utc",
-  "refresh": "30s",
+  "refresh": "5m",
   "version": 0,
   "weekStart": ""
 }
