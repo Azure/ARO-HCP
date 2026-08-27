@@ -21,6 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	utilsclock "k8s.io/utils/clock"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -45,8 +47,8 @@ func TestEligibleClusters(t *testing.T) {
 	eligible := eligibleClusters(spcs, best)
 
 	names := map[string]bool{}
-	for _, spc := range eligible {
-		names[spcClusterName(spc)] = true
+	for _, serviceProviderCluster := range eligible {
+		names[serviceProviderClusterName(serviceProviderCluster)] = true
 	}
 	assert.True(t, names["below"])
 	assert.True(t, names["no-desired"])
@@ -195,6 +197,7 @@ func TestNormalClusterDesiredVersionSyncer_SyncOnce_Canary(t *testing.T) {
 	store := newFakeRolloutStore(newTestRollout(channel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
 
 	syncer := NewNormalClusterDesiredVersionSyncer(
+		utilsclock.RealClock{},
 		mockDB, store, store,
 		&corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
 		&corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},

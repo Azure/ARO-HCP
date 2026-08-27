@@ -25,7 +25,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -43,6 +45,19 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/kubeapplierlistertesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+// assertActiveVersionsIgnoringTransitionTime compares active versions ignoring
+// LastTransitionTime, which is stamped from a clock and is not the subject of
+// these assertions.
+func assertActiveVersionsIgnoringTransitionTime(t *testing.T, expected, actual []coreapi.ServiceProviderClusterActiveVersion) {
+	t.Helper()
+	normalized := make([]coreapi.ServiceProviderClusterActiveVersion, len(actual))
+	copy(normalized, actual)
+	for i := range normalized {
+		normalized[i].LastTransitionTime = metav1.Time{}
+	}
+	assert.Equal(t, expected, normalized)
+}
 
 func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 	testKey := controllerutils.HCPClusterKey{
@@ -97,7 +112,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				}
 				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, expectedVersions, spc.Status.ControlPlaneVersion.ActiveVersions)
+				assertActiveVersionsIgnoringTransitionTime(t, expectedVersions, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
 		},
 		{
@@ -122,7 +137,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				}
 				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, expectedSPCVersions, spc.Status.ControlPlaneVersion.ActiveVersions)
+				assertActiveVersionsIgnoringTransitionTime(t, expectedSPCVersions, spc.Status.ControlPlaneVersion.ActiveVersions)
 
 				expectedHCPVersions := []coreapi.HCPClusterActiveVersion{
 					{Version: "4.19"},
@@ -153,7 +168,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				}
 				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, expectedSPCVersions, spc.Status.ControlPlaneVersion.ActiveVersions)
+				assertActiveVersionsIgnoringTransitionTime(t, expectedSPCVersions, spc.Status.ControlPlaneVersion.ActiveVersions)
 
 				expectedHCPVersions := []coreapi.HCPClusterActiveVersion{
 					{Version: "4.19"},
@@ -217,7 +232,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []coreapi.ServiceProviderClusterActiveVersion{
+				assertActiveVersionsIgnoringTransitionTime(t, []coreapi.ServiceProviderClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -243,7 +258,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []coreapi.ServiceProviderClusterActiveVersion{
+				assertActiveVersionsIgnoringTransitionTime(t, []coreapi.ServiceProviderClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.20.1")), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -266,7 +281,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []coreapi.ServiceProviderClusterActiveVersion{
+				assertActiveVersionsIgnoringTransitionTime(t, []coreapi.ServiceProviderClusterActiveVersion{
 					{Version: ptr.To(metadataapi.Must(semver.ParseTolerant("4.19.0-0.nightly-multi-2026-01-10-204154"))), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -292,7 +307,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []coreapi.ServiceProviderClusterActiveVersion{
+				assertActiveVersionsIgnoringTransitionTime(t, []coreapi.ServiceProviderClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.19.17")), State: configv1.PartialUpdate},
 					{Version: ptr.To(semver.MustParse("4.19.16")), State: configv1.PartialUpdate},
 					{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
@@ -325,6 +340,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &controlPlaneActiveVersionSyncer{
+				clock:                        utilsclock.RealClock{},
 				resourcesDBClient:            mockResourcesDBClient,
 				clusterLister:                &corelistertesting.SliceClusterLister{Clusters: cachedClusters},
 				readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
@@ -371,6 +387,7 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 	beforeETag := before.CosmosETag
 
 	syncer := &controlPlaneActiveVersionSyncer{
+		clock:                        utilsclock.RealClock{},
 		resourcesDBClient:            mockResourcesDBClient,
 		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cachedCluster}},
 		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
@@ -424,6 +441,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce_ReadsClusterFromCache(t *testi
 	)}
 
 	syncer := &controlPlaneActiveVersionSyncer{
+		clock:                        utilsclock.RealClock{},
 		resourcesDBClient:            mockResourcesDBClient,
 		clusterLister:                &corelistertesting.SliceClusterLister{Clusters: []*coreapi.HCPOpenShiftCluster{cachedCluster}},
 		readDesireLister:             &kubeapplierlistertesting.SliceReadDesireLister{Desires: desires},
@@ -438,7 +456,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce_ReadsClusterFromCache(t *testi
 
 	spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(runCtx, coreapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
-	assert.Equal(t, []coreapi.ServiceProviderClusterActiveVersion{
+	assertActiveVersionsIgnoringTransitionTime(t, []coreapi.ServiceProviderClusterActiveVersion{
 		{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
 	}, spc.Status.ControlPlaneVersion.ActiveVersions,
 		"ServiceProviderCluster ActiveVersions must be written from the ReadDesire; empty means the cluster read did not resolve from the cache")

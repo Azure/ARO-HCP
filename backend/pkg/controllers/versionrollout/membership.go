@@ -23,18 +23,15 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listers/corelisters"
 )
 
-// defaultChannelGroup is used when a cluster does not specify a channel group.
-const defaultChannelGroup = "stable"
-
 // clusterMinor returns the minor version that places a cluster in a rollout: the
 // desired version's minor when set, otherwise the earliest active version's
 // minor. The boolean is false when neither is known.
-func clusterMinor(spc *coreapi.ServiceProviderCluster) (string, bool) {
-	if d := desiredVersion(spc); d != nil {
-		return minorString(*d), true
+func clusterMinor(serviceProviderCluster *coreapi.ServiceProviderCluster) (string, bool) {
+	if desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion; desired != nil {
+		return minorString(*desired), true
 	}
-	if a := earliestActiveVersion(spc.Status.ControlPlaneVersion.ActiveVersions); a != nil {
-		return minorString(*a), true
+	if active := earliestActiveVersion(serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions); active != nil {
+		return minorString(*active), true
 	}
 	return "", false
 }
@@ -42,51 +39,47 @@ func clusterMinor(spc *coreapi.ServiceProviderCluster) (string, bool) {
 // serviceProviderClustersForChannel returns every ServiceProviderCluster that
 // belongs to the given y-stream channel: its cluster's channel group matches and
 // its effective minor (see clusterMinor) equals the channel's minor. Clusters
-// whose backing HCPOpenShiftCluster is gone are skipped.
-func serviceProviderClustersForChannel(ctx context.Context, spcLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, channel string) ([]*coreapi.ServiceProviderCluster, error) {
-	channelGroup, minor, ok := parseYStreamChannel(channel)
+// whose backing HCPOpenShiftCluster is gone, or which have no channel group, are
+// not matched (there is no default channel group).
+func serviceProviderClustersForChannel(ctx context.Context, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, yStreamChannel string) ([]*coreapi.ServiceProviderCluster, error) {
+	channelGroup, minor, ok := parseYStreamChannel(yStreamChannel)
 	if !ok {
-		return nil, fmt.Errorf("invalid y-stream channel %q", channel)
+		return nil, fmt.Errorf("invalid y-stream channel %q", yStreamChannel)
 	}
 
 	clusters, err := clusterLister.List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Clusters: %w", err)
 	}
-	groupByClusterID := make(map[string]string, len(clusters))
-	for _, cl := range clusters {
-		if cl.ID == nil {
+	// A cluster with no channel group is not defaulted to any group; it simply
+	// matches no rollout channel.
+	channelGroupByClusterID := make(map[string]string, len(clusters))
+	for _, cluster := range clusters {
+		if cluster.ID == nil {
 			continue
 		}
-		cg := cl.CustomerProperties.Version.ChannelGroup
-		if cg == "" {
-			cg = defaultChannelGroup
-		}
-		groupByClusterID[strings.ToLower(cl.ID.String())] = cg
+		channelGroupByClusterID[strings.ToLower(cluster.ID.String())] = cluster.CustomerProperties.Version.ChannelGroup
 	}
 
-	spcs, err := spcLister.List(ctx)
+	serviceProviderClusters, err := serviceProviderClusterLister.List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list ServiceProviderClusters: %w", err)
 	}
 
-	var out []*coreapi.ServiceProviderCluster
-	for _, spc := range spcs {
-		m, ok := clusterMinor(spc)
-		if !ok || m != minor {
+	var matched []*coreapi.ServiceProviderCluster
+	for _, serviceProviderCluster := range serviceProviderClusters {
+		clusterMinorVersion, ok := clusterMinor(serviceProviderCluster)
+		if !ok || clusterMinorVersion != minor {
 			continue
 		}
-		if spc.ResourceID == nil || spc.ResourceID.Parent == nil {
+		if serviceProviderCluster.ResourceID == nil || serviceProviderCluster.ResourceID.Parent == nil {
 			continue
 		}
-		cg, ok := groupByClusterID[strings.ToLower(spc.ResourceID.Parent.String())]
-		if !ok {
-			continue // backing cluster is gone
-		}
-		if cg != channelGroup {
+		clusterChannelGroup, ok := channelGroupByClusterID[strings.ToLower(serviceProviderCluster.ResourceID.Parent.String())]
+		if !ok || clusterChannelGroup != channelGroup {
 			continue
 		}
-		out = append(out, spc)
+		matched = append(matched, serviceProviderCluster)
 	}
-	return out, nil
+	return matched, nil
 }

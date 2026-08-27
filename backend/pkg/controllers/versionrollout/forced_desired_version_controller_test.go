@@ -22,6 +22,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	utilsclock "k8s.io/utils/clock"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
@@ -182,6 +184,7 @@ func TestForcedClusterDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &forcedClusterDesiredVersionSyncer{
+				clock:                        utilsclock.RealClock{},
 				resourcesDBClient:            mockDB,
 				clusterLister:                &corelistertesting.DBClusterLister{ResourcesDBClient: mockDB},
 				serviceProviderClusterLister: &corelistertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},
@@ -203,9 +206,9 @@ func TestForcedClusterDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			assert.True(t, updated.Spec.ControlPlaneVersion.DesiredVersion.EQ(*tc.wantDesired),
 				"desired got %v want %v", updated.Spec.ControlPlaneVersion.DesiredVersion, tc.wantDesired)
 			if tc.wantPinCleared {
-				assert.Nil(t, updated.Spec.PinnedVersion, "expected pin cleared")
+				assert.Nil(t, updated.Spec.PinnedVersion.ExactVersion, "expected pin cleared")
 			} else {
-				assert.NotNil(t, updated.Spec.PinnedVersion, "expected pin retained")
+				assert.NotNil(t, updated.Spec.PinnedVersion.ExactVersion, "expected pin retained")
 			}
 		})
 	}

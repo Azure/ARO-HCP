@@ -22,11 +22,32 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clocktesting "k8s.io/utils/clock/testing"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/fleetapi"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting/corelistertesting"
 )
+
+var statusTestNow = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+// completedAgo builds a completed active-version entry whose LastTransitionTime
+// is ago before statusTestNow.
+func completedAgo(version string, ago time.Duration) coreapi.HCPClusterActiveVersion {
+	entry := completed(version)
+	entry.LastTransitionTime = metav1.Time{Time: statusTestNow.Add(-ago)}
+	return entry
+}
+
+// desiredSince sets the cluster's DesiredVersionLastTransitionTime to ago before
+// statusTestNow and returns it.
+func desiredSince(serviceProviderCluster *coreapi.ServiceProviderCluster, ago time.Duration) *coreapi.ServiceProviderCluster {
+	t := metav1.Time{Time: statusTestNow.Add(-ago)}
+	serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersionLastTransitionTime = &t
+	return serviceProviderCluster
+}
 
 func TestComputeRolloutStatusCounts(t *testing.T) {
 	t.Parallel()
@@ -35,29 +56,18 @@ func TestComputeRolloutStatusCounts(t *testing.T) {
 	cfg.MinVersionReadyDuration = time.Hour
 	cfg.MaxUpgradeDuration["4.21"] = 2 * time.Hour
 
-	spcs := []*coreapi.ServiceProviderCluster{
-		// achieved 4.21.6, stable long enough -> successful
-		newTestSPC("done-stable", v("4.21.6"), []coreapi.HCPClusterActiveVersion{completed("4.21.6")}, nil),
-		// achieved 4.21.6, but not stable long enough -> achieved but not successful
-		newTestSPC("done-fresh", v("4.21.6"), []coreapi.HCPClusterActiveVersion{completed("4.21.6")}, nil),
-		// desires 4.21.6, still in flight (base is 4.21.4) -> mismatched
-		newTestSPC("upgrading", v("4.21.6"), []coreapi.HCPClusterActiveVersion{partial("4.21.6"), completed("4.21.4")}, nil),
+	serviceProviderClusters := []*coreapi.ServiceProviderCluster{
+		// achieved 4.21.6, stable > MinVersionReadyDuration -> successful
+		newTestSPC("done-stable", v("4.21.6"), []coreapi.HCPClusterActiveVersion{completedAgo("4.21.6", 2*time.Hour)}, nil),
+		// achieved 4.21.6, but not stable long enough -> achieved, not successful
+		newTestSPC("done-fresh", v("4.21.6"), []coreapi.HCPClusterActiveVersion{completedAgo("4.21.6", 10*time.Minute)}, nil),
+		// desires 4.21.6, in flight (base 4.21.4) within max upgrade duration -> mismatched
+		desiredSince(newTestSPC("upgrading", v("4.21.6"), []coreapi.HCPClusterActiveVersion{partial("4.21.6"), completedAgo("4.21.4", 5*time.Hour)}, nil), 30*time.Minute),
 		// desires 4.21.6, in flight beyond max upgrade duration -> failed
-		newTestSPC("stuck", v("4.21.6"), []coreapi.HCPClusterActiveVersion{partial("4.21.6"), completed("4.21.4")}, nil),
+		desiredSince(newTestSPC("stuck", v("4.21.6"), []coreapi.HCPClusterActiveVersion{partial("4.21.6"), completedAgo("4.21.4", 5*time.Hour)}, nil), 3*time.Hour),
 	}
 
-	ages := fakeAgeSource{
-		achieved: map[string]time.Duration{
-			"done-stable": 2 * time.Hour, // > MinVersionReadyDuration
-			"done-fresh":  10 * time.Minute,
-		},
-		mismatch: map[string]time.Duration{
-			"upgrading": 30 * time.Minute, // < MaxUpgradeDuration
-			"stuck":     3 * time.Hour,    // > MaxUpgradeDuration
-		},
-	}
-
-	counts := computeRolloutStatusCounts(spcs, cfg, ages)
+	counts := computeRolloutStatusCounts(serviceProviderClusters, cfg, statusTestNow)
 
 	assert.Equal(t, int64(4), counts.Desired["4.21.6"], "all four desire 4.21.6")
 	assert.Equal(t, int64(2), counts.Achieved["4.21.6"], "two have achieved 4.21.6")
@@ -68,22 +78,23 @@ func TestComputeRolloutStatusCounts(t *testing.T) {
 	assert.Equal(t, int64(2), counts.Achieved["4.21.4"])
 }
 
-func TestComputeRolloutStatusCounts_UnknownAgesLeaveFailedAndSuccessfulEmpty(t *testing.T) {
+func TestComputeRolloutStatusCounts_ZeroTransitionTimesLeaveFailedAndSuccessfulEmpty(t *testing.T) {
 	t.Parallel()
 	cfg := NewDefaultRolloutConfig()
 	cfg.MaxUpgradeDuration["4.21"] = time.Hour
 
-	spcs := []*coreapi.ServiceProviderCluster{
+	serviceProviderClusters := []*coreapi.ServiceProviderCluster{
+		// no LastTransitionTime / DesiredVersionLastTransitionTime set
 		newTestSPC("done", v("4.21.6"), []coreapi.HCPClusterActiveVersion{completed("4.21.6")}, nil),
 		newTestSPC("upgrading", v("4.21.6"), []coreapi.HCPClusterActiveVersion{partial("4.21.6"), completed("4.21.4")}, nil),
 	}
 
-	counts := computeRolloutStatusCounts(spcs, cfg, UnknownVersionAgeSource{})
+	counts := computeRolloutStatusCounts(serviceProviderClusters, cfg, statusTestNow)
 
 	assert.Equal(t, int64(1), counts.Achieved["4.21.6"])
 	assert.Equal(t, int64(1), counts.Mismatched["4.21.6"])
-	assert.Empty(t, counts.Successful, "unknown ages leave successful empty")
-	assert.Empty(t, counts.Failed, "unknown ages leave failed empty")
+	assert.Empty(t, counts.Successful, "zero transition times leave successful empty")
+	assert.Empty(t, counts.Failed, "zero transition times leave failed empty")
 }
 
 func TestStatusCollectorSyncer_SyncOnce(t *testing.T) {
@@ -97,7 +108,7 @@ func TestStatusCollectorSyncer_SyncOnce(t *testing.T) {
 		newTestCluster("other-group", "fast", "4.21"), // different channel group, excluded
 		newTestCluster("other-minor", "stable", "4.22"),
 	}
-	spcs := []*coreapi.ServiceProviderCluster{
+	serviceProviderClusters := []*coreapi.ServiceProviderCluster{
 		newTestSPC("c1", v("4.21.6"), []coreapi.HCPClusterActiveVersion{completed("4.21.6")}, nil),
 		newTestSPC("c2", v("4.21.6"), []coreapi.HCPClusterActiveVersion{partial("4.21.6"), completed("4.21.4")}, nil),
 		newTestSPC("other-group", v("4.21.6"), nil, nil),
@@ -106,10 +117,10 @@ func TestStatusCollectorSyncer_SyncOnce(t *testing.T) {
 
 	store := newFakeRolloutStore(newTestRollout(channel, v("4.21.6"), fleetapi.ControlPlaneVersionRolloutStatus{}))
 	syncer := NewStatusCollectorSyncer(
+		clocktesting.NewFakeClock(statusTestNow),
 		store, store,
-		&corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: spcs},
+		&corelistertesting.SliceServiceProviderClusterLister{ServiceProviderClusters: serviceProviderClusters},
 		&corelistertesting.SliceClusterLister{Clusters: clusters},
-		UnknownVersionAgeSource{},
 		NewDefaultRolloutConfig(),
 	)
 

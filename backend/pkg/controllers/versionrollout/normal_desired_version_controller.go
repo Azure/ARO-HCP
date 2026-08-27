@@ -16,6 +16,7 @@ package versionrollout
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
@@ -58,6 +60,7 @@ const (
 // bounded set of eligible clusters toward Spec.BestExactVersion using a canary
 // then rolling strategy, guarded by the failure budget.
 type normalClusterDesiredVersionSyncer struct {
+	clock                        utilsclock.PassiveClock
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	rolloutLister                RolloutLister
 	rolloutWriter                RolloutWriter
@@ -68,8 +71,9 @@ type normalClusterDesiredVersionSyncer struct {
 }
 
 // NewNormalClusterDesiredVersionSyncer constructs the syncer directly (used by tests).
-func NewNormalClusterDesiredVersionSyncer(resourcesDBClient corecosmosstorage.ResourcesDBClient, rolloutLister RolloutLister, rolloutWriter RolloutWriter, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, selector ClusterSelector, config RolloutConfig) *normalClusterDesiredVersionSyncer {
+func NewNormalClusterDesiredVersionSyncer(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, rolloutLister RolloutLister, rolloutWriter RolloutWriter, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, selector ClusterSelector, config RolloutConfig) *normalClusterDesiredVersionSyncer {
 	return &normalClusterDesiredVersionSyncer{
+		clock:                        clock,
 		resourcesDBClient:            resourcesDBClient,
 		rolloutLister:                rolloutLister,
 		rolloutWriter:                rolloutWriter,
@@ -82,12 +86,13 @@ func NewNormalClusterDesiredVersionSyncer(resourcesDBClient corecosmosstorage.Re
 
 // NewNormalClusterDesiredVersionController wires the syncer into a rollout
 // watching controller. selector defaults to RandomClusterSelector when nil.
-func NewNormalClusterDesiredVersionController(resourcesDBClient corecosmosstorage.ResourcesDBClient, fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, selector ClusterSelector, config RolloutConfig) controllerutils.Controller {
+func NewNormalClusterDesiredVersionController(clock utilsclock.PassiveClock, resourcesDBClient corecosmosstorage.ResourcesDBClient, fleetDBClient fleetcosmosstorage.FleetDBClient, fleetInformers fleetinformers.FleetInformers, serviceProviderClusterLister corelisters.ServiceProviderClusterLister, clusterLister corelisters.ClusterLister, selector ClusterSelector, config RolloutConfig) controllerutils.Controller {
 	if selector == nil {
 		selector = RandomClusterSelector{}
 	}
 	_, rolloutLister := fleetInformers.ControlPlaneVersionRollouts()
 	syncer := &normalClusterDesiredVersionSyncer{
+		clock:                        clock,
 		resourcesDBClient:            resourcesDBClient,
 		rolloutLister:                rolloutLister,
 		rolloutWriter:                NewFleetRolloutWriter(fleetDBClient),
@@ -108,20 +113,20 @@ func (c *normalClusterDesiredVersionSyncer) CooldownChecker() controllerutil.Coo
 // eligibleClusters returns the clusters that may be advanced to best now: those
 // below best (or with no desired version yet) that are either unpinned or pinned
 // with a release threshold at/under best. It is a pure function.
-func eligibleClusters(spcs []*coreapi.ServiceProviderCluster, best semver.Version) []*coreapi.ServiceProviderCluster {
+func eligibleClusters(serviceProviderClusters []*coreapi.ServiceProviderCluster, best semver.Version) []*coreapi.ServiceProviderCluster {
 	var eligible []*coreapi.ServiceProviderCluster
-	for _, spc := range spcs {
-		desired := desiredVersion(spc)
+	for _, serviceProviderCluster := range serviceProviderClusters {
+		desired := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
 		below := desired == nil || desired.LT(best)
 		if !below {
 			continue
 		}
-		pin := spc.Spec.PinnedVersion
+		pin := serviceProviderCluster.Spec.PinnedVersion
 		switch {
-		case pin == nil || pin.ExactVersion == nil:
-			eligible = append(eligible, spc)
+		case pin.ExactVersion == nil:
+			eligible = append(eligible, serviceProviderCluster)
 		case pin.UntilExactVersion != nil && pin.UntilExactVersion.LTE(best):
-			eligible = append(eligible, spc)
+			eligible = append(eligible, serviceProviderCluster)
 		default:
 			// pinned and still holding; not eligible
 		}
@@ -184,7 +189,7 @@ func rolloutDecision(rollout *fleetapi.ControlPlaneVersionRollout, totalClusters
 	// Step 3: canary — select until in-flight reaches canary% + 2.
 	canaryThreshold := percentOfCeil(config.CanaryPercentage, total) + 2
 	if inFlightOrDone < canaryThreshold {
-		n := clampSelect(canaryThreshold-inFlightOrDone, eligibleCount)
+		n := int(min(canaryThreshold-inFlightOrDone, int64(eligibleCount)))
 		return rolloutDecisionResult{Outcome: outcomeCanary, SelectCount: n, Message: fmt.Sprintf("selecting %d canary clusters for %s", n, key)}
 	}
 
@@ -196,22 +201,11 @@ func rolloutDecision(rollout *fleetapi.ControlPlaneVersionRollout, totalClusters
 	// Step 6: rolling — select until in-flight reaches rolling%.
 	rollingThreshold := percentOfCeil(config.RollingPercentage, total)
 	if inFlightOrDone < rollingThreshold {
-		n := clampSelect(rollingThreshold-inFlightOrDone, eligibleCount)
+		n := int(min(rollingThreshold-inFlightOrDone, int64(eligibleCount)))
 		return rolloutDecisionResult{Outcome: outcomeRolling, SelectCount: n, Message: fmt.Sprintf("selecting %d rolling clusters for %s", n, key)}
 	}
 
 	return rolloutDecisionResult{Outcome: outcomeProgressing, Message: fmt.Sprintf("rollout to %s in progress", key)}
-}
-
-// clampSelect bounds a desired selection count to [0, eligibleCount].
-func clampSelect(need int64, eligibleCount int) int {
-	if need <= 0 {
-		return 0
-	}
-	if need > int64(eligibleCount) {
-		return eligibleCount
-	}
-	return int(need)
 }
 
 // SyncOnce advances clusters for one rollout channel and records the rollout
@@ -225,54 +219,65 @@ func (c *normalClusterDesiredVersionSyncer) SyncOnce(ctx context.Context, key co
 		return utils.TrackError(fmt.Errorf("failed to get ControlPlaneVersionRollout %q: %w", key.YStreamChannel, err))
 	}
 
-	spcs, err := serviceProviderClustersForChannel(ctx, c.serviceProviderClusterLister, c.clusterLister, key.YStreamChannel)
+	serviceProviderClusters, err := serviceProviderClustersForChannel(ctx, c.serviceProviderClusterLister, c.clusterLister, key.YStreamChannel)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	var eligible []*coreapi.ServiceProviderCluster
 	if rollout.Spec.BestExactVersion != nil {
-		eligible = eligibleClusters(spcs, *rollout.Spec.BestExactVersion)
+		eligible = eligibleClusters(serviceProviderClusters, *rollout.Spec.BestExactVersion)
 	}
 
-	decision := rolloutDecision(rollout, len(spcs), len(eligible), c.config)
+	decision := rolloutDecision(rollout, len(serviceProviderClusters), len(eligible), c.config)
 
+	// Advance the selected clusters, accumulating errors so one failure does not
+	// stop the others; a partial failure still records the rollout condition and
+	// marks it degraded.
+	var assignErrs []error
 	if decision.SelectCount > 0 {
 		best := *rollout.Spec.BestExactVersion
-		for _, spc := range c.selector.Select(eligible, decision.SelectCount) {
-			if err := c.assignDesiredVersion(ctx, spc, best); err != nil {
-				return utils.TrackError(err)
+		now := metav1.Time{Time: c.clock.Now()}
+		for _, serviceProviderCluster := range c.selector.Select(eligible, decision.SelectCount) {
+			if assignErr := c.assignDesiredVersion(ctx, serviceProviderCluster, best, now); assignErr != nil {
+				assignErrs = append(assignErrs, assignErr)
 			}
 		}
 	}
+	assignErr := errors.Join(assignErrs...)
 
-	return c.recordCondition(ctx, rollout, decision)
+	conditionErr := c.recordCondition(ctx, rollout, decision, assignErr)
+	return errors.Join(assignErr, conditionErr)
 }
 
-// assignDesiredVersion sets a single cluster's desired version to best.
-func (c *normalClusterDesiredVersionSyncer) assignDesiredVersion(ctx context.Context, spc *coreapi.ServiceProviderCluster, best semver.Version) error {
-	sub, rg, cluster, ok := spcClusterCoords(spc)
+// assignDesiredVersion sets a single cluster's desired version to best, recording
+// the transition time.
+func (c *normalClusterDesiredVersionSyncer) assignDesiredVersion(ctx context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster, best semver.Version, now metav1.Time) error {
+	subscription, resourceGroup, cluster, ok := serviceProviderClusterCoords(serviceProviderCluster)
 	if !ok {
 		return fmt.Errorf("ServiceProviderCluster is missing a cluster-scoped resource ID")
 	}
-	replacement := spc.DeepCopy()
+	replacement := serviceProviderCluster.DeepCopy()
 	bestCopy := best
-	replacement.Spec.ControlPlaneVersion.DesiredVersion = &bestCopy
-	if _, err := c.resourcesDBClient.ServiceProviderClusters(sub, rg, cluster).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
+	setDesiredVersion(replacement, &bestCopy, now)
+	if _, err := c.resourcesDBClient.ServiceProviderClusters(subscription, resourceGroup, cluster).Replace(ctx, replacement, nil); cosmosstorageutils.IsPreconditionFailedError(err) {
 		return nil
 	} else if err != nil {
-		return fmt.Errorf("failed to replace ServiceProviderCluster %s/%s/%s: %w", sub, rg, cluster, err)
+		return fmt.Errorf("failed to replace ServiceProviderCluster %s/%s/%s: %w", subscription, resourceGroup, cluster, err)
 	}
 	return nil
 }
 
 // recordCondition writes the rollout's Progressing/Degraded conditions from the
-// decision, skipping the write when nothing changed.
-func (c *normalClusterDesiredVersionSyncer) recordCondition(ctx context.Context, rollout *fleetapi.ControlPlaneVersionRollout, decision rolloutDecisionResult) error {
+// decision, skipping the write when nothing changed. A non-nil syncErr forces
+// Degraded to true regardless of the decision.
+func (c *normalClusterDesiredVersionSyncer) recordCondition(ctx context.Context, rollout *fleetapi.ControlPlaneVersionRollout, decision rolloutDecisionResult, syncErr error) error {
 	replacement := rollout.DeepCopy()
 
 	progressing := metav1.ConditionFalse
 	degraded := metav1.ConditionFalse
+	degradedReason := string(decision.Outcome)
+	degradedMessage := decision.Message
 	switch decision.Outcome {
 	case outcomeCanary, outcomeRolling, outcomeProgressing:
 		progressing = metav1.ConditionTrue
@@ -280,6 +285,11 @@ func (c *normalClusterDesiredVersionSyncer) recordCondition(ctx context.Context,
 		degraded = metav1.ConditionTrue
 	case outcomeStable, outcomeNoBest:
 		// both false
+	}
+	if syncErr != nil {
+		degraded = metav1.ConditionTrue
+		degradedReason = "AssignmentFailed"
+		degradedMessage = fmt.Sprintf("failed to advance one or more clusters: %v", syncErr)
 	}
 
 	meta.SetStatusCondition(&replacement.Status.Conditions, metav1.Condition{
@@ -291,8 +301,8 @@ func (c *normalClusterDesiredVersionSyncer) recordCondition(ctx context.Context,
 	meta.SetStatusCondition(&replacement.Status.Conditions, metav1.Condition{
 		Type:    ConditionDegraded,
 		Status:  degraded,
-		Reason:  string(decision.Outcome),
-		Message: decision.Message,
+		Reason:  degradedReason,
+		Message: degradedMessage,
 	})
 
 	if equality.Semantic.DeepEqual(rollout.Status.Conditions, replacement.Status.Conditions) {
@@ -306,10 +316,11 @@ func (c *normalClusterDesiredVersionSyncer) recordCondition(ctx context.Context,
 	return nil
 }
 
-// spcClusterCoords extracts the subscription, resource group, and cluster name
-// from a ServiceProviderCluster's resource ID (it is nested under its cluster).
-func spcClusterCoords(spc *coreapi.ServiceProviderCluster) (subscription, resourceGroup, cluster string, ok bool) {
-	id := spc.ResourceID
+// serviceProviderClusterCoords extracts the subscription, resource group, and
+// cluster name from a ServiceProviderCluster's resource ID (it is nested under
+// its cluster).
+func serviceProviderClusterCoords(serviceProviderCluster *coreapi.ServiceProviderCluster) (subscription, resourceGroup, cluster string, ok bool) {
+	id := serviceProviderCluster.ResourceID
 	if id == nil || id.Parent == nil || id.SubscriptionID == "" || id.ResourceGroupName == "" {
 		return "", "", "", false
 	}

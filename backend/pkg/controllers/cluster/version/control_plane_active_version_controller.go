@@ -22,6 +22,9 @@ import (
 
 	"github.com/blang/semver/v4"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilsclock "k8s.io/utils/clock"
+
 	configv1 "github.com/openshift/api/config/v1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
@@ -43,6 +46,7 @@ import (
 // version from the per-cluster ReadDesire kubeContent (the kube-applier's mirror of the
 // management cluster's HostedCluster).
 type controlPlaneActiveVersionSyncer struct {
+	clock                        utilsclock.PassiveClock
 	resourcesDBClient            corecosmosstorage.ResourcesDBClient
 	clusterLister                corelisters.ClusterLister
 	readDesireLister             kubeapplierlisters.ReadDesireLister
@@ -55,6 +59,7 @@ var _ controllerutils.ClusterSyncer = (*controlPlaneActiveVersionSyncer)(nil)
 // Status.ControlPlaneVersion.ActiveVersions from the per-cluster ReadDesire's
 // observed HostedCluster.
 func NewControlPlaneActiveVersionController(
+	clock utilsclock.PassiveClock,
 	resourcesDBClient corecosmosstorage.ResourcesDBClient,
 	clusterLister corelisters.ClusterLister,
 	serviceProviderClusterLister corelisters.ServiceProviderClusterLister,
@@ -63,6 +68,7 @@ func NewControlPlaneActiveVersionController(
 	readDesireLister kubeapplierlisters.ReadDesireLister,
 ) controllerutils.Controller {
 	syncer := &controlPlaneActiveVersionSyncer{
+		clock:                        clock,
 		resourcesDBClient:            resourcesDBClient,
 		clusterLister:                clusterLister,
 		readDesireLister:             readDesireLister,
@@ -133,6 +139,8 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	// DesiredVersionChannels is a plain []string, so slices.Equal compares it by value.
 	oldActiveVersions := cachedServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
 	oldDesiredChannels := cachedServiceProviderCluster.Status.DesiredVersionChannels
+	// Preserve the age of unchanged versions for fleet rollout readiness.
+	newActiveVersions = mergeActiveVersionLastTransitionTimes(oldActiveVersions, newActiveVersions, metav1.Time{Time: c.clock.Now()})
 	if controllerutil.NeedsUpdate(oldActiveVersions, newActiveVersions) || !slices.Equal(oldDesiredChannels, newDesiredChannels) {
 		logger := utils.LoggerFromContext(ctx)
 		logger.Info("Active versions or desired channels changed",
@@ -215,6 +223,24 @@ func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx con
 		}
 	}
 	return activeVersions, nil
+}
+
+// mergeActiveVersionLastTransitionTimes stamps LastTransitionTime on each new
+// active version: if the same (version, state) was already present it keeps the
+// existing timestamp, otherwise it uses now. This records when each version last
+// entered its current state without churning the list on every sync.
+func mergeActiveVersionLastTransitionTimes(oldVersions, newVersions []coreapi.ServiceProviderClusterActiveVersion, now metav1.Time) []coreapi.ServiceProviderClusterActiveVersion {
+	for i := range newVersions {
+		newVersions[i].LastTransitionTime = now
+		for _, old := range oldVersions {
+			if old.Version != nil && newVersions[i].Version != nil &&
+				old.Version.EQ(*newVersions[i].Version) && old.State == newVersions[i].State {
+				newVersions[i].LastTransitionTime = old.LastTransitionTime
+				break
+			}
+		}
+	}
+	return newVersions
 }
 
 // getHostedClusterDesiredVersionChannels returns the observed
